@@ -23,6 +23,11 @@ type Config struct {
 
 	// UploadMaxMB limits multipart image uploads (default 10 MB).
 	UploadMaxMB int
+
+	// CollectorBaseURL is the Node collector HTTP base (e.g. http://127.0.0.1:3100).
+	CollectorBaseURL string
+	// CollectorTimeoutSeconds caps outbound HTTP calls to the collector (default 60).
+	CollectorTimeoutSeconds int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -68,6 +73,9 @@ func Load() (*Config, error) {
 		BootstrapAdminPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
 
 		UploadMaxMB: atoiOrDefault(os.Getenv("UPLOAD_MAX_MB"), 10),
+
+		CollectorBaseURL:        strings.TrimRight(strings.TrimSpace(firstNonEmpty(os.Getenv("COLLECTOR_BASE_URL"), "http://127.0.0.1:3100")), "/"),
+		CollectorTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECTOR_TIMEOUT_SECONDS"), 60),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))

@@ -42,6 +42,13 @@ export default [
     redirect: '/product/drafts',
     routes: [
       {
+        path: '/product/drafts/:id',
+        name: '商品详情',
+        component: './Product/DraftDetail',
+        hideInMenu: true,
+        access: 'canAdmin',
+      },
+      {
         path: '/product/drafts',
         name: '商品草稿',
         component: './Product/Drafts',

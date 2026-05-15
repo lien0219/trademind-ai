@@ -4,8 +4,10 @@ import (
 	"fmt"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"gorm.io/gorm"
 )
@@ -20,5 +22,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&settings.Setting{},
 		&operationlog.OperationLog{},
 		&files.FileRecord{},
+		&product.Product{},
+		&product.ProductImage{},
+		&product.ProductSKU{},
+		&collect.CollectTask{},
 	)
 }

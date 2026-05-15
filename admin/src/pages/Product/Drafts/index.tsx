@@ -1,64 +1,142 @@
-import { FileImageOutlined } from '@ant-design/icons';
-import type { ProColumns } from '@ant-design/pro-components';
+import {
+  ModalForm,
+  ProFormText,
+  ProFormTextArea,
+} from '@ant-design/pro-components';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Space, Tag, Typography } from 'antd';
+import { Button, Image, Space, Tag, Typography } from 'antd';
+import { useRef, useState } from 'react';
 import { PRODUCT_STATUS } from '@/constants/status';
-
-type Row = {
-  id: string;
-  title: string;
-  status: string;
-  updatedAt: string;
-};
-
-const columns: ProColumns<Row>[] = [
-  { title: '标题', dataIndex: 'title', ellipsis: true },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    width: 120,
-    render: (_, row) => {
-      const m = PRODUCT_STATUS[row.status as keyof typeof PRODUCT_STATUS];
-      return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
-    },
-  },
-  { title: '更新时间', dataIndex: 'updatedAt', width: 180, search: false },
-  {
-    title: '操作',
-    valueType: 'option',
-    width: 120,
-    render: () => [<a key="edit">编辑</a>],
-  },
-];
+import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
 
 export default function ProductDraftsPage() {
+  const actionRef = useRef<ActionType>();
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const columns: ProColumns<ProductListRow>[] = [
+    {
+      title: '商品图',
+      dataIndex: 'coverUrl',
+      width: 88,
+      search: false,
+      render: (_, row) =>
+        row.coverUrl ? (
+          <Image src={row.coverUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 4 }} />
+        ) : (
+          <Typography.Text type="secondary">—</Typography.Text>
+        ),
+    },
+    {
+      title: '标题',
+      dataIndex: 'keyword',
+      hideInTable: true,
+      fieldProps: { placeholder: '搜索标题' },
+      search: {
+        transform: (v) => ({ keyword: v }),
+      },
+    },
+    {
+      title: '标题',
+      dataIndex: 'title',
+      ellipsis: true,
+      search: false,
+    },
+    {
+      title: '来源',
+      dataIndex: 'source',
+      width: 96,
+      valueType: 'select',
+      valueEnum: {
+        manual: { text: 'manual' },
+        '1688': { text: '1688' },
+      },
+      render: (_, row) => <Typography.Text code>{row.source}</Typography.Text>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 120,
+      valueType: 'select',
+      valueEnum: Object.fromEntries(
+        Object.entries(PRODUCT_STATUS).map(([k, v]) => [k, { text: v.text }]),
+      ),
+      render: (_, row) => {
+        const m = PRODUCT_STATUS[row.status as keyof typeof PRODUCT_STATUS];
+        return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
+      },
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      width: 172,
+      search: false,
+      valueType: 'dateTime',
+    },
+    {
+      title: '操作',
+      valueType: 'option',
+      width: 88,
+      render: (_, row) => [
+        <Typography.Link key="detail" href={`/product/drafts/${row.id}`}>
+          详情
+        </Typography.Link>,
+      ],
+    },
+  ];
+
   return (
-    <PageContainer
-      title="商品草稿"
-      subTitle="采集与手工创建的商品将在此汇总，后续对齐商品 API。"
-      extra={[
-        <Button key="new" type="primary">
-          新建草稿
-        </Button>,
-      ]}
-    >
-      <Typography.Paragraph type="secondary">
-        表格为占位；接通 <Typography.Text code>/api/v1/products</Typography.Text> 后使用 ProTable request 拉数。
-      </Typography.Paragraph>
-      <ProTable<Row>
+    <PageContainer title="商品草稿" subTitle="采集或手工创建的草稿；详情页为基础只读展示。">
+      <ProTable<ProductListRow>
         rowKey="id"
-        search={{ labelWidth: 'auto' }}
-        pagination={{ pageSize: 10 }}
-        toolBarRender={() => [
-          <Button key="import" icon={<FileImageOutlined />}>
-            导入图片（预留）
-          </Button>,
-        ]}
+        actionRef={actionRef}
         columns={columns}
-        dataSource={[]}
+        search={{ labelWidth: 'auto' }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         options={{ reload: true, density: true, setting: true }}
         headerTitle={<Space>草稿列表</Space>}
+        toolBarRender={() => [
+          <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
+            新建草稿
+          </Button>,
+        ]}
+        request={async (params) => {
+          const res = await fetchProducts({
+            page: params.current,
+            pageSize: params.pageSize,
+            status: params.status as string | undefined,
+            source: params.source as string | undefined,
+            keyword: params.keyword as string | undefined,
+          });
+          return {
+            data: res.list,
+            success: true,
+            total: res.pagination.total,
+          };
+        }}
       />
+
+      <ModalForm
+        title="新建商品草稿"
+        open={createOpen}
+        modalProps={{ destroyOnClose: true, onCancel: () => setCreateOpen(false) }}
+        onFinish={async (vals) => {
+          await createProduct({
+            title: vals.title,
+            source: vals.source || 'manual',
+            sourceUrl: vals.sourceUrl,
+            description: vals.description,
+          });
+          setCreateOpen(false);
+          actionRef.current?.reload();
+          return true;
+        }}
+      >
+        <ProFormText name="title" label="标题" rules={[{ required: true, message: '必填' }]} />
+        <ProFormText name="source" label="来源" initialValue="manual" />
+        <ProFormText name="sourceUrl" label="来源链接" />
+        <ProFormTextArea name="description" label="描述" fieldProps={{ rows: 3 }} />
+      </ModalForm>
     </PageContainer>
   );
 }
