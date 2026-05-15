@@ -124,6 +124,27 @@ export async function applyProductAITitle(id: string, body: { aiTitle: string; t
   return postJSON<ProductDetail>(`/api/v1/products/${id}/apply-ai-title`, body);
 }
 
+export type GenerateDescriptionResult = {
+  description: string;
+  highlights: string[];
+  specifications: string[];
+  packageIncludes: string[];
+  notes: string;
+  reason: string;
+  taskId: string;
+};
+
+export async function generateDescription(
+  id: string,
+  body: { language?: string; platform?: string; tone?: string },
+) {
+  return postJSON<GenerateDescriptionResult>(`/api/v1/products/${id}/ai/generate-description`, body);
+}
+
+export async function applyAiDescription(id: string, body: { aiDescription: string; taskId: string }) {
+  return postJSON<ProductDetail>(`/api/v1/products/${id}/apply-ai-description`, body);
+}
+
 export type AITaskRow = {
   id: string;
   taskType: string;

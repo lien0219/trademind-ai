@@ -219,6 +219,64 @@ func (h *Handler) ApplyAITitle(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// GenerateDescription POST /api/v1/products/:id/ai/generate-description
+func (h *Handler) GenerateDescription(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body GenerateDescriptionBody
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.GenerateDescription(c, id, body, adminUUID(c))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// ApplyAIDescription POST /api/v1/products/:id/apply-ai-description
+func (h *Handler) ApplyAIDescription(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body ApplyAIDescriptionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ApplyAIDescription(c, id, body, adminUUID(c))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
 // ListAITasks GET /api/v1/products/:id/ai/tasks
 func (h *Handler) ListAITasks(c *gin.Context) {
 	if h == nil || h.Svc == nil {

@@ -4,11 +4,14 @@ import { Button, Card, Descriptions, Form, Image, Input, InputNumber, Modal, Spi
 import { useCallback, useEffect, useState } from 'react';
 import { PRODUCT_STATUS } from '@/constants/status';
 import {
+  applyAiDescription,
   applyProductAITitle,
   fetchProductAITasks,
   fetchProductDetail,
+  generateDescription,
   optimizeProductTitle,
   type AITaskRow,
+  type GenerateDescriptionResult,
   type OptimizeTitleResult,
   type ProductDetail,
 } from '@/services/products';
@@ -24,6 +27,10 @@ export default function ProductDraftDetailPage() {
   const [aiResult, setAiResult] = useState<OptimizeTitleResult | null>(null);
   const [aiTasks, setAiTasks] = useState<AITaskRow[]>([]);
   const [aiForm] = Form.useForm();
+  const [descOpen, setDescOpen] = useState(false);
+  const [descBusy, setDescBusy] = useState(false);
+  const [descResult, setDescResult] = useState<GenerateDescriptionResult | null>(null);
+  const [descForm] = Form.useForm();
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -78,7 +85,7 @@ export default function ProductDraftDetailPage() {
   }
 
   return (
-    <PageContainer title="商品详情" subTitle="基础展示与 AI 标题优化；后续再对齐深度编辑与 SKU 管理。">
+    <PageContainer title="商品详情" subTitle="基础展示与 AI 标题/描述；后续再对齐深度编辑与 SKU 管理。">
       {loading ? (
         <Spin />
       ) : err ? (
@@ -103,6 +110,9 @@ export default function ProductDraftDetailPage() {
               <Descriptions.Item label="描述" span={2}>
                 {data.description || '—'}
               </Descriptions.Item>
+              <Descriptions.Item label="AI 描述" span={2}>
+                {data.aiDescription || '—'}
+              </Descriptions.Item>
             </Descriptions>
           </Card>
 
@@ -125,6 +135,32 @@ export default function ProductDraftDetailPage() {
           >
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
               调用系统 AI 设置与「product_title_optimize」Prompt；结果需手动应用才会写入「AI 标题」字段，不会直接覆盖主标题。
+            </Typography.Paragraph>
+          </Card>
+
+          <Card
+            title="AI 描述生成"
+            style={{ marginBottom: 16 }}
+            extra={
+              <Button
+                type="primary"
+                onClick={() => {
+                  setDescResult(null);
+                  descForm.resetFields();
+                  descForm.setFieldsValue({
+                    language: 'en',
+                    platform: 'TikTok Shop',
+                    tone: 'professional',
+                  });
+                  setDescOpen(true);
+                }}
+              >
+                AI 生成描述
+              </Button>
+            }
+          >
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              调用「product_description_generate」Prompt 生成结构化文案；需手动「应用」才会写入「AI 描述」字段，不会覆盖主描述。
             </Typography.Paragraph>
           </Card>
 
@@ -170,7 +206,7 @@ export default function ProductDraftDetailPage() {
               pagination={false}
               dataSource={aiTasks}
               columns={[
-                { title: '类型', dataIndex: 'taskType', width: 120 },
+                { title: '类型', dataIndex: 'taskType', width: 200 },
                 { title: '状态', dataIndex: 'status', width: 100 },
                 { title: '模型', dataIndex: 'model', ellipsis: true },
                 {
@@ -286,8 +322,125 @@ export default function ProductDraftDetailPage() {
           </div>
         ) : null}
       </Modal>
+
+      <Modal
+        title="AI 描述生成"
+        open={descOpen}
+        onCancel={() => setDescOpen(false)}
+        footer={null}
+        destroyOnClose
+        width={720}
+      >
+        <Form
+          form={descForm}
+          layout="vertical"
+          initialValues={{ language: 'en', platform: 'TikTok Shop', tone: 'professional' }}
+          onFinish={async (v) => {
+            setDescBusy(true);
+            setDescResult(null);
+            try {
+              const res = await generateDescription(id, {
+                language: String(v.language ?? ''),
+                platform: String(v.platform ?? ''),
+                tone: String(v.tone ?? ''),
+              });
+              setDescResult(res);
+              message.success('生成完成');
+              await reloadTasks();
+            } catch (e: unknown) {
+              message.error((e as Error)?.message || '生成失败');
+            } finally {
+              setDescBusy(false);
+            }
+          }}
+        >
+          <Form.Item name="language" label="语言" rules={[{ required: true }]}>
+            <Input placeholder="en" />
+          </Form.Item>
+          <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
+            <Input placeholder="TikTok Shop" />
+          </Form.Item>
+          <Form.Item name="tone" label="语气" rules={[{ required: true }]}>
+            <Input placeholder="professional" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={descBusy}>
+              生成描述
+            </Button>
+          </Form.Item>
+        </Form>
+
+        {descResult ? (
+          <div style={{ marginTop: 16 }}>
+            <Typography.Title level={5}>结果</Typography.Title>
+            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="描述">{descResult.description || '—'}</Descriptions.Item>
+              <Descriptions.Item label="Highlights">
+                {(descResult.highlights ?? []).length ? descResult.highlights.join('；') : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Specifications">
+                {(descResult.specifications ?? []).length ? descResult.specifications.join('；') : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Package includes">
+                {(descResult.packageIncludes ?? []).length ? descResult.packageIncludes.join('；') : '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Notes">{descResult.notes || '—'}</Descriptions.Item>
+              <Descriptions.Item label="Reason">{descResult.reason || '—'}</Descriptions.Item>
+              <Descriptions.Item label="任务 ID">{descResult.taskId}</Descriptions.Item>
+            </Descriptions>
+            <Button
+              type="primary"
+              disabled={!descResult.taskId || !buildAiDescriptionText(descResult)}
+              loading={descBusy}
+              onClick={async () => {
+                if (!descResult?.taskId) return;
+                const text = buildAiDescriptionText(descResult);
+                if (!text) return;
+                setDescBusy(true);
+                try {
+                  await applyAiDescription(id, {
+                    aiDescription: text,
+                    taskId: descResult.taskId,
+                  });
+                  message.success('已应用为 AI 描述');
+                  setDescOpen(false);
+                  setDescResult(null);
+                  await reloadDetail();
+                  await reloadTasks();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '应用失败');
+                } finally {
+                  setDescBusy(false);
+                }
+              }}
+            >
+              应用为 AI 描述
+            </Button>
+          </div>
+        ) : null}
+      </Modal>
     </PageContainer>
   );
+}
+
+function buildAiDescriptionText(r: GenerateDescriptionResult): string {
+  const lines: string[] = [];
+  const d = (r.description ?? '').trim();
+  if (d) lines.push(d);
+  const bullets = (title: string, items: string[]) => {
+    const trimmed = (items ?? []).map((x) => x.trim()).filter(Boolean);
+    if (!trimmed.length) return;
+    lines.push('', title);
+    for (const x of trimmed) lines.push(`- ${x}`);
+  };
+  bullets('Product Highlights', r.highlights ?? []);
+  bullets('Specifications', r.specifications ?? []);
+  bullets('Package Includes', r.packageIncludes ?? []);
+  const notes = (r.notes ?? '').trim();
+  if (notes) {
+    lines.push('', 'Notes', notes);
+  }
+  return lines.join('\n').trim();
 }
 
 function ThumbGrid({ urls }: { urls: string[] }) {

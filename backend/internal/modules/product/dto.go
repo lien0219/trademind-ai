@@ -131,3 +131,27 @@ type ApplyAITitleBody struct {
 	AITitle string `json:"aiTitle"`
 	TaskID  string `json:"taskId"`
 }
+
+// GenerateDescriptionBody binds POST /products/:id/ai/generate-description.
+type GenerateDescriptionBody struct {
+	Language string `json:"language"`
+	Platform string `json:"platform"`
+	Tone     string `json:"tone"`
+}
+
+// GenerateDescriptionResult is returned after an AI description generation call.
+type GenerateDescriptionResult struct {
+	Description       string   `json:"description"`
+	Highlights        []string `json:"highlights"`
+	Specifications    []string `json:"specifications"`
+	PackageIncludes   []string `json:"packageIncludes"`
+	Notes             string   `json:"notes"`
+	Reason            string   `json:"reason"`
+	TaskID            string   `json:"taskId"`
+}
+
+// ApplyAIDescriptionBody binds POST /products/:id/apply-ai-description.
+type ApplyAIDescriptionBody struct {
+	AIDescription string `json:"aiDescription"`
+	TaskID        string `json:"taskId"`
+}
