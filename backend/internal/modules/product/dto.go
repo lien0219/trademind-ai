@@ -110,3 +110,24 @@ type ImportSKUParams struct {
 	ImageURL string
 	RawSKU   json.RawMessage
 }
+
+// OptimizeTitleBody binds POST /products/:id/ai/optimize-title.
+type OptimizeTitleBody struct {
+	Language  string `json:"language"`
+	Platform  string `json:"platform"`
+	MaxLength int    `json:"maxLength"`
+}
+
+// OptimizeTitleResult is returned after an AI title optimization call.
+type OptimizeTitleResult struct {
+	OptimizedTitle string   `json:"optimizedTitle"`
+	Keywords       []string `json:"keywords"`
+	Reason         string   `json:"reason"`
+	TaskID         string   `json:"taskId"`
+}
+
+// ApplyAITitleBody binds POST /products/:id/apply-ai-title.
+type ApplyAITitleBody struct {
+	AITitle string `json:"aiTitle"`
+	TaskID  string `json:"taskId"`
+}

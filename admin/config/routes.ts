@@ -35,6 +35,21 @@ export default [
     access: 'canAdmin',
   },
   {
+    path: '/ai',
+    name: 'AI',
+    icon: 'RobotOutlined',
+    access: 'canAdmin',
+    redirect: '/ai/prompts',
+    routes: [
+      {
+        path: '/ai/prompts',
+        name: 'Prompt 模板',
+        component: './AI/Prompts',
+        access: 'canAdmin',
+      },
+    ],
+  },
+  {
     path: '/product',
     name: '商品',
     icon: 'ShoppingOutlined',

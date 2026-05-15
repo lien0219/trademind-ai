@@ -105,3 +105,44 @@ export async function updateProduct(id: string, body: Record<string, unknown>) {
 export async function deleteProduct(id: string) {
   return deleteJSON<{ ok: boolean }>(`/api/v1/products/${id}`);
 }
+
+export type OptimizeTitleResult = {
+  optimizedTitle: string;
+  keywords: string[];
+  reason: string;
+  taskId: string;
+};
+
+export async function optimizeProductTitle(
+  id: string,
+  body: { language?: string; platform?: string; maxLength?: number },
+) {
+  return postJSON<OptimizeTitleResult>(`/api/v1/products/${id}/ai/optimize-title`, body);
+}
+
+export async function applyProductAITitle(id: string, body: { aiTitle: string; taskId: string }) {
+  return postJSON<ProductDetail>(`/api/v1/products/${id}/apply-ai-title`, body);
+}
+
+export type AITaskRow = {
+  id: string;
+  taskType: string;
+  provider: string;
+  model: string;
+  promptCode: string;
+  status: string;
+  errorMessage?: string;
+  tokenInput: number;
+  tokenOutput: number;
+  costAmount: number;
+  productId?: string;
+  createdBy?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchProductAITasks(id: string) {
+  return getJSON<{ list: AITaskRow[] }>(`/api/v1/products/${id}/ai/tasks`);
+}

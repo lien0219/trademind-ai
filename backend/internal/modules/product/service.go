@@ -11,13 +11,21 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
 // Service handles product draft persistence.
 type Service struct {
-	DB    *gorm.DB
-	OpLog *operationlog.Service
+	DB        *gorm.DB
+	OpLog     *operationlog.Service
+	Settings  *settings.Service
+	Prompts   *aiprompt.Service
+	AITasks   *aitask.Service
+	AIGateway *aigate.Gateway
 }
 
 func clampPage(page, ps int) (int, int) {

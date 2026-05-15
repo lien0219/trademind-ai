@@ -78,13 +78,13 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 
 // ListQuery binds query params for listing operation logs.
 type ListQuery struct {
-	Page      int
-	PageSize  int
-	Action    string
-	Username  string
-	Resource  string
-	Start     *time.Time
-	End       *time.Time
+	Page     int
+	PageSize int
+	Action   string
+	Username string
+	Resource string
+	Start    *time.Time
+	End      *time.Time
 }
 
 // ListResult is a paginated slice of logs.

@@ -2,7 +2,8 @@ package ai
 
 import "context"
 
-// Provider abstracts OpenAI-compatible and other LLM backends.
+// Provider is a pluggable AI backend (OpenAI-compatible, DeepSeek, etc.).
 type Provider interface {
-	Ping(ctx context.Context) error
+	Name() string
+	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
 }

@@ -12,4 +12,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/products/:id", h.Get)
 	g.PUT("/products/:id", h.Put)
 	g.DELETE("/products/:id", h.Delete)
+
+	g.POST("/products/:id/ai/optimize-title", h.OptimizeTitle)
+	g.POST("/products/:id/apply-ai-title", h.ApplyAITitle)
+	g.GET("/products/:id/ai/tasks", h.ListAITasks)
 }

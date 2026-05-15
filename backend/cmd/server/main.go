@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/logger"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
@@ -52,6 +53,14 @@ func main() {
 		log.Error("database_migrate_failed", "error", err)
 		os.Exit(1)
 	}
+
+	seedCtx, seedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := aiprompt.EnsureDefaults(seedCtx, db); err != nil {
+		seedCancel()
+		log.Error("ai_prompt_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	seedCancel()
 
 	enc, err := encrypt.NewService(cfg.MasterKey)
 	if err != nil {

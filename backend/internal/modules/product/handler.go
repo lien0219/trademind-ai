@@ -160,3 +160,84 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 	response.OK(c, gin.H{"ok": true})
 }
+
+// OptimizeTitle POST /api/v1/products/:id/ai/optimize-title
+func (h *Handler) OptimizeTitle(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body OptimizeTitleBody
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.OptimizeTitle(c, id, body, adminUUID(c))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// ApplyAITitle POST /api/v1/products/:id/apply-ai-title
+func (h *Handler) ApplyAITitle(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body ApplyAITitleBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ApplyAITitle(c, id, body, adminUUID(c))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// ListAITasks GET /api/v1/products/:id/ai/tasks
+func (h *Handler) ListAITasks(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	items, err := h.Svc.ListRecentAITasks(c, id, 15)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": items})
+}

@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-15（商品草稿 CRUD + 采集任务 API + Go 编排 Collector + 管理端接通）
+**最后更新**：2026-05-15（AI Provider + Prompt 模板 + 商品 AI 标题优化 + ai_tasks 记录）
 
 ---
 
@@ -11,9 +11,9 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 1 阶段「项目地基」**与 **第 2 阶段「存储能力」本地部分**保持可用。**当前主线**：**第 3 阶段前置 ——「商品草稿 + 采集任务闭环」**：后端 CRUD/编排已落地，管理端列表与采集表单已接真实 API |
-| **MVP 闭环** | **已基本跑通**：管理员登录 → 提交 1688 链接采集 → Node Collector 返回 `NormalizedProduct` → Go 入库 **`products` / `product_images` / `product_skus`** 并写 **`collect_tasks`**；管理端可浏览草稿与任务。**AI 标题/描述/图片**仍未接入 |
-| **产物形态** | Monorepo 可构建：`backend`、`admin`、`collector` 均已验证可编译；本地需同时启动 **PostgreSQL + Go + Collector（及 Chromium）** 才能完成端到端采集 |
+| **路线图阶段** | **第 3 阶段「AI 文本能力」进行中**：**AI Gateway / OpenAI-compatible Provider**、**Prompt 表与 CRUD API**、**默认 `product_title_optimize`**、**商品 AI 标题优化 + 应用 AI 标题**、**`ai_tasks` 调用记录**、管理端 **Prompt 管理页** 与 **商品详情 AI 区块** 已落地。**未做**：AI 描述生成、AI 图片、AI 客服 |
+| **MVP 闭环** | 登录 → 配置 AI → 采集/草稿 → **一键 AI 优化标题并写入 `ai_title`** 已具备（依赖有效的大模型与系统 AI 设置） |
+| **产物形态** | Monorepo 可构建；本地需 **PostgreSQL**；AI 调用走 **后端 Gateway**，前端 **不直连** 第三方模型 |
 
 ---
 
@@ -45,19 +45,23 @@
 - **配置**：`internal/config` 从环境变量加载（DB、Redis、**JWT**、`APP_MASTER_KEY`、**`UPLOAD_MAX_MB`（默认 10）**、**ADMIN_BOOTSTRAP_*** 等）；**生产环境**强制非默认 `JWT_SECRET`。
 - **日志**：`internal/logger`（development 文本 / production JSON）。
 - **数据库**：GORM，默认 **PostgreSQL**（`DB_DRIVER` 默认 `postgres`；未设置 `DB_PORT` 时默认 **5432**，MySQL 为 **3306**）；启动时 **Ping**；失败则进程退出。
-- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**、**`products`、`product_images`、`product_skus`、`collect_tasks`**。
+- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**、**`products`、`product_images`、`product_skus`、`collect_tasks`**、**`ai_prompts`、`ai_tasks`**；启动后 **`aiprompt.EnsureDefaults`** 写入默认 **`product_title_optimize`**
 - **Redis**：`internal/rdb`（go-redis），连接失败 **仅告警**，服务继续（健康检查体现 `redis: skipped/degraded`）。
 - **健康检查**：`GET /health`、`GET /api/v1/health`（含 DB/Redis 检查）。
 - **ID 约定**：管理员等域表主键 **UUID**（`internal/pkg/model` + `internal/pkg/id`；GORM `char(36)`）；`settings` 表为 **`BIGINT` 自增**（与规则文档一致）。
 - **认证**：`admin_users` 模型；`POST /api/v1/auth/login`（bcrypt 口令、**JWT HS256**）；`GET /api/v1/auth/profile`、`POST /api/v1/auth/logout`（无状态，客户端弃 token）。
 - **JWT 上下文**：`BearerAuth` 写入 `ctxkey.AdminID` 与 **`ctxkey.AdminUsername`**（供审计与业务使用）。
-- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：创建任务 / 成功 / 失败 / 重试；**商品**：手工 CRUD 与 **采集入库创建草稿**。
+- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：创建任务 / 成功 / 失败 / 重试；**商品**：手工 CRUD 与 **采集入库创建草稿**；**AI 标题**：优化成功/失败、**应用 AI 标题**
 - **存储 Provider**：`internal/providers/storage` 接口 **Put / GetURL / Delete**；**本地实现** `internal/providers/storage/local`（`settings.storage`：`kind`、`local_root`、`public_base`）；**`GET /static/*filepath`** 按当前 `local_root` 提供只读文件（防 `..` 穿越）；上传仅当 **`kind=local`**，其它 kind 返回明确错误（云上传后续接 Provider）。
 - **文件**：`files` 表；**`POST /api/v1/files/upload`**（`multipart` 字段名 **`file`**；**jpg/jpeg/png/webp/gif**；**objectKey = 日期目录/UUID.ext**；大小默认 **10MB**，环境变量 **`UPLOAD_MAX_MB`**）；**`GET /api/v1/files`**（分页、`contentType`）；**`DELETE /api/v1/files/:id`**（删库 + Provider 删对象）。**`MaxMultipartMemory`** 与配置上限对齐。
 - **配置中心**：`settings` 模型与 `GET/PUT /api/v1/settings`；`item_value` 在 `is_encrypted=true` 时 **AES-GCM**（`APP_MASTER_KEY`）存储；列表接口 **脱敏**（`****` 规则）；PUT 若密文占位含 `****` 则 **不覆盖**原密钥，可更新 remark / value_type 等。
 - **连通性测试**：`POST /api/v1/settings/test-ai`（读取 `ai` 组解密后请求 OpenAI 兼容 `POST /chat/completions`，`max_tokens:1`）；`POST /api/v1/settings/test-storage`（`local` 校验 `local_root` 可写；`s3/cos/oss/r2/minio` 校验必填字段完整）。`ai` / `storage` 组键名约定：`base_url`、`api_key`、`kind`、`local_root` 等（**snake_case item_key**）。
 - **默认管理员**：库中无管理员时，按 `ADMIN_BOOTSTRAP_USERNAME`（默认 `admin`）与 `ADMIN_BOOTSTRAP_PASSWORD`（**非 production** 空密码时 Fallback `changeme` 并打日志；**production** 无用户则必须配置密码）插入一条记录。
 - **商品草稿**：模块 `internal/modules/product`；模型含 **`tenant_id`、`created_by`、JSONB `raw_data`** 及图片/SKU 子表；**`GET/POST /api/v1/products`**、**`GET/PUT/DELETE /api/v1/products/:id`**；列表支持 **分页与 `status` / `source` / `keyword`**；详情 **Preload** `images`、`skus`。删除为 **软删除**（`deleted_at`）。
+- **AI Provider**：`internal/providers/ai` — **`ChatRequest` / `ChatResponse`**、**`Gateway`**（只读 **`settings.ai`**：`provider`（仅 **`openai_compatible` / `openai`** 首版落地）、`base_url`、`api_key` AES-GCM 解密、`model`、`temperature`、`max_tokens`、`timeout_sec`）；**业务仅调 Gateway**；**`openai_compatible/`** 实现 HTTP **`/chat/completions`**，**Context 超时** + **http.Client Timeout**；日志与响应 **不落 api_key**
+- **Prompt 模板**：模块 `internal/modules/aiprompt`；表 **`ai_prompts`**；**`EnsureDefaults`** 启动时插入默认 **`product_title_optimize`**（变量 **`{{title}}` `{{category}}` `{{attributes}}` `{{language}}` `{{maxLength}}` `{{platform}}`**）；API：**`GET/POST /api/v1/ai/prompts`**、**`GET/PUT/DELETE .../:id`**、**`POST .../:id/enable|disable`**
+- **AI 调用记录**：模块 `internal/modules/aitask`；表 **`ai_tasks`**（`task_type` / `provider` / `model` / `prompt_code` / status **`pending|running|success|failed`** 等）；**每次标题优化**写入一条；**`raw_response`** 仅存提供商返回 JSON 裁剪字段，**不含密钥**
+- **商品 AI 标题**：**`POST /api/v1/products/:id/ai/optimize-title`**（body：`language` / `platform` / `maxLength`；**不自动改 `title`**）；**`POST /api/v1/products/:id/apply-ai-title`**（`aiTitle` + `taskId`，校验任务归属，**仅更新 `products.ai_title`**）；**`GET /api/v1/products/:id/ai/tasks`**（详情页最近任务，列表 **省略大体量 JSON 列**）；操作日志：**`ai.title_optimize.success` / `ai.title_optimize.failed` / `ai.title.apply`**（消息 **不含密钥与完整 Prompt**）
 - **采集任务**：模块 `internal/modules/collect`；表 **`collect_tasks`**（**JSONB `raw_result`**、统一状态 **pending / running / success / failed / cancelled / retrying**）；**`POST /api/v1/collect/tasks`**（body：`source` + `url`）同步编排 Collector、成功后写入商品草稿；**`GET /api/v1/collect/tasks`**（分页 + **status / source / keyword**）、**`GET .../:id`**、**`POST .../:id/retry`**（仅 **failed**）。
 - **Collector HTTP 客户端**：`collector_client.go`；配置 **`COLLECTOR_BASE_URL`**（默认 `http://127.0.0.1:3100`，须与 Collector 监听端口一致）、**`COLLECTOR_TIMEOUT_SECONDS`**（默认 **60**）；**请求级 context + HTTP Client Timeout**；422/`ok:false` 映射为任务 **failed** 并写入 **`error_message`**；成功时 **`raw_result` 保存完整归一化 JSON**（内含 **`raw`** 字段）。
 - **分层**：业务 Orchestration 在 **collect.Service**，采集解析仍在 **Node Collector**；Go **不写死** 1688 解析逻辑。
@@ -72,9 +76,9 @@
 - **操作日志页**：**`ProTable`** → **`GET /api/v1/operation-logs`**；只读、可筛选。
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
-- **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；展示封面、标题、来源、状态、创建时间；筛选 **keyword / source / status**；**新建草稿**（最小表单）；**`/product/drafts/:id`** 基础详情（概要、图片、SKU、`rawData` JSON）。
+- **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；**`/product/drafts/:id`** 详情（概要含 **`aiTitle`**、**AI 标题优化** 弹窗、**最近 AI 任务** 表）；**`/ai/prompts`** **Prompt 模板**管理（**ProTable + ModalForm**）
 - **采集任务**：顶部表单 **来源（默认 1688）+ URL** → **`POST /api/v1/collect/tasks`**；表格 **`GET /api/v1/collect/tasks`**；列含 **source、source_url、status、result_product_id、error_message、started_at、finished_at、created_at**；**failed** 行 **重试** → **`POST .../retry`**。
-- **请求封装**：`src/services/request.ts`（**`getWithParams` / `deleteJSON` / `postFormData`**）、`settings.ts`、`auth.ts`、**`operationLogs.ts`**、**`files.ts`**、**`products.ts`**、**`collectTasks.ts`**。
+- **请求封装**：`src/services/request.ts`、**`aiPrompts.ts`**、`settings.ts`、`auth.ts`、**`operationLogs.ts`**、**`files.ts`**、**`products.ts`**（含 **optimize / apply-ai-title / ai/tasks**）、**`collectTasks.ts`**。
 - **常量**：`src/constants/status.ts`（商品状态、任务状态枚举，与规则对齐）。
 
 ### 3.4 采集服务（`collector/`）
@@ -100,18 +104,20 @@
 
 - [x] **认证**：`POST /api/v1/auth/login`、**JWT**、管理员模型、`profile` / `logout`
 - [x] **Settings 业务**：`settings` 表与 `GET/PUT /api/v1/settings`、**AES-GCM（APP_MASTER_KEY）**、脱敏与 masked 更新语义
-- [x] **迁移**：启动时 GORM **AutoMigrate**（地基表 + **商品 / 采集**相关表）
-- [x] **操作日志**：表 + **`GET /api/v1/operation-logs`**；登录 / logout / settings / test-ai / test-storage / **采集关键节点 / 商品 CRUD（含采集入库）**
+- [x] **迁移**：启动时 GORM **AutoMigrate**（地基表 + **商品 / 采集** + **`ai_prompts` / `ai_tasks`**）
+- [x] **操作日志**：表 + **`GET /api/v1/operation-logs`**；登录 / logout / settings / test-ai / test-storage / **采集关键节点 / 商品 CRUD（含采集入库）/ AI 标题优化与应用**
 - [x] **本地存储与文件 API**：Storage **Put/GetURL/Delete**、**`POST /api/v1/files/upload`**、**`GET/DELETE /api/v1/files`**、**`/static`** 只读
 - [x] **settings 连通性测试**：`test-ai`、`test-storage`（见上）
-- [x] **商品草稿 API**：§3.2 **商品草稿**
+- [x] **商品草稿 API**：§3.2 **商品草稿**；**AI 标题优化 / 应用 / 任务列表**（见上）
 - [x] **采集任务 API + Collector Client**：§3.2 **采集任务** / **Collector HTTP 客户端**
+- [x] **AI 文本（进行中）**：§3.2 **AI Provider / Prompt / ai_tasks / 商品 AI 标题**；**未做** AI 描述、图片、客服
 
 ### 4.2 管理端
 
 - [x] 登录页与 **access 模型**（@umijs/max access）；**Bearer** 请求拦截与 **401** 处理
 - [x] **系统 / AI / 存储 / 采集服务 / 安全** 设置页与 **真实 settings API**；**test-ai / test-storage**；**存储页上传测试**；**操作日志**与**文件管理**页（**ProTable**）
 - [x] **商品草稿 / 采集任务**：分页列表 API、筛选、采集提交表单与失败 **重试**
+- [x] **Prompt 模板页**；**商品详情 AI 标题优化**与最近 **AI 任务**列表
 
 ### 4.3 采集服务
 
@@ -138,14 +144,14 @@ trademind-ai/
 │       ├── rdb/             # Redis 客户端
 │       ├── middleware/      # RequestID / Recovery / AccessLog
 │       ├── pkg/             # response, id, ctxkey, model
-│       ├── providers/       # storage（**local**）等
-│       └── modules/         # auth、admin、settings、**operationlog**、**files**、**product**、**collect**
+│       ├── providers/       # storage（**local**）+ **ai（Gateway + openai_compatible）**
+│       └── modules/         # auth、admin、settings、**operationlog**、**files**、**product**、**collect**、**aiprompt**、**aitask**
 ├── admin/                   # Ant Design Pro（Umi Max）
 │   ├── .umirc.ts            # 含 proxy `/api` 与 **`/static`** → 8080
 │   ├── config/routes.ts
 │   └── src/
-│       ├── pages/           # Dashboard / **System/OperationLogs** / **Files** / Settings / **Product（草稿、详情）** / **Collect/Tasks**
-│       ├── services/        # request、settings、auth、**operationLogs**、**files**、**products**、**collectTasks**
+│       ├── pages/           # Dashboard / **System/OperationLogs** / **Files** / Settings / **AI/Prompts** / **Product（草稿、详情）** / **Collect/Tasks**
+│       ├── services/        # request、**aiPrompts**、settings、auth、**operationLogs**、**files**、**products**、**collectTasks**
 │       └── constants/       # 状态枚举
 ├── collector/               # Node 采集（Playwright）
 │   └── src/
@@ -177,6 +183,7 @@ trademind-ai/
 | 架构 | 平台/采集/AI/存储 **走 Provider 抽象**；核心业务不直接绑定 1688/TikTok 等实现细节 |
 | 主数据库 | **PostgreSQL** 为开发与 `docker-compose` 默认；仍支持 **`DB_DRIVER=mysql`** |
 | 文件存储（MVP） | **上传到后端**；**object_key** 与 **public_url** 入库；本地 **`kind=local`** 已可用；**云 kind** 上传走 Provider **后续迭代** |
+| AI 文本（当前） | **业务仅调用 `AI Gateway`**；**OpenAI-compatible** HTTP 适配在 **`openai_compatible/`**；**`ai_prompts` / `ai_tasks`**；标题优化 **不自动改 `products.title`**，应用接口只写 **`ai_title`** |
 
 ---
 
@@ -191,15 +198,19 @@ trademind-ai/
 7. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
 8. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
 9. **MySQL 可选驱动**：当前 JSON 字段迁移以 **PostgreSQL `JSONB`** 为主路径；若使用 **MySQL**，需自行核对 GORM 对 `JSON`/`JSONB` 标签的兼容性（默认开发仍为 Postgres）。
+10. **`settings.ai.provider`**：后端 Gateway 首版仅接受 **`openai_compatible` / `openai`**（兼容接口统一走 `openai_compatible` HTTP 实现；**DeepSeek / Qwen / Ollama** 等后续可增独立适配或扩展 accepted 名称）。
+11. **AI 描述生成 / 图片处理 / 客服**：**未实现**（见「未完成 / 下一步」）。
+12. **`ai_tasks.status`**：标题优化链路使用 **`running → success|failed`**（表结构预留 **`pending`** 供后续异步化）。
 
 ---
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **AI 文本（第 3 阶段主线）**：**AI Provider** 抽象落地、**Prompt 模板表**、后台 Prompt 编辑页、**`POST /api/v1/products/:id/apply-ai-title`**（或等价标题优化 API）、商品详情 **一键应用 AI 标题**；延续「**前端不直连第三方 AI**」。
-2. **Collector 深化**：1688 **结构化字段**（SKU、主图、详情图、属性）与稳定性；必要时 **异步队列**（Redis）承载长任务，Go 仅扩展编排而非解析逻辑。
-3. **存储能力收尾**：**S3/COS/OSS** Provider、**非 local** 上传与 **`files`** 串联。
-4. **商品编辑**：详情页 **ProForm** 深度编辑、SKU / 图片管理与归档策略。
+1. **AI 描述生成**：Prompt 模板 + **`apply-ai-description`** 与商品详情串联（延续 Gateway + **`ai_tasks`**）。
+2. **全局 AI 任务页**：分页筛选 **`ai_tasks`**（当前仅在商品详情展示最近记录）。
+3. **Collector 深化**：1688 **结构化字段**（SKU、主图、详情图、属性）与稳定性；必要时 **异步队列**（Redis）承载长任务。
+4. **存储能力收尾**：**S3/COS/OSS** Provider、**非 local** 上传与 **`files`** 串联。
+5. **商品编辑增强**：详情页 **ProForm** 深度编辑、SKU / 图片管理与归档策略。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -229,3 +240,4 @@ trademind-ai/
 | 2026-05-15 | **操作日志**：`operation_logs` + **`GET /api/v1/operation-logs`**；登录/失败、logout、改 settings、test-ai、test-storage 落库；**JWT** 写入 **username** 上下文；管理端 **操作日志 ProTable** |
 | 2026-05-15 | **存储与文件**：**Storage Put/GetURL/Delete**、**local Provider**、**`files` 表**、**`/api/v1/files/upload|list|delete`**、**`GET /static/*`**；**`UPLOAD_MAX_MB`**；管理端 **文件管理**、**存储页上传测试**；admin 代理 **`/static`**；**`.env.example`** 补充上传配置 |
 | 2026-05-15 | **商品草稿 + 采集闭环**：`products` / `product_images` / `product_skus`、`collect_tasks`（JSONB）；商品 CRUD 与采集 API；**Go Collector HTTP 客户端**（`COLLECTOR_BASE_URL`、`COLLECTOR_TIMEOUT_SECONDS`）；归一化结果入库与操作日志；管理端 **商品列表/详情**、**采集表单 + 任务表 + 重试**；`.env.example` 补充 Collector 编排变量 |
+| 2026-05-15 | **AI 文本（第 3 阶段主线）**：`providers/ai` Gateway + **openai_compatible**；**`ai_prompts`/`ai_tasks`**、默认 **product_title_optimize**；商品 **optimize-title / apply-ai-title / ai/tasks** API；管理端 **`/ai/prompts`** 与详情页 **AI 标题**；操作日志 **ai.title_*** |

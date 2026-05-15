@@ -9,6 +9,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
@@ -16,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
@@ -64,8 +67,20 @@ func Register(r gin.IRouter, dep *Deps) {
 	}
 	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout)
 
-	productSvc := &product.Service{DB: dep.DB, OpLog: opLogSvc}
+	promptSvc := &aiprompt.Service{DB: dep.DB}
+	aiGateway := &aigate.Gateway{Settings: settingsSvc}
+	aiTaskSvc := &aitask.Service{DB: dep.DB}
+
+	productSvc := &product.Service{
+		DB:        dep.DB,
+		OpLog:     opLogSvc,
+		Settings:  settingsSvc,
+		Prompts:   promptSvc,
+		AITasks:   aiTaskSvc,
+		AIGateway: aiGateway,
+	}
 	productH := &product.Handler{Svc: productSvc}
+	promptH := &aiprompt.Handler{Svc: promptSvc}
 
 	collectSvc := &collect.Service{
 		DB:       dep.DB,
@@ -94,6 +109,7 @@ func Register(r gin.IRouter, dep *Deps) {
 	authed.GET("/files", fileH.List)
 	authed.DELETE("/files/:id", fileH.Delete)
 
+	aiprompt.Register(authed, promptH)
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
 }
