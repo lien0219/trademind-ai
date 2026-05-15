@@ -1,0 +1,16 @@
+---
+description: Keep docs/PROGRESS.md updated when completing phases, modules, or large refactors
+alwaysApply: true
+---
+
+# 进度文档 PROGRESS.md
+
+在完成以下任一情况时，**必须**更新 `docs/PROGRESS.md`：
+
+- 路线图中的一个大**阶段**（如项目地基、存储能力…）阶段性完成或调整；
+- 一个独立 **模块**（如 auth、settings、collect、admin 某条线）可交付或可演示；
+- 一次 **较大的代码修改**（架构调整、技术栈切换、公共契约变更）。
+
+更新时至少改：**当前阶段**、**已完成/未完成**、**已确认技术决策**（若有变化）、**遗留问题**、**下一步计划**、文末 **变更记录**日期与一行摘要。
+
+若未改代码仅做小修，可只更新「变更记录」或「遗留问题」中对应条目。

@@ -16,7 +16,7 @@ alwaysApply: true
 - 初始化 monorepo 项目结构
 - 搭建 Go Gin 后端
 - 搭建 React + Ant Design Pro 后台
-- 搭建 MySQL / PostgreSQL
+- 搭建 **PostgreSQL**（`docker-compose` 与本地开发默认；MySQL 非默认路径）
 - 搭建 Redis
 - 实现管理员登录
 - 实现统一 API 返回

@@ -1,0 +1,27 @@
+---
+description: 本地开发统一采用 PostgreSQL；环境、Docker、迁移与代码生成约束
+alwaysApply: true
+---
+
+# 本地开发与数据库（PostgreSQL）
+
+## 强制约定
+
+- **本地与仓库默认数据库为 PostgreSQL**。生成迁移、示例 DDL、`docker-compose`、`.env.example` 说明时，**以 PostgreSQL 为准**。
+- **不要**默认选用 MySQL 端口（3306）、MySQL 专用语法（`AUTO_INCREMENT`、`DATETIME` 等）或仅 MySQL 的 compose 服务，除非用户**明确**要求 MySQL。
+- 后端已通过 `DB_DRIVER` 支持 `mysql`；仅在**对接遗留库**或用户指定时使用。日常开发与文档示例不要以此为主路径。
+
+## 与环境变量对齐
+
+- 默认 **`DB_DRIVER=postgres`**，**`DB_PORT=5432`**（未设置 `DB_PORT` 时后端对 postgres 默认 5432）。
+- 本地基础设施：根目录 **`docker-compose.yml`** 提供 **PostgreSQL + Redis**；新成员 `docker compose up -d` 即可。
+
+## 编码与迁移
+
+- GORM：默认连接串与 **`gorm.io/driver/postgres`**；生成新模型/迁移时列类型优先使用 PostgreSQL 惯用类型（如 `UUID`、`TIMESTAMPTZ`、`JSONB` 视业务需要）。
+- 主键 UUID：当前模型基类使用 `char(36)`；若在 Postgres 中改为原生 `uuid`，须在迁移与规则中一次说清，并更新 `docs/PROGRESS.md`。
+
+## Cursor 行为
+
+- 实现「建表 / migration / docker / 环境说明」类任务时：**先查阅** `.env.example`、`docker-compose.yml`、`backend/internal/config`，**不要假设 MySQL**。
+- 若引入仅适用于一种数据库的写法，须在注释中标明，并优先保证 **PostgreSQL 可运行**。

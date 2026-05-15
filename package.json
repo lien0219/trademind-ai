@@ -1,0 +1,13 @@
+{
+  "name": "trademind-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev:admin": "pnpm --filter @trademind/admin dev",
+    "build:admin": "pnpm --filter @trademind/admin build",
+    "preview:admin": "pnpm --filter @trademind/admin preview",
+    "dev:collector": "pnpm --filter @trademind/collector dev",
+    "build:collector": "pnpm --filter @trademind/collector build",
+    "install:collector:browsers": "pnpm --filter @trademind/collector exec playwright install chromium"
+  }
+}

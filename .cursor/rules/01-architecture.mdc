@@ -12,7 +12,7 @@ React + Ant Design Pro
         ↓
 Go Gin API
         ↓
-MySQL / PostgreSQL
+PostgreSQL（默认；MySQL 可选）
         ↓
 Redis Queue
         ↓

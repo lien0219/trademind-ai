@@ -11,6 +11,9 @@
 node_modules/
 dist/
 build/
+admin/.umi/
+admin/src/.umi/
+admin/src/.umi-production/
 .pnpm-store/
 
 # Go

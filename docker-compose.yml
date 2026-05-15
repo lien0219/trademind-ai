@@ -1,0 +1,37 @@
+# TradeMind — local infrastructure (PostgreSQL + Redis).
+# Go API, admin, and collector run on the host or in separate compose overlays later.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: trademind-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trademind
+      POSTGRES_PASSWORD: trademind
+      POSTGRES_DB: trademind
+    ports:
+      - "5432:5432"
+    volumes:
+      - trademind_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trademind -d trademind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: trademind-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  trademind_pg_data:

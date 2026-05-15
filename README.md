@@ -98,7 +98,7 @@ AI 生成描述
 - Go
 - Gin
 - GORM
-- MySQL / PostgreSQL
+- MySQL / PostgreSQL（开发默认 **PostgreSQL**；`DB_DRIVER=mysql` 仍支持）
 - Redis
 
 ### 采集服务
@@ -142,7 +142,7 @@ React + Ant Design Pro
         ↓
 Go Gin API
         ↓
-MySQL / PostgreSQL
+PostgreSQL（默认）/ MySQL
         ↓
 Redis Queue
         ↓
@@ -197,15 +197,46 @@ Go Gin API
 
 ```text
 trademind-ai/
-├── backend/                # Go + Gin 后端主服务
-├── admin/                  # React + Ant Design Pro 后台
-├── collector/              # Node.js + Playwright 采集服务
+├── pnpm-workspace.yaml     # pnpm 工作区（admin + collector）
+├── pnpm-lock.yaml
+├── package.json            # 根脚本：dev:admin / build:admin 等
+├── docker-compose.yml      # 本地 PostgreSQL + Redis
+├── .env.example            # 环境变量示例（复制为 .env）
+├── backend/
+│   ├── cmd/server/         # main 入口
+│   ├── internal/
+│   │   ├── api/            # HTTP 路由注册
+│   │   ├── config/
+│   │   ├── database/
+│   │   ├── encrypt/
+│   │   ├── logger/
+│   │   ├── modules/        # 业务垂直模块（auth / product / collect …）
+│   │   ├── pkg/response/    # 统一 API 响应结构
+│   │   ├── providers/      # Storage / AI / Image / Platform / Collector 抽象
+│   │   └── queue/
+│   ├── migrations/
+│   ├── configs/
+│   └── go.mod
+├── admin/                  # React + Ant Design Pro 后台（脚手架占位）
+│   └── src/
+├── collector/              # Node + Playwright 采集（HTTP /v1/collect）
+│   └── src/                # providers / browser / tasks / http
 ├── docs/                   # 项目文档
-├── data/                   # 本地数据与上传目录
-├── docker-compose.yml      # 本地一键部署
-├── .env.example            # 环境变量示例
-└── README.md               # GitHub 项目展示文档
+└── data/uploads/           # 本地存储挂载目录（默认）
 ```
+
+### 本地开发（pnpm）
+
+```bash
+pnpm install          # 工作区安装依赖（admin postinstall 会执行 max setup）
+pnpm dev:admin        # 启动 Ant Design Pro 管理端
+pnpm build:admin      # 生产构建 admin，产物在 admin/dist
+pnpm install:collector:browsers   # 首次使用 Playwright 时安装 Chromium
+pnpm dev:collector    # 启动采集服务（HTTP :3100 默认）
+pnpm build:collector # 编译采集服务
+```
+
+管理端开发时代理 `/api` → `http://127.0.0.1:8080`（见 `admin/.umirc.ts`），需先启动 Go 后端再调接口。采集服务为独立进程，示例：`POST http://127.0.0.1:3100/v1/collect`，body `{"source":"1688","url":"https://..."}`。
 
 ---
 

@@ -83,7 +83,7 @@ MVP 阶段不要主动实现以下复杂能力，除非任务明确要求：
 
 - 前端后台：React + TypeScript + Ant Design Pro + Ant Design + ProTable + ProForm
 - 后端主服务：Go + Gin + GORM
-- 数据库：MySQL 或 PostgreSQL
+- 数据库：**PostgreSQL**（推荐与默认）；MySQL 可选、非本地默认
 - 缓存/队列：Redis
 - 采集服务：Node.js + TypeScript + Playwright
 - AI：第三方大模型 API / OpenAI-compatible Provider / 本地 Ollama 预留

@@ -98,11 +98,11 @@ queue
 - 支持恢复默认值。
 - 支持按租户隔离预留。
 
-## settings 表建议
+## settings 表建议（**PostgreSQL** 方言；本地与默认迁移以此为准）
 
 ```sql
 CREATE TABLE settings (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT DEFAULT 0,
   group_key VARCHAR(100) NOT NULL,
   item_key VARCHAR(100) NOT NULL,
@@ -110,9 +110,9 @@ CREATE TABLE settings (
   value_type VARCHAR(50) DEFAULT 'string',
   is_encrypted BOOLEAN DEFAULT FALSE,
   remark VARCHAR(255),
-  created_at DATETIME,
-  updated_at DATETIME,
-  UNIQUE KEY uk_setting (tenant_id, group_key, item_key)
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  UNIQUE (tenant_id, group_key, item_key)
 );
 ```
 

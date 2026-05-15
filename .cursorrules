@@ -9,7 +9,7 @@
 
 - 前端后台：React + TypeScript + Ant Design Pro + Ant Design + ProTable + ProForm
 - 后端主服务：Go + Gin + GORM
-- 数据库：MySQL / PostgreSQL
+- 数据库：**PostgreSQL**（本地与默认开发）；MySQL 仅可选（`DB_DRIVER=mysql`）
 - 队列缓存：Redis
 - 采集服务：Node.js + TypeScript + Playwright
 - AI：OpenAI-compatible Provider 优先，DeepSeek / Qwen / Doubao / Gemini / Claude / Ollama 预留
