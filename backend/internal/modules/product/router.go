@@ -13,6 +13,15 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.PUT("/products/:id", h.Put)
 	g.DELETE("/products/:id", h.Delete)
 
+	g.POST("/products/:id/skus", h.PostSKU)
+	g.PUT("/products/:id/skus/:skuId", h.PutSKU)
+	g.DELETE("/products/:id/skus/:skuId", h.DeleteSKU)
+
+	g.POST("/products/:id/images/reorder", h.PostImagesReorder)
+	g.POST("/products/:id/images", h.PostImage)
+	g.PUT("/products/:id/images/:imageId", h.PutImage)
+	g.DELETE("/products/:id/images/:imageId", h.DeleteImage)
+
 	g.POST("/products/:id/ai/optimize-title", h.OptimizeTitle)
 	g.POST("/products/:id/ai/generate-description", h.GenerateDescription)
 	g.POST("/products/:id/apply-ai-title", h.ApplyAITitle)

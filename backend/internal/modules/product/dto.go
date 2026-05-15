@@ -21,17 +21,94 @@ type CreateBody struct {
 }
 
 // UpdateBody binds PUT /products/:id.
+// Source / source URL / rawData are not editable here (采集来源与原始归一数据只读).
+// JSON accepts camelCase and snake_case for the text fields (e.g. original_title, ai_title).
 type UpdateBody struct {
-	Source        *string         `json:"source"`
-	SourceURL     *string         `json:"sourceUrl"`
-	OriginalTitle *string         `json:"originalTitle"`
-	Title         *string         `json:"title"`
-	AITitle       *string         `json:"aiTitle"`
-	Description   *string         `json:"description"`
-	AIDescription *string         `json:"aiDescription"`
-	Currency      *string         `json:"currency"`
-	Status        *string         `json:"status"`
-	RawData       json.RawMessage `json:"rawData"`
+	OriginalTitle *string `json:"originalTitle"`
+	Title         *string `json:"title"`
+	AITitle       *string `json:"aiTitle"`
+	Description   *string `json:"description"`
+	AIDescription *string `json:"aiDescription"`
+	Currency      *string `json:"currency"`
+	Status        *string `json:"status"`
+}
+
+// UnmarshalJSON merges alternate snake_case keys with camelCase.
+func (b *UpdateBody) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	pickStr := func(keys ...string) *string {
+		for _, k := range keys {
+			v, ok := raw[k]
+			if !ok {
+				continue
+			}
+			if string(v) == "null" {
+				empty := ""
+				return &empty
+			}
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				continue
+			}
+			return &s
+		}
+		return nil
+	}
+	b.OriginalTitle = pickStr("originalTitle", "original_title")
+	b.Title = pickStr("title")
+	b.AITitle = pickStr("aiTitle", "ai_title")
+	b.Description = pickStr("description")
+	b.AIDescription = pickStr("aiDescription", "ai_description")
+	b.Currency = pickStr("currency")
+	b.Status = pickStr("status")
+	return nil
+}
+
+// SKUBody binds POST /products/:id/skus.
+type SKUBody struct {
+	SKUCode  string          `json:"skuCode"`
+	SKUName  string          `json:"skuName"`
+	Attrs    json.RawMessage `json:"attrs"`
+	Price    *float64        `json:"price"`
+	Stock    *int            `json:"stock"`
+	ImageURL string          `json:"imageUrl"`
+}
+
+// SKUUpdateBody binds PUT /products/:id/skus/:skuId (partial).
+type SKUUpdateBody struct {
+	SKUCode  *string          `json:"skuCode"`
+	SKUName  *string          `json:"skuName"`
+	Attrs    *json.RawMessage `json:"attrs"`
+	Price    *float64         `json:"price"`
+	Stock    *int             `json:"stock"`
+	ImageURL *string          `json:"imageUrl"`
+}
+
+// ImageCreateBody binds POST /products/:id/images.
+type ImageCreateBody struct {
+	FileID    *uuid.UUID `json:"fileId"`
+	ObjectKey string     `json:"objectKey"`
+	OriginURL string     `json:"originUrl"`
+	PublicURL string     `json:"publicUrl"`
+	ImageType string     `json:"imageType"`
+	SortOrder *int       `json:"sortOrder"`
+}
+
+// ImageUpdateBody binds PUT /products/:id/images/:imageId.
+type ImageUpdateBody struct {
+	ImageType *string `json:"imageType"`
+	ObjectKey *string `json:"objectKey"`
+	OriginURL *string `json:"originUrl"`
+	PublicURL *string `json:"publicUrl"`
+	SortOrder *int    `json:"sortOrder"`
+}
+
+// ImageReorderBody binds POST /products/:id/images/reorder.
+type ImageReorderBody struct {
+	ImageIDs []uuid.UUID `json:"imageIds"`
 }
 
 // ListQuery binds GET /products.

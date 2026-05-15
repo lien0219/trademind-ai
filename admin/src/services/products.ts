@@ -82,6 +82,62 @@ export async function fetchProductDetail(id: string) {
   return getJSON<ProductDetail>(`/api/v1/products/${id}`);
 }
 
+export type UpdateProductBody = {
+  title?: string;
+  originalTitle?: string;
+  original_title?: string;
+  aiTitle?: string;
+  ai_title?: string;
+  description?: string;
+  aiDescription?: string;
+  ai_description?: string;
+  currency?: string;
+  status?: string;
+};
+
+export type CreateProductSkuBody = {
+  skuCode?: string;
+  skuName: string;
+  attrs?: Record<string, unknown> | string;
+  price?: number;
+  stock?: number;
+  imageUrl?: string;
+};
+
+export type UpdateProductSkuBody = {
+  skuCode?: string;
+  skuName?: string;
+  attrs?: Record<string, unknown> | string | null;
+  price?: number | null;
+  stock?: number | null;
+  imageUrl?: string | null;
+};
+
+export type CreateProductImageBody = {
+  fileId?: string;
+  objectKey?: string;
+  originUrl?: string;
+  publicUrl?: string;
+  imageType: string;
+  sortOrder?: number;
+};
+
+export type UpdateProductImageBody = {
+  imageType?: string;
+  objectKey?: string;
+  originUrl?: string;
+  publicUrl?: string;
+  sortOrder?: number;
+};
+
+export type ReorderProductImagesBody = {
+  imageIds: string[];
+};
+
+export async function updateProduct(id: string, body: UpdateProductBody) {
+  return putJSON<ProductDetail, UpdateProductBody>(`/api/v1/products/${id}`, body);
+}
+
 export type ProductCreateBody = {
   tenantId?: number;
   source?: string;
@@ -98,8 +154,81 @@ export async function createProduct(body: ProductCreateBody) {
   return postJSON<ProductDetail>('/api/v1/products', body);
 }
 
-export async function updateProduct(id: string, body: Record<string, unknown>) {
-  return putJSON<ProductDetail, Record<string, unknown>>(`/api/v1/products/${id}`, body);
+export async function createProductSku(productId: string, body: CreateProductSkuBody) {
+  const payload = normalizeSkuBody(body);
+  return postJSON<ProductSKURow>(`/api/v1/products/${productId}/skus`, payload);
+}
+
+export async function updateProductSku(productId: string, skuId: string, body: UpdateProductSkuBody) {
+  const payload = normalizeSkuUpdateBody(body);
+  return putJSON<ProductSKURow, Record<string, unknown>>(
+    `/api/v1/products/${productId}/skus/${skuId}`,
+    payload,
+  );
+}
+
+export async function deleteProductSku(productId: string, skuId: string) {
+  return deleteJSON<{ ok: boolean }>(`/api/v1/products/${productId}/skus/${skuId}`);
+}
+
+export async function createProductImage(productId: string, body: CreateProductImageBody) {
+  return postJSON<ProductImageRow>(`/api/v1/products/${productId}/images`, body);
+}
+
+export async function updateProductImage(productId: string, imageId: string, body: UpdateProductImageBody) {
+  return putJSON<ProductImageRow, UpdateProductImageBody>(
+    `/api/v1/products/${productId}/images/${imageId}`,
+    body,
+  );
+}
+
+export async function deleteProductImage(productId: string, imageId: string) {
+  return deleteJSON<{ ok: boolean }>(`/api/v1/products/${productId}/images/${imageId}`);
+}
+
+export async function reorderProductImages(productId: string, body: ReorderProductImagesBody) {
+  return postJSON<{ ok: boolean }>(`/api/v1/products/${productId}/images/reorder`, body);
+}
+
+function attrsToJSON(attrs?: Record<string, unknown> | string | null): object | string | undefined {
+  if (attrs === undefined) return undefined;
+  if (attrs === null) return null;
+  if (typeof attrs === 'string') {
+    const t = attrs.trim();
+    if (!t) return {};
+    try {
+      return JSON.parse(t) as object;
+    } catch {
+      throw new Error('attrs 需为合法 JSON');
+    }
+  }
+  return attrs;
+}
+
+function normalizeSkuBody(body: CreateProductSkuBody): Record<string, unknown> {
+  const attrs = attrsToJSON(body.attrs);
+  return {
+    skuCode: body.skuCode ?? '',
+    skuName: body.skuName,
+    ...(attrs !== undefined ? { attrs } : {}),
+    price: body.price,
+    stock: body.stock,
+    imageUrl: body.imageUrl ?? '',
+  };
+}
+
+function normalizeSkuUpdateBody(body: UpdateProductSkuBody): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (body.skuCode !== undefined) out.skuCode = body.skuCode;
+  if (body.skuName !== undefined) out.skuName = body.skuName;
+  if (body.price !== undefined) out.price = body.price;
+  if (body.stock !== undefined) out.stock = body.stock;
+  if (body.imageUrl !== undefined) out.imageUrl = body.imageUrl;
+  if (body.attrs !== undefined) {
+    if (body.attrs === null) out.attrs = null;
+    else out.attrs = attrsToJSON(body.attrs);
+  }
+  return out;
 }
 
 export async function deleteProduct(id: string) {

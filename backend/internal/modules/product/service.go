@@ -244,7 +244,7 @@ func toDetailDTO(p *Product) *DetailDTO {
 	}
 }
 
-// Update patches core fields.
+// Update patches editable fields (source / rawData are immutable here).
 func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID *uuid.UUID) (*DetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
@@ -254,17 +254,15 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 		return nil, err
 	}
 
-	if body.Source != nil {
-		p.Source = strings.TrimSpace(*body.Source)
-	}
-	if body.SourceURL != nil {
-		p.SourceURL = strings.TrimSpace(*body.SourceURL)
-	}
 	if body.OriginalTitle != nil {
 		p.OriginalTitle = strings.TrimSpace(*body.OriginalTitle)
 	}
 	if body.Title != nil {
-		p.Title = strings.TrimSpace(*body.Title)
+		t := strings.TrimSpace(*body.Title)
+		if t == "" {
+			return nil, fmt.Errorf("title cannot be empty")
+		}
+		p.Title = t
 	}
 	if body.AITitle != nil {
 		p.AITitle = strings.TrimSpace(*body.AITitle)
@@ -276,13 +274,18 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 		p.AIDescription = strings.TrimSpace(*body.AIDescription)
 	}
 	if body.Currency != nil {
-		p.Currency = strings.TrimSpace(*body.Currency)
+		curr := strings.TrimSpace(*body.Currency)
+		if curr == "" {
+			curr = "CNY"
+		}
+		p.Currency = curr
 	}
 	if body.Status != nil {
-		p.Status = strings.TrimSpace(*body.Status)
-	}
-	if len(body.RawData) > 0 {
-		p.RawData = datatypes.JSON(body.RawData)
+		st := strings.TrimSpace(*body.Status)
+		if err := validateProductStatus(st); err != nil {
+			return nil, err
+		}
+		p.Status = st
 	}
 
 	if err := s.DB.WithContext(c.Request.Context()).Save(&p).Error; err != nil {
@@ -295,7 +298,7 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 			Resource:    "product",
 			ResourceID:  p.ID.String(),
 			Status:      "success",
-			Message:     "product updated",
+			Message:     "product draft fields updated",
 		})
 	}
 	return s.Get(c, p.ID)
@@ -389,7 +392,7 @@ func (s *Service) ImportDraft(c *gin.Context, adminID *uuid.UUID, p ImportDraftP
 			}
 			img := &ProductImage{
 				ProductID: pr.ID,
-				ImageType: ImageTypeDescription,
+				ImageType: ImageTypeDetail,
 				OriginURL: u,
 				PublicURL: u,
 				SortOrder: i,

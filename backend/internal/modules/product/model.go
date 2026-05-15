@@ -16,7 +16,12 @@ const (
 )
 
 const (
-	ImageTypeMain        = "main"
+	ImageTypeMain = "main"
+	// ImageTypeDetail is the canonical type for gallery / detail images (API & UI use "detail").
+	ImageTypeDetail = "detail"
+	// ImageTypeSKU marks images associated with SKU variants.
+	ImageTypeSKU = "sku"
+	// ImageTypeDescription is a legacy value kept for rows imported before "detail" was introduced.
 	ImageTypeDescription = "description"
 )
 
