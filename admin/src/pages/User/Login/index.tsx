@@ -8,11 +8,13 @@ import { login } from '@/services/auth';
 export default function LoginPage() {
   const { setInitialState, initialState } = useModel('@@initialState');
 
+  // 依赖用布尔值，避免 currentUser 对象引用每次渲染都变导致反复 replace → Navigate 死循环
+  const loggedIn = Boolean(initialState?.currentUser);
   useEffect(() => {
-    if (!initialState?.currentUser) return;
+    if (!loggedIn) return;
     const q = new URLSearchParams(history.location.search);
     history.replace(q.get('redirect') || '/dashboard');
-  }, [initialState?.currentUser]);
+  }, [loggedIn]);
 
   return (
     <div style={{ paddingTop: 96, minHeight: '100vh', background: 'linear-gradient(135deg,#f0f5ff 0%,#fff 45%)' }}>
@@ -25,9 +27,7 @@ export default function LoginPage() {
             localStorage.setItem(AUTH_TOKEN_KEY, data.token);
             await setInitialState((s) => ({ ...s, currentUser: data.user }));
             message.success('登录成功');
-            const q = new URLSearchParams(history.location.search);
-            const redirect = q.get('redirect') || '/dashboard';
-            history.push(redirect);
+            // 跳转交给下方 useEffect（loggedIn 变 true 后统一 replace），避免 push + replace 叠加重定向
             return true;
           } catch (e: unknown) {
             const ax = e as { response?: { data?: { message?: string } }; message?: string };

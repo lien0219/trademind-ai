@@ -82,7 +82,7 @@ function RightActions() {
   );
 }
 
-export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
+export const layout: RunTimeLayoutConfig = () => ({
   logo: (
     <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: 0.5 }}>
       <span style={{ color: '#1677ff' }}>贸灵</span>
@@ -92,9 +92,10 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   menu: { locale: false },
   onPageChange: () => {
     const { pathname } = history.location;
-    if (pathname === '/user/login') return;
-    if (!initialState?.currentUser) {
-      history.push(`/user/login?redirect=${encodeURIComponent(pathname)}`);
+    if (pathname === '/user/login' || pathname.startsWith('/user/login')) return;
+    // 必须用 token 判断：initialState 在此闭包里不会在登录后刷新，会一直当作未登录并反复 push 登录页，触发 Navigate 死循环。
+    if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+      history.replace(`/user/login?redirect=${encodeURIComponent(pathname)}`);
     }
   },
   rightContentRender: () => <RightActions key="nav-right" />,

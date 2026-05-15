@@ -1,6 +1,7 @@
 package collect
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,14 +16,19 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
 // Service orchestrates collect tasks and persists results via product drafts.
 type Service struct {
-	DB       *gorm.DB
-	Products *product.Service
-	OpLog    *operationlog.Service
-	Client   *CollectorClient
+	DB           *gorm.DB
+	Products     *product.Service
+	OpLog        *operationlog.Service
+	Client       *CollectorClient
+	Redis        *rdb.Client
+	QueueName    string
+	QueueEnabled bool
 }
 
 func clampCollectPage(page, ps int) (int, int) {
@@ -93,14 +99,18 @@ func (n *normalizedProduct) importParams(fullJSON json.RawMessage) product.Impor
 	}
 }
 
-func (s *Service) failTask(c *gin.Context, taskID uuid.UUID, msg string) {
-	if s == nil || s.DB == nil {
+func (s *Service) failTask(ctx context.Context, task *CollectTask, msg string) {
+	if s == nil || s.DB == nil || task == nil {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	msg = truncateRunes(strings.TrimSpace(msg), 8000)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).
-		Where("id = ?", taskID).
+	tid := task.ID
+	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
+		Where("id = ?", tid).
 		Updates(map[string]interface{}{
 			"status":        StatusFailed,
 			"error_message": msg,
@@ -109,38 +119,50 @@ func (s *Service) failTask(c *gin.Context, taskID uuid.UUID, msg string) {
 		}).Error
 
 	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "collect.task.failed",
-			Resource:   "collect_task",
-			ResourceID: taskID.String(),
-			Status:     "failed",
-			Message:    truncateRunes(msg, 2000),
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+			AdminUserID: task.CreatedBy,
+			Action:        "collect.task.failed",
+			Resource:      "collect_task",
+			ResourceID:    tid.String(),
+			Status:        "failed",
+			Message:       truncateRunes(msg, 2000),
 		})
 	}
 }
 
-func (s *Service) runPipeline(c *gin.Context, taskID uuid.UUID) {
+// RunCollectJob executes one task from the queue (Collector → product draft).
+func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 	if s == nil || s.DB == nil || s.Client == nil || s.Products == nil {
 		return
 	}
-	ctx := c.Request.Context()
+	ctx := parent
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	var task CollectTask
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return
 	}
-
 	started := time.Now().UTC()
-	if err := s.DB.WithContext(ctx).Model(&CollectTask{}).
-		Where("id = ?", taskID).
+	res := s.DB.WithContext(ctx).Model(&CollectTask{}).
+		Where("id = ? AND status IN ?", taskID, []string{StatusPending, StatusRetrying}).
 		Updates(map[string]interface{}{
 			"status":        StatusRunning,
 			"started_at":    &started,
 			"error_message": "",
 			"finished_at":   nil,
 			"updated_at":    started,
-		}).Error; err != nil {
-		s.failTask(c, taskID, err.Error())
+		})
+	if res.Error != nil {
+		s.failTask(ctx, &task, res.Error.Error())
+		return
+	}
+	if res.RowsAffected == 0 {
+		return
+	}
+
+	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return
 	}
 
@@ -151,20 +173,20 @@ func (s *Service) runPipeline(c *gin.Context, taskID uuid.UUID) {
 		if errors.As(err, &rej) && rej != nil && strings.TrimSpace(rej.Message) != "" {
 			msg = rej.Message
 		}
-		s.failTask(c, taskID, msg)
+		s.failTask(ctx, &task, msg)
 		return
 	}
 
 	norm, err := parseNormalized(outcome.ProductJSON)
 	if err != nil {
-		s.failTask(c, taskID, fmt.Sprintf("parse normalized product: %v", err))
+		s.failTask(ctx, &task, fmt.Sprintf("parse normalized product: %v", err))
 		return
 	}
 
 	params := norm.importParams(outcome.ProductJSON)
-	created, err := s.Products.ImportDraft(c, task.CreatedBy, params)
+	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
-		s.failTask(c, taskID, err.Error())
+		s.failTask(ctx, &task, err.Error())
 		return
 	}
 
@@ -181,26 +203,42 @@ func (s *Service) runPipeline(c *gin.Context, taskID uuid.UUID) {
 			"finished_at":       &fin,
 			"updated_at":        fin,
 		}).Error; err != nil {
-		s.failTask(c, taskID, err.Error())
+		s.failTask(ctx, &task, err.Error())
 		return
 	}
 
 	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "collect.task.success",
-			Resource:   "collect_task",
-			ResourceID: taskID.String(),
-			Status:     "success",
-			Message:    fmt.Sprintf("product_id=%s", pid.String()),
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+			AdminUserID: task.CreatedBy,
+			Action:        "collect.task.success",
+			Resource:      "collect_task",
+			ResourceID:    taskID.String(),
+			Status:        "success",
+			Message:       fmt.Sprintf("product_id=%s", pid.String()),
 		})
 	}
 }
 
-// CreateAndRun persists a task and runs the collector synchronously.
-func (s *Service) CreateAndRun(c *gin.Context, body CreateTaskBody, adminID *uuid.UUID) (TaskDTO, error) {
+func requestIDFromGin(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if v, ok := c.Get(ctxkey.TraceID); ok {
+		if s, ok := v.(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+// CreateTaskAsync validates input, persists a pending task, enqueues, returns immediately.
+func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *uuid.UUID) (TaskDTO, error) {
 	var zero TaskDTO
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
+	}
+	if !s.QueueEnabled {
+		return zero, ErrCollectQueueDisabled
 	}
 	source := strings.TrimSpace(body.Source)
 	url := strings.TrimSpace(body.URL)
@@ -218,25 +256,32 @@ func (s *Service) CreateAndRun(c *gin.Context, body CreateTaskBody, adminID *uui
 		return zero, err
 	}
 
+	reqID := requestIDFromGin(c)
+	if err := s.enqueueTask(c.Request.Context(), task.ID, task.Source, task.SourceURL, adminID, reqID); err != nil {
+		_ = s.DB.WithContext(c.Request.Context()).Unscoped().Where("id = ?", task.ID).Delete(&CollectTask{}).Error
+		return zero, err
+	}
+
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			Action:     "collect.task.create",
 			Resource:   "collect_task",
 			ResourceID: task.ID.String(),
 			Status:     "success",
-			Message:    "task created",
+			Message:    "task submitted to queue",
 		})
 	}
-
-	s.runPipeline(c, task.ID)
 	return s.GetDTO(c, task.ID)
 }
 
-// Retry reruns a failed task.
-func (s *Service) Retry(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (TaskDTO, error) {
+// RetryAsync re-queues a failed task.
+func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (TaskDTO, error) {
 	var zero TaskDTO
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
+	}
+	if !s.QueueEnabled {
+		return zero, ErrCollectQueueDisabled
 	}
 
 	var task CollectTask
@@ -245,17 +290,6 @@ func (s *Service) Retry(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (TaskD
 	}
 	if task.Status != StatusFailed {
 		return zero, fmt.Errorf("only failed tasks can be retried")
-	}
-
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.task.retry",
-			Resource:    "collect_task",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     "retry started",
-		})
 	}
 
 	retryAt := time.Now().UTC()
@@ -272,7 +306,34 @@ func (s *Service) Retry(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (TaskD
 		return zero, err
 	}
 
-	s.runPipeline(c, id)
+	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", id).Error; err != nil {
+		return zero, err
+	}
+
+	reqID := requestIDFromGin(c)
+	if err := s.enqueueTask(c.Request.Context(), task.ID, task.Source, task.SourceURL, task.CreatedBy, reqID); err != nil {
+		fin := time.Now().UTC()
+		_ = s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).
+			Where("id = ?", id).
+			Updates(map[string]interface{}{
+				"status":        StatusFailed,
+				"error_message": ErrRedisQueueUnavailable.Error(),
+				"finished_at":   &fin,
+				"updated_at":    fin,
+			}).Error
+		return zero, err
+	}
+
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "collect.task.retry",
+			Resource:    "collect_task",
+			ResourceID:  id.String(),
+			Status:      "success",
+			Message:     "task re-queued",
+		})
+	}
 	return s.GetDTO(c, id)
 }
 

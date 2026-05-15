@@ -1,6 +1,8 @@
 package collect
 
 import (
+	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -51,8 +53,12 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CreateAndRun(c, body, collectAdminUUID(c))
+	out, err := h.Svc.CreateTaskAsync(c, body, collectAdminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrRedisQueueUnavailable) || errors.Is(err, ErrCollectQueueDisabled) {
+			response.Fail(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable, err.Error())
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -122,8 +128,12 @@ func (h *Handler) Retry(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.Retry(c, id, collectAdminUUID(c))
+	out, err := h.Svc.RetryAsync(c, id, collectAdminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrRedisQueueUnavailable) || errors.Is(err, ErrCollectQueueDisabled) {
+			response.Fail(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable, err.Error())
+			return
+		}
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return

@@ -1,5 +1,5 @@
 package queue
 
-// Name tags logs and metrics for future Redis-backed async workers (collect, AI tasks).
-// Connections are created via internal/rdb; this package will host producers/consumers.
+// Name tags logs and metrics for future Redis-backed async workers (AI tasks, etc.).
+// Collect jobs use `internal/modules/collect` (Redis LIST + worker); connections via internal/rdb.
 const Name = "queue"

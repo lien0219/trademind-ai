@@ -31,8 +31,8 @@ type Deps struct {
 	Encrypter *encrypt.Service
 }
 
-// Register mounts routes on the engine.
-func Register(r gin.IRouter, dep *Deps) {
+// Register mounts routes on the engine and returns collect service (for optional async worker).
+func Register(r gin.IRouter, dep *Deps) *collect.Service {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -88,6 +88,11 @@ func Register(r gin.IRouter, dep *Deps) {
 		Products: productSvc,
 		OpLog:    opLogSvc,
 		Client:   collectorClient,
+		Redis:    dep.Redis,
+	}
+	if dep.Config != nil {
+		collectSvc.QueueName = dep.Config.CollectQueueName
+		collectSvc.QueueEnabled = dep.Config.CollectQueueEnabled
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 
@@ -114,6 +119,7 @@ func Register(r gin.IRouter, dep *Deps) {
 	aitask.Register(authed, aiTaskH)
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
+	return collectSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

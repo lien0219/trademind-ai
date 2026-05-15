@@ -1,6 +1,7 @@
 package product
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -334,7 +335,49 @@ func (s *Service) ImportDraft(c *gin.Context, adminID *uuid.UUID, p ImportDraftP
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
-	ctx := c.Request.Context()
+	out, err := s.importDraftCore(c.Request.Context(), adminID, p)
+	if err != nil {
+		return nil, err
+	}
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "product.create",
+			Resource:    "product",
+			ResourceID:  out.ID.String(),
+			Status:      "success",
+			Message:     "draft imported from collect",
+		})
+	}
+	return out, nil
+}
+
+// ImportDraftWithContext is the same as ImportDraft but for non-HTTP callers (e.g. collect worker).
+func (s *Service) ImportDraftWithContext(ctx context.Context, adminID *uuid.UUID, p ImportDraftParams) (*Product, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("product: no db")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	out, err := s.importDraftCore(ctx, adminID, p)
+	if err != nil {
+		return nil, err
+	}
+	if s.OpLog != nil {
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "product.create",
+			Resource:    "product",
+			ResourceID:  out.ID.String(),
+			Status:      "success",
+			Message:     "draft imported from collect",
+		})
+	}
+	return out, nil
+}
+
+func (s *Service) importDraftCore(ctx context.Context, adminID *uuid.UUID, p ImportDraftParams) (*Product, error) {
 	title := strings.TrimSpace(p.Title)
 	if title == "" {
 		title = "（未命名商品）"
@@ -431,16 +474,6 @@ func (s *Service) ImportDraft(c *gin.Context, adminID *uuid.UUID, p ImportDraftP
 	})
 	if err != nil {
 		return nil, err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "product.create",
-			Resource:    "product",
-			ResourceID:  out.ID.String(),
-			Status:      "success",
-			Message:     "draft imported from collect",
-		})
 	}
 	return out, nil
 }

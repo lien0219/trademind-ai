@@ -1,6 +1,7 @@
 package operationlog
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -74,6 +75,32 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 		Message:     truncateRunes(opts.Message, 2000),
 	}
 	return s.DB.WithContext(c.Request.Context()).Create(row).Error
+}
+
+// WriteBackground inserts one log row without an HTTP request (workers, cron).
+func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
+	if s == nil || s.DB == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	adminID := opts.AdminUserID
+	username := strings.TrimSpace(opts.Username)
+
+	row := &OperationLog{
+		AdminUserID: adminID,
+		Username:    username,
+		Action:      strings.TrimSpace(opts.Action),
+		Resource:    strings.TrimSpace(opts.Resource),
+		ResourceID:  strings.TrimSpace(opts.ResourceID),
+		Method:      "INTERNAL",
+		Path:        "/internal/worker",
+		RequestID:   "",
+		Status:      strings.TrimSpace(opts.Status),
+		Message:     truncateRunes(opts.Message, 2000),
+	}
+	return s.DB.WithContext(ctx).Create(row).Error
 }
 
 // ListQuery binds query params for listing operation logs.

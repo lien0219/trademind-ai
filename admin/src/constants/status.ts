@@ -9,10 +9,10 @@ export const PRODUCT_STATUS = {
 
 /** 采集 / 异步任务统一状态 */
 export const COLLECT_TASK_STATUS = {
-  pending: { text: '等待中', color: 'default' as const },
+  pending: { text: '处理中', color: 'processing' as const },
   running: { text: '处理中', color: 'processing' as const },
   success: { text: '成功', color: 'success' as const },
   failed: { text: '失败', color: 'error' as const },
   cancelled: { text: '已取消', color: 'default' as const },
-  retrying: { text: '重试中', color: 'warning' as const },
+  retrying: { text: '处理中', color: 'processing' as const },
 };

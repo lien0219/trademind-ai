@@ -8,4 +8,6 @@ const (
 	CodeForbidden     = 40301
 	CodeNotFound      = 40401
 	CodeInternalError = 50000
+	// CodeServiceUnavailable indicates dependency unavailable (e.g. Redis queue).
+	CodeServiceUnavailable = 50301
 )

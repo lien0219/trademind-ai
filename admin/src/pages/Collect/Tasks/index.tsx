@@ -3,7 +3,7 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Button, Form, Input, message, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import type { ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
   createCollectTask,
@@ -16,6 +16,14 @@ export default function CollectTasksPage() {
   const actionRef = useRef<ActionType>();
   const [form] = Form.useForm<{ source: string; url: string }>();
   const [submitting, setSubmitting] = useState(false);
+  const [polling, setPolling] = useState(4000);
+
+  useEffect(() => {
+    const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : 4000);
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => document.removeEventListener('visibilitychange', sync);
+  }, []);
 
   const columns: ProColumns<CollectTaskRow>[] = [
     {
@@ -46,9 +54,14 @@ export default function CollectTasksPage() {
       dataIndex: 'status',
       width: 112,
       valueType: 'select',
-      valueEnum: Object.fromEntries(
-        Object.entries(COLLECT_TASK_STATUS).map(([k, v]) => [k, { text: v.text }]),
-      ),
+      valueEnum: {
+        ...Object.fromEntries(
+          Object.entries(COLLECT_TASK_STATUS).map(([k, v]) => [k, { text: v.text }]),
+        ),
+        pending: { text: '处理中（排队）' },
+        running: { text: '处理中' },
+        retrying: { text: '处理中（重试）' },
+      },
       render: (_, row) => {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
         return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
@@ -107,7 +120,7 @@ export default function CollectTasksPage() {
                 onClick={async () => {
                   try {
                     await retryCollectTask(row.id);
-                    message.success('已重试');
+                    message.success('已重新入队');
                     actionRef.current?.reload();
                   } catch (e) {
                     message.error(e instanceof Error ? e.message : '重试失败');
@@ -122,7 +135,7 @@ export default function CollectTasksPage() {
   ];
 
   return (
-    <PageContainer title="采集任务" subTitle="提交 1688 链接后由 Go 编排采集服务并入库商品草稿。">
+    <PageContainer title="采集任务" subTitle="提交链接后任务进入队列，由后台 Worker 调用采集服务并写入商品草稿（可在此页查看进度）。">
       <CardLikeForm>
         <Typography.Title level={5}>提交采集</Typography.Title>
         <Form
@@ -137,12 +150,8 @@ export default function CollectTasksPage() {
             }
             setSubmitting(true);
             try {
-              const task = await createCollectTask({ source: vals.source?.trim() || '1688', url });
-              if (task.status === 'success') {
-                message.success('采集成功，已生成商品草稿');
-              } else {
-                message.warning(task.errorMessage || '采集未完成');
-              }
+              await createCollectTask({ source: vals.source?.trim() || '1688', url });
+              message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
             } catch (e) {
               message.error(e instanceof Error ? e.message : '采集失败');
@@ -172,6 +181,7 @@ export default function CollectTasksPage() {
         search={{ labelWidth: 'auto' }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         options={{ reload: true, density: true, setting: true }}
+        polling={polling}
         headerTitle={<Space>任务列表</Space>}
         toolBarRender={() => []}
         request={async (params) => {

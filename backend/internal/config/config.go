@@ -28,6 +28,13 @@ type Config struct {
 	CollectorBaseURL string
 	// CollectorTimeoutSeconds caps outbound HTTP calls to the collector (default 60).
 	CollectorTimeoutSeconds int
+
+	// CollectQueueEnabled gates async collect jobs (Redis list + worker).
+	CollectQueueEnabled bool
+	// CollectWorkerConcurrency is the number of concurrent BRPOP consumers.
+	CollectWorkerConcurrency int
+	// CollectQueueName is the Redis list key for collect job payloads.
+	CollectQueueName string
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -76,6 +83,13 @@ func Load() (*Config, error) {
 
 		CollectorBaseURL:        strings.TrimRight(strings.TrimSpace(firstNonEmpty(os.Getenv("COLLECTOR_BASE_URL"), "http://127.0.0.1:3100")), "/"),
 		CollectorTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECTOR_TIMEOUT_SECONDS"), 60),
+
+		CollectQueueEnabled:      envBool(os.Getenv("COLLECT_QUEUE_ENABLED"), true),
+		CollectWorkerConcurrency: atoiOrDefault(os.Getenv("COLLECT_WORKER_CONCURRENCY"), 2),
+		CollectQueueName: strings.TrimSpace(firstNonEmpty(
+			os.Getenv("COLLECT_QUEUE_NAME"),
+			"collect:tasks",
+		)),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))
@@ -135,6 +149,21 @@ func atoiOrDefault(s string, def int) int {
 		return def
 	}
 	return n
+}
+
+func envBool(s string, def bool) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" {
+		return def
+	}
+	switch s {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return def
+	}
 }
 
 func defaultDBPort(driver string) int {

@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*.local
+.envrc
 
 # Runtime data
 /data/uploads/*
@@ -11,26 +12,62 @@
 node_modules/
 dist/
 build/
-admin/.umi/
-admin/src/.umi/
-admin/src/.umi-production/
 .pnpm-store/
+
+# Umi / Ant Design Pro（构建时生成，任意子目录）
+**/.umi/
+**/.umi-production/
+
+# TypeScript / 前端工具缓存
+*.tsbuildinfo
+.eslintcache
+.parcel-cache/
+.vite/
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+*.lcov
+
+# Playwright（采集/端到端本地跑时可能生成）
+playwright-report/
+test-results/
+blob-report/
+
+# Monorepo / 构建工具
+.turbo/
 
 # Go
 /backend/bin/
 /backend/tmp/
+backend/vendor/
 *.exe
 *.test
 coverage.out
+__debug_bin*
+*.prof
 
 # Logs
 *.log
 logs/
 
-# IDE
+# IDE / 编辑器
 .idea/
+.fleet/
 .vscode/
+*.swp
+*.swo
+*~
 .DS_Store
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 合并/补丁残留
+*.orig
+*.rej
 
 # Internal development-only project specification
 # This file is for Cursor/developer context only and should not be used as GitHub project homepage.

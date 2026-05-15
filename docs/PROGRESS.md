@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-16（**Collector：1688 结构化解析增强** — 主图/详情图/属性/SKU 从 DOM + script JSON 抽取，保留受控体积 `raw`；本地 **`pnpm collect:test`**）
+**最后更新**：2026-05-16（**采集任务异步化** — `POST /collect/tasks` 投递 **Redis 列表队列 `collect:tasks`**，进程内 **Collect Worker**（可配置并发）消费并调 Collector；管理端任务列表 **轮询刷新**；详见正文）
 
 ---
 
@@ -11,7 +11,7 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 3→4→5 阶段衔接**：**采集服务**已实现 **1688 页面结构化抽取**（主图、详情图、属性、`skus[].properties`/价格/库存/图片，`raw` 含候选快照）；商品草稿/Tabs 与前序 AI 文本能力照旧。**仍未做**：AI 图片、AI 客服、采集 **Redis 异步队列**（Go 仍为同步 HTTP Collector） |
+| **路线图阶段** | **第 3→4→5 阶段衔接**：**采集**为 **Node Collector 结构化解析** + **Go 异步队列编排**（Redis `collect:tasks` + Worker 调 **`POST /v1/collect`**，契约未变）。**仍未做**：批量采集、队列深度观测、AI 图片、AI 客服、云存储 Provider 等 |
 | **MVP 闭环** | 登录 → 配置 AI → 采集/草稿 → **AI 优化标题（`ai_title`）** 与 **AI 生成描述（`ai_description` 需手动应用）** 已具备（依赖有效的大模型与系统 AI 设置） |
 | **产物形态** | Monorepo 可构建；本地需 **PostgreSQL**；AI 调用走 **后端 Gateway**，前端 **不直连** 第三方模型 |
 
@@ -63,7 +63,7 @@
 - **AI 调用记录**：模块 `internal/modules/aitask`；表 **`ai_tasks`**（`task_type` / `provider` / `model` / `prompt_code` / status **`pending|running|success|failed`** 等）；**标题优化**（`task_type` **`title_optimize`**）与 **描述生成**（**`product_description_generate`**）各写一条；**`raw_response`** 仅存提供商返回 JSON 裁剪字段，**不含密钥**。**只读查询**：**`GET /api/v1/ai/tasks`**（分页；筛选 **taskType / status / provider / model / promptCode / productId / start|end（RFC3339）**；列表 **不返回** `input`/`output`/`raw_response`）；**`GET /api/v1/ai/tasks/:id`**（详情含 **input/output/rawResponse**，响应前对 JSON 内 **api_key 等敏感键** 做 **`[REDACTED]`** 脱敏）；均 **JWT**、统一 **envelope**
 - **商品 AI 标题**：**`POST /api/v1/products/:id/ai/optimize-title`**（body：`language` / `platform` / `maxLength`；**不自动改 `title`**）；**`POST /api/v1/products/:id/apply-ai-title`**（`aiTitle` + `taskId`，校验任务归属，**仅更新 `products.ai_title`**）；操作日志：**`ai.title_optimize.success` / `ai.title_optimize.failed` / `ai.title.apply`**（消息 **不含密钥与完整 Prompt**）
 - **商品 AI 描述**：**`POST /api/v1/products/:id/ai/generate-description`**（`language` / `platform` / `tone`，默认 en / TikTok Shop / professional；**Preload `images`+`skus`**；**不自动改 `products.description`**）；**`POST /api/v1/products/:id/apply-ai-description`**（`aiDescription` + `taskId`，**仅更新 `products.ai_description`**）；**`GET /api/v1/products/:id/ai/tasks`**（详情页最近任务，列表 **省略大体量 JSON 列**，含 **`title_optimize`** 与 **`product_description_generate`**）；操作日志：**`ai.description_generate.success` / `ai.description_generate.failed` / `ai.description.apply`**（同上）
-- **采集任务**：模块 `internal/modules/collect`；表 **`collect_tasks`**（**JSONB `raw_result`**、统一状态 **pending / running / success / failed / cancelled / retrying**）；**`POST /api/v1/collect/tasks`**（body：`source` + `url`）同步编排 Collector、成功后写入商品草稿；**`GET /api/v1/collect/tasks`**（分页 + **status / source / keyword**）、**`GET .../:id`**、**`POST .../:id/retry`**（仅 **failed**）。
+- **采集任务**：模块 `internal/modules/collect`；表 **`collect_tasks`**（**JSONB `raw_result`**、统一状态 **pending / running / success / failed / cancelled / retrying**）。**`POST /api/v1/collect/tasks`**（body：`source` + `url`）**异步**：写入 **`pending`** → **`LPUSH` Redis 队列**（默认 key **`collect:tasks`**，消息 JSON：`taskId` / `source` / `url` / `createdBy` / `requestId`）→ **立即返回**（**不等待** Collector）；若 **Redis 不可用** 或队列为禁，返回 **503** + 明确 **`Redis queue unavailable`** / **`collect queue is disabled`**（**不回退同步调用**）。**`GET /api/v1/collect/tasks`**、**`GET .../:id`** 供轮询；**`POST .../:id/retry`**（仅 **failed**）→ **`retrying`** + 重新 **入队**。**Collect Worker**：`worker.go` + `RunCollectJob`（`CAS` **pending|retrying → running**，调 Collector，**`ImportDraftWithContext`** 写草稿，**`collect.task.success`/`failed`** 走 **`operationlog.WriteBackground`**；进程内 **BRPOP** 消费，**`COLLECT_WORKER_CONCURRENCY`** 并发，**优雅关闭**时 **cancel worker context** 并 **WaitGroup**（进行中 Collector 调用使用独立 **background context** 避免半道切断）。环境变量：**`COLLECT_QUEUE_ENABLED`**、**`COLLECT_WORKER_CONCURRENCY`**、**`COLLECT_QUEUE_NAME`**（见 `.env.example`）。
 - **Collector HTTP 客户端**：`collector_client.go`；配置 **`COLLECTOR_BASE_URL`**（默认 `http://127.0.0.1:3100`，须与 Collector 监听端口一致）、**`COLLECTOR_TIMEOUT_SECONDS`**（默认 **60**）；**请求级 context + HTTP Client Timeout**；422/`ok:false` 映射为任务 **failed** 并写入 **`error_message`**；成功时 **`raw_result` 保存完整归一化 JSON**（内含 **`raw`** 字段）。
 - **分层**：业务 Orchestration 在 **collect.Service**，采集解析仍在 **Node Collector**；Go **不写死** 1688 解析逻辑。
 
@@ -78,7 +78,7 @@
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
 - **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；**`/product/drafts/:id`** **商品草稿编辑页**：**Tabs**（**基础信息 ProTable type=form**、**AI 标题/描述**（原弹窗逻辑保留）、**图片管理**（上传走 **`/api/v1/files/upload`** + **`createProductImage`**、编辑类型与 sortOrder、**reorder**）、**SKU `EditableProTable`**、最近 **AI 任务**）；顶栏快捷 **标记 ready / 归档 / 软删草稿**。**`/ai/prompts`**、**`/ai/tasks`** 同前。**`products.ts`** 增补 **`updateProduct`、SKU/Image 全套 API 封装**。
-- **采集任务**：顶部表单 **来源（默认 1688）+ URL** → **`POST /api/v1/collect/tasks`**；表格 **`GET /api/v1/collect/tasks`**；列含 **source、source_url、status、result_product_id、error_message、started_at、finished_at、created_at**；**failed** 行 **重试** → **`POST .../retry`**。
+- **采集任务**：顶部表单 **来源（默认 1688）+ URL** → **`POST /api/v1/collect/tasks`**（**提交后即返回**，提示「**采集任务已提交，正在后台处理**」）；表格 **`GET /api/v1/collect/tasks`**（**ProTable `polling`**，默认约 **4s**，**visibility 隐藏页签时暂停**）；列含 **source、source_url、status、result_product_id…**；**pending / running / retrying** 展示为 **处理中**；**failed** 行 **重试** → **`POST .../retry`**（重新入队）；**success** 可跳转 **`/product/drafts/:id`**。
 - **请求封装**：`src/services/request.ts`、**`aiPrompts.ts`**、**`aiTasks.ts`**、`settings.ts`、`auth.ts`、**`operationLogs.ts`**、**`files.ts`**、**`products.ts`**（**商品更新、SKU、图片、reorder**、optimize-title / generate-description / apply / **ai/tasks**）、**`collectTasks.ts`**。
 - **常量**：`src/constants/status.ts`（商品状态、任务状态枚举，与规则对齐）。
 
@@ -125,11 +125,11 @@
 
 - [x] 1688 **结构化解析落地（首版）**：主图 **`mainImages`**、详情 **`descriptionImages`**、**`attributes`**、**`skus`**（含 **`properties`/价格/库存/可选图**）；**降级不抛解析异常**（仅非法 URL、导航失败、非 offer 跳转、验证码页且全无结构化字段时 **`INVALID_URL`** 失败）。
 - [ ] **反爬与稳定性深化**（人机验证绕过、SKU 多维长期可用、异步详情 iframe 全覆盖等）。
-- [x] 与 **Go 任务编排**对接：**HTTP 同步调用**，由 Go 写 **`collect_tasks`** 与 **`products`**（Collector **不写主库**）
+- [x] 与 **Go 任务编排**对接：**HTTP 异步队列**（Redis list + Worker **`POST /v1/collect`**），由 Go 写 **`collect_tasks`** 与 **`products`**（Collector **不写主库**）
 
 ### 4.4 跨模块
 
-- [x] **Go ↔ Collector**：HTTP **超时**、422/`ok:false` → **`collect_tasks.status=failed`**
+- [x] **Go ↔ Collector**：HTTP **`POST /v1/collect`**（Worker 发起，`NormalizedProduct` 契约不变）；**422/`ok:false` → `collect_tasks.status=failed`**
 - [x] e2e（本地）：提交合法 **1688 详情链接** → **结构化解析** → **草稿入库**（**主图/SKU 等完整性仍受站点与风控影响**）
 
 ---
@@ -196,7 +196,7 @@ trademind-ai/
 2. **S3 等云存储**：`test-storage` 仅校验字段完整性；**不**发起真实列举/上传；**文件上传**在 **`kind≠local`** 时仍会失败（符合当前范围）。
 3. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**；开发依赖 admin **`/static` 代理** 或直连后端端口。
 4. **1688 采集** 已升级为 **结构化首版**：多数商品页可从 DOM + JSON 抽到 **主图/详情图/属性/SKU**；**站点改版、登录/验证码/风控会导致字段缺失**，详情图若在 **跨域 iframe / 异步接口** 仍可能不完整；非生产 SLA。
-5. **采集同步耗时**：`POST /collect/tasks` **同步阻塞**直至 Collector 返回；长超时依赖 **`COLLECTOR_TIMEOUT_SECONDS`**；后续可改为队列异步（Redis）而不改 Collector 契约。
+5. **采集异步化首版局限**：**批量采集未完成**；**Worker 失败重试策略仍简单**（**无自动退避重试**）；**任务历史事件表未做**；队列 **深度/延迟可观测性** 仍弱（见「下一步」）。
 6. **端口对齐**：**`COLLECTOR_BASE_URL`**（Go）必须与 **`COLLECTOR_HTTP_ADDR`**（Collector）监听端口一致（模板默认 **3100**）；`.env.example` 已备注。
 7. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
 8. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
@@ -213,7 +213,7 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **采集异步化**：`POST /collect/tasks` 改为投递 **Redis 队列**，Worker 调 Collector，`collect_tasks` 状态可轮询（**不改变** `NormalizedProduct`/`POST /v1/collect` 契约）。
+1. **批量采集**：多 URL、任务批量状态与限流。
 2. **Collector 演进**：SKU 对齐与 **多维 prop**、详情 **iframe/async**、**人机验证探测**与用户侧指引（仍不迁入 Go）。
 3. **AI 图片任务预留**（路线图第 6 阶段）：表结构 / Image Provider / 任务页骨架。
 4. **云存储**：**S3/COS/OSS/R2** Provider、**kind≠local** 上传链路。
@@ -229,7 +229,7 @@ trademind-ai/
 3. **改架构前**：核对「**已确认技术决策**」；若需变更，在本文件与相关架构文档中**写明原因与日期**。
 4. **收工后**：若完成一整块功能或一次较大重构，**必须**更新本文件：勾选进度、补充遗留问题、调整「下一步」。
 5. **前端**：继续 **`services/` 统一请求**；表格 **`ProTable`**、表单 **`ProForm`**；敏感字段 **脱敏**。
-6. **后端**：Handler 薄、Service 编排、**外部调用带超时**；异步任务后续接 **Redis 队列**时需可观测状态。
+6. **后端**：Handler 薄、Service 编排、**外部调用带超时**；采集异步已接 **Redis 列表 + Worker**（**可观测指标/告警**仍可加强）。
 7. **采集**：新业务逻辑放在 **`collector` 对应 Provider**，**不要**塞进 Go 核心业务层。
 8. **本地数据库**：遵守 **`.cursor/rules/11-local-dev-postgres.mdc`**，默认 **PostgreSQL**；勿默认生成 MySQL 专用迁移/compose。
 
@@ -239,6 +239,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-16 | **采集任务异步化**：Redis **`collect:tasks`**（`COLLECT_QUEUE_*`）；**Worker** 消费、`RunCollectJob`、**`operationlog.WriteBackground`**；`POST /collect/tasks` **非阻塞**；**retry 再入队**；**503** `Redis queue unavailable`；**main** 优雅关闭；管理端 **轮询** 与文案；**`ImportDraftWithContext`**；PROGRESS 同步 |
 | 2026-05-16 | **1688 Collector 结构化解析**：`collector/src/providers/source1688/` 分拆 **parser/selectors/utils**；抽取 **标题/主图(≤10)/详情图(≤30)/attributes/skus**（`properties` 兼容 Go **`BuildImportSKU`**），**SKU 粒度 `raw`**；**顶层 `raw`** 结构化（候选图/属性/SKU、`pageMeta`、`extractedAt`、snippet 摘要，**不含整 HTML**）；**`pnpm collect:test`**；验证码且零字段时 **`INVALID_URL`**；PROGRESS §4.3/遗留/下一步更新 |
 | 2026-05-15 | **商品详情编辑增强**：后端 **`PUT /products/:id`**（camelCase/snake_case、**status 枚举**、不写 source/raw）；**SKU / images / reorder API**；**操作日志 `product.sku.*` `product.image.*`**；前端 **`DraftDetail`** **Tabs + 图片 ModalForm + 可编辑 SKU**；采集入库详情图 **`detail`**；**PROGRESS** 同步遗留与下一步 |
 | 2026-05-15 | 初版：记录地基进度、admin/collector/backend 基线与决策 |
