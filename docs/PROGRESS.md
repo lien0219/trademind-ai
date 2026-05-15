@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-15（操作日志 + 本地 Storage Provider + 上传与文件管理）
+**最后更新**：2026-05-15（商品草稿 CRUD + 采集任务 API + Go 编排 Collector + 管理端接通）
 
 ---
 
@@ -11,9 +11,9 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 1 阶段「项目地基」可按 v0.1.0 验收**；已含操作日志与**本地存储上传通路**。**第 2 阶段「存储能力」**已部分落地（local Provider + 上传 + 列表/删除 + 静态读取），云存储上传仍预留 |
-| **MVP 闭环** | 未跑通；**管理端可登录**、**settings**、**test-ai / test-storage**、**文件上传/列表/删除**、**操作审计**已接通 |
-| **产物形态** | Monorepo 可构建：`backend`、`admin`、`collector` 均有可运行/可编译基线 |
+| **路线图阶段** | **第 1 阶段「项目地基」**与 **第 2 阶段「存储能力」本地部分**保持可用。**当前主线**：**第 3 阶段前置 ——「商品草稿 + 采集任务闭环」**：后端 CRUD/编排已落地，管理端列表与采集表单已接真实 API |
+| **MVP 闭环** | **已基本跑通**：管理员登录 → 提交 1688 链接采集 → Node Collector 返回 `NormalizedProduct` → Go 入库 **`products` / `product_images` / `product_skus`** 并写 **`collect_tasks`**；管理端可浏览草稿与任务。**AI 标题/描述/图片**仍未接入 |
+| **产物形态** | Monorepo 可构建：`backend`、`admin`、`collector` 均已验证可编译；本地需同时启动 **PostgreSQL + Go + Collector（及 Chromium）** 才能完成端到端采集 |
 
 ---
 
@@ -45,19 +45,22 @@
 - **配置**：`internal/config` 从环境变量加载（DB、Redis、**JWT**、`APP_MASTER_KEY`、**`UPLOAD_MAX_MB`（默认 10）**、**ADMIN_BOOTSTRAP_*** 等）；**生产环境**强制非默认 `JWT_SECRET`。
 - **日志**：`internal/logger`（development 文本 / production JSON）。
 - **数据库**：GORM，默认 **PostgreSQL**（`DB_DRIVER` 默认 `postgres`；未设置 `DB_PORT` 时默认 **5432**，MySQL 为 **3306**）；启动时 **Ping**；失败则进程退出。
-- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**。
+- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**、**`products`、`product_images`、`product_skus`、`collect_tasks`**。
 - **Redis**：`internal/rdb`（go-redis），连接失败 **仅告警**，服务继续（健康检查体现 `redis: skipped/degraded`）。
 - **健康检查**：`GET /health`、`GET /api/v1/health`（含 DB/Redis 检查）。
 - **ID 约定**：管理员等域表主键 **UUID**（`internal/pkg/model` + `internal/pkg/id`；GORM `char(36)`）；`settings` 表为 **`BIGINT` 自增**（与规则文档一致）。
 - **认证**：`admin_users` 模型；`POST /api/v1/auth/login`（bcrypt 口令、**JWT HS256**）；`GET /api/v1/auth/profile`、`POST /api/v1/auth/logout`（无状态，客户端弃 token）。
 - **JWT 上下文**：`BearerAuth` 写入 `ctxkey.AdminID` 与 **`ctxkey.AdminUsername`**（供审计与业务使用）。
-- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）。
+- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：创建任务 / 成功 / 失败 / 重试；**商品**：手工 CRUD 与 **采集入库创建草稿**。
 - **存储 Provider**：`internal/providers/storage` 接口 **Put / GetURL / Delete**；**本地实现** `internal/providers/storage/local`（`settings.storage`：`kind`、`local_root`、`public_base`）；**`GET /static/*filepath`** 按当前 `local_root` 提供只读文件（防 `..` 穿越）；上传仅当 **`kind=local`**，其它 kind 返回明确错误（云上传后续接 Provider）。
 - **文件**：`files` 表；**`POST /api/v1/files/upload`**（`multipart` 字段名 **`file`**；**jpg/jpeg/png/webp/gif**；**objectKey = 日期目录/UUID.ext**；大小默认 **10MB**，环境变量 **`UPLOAD_MAX_MB`**）；**`GET /api/v1/files`**（分页、`contentType`）；**`DELETE /api/v1/files/:id`**（删库 + Provider 删对象）。**`MaxMultipartMemory`** 与配置上限对齐。
 - **配置中心**：`settings` 模型与 `GET/PUT /api/v1/settings`；`item_value` 在 `is_encrypted=true` 时 **AES-GCM**（`APP_MASTER_KEY`）存储；列表接口 **脱敏**（`****` 规则）；PUT 若密文占位含 `****` 则 **不覆盖**原密钥，可更新 remark / value_type 等。
 - **连通性测试**：`POST /api/v1/settings/test-ai`（读取 `ai` 组解密后请求 OpenAI 兼容 `POST /chat/completions`，`max_tokens:1`）；`POST /api/v1/settings/test-storage`（`local` 校验 `local_root` 可写；`s3/cos/oss/r2/minio` 校验必填字段完整）。`ai` / `storage` 组键名约定：`base_url`、`api_key`、`kind`、`local_root` 等（**snake_case item_key**）。
 - **默认管理员**：库中无管理员时，按 `ADMIN_BOOTSTRAP_USERNAME`（默认 `admin`）与 `ADMIN_BOOTSTRAP_PASSWORD`（**非 production** 空密码时 Fallback `changeme` 并打日志；**production** 无用户则必须配置密码）插入一条记录。
-- **分层**：**Storage** 本地 Provider 已接入上传/删除；商品/采集等 **业务 CRUD 未完整实现**。
+- **商品草稿**：模块 `internal/modules/product`；模型含 **`tenant_id`、`created_by`、JSONB `raw_data`** 及图片/SKU 子表；**`GET/POST /api/v1/products`**、**`GET/PUT/DELETE /api/v1/products/:id`**；列表支持 **分页与 `status` / `source` / `keyword`**；详情 **Preload** `images`、`skus`。删除为 **软删除**（`deleted_at`）。
+- **采集任务**：模块 `internal/modules/collect`；表 **`collect_tasks`**（**JSONB `raw_result`**、统一状态 **pending / running / success / failed / cancelled / retrying**）；**`POST /api/v1/collect/tasks`**（body：`source` + `url`）同步编排 Collector、成功后写入商品草稿；**`GET /api/v1/collect/tasks`**（分页 + **status / source / keyword**）、**`GET .../:id`**、**`POST .../:id/retry`**（仅 **failed**）。
+- **Collector HTTP 客户端**：`collector_client.go`；配置 **`COLLECTOR_BASE_URL`**（默认 `http://127.0.0.1:3100`，须与 Collector 监听端口一致）、**`COLLECTOR_TIMEOUT_SECONDS`**（默认 **60**）；**请求级 context + HTTP Client Timeout**；422/`ok:false` 映射为任务 **failed** 并写入 **`error_message`**；成功时 **`raw_result` 保存完整归一化 JSON**（内含 **`raw`** 字段）。
+- **分层**：业务 Orchestration 在 **collect.Service**，采集解析仍在 **Node Collector**；Go **不写死** 1688 解析逻辑。
 
 ### 3.3 管理端（`admin/`）
 
@@ -69,8 +72,9 @@
 - **操作日志页**：**`ProTable`** → **`GET /api/v1/operation-logs`**；只读、可筛选。
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
-- **其他页面**：工作台、商品草稿、采集任务仍为占位或未接业务 API。
-- **请求封装**：`src/services/request.ts`（**`getWithParams` / `deleteJSON` / `postFormData`**）、`settings.ts`、`auth.ts`、**`operationLogs.ts`**、**`files.ts`**。
+- **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；展示封面、标题、来源、状态、创建时间；筛选 **keyword / source / status**；**新建草稿**（最小表单）；**`/product/drafts/:id`** 基础详情（概要、图片、SKU、`rawData` JSON）。
+- **采集任务**：顶部表单 **来源（默认 1688）+ URL** → **`POST /api/v1/collect/tasks`**；表格 **`GET /api/v1/collect/tasks`**；列含 **source、source_url、status、result_product_id、error_message、started_at、finished_at、created_at**；**failed** 行 **重试** → **`POST .../retry`**。
+- **请求封装**：`src/services/request.ts`（**`getWithParams` / `deleteJSON` / `postFormData`**）、`settings.ts`、`auth.ts`、**`operationLogs.ts`**、**`files.ts`**、**`products.ts`**、**`collectTasks.ts`**。
 - **常量**：`src/constants/status.ts`（商品状态、任务状态枚举，与规则对齐）。
 
 ### 3.4 采集服务（`collector/`）
@@ -80,6 +84,7 @@
 - **任务编排**：`runCollectTask`（唯一推荐入口）。
 - **HTTP**：`GET /health`、`POST /v1/collect`（body：`source` + `url`）。
 - **浏览器**：`BrowserManager` 单例 Chromium，`withPage` 保证关闭 page/context。
+- **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；采集逻辑仍在 Collector，主库仅由 Go 写入。
 
 ### 3.5 文档
 
@@ -87,32 +92,36 @@
 
 ---
 
-## 4. 未完成事项（相对第 1 阶段与 MVP）
+## 4. 未完成事项（相对「地基」验收以外的路线图）
+
+> 「未完成」聚焦 AI / 云存储 / 采集结构化深化及异步编排：地基阶段的条目已全部勾选。
 
 ### 4.1 后端
 
 - [x] **认证**：`POST /api/v1/auth/login`、**JWT**、管理员模型、`profile` / `logout`
 - [x] **Settings 业务**：`settings` 表与 `GET/PUT /api/v1/settings`、**AES-GCM（APP_MASTER_KEY）**、脱敏与 masked 更新语义
-- [x] **迁移**：启动时 GORM **AutoMigrate**（`admin_users`、`settings`、**`operation_logs`**、**`files`**）
-- [x] **操作日志**：表 + 模块 + **`GET /api/v1/operation-logs`**；登录 / logout / 改设置 / test-ai / test-storage 写入
+- [x] **迁移**：启动时 GORM **AutoMigrate**（地基表 + **商品 / 采集**相关表）
+- [x] **操作日志**：表 + **`GET /api/v1/operation-logs`**；登录 / logout / settings / test-ai / test-storage / **采集关键节点 / 商品 CRUD（含采集入库）**
 - [x] **本地存储与文件 API**：Storage **Put/GetURL/Delete**、**`POST /api/v1/files/upload`**、**`GET/DELETE /api/v1/files`**、**`/static`** 只读
 - [x] **settings 连通性测试**：`test-ai`、`test-storage`（见上）
+- [x] **商品草稿 API**：§3.2 **商品草稿**
+- [x] **采集任务 API + Collector Client**：§3.2 **采集任务** / **Collector HTTP 客户端**
 
 ### 4.2 管理端
 
 - [x] 登录页与 **access 模型**（@umijs/max access）；**Bearer** 请求拦截与 **401** 处理
 - [x] **系统 / AI / 存储 / 采集服务 / 安全** 设置页与 **真实 settings API**；**test-ai / test-storage**；**存储页上传测试**；**操作日志**与**文件管理**页（**ProTable**）
-- [ ] **商品草稿 / 采集任务** 列表接后端分页与状态
+- [x] **商品草稿 / 采集任务**：分页列表 API、筛选、采集提交表单与失败 **重试**
 
 ### 4.3 采集服务
 
 - [ ] 1688 **真实结构化解析**（SKU、主图、详情图、属性等）与反爬策略
-- [ ] 与 **Go 任务编排**对接（HTTP 回调或 Redis 队列），由 Go 写任务状态与结果
+- [x] 与 **Go 任务编排**对接：**HTTP 同步调用**，由 Go 写 **`collect_tasks`** 与 **`products`**（Collector **不写主库**）
 
 ### 4.4 跨模块
 
-- [ ] **Go ↔ Collector** 调用链与超时、错误码映射
-- [ ] e2e：从「提交 1688 链接」到「商品草稿入库」闭环
+- [x] **Go ↔ Collector**：HTTP **超时**、422/`ok:false` → **`collect_tasks.status=failed`**
+- [x] e2e（本地）：提交合法 **1688 详情链接** → **占位解析** → **草稿入库**（字段完整度取决于 Collector）
 
 ---
 
@@ -130,13 +139,13 @@ trademind-ai/
 │       ├── middleware/      # RequestID / Recovery / AccessLog
 │       ├── pkg/             # response, id, ctxkey, model
 │       ├── providers/       # storage（**local**）等
-│       └── modules/         # auth、admin、settings、**operationlog**、**files** 等
+│       └── modules/         # auth、admin、settings、**operationlog**、**files**、**product**、**collect**
 ├── admin/                   # Ant Design Pro（Umi Max）
 │   ├── .umirc.ts            # 含 proxy `/api` 与 **`/static`** → 8080
 │   ├── config/routes.ts
 │   └── src/
-│       ├── pages/           # Dashboard / **System/OperationLogs** / **Files** / Settings / Product / Collect
-│       ├── services/        # request、settings、auth、**operationLogs**、**files**
+│       ├── pages/           # Dashboard / **System/OperationLogs** / **Files** / Settings / **Product（草稿、详情）** / **Collect/Tasks**
+│       ├── services/        # request、settings、auth、**operationLogs**、**files**、**products**、**collectTasks**
 │       └── constants/       # 状态枚举
 ├── collector/               # Node 采集（Playwright）
 │   └── src/
@@ -176,19 +185,21 @@ trademind-ai/
 1. **401 处理**：采用**整页跳转**登录以清空 initialState；后续可改为无刷新同步 `setInitialState`。
 2. **S3 等云存储**：`test-storage` 仅校验字段完整性；**不**发起真实列举/上传；**文件上传**在 **`kind≠local`** 时仍会失败（符合当前范围）。
 3. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**；开发依赖 admin **`/static` 代理** 或直连后端端口。
-4. **商品、采集** 在后端多为**未实现**；认证、设置、文件与审计已端到端可用。
-5. **1688 采集** 仅为占位：风控/登录/验证码未处理，**不可视为生产可用**。
-6. **Admin 与 Backend**：本地 admin dev 代理 **`/api`** 与 **`/static`** → `8080`，需同时启动两端。
-7. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
+4. **1688 采集** 仍为 **Collector 内占位**：主图/SKU/详情图多为空，**raw** 仅保留页面级快照；风控/登录/验证码未处理，**不可视为生产可用**。
+5. **采集同步耗时**：`POST /collect/tasks` **同步阻塞**直至 Collector 返回；长超时依赖 **`COLLECTOR_TIMEOUT_SECONDS`**；后续可改为队列异步（Redis）而不改 Collector 契约。
+6. **端口对齐**：**`COLLECTOR_BASE_URL`**（Go）必须与 **`COLLECTOR_HTTP_ADDR`**（Collector）监听端口一致（模板默认 **3100**）；`.env.example` 已备注。
+7. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
+8. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
+9. **MySQL 可选驱动**：当前 JSON 字段迁移以 **PostgreSQL `JSONB`** 为主路径；若使用 **MySQL**，需自行核对 GORM 对 `JSON`/`JSONB` 标签的兼容性（默认开发仍为 Postgres）。
 
 ---
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **存储能力收尾**：**S3/COS/OSS** 等 Provider 实现、**预签名**或服务端上传、 **`files`** 与 **非 local** kind 联调。
-2. **采集与 Go 打通**：`collect task` API → 调 collector → 写库；失败重试与任务状态。
-3. **管理端**：商品草稿 / 采集任务列表接真实分页与状态。
-4. **AI 文本（第 3 阶段）**：Prompt 表、标题优化 API、与商品草稿联动。
+1. **AI 文本（第 3 阶段主线）**：**AI Provider** 抽象落地、**Prompt 模板表**、后台 Prompt 编辑页、**`POST /api/v1/products/:id/apply-ai-title`**（或等价标题优化 API）、商品详情 **一键应用 AI 标题**；延续「**前端不直连第三方 AI**」。
+2. **Collector 深化**：1688 **结构化字段**（SKU、主图、详情图、属性）与稳定性；必要时 **异步队列**（Redis）承载长任务，Go 仅扩展编排而非解析逻辑。
+3. **存储能力收尾**：**S3/COS/OSS** Provider、**非 local** 上传与 **`files`** 串联。
+4. **商品编辑**：详情页 **ProForm** 深度编辑、SKU / 图片管理与归档策略。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -217,3 +228,4 @@ trademind-ai/
 | 2026-05-15 | **管理端**：登录页（`/user/login`）、JWT 存储与 **Bearer** 拦截、**401** 回登录、**access**；系统/AI/存储/采集/安全设置接 **`GET/PUT /api/v1/settings`**；**test-ai / test-storage** 按钮；**后端**新增两测试接口与 **PlainByGroup** 解密探测（OpenAI 兼容最小 chat 请求；本地目录读写校验） |
 | 2026-05-15 | **操作日志**：`operation_logs` + **`GET /api/v1/operation-logs`**；登录/失败、logout、改 settings、test-ai、test-storage 落库；**JWT** 写入 **username** 上下文；管理端 **操作日志 ProTable** |
 | 2026-05-15 | **存储与文件**：**Storage Put/GetURL/Delete**、**local Provider**、**`files` 表**、**`/api/v1/files/upload|list|delete`**、**`GET /static/*`**；**`UPLOAD_MAX_MB`**；管理端 **文件管理**、**存储页上传测试**；admin 代理 **`/static`**；**`.env.example`** 补充上传配置 |
+| 2026-05-15 | **商品草稿 + 采集闭环**：`products` / `product_images` / `product_skus`、`collect_tasks`（JSONB）；商品 CRUD 与采集 API；**Go Collector HTTP 客户端**（`COLLECTOR_BASE_URL`、`COLLECTOR_TIMEOUT_SECONDS`）；归一化结果入库与操作日志；管理端 **商品列表/详情**、**采集表单 + 任务表 + 重试**；`.env.example` 补充 Collector 编排变量 |

@@ -10,8 +10,10 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -52,6 +54,27 @@ func Register(r gin.IRouter, dep *Deps) {
 	fileH := &files.Handler{Svc: fileSvc}
 	staticH := &files.StaticHandler{Settings: settingsSvc}
 
+	collectorTimeout := 60 * time.Second
+	if dep.Config != nil && dep.Config.CollectorTimeoutSeconds > 0 {
+		collectorTimeout = time.Duration(dep.Config.CollectorTimeoutSeconds) * time.Second
+	}
+	collectorBase := "http://127.0.0.1:3100"
+	if dep.Config != nil && dep.Config.CollectorBaseURL != "" {
+		collectorBase = dep.Config.CollectorBaseURL
+	}
+	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout)
+
+	productSvc := &product.Service{DB: dep.DB, OpLog: opLogSvc}
+	productH := &product.Handler{Svc: productSvc}
+
+	collectSvc := &collect.Service{
+		DB:       dep.DB,
+		Products: productSvc,
+		OpLog:    opLogSvc,
+		Client:   collectorClient,
+	}
+	collectH := &collect.Handler{Svc: collectSvc}
+
 	r.GET("/static/*filepath", staticH.Serve)
 
 	v1 := r.Group("/api/v1")
@@ -70,6 +93,9 @@ func Register(r gin.IRouter, dep *Deps) {
 	authed.POST("/files/upload", fileH.Upload)
 	authed.GET("/files", fileH.List)
 	authed.DELETE("/files/:id", fileH.Delete)
+
+	product.Register(authed, productH)
+	collect.Register(authed, collectH)
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {
