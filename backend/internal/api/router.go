@@ -81,6 +81,7 @@ func Register(r gin.IRouter, dep *Deps) {
 	}
 	productH := &product.Handler{Svc: productSvc}
 	promptH := &aiprompt.Handler{Svc: promptSvc}
+	aiTaskH := &aitask.Handler{Svc: aiTaskSvc}
 
 	collectSvc := &collect.Service{
 		DB:       dep.DB,
@@ -110,6 +111,7 @@ func Register(r gin.IRouter, dep *Deps) {
 	authed.DELETE("/files/:id", fileH.Delete)
 
 	aiprompt.Register(authed, promptH)
+	aitask.Register(authed, aiTaskH)
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
 }

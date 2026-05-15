@@ -47,6 +47,12 @@ export default [
         component: './AI/Prompts',
         access: 'canAdmin',
       },
+      {
+        path: '/ai/tasks',
+        name: 'AI 任务记录',
+        component: './AI/Tasks',
+        access: 'canAdmin',
+      },
     ],
   },
   {
