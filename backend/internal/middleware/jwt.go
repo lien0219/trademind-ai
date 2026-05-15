@@ -33,6 +33,7 @@ func BearerAuth(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 		c.Set(ctxkey.AdminID, claims.Subject)
+		c.Set(ctxkey.AdminUsername, claims.Username)
 		c.Next()
 	}
 }

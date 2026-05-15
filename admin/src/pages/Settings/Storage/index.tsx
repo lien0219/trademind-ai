@@ -1,6 +1,7 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, message, Radio, Space } from 'antd';
+import { Alert, Button, Form, Image, Input, Typography, Upload, message, Radio, Space } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import { uploadFile } from '@/services/files';
 import { fetchSettingsList, saveSettingsItems, testStorageConnection, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 
@@ -97,6 +98,8 @@ export default function StorageSettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const kind = Form.useWatch('kind', form);
 
   const load = useCallback(async () => {
@@ -171,9 +174,9 @@ export default function StorageSettingsPage() {
           <Form.Item
             label="公开访问前缀 URL"
             name="public_base"
-            extra="浏览器可访问的文件 URL 前缀，例如 http://127.0.0.1:8080/static"
+            extra="浏览器可打开的图片 URL 前缀。开发环境可填 `/static`（已代理到后端）；或直接填 `http://127.0.0.1:8080/static`"
           >
-            <Input placeholder="http://127.0.0.1:8080/static" />
+            <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
           </Form.Item>
           {kind === 'local' || !kind ? (
             <Form.Item label="本地根目录" name="local_root" rules={[{ required: true }]}>
@@ -223,6 +226,46 @@ export default function StorageSettingsPage() {
             </Space>
           </Form.Item>
         </Form>
+      </ProCard>
+      <ProCard title="上传测试" bordered style={{ marginTop: 16 }}>
+        <Typography.Paragraph type="secondary">
+          本地模式将写入「本地根目录」。公开前缀可填 <Typography.Text code>/static</Typography.Text>（与 dev 代理一致）或后端完整地址{' '}
+          <Typography.Text code>http://127.0.0.1:8080/static</Typography.Text>，返回的 URL 与资源路径一致即可在下方预览。
+        </Typography.Paragraph>
+        <Space align="start" wrap size="large">
+          <Upload
+            maxCount={1}
+            accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
+            showUploadList
+            beforeUpload={(file) => {
+              void (async () => {
+                setUploading(true);
+                setUploadPreviewUrl(null);
+                try {
+                  const r = await uploadFile(file);
+                  setUploadPreviewUrl(r.url);
+                  message.success('上传成功');
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '上传失败');
+                } finally {
+                  setUploading(false);
+                }
+              })();
+              return false;
+            }}
+          >
+            <Button loading={uploading}>选择图片并上传</Button>
+          </Upload>
+          {uploadPreviewUrl ? (
+            <Space direction="vertical" size="small">
+              <Typography.Text type="secondary">返回 URL</Typography.Text>
+              <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
+                {uploadPreviewUrl}
+              </Typography.Paragraph>
+              <Image src={uploadPreviewUrl} alt="upload" width={200} style={{ objectFit: 'contain' }} />
+            </Space>
+          ) : null}
+        </Space>
       </ProCard>
     </PageContainer>
   );

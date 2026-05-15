@@ -5,3 +5,6 @@ const TraceID = "trace_id"
 
 // AdminID holds the authenticated admin UUID string (*gin.Context key).
 const AdminID = "admin_id"
+
+// AdminUsername holds the JWT username claim (*gin.Context key).
+const AdminUsername = "admin_username"

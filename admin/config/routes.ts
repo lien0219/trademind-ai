@@ -21,6 +21,20 @@ export default [
     access: 'canAdmin',
   },
   {
+    path: '/system/operation-logs',
+    name: '操作日志',
+    icon: 'AuditOutlined',
+    component: './System/OperationLogs',
+    access: 'canAdmin',
+  },
+  {
+    path: '/files',
+    name: '文件管理',
+    icon: 'FileImageOutlined',
+    component: './Files',
+    access: 'canAdmin',
+  },
+  {
     path: '/product',
     name: '商品',
     icon: 'ShoppingOutlined',

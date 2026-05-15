@@ -2,12 +2,14 @@ package settings
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
 // Handler serves settings HTTP API.
 type Handler struct {
-	Svc *Service
+	Svc   *Service
+	OpLog *operationlog.Service
 }
 
 type putBody struct {
@@ -66,8 +68,24 @@ func (h *Handler) Put(c *gin.Context) {
 		})
 	}
 	if err := h.Svc.PutBulk(c.Request.Context(), items); err != nil {
+		if h.OpLog != nil {
+			_ = h.OpLog.Write(c, operationlog.WriteOpts{
+				Action:   "settings_update",
+				Resource: "settings",
+				Status:   "failed",
+				Message:  err.Error(),
+			})
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			Action:   "settings_update",
+			Resource: "settings",
+			Status:   "success",
+			Message:  "bulk upsert",
+		})
 	}
 	rows, err := h.Svc.List(c.Request.Context())
 	if err != nil {
@@ -84,8 +102,23 @@ func (h *Handler) TestAI(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.TestAIConnection(c.Request.Context()); err != nil {
+		if h.OpLog != nil {
+			_ = h.OpLog.Write(c, operationlog.WriteOpts{
+				Action:   "test_ai",
+				Resource: "settings",
+				Status:   "failed",
+				Message:  err.Error(),
+			})
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			Action:   "test_ai",
+			Resource: "settings",
+			Status:   "success",
+		})
 	}
 	response.OK(c, gin.H{"ok": true})
 }
@@ -97,8 +130,23 @@ func (h *Handler) TestStorage(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.TestStorageConnection(c.Request.Context()); err != nil {
+		if h.OpLog != nil {
+			_ = h.OpLog.Write(c, operationlog.WriteOpts{
+				Action:   "test_storage",
+				Resource: "settings",
+				Status:   "failed",
+				Message:  err.Error(),
+			})
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			Action:   "test_storage",
+			Resource: "settings",
+			Status:   "success",
+		})
 	}
 	response.OK(c, gin.H{"ok": true})
 }

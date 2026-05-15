@@ -76,6 +76,7 @@ func main() {
 	}
 
 	engine := gin.New()
+	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	api.Register(engine, &api.Deps{

@@ -1,8 +1,13 @@
 package storage
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // Provider abstracts blob storage (local first; S3/COS/OSS/R2/MinIO via adapters).
 type Provider interface {
-	Ping(ctx context.Context) error
+	Put(ctx context.Context, objectKey string, r io.Reader, size int64, contentType string) error
+	GetURL(ctx context.Context, objectKey string) (string, error)
+	Delete(ctx context.Context, objectKey string) error
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ import (
 type Handler struct {
 	LoginSvc *LoginService
 	Admins   *admin.Store
+	OpLog    *operationlog.Service
 }
 
 type loginBody struct {
@@ -35,8 +37,27 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	res, err := h.LoginSvc.Login(c.Request.Context(), body.Username, body.Password)
 	if err != nil {
+		if h.OpLog != nil {
+			_ = h.OpLog.Write(c, operationlog.WriteOpts{
+				Username: body.Username,
+				Action:   "login",
+				Resource: "auth",
+				Status:   "failed",
+				Message:  err.Error(),
+			})
+		}
 		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
 		return
+	}
+	uid, perr := uuid.Parse(res.User.ID)
+	if perr == nil && h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: &uid,
+			Username:    res.User.Username,
+			Action:      "login",
+			Resource:    "auth",
+			Status:      "success",
+		})
 	}
 	response.OK(c, gin.H{
 		"token":     res.Token,
@@ -86,5 +107,12 @@ func (h *Handler) Profile(c *gin.Context) {
 
 // Logout POST /api/v1/auth/logout — stateless JWT; client discards token.
 func (h *Handler) Logout(c *gin.Context) {
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			Action:   "logout",
+			Resource: "auth",
+			Status:   "success",
+		})
+	}
 	response.OK(c, gin.H{"ok": true})
 }

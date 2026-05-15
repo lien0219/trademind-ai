@@ -38,3 +38,27 @@ export async function postJSON<T>(path: string, body?: object): Promise<T> {
   });
   return unwrap(res);
 }
+
+/** GET with query params */
+export async function getWithParams<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  const res = await request<ApiResponse<T>>(path, {
+    method: 'GET',
+    params,
+  });
+  return unwrap(res);
+}
+
+/** DELETE */
+export async function deleteJSON<T>(path: string): Promise<T> {
+  const res = await request<ApiResponse<T>>(path, { method: 'DELETE' });
+  return unwrap(res);
+}
+
+/** multipart/form-data（如上传）；由 request 识别 FormData，勿手动设 Content-Type */
+export async function postFormData<T>(path: string, data: FormData): Promise<T> {
+  const res = await request<ApiResponse<T>>(path, {
+    method: 'POST',
+    data,
+  });
+  return unwrap(res);
+}

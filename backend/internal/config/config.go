@@ -20,6 +20,9 @@ type Config struct {
 	// BootstrapAdminUsername / BootstrapAdminPassword seed the first admin when the table is empty.
 	BootstrapAdminUsername string
 	BootstrapAdminPassword string
+
+	// UploadMaxMB limits multipart image uploads (default 10 MB).
+	UploadMaxMB int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -63,6 +66,8 @@ func Load() (*Config, error) {
 
 		BootstrapAdminUsername: strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_USERNAME")),
 		BootstrapAdminPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
+
+		UploadMaxMB: atoiOrDefault(os.Getenv("UPLOAD_MAX_MB"), 10),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))
@@ -95,6 +100,18 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// MaxUploadBytes returns the max upload size in bytes from UploadMaxMB (fallback 10 MB).
+func (c *Config) MaxUploadBytes() int64 {
+	if c == nil {
+		return 10 << 20
+	}
+	mb := c.UploadMaxMB
+	if mb <= 0 {
+		mb = 10
+	}
+	return int64(mb) << 20
 }
 
 func firstNonEmpty(a, b string) string {

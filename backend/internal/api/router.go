@@ -10,6 +10,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -35,8 +37,22 @@ func Register(r gin.IRouter, dep *Deps) {
 
 	adminStore := &admin.Store{DB: dep.DB}
 	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore}
-	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore}
-	setH := &settings.Handler{Svc: &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}}
+	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
+	opLogSvc := &operationlog.Service{DB: dep.DB}
+
+	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc}
+	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc}
+	opLogH := &operationlog.Handler{Svc: opLogSvc}
+
+	maxUp := int64(10 << 20)
+	if dep.Config != nil {
+		maxUp = dep.Config.MaxUploadBytes()
+	}
+	fileSvc := &files.Service{DB: dep.DB, Settings: settingsSvc, MaxBytes: maxUp}
+	fileH := &files.Handler{Svc: fileSvc}
+	staticH := &files.StaticHandler{Settings: settingsSvc}
+
+	r.GET("/static/*filepath", staticH.Serve)
 
 	v1 := r.Group("/api/v1")
 	v1.POST("/auth/login", authH.Login)
@@ -49,6 +65,11 @@ func Register(r gin.IRouter, dep *Deps) {
 	authed.PUT("/settings", setH.Put)
 	authed.POST("/settings/test-ai", setH.TestAI)
 	authed.POST("/settings/test-storage", setH.TestStorage)
+
+	authed.GET("/operation-logs", opLogH.List)
+	authed.POST("/files/upload", fileH.Upload)
+	authed.GET("/files", fileH.List)
+	authed.DELETE("/files/:id", fileH.Delete)
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {
