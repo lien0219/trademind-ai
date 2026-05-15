@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-15（**商品详情编辑增强**：SKU/图片子 API、管理端 Tabs 编辑页，`PUT products` 收紧来源/raw）
+**最后更新**：2026-05-16（**Collector：1688 结构化解析增强** — 主图/详情图/属性/SKU 从 DOM + script JSON 抽取，保留受控体积 `raw`；本地 **`pnpm collect:test`**）
 
 ---
 
@@ -11,7 +11,7 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 3→4 阶段衔接**：AI 文本能力已落地（见 §3.2）；**商品草稿深度编辑已落地**：详情页 **Tabs**（基础 **ProForm**、AI 工具、图片、SKU）、**SKU CRUD API**、**商品图片 CRUD + reorder**、`PUT /products/:id` 校验 **status** 并固化 **来源/raw 不可改**。**仍未做**：AI 图片、AI 客服 |
+| **路线图阶段** | **第 3→4→5 阶段衔接**：**采集服务**已实现 **1688 页面结构化抽取**（主图、详情图、属性、`skus[].properties`/价格/库存/图片，`raw` 含候选快照）；商品草稿/Tabs 与前序 AI 文本能力照旧。**仍未做**：AI 图片、AI 客服、采集 **Redis 异步队列**（Go 仍为同步 HTTP Collector） |
 | **MVP 闭环** | 登录 → 配置 AI → 采集/草稿 → **AI 优化标题（`ai_title`）** 与 **AI 生成描述（`ai_description` 需手动应用）** 已具备（依赖有效的大模型与系统 AI 设置） |
 | **产物形态** | Monorepo 可构建；本地需 **PostgreSQL**；AI 调用走 **后端 Gateway**，前端 **不直连** 第三方模型 |
 
@@ -85,11 +85,12 @@
 ### 3.4 采集服务（`collector/`）
 
 - **Playwright + TypeScript**，独立进程，**不直连主业务库**。
-- **`CollectorProvider` 接口** + **注册表**；**1688Provider 占位**（域名校验、`page.goto`、取 title，统一 `NormalizedProduct`，`raw` 必有）。
+- **`CollectorProvider` 接口** + **注册表**；**1688Provider 已增强**：域名校验与 **offer 路径语义**，`goto` → 可选 **`networkidle` 短超时** + 标题区等待；合并 **DOM 主图/详情图/参数表**，多组 **兜底选择器**，**lazy 属性**（`src`/`data-src`/`data-lazy-src`/`data-original`/`data-img`）；从 **高危 script / `ld+json`** 截断片段解析 JSON，递归抽取 **`subject`/图链/`skuMap`/`skuProps`**；**SKU 行**对齐 Go：**`skuCode`、`price`、`stock`、`properties`（前端展示名由服务端从 `properties` 推导）、`image`、SKU 粒度 **`raw`**；顶层 **`raw`** 固定含 `title`、`url`、`mainImageCandidates`、`detailImageCandidates`、`attributeCandidates`、`skuCandidates`、`pageMeta`、`extractedAt`（及轻量 **`scriptDigest`/`jsonRootCount`**，**不包含整页 HTML**）。
 - **任务编排**：`runCollectTask`（唯一推荐入口）。
 - **HTTP**：`GET /health`、`POST /v1/collect`（body：`source` + `url`）。
 - **浏览器**：`BrowserManager` 单例 Chromium，`withPage` 保证关闭 page/context。
-- **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；采集逻辑仍在 Collector，主库仅由 Go 写入。
+- **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；**NormalizedProduct JSON 契约未变**，`BuildImportSKU` 仍只吃 **`properties`**；采集逻辑仅在 Collector。
+- **本地调试**：包内 **`pnpm collect:test -- --url "https://detail.1688.com/offer/..."`**，或 **`COLLECT_TEST_URL`**；根仓库 **`pnpm collect:test`** 透传到 `@trademind/collector`。
 
 ### 3.5 文档
 
@@ -122,13 +123,14 @@
 
 ### 4.3 采集服务
 
-- [ ] 1688 **真实结构化解析**（SKU、主图、详情图、属性等）与反爬策略
+- [x] 1688 **结构化解析落地（首版）**：主图 **`mainImages`**、详情 **`descriptionImages`**、**`attributes`**、**`skus`**（含 **`properties`/价格/库存/可选图**）；**降级不抛解析异常**（仅非法 URL、导航失败、非 offer 跳转、验证码页且全无结构化字段时 **`INVALID_URL`** 失败）。
+- [ ] **反爬与稳定性深化**（人机验证绕过、SKU 多维长期可用、异步详情 iframe 全覆盖等）。
 - [x] 与 **Go 任务编排**对接：**HTTP 同步调用**，由 Go 写 **`collect_tasks`** 与 **`products`**（Collector **不写主库**）
 
 ### 4.4 跨模块
 
 - [x] **Go ↔ Collector**：HTTP **超时**、422/`ok:false` → **`collect_tasks.status=failed`**
-- [x] e2e（本地）：提交合法 **1688 详情链接** → **占位解析** → **草稿入库**（字段完整度取决于 Collector）
+- [x] e2e（本地）：提交合法 **1688 详情链接** → **结构化解析** → **草稿入库**（**主图/SKU 等完整性仍受站点与风控影响**）
 
 ---
 
@@ -157,7 +159,7 @@ trademind-ai/
 ├── collector/               # Node 采集（Playwright）
 │   └── src/
 │       ├── browser/         # BrowserManager
-│       ├── providers/       # CollectorProvider + source1688
+│       ├── providers/       # CollectorProvider + source1688（**parser / selectors / utils**）
 │       ├── tasks/           # runCollectTask
 │       ├── http/            # HTTP 服务
 │       └── types/           # NormalizedProduct
@@ -193,7 +195,7 @@ trademind-ai/
 1. **401 处理**：采用**整页跳转**登录以清空 initialState；后续可改为无刷新同步 `setInitialState`。
 2. **S3 等云存储**：`test-storage` 仅校验字段完整性；**不**发起真实列举/上传；**文件上传**在 **`kind≠local`** 时仍会失败（符合当前范围）。
 3. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**；开发依赖 admin **`/static` 代理** 或直连后端端口。
-4. **1688 采集** 仍为 **Collector 内占位**：主图/SKU/详情图多为空，**raw** 仅保留页面级快照；风控/登录/验证码未处理，**不可视为生产可用**。
+4. **1688 采集** 已升级为 **结构化首版**：多数商品页可从 DOM + JSON 抽到 **主图/详情图/属性/SKU**；**站点改版、登录/验证码/风控会导致字段缺失**，详情图若在 **跨域 iframe / 异步接口** 仍可能不完整；非生产 SLA。
 5. **采集同步耗时**：`POST /collect/tasks` **同步阻塞**直至 Collector 返回；长超时依赖 **`COLLECTOR_TIMEOUT_SECONDS`**；后续可改为队列异步（Redis）而不改 Collector 契约。
 6. **端口对齐**：**`COLLECTOR_BASE_URL`**（Go）必须与 **`COLLECTOR_HTTP_ADDR`**（Collector）监听端口一致（模板默认 **3100**）；`.env.example` 已备注。
 7. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
@@ -203,7 +205,7 @@ trademind-ai/
 11. **AI 图片处理**：**未完成**（路线图第 6 阶段）。
 12. **AI 客服**：**未完成**。
 13. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径（条目 10）；其它厂商后续可加适配。
-14. **1688 真实结构化解析**：Collector 仍为占位为主，**SKU / 主图 / 详情图 / 属性** 等结构化抽取**未完成**（与条目 4、§4.3 一致）。
+14. **1688 采集边界**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**边界；需在真实流量下持续补强选择器与健康度。
 15. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
 16. **S3/COS/OSS 等多云存储**：与条目 2 一致，`test-storage` 与 **`kind≠local` 上传** 仍以 **未完成**为主路径叙事（首版 **`local`** 可用）。
 
@@ -211,10 +213,10 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **Collector 深化**：1688 **结构化解析**（SKU、主图、详情图、属性）与稳定性；必要时 **异步队列**（Redis）承载长任务。
-2. **AI 图片任务预留**（路线图第 6 阶段）：表结构 / Provider 抽象 / 管理页骨架，避免 MVP 一次性做重。
-3. **存储能力收尾**：**S3/COS/OSS** Provider、**非 local** 上传与 **`files`** 串联。
-4. **下一版 AI**：多 Provider 适配、客服预览（按路线图阶段执行，避免 MVP 过度扩展）。
+1. **采集异步化**：`POST /collect/tasks` 改为投递 **Redis 队列**，Worker 调 Collector，`collect_tasks` 状态可轮询（**不改变** `NormalizedProduct`/`POST /v1/collect` 契约）。
+2. **Collector 演进**：SKU 对齐与 **多维 prop**、详情 **iframe/async**、**人机验证探测**与用户侧指引（仍不迁入 Go）。
+3. **AI 图片任务预留**（路线图第 6 阶段）：表结构 / Image Provider / 任务页骨架。
+4. **云存储**：**S3/COS/OSS/R2** Provider、**kind≠local** 上传链路。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -237,6 +239,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-16 | **1688 Collector 结构化解析**：`collector/src/providers/source1688/` 分拆 **parser/selectors/utils**；抽取 **标题/主图(≤10)/详情图(≤30)/attributes/skus**（`properties` 兼容 Go **`BuildImportSKU`**），**SKU 粒度 `raw`**；**顶层 `raw`** 结构化（候选图/属性/SKU、`pageMeta`、`extractedAt`、snippet 摘要，**不含整 HTML**）；**`pnpm collect:test`**；验证码且零字段时 **`INVALID_URL`**；PROGRESS §4.3/遗留/下一步更新 |
 | 2026-05-15 | **商品详情编辑增强**：后端 **`PUT /products/:id`**（camelCase/snake_case、**status 枚举**、不写 source/raw）；**SKU / images / reorder API**；**操作日志 `product.sku.*` `product.image.*`**；前端 **`DraftDetail`** **Tabs + 图片 ModalForm + 可编辑 SKU**；采集入库详情图 **`detail`**；**PROGRESS** 同步遗留与下一步 |
 | 2026-05-15 | 初版：记录地基进度、admin/collector/backend 基线与决策 |
 | 2026-05-15 | **本地开发规则**：新增 **`.cursor/rules/11-local-dev-postgres.mdc`**（alwaysApply），同步 `.cursorrules` / `00` / `01` / `08` / `09` 中数据库表述为 **PostgreSQL 默认** |

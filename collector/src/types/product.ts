@@ -22,4 +22,6 @@ export type ProductSku = {
   stock?: number;
   skuCode?: string;
   image?: string;
+  /** SKU 粒度原始快照（Go 入库时保留在 product_skus.raw_data） */
+  raw?: Record<string, unknown>;
 };

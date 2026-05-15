@@ -1,14 +1,41 @@
 import type { BrowserManager } from '../../browser/manager.js';
 import type { CollectInput, CollectorProvider } from '../collector-provider.js';
 import type { NormalizedProduct } from '../../types/product.js';
+import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
+
+import { assembleParsedProduct, extractBrowserPayload } from './parser.js';
 
 function is1688Host(hostname: string): boolean {
   return hostname === '1688.com' || hostname.endsWith('.1688.com');
 }
 
+function isLikelyOfferPath(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr);
+    if (!is1688Host(u.hostname)) return false;
+    /** 兼容 detail / m / sale 等不同子域与路径形态 */
+    return (
+      /\/offer\/?/i.test(u.pathname) ||
+      /offerId=/i.test(u.search) ||
+      /offer(?:id)?\.html$/i.test(u.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isHardEmptyCollected(r: ReturnType<typeof assembleParsedProduct>): boolean {
+  return (
+    r.mainImages.length === 0 &&
+    r.descriptionImages.length === 0 &&
+    Object.keys(r.attributes).length === 0 &&
+    r.skus.length === 0
+  );
+}
+
 /**
- * 1688 采集占位：能校验域名、打开页面并填入标题等基础字段；
- * SKU/主图/详情的稳定解析在后续迭代完成（raw 保留现场信息）。
+ * 1688 结构化解析：DOM + 内联脚本 JSON（尽量提取主图/详情图/属性/SKU）。
+ * 风控或页面变更时降级为不完整数据，避免因解析抛错阻断任务（除非法链接与完全不可用页）。
  */
 class Alibaba1688Provider implements CollectorProvider {
   readonly sourceId = '1688';
@@ -28,31 +55,45 @@ class Alibaba1688Provider implements CollectorProvider {
     }
 
     return browser.withPage(async (page) => {
+      const gotoTimeout = getDefaultNavigationTimeoutMs();
       try {
-        await page.goto(input.url, { waitUntil: 'domcontentloaded' });
+        await page.goto(input.url, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
         throw new Error(`NAVIGATION_FAILED:${err}`);
       }
 
-      const title = await page.title().catch(() => '');
-      const mainImages: string[] = [];
+      await page.waitForLoadState('networkidle', { timeout: Math.min(gotoTimeout, 12_000) }).catch(() => undefined);
+
+      try {
+        await page.waitForSelector('h1, h1.d-title, [class*="title"], body', { timeout: 8000 });
+      } catch {
+        /** 兜底：不因选择器超时失败 */
+      }
+
+      const finalHref = page.url();
+      /** 跳转后仍需是 1688 商品语义 URL */
+      if (!isLikelyOfferPath(finalHref)) {
+        throw new Error('INVALID_URL:not_a_1688_offer_detail_page');
+      }
+
+      const payload = await extractBrowserPayload(page);
+      const assembled = assembleParsedProduct(input.url, payload);
+
+      if (assembled.blocked && isHardEmptyCollected(assembled)) {
+        throw new Error('INVALID_URL:verification_challenge_or_offer_unreadable');
+      }
 
       const product: NormalizedProduct = {
         source: this.sourceId,
         sourceUrl: input.url,
-        title: title?.trim() || '（占位：未解析到标题）',
+        title: assembled.title.trim(),
         currency: 'CNY',
-        mainImages,
-        descriptionImages: [],
-        attributes: {},
-        skus: [],
-        raw: {
-          placeholder: true,
-          hint: '1688Provider 占位实现：仅拉取标题与页面元数据，详细 SKU/图片解析待实现',
-          titleFromPage: title,
-          url: page.url(),
-        },
+        mainImages: assembled.mainImages,
+        descriptionImages: assembled.descriptionImages,
+        attributes: assembled.attributes,
+        skus: assembled.skus,
+        raw: assembled.raw,
       };
 
       return product;

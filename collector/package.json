@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "collect:test": "tsx src/scripts/collect-test.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "install:browsers": "playwright install chromium"

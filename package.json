@@ -7,6 +7,7 @@
     "build:admin": "pnpm --filter @trademind/admin build",
     "preview:admin": "pnpm --filter @trademind/admin preview",
     "dev:collector": "pnpm --filter @trademind/collector dev",
+    "collect:test": "pnpm --filter @trademind/collector collect:test",
     "build:collector": "pnpm --filter @trademind/collector build",
     "install:collector:browsers": "pnpm --filter @trademind/collector exec playwright install chromium"
   }
