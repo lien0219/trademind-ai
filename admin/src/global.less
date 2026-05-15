@@ -4,3 +4,185 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* SaaS layout polish — subtle separation, calmer chrome */
+.ant-layout.ant-layout-has-sider > .ant-layout {
+  background: transparent;
+}
+
+.ant-pro-layout .ant-pro-layout-content {
+  margin-inline: 0;
+}
+
+.ant-pro-layout .ant-pro-layout-bg-list {
+  background: linear-gradient(180deg, #f4f6f9 0%, #eef1f6 100%);
+}
+
+.ant-pro-page-container .ant-pro-page-container-children-content {
+  margin-block-start: 0;
+}
+
+.ant-pro-table .ant-pro-card {
+  border-radius: 12px;
+}
+
+.ant-card {
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ant-pro-card {
+  border-radius: 12px !important;
+}
+
+.tm-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  background: #f4f6f9;
+}
+
+.tm-login__brand {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 56px;
+  background: linear-gradient(155deg, #1e3a8a 0%, #2563eb 42%, #0891b2 100%);
+  color: #fff;
+}
+
+@media (min-width: 900px) {
+  .tm-login__brand {
+    display: flex;
+  }
+}
+
+.tm-login__brand h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.tm-login__brand p {
+  margin: 0;
+  opacity: 0.88;
+  font-size: 15px;
+  max-width: 380px;
+  line-height: 1.55;
+}
+
+.tm-login__panel {
+  flex: 0 0 100%;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+
+@media (min-width: 900px) {
+  .tm-login__panel {
+    flex: 0 0 480px;
+    max-width: 480px;
+    background: #fff;
+    box-shadow: -24px 0 48px rgba(15, 23, 42, 0.06);
+  }
+}
+
+.tm-login__card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.tm-login__card .ant-pro-form-login-header {
+  margin-bottom: 28px;
+}
+
+.tm-login__card .ant-pro-form-login-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.tm-layout-user-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(0, 0, 0, 0.78);
+  font-size: 13px;
+}
+
+/* 存储设置 — 存储方式卡片栅格 */
+.tm-storage-kind-group.ant-radio-group {
+  display: block;
+  width: 100%;
+}
+
+.tm-storage-kind-group .tm-storage-kind-radio.ant-radio-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 12px;
+  background: var(--ant-color-bg-container);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.tm-storage-kind-group .tm-storage-kind-radio.ant-radio-wrapper-checked {
+  border-color: var(--ant-color-primary);
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+}
+
+.tm-storage-kind-group .tm-storage-kind-radio.ant-radio-wrapper:hover:not(.ant-radio-wrapper-disabled) {
+  border-color: var(--ant-color-primary-hover);
+}
+
+.tm-storage-kind-group .tm-storage-kind-radio .tm-storage-kind-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.tm-storage-kind-group .tm-storage-kind-icon {
+  flex-shrink: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ant-color-primary);
+  margin-top: 2px;
+}
+
+.tm-storage-kind-group .tm-storage-kind-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tm-storage-kind-group .tm-storage-kind-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tm-storage-kind-group .tm-storage-kind-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ant-color-text);
+  line-height: 1.35;
+}
+
+.tm-storage-kind-group .tm-storage-kind-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ant-color-text-secondary);
+}

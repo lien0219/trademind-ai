@@ -1,5 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, message } from 'antd';
+import { Button, Form, Input, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
@@ -32,14 +32,7 @@ export default function SystemSettingsPage() {
   }, [load]);
 
   return (
-    <PageContainer title="系统设置" subTitle="站点等基础参数保存在 settings 表（group: system）。">
-      <Alert
-        type="info"
-        showIcon
-        message="说明"
-        description="列表接口已对加密项脱敏；未改动的密钥字段可保持 **** 占位，保存时不会覆盖原值。"
-        style={{ marginBottom: 16 }}
-      />
+    <PageContainer title="系统设置">
       <ProCard
         title="站点"
         bordered

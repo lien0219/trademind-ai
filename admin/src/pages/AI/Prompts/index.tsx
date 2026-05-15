@@ -105,7 +105,7 @@ export default function AIPromptsPage() {
         ),
         <Popconfirm
           key="del"
-          title="确定删除？内置 Prompt 删除后需手工恢复或通过迁移重建。"
+          title="确定删除？"
           onConfirm={async () => {
             try {
               await deleteAIPrompt(row.id);
@@ -125,9 +125,9 @@ export default function AIPromptsPage() {
   ];
 
   return (
-    <PageContainer title="Prompt 模板" subTitle="支持变量 {{title}} {{category}} {{attributes}} {{language}} {{maxLength}} {{platform}}">
+    <PageContainer title="Prompt 模板">
       <ProTable<AIPromptRow>
-        headerTitle="列表"
+        headerTitle={false}
         rowKey="id"
         actionRef={actionRef}
         columns={columns}
@@ -176,8 +176,8 @@ export default function AIPromptsPage() {
         <ProFormText name="code" label="Code" rules={[{ required: true }]} />
         <ProFormText name="name" label="名称" rules={[{ required: true }]} />
         <ProFormText name="scene" label="场景" />
-        <ProFormText name="provider" label="Provider（可空，走系统 AI 设置）" />
-        <ProFormText name="model" label="Model（可空，走系统 AI 设置）" />
+        <ProFormText name="provider" label="Provider" />
+        <ProFormText name="model" label="Model" />
         <ProFormDigit name="temperature" label="Temperature" fieldProps={{ step: 0.1 }} initialValue={0.7} />
         <ProFormDigit name="maxTokens" label="Max tokens" initialValue={512} />
         <ProFormSwitch name="enabled" label="启用" initialValue={true} />

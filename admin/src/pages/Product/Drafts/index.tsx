@@ -5,7 +5,7 @@ import {
 } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Image, Space, Tag, Typography } from 'antd';
+import { Button, Image, Tag, Typography } from 'antd';
 import { useRef, useState } from 'react';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
@@ -86,7 +86,7 @@ export default function ProductDraftsPage() {
   ];
 
   return (
-    <PageContainer title="商品草稿" subTitle="采集或手工创建的草稿；详情页为基础只读展示。">
+    <PageContainer title="商品草稿">
       <ProTable<ProductListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -94,7 +94,7 @@ export default function ProductDraftsPage() {
         search={{ labelWidth: 'auto' }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         options={{ reload: true, density: true, setting: true }}
-        headerTitle={<Space>草稿列表</Space>}
+        headerTitle={false}
         toolBarRender={() => [
           <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
             新建草稿

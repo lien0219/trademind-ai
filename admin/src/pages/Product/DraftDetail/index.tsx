@@ -10,23 +10,7 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
-import {
-  Button,
-  Card,
-  Descriptions,
-  Form,
-  Image,
-  Input,
-  InputNumber,
-  Modal,
-  Popconfirm,
-  Space,
-  Spin,
-  Tabs,
-  Typography,
-  Upload,
-  message,
-} from 'antd';
+import { Button, Card, Descriptions, Form, Image, Input, InputNumber, Modal, Popconfirm, Space, Spin, Tabs, Tooltip, Typography, Upload, message } from 'antd';
 import {
   ArrowUpOutlined,
   DeleteOutlined,
@@ -208,7 +192,7 @@ export default function ProductDraftDetailPage() {
             </Button>
             <Popconfirm
               title="删除该关联？"
-              description="仅从商品移除关联，不会在文件库删除原始文件。"
+              description="仅从商品移除关联"
               onConfirm={async () => {
                 try {
                   await deleteProductImage(id, r.id);
@@ -302,8 +286,7 @@ export default function ProductDraftDetailPage() {
 
   return (
     <PageContainer
-      title="商品草稿编辑"
-      subTitle={data?.title}
+      title={data?.title || '商品详情'}
       loading={loading}
       extra={
         data ? (
@@ -336,7 +319,7 @@ export default function ProductDraftDetailPage() {
             </Button>
             <Popconfirm
               title="确定删除草稿？"
-              description="删除为软删除，可在数据库恢复；前台列表将不可见。"
+              description="软删除，列表不可见"
               onConfirm={async () => {
                 try {
                   await deleteProduct(id);
@@ -456,12 +439,11 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'ai',
-              label: 'AI 工具',
+              label: 'AI',
               children: (
                 <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                  <Card
-                    title="AI 标题优化"
-                    extra={
+                  <Card bordered={false} bodyStyle={{ paddingBottom: 12 }}>
+                    <Space wrap size="middle">
                       <Button
                         type="primary"
                         onClick={() => {
@@ -471,18 +453,8 @@ export default function ProductDraftDetailPage() {
                           setAiOpen(true);
                         }}
                       >
-                        AI 优化标题
+                        标题优化
                       </Button>
-                    }
-                  >
-                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                      调用系统 AI 设置与「product_title_optimize」Prompt；结果需手动应用才会写入「AI 标题」字段，不会直接覆盖主标题。
-                    </Typography.Paragraph>
-                  </Card>
-
-                  <Card
-                    title="AI 描述生成"
-                    extra={
                       <Button
                         type="primary"
                         onClick={() => {
@@ -496,16 +468,12 @@ export default function ProductDraftDetailPage() {
                           setDescOpen(true);
                         }}
                       >
-                        AI 生成描述
+                        描述生成
                       </Button>
-                    }
-                  >
-                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                      调用「product_description_generate」Prompt 生成结构化文案；需手动「应用」才会写入「AI 描述」字段，不会覆盖主描述。
-                    </Typography.Paragraph>
+                    </Space>
                   </Card>
 
-                  <Card title="最近 AI 任务">
+                  <Card title="最近任务">
                     <ProTable<AITaskRow>
                       rowKey="id"
                       search={false}
@@ -534,7 +502,7 @@ export default function ProductDraftDetailPage() {
                   </Card>
 
                   {data.rawData != null ? (
-                    <Card title="Raw JSON（采集归一，只读）">
+                    <Card title="Raw JSON" bordered={false}>
                       <pre style={{ maxHeight: 360, overflow: 'auto', fontSize: 12 }}>{JSON.stringify(data.rawData, null, 2)}</pre>
                     </Card>
                   ) : null}
@@ -558,22 +526,23 @@ export default function ProductDraftDetailPage() {
                     >
                       添加图片
                     </Button>
-                    <Button
-                      icon={<ArrowUpOutlined />}
-                      onClick={async () => {
-                        try {
-                          const ordered = [...sortedImages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-                          await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
-                          message.success('已按 sortOrder 重排');
-                          await reloadDetail();
-                        } catch (e: unknown) {
-                          message.error((e as Error)?.message || '排序失败');
-                        }
-                      }}
-                    >
-                      同步排序到后端
-                    </Button>
-                    <Typography.Text type="secondary">按 sortOrder 升序提交当前全部图片 ID；修改 sort 后先点「同步」。</Typography.Text>
+                    <Tooltip title="按当前顺序提交全部图片 ID">
+                      <Button
+                        icon={<ArrowUpOutlined />}
+                        onClick={async () => {
+                          try {
+                            const ordered = [...sortedImages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+                            await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
+                            message.success('已同步');
+                            await reloadDetail();
+                          } catch (e: unknown) {
+                            message.error((e as Error)?.message || '排序失败');
+                          }
+                        }}
+                      >
+                        同步顺序
+                      </Button>
+                    </Tooltip>
                   </Space>
                   <ProTable<ProductImageRow>
                     rowKey="id"
@@ -798,7 +767,9 @@ export default function ProductDraftDetailPage() {
 
         {aiResult ? (
           <div style={{ marginTop: 16 }}>
-            <Typography.Title level={5}>结果</Typography.Title>
+            <Typography.Title level={5} style={{ marginTop: 0 }}>
+              输出
+            </Typography.Title>
             <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="优化标题">{aiResult.optimizedTitle || '—'}</Descriptions.Item>
               <Descriptions.Item label="关键词">
@@ -886,7 +857,9 @@ export default function ProductDraftDetailPage() {
 
         {descResult ? (
           <div style={{ marginTop: 16 }}>
-            <Typography.Title level={5}>结果</Typography.Title>
+            <Typography.Title level={5} style={{ marginTop: 0 }}>
+              输出
+            </Typography.Title>
             <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="描述">{descResult.description || '—'}</Descriptions.Item>
               <Descriptions.Item label="Highlights">

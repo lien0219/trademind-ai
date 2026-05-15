@@ -2,13 +2,16 @@ package auth
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
 
@@ -17,10 +20,12 @@ type Handler struct {
 	LoginSvc *LoginService
 	Admins   *admin.Store
 	OpLog    *operationlog.Service
+	Redis    *rdb.Client
+	Settings *settings.Service
 }
 
 type loginBody struct {
-	Username string `json:"username" binding:"required,min=1,max=64"`
+	Account  string `json:"account" binding:"required,min=1,max=128"`
 	Password string `json:"password" binding:"required,min=1,max=128"`
 }
 
@@ -35,11 +40,16 @@ func (h *Handler) Login(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
-	res, err := h.LoginSvc.Login(c.Request.Context(), body.Username, body.Password)
+	account := strings.TrimSpace(body.Account)
+	if account == "" {
+		response.Fail(c, 400, response.CodeBadRequest, "account is required")
+		return
+	}
+	res, err := h.LoginSvc.Login(c.Request.Context(), account, body.Password)
 	if err != nil {
 		if h.OpLog != nil {
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
-				Username: body.Username,
+				Username: account,
 				Action:   "login",
 				Resource: "auth",
 				Status:   "failed",
@@ -94,11 +104,13 @@ func (h *Handler) Profile(c *gin.Context) {
 	}
 	dn := u.DisplayName
 	if dn == "" {
-		dn = u.Username
+		dn = u.LoginLabel()
 	}
 	response.OK(c, gin.H{
 		"id":          u.ID.String(),
-		"username":    u.Username,
+		"username":    u.LoginLabel(),
+		"email":       u.Email,
+		"phone":       u.Phone,
 		"displayName": dn,
 		"createdAt":   u.CreatedAt,
 		"updatedAt":   u.UpdatedAt,

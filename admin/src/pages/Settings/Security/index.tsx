@@ -1,5 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Button, Form, Input, InputNumber, message, Switch } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
@@ -38,14 +38,7 @@ export default function SecuritySettingsPage() {
   }, [load]);
 
   return (
-    <PageContainer title="安全设置" subTitle="运营类安全参数；与 JWT 主密钥等仍以服务端环境变量为准。">
-      <Alert
-        type="warning"
-        showIcon
-        message="密钥脱敏"
-        description="Webhook Secret 类字段保存后加密；界面展示为脱敏。若不修改请保留占位。"
-        style={{ marginBottom: 16 }}
-      />
+    <PageContainer title="安全设置">
       <ProCard
         bordered
         extra={
@@ -77,7 +70,6 @@ export default function SecuritySettingsPage() {
             label="会话空闲超时（分钟）"
             name="session_idle_timeout_min"
             rules={[{ required: true }]}
-            extra="前端展示用参考值；服务端会话仍以 JWT 过期时间为准。"
           >
             <InputNumber min={5} max={10080} style={{ width: '100%' }} />
           </Form.Item>
@@ -87,7 +79,6 @@ export default function SecuritySettingsPage() {
           <Form.Item
             label="运维 Webhook Secret"
             name="ops_webhook_secret"
-            extra="可选；用于内部告警回调等，保存后加密。"
           >
             <Input.Password autoComplete="new-password" placeholder="无需回调可留空" />
           </Form.Item>

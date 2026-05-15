@@ -150,3 +150,40 @@ func (h *Handler) TestStorage(c *gin.Context) {
 	}
 	response.OK(c, gin.H{"ok": true})
 }
+
+type testEmailBody struct {
+	To string `json:"to" binding:"required,email"`
+}
+
+// TestEmail POST /api/v1/settings/test-email
+func (h *Handler) TestEmail(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+		return
+	}
+	var body testEmailBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid email address")
+		return
+	}
+	if err := h.Svc.TestEmailConnection(c.Request.Context(), body.To); err != nil {
+		if h.OpLog != nil {
+			_ = h.OpLog.Write(c, operationlog.WriteOpts{
+				Action:   "test_email",
+				Resource: "settings",
+				Status:   "failed",
+				Message:  err.Error(),
+			})
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			Action:   "test_email",
+			Resource: "settings",
+			Status:   "success",
+		})
+	}
+	response.OK(c, gin.H{"ok": true})
+}

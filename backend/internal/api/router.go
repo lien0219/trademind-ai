@@ -45,7 +45,7 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	opLogSvc := &operationlog.Service{DB: dep.DB}
 
-	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc}
+	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc}
 	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc}
 	opLogH := &operationlog.Handler{Svc: opLogSvc}
 
@@ -100,6 +100,8 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 
 	v1 := r.Group("/api/v1")
 	v1.POST("/auth/login", authH.Login)
+	v1.POST("/auth/register", authH.Register)
+	v1.POST("/auth/send-email-code", authH.SendEmailCode)
 
 	authed := v1.Group("")
 	authed.Use(middleware.BearerAuth(dep.Config))

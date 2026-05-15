@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"golang.org/x/crypto/bcrypt"
@@ -23,18 +24,38 @@ func EnsureBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 		return nil
 	}
 
-	username := cfg.BootstrapAdminUsername
-	password := cfg.BootstrapAdminPassword
-	if username == "" {
-		username = "admin"
+	rawEmail := strings.TrimSpace(cfg.BootstrapAdminEmail)
+	rawPhone := strings.TrimSpace(cfg.BootstrapAdminPhone)
+	hasEmail := rawEmail != ""
+	hasPhone := rawPhone != ""
+
+	if !hasEmail && !hasPhone {
+		return fmt.Errorf("admin bootstrap: set ADMIN_BOOTSTRAP_EMAIL and/or ADMIN_BOOTSTRAP_PHONE")
 	}
+
+	var email, phone string
+	if hasEmail {
+		em, _, ok := ParseLoginAccount(rawEmail)
+		if !ok {
+			return fmt.Errorf("admin bootstrap: ADMIN_BOOTSTRAP_EMAIL invalid")
+		}
+		email = em
+	}
+	if hasPhone {
+		phone = NormalizePhoneDigits(rawPhone)
+		if len(phone) < 10 || len(phone) > 15 {
+			return fmt.Errorf("admin bootstrap: invalid ADMIN_BOOTSTRAP_PHONE")
+		}
+	}
+
+	password := cfg.BootstrapAdminPassword
 	if password == "" {
 		if cfg.AppEnv == "production" {
 			return fmt.Errorf("admin bootstrap: no admins exist; set ADMIN_BOOTSTRAP_PASSWORD for first boot")
 		}
 		password = "changeme"
 		if log != nil {
-			log.Warn("admin_bootstrap_default_password", "username", username, "hint", "set ADMIN_BOOTSTRAP_PASSWORD for non-dev")
+			log.Warn("admin_bootstrap_default_password", "hint", "set ADMIN_BOOTSTRAP_PASSWORD for non-dev")
 		}
 	}
 
@@ -43,17 +64,24 @@ func EnsureBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 		return fmt.Errorf("admin bootstrap hash: %w", err)
 	}
 
+	disp := email
+	if disp == "" {
+		disp = phone
+	}
+
 	u := AdminUser{
-		Username:     username,
+		Username:     NewInternalUsername(),
+		Email:        email,
+		Phone:        phone,
 		PasswordHash: string(hash),
-		DisplayName:  username,
+		DisplayName:  disp,
 	}
 
 	if err := db.WithContext(ctx).Create(&u).Error; err != nil {
 		return fmt.Errorf("admin bootstrap create: %w", err)
 	}
 	if log != nil {
-		log.Info("admin_bootstrapped", "username", username, "id", u.ID.String())
+		log.Info("admin_bootstrapped", "email", email, "phone", phone, "id", u.ID.String())
 	}
 	return nil
 }

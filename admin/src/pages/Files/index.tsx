@@ -1,3 +1,4 @@
+import { PictureOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Link } from '@umijs/max';
@@ -77,7 +78,8 @@ export default function FilesPage() {
       render: (_, row) => [
         <Popconfirm
           key="del"
-          title="确定删除该文件？将同时删除磁盘对象与记录。"
+          title="删除文件？"
+          description="将删除存储对象与记录"
           onConfirm={async () => {
             try {
               await deleteFile(row.id);
@@ -99,12 +101,11 @@ export default function FilesPage() {
   return (
     <PageContainer
       title="文件管理"
-      subTitle="本地上传的图片元数据；删除会调用后端并移除存储中的对象。"
-      extra={[
+      extra={
         <Link key="hint" to="/settings/storage">
-          在存储设置中测试上传
-        </Link>,
-      ]}
+          存储设置
+        </Link>
+      }
     >
       <ProTable<FileRow>
         rowKey="id"
@@ -125,7 +126,7 @@ export default function FilesPage() {
             total: res.pagination.total,
           };
         }}
-        headerTitle="上传文件"
+        headerTitle={false}
       />
     </PageContainer>
   );

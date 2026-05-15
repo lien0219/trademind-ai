@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -14,13 +15,37 @@ type Store struct {
 	DB *gorm.DB
 }
 
-// ByUsername returns the admin or gorm.ErrRecordNotFound.
-func (s *Store) ByUsername(ctx context.Context, username string) (*AdminUser, error) {
+// ByLoginAccount finds a user by normalized email or phone (never by internal Username).
+func (s *Store) ByLoginAccount(ctx context.Context, account string) (*AdminUser, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("admin store: no db")
 	}
+	em, ph, ok := ParseLoginAccount(account)
+	if !ok {
+		return nil, gorm.ErrRecordNotFound
+	}
 	var u AdminUser
-	if err := s.DB.WithContext(ctx).Where("username = ?", username).First(&u).Error; err != nil {
+	q := s.DB.WithContext(ctx)
+	if em != "" {
+		if err := q.Where("LOWER(TRIM(email)) = ?", em).First(&u).Error; err != nil {
+			return nil, err
+		}
+		return &u, nil
+	}
+	if err := q.Where("phone = ?", ph).First(&u).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// ByEmail returns a user by canonical email (lowered) or ErrRecordNotFound.
+func (s *Store) ByEmail(ctx context.Context, email string) (*AdminUser, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("admin store: no db")
+	}
+	e := strings.ToLower(strings.TrimSpace(email))
+	var u AdminUser
+	if err := s.DB.WithContext(ctx).Where("LOWER(TRIM(email)) = ?", e).First(&u).Error; err != nil {
 		return nil, err
 	}
 	return &u, nil

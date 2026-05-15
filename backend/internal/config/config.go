@@ -17,8 +17,9 @@ type Config struct {
 	JWTSecret string
 	JWTExpHrs int
 
-	// BootstrapAdminUsername / BootstrapAdminPassword seed the first admin when the table is empty.
-	BootstrapAdminUsername string
+	// BootstrapAdminEmail / BootstrapAdminPhone / BootstrapAdminPassword seed the first admin when admin_users is empty (at least one contact required).
+	BootstrapAdminEmail    string
+	BootstrapAdminPhone    string
 	BootstrapAdminPassword string
 
 	// UploadMaxMB limits multipart image uploads (default 10 MB).
@@ -76,7 +77,8 @@ func Load() (*Config, error) {
 		JWTSecret: firstNonEmpty(os.Getenv("JWT_SECRET"), "change-me-in-development"),
 		JWTExpHrs: atoiOrDefault(os.Getenv("JWT_EXPIRE_HOURS"), 168),
 
-		BootstrapAdminUsername: strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_USERNAME")),
+		BootstrapAdminEmail:    strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_EMAIL")),
+		BootstrapAdminPhone:    strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_PHONE")),
 		BootstrapAdminPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
 
 		UploadMaxMB: atoiOrDefault(os.Getenv("UPLOAD_MAX_MB"), 10),

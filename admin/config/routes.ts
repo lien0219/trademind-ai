@@ -108,6 +108,11 @@ export default [
         component: './Settings/Collector',
       },
       {
+        path: '/settings/email',
+        name: '邮箱设置',
+        component: './Settings/Email',
+      },
+      {
         path: '/settings/security',
         name: '安全设置',
         component: './Settings/Security',

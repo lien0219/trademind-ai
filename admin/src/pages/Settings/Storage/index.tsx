@@ -1,5 +1,27 @@
+import {
+  CloudOutlined,
+  CloudServerOutlined,
+  DatabaseOutlined,
+  FolderOpenOutlined,
+  GlobalOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Image, Input, Typography, Upload, message, Radio, Space } from 'antd';
+import {
+  Button,
+  Col,
+  Form,
+  Image,
+  Input,
+  Radio,
+  Row,
+  Space,
+  Tag,
+  Typography,
+  Upload,
+  message,
+} from 'antd';
+import type { ComponentType, CSSProperties } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { uploadFile } from '@/services/files';
 import { fetchSettingsList, saveSettingsItems, testStorageConnection, type SettingPutItem } from '@/services/settings';
@@ -8,6 +30,57 @@ import { pickGroup } from '@/utils/settingsForm';
 const GROUP = 'storage';
 
 const cloudKinds = ['s3', 'cos', 'oss', 'r2', 'minio'];
+
+type StorageKindMeta = {
+  value: string;
+  title: string;
+  desc: string;
+  Icon: ComponentType<{ style?: CSSProperties }>;
+  reserved?: boolean;
+};
+
+const STORAGE_KIND_OPTIONS: StorageKindMeta[] = [
+  {
+    value: 'local',
+    title: '本地磁盘',
+    desc: '服务端本地目录，开发与小流量部署开箱即用',
+    Icon: FolderOpenOutlined,
+  },
+  {
+    value: 's3',
+    title: 'S3 兼容',
+    desc: 'AWS、自有网关等兼容 S3 协议的 Bucket',
+    Icon: CloudServerOutlined,
+  },
+  {
+    value: 'cos',
+    title: '腾讯云 COS',
+    desc: '对象存储接入占位',
+    Icon: CloudOutlined,
+    reserved: true,
+  },
+  {
+    value: 'oss',
+    title: '阿里云 OSS',
+    desc: '对象存储接入占位',
+    Icon: GlobalOutlined,
+    reserved: true,
+  },
+  {
+    value: 'r2',
+    title: 'Cloudflare R2',
+    desc: 'S3 兼容接入占位',
+    Icon: ThunderboltOutlined,
+    reserved: true,
+  },
+  {
+    value: 'minio',
+    title: 'MinIO',
+    desc: '私有化对象存储接入占位',
+    Icon: DatabaseOutlined,
+    reserved: true,
+  },
+];
 
 function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[] {
   const tenantId = 0;
@@ -131,14 +204,7 @@ export default function StorageSettingsPage() {
   const showCloud = cloudKinds.includes(String(kind || ''));
 
   return (
-    <PageContainer title="存储设置" subTitle="本地优先；云存储字段供 Provider 接入使用。">
-      <Alert
-        type="info"
-        showIcon
-        message="本地路径"
-        description="默认 data/uploads（相对后端进程工作目录）；测试连接会尝试创建目录并写入临时文件。"
-        style={{ marginBottom: 16 }}
-      />
+    <PageContainer title="存储设置">
       <ProCard
         bordered
         extra={
@@ -150,7 +216,7 @@ export default function StorageSettingsPage() {
         <Form
           form={form}
           layout="vertical"
-          style={{ maxWidth: 560 }}
+          style={{ maxWidth: 920 }}
           onFinish={async (values) => {
             try {
               await saveSettingsItems(buildStoragePutItems(values as Record<string, unknown>));
@@ -161,20 +227,38 @@ export default function StorageSettingsPage() {
             }
           }}
         >
-          <Form.Item label="存储方式" name="kind" rules={[{ required: true }]}>
-            <Radio.Group>
-              <Radio.Button value="local">本地磁盘</Radio.Button>
-              <Radio.Button value="s3">S3 兼容</Radio.Button>
-              <Radio.Button value="cos">COS（预留字段）</Radio.Button>
-              <Radio.Button value="oss">OSS（预留字段）</Radio.Button>
-              <Radio.Button value="r2">R2（预留字段）</Radio.Button>
-              <Radio.Button value="minio">MinIO（预留字段）</Radio.Button>
+          <Form.Item label="存储方式" name="kind" rules={[{ required: true, message: '请选择存储方式' }]}>
+            <Radio.Group className="tm-storage-kind-group">
+              <Row gutter={[12, 12]}>
+                {STORAGE_KIND_OPTIONS.map(({ value, title, desc, Icon, reserved }) => (
+                  <Col xs={24} sm={12} lg={8} key={value}>
+                    <Radio value={value} className="tm-storage-kind-radio">
+                      <div className="tm-storage-kind-card-main">
+                        <span className="tm-storage-kind-icon">
+                          <Icon />
+                        </span>
+                        <div className="tm-storage-kind-text">
+                          <div className="tm-storage-kind-title-row">
+                            <span className="tm-storage-kind-title">{title}</span>
+                            {reserved ? (
+                              <Tag bordered={false} style={{ marginInlineEnd: 0 }}>
+                                预留
+                              </Tag>
+                            ) : null}
+                          </div>
+                          <div className="tm-storage-kind-desc">{desc}</div>
+                        </div>
+                      </div>
+                    </Radio>
+                  </Col>
+                ))}
+              </Row>
             </Radio.Group>
           </Form.Item>
           <Form.Item
             label="公开访问前缀 URL"
             name="public_base"
-            extra="浏览器可打开的图片 URL 前缀。开发环境可填 `/static`（已代理到后端）；或直接填 `http://127.0.0.1:8080/static`"
+            extra="可填 /static 或完整 URL 前缀"
           >
             <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
           </Form.Item>
@@ -228,10 +312,6 @@ export default function StorageSettingsPage() {
         </Form>
       </ProCard>
       <ProCard title="上传测试" bordered style={{ marginTop: 16 }}>
-        <Typography.Paragraph type="secondary">
-          本地模式将写入「本地根目录」。公开前缀可填 <Typography.Text code>/static</Typography.Text>（与 dev 代理一致）或后端完整地址{' '}
-          <Typography.Text code>http://127.0.0.1:8080/static</Typography.Text>，返回的 URL 与资源路径一致即可在下方预览。
-        </Typography.Paragraph>
         <Space align="start" wrap size="large">
           <Upload
             maxCount={1}

@@ -44,3 +44,8 @@ export async function testAIConnection() {
 export async function testStorageConnection() {
   return postJSON<{ ok: boolean }>('/api/v1/settings/test-storage');
 }
+
+/** POST /api/v1/settings/test-email */
+export async function testEmailConnection(to: string) {
+  return postJSON<{ ok: boolean }>('/api/v1/settings/test-email', { to });
+}

@@ -1,5 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Button, Form, Input, InputNumber, message, Switch } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
@@ -40,17 +40,7 @@ export default function CollectorSettingsPage() {
   }, [load]);
 
   return (
-    <PageContainer
-      title="采集服务"
-      subTitle="与独立 Node（Playwright）进程相关的可配置项；此处写入 settings 表便于后台统一查看。"
-    >
-      <Alert
-        type="info"
-        showIcon
-        message="提示"
-        description="实际进程仍读取环境变量；可将常用值记在此处作为团队约定，后续可与任务编排对齐。"
-        style={{ marginBottom: 16 }}
-      />
+    <PageContainer title="采集服务">
       <ProCard
         bordered
         extra={
@@ -82,7 +72,6 @@ export default function CollectorSettingsPage() {
             label="主服务 URL"
             name="main_service_url"
             rules={[{ required: true }]}
-            extra="对应 .env 中 COLLECTOR_MAIN_SERVICE_URL"
           >
             <Input placeholder="http://127.0.0.1:8080" />
           </Form.Item>
@@ -90,7 +79,6 @@ export default function CollectorSettingsPage() {
             label="采集服务监听地址"
             name="collector_http_addr"
             rules={[{ required: true }]}
-            extra="对应 COLLECTOR_HTTP_ADDR，例如 :3100"
           >
             <Input placeholder=":3100" />
           </Form.Item>

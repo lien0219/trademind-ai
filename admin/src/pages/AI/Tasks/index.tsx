@@ -1,6 +1,6 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Descriptions, Drawer, Spin, Tag, Typography } from 'antd';
+import { Button, Descriptions, Drawer, Spin, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useRef, useState } from 'react';
 import type { AiTaskDetail, AiTaskListRow } from '@/services/aiTasks';
@@ -29,16 +29,14 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   if (!text) {
     return (
       <div style={{ marginBottom: 16 }}>
-        <Typography.Text strong>{title}</Typography.Text>
-        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          （空）
-        </Typography.Paragraph>
+        <strong>{title}</strong>
+        <div style={{ marginTop: 8, color: 'var(--ant-color-text-secondary)' }}>—</div>
       </div>
     );
   }
   return (
     <div style={{ marginBottom: 16 }}>
-      <Typography.Text strong>{title}</Typography.Text>
+      <strong>{title}</strong>
       <pre
         style={{
           marginTop: 8,
@@ -175,14 +173,7 @@ export default function AiTasksPage() {
   ];
 
   return (
-    <PageContainer
-      title="AI 任务记录"
-      subTitle="查看全部 AI 调用历史，支持按类型、状态、模型与时间范围筛选；用于排错与用量观察。"
-    >
-      <Typography.Paragraph type="secondary">
-        列表不返回大体量请求/响应 JSON；详情中会展示已脱敏的 input / output / rawResponse（密钥类字段会被替换为{' '}
-        <Typography.Text code>[REDACTED]</Typography.Text>）。
-      </Typography.Paragraph>
+    <PageContainer title="AI 任务记录">
       <ProTable<AiTaskListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -210,7 +201,7 @@ export default function AiTasksPage() {
             total: res.pagination.total,
           };
         }}
-        headerTitle="调用记录"
+        headerTitle={false}
         toolBarRender={() => []}
       />
 
@@ -258,7 +249,7 @@ export default function AiTasksPage() {
             <JsonBlock title="Raw response（JSON）" value={detail.rawResponse} />
           </>
         ) : (
-          <Typography.Paragraph type="secondary">暂无数据</Typography.Paragraph>
+          <div style={{ color: 'var(--ant-color-text-secondary)' }}>暂无数据</div>
         )}
       </Drawer>
     </PageContainer>

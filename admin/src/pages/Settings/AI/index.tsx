@@ -1,5 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, InputNumber, message, Select, Space } from 'antd';
+import { Button, Form, Input, InputNumber, message, Select, Space } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems, testAIConnection } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
@@ -43,14 +43,7 @@ export default function AISettingsPage() {
   }, [load]);
 
   return (
-    <PageContainer title="AI 设置" subTitle="配置 OpenAI 兼容接口；密钥仅在后端加密存储。">
-      <Alert
-        type="warning"
-        showIcon
-        message="安全"
-        description="API Key 在列表中为脱敏展示；若不修改请保留原占位，保存后不会覆盖数据库中的密文。"
-        style={{ marginBottom: 16 }}
-      />
+    <PageContainer title="AI 设置">
       <ProCard
         bordered
         extra={
@@ -87,7 +80,7 @@ export default function AISettingsPage() {
             label="Base URL"
             name="base_url"
             rules={[{ required: true, message: '请输入 Base URL' }]}
-            extra="例如 https://api.openai.com/v1 或兼容网关根路径（勿带末尾 /chat/completions）。"
+            extra="OpenAI 兼容接口根路径，不含 /chat/completions"
           >
             <Input placeholder="https://api.openai.com/v1" />
           </Form.Item>

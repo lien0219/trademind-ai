@@ -1,8 +1,8 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Form, Input, message, Space, Tag, Typography } from 'antd';
+import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { Link } from '@umijs/max';
+import { Button, Form, Input, message, Tag } from 'antd';
 import dayjs from 'dayjs';
-import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
@@ -75,7 +75,7 @@ export default function CollectTasksPage() {
       ellipsis: true,
       render: (_, row) =>
         row.resultProductId ? (
-          <Typography.Link href={`/product/drafts/${row.resultProductId}`}>{row.resultProductId}</Typography.Link>
+          <Link to={`/product/drafts/${row.resultProductId}`}>{row.resultProductId}</Link>
         ) : (
           '—'
         ),
@@ -135,9 +135,8 @@ export default function CollectTasksPage() {
   ];
 
   return (
-    <PageContainer title="采集任务" subTitle="提交链接后任务进入队列，由后台 Worker 调用采集服务并写入商品草稿（可在此页查看进度）。">
-      <CardLikeForm>
-        <Typography.Title level={5}>提交采集</Typography.Title>
+    <PageContainer title="采集任务">
+      <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         <Form
           form={form}
           layout="inline"
@@ -151,7 +150,7 @@ export default function CollectTasksPage() {
             setSubmitting(true);
             try {
               await createCollectTask({ source: vals.source?.trim() || '1688', url });
-              message.success('采集任务已提交，正在后台处理');
+              message.success('任务已提交');
               actionRef.current?.reload();
             } catch (e) {
               message.error(e instanceof Error ? e.message : '采集失败');
@@ -164,7 +163,7 @@ export default function CollectTasksPage() {
             <Input style={{ width: 120 }} placeholder="1688" />
           </Form.Item>
           <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
-            <Input style={{ width: 480 }} placeholder="https://detail.1688.com/offer/..." />
+            <Input style={{ width: 480, maxWidth: '100%' }} placeholder="https://detail.1688.com/offer/..." />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={submitting}>
@@ -172,7 +171,7 @@ export default function CollectTasksPage() {
             </Button>
           </Form.Item>
         </Form>
-      </CardLikeForm>
+      </ProCard>
 
       <ProTable<CollectTaskRow>
         rowKey="id"
@@ -182,7 +181,7 @@ export default function CollectTasksPage() {
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         options={{ reload: true, density: true, setting: true }}
         polling={polling}
-        headerTitle={<Space>任务列表</Space>}
+        headerTitle={false}
         toolBarRender={() => []}
         request={async (params) => {
           const res = await fetchCollectTasks({
@@ -207,20 +206,4 @@ function formatTs(s?: string) {
   if (!s) return '—';
   const d = dayjs(s);
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}
-
-function CardLikeForm({ children }: { children: ReactNode }) {
-  return (
-    <div
-      style={{
-        marginBottom: 24,
-        padding: 16,
-        background: 'var(--ant-color-bg-container)',
-        borderRadius: 8,
-        border: '1px solid var(--ant-color-border-secondary)',
-      }}
-    >
-      {children}
-    </div>
-  );
 }

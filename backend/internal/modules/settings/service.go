@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
+	"github.com/trademind-ai/trademind/backend/internal/providers/email"
+	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -288,4 +290,36 @@ func (s *Service) TestStorageConnection(ctx context.Context) error {
 	default:
 		return fmt.Errorf("unsupported storage kind %q", kind)
 	}
+}
+
+// TestEmailConnection verifies email configuration by sending a test email.
+func (s *Service) TestEmailConnection(ctx context.Context, to string) error {
+	m, err := s.PlainByGroup(ctx, 0, "email")
+	if err != nil {
+		return err
+	}
+	provider := strings.TrimSpace(m["provider"])
+	if provider == "" || provider == "smtp" {
+		port, _ := strconv.Atoi(m["smtp_port"])
+		cfg := smtp.Config{
+			Host:     m["smtp_host"],
+			Port:     port,
+			Username: m["smtp_username"],
+			Password: m["smtp_password"],
+			FromName: m["smtp_from_name"],
+			From:     m["smtp_from"],
+			UseTLS:   m["smtp_use_tls"] == "true",
+			UseSSL:   m["smtp_use_ssl"] == "true",
+		}
+		if cfg.Host == "" || cfg.From == "" {
+			return fmt.Errorf("incomplete email settings: need smtp_host and smtp_from")
+		}
+		p := smtp.NewProvider(cfg)
+		return p.Send(ctx, email.SendEmailRequest{
+			To:          to,
+			Subject:     "TradeMind Email Test",
+			Content:     "This is a test email from TradeMind.",
+		})
+	}
+	return fmt.Errorf("unsupported email provider %q", provider)
 }

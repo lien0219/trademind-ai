@@ -2,6 +2,13 @@
   "name": "trademind-monorepo",
   "private": true,
   "packageManager": "pnpm@9.15.4",
+  "pnpm": {
+    "overrides": {
+      "rc-resize-observer": "1.4.3",
+      "react": "18.2.0",
+      "react-dom": "18.2.0"
+    }
+  },
   "scripts": {
     "dev:admin": "pnpm --filter @trademind/admin dev",
     "build:admin": "pnpm --filter @trademind/admin build",

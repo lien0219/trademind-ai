@@ -56,7 +56,7 @@
 - **文件**：`files` 表；**`POST /api/v1/files/upload`**（`multipart` 字段名 **`file`**；**jpg/jpeg/png/webp/gif**；**objectKey = 日期目录/UUID.ext**；大小默认 **10MB**，环境变量 **`UPLOAD_MAX_MB`**）；**`GET /api/v1/files`**（分页、`contentType`）；**`DELETE /api/v1/files/:id`**（删库 + Provider 删对象）。**`MaxMultipartMemory`** 与配置上限对齐。
 - **配置中心**：`settings` 模型与 `GET/PUT /api/v1/settings`；`item_value` 在 `is_encrypted=true` 时 **AES-GCM**（`APP_MASTER_KEY`）存储；列表接口 **脱敏**（`****` 规则）；PUT 若密文占位含 `****` 则 **不覆盖**原密钥，可更新 remark / value_type 等。
 - **连通性测试**：`POST /api/v1/settings/test-ai`（读取 `ai` 组解密后请求 OpenAI 兼容 `POST /chat/completions`，`max_tokens:1`）；`POST /api/v1/settings/test-storage`（`local` 校验 `local_root` 可写；`s3/cos/oss/r2/minio` 校验必填字段完整）。`ai` / `storage` 组键名约定：`base_url`、`api_key`、`kind`、`local_root` 等（**snake_case item_key**）。
-- **默认管理员**：库中无管理员时，按 `ADMIN_BOOTSTRAP_USERNAME`（默认 `admin`）与 `ADMIN_BOOTSTRAP_PASSWORD`（**非 production** 空密码时 Fallback `changeme` 并打日志；**production** 无用户则必须配置密码）插入一条记录。
+- **默认管理员**：库中无管理员时，按 **`ADMIN_BOOTSTRAP_EMAIL` 与/或 `ADMIN_BOOTSTRAP_PHONE`**（至少填一项）及 `ADMIN_BOOTSTRAP_PASSWORD`（**非 production** 空密码 Fallback `changeme` 并告警；**production** 无用户则必须配置密码）插入一条记录；**不支持用「用户名」登录**，仅邮箱或手机号 + 密码；内部 `username` 列为随机 ID，由实现自行分配。
 - **商品草稿**：模块 `internal/modules/product`；模型含 **`tenant_id`、`created_by`、JSONB `raw_data`** 及 **`product_images` / `product_skus`**（SKU **`attrs`、`raw_data` JSONB**，**前端不可改 raw_data**）。**列表**：**`GET/POST /api/v1/products`**；**详情**：**`GET/PUT/DELETE /api/v1/products/:id`**；**`PUT` 可编辑**：`title`、`originalTitle`、`aiTitle`、`description`、`aiDescription`、`currency`、`status`；**一并支持 JSON snake_case**（如 `original_title`、`ai_title`）；**不写** `id` / `created_by` / `created_at`；**不通过 PUT 修改** `source` / `source_url` / `raw_data`（采集来源与归一快照只读）。**`status`** 枚举校验：`draft` / `ai_processing` / `ready` / `published` / **`archived`**。删除仍为 **软删除**（`products.deleted_at`）。**子资源**：**`POST/PUT/DELETE /api/v1/products/:id/skus`、`:skuId`**；**`POST/POST(reorder)/PUT/DELETE /api/v1/products/:id/images`、`:imageId`、`/images/reorder`**；图片 **`image_type`** 支持 **`main` / `detail` / `sku`**（并接受旧值 **`description` 归入 detail**）；**可按 `files.id`（`fileId`）关联本地上传**；**删除 `product_images` 仅断开关联**，默认 **不删除 `files`** 存储对象。**采集入库**：新草稿详情图默认写入 **`detail`**（历史中可能仍有 **`description`** 行）。
 - **AI Provider**：`internal/providers/ai` — **`ChatRequest` / `ChatResponse`**、**`Gateway`**（只读 **`settings.ai`**：`provider`（仅 **`openai_compatible` / `openai`** 首版落地）、`base_url`、`api_key` AES-GCM 解密、`model`、`temperature`、`max_tokens`、`timeout_sec`）；**业务仅调 Gateway**；**`openai_compatible/`** 实现 HTTP **`/chat/completions`**，**Context 超时** + **http.Client Timeout**；日志与响应 **不落 api_key**
 - **Prompt 模板**：模块 `internal/modules/aiprompt`；表 **`ai_prompts`**；**`EnsureDefaults`** 插入默认 **`product_title_optimize`**（变量含 **`{{title}}` `{{category}}`…**）与 **`product_description_generate`**（变量 **`{{title}}` `{{originalTitle}}` `{{aiTitle}}` `{{attributes}}` `{{skus}}` `{{language}}` `{{platform}}` `{{tone}}`**，JSON 输出 **description / highlights / specifications / packageIncludes / notes / reason**）；API：**`GET/POST /api/v1/ai/prompts`**、**`GET/PUT/DELETE .../:id`**、**`POST .../:id/enable|disable`**
@@ -197,17 +197,22 @@ trademind-ai/
 3. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**；开发依赖 admin **`/static` 代理** 或直连后端端口。
 4. **1688 采集** 已升级为 **结构化首版**：多数商品页可从 DOM + JSON 抽到 **主图/详情图/属性/SKU**；**站点改版、登录/验证码/风控会导致字段缺失**，详情图若在 **跨域 iframe / 异步接口** 仍可能不完整；非生产 SLA。
 5. **采集异步化首版局限**：**批量采集未完成**；**Worker 失败重试策略仍简单**（**无自动退避重试**）；**任务历史事件表未做**；队列 **深度/延迟可观测性** 仍弱（见「下一步」）。
-6. **端口对齐**：**`COLLECTOR_BASE_URL`**（Go）必须与 **`COLLECTOR_HTTP_ADDR`**（Collector）监听端口一致（模板默认 **3100**）；`.env.example` 已备注。
-7. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
-8. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
-9. **MySQL 可选驱动**：当前 JSON 字段迁移以 **PostgreSQL `JSONB`** 为主路径；若使用 **MySQL**，需自行核对 GORM 对 `JSON`/`JSONB` 标签的兼容性（默认开发仍为 Postgres）。
-10. **`settings.ai.provider`**：后端 Gateway 首版仅接受 **`openai_compatible` / `openai`**（兼容接口统一走 `openai_compatible` HTTP 实现；**DeepSeek / Qwen / Ollama** 等后续可增独立适配或扩展 accepted 名称）。
-11. **AI 图片处理**：**未完成**（路线图第 6 阶段）。
-12. **AI 客服**：**未完成**。
-13. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径（条目 10）；其它厂商后续可加适配。
-14. **1688 采集边界**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**边界；需在真实流量下持续补强选择器与健康度。
-15. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
-16. **S3/COS/OSS 等多云存储**：与条目 2 一致，`test-storage` 与 **`kind≠local` 上传** 仍以 **未完成**为主路径叙事（首版 **`local`** 可用）。
+6. **忘记密码未完成**：已在登录页占位，尚未实现后端逻辑。
+7. **手机号注册/短信未完成**：注册仍仅限 **邮箱 + 验证码**；**登录**已支持邮箱或手机号（规范化数字，兼容 +86）；短信注册/找回未做。
+8. **更多邮件服务商未完成**：当前仅完成了 SMTP 方式对接发送，尚未提供 Mailgun 等其它供应商实现。
+9. **验证码风控可继续增强**：目前已做简单的时间窗与数量限制。
+10. **历史管理员数据**：早期仅在内部 `username` 列有意义、未填 **`email` / `phone`** 的账号将无法按新规则登录；需在库里补齐邮箱或手机号，或清空表后重新 bootstrap。
+11. **端口对齐**：**`COLLECTOR_BASE_URL`**（Go）必须与 **`COLLECTOR_HTTP_ADDR`**（Collector）监听端口一致（模板默认 **3100**）；`.env.example` 已备注。
+12. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
+13. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
+14. **MySQL 可选驱动**：当前 JSON 字段迁移以 **PostgreSQL `JSONB`** 为主路径；若使用 **MySQL**，需自行核对 GORM 对 `JSON`/`JSONB` 标签的兼容性（默认开发仍为 Postgres）。
+15. **`settings.ai.provider`**：后端 Gateway 首版仅接受 **`openai_compatible` / `openai`**（兼容接口统一走 `openai_compatible` HTTP 实现；**DeepSeek / Qwen / Ollama** 等后续可增独立适配或扩展 accepted 名称）。
+16. **AI 图片处理**：**未完成**（路线图第 6 阶段）。
+17. **AI 客服**：**未完成**。
+18. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径；其它厂商后续可加适配。
+19. **1688 采集边界**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**边界；需在真实流量下持续补强选择器与健康度。
+20. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
+21. **S3/COS/OSS 等多云存储**：与条目 2 一致，`test-storage` 与 **`kind≠local` 上传** 仍以 **未完成**为主路径叙事（首版 **`local`** 可用）。
 
 ---
 
@@ -239,6 +244,9 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-16 | **管理员登录**：仅 **邮箱或手机号 + 密码**（不再接受用户名）；首启账号通过 **`ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PHONE`**（至少一项）配置；`admin_users.username` 为内部不透明 ID；`docs/PROGRESS`、`.env.example` 同步 |
+| 2026-05-16 | **邮箱注册与通知**：UI 增加登录注册 Tab 切换与设计稿对齐；管理端增加 **Email 邮箱设置** 页并可测试连接（`test-email`）；后端实现 **Email Provider（SMTP）** 与 settings 写入，密码 AES-GCM；扩展 `admin_users` 邮箱与 **`account`** 登录链路；验证码限流与 TTL；注册入库并自动登录 |
+| 2026-05-16 | **管理端 UI**：Ant Design 主题与 **mix 布局**（顶栏+侧栏）、登录分区样式、工作台快捷入口；各页去掉冗余说明与 Alert；与 PROGRESS 同步 |
 | 2026-05-16 | **采集任务异步化**：Redis **`collect:tasks`**（`COLLECT_QUEUE_*`）；**Worker** 消费、`RunCollectJob`、**`operationlog.WriteBackground`**；`POST /collect/tasks` **非阻塞**；**retry 再入队**；**503** `Redis queue unavailable`；**main** 优雅关闭；管理端 **轮询** 与文案；**`ImportDraftWithContext`**；PROGRESS 同步 |
 | 2026-05-16 | **1688 Collector 结构化解析**：`collector/src/providers/source1688/` 分拆 **parser/selectors/utils**；抽取 **标题/主图(≤10)/详情图(≤30)/attributes/skus**（`properties` 兼容 Go **`BuildImportSKU`**），**SKU 粒度 `raw`**；**顶层 `raw`** 结构化（候选图/属性/SKU、`pageMeta`、`extractedAt`、snippet 摘要，**不含整 HTML**）；**`pnpm collect:test`**；验证码且零字段时 **`INVALID_URL`**；PROGRESS §4.3/遗留/下一步更新 |
 | 2026-05-15 | **商品详情编辑增强**：后端 **`PUT /products/:id`**（camelCase/snake_case、**status 枚举**、不写 source/raw）；**SKU / images / reorder API**；**操作日志 `product.sku.*` `product.image.*`**；前端 **`DraftDetail`** **Tabs + 图片 ModalForm + 可编辑 SKU**；采集入库详情图 **`detail`**；**PROGRESS** 同步遗留与下一步 |

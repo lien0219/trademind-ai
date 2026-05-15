@@ -1,5 +1,6 @@
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Tag, Typography } from 'antd';
+import { Tag } from 'antd';
 import dayjs from 'dayjs';
 import { useRef } from 'react';
 import { fetchOperationLogs, type OperationLogRow } from '@/services/operationLogs';
@@ -88,13 +89,7 @@ export default function OperationLogsPage() {
   ];
 
   return (
-    <PageContainer
-      title="操作日志"
-      subTitle="登录、设置变更与连通性测试等关键操作的审计记录。只读，不可删除。"
-    >
-      <Typography.Paragraph type="secondary">
-        RequestID 与响应头 <Typography.Text code>X-Request-ID</Typography.Text> 对齐，便于排错。
-      </Typography.Paragraph>
+    <PageContainer title="操作日志">
       <ProTable<OperationLogRow>
         rowKey="id"
         actionRef={actionRef}
@@ -118,7 +113,7 @@ export default function OperationLogsPage() {
             total: res.pagination.total,
           };
         }}
-        headerTitle="审计记录"
+        headerTitle={false}
         toolBarRender={() => []}
       />
     </PageContainer>
