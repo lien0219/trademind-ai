@@ -1,0 +1,153 @@
+---
+description: Development workflow, implementation priority, MVP milestones, coding behavior for Cursor, and documentation requirements
+alwaysApply: true
+---
+
+# 开发流程与阶段规划规则
+
+## 开发优先级
+
+按照以下顺序推进，不要跳到复杂 ERP 功能：
+
+### 第 1 阶段：项目地基
+
+目标：项目能启动，后台能登录，系统设置能保存。
+
+- 初始化 monorepo 项目结构
+- 搭建 Go Gin 后端
+- 搭建 React + Ant Design Pro 后台
+- 搭建 MySQL / PostgreSQL
+- 搭建 Redis
+- 实现管理员登录
+- 实现统一 API 返回
+- 实现 settings 表
+- 实现敏感配置加密
+- 实现系统设置页面
+
+### 第 2 阶段：存储能力
+
+目标：用户可以选择本地存储，并完成图片上传。
+
+- Storage Provider 接口
+- local storage
+- 文件上传 API
+- 上传目录挂载
+- 文件列表
+- 存储设置页面
+- 存储连接测试
+- s3/cos/oss 接口预留
+
+### 第 3 阶段：AI 文本能力
+
+目标：可以配置 AI Provider，并完成标题优化。
+
+- AI Provider 接口
+- openai-compatible Provider
+- DeepSeek / Qwen 兼容配置
+- Prompt 模板表
+- AI 设置页面
+- Prompt 编辑页面
+- AI 标题优化 API
+- AI 调用记录
+- 商品详情页一键应用 AI 标题
+
+### 第 4 阶段：商品草稿
+
+目标：商品数据可以被创建、编辑、保存。
+
+- products 表
+- product_skus 表
+- product_images 表
+- 商品草稿列表
+- 商品详情编辑
+- SKU 编辑
+- 商品图片管理
+- 商品归档
+
+### 第 5 阶段：采集服务
+
+目标：可以采集 1688 商品链接，并保存为商品草稿。
+
+- Node.js + Playwright 采集服务
+- 采集任务队列
+- 1688 Provider
+- 商品结构化解析
+- raw 原始数据保存
+- 采集任务状态
+- 失败重试
+- 采集结果生成商品草稿
+- 采集任务页面
+
+### 第 6 阶段：AI 描述与图片预留
+
+目标：形成更完整的 AI 商品优化能力。
+
+- AI 描述生成
+- 描述 Prompt 模板
+- 图片任务表
+- Image Provider 接口
+- 图片处理任务页面
+- remove.bg / ComfyUI / OpenAI Image 接入预留
+
+### 第 7 阶段：店铺授权预留
+
+目标：为后续真实平台打通做准备。
+
+- Platform Provider 接口
+- stores 表
+- 店铺列表页面
+- 平台配置页面
+- TikTok Shop 授权预留
+- Shopee 授权预留
+
+## Cursor 生成代码时的行为规则
+
+当用户要求实现功能时，优先：
+
+1. 判断功能属于哪个阶段。
+2. 检查是否存在相关 Provider 抽象。
+3. 先补接口和类型，再补具体实现。
+4. 后端先统一返回结构和错误处理。
+5. 前端先使用 ProTable / ProForm 搭建管理页面。
+6. 涉及耗时任务时，必须走任务状态，不要同步阻塞。
+7. 涉及密钥时，必须走加密和脱敏。
+8. 涉及 AI 时，必须走 AI Gateway + Prompt 模板。
+9. 涉及存储时，必须走 Storage Provider。
+
+## 不要过度设计
+
+当前项目是开源 MVP，不要默认引入：
+
+- Kubernetes
+- Kafka
+- Elasticsearch
+- 完整微服务治理
+- 完整多租户计费
+- 自研大模型训练
+- 复杂工作流引擎
+
+可以预留接口，但不要把 MVP 做重。
+
+## 文档要求
+
+新增核心模块时，建议同步更新：
+
+- README.md
+- docs/architecture.md
+- docs/ai-provider.md
+- docs/storage-provider.md
+- docs/collector-provider.md
+- docs/platform-provider.md
+- docs/api.md
+- docs/roadmap.md
+
+## 版本路线图
+
+- v0.1.0：项目地基版
+- v0.2.0：AI 文本版
+- v0.3.0：商品草稿版
+- v0.4.0：采集版
+- v0.5.0：图片能力版
+- v0.6.0：店铺授权版
+- v0.7.0：AI 客服预览版
+- v1.0.0：开源稳定版

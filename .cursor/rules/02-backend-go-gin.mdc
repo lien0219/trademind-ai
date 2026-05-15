@@ -1,0 +1,158 @@
+---
+description: Backend coding rules for Go, Gin, GORM, modules, services, providers, errors, logs, and API shape
+globs: backend/**/*.go
+alwaysApply: false
+---
+
+# Go + Gin 后端开发规则
+
+## 后端职责
+
+Go 主服务负责：
+
+- 用户认证
+- 权限控制
+- 系统配置
+- 商品草稿
+- 商品采集任务
+- AI 文本任务
+- AI 图片任务
+- 文件上传
+- 存储 Provider
+- AI Provider
+- 平台授权 Provider
+- 队列任务调度
+- 日志记录
+- API 安全控制
+
+## 代码分层
+
+生成 Go 代码时，优先遵循：
+
+```text
+handler → service → repository/model
+                  → provider interface
+                  → queue
+```
+
+### Handler 规则
+
+- 只做参数绑定、参数校验、调用 service、统一响应。
+- 不写复杂业务逻辑。
+- 不直接调用第三方 SDK。
+- 不直接拼 SQL。
+
+### Service 规则
+
+- 负责业务流程编排。
+- 通过接口依赖 Provider。
+- 通过 repository/model 访问数据库。
+- 负责事务边界。
+- 负责任务状态更新。
+
+### Provider 规则
+
+- 每个第三方能力必须实现统一接口。
+- Provider 内部可以封装 SDK 或 HTTP Client。
+- Provider 必须设置超时。
+- Provider 错误必须包装上下文。
+
+## API 返回格式
+
+所有接口统一返回：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {}
+}
+```
+
+失败返回：
+
+```json
+{
+  "code": 40001,
+  "message": "参数错误",
+  "data": null,
+  "traceId": "xxx"
+}
+```
+
+分页返回：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "list": [],
+    "pagination": {
+      "page": 1,
+      "pageSize": 20,
+      "total": 100
+    }
+  }
+}
+```
+
+## 数据库约束
+
+- 字段名使用 `snake_case`。
+- 主键统一使用 `id`。
+- 所有业务表必须包含 `created_at`、`updated_at`。
+- 需要软删除的表包含 `deleted_at`。
+- 涉及租户扩展的表预留 `tenant_id`。
+- 涉及用户归属的表预留 `user_id`。
+- JSON 字段用于保存原始数据、配置、AI 输入输出时，必须明确字段语义。
+
+## 任务状态统一值
+
+异步任务状态统一使用：
+
+```text
+pending
+running
+success
+failed
+cancelled
+retrying
+```
+
+每个任务必须记录：
+
+- 输入参数
+- 输出结果
+- 错误原因
+- 开始时间
+- 结束时间
+- 重试次数预留
+
+## 安全规则
+
+必须加密存储：
+
+- AI API Key
+- 存储 Secret Key
+- 平台 App Secret
+- 店铺 Access Token
+- 店铺 Refresh Token
+- Webhook Secret
+
+日志中禁止输出：
+
+- 完整 API Key
+- 完整 Token
+- 完整 Secret
+- 用户密码
+- Cookie 明文
+
+## Go 代码质量
+
+- 必须 `gofmt`。
+- 错误必须包含上下文。
+- 外部请求必须设置超时时间。
+- 日志必须带 trace_id 或 request_id。
+- 不要使用全局变量保存可变业务状态。
+- 不要在业务代码中硬编码模型名、API Base URL、Prompt、存储路径。

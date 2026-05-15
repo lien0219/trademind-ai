@@ -1,0 +1,120 @@
+---
+description: TradeMind project identity, goals, MVP scope, and non-negotiable product direction
+alwaysApply: true
+---
+
+# 贸灵 TradeMind 项目总规则
+
+## 项目定位
+
+贸灵 TradeMind 是一个开源 AI 跨境电商运营平台。当前阶段不是完整 ERP，而是优先实现：
+
+- 商品采集
+- 商品草稿管理
+- AI 标题优化
+- AI 描述生成
+- AI 商品图处理预留
+- 店铺授权能力预留
+- AI 客服能力预留
+- 跨平台 ERP 扩展能力预留
+
+一句话定位：
+
+> 开源 AI 跨境电商运营平台，帮助卖家完成商品采集、AI 商品优化、图片处理、店铺授权和智能客服扩展。
+
+## 当前 MVP 闭环
+
+任何代码生成或功能设计都要优先服务这个 MVP 闭环：
+
+```text
+用户登录
+  ↓
+系统配置 AI Provider / 存储方式
+  ↓
+输入 1688 商品链接
+  ↓
+采集商品信息
+  ↓
+保存为商品草稿
+  ↓
+AI 优化标题
+  ↓
+AI 生成描述
+  ↓
+图片上传 / 图片处理
+  ↓
+形成可编辑商品草稿
+```
+
+## 当前不做的内容
+
+MVP 阶段不要主动实现以下复杂能力，除非任务明确要求：
+
+- 完整订单系统
+- 完整库存系统
+- 完整财务系统
+- 完整 WMS 仓储系统
+- 多平台自动刊登
+- AI 自动回复买家
+- 企业级多租户 SaaS
+- Kubernetes 部署
+- 自研大模型
+- 自研图片生成模型
+
+可以预留接口、表字段和 Provider 抽象，但不要过度实现。
+
+## 必须保留的后续扩展方向
+
+设计任何模块时，必须避免写死，必须保留扩展能力：
+
+- 多平台店铺授权扩展
+- 多采集源扩展
+- 多 AI Provider 扩展
+- 多图片处理 Provider 扩展
+- 多存储 Provider 扩展
+- AI Tool Calling 扩展
+- AI 客服扩展
+- 批量刊登扩展
+- 订单同步扩展
+- 自动化规则引擎扩展
+- 多租户 SaaS 扩展
+
+## 技术栈总约束
+
+- 前端后台：React + TypeScript + Ant Design Pro + Ant Design + ProTable + ProForm
+- 后端主服务：Go + Gin + GORM
+- 数据库：MySQL 或 PostgreSQL
+- 缓存/队列：Redis
+- 采集服务：Node.js + TypeScript + Playwright
+- AI：第三方大模型 API / OpenAI-compatible Provider / 本地 Ollama 预留
+- 存储：local 优先，S3 / COS / OSS / R2 / MinIO 预留
+
+## 核心开发原则
+
+```text
+先做小闭环，再做大 ERP。
+先做 AI 商品优化，再做完整供应链。
+先做可配置，再做高级自动化。
+先做 Provider 抽象，再接具体平台。
+```
+
+```text
+Go 做主业务。
+React 做后台。
+Node 做采集。
+Redis 做队列。
+Provider 做扩展。
+Prompt 做 AI 技能。
+本地存储保证开箱即用。
+云存储保证生产可用。
+```
+
+## 禁止事项
+
+- 不要把第三方平台逻辑直接写进业务模块。
+- 不要把 AI 模型、API Key、Base URL 写死。
+- 不要把 Prompt 写死到业务代码中，默认 Prompt 可以内置，但必须支持后台配置。
+- 不要让前端直接调用第三方 AI API。
+- 不要在日志中输出 API Key、Token、Secret、Cookie、密码。
+- 不要在 MVP 阶段默认实现 AI 自动客服发送，必须人工确认。
+- 不要为了未来能力引入过重架构，例如 Kubernetes、Kafka、复杂微服务。

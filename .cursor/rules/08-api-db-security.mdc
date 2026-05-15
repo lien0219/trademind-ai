@@ -1,0 +1,182 @@
+---
+description: API route planning, database schema conventions, settings center, encryption, secrets, logs, and task records
+alwaysApply: true
+---
+
+# API / 数据库 / 安全规则
+
+## API 路由规划
+
+### 认证
+
+```text
+POST /api/v1/auth/login
+POST /api/v1/auth/logout
+GET  /api/v1/auth/profile
+```
+
+### 设置
+
+```text
+GET  /api/v1/settings
+PUT  /api/v1/settings
+POST /api/v1/settings/test-ai
+POST /api/v1/settings/test-storage
+```
+
+### 商品
+
+```text
+GET    /api/v1/products
+POST   /api/v1/products
+GET    /api/v1/products/:id
+PUT    /api/v1/products/:id
+DELETE /api/v1/products/:id
+POST   /api/v1/products/:id/apply-ai-title
+POST   /api/v1/products/:id/apply-ai-description
+```
+
+### 采集
+
+```text
+POST /api/v1/collect/tasks
+GET  /api/v1/collect/tasks
+GET  /api/v1/collect/tasks/:id
+POST /api/v1/collect/tasks/:id/retry
+```
+
+### AI
+
+```text
+POST /api/v1/ai/title-optimize
+POST /api/v1/ai/description-generate
+POST /api/v1/ai/chat
+GET  /api/v1/ai/tasks
+GET  /api/v1/ai/tasks/:id
+```
+
+### 文件
+
+```text
+POST   /api/v1/files/upload
+GET    /api/v1/files
+DELETE /api/v1/files/:id
+```
+
+### 店铺
+
+```text
+GET  /api/v1/stores
+POST /api/v1/stores/:platform/auth-url
+GET  /api/v1/stores/:platform/callback
+POST /api/v1/stores/:id/refresh-token
+```
+
+## Settings 配置中心
+
+所有可变能力尽量进入系统设置，不要写死在代码中。
+
+设置分组：
+
+```text
+system
+ai
+storage
+collector
+platform
+image
+security
+queue
+```
+
+设置要求：
+
+- 支持前端后台编辑。
+- 支持环境变量初始化。
+- 支持敏感字段加密。
+- 支持连接测试。
+- 支持恢复默认值。
+- 支持按租户隔离预留。
+
+## settings 表建议
+
+```sql
+CREATE TABLE settings (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  tenant_id BIGINT DEFAULT 0,
+  group_key VARCHAR(100) NOT NULL,
+  item_key VARCHAR(100) NOT NULL,
+  item_value TEXT,
+  value_type VARCHAR(50) DEFAULT 'string',
+  is_encrypted BOOLEAN DEFAULT FALSE,
+  remark VARCHAR(255),
+  created_at DATETIME,
+  updated_at DATETIME,
+  UNIQUE KEY uk_setting (tenant_id, group_key, item_key)
+);
+```
+
+## 商品核心表
+
+生成数据库相关代码时，优先围绕：
+
+- products
+- product_images
+- product_skus
+- collect_tasks
+- ai_tasks
+- ai_prompts
+- ai_providers
+- settings
+
+## 安全加密规则
+
+以下内容必须加密存储：
+
+- AI API Key
+- 存储 Secret Key
+- 平台 App Secret
+- 店铺 Access Token
+- 店铺 Refresh Token
+- Webhook Secret
+
+建议：
+
+```text
+APP_MASTER_KEY
+  ↓
+AES-GCM
+  ↓
+数据库保存密文
+```
+
+## 脱敏展示
+
+前端展示敏感字段时必须脱敏：
+
+```text
+sk-****abcd
+```
+
+## 日志禁止内容
+
+日志中禁止输出：
+
+- 完整 API Key
+- 完整 Token
+- 完整 Secret
+- 用户密码
+- Cookie 明文
+
+## 操作日志
+
+核心操作建议记录：
+
+- 登录
+- 修改系统设置
+- 修改 AI Provider
+- 修改存储配置
+- 创建采集任务
+- 重试任务
+- 应用 AI 结果
+- 删除商品或文件

@@ -1,0 +1,35 @@
+# Local environment
+.env
+.env.local
+.env.*.local
+
+# Runtime data
+/data/uploads/*
+!/data/uploads/.gitkeep
+
+# Node
+node_modules/
+dist/
+build/
+.pnpm-store/
+
+# Go
+/backend/bin/
+/backend/tmp/
+*.exe
+*.test
+coverage.out
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Internal development-only project specification
+# This file is for Cursor/developer context only and should not be used as GitHub project homepage.
+TradeMind.md
+PROJECT_SPEC_TradeMind.md

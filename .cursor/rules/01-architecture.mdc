@@ -1,0 +1,134 @@
+---
+description: TradeMind architecture layering, module boundaries, provider abstraction, and project structure
+alwaysApply: true
+---
+
+# 架构规则
+
+## 推荐总体架构
+
+```text
+React + Ant Design Pro
+        ↓
+Go Gin API
+        ↓
+MySQL / PostgreSQL
+        ↓
+Redis Queue
+        ↓
+Node Playwright Collector
+```
+
+## Provider 扩展架构
+
+业务模块不得直接依赖具体第三方实现，必须通过 Provider 抽象接入。
+
+```text
+Go Gin API
+   ├── Storage Provider
+   │     ├── local
+   │     ├── s3
+   │     ├── cos
+   │     ├── oss
+   │     └── r2
+   │
+   ├── AI Provider
+   │     ├── openai-compatible
+   │     ├── deepseek
+   │     ├── qwen
+   │     ├── doubao
+   │     ├── gemini
+   │     ├── claude
+   │     └── ollama
+   │
+   ├── Image Provider
+   │     ├── local
+   │     ├── removebg
+   │     ├── openai-image
+   │     ├── comfyui
+   │     ├── flux
+   │     └── jimeng
+   │
+   ├── Platform Provider
+   │     ├── tiktok
+   │     ├── shopee
+   │     ├── lazada
+   │     ├── shopify
+   │     └── amazon
+   │
+   └── Collector Provider
+         ├── 1688
+         ├── taobao
+         ├── pdd
+         ├── shein
+         └── custom
+```
+
+## 推荐目录结构
+
+```text
+trademind/
+├── backend/
+│   ├── cmd/server/main.go
+│   ├── internal/
+│   │   ├── api/
+│   │   ├── modules/
+│   │   ├── providers/
+│   │   ├── queue/
+│   │   ├── config/
+│   │   ├── database/
+│   │   ├── logger/
+│   │   ├── encrypt/
+│   │   └── pkg/
+│   ├── migrations/
+│   └── configs/
+│
+├── admin/
+│   └── src/
+│
+├── collector/
+│   └── src/
+│
+├── docs/
+├── data/uploads/
+├── docker-compose.yml
+├── .env.example
+└── README.md
+```
+
+## 分层约束
+
+### 后端业务层
+
+- `handler` 只处理参数、鉴权上下文、调用 service、返回结果。
+- `service` 处理业务流程，但不直接依赖具体第三方 SDK。
+- `provider` 负责第三方或本地能力适配。
+- `repository` 或 model 层负责数据库访问。
+- `queue` 负责异步任务投递和消费。
+
+### 前端后台
+
+- 页面只组织 UI，不直接散写请求。
+- API 请求统一放在 `services` 或 `api` 目录。
+- 类型定义统一放在 `types` 或对应模块目录。
+- 枚举和状态映射统一管理。
+
+### 采集服务
+
+- 采集服务独立于 Go 主服务。
+- 采集服务不得直接操作主业务数据库。
+- 采集服务通过队列或内部 API 接收任务并返回结果。
+- 每个采集源必须独立 Provider。
+
+## 设计任何新功能时必须回答
+
+生成代码前，优先考虑：
+
+1. 这个功能属于哪个模块？
+2. 是否需要异步任务？
+3. 是否涉及 Provider？
+4. 是否需要配置中心？
+5. 是否涉及敏感数据加密？
+6. 是否需要操作日志？
+7. 是否为后期多租户预留 `tenant_id`？
+8. 是否需要保留 raw 原始数据？

@@ -1,0 +1,97 @@
+---
+description: Storage provider abstraction for local storage and future S3/COS/OSS/R2/MinIO expansion
+globs: backend/internal/modules/storage/**/*.go,backend/internal/providers/storage/**/*.go,admin/src/pages/Settings/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# 存储 Provider 规则
+
+## 存储目标
+
+贸灵必须支持自部署开箱即用，所以 MVP 必须优先支持本地存储 `local`。
+
+后期扩展：
+
+- s3
+- cos
+- oss
+- r2
+- minio
+
+## 存储 Provider 接口建议
+
+```go
+type StorageProvider interface {
+    Name() string
+
+    Put(ctx context.Context, objectKey string, reader io.Reader, contentType string) (*PutObjectResult, error)
+
+    GetURL(ctx context.Context, objectKey string) (string, error)
+
+    Delete(ctx context.Context, objectKey string) error
+}
+```
+
+## 本地存储配置
+
+```text
+storage.provider = local
+storage.local.path = ./data/uploads
+storage.local.public_url = http://localhost:8080/uploads
+```
+
+本地存储必须支持 Docker 挂载：
+
+```text
+./data/uploads:/app/data/uploads
+```
+
+## 云存储配置示例
+
+```text
+storage.provider = cos
+storage.cos.secret_id = xxx
+storage.cos.secret_key = xxx
+storage.cos.bucket = xxx
+storage.cos.region = ap-guangzhou
+storage.cos.public_url = https://xxx.cos.ap-guangzhou.myqcloud.com
+```
+
+## 文件上传规则
+
+- 文件上传必须经过后端。
+- 后端负责调用 Storage Provider。
+- 前端不得直传第三方存储，除非后期明确实现预签名 URL。
+- 文件必须记录 object_key、public_url、content_type、size。
+- 商品图片必须能关联 product_id。
+
+## 安全规则
+
+以下字段必须加密存储：
+
+- secret_id
+- secret_key
+- access_key
+- access_secret
+- token
+
+前端展示时必须脱敏。
+
+## 设置页要求
+
+存储设置页面必须包含：
+
+- 存储方式选择
+- 本地路径
+- 公开访问 URL
+- Bucket / Region / Endpoint 等云存储配置
+- Secret 字段脱敏
+- 测试连接按钮
+- 保存按钮
+
+## 禁止事项
+
+- 不要把本地路径写死。
+- 不要把云存储密钥写死到代码或前端。
+- 不要让业务模块直接依赖 COS/OSS/S3 SDK。
+- 不要只保存 public_url，必须保留 object_key。

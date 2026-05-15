@@ -1,0 +1,122 @@
+---
+description: Collector service rules for Node.js, TypeScript, Playwright, source providers, task handling, and normalized product output
+globs: collector/**/*.{ts,tsx,js,json}
+alwaysApply: false
+---
+
+# Node.js + Playwright 采集服务规则
+
+## 采集服务定位
+
+采集服务独立于 Go 主服务，用于处理商品页面采集、浏览器自动化和结构化解析。
+
+MVP 优先实现：
+
+```text
+1688 单链接商品采集
+```
+
+后期预留：
+
+- taobao
+- pdd
+- shein
+- amazon
+- custom url
+
+## 技术栈
+
+- Node.js
+- TypeScript
+- Playwright
+
+## 服务边界
+
+- 采集服务不得直接操作主业务数据库。
+- 采集服务通过 Redis Queue 或内部 API 接收任务。
+- 采集完成后返回结构化 JSON。
+- Go 主服务负责保存商品草稿和任务状态。
+
+## 采集源 Provider 规则
+
+每个采集源必须独立 Provider。
+
+推荐结构：
+
+```text
+collector/src/
+├── providers/
+│   ├── source1688/
+│   ├── taobao/
+│   └── custom/
+├── browser/
+├── queue/
+├── normalizer/
+└── index.ts
+```
+
+## 统一采集输出结构
+
+无论来源是什么，最终都必须转换为：
+
+```json
+{
+  "source": "1688",
+  "sourceUrl": "",
+  "title": "",
+  "currency": "CNY",
+  "mainImages": [],
+  "descriptionImages": [],
+  "attributes": {},
+  "skus": [],
+  "raw": {}
+}
+```
+
+## raw 原始数据规则
+
+必须保留 `raw` 字段，用于：
+
+- 复盘采集问题
+- 后期重新解析
+- 兼容新增字段
+- 定位平台页面结构变化
+
+## 任务状态
+
+采集任务状态统一：
+
+```text
+pending
+running
+success
+failed
+cancelled
+retrying
+```
+
+采集失败必须返回明确错误原因，例如：
+
+- 页面加载超时
+- 商品不存在
+- 需要登录
+- 触发验证码
+- SKU 解析失败
+- 图片提取失败
+
+## Playwright 规则
+
+- 浏览器启动参数统一封装。
+- 页面超时时间可配置。
+- User-Agent / 代理 / Cookie 支持配置预留。
+- 不要在 Provider 里到处创建浏览器实例，优先统一管理。
+- 图片懒加载需要滚动触发。
+- 采集完成必须关闭 page/context，避免资源泄漏。
+
+## 禁止事项
+
+- 不要把 1688 逻辑写到核心框架中。
+- 不要直接把采集结果写数据库。
+- 不要在失败时只返回 unknown error。
+- 不要忽略 SKU、属性、图片的结构化输出。
+- 不要移除 raw 字段。
