@@ -1,17 +1,21 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/trademind-ai/trademind/backend/internal/api"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/database"
+	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/logger"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
-	"github.com/gin-gonic/gin"
 )
 
 func loadDotEnv() {
@@ -44,6 +48,25 @@ func main() {
 	}
 	defer func() { _ = database.Close(db) }()
 
+	if err := database.AutoMigrate(db); err != nil {
+		log.Error("database_migrate_failed", "error", err)
+		os.Exit(1)
+	}
+
+	enc, err := encrypt.NewService(cfg.MasterKey)
+	if err != nil {
+		log.Error("encrypt_init_failed", "error", err)
+		os.Exit(1)
+	}
+
+	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {
+		cancel()
+		log.Error("admin_bootstrap_failed", "error", err)
+		os.Exit(1)
+	}
+	cancel()
+
 	var redisClient *rdb.Client
 	if rcl, err := rdb.Open(cfg); err != nil {
 		log.Warn("redis_unavailable", "error", err)
@@ -56,9 +79,10 @@ func main() {
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	api.Register(engine, &api.Deps{
-		Config: cfg,
-		DB:     db,
-		Redis:  redisClient,
+		Config:    cfg,
+		DB:        db,
+		Redis:     redisClient,
+		Encrypter: enc,
 	})
 
 	log.Info("server_listen", "addr", cfg.HTTPAddr)

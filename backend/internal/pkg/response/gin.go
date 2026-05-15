@@ -3,8 +3,8 @@ package response
 import (
 	"net/http"
 
-	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 )
 
 // OK writes a success envelope with HTTP 200.

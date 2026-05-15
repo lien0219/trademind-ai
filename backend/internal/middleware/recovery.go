@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
 // Recovery catches panics and returns the unified JSON error body.

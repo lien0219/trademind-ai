@@ -4,28 +4,49 @@ import (
 	"context"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/encrypt"
+	"github.com/trademind-ai/trademind/backend/internal/middleware"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 // Deps holds process-wide dependencies for HTTP handlers.
 type Deps struct {
-	Config *config.Config
-	DB     *gorm.DB
-	Redis  *rdb.Client
+	Config    *config.Config
+	DB        *gorm.DB
+	Redis     *rdb.Client
+	Encrypter *encrypt.Service
 }
 
 // Register mounts routes on the engine.
-func Register(r gin.IRoutes, dep *Deps) {
+func Register(r gin.IRouter, dep *Deps) {
 	if dep == nil {
 		dep = &Deps{}
 	}
 	h := healthHandler(dep)
 	r.GET("/health", h)
 	r.GET("/api/v1/health", h)
+
+	adminStore := &admin.Store{DB: dep.DB}
+	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore}
+	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore}
+	setH := &settings.Handler{Svc: &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}}
+
+	v1 := r.Group("/api/v1")
+	v1.POST("/auth/login", authH.Login)
+
+	authed := v1.Group("")
+	authed.Use(middleware.BearerAuth(dep.Config))
+	authed.GET("/auth/profile", authH.Profile)
+	authed.POST("/auth/logout", authH.Logout)
+	authed.GET("/settings", setH.List)
+	authed.PUT("/settings", setH.Put)
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

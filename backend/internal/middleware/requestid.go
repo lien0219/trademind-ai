@@ -3,9 +3,9 @@ package middleware
 import (
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
-	"github.com/gin-gonic/gin"
 )
 
 // RequestID ensures each request has a trace id (reuses inbound header when present).

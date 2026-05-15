@@ -16,6 +16,10 @@ type Config struct {
 	Redis     RedisConfig
 	JWTSecret string
 	JWTExpHrs int
+
+	// BootstrapAdminUsername / BootstrapAdminPassword seed the first admin when the table is empty.
+	BootstrapAdminUsername string
+	BootstrapAdminPassword string
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -56,6 +60,9 @@ func Load() (*Config, error) {
 		},
 		JWTSecret: firstNonEmpty(os.Getenv("JWT_SECRET"), "change-me-in-development"),
 		JWTExpHrs: atoiOrDefault(os.Getenv("JWT_EXPIRE_HOURS"), 168),
+
+		BootstrapAdminUsername: strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_USERNAME")),
+		BootstrapAdminPassword: os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))
@@ -81,6 +88,10 @@ func Load() (*Config, error) {
 	}
 	if strings.TrimSpace(cfg.DB.Name) == "" {
 		return nil, fmt.Errorf("DB_NAME is required")
+	}
+
+	if cfg.AppEnv == "production" && cfg.JWTSecret == "change-me-in-development" {
+		return nil, fmt.Errorf("JWT_SECRET must be set for production")
 	}
 
 	return cfg, nil
