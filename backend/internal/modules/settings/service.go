@@ -1,10 +1,17 @@
 package settings
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"gorm.io/gorm"
@@ -154,4 +161,131 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 			"item_value", "value_type", "is_encrypted", "remark", "updated_at",
 		}),
 	}).Create(&row).Error
+}
+
+// PlainByGroup returns plaintext values for one settings group (for internal connectivity checks).
+func (s *Service) PlainByGroup(ctx context.Context, tenantID int64, groupKey string) (map[string]string, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("settings: no db")
+	}
+	gk := strings.TrimSpace(groupKey)
+	if gk == "" {
+		return nil, fmt.Errorf("settings: groupKey required")
+	}
+	var rows []Setting
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND group_key = ?", tenantID, gk).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(rows))
+	for _, row := range rows {
+		v := row.ItemValue
+		if row.IsEncrypted && strings.TrimSpace(v) != "" {
+			plain, err := s.decryptStored(v)
+			if err != nil {
+				return nil, fmt.Errorf("settings: decrypt %s/%s: %w", gk, row.ItemKey, err)
+			}
+			v = string(plain)
+		}
+		out[row.ItemKey] = v
+	}
+	return out, nil
+}
+
+// TestAIConnection calls the configured OpenAI-compatible chat/completions endpoint once.
+func (s *Service) TestAIConnection(ctx context.Context) error {
+	m, err := s.PlainByGroup(ctx, 0, "ai")
+	if err != nil {
+		return err
+	}
+	base := strings.TrimSpace(m["base_url"])
+	if base == "" {
+		return fmt.Errorf("ai base_url not configured")
+	}
+	base = strings.TrimRight(base, "/")
+	apiKey := strings.TrimSpace(m["api_key"])
+	if apiKey == "" {
+		return fmt.Errorf("ai api_key not configured")
+	}
+	model := strings.TrimSpace(m["model"])
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
+	timeout := 20 * time.Second
+	if sec := strings.TrimSpace(m["timeout_sec"]); sec != "" {
+		if n, err := strconv.Atoi(sec); err == nil && n > 0 && n <= 120 {
+			timeout = time.Duration(n) * time.Second
+		}
+	}
+	body := map[string]any{
+		"model":       model,
+		"max_tokens":  1,
+		"temperature": 0,
+		"messages": []map[string]string{
+			{"role": "user", "content": "ping"},
+		},
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	client := &http.Client{Timeout: timeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("ai request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("ai provider returned HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// TestStorageConnection verifies local storage path or basic S3 field presence.
+func (s *Service) TestStorageConnection(ctx context.Context) error {
+	m, err := s.PlainByGroup(ctx, 0, "storage")
+	if err != nil {
+		return err
+	}
+	kind := strings.ToLower(strings.TrimSpace(m["kind"]))
+	if kind == "" {
+		kind = "local"
+	}
+	switch kind {
+	case "local":
+		root := strings.TrimSpace(m["local_root"])
+		if root == "" {
+			root = "data/uploads"
+		}
+		abs, err := filepath.Abs(root)
+		if err != nil {
+			return fmt.Errorf("storage local_root: %w", err)
+		}
+		if err := os.MkdirAll(abs, 0o755); err != nil {
+			return fmt.Errorf("storage mkdir %q: %w", abs, err)
+		}
+		f, err := os.CreateTemp(abs, ".trademind-storage-test-*")
+		if err != nil {
+			return fmt.Errorf("storage write test: %w", err)
+		}
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		return nil
+	case "s3", "cos", "oss", "r2", "minio":
+		endpoint := strings.TrimSpace(m["endpoint"])
+		bucket := strings.TrimSpace(m["bucket"])
+		access := strings.TrimSpace(m["access_key"])
+		secret := strings.TrimSpace(m["secret_key"])
+		if endpoint == "" || bucket == "" || access == "" || secret == "" {
+			return fmt.Errorf("incomplete %s settings: need endpoint, bucket, access_key, secret_key", kind)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported storage kind %q", kind)
+	}
 }

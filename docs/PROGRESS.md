@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-15（认证与 settings 后端）
+**最后更新**：2026-05-15（管理端登录与 settings 全量联调）
 
 ---
 
@@ -11,8 +11,8 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 1 阶段「项目地基」进行中**（见 `.cursor/rules/09-dev-workflow.mdc`） |
-| **MVP 闭环** | 未跑通；后端已具备 **登录 JWT + settings 持久化**；管理端登录与联调仍待完成 |
+| **路线图阶段** | **第 1 阶段「项目地基」收尾中**：后端与**管理端登录 + 设置联调**已接通；操作日志等仍属缺口 |
+| **MVP 闭环** | 未跑通；**管理端可登录**并可读写 **settings**、调用 **test-ai / test-storage** |
 | **产物形态** | Monorepo 可构建：`backend`、`admin`、`collector` 均有可运行/可编译基线 |
 
 ---
@@ -26,7 +26,7 @@
 - **本地存储**与上传通路预留；docker-compose 支撑 **PostgreSQL + Redis**
 - 后台 **系统设置页** 与配置后端连通；**不**在前端直连第三方 AI
 
-> 说明：后端已完成**管理员认证**与 **settings 表 + API**（含敏感字段加密与脱敏）；管理端登录页与接口联调仍属下一阶段。
+> 说明：后端已完成**管理员认证**、**settings CRUD** 与 **test-ai / test-storage**；管理端已完成 **登录 JWT 落盘、请求拦截、401 回登录、access 控制与各设置页 API 绑定**。
 
 ---
 
@@ -51,17 +51,19 @@
 - **ID 约定**：管理员等域表主键 **UUID**（`internal/pkg/model` + `internal/pkg/id`；GORM `char(36)`）；`settings` 表为 **`BIGINT` 自增**（与规则文档一致）。
 - **认证**：`admin_users` 模型；`POST /api/v1/auth/login`（bcrypt 口令、**JWT HS256**）；`GET /api/v1/auth/profile`、`POST /api/v1/auth/logout`（无状态，客户端弃 token）。
 - **配置中心**：`settings` 模型与 `GET/PUT /api/v1/settings`；`item_value` 在 `is_encrypted=true` 时 **AES-GCM**（`APP_MASTER_KEY`）存储；列表接口 **脱敏**（`****` 规则）；PUT 若密文占位含 `****` 则 **不覆盖**原密钥，可更新 remark / value_type 等。
+- **连通性测试**：`POST /api/v1/settings/test-ai`（读取 `ai` 组解密后请求 OpenAI 兼容 `POST /chat/completions`，`max_tokens:1`）；`POST /api/v1/settings/test-storage`（`local` 校验 `local_root` 可写；`s3/cos/oss/r2/minio` 校验必填字段完整）。`ai` / `storage` 组键名约定：`base_url`、`api_key`、`kind`、`local_root` 等（**snake_case item_key**）。
 - **默认管理员**：库中无管理员时，按 `ADMIN_BOOTSTRAP_USERNAME`（默认 `admin`）与 `ADMIN_BOOTSTRAP_PASSWORD`（**非 production** 空密码时 Fallback `changeme` 并打日志；**production** 无用户则必须配置密码）插入一条记录。
 - **分层占位**：`internal/providers/*` 接口仍为扩展预留；商品/采集等 **业务 CRUD 未完整实现**。
 
 ### 3.3 管理端（`admin/`）
 
 - **@umijs/max**（脚本使用 **`max`**，禁止用 **`umi`** 跑 Max 配置，否则配置键会报错）。
-- **布局 + 路由**：侧栏菜单与页面入口已建：
-  - 工作台（Dashboard）
-  - 系统设置 / AI 设置 / 存储设置（表单多为占位，**未接 API**）
-  - 商品草稿、采集任务（**ProTable 占位**，空数据）
-- **请求封装**：`src/services/request.ts`（与后端 `Envelope` 对齐）、`src/services/settings.ts`（接口路径已按规划预留）。
+- **登录与鉴权**：`/user/login` 调用 `POST /api/v1/auth/login`；**JWT** 存入 `localStorage`（`AUTH_TOKEN_KEY`）；**`request` 拦截器**自动附加 `Authorization: Bearer`；**HTTP 401**（除登录请求外）清 token 并 **整页跳转**登录页带 `redirect`；**`access.canAdmin`** 控制侧栏与业务路由；**`getInitialState`** 用 token 拉取 `/api/v1/auth/profile`。
+- **布局**：右上角展示当前管理员与**退出**（`POST /auth/logout` + 清 token + 更新 initialState）。
+- **系统 / AI / 存储 / 采集服务 / 安全** 设置页：`GET/PUT /api/v1/settings`，按 **groupKey**（`system`、`ai`、`storage`、`collector`、`security`）读写 **snake_case** 的 `itemKey`；敏感项（`api_key`、`secret_key`、`ops_webhook_secret`）`isEncrypted: true`，依赖后端列表脱敏与 masked 不覆盖语义；**AI / 存储**页 **测试连接** 分别调用 **`POST .../settings/test-ai`**、**`POST .../settings/test-storage`**。
+- **存储页保存策略**：按当前 `kind` 仅提交相关键，避免 **local** 模式用空字段覆盖云上密钥。
+- **其他页面**：工作台、商品草稿、采集任务仍为占位或未接业务 API。
+- **请求封装**：`src/services/request.ts`（与后端 `Envelope` 对齐）、`src/services/settings.ts`、`src/services/auth.ts`。
 - **常量**：`src/constants/status.ts`（商品状态、任务状态枚举，与规则对齐）。
 
 ### 3.4 采集服务（`collector/`）
@@ -86,11 +88,12 @@
 - [x] **Settings 业务**：`settings` 表与 `GET/PUT /api/v1/settings`、**AES-GCM（APP_MASTER_KEY）**、脱敏与 masked 更新语义
 - [x] **迁移**：启动时 GORM **AutoMigrate**（`admin_users`、`settings`）
 - [ ] **操作日志**（登录、改设置等）— 规则要求的核心操作
+- [x] **settings 连通性测试**：`test-ai`、`test-storage`（见上）
 
 ### 4.2 管理端
 
-- [ ] 登录页与 **access 模型**（@umijs/max access）
-- [ ] 各设置页与 **真实 API** 绑定、脱敏展示、**测试连接** 按钮落地
+- [x] 登录页与 **access 模型**（@umijs/max access）；**Bearer** 请求拦截与 **401** 处理
+- [x] **系统 / AI / 存储 / 采集服务 / 安全** 设置页与 **真实 settings API**；脱敏展示；**test-ai / test-storage** 按钮
 - [ ] **商品草稿 / 采集任务** 列表接后端分页与状态
 
 ### 4.3 采集服务
@@ -161,20 +164,21 @@ trademind-ai/
 
 ## 7. 当前遗留问题 / 风险
 
-1. **管理端页面未接登录**：任意可访问路由（后续需 access + 登录页）。
-2. **商品、采集** 在后端多为**未实现**；**settings 与认证** 已可用，管理端需 **Bearer + 联调**。
-3. **1688 采集** 仅为占位：风控/登录/验证码未处理，**不可视为生产可用**。
-4. **Admin 与 Backend 端口**：本地默认 admin dev 代理 `/api` → `8080`，需同时启动两端。
-5. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
+1. **401 处理**：采用**整页跳转**登录以清空 initialState；后续可改为无刷新同步 `setInitialState`。
+2. **S3 等云存储**：`test-storage` 仅校验字段完整性；**不**发起真实列举/上传。
+3. **商品、采集** 在后端多为**未实现**；设置与认证已端到端可用。
+4. **1688 采集** 仅为占位：风控/登录/验证码未处理，**不可视为生产可用**。
+5. **Admin 与 Backend 端口**：本地默认 admin dev 代理 `/api` → `8080`，需同时启动两端。
+6. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
 
 ---
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **关闭第 1 阶段缺口**：后端已完成用户模型与 settings；**登录页 + access**、设置页 **真实 API 联调**。
-2. **存储第 2 阶段预备**：本地 filesystem provider、上传 API、`data/uploads` 与 URL 配置对齐。
-3. **Admin 设置页** 与 `GET/PUT /api/v1/settings`、`test-ai` / `test-storage` 对齐规则。
-4. **采集与 Go 打通**：创建 collect task API → 调 collector → 写库；失败重试与任务状态。
+1. **操作日志**与核心审计（登录、改设置）。
+2. **存储第 2 阶段**：本地 filesystem provider、上传 API、`data/uploads` 与 **storage.public_base** 配置对齐。
+3. **采集与 Go 打通**：创建 collect task API → 调 collector → 写库；失败重试与任务状态。
+4. **管理端**：商品草稿 / 采集任务列表接真实分页与状态。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -200,4 +204,4 @@ trademind-ai/
 | 2026-05-15 | 初版：记录地基进度、admin/collector/backend 基线与决策 |
 | 2026-05-15 | **本地开发规则**：新增 **`.cursor/rules/11-local-dev-postgres.mdc`**（alwaysApply），同步 `.cursorrules` / `00` / `01` / `08` / `09` 中数据库表述为 **PostgreSQL 默认** |
 | 2026-05-15 | **默认数据库改为 PostgreSQL**（compose、`.env.example`、`DB_DRIVER` 默认）；MySQL 仍可选 |
-| 2026-05-15 | **后端认证与 settings**：`admin_users`、JWT 登录/profile/logout、`settings` CRUD、**AES-GCM** + 脱敏、AutoMigrate、**ADMIN_BOOTSTRAP_*** 首次初始化；**未改** admin/collector |
+| 2026-05-15 | **管理端**：登录页（`/user/login`）、JWT 存储与 **Bearer** 拦截、**401** 回登录、**access**；系统/AI/存储/采集/安全设置接 **`GET/PUT /api/v1/settings`**；**test-ai / test-storage** 按钮；**后端**新增两测试接口与 **PlainByGroup** 解密探测（OpenAI 兼容最小 chat 请求；本地目录读写校验） |

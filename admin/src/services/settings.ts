@@ -1,23 +1,46 @@
 import { getJSON, postJSON, putJSON } from '@/services/request';
 
-export type SettingsPayload = Record<string, unknown>;
+export type SettingRow = {
+  id?: number;
+  tenantId?: number;
+  groupKey: string;
+  itemKey: string;
+  itemValue: string;
+  valueType?: string;
+  isEncrypted: boolean;
+  remark?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
-/** 获取系统设置 — GET /api/v1/settings */
-export async function fetchSettings() {
-  return getJSON<SettingsPayload>('/api/v1/settings');
+export type SettingsListData = { items: SettingRow[] };
+
+export type SettingPutItem = {
+  tenantId?: number;
+  groupKey: string;
+  itemKey: string;
+  itemValue: string;
+  valueType?: string;
+  isEncrypted: boolean;
+  remark?: string;
+};
+
+/** GET /api/v1/settings */
+export async function fetchSettingsList() {
+  return getJSON<SettingsListData>('/api/v1/settings');
 }
 
-/** 保存系统设置 — PUT /api/v1/settings */
-export async function saveSettings(body: SettingsPayload) {
-  return putJSON<SettingsPayload, SettingsPayload>('/api/v1/settings', body);
+/** PUT /api/v1/settings */
+export async function saveSettingsItems(items: SettingPutItem[]) {
+  return putJSON<SettingsListData, { items: SettingPutItem[] }>('/api/v1/settings', { items });
 }
 
-/** AI 连接测试 */
-export async function testAI() {
-  return postJSON<void>('/api/v1/settings/test-ai');
+/** POST /api/v1/settings/test-ai */
+export async function testAIConnection() {
+  return postJSON<{ ok: boolean }>('/api/v1/settings/test-ai');
 }
 
-/** 存储连接测试 */
-export async function testStorage() {
-  return postJSON<void>('/api/v1/settings/test-storage');
+/** POST /api/v1/settings/test-storage */
+export async function testStorageConnection() {
+  return postJSON<{ ok: boolean }>('/api/v1/settings/test-storage');
 }

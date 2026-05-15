@@ -76,3 +76,29 @@ func (h *Handler) Put(c *gin.Context) {
 	}
 	response.OK(c, gin.H{"items": rows})
 }
+
+// TestAI POST /api/v1/settings/test-ai
+func (h *Handler) TestAI(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+		return
+	}
+	if err := h.Svc.TestAIConnection(c.Request.Context()); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
+// TestStorage POST /api/v1/settings/test-storage
+func (h *Handler) TestStorage(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+		return
+	}
+	if err := h.Svc.TestStorageConnection(c.Request.Context()); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}

@@ -1,5 +1,5 @@
-export default function access() {
+export default function access(initialState: { currentUser?: API.CurrentUser } | undefined) {
   return {
-    normal: true,
+    canAdmin: !!initialState?.currentUser,
   };
 }

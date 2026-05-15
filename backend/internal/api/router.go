@@ -47,6 +47,8 @@ func Register(r gin.IRouter, dep *Deps) {
 	authed.POST("/auth/logout", authH.Logout)
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
+	authed.POST("/settings/test-ai", setH.TestAI)
+	authed.POST("/settings/test-storage", setH.TestStorage)
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {
