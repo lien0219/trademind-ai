@@ -84,6 +84,11 @@ export default [
         name: '批量采集',
         component: './Collect/Batches',
       },
+      {
+        path: '/collect/monitor',
+        name: '采集监控',
+        component: './Collect/Monitor',
+      },
     ],
   },
   {

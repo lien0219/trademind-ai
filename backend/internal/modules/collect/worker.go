@@ -11,6 +11,16 @@ import (
 	"github.com/google/uuid"
 )
 
+func normalizeCollectConcurrency(n int) int {
+	if n < 1 {
+		return 1
+	}
+	if n > 32 {
+		return 32
+	}
+	return n
+}
+
 // StartWorker runs BRPOP consumers until ctx is cancelled.
 func StartWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, svc *Service, queueName string, concurrency int) {
 	if svc == nil || svc.Redis == nil || svc.Redis.Client == nil {
@@ -19,12 +29,9 @@ func StartWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, svc 
 	if queueName == "" {
 		queueName = "collect:tasks"
 	}
-	if concurrency < 1 {
-		concurrency = 1
-	}
-	if concurrency > 32 {
-		concurrency = 32
-	}
+	concurrency = normalizeCollectConcurrency(concurrency)
+
+	SetCollectWorkersRunning(true)
 
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)

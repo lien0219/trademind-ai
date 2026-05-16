@@ -1,9 +1,9 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Link } from '@umijs/max';
+import { Link, useLocation } from '@umijs/max';
 import { Button, Form, Input, message, Tag } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
   createCollectTask,
@@ -13,6 +13,13 @@ import {
 } from '@/services/collectTasks';
 
 export default function CollectTasksPage() {
+  const location = useLocation();
+  const batchIdFromQuery = useMemo(() => {
+    const q = new URLSearchParams(location.search || '');
+    const v = q.get('batchId')?.trim();
+    return v || undefined;
+  }, [location.search]);
+
   const actionRef = useRef<ActionType>();
   const [form] = Form.useForm<{ source: string; url: string }>();
   const [submitting, setSubmitting] = useState(false);
@@ -24,6 +31,10 @@ export default function CollectTasksPage() {
     document.addEventListener('visibilitychange', sync);
     return () => document.removeEventListener('visibilitychange', sync);
   }, []);
+
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [batchIdFromQuery]);
 
   const columns: ProColumns<CollectTaskRow>[] = [
     {
@@ -135,7 +146,19 @@ export default function CollectTasksPage() {
   ];
 
   return (
-    <PageContainer title="采集任务">
+    <PageContainer
+      title="采集任务"
+      subTitle={
+        batchIdFromQuery ? (
+          <span>
+            <Tag color="processing" style={{ marginRight: 8 }}>
+              批次筛选
+            </Tag>
+            <Link to="/collect/tasks">清除筛选</Link>
+          </span>
+        ) : undefined
+      }
+    >
       <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         <Form
           form={form}
@@ -190,6 +213,7 @@ export default function CollectTasksPage() {
             status: params.status as string | undefined,
             source: params.source as string | undefined,
             keyword: params.keyword as string | undefined,
+            batchId: batchIdFromQuery,
           });
           return {
             data: res.list,

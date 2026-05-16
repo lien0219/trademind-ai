@@ -143,3 +143,31 @@ func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string) (*
 		return nil, fmt.Errorf("collector http %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 }
+
+// ProbeHealth GET /health with a short timeout for observability (do not use for server-wide /health).
+func (c *CollectorClient) ProbeHealth(parent context.Context) (reachable bool, message string) {
+	if c == nil || strings.TrimSpace(c.BaseURL) == "" {
+		return false, "collector client unavailable"
+	}
+	ctx := parent
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/health", nil)
+	if err != nil {
+		return false, err.Error()
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err.Error()
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		return true, "ok"
+	}
+	return false, fmt.Sprintf("collector http %d", resp.StatusCode)
+}

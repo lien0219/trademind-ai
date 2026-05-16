@@ -118,6 +118,20 @@ func (h *Handler) Get(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// Monitor GET /api/v1/collect/monitor
+func (h *Handler) Monitor(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	data, err := h.Svc.GetCollectMonitor(c.Request.Context())
+	if err != nil {
+		response.Fail(c, 500, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, data)
+}
+
 // Retry POST /api/v1/collect/tasks/:id/retry
 func (h *Handler) Retry(c *gin.Context) {
 	if h == nil || h.Svc == nil {

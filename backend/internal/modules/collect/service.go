@@ -22,14 +22,15 @@ import (
 
 // Service orchestrates collect tasks and persists results via product drafts.
 type Service struct {
-	DB           *gorm.DB
-	Products     *product.Service
-	OpLog        *operationlog.Service
-	Client       *CollectorClient
-	Redis        *rdb.Client
-	QueueName    string
-	QueueEnabled bool
-	BatchMaxURLs int
+	DB                      *gorm.DB
+	Products                *product.Service
+	OpLog                   *operationlog.Service
+	Client                  *CollectorClient
+	Redis                   *rdb.Client
+	QueueName               string
+	QueueEnabled            bool
+	BatchMaxURLs            int
+	CollectorTimeoutSeconds int
 }
 
 func clampCollectPage(page, ps int) (int, int) {

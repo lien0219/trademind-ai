@@ -1,9 +1,9 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Link } from '@umijs/max';
+import { Link, history, useLocation } from '@umijs/max';
 import { Button, Drawer, Form, Input, message, Space, Tag } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
 import {
   createCollectBatch,
@@ -42,6 +42,7 @@ function parseUrlsFromTextarea(raw: string): string[] {
 }
 
 export default function CollectBatchesPage() {
+  const location = useLocation();
   const actionRef = useRef<ActionType>();
   const taskActionRef = useRef<ActionType>();
   const [form] = Form.useForm<{ source: string; urls: string }>();
@@ -69,15 +70,40 @@ export default function CollectBatchesPage() {
     return () => document.removeEventListener('visibilitychange', sync);
   }, [drawerOpen]);
 
-  const openDrawer = (row: CollectBatchRow) => {
+  const openDrawer = useCallback((row: CollectBatchRow) => {
     setActiveBatch(row);
     setDrawerOpen(true);
-  };
+  }, []);
 
   const closeDrawer = () => {
     setDrawerOpen(false);
     setActiveBatch(null);
   };
+
+  useEffect(() => {
+    const q = new URLSearchParams(location.search || '');
+    const bid = q.get('batchId')?.trim();
+    if (!bid) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const row = await getCollectBatch(bid);
+        if (cancelled) return;
+        openDrawer(row);
+      } catch {
+        message.error('批次不存在或暂不可用');
+      } finally {
+        if (!cancelled) {
+          q.delete('batchId');
+          const qs = q.toString();
+          history.replace(`${location.pathname}${qs ? `?${qs}` : ''}`);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search, location.pathname, openDrawer]);
 
   const batchColumns: ProColumns<CollectBatchRow>[] = [
     {

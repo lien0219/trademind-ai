@@ -101,15 +101,17 @@ func main() {
 		Encrypter: enc,
 	})
 
+	workerConc := cfg.CollectWorkerConcurrency
+	if workerConc < 1 {
+		workerConc = 2
+	}
+	collect.ConfigureWorkerMonitor(cfg.CollectQueueEnabled, workerConc)
+
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
-		n := cfg.CollectWorkerConcurrency
-		if n < 1 {
-			n = 2
-		}
-		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, n)
-		log.Info("collect_worker_started", "concurrency", n, "queue", cfg.CollectQueueName)
+		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc)
+		log.Info("collect_worker_started", "concurrency", workerConc, "queue", cfg.CollectQueueName)
 	} else if cfg.CollectQueueEnabled && redisClient == nil {
 		log.Warn("collect_worker_skipped", "reason", "redis unavailable while COLLECT_QUEUE_ENABLED=true")
 	}
@@ -145,6 +147,8 @@ func main() {
 	case <-time.After(60 * time.Second):
 		log.Warn("collect_worker_shutdown_timeout")
 	}
+
+	collect.SetCollectWorkersRunning(false)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer shutdownCancel()

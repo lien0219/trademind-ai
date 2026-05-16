@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -94,6 +95,7 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 		collectSvc.QueueName = dep.Config.CollectQueueName
 		collectSvc.QueueEnabled = dep.Config.CollectQueueEnabled
 		collectSvc.BatchMaxURLs = dep.Config.CollectBatchMaxURLs
+		collectSvc.CollectorTimeoutSeconds = dep.Config.CollectorTimeoutSeconds
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 
@@ -167,15 +169,31 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 		}
 
 		appEnv := ""
+		queueEnabled := false
+		queueName := "collect:tasks"
+		workerConc := 2
 		if dep.Config != nil {
 			appEnv = dep.Config.AppEnv
+			queueEnabled = dep.Config.CollectQueueEnabled
+			if strings.TrimSpace(dep.Config.CollectQueueName) != "" {
+				queueName = strings.TrimSpace(dep.Config.CollectQueueName)
+			}
+			workerConc = dep.Config.CollectWorkerConcurrency
+			if workerConc < 1 {
+				workerConc = 2
+			}
+		}
+		cq := collect.BuildCollectQueueHealthBlock(ctx, dep.Redis, queueEnabled, queueName, workerConc)
+		if queueEnabled && !cq.RedisAvailable && checks["redis"] == "ok" {
+			status = "degraded"
 		}
 
 		response.OK(c, gin.H{
-			"status":    status,
-			"appEnv":    appEnv,
-			"checks":    checks,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"status":       status,
+			"appEnv":       appEnv,
+			"checks":       checks,
+			"collectQueue": cq,
+			"timestamp":    time.Now().UTC().Format(time.RFC3339),
 		})
 	}
 }
