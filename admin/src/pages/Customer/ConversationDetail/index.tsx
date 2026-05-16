@@ -41,6 +41,7 @@ import {
   type GenerateReplyResult,
 } from '@/services/customer';
 import { queryOrders, type OrderListRow } from '@/services/orders';
+import { queryShops } from '@/services/shops';
 
 function mapBizStatus(raw: string, dictionary: Record<string, { text: string; color: string }>) {
   const k = dictionary[raw as keyof typeof dictionary];
@@ -78,6 +79,10 @@ export default function CustomerConversationDetailPage() {
   const [orderFilterNo, setOrderFilterNo] = useState('');
   const [orderFilterName, setOrderFilterName] = useState('');
   const [orderHits, setOrderHits] = useState<OrderListRow[]>([]);
+
+  const [shopPickOpen, setShopPickOpen] = useState(false);
+  const [shopOpts, setShopOpts] = useState<{ label: string; value: string }[]>([]);
+  const [pickedShopId, setPickedShopId] = useState<string | undefined>();
 
   const loadAll = useCallback(async () => {
     if (!id) return;
@@ -122,6 +127,41 @@ export default function CustomerConversationDetailPage() {
       title: '取消关联订单？',
       onOk: async () => {
         await updateConversation(id, { orderId: '' });
+        message.success('已取消关联');
+        loadAll();
+      },
+    });
+  };
+
+  const openShopPick = async () => {
+    const res = await queryShops({ page: 1, pageSize: 300 });
+    setShopOpts(
+      res.list.map((s) => ({
+        label: `${s.shopName} (${s.platform})`,
+        value: s.id,
+      })),
+    );
+    setPickedShopId(conv?.shopId);
+    setShopPickOpen(true);
+  };
+
+  const linkShop = async () => {
+    if (!id || !pickedShopId) {
+      message.warning('请选择店铺');
+      return;
+    }
+    await updateConversation(id, { shopId: pickedShopId });
+    message.success('已关联店铺');
+    setShopPickOpen(false);
+    loadAll();
+  };
+
+  const unlinkShop = async () => {
+    if (!id) return;
+    Modal.confirm({
+      title: '取消关联店铺？',
+      onOk: async () => {
+        await updateConversation(id, { shopId: '' });
         message.success('已取消关联');
         loadAll();
       },
@@ -251,6 +291,30 @@ export default function CustomerConversationDetailPage() {
                 {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
               </Descriptions.Item>
             </Descriptions>
+            <Card size="small" title="关联店铺" bordered={false} style={{ marginBottom: 16 }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space wrap>
+                  <Button type="primary" onClick={() => void openShopPick()}>
+                    选择店铺
+                  </Button>
+                  {conv.shopId ? (
+                    <Button danger onClick={() => void unlinkShop()}>
+                      取消关联
+                    </Button>
+                  ) : null}
+                </Space>
+                {conv.shopSummary ? (
+                  <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
+                    <Descriptions.Item label="店铺名">{conv.shopSummary.shopName}</Descriptions.Item>
+                    <Descriptions.Item label="平台">{conv.shopSummary.platform}</Descriptions.Item>
+                    <Descriptions.Item label="店铺状态">{conv.shopSummary.status}</Descriptions.Item>
+                    <Descriptions.Item label="授权">{conv.shopSummary.authStatus}</Descriptions.Item>
+                  </Descriptions>
+                ) : (
+                  <Typography.Text type="secondary">未关联统一店铺（shops）；可选填便于后续按 shop_id 扩展。 </Typography.Text>
+                )}
+              </Space>
+            </Card>
             <Card size="small" title="关联订单" bordered={false} style={{ marginBottom: 16 }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space wrap>
@@ -517,6 +581,27 @@ export default function CustomerConversationDetailPage() {
                 />
               </List.Item>
             )}
+          />
+        </Modal>
+
+        <Modal
+          title="选择关联店铺"
+          open={shopPickOpen}
+          onCancel={() => setShopPickOpen(false)}
+          onOk={() => void linkShop()}
+          okText="关联"
+          cancelText="取消"
+          destroyOnClose
+        >
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="选择店铺（shops 统一表）"
+            style={{ width: '100%' }}
+            options={shopOpts}
+            value={pickedShopId}
+            onChange={(v) => setPickedShopId(v)}
+            allowClear
           />
         </Modal>
       </Spin>

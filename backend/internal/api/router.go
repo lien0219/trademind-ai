@@ -23,8 +23,10 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
@@ -54,6 +56,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
+	platformp.Bootstrap()
 	h := healthHandler(dep)
 	r.GET("/health", h)
 	r.GET("/api/v1/health", h)
@@ -152,7 +155,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	collectH := &collect.Handler{Svc: collectSvc}
 	collectRuleH := &collectrule.Handler{Svc: collectRuleSvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc}
+	shopSvc := &shop.Service{DB: dep.DB, Encrypter: dep.Encrypter, OpLog: opLogSvc}
+	shopH := &shop.Handler{Svc: shopSvc}
+
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc}
 	orderH := &order.Handler{Svc: orderSvc}
 
 	customerChatSvc := &customerchat.Service{
@@ -163,6 +169,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 		AIGateway: aiGateway,
 		OpLog:     opLogSvc,
 		Orders:    orderSvc,
+		Shops:     shopSvc,
 	}
 	customerChatH := &customerchat.Handler{Svc: customerChatSvc}
 
@@ -195,6 +202,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	collectrule.Register(authed, collectRuleH)
 	order.Register(authed, orderH)
 	customerchat.Register(authed, customerChatH)
+	shop.Register(authed, shopH)
 	return collectSvc, imageTaskSvc
 }
 

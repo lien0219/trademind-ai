@@ -102,6 +102,19 @@ export default [
     ],
   },
   {
+    path: '/shops',
+    name: '店铺',
+    icon: 'ShopOutlined',
+    component: '@/layouts/ShopGroupLayout',
+    routes: [
+      {
+        path: '/shops',
+        name: '店铺管理',
+        component: './Shops',
+      },
+    ],
+  },
+  {
     path: '/orders',
     name: '订单',
     icon: 'ContainerOutlined',

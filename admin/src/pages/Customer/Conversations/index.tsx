@@ -1,19 +1,37 @@
-import { ModalForm, ProFormText } from '@ant-design/pro-components';
+import { ModalForm, ProFormSelect, ProFormText } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Tag, Typography } from 'antd';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
 import {
   createConversation,
   queryConversations,
   type ConversationRow,
 } from '@/services/customer';
+import { queryShops } from '@/services/shops';
 
 export default function CustomerConversationsPage() {
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
+  const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await queryShops({ page: 1, pageSize: 500 });
+        setShopOptions(
+          res.list.map((s) => ({
+            label: `${s.shopName} (${s.platform})`,
+            value: s.id,
+          })),
+        );
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   const columns: ProColumns<ConversationRow>[] = [
     {
@@ -28,6 +46,22 @@ export default function CustomerConversationsPage() {
       dataIndex: 'platform',
       width: 120,
       valueType: 'text',
+    },
+    {
+      title: '店铺',
+      dataIndex: 'shopName',
+      width: 140,
+      search: false,
+      ellipsis: true,
+      render: (_, row) =>
+        row.shopName ? (
+          <span>
+            {row.shopName}
+            {row.shopPlatform ? ` / ${row.shopPlatform}` : ''}
+          </span>
+        ) : (
+          '—'
+        ),
     },
     {
       title: '客户名',
@@ -117,6 +151,7 @@ export default function CustomerConversationsPage() {
         onFinish={async (vals) => {
           await createConversation({
             platform: (vals.platform as string) || 'manual',
+            shopId: (vals.shopId as string) || undefined,
             customerName: vals.customerName as string,
             customerLanguage: (vals.customerLanguage as string) || 'en',
           });
@@ -130,6 +165,12 @@ export default function CustomerConversationsPage() {
           label="platform"
           initialValue="manual"
           placeholder="默认 manual"
+        />
+        <ProFormSelect
+          name="shopId"
+          label="关联店铺（可选）"
+          options={shopOptions}
+          fieldProps={{ allowClear: true, showSearch: true }}
         />
         <ProFormText name="customerName" label="客户名称" rules={[{ required: true }]} />
         <ProFormText name="customerLanguage" label="语言" initialValue="en" placeholder="如 en" />

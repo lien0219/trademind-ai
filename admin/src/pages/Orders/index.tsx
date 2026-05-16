@@ -25,7 +25,7 @@ import {
   message,
 } from 'antd';
 import dayjs from 'dayjs';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ORDER_FULFILLMENT_STATUS,
   ORDER_PAYMENT_STATUS,
@@ -49,6 +49,7 @@ import {
   type OrderListRow,
   type OrderShipmentRow,
 } from '@/services/orders';
+import { queryShops } from '@/services/shops';
 
 const ORDER_STATUS_OPTS = Object.keys(ORDER_STATUS).map((v) => ({
   label: ORDER_STATUS[v as keyof typeof ORDER_STATUS].text,
@@ -89,6 +90,23 @@ export default function OrdersPage() {
   const [itemForm] = Form.useForm();
   const [shipModal, setShipModal] = useState<{ open: boolean; row?: OrderShipmentRow | null }>({ open: false });
   const [shipForm] = Form.useForm();
+  const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await queryShops({ page: 1, pageSize: 500 });
+        setShopOptions(
+          res.list.map((s) => ({
+            label: `${s.shopName} (${s.platform})`,
+            value: s.id,
+          })),
+        );
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   const refreshDetail = async (id?: string) => {
     const oid = id || detail?.id;
@@ -104,13 +122,37 @@ export default function OrdersPage() {
       fulfillmentStatus: d.fulfillmentStatus,
       currency: d.currency,
       totalAmount: d.totalAmount,
+      shopId: d.shopId,
     });
   };
 
   const columns: ProColumns<OrderListRow>[] = useMemo(
     () => [
+      {
+        title: '关联店铺',
+        dataIndex: 'shopId',
+        hideInTable: true,
+        valueType: 'select',
+        fieldProps: { options: shopOptions, allowClear: true, showSearch: true },
+      },
       { title: '订单号', dataIndex: 'orderNo', copyable: true, width: 160 },
       { title: '平台', dataIndex: 'platform', width: 90 },
+      {
+        title: '店铺',
+        dataIndex: 'shopName',
+        search: false,
+        width: 140,
+        ellipsis: true,
+        render: (_, r) =>
+          r.shopName ? (
+            <span>
+              {r.shopName}
+              {r.shopPlatform ? ` / ${r.shopPlatform}` : ''}
+            </span>
+          ) : (
+            '—'
+          ),
+      },
       { title: '客户', dataIndex: 'customerName', ellipsis: true, width: 120 },
       {
         title: '订单状态',
@@ -185,7 +227,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [],
+    [shopOptions],
   );
 
   const openItemModal = (row?: OrderItemRow) => {
@@ -294,6 +336,12 @@ export default function OrdersPage() {
             }}
           >
             <ProFormText name="platform" label="platform" placeholder="manual" />
+            <ProFormSelect
+              name="shopId"
+              label="关联店铺（可选）"
+              options={shopOptions}
+              fieldProps={{ allowClear: true, showSearch: true }}
+            />
             <ProFormText name="orderNo" label="订单号" rules={[{ required: true }]} />
             <ProFormText name="customerName" label="客户名称" rules={[{ required: true }]} />
             <ProFormText name="customerEmail" label="邮箱" />
@@ -310,6 +358,7 @@ export default function OrdersPage() {
             page: params.current,
             pageSize: params.pageSize,
             platform: params.platform as string | undefined,
+            shopId: params.shopId as string | undefined,
             orderNo: params.orderNo as string | undefined,
             customerName: params.customerName as string | undefined,
             status: params.status as string | undefined,
@@ -336,6 +385,12 @@ export default function OrdersPage() {
           <>
             <Space wrap style={{ marginBottom: 12 }}>
               <Badge status="processing" text={`platform ${detail.platform}`} />
+              {detail.shopSummary ? (
+                <Badge
+                  status="default"
+                  text={`店铺 ${detail.shopSummary.shopName} (${detail.shopSummary.platform})`}
+                />
+              ) : null}
               <Popconfirm
                 title="软删除此订单？"
                 onConfirm={async () => {
@@ -360,7 +415,7 @@ export default function OrdersPage() {
                       layout="vertical"
                       form={editForm}
                       onFinish={async (v) => {
-                        await updateOrder(detail.id, {
+                        const payload: Record<string, unknown> = {
                           customerName: v.customerName,
                           customerEmail: v.customerEmail ?? undefined,
                           customerPhone: v.customerPhone ?? undefined,
@@ -369,7 +424,14 @@ export default function OrdersPage() {
                           fulfillmentStatus: v.fulfillmentStatus,
                           currency: v.currency,
                           totalAmount: v.totalAmount,
-                        });
+                        };
+                        const sid = v.shopId as string | undefined;
+                        if (sid === undefined || sid === null || sid === '') {
+                          payload.setShopIdNil = true;
+                        } else {
+                          payload.shopId = sid;
+                        }
+                        await updateOrder(detail.id, payload);
                         message.success('已保存');
                         await refreshDetail();
                         actionRef.current?.reload();
@@ -383,6 +445,15 @@ export default function OrdersPage() {
                       </Form.Item>
                       <Form.Item name="customerPhone" label="电话">
                         <Input />
+                      </Form.Item>
+                      <Form.Item name="shopId" label="关联店铺">
+                        <Select
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                          placeholder="可选"
+                          options={shopOptions}
+                        />
                       </Form.Item>
                       <Form.Item name="status" label="订单状态" rules={[{ required: true }]}>
                         <Select options={ORDER_STATUS_OPTS} />

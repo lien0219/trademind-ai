@@ -3,6 +3,9 @@ import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/service
 export type ConversationRow = {
   id: string;
   platform: string;
+  shopId?: string;
+  shopName?: string;
+  shopPlatform?: string;
   customerName: string;
   customerLanguage: string;
   status: string;
@@ -11,6 +14,15 @@ export type ConversationRow = {
   updatedAt: string;
   messageCount: number;
   latestMessage?: string;
+};
+
+export type ConversationShopSummary = {
+  id: string;
+  platform: string;
+  shopName: string;
+  shopCode?: string;
+  status: string;
+  authStatus: string;
 };
 
 export type ConversationOrderShipment = {
@@ -51,6 +63,7 @@ export type ConversationDetail = {
   updatedAt: string;
   orderId?: string;
   orderSummary?: ConversationOrderSummary | null;
+  shopSummary?: ConversationShopSummary | null;
 };
 
 export type CustomerMessageRow = {
@@ -103,6 +116,7 @@ export async function queryConversations(params: {
 
 export async function createConversation(payload: {
   platform?: string;
+  shopId?: string;
   customerName: string;
   customerLanguage?: string;
   customerAvatar?: string;
@@ -116,7 +130,13 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
 
 export async function updateConversation(
   id: string,
-  payload: { customerName?: string; customerLanguage?: string; status?: string; orderId?: string },
+  payload: {
+    customerName?: string;
+    customerLanguage?: string;
+    status?: string;
+    shopId?: string;
+    orderId?: string;
+  },
 ): Promise<ConversationDetail> {
   return putJSON(`/api/v1/customer/conversations/${id}`, payload);
 }

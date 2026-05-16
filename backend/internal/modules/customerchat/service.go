@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -27,6 +28,7 @@ type Service struct {
 	AIGateway *aigate.Gateway
 	OpLog     *operationlog.Service
 	Orders    *order.Service
+	Shops     *shop.Service
 }
 
 // --- list ---
@@ -55,6 +57,9 @@ type ListResult struct {
 type ConversationListItem struct {
 	ID               uuid.UUID  `json:"id"`
 	Platform         string     `json:"platform"`
+	ShopID           *uuid.UUID `json:"shopId,omitempty"`
+	ShopName         string     `json:"shopName,omitempty"`
+	ShopPlatform     string     `json:"shopPlatform,omitempty"`
 	CustomerName     string     `json:"customerName"`
 	CustomerLanguage string     `json:"customerLanguage"`
 	Status           string     `json:"status"`
@@ -151,12 +156,24 @@ ORDER BY conversation_id, created_at DESC
 		latestMap[l.ConversationID] = l.Content
 	}
 
+	shopIDs := make([]uuid.UUID, 0)
+	for _, r := range rows {
+		if r.ShopID != nil {
+			shopIDs = append(shopIDs, *r.ShopID)
+		}
+	}
+	var sm map[uuid.UUID]shop.SummaryDTO
+	if len(shopIDs) > 0 && s.Shops != nil {
+		sm, _ = s.Shops.BatchSummaries(c, shopIDs)
+	}
+
 	out := make([]ConversationListItem, 0, len(rows))
 	for _, r := range rows {
 		lm := latestMap[r.ID]
-		out = append(out, ConversationListItem{
+		item := ConversationListItem{
 			ID:               r.ID,
 			Platform:         r.Platform,
+			ShopID:           r.ShopID,
 			CustomerName:     r.CustomerName,
 			CustomerLanguage: r.CustomerLanguage,
 			Status:           r.Status,
@@ -165,7 +182,14 @@ ORDER BY conversation_id, created_at DESC
 			UpdatedAt:        r.UpdatedAt,
 			MessageCount:     countMap[r.ID],
 			LatestMessage:    truncateRunes(lm, 200),
-		})
+		}
+		if r.ShopID != nil && sm != nil {
+			if ssum, ok := sm[*r.ShopID]; ok {
+				item.ShopName = ssum.ShopName
+				item.ShopPlatform = ssum.Platform
+			}
+		}
+		out = append(out, item)
 	}
 
 	return &ListResult{
@@ -191,14 +215,32 @@ func pagesOf(total int64, ps int) int {
 	return pages
 }
 
+func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
+	if id == nil || *id == uuid.Nil {
+		return nil
+	}
+	if s.Shops == nil {
+		return nil
+	}
+	ok, err := s.Shops.Exists(c, *id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("shop not found")
+	}
+	return nil
+}
+
 // --- CRUD conversation ---
 
 // CreateConversationBody POST /customer/conversations
 type CreateConversationBody struct {
-	Platform         string `json:"platform"`
-	CustomerName     string `json:"customerName"`
-	CustomerLanguage string `json:"customerLanguage"`
-	CustomerAvatar   string `json:"customerAvatar"`
+	Platform         string     `json:"platform"`
+	ShopID           *uuid.UUID `json:"shopId,omitempty"`
+	CustomerName     string     `json:"customerName"`
+	CustomerLanguage string     `json:"customerLanguage"`
+	CustomerAvatar   string     `json:"customerAvatar"`
 }
 
 func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody, adminID *uuid.UUID) (*CustomerConversation, error) {
@@ -224,6 +266,12 @@ func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody
 		CustomerAvatar:   strings.TrimSpace(body.CustomerAvatar),
 		Status:           StatusOpen,
 		CreatedBy:        adminID,
+	}
+	if body.ShopID != nil && *body.ShopID != uuid.Nil {
+		if err := s.validateShopRef(c, body.ShopID); err != nil {
+			return nil, err
+		}
+		row.ShopID = body.ShopID
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
 		return nil, err
@@ -254,12 +302,13 @@ type ConversationDetailDTO struct {
 	LastMessageAt          *time.Time                      `json:"lastMessageAt,omitempty"`
 	OrderID                *uuid.UUID                      `json:"orderId,omitempty"`
 	OrderSummary           *order.ConversationOrderSummary `json:"orderSummary,omitempty"`
+	ShopSummary            *shop.SummaryDTO                `json:"shopSummary,omitempty"`
 	CreatedBy              *uuid.UUID                      `json:"createdBy,omitempty"`
 	CreatedAt              time.Time                       `json:"createdAt"`
 	UpdatedAt              time.Time                       `json:"updatedAt"`
 }
 
-func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary) *ConversationDetailDTO {
+func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary, shopSum *shop.SummaryDTO) *ConversationDetailDTO {
 	if r == nil {
 		return nil
 	}
@@ -275,6 +324,7 @@ func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary) *Co
 		LastMessageAt:          r.LastMessageAt,
 		OrderID:                r.OrderID,
 		OrderSummary:           sum,
+		ShopSummary:            shopSum,
 		CreatedBy:              r.CreatedBy,
 		CreatedAt:              r.CreatedAt,
 		UpdatedAt:              r.UpdatedAt,
@@ -296,7 +346,14 @@ func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDe
 			sum = got
 		}
 	}
-	return convToDTO(&row, sum), nil
+	var shopSum *shop.SummaryDTO
+	if row.ShopID != nil && s.Shops != nil {
+		got, err := s.Shops.GetSummary(c, *row.ShopID)
+		if err == nil && got != nil {
+			shopSum = got
+		}
+	}
+	return convToDTO(&row, sum, shopSum), nil
 }
 
 // UpdateConversationBody PUT
@@ -304,6 +361,7 @@ type UpdateConversationBody struct {
 	CustomerName     *string `json:"customerName"`
 	CustomerLanguage *string `json:"customerLanguage"`
 	Status           *string `json:"status"`
+	ShopID           *string `json:"shopId"`
 	OrderID          *string `json:"orderId"`
 }
 
@@ -337,6 +395,23 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 			return nil, fmt.Errorf("invalid status")
 		}
 		row.Status = st
+	}
+
+	if body.ShopID != nil {
+		raw := strings.TrimSpace(*body.ShopID)
+		if raw == "" {
+			row.ShopID = nil
+		} else {
+			u, err := uuid.Parse(raw)
+			if err != nil {
+				return nil, fmt.Errorf("invalid shopId")
+			}
+			pid := u
+			if err := s.validateShopRef(c, &pid); err != nil {
+				return nil, err
+			}
+			row.ShopID = &u
+		}
 	}
 
 	if body.OrderID != nil {
@@ -373,7 +448,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 		}
 	}
 
-	metaChanged := body.CustomerName != nil || body.CustomerLanguage != nil || body.Status != nil
+	metaChanged := body.CustomerName != nil || body.CustomerLanguage != nil || body.Status != nil || body.ShopID != nil
 
 	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
 		return nil, err
@@ -408,7 +483,14 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 			sum = got
 		}
 	}
-	return convToDTO(&row, sum), nil
+	var shopSum *shop.SummaryDTO
+	if row.ShopID != nil && s.Shops != nil {
+		got, err := s.Shops.GetSummary(c, *row.ShopID)
+		if err == nil && got != nil {
+			shopSum = got
+		}
+	}
+	return convToDTO(&row, sum, shopSum), nil
 }
 
 func uuidToStrPtr(id *uuid.UUID) string {

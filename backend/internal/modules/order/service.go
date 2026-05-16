@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -21,6 +22,7 @@ var ErrNotFound = errors.New("order not found")
 type Service struct {
 	DB    *gorm.DB
 	OpLog *operationlog.Service
+	Shops *shop.Service
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).
@@ -60,6 +62,7 @@ type ListQuery struct {
 	Page              int
 	PageSize          int
 	Platform          string
+	ShopID            *uuid.UUID
 	OrderNo           string
 	CustomerName      string
 	Status            string
@@ -72,6 +75,9 @@ type ListQuery struct {
 type ListOrderRow struct {
 	ID                   uuid.UUID  `json:"id"`
 	Platform             string     `json:"platform"`
+	ShopID               *uuid.UUID `json:"shopId,omitempty"`
+	ShopName             string     `json:"shopName,omitempty"`
+	ShopPlatform         string     `json:"shopPlatform,omitempty"`
 	OrderNo              string     `json:"orderNo"`
 	CustomerName         string     `json:"customerName"`
 	Status               string     `json:"status"`
@@ -105,6 +111,23 @@ func pagesOf(total int64, ps int) int {
 		pages = 1
 	}
 	return pages
+}
+
+func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
+	if id == nil || *id == uuid.Nil {
+		return nil
+	}
+	if s.Shops == nil {
+		return nil
+	}
+	ok, err := s.Shops.Exists(c, *id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("shop not found")
+	}
+	return nil
 }
 
 // OrderItemInput for create/update body.
@@ -159,6 +182,7 @@ type CreateBody struct {
 // UpdateBody PATCH-like PUT semantics (only non-nil / non-empty fragments apply).
 type UpdateBody struct {
 	ShopID            *uuid.UUID           `json:"shopId,omitempty"`
+	SetShopIDNil      bool                 `json:"setShopIdNil,omitempty"`
 	ExternalOrderID   *string              `json:"externalOrderId,omitempty"`
 	Status            string               `json:"status,omitempty"`
 	PaymentStatus     string               `json:"paymentStatus,omitempty"`
@@ -185,10 +209,11 @@ type UpdateBody struct {
 // DetailDTO GET /orders/:id (flattened header + nested children).
 type DetailDTO struct {
 	OrderRow
-	ShippedAt   *time.Time      `json:"shippedAt,omitempty"`
-	DeliveredAt *time.Time      `json:"deliveredAt,omitempty"`
-	Items       []OrderItem     `json:"items"`
-	Shipments   []OrderShipment `json:"shipments"`
+	ShopSummary *shop.SummaryDTO `json:"shopSummary,omitempty"`
+	ShippedAt   *time.Time       `json:"shippedAt,omitempty"`
+	DeliveredAt *time.Time       `json:"deliveredAt,omitempty"`
+	Items       []OrderItem      `json:"items"`
+	Shipments   []OrderShipment  `json:"shipments"`
 }
 
 // OrderRow base scalar fields shared by list-ish projections.
@@ -359,6 +384,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
 	}
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		tx = tx.Where("shop_id = ?", *q.ShopID)
+	}
 	if v := strings.TrimSpace(q.OrderNo); v != "" {
 		tx = tx.Where("order_no ILIKE ?", "%"+v+"%")
 	}
@@ -400,11 +428,22 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		ids[i] = rows[i].ID
 	}
 	latest := latestShipmentStatuses(s.DB.WithContext(c.Request.Context()), ids)
+	shopIDs := make([]uuid.UUID, 0)
+	for _, r := range rows {
+		if r.ShopID != nil {
+			shopIDs = append(shopIDs, *r.ShopID)
+		}
+	}
+	var sm map[uuid.UUID]shop.SummaryDTO
+	if len(shopIDs) > 0 && s.Shops != nil {
+		sm, _ = s.Shops.BatchSummaries(c, shopIDs)
+	}
 	out := make([]ListOrderRow, len(rows))
 	for i, r := range rows {
-		out[i] = ListOrderRow{
+		row := ListOrderRow{
 			ID:                   r.ID,
 			Platform:             r.Platform,
+			ShopID:               r.ShopID,
 			OrderNo:              r.OrderNo,
 			CustomerName:         r.CustomerName,
 			Status:               r.Status,
@@ -416,6 +455,13 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			CreatedAt:            r.CreatedAt,
 			LatestShipmentStatus: latest[r.ID],
 		}
+		if r.ShopID != nil && sm != nil {
+			if ssum, ok := sm[*r.ShopID]; ok {
+				row.ShopName = ssum.ShopName
+				row.ShopPlatform = ssum.Platform
+			}
+		}
+		out[i] = row
 	}
 	return &ListResult{
 		Items:      out,
@@ -598,6 +644,9 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if err != nil {
 		return nil, err
 	}
+	if err := s.validateShopRef(c, o.ShopID); err != nil {
+		return nil, err
+	}
 	o.CreatedBy = adminID
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(o).Error; err != nil {
@@ -649,6 +698,12 @@ func (s *Service) loadDetailDTO(c *gin.Context, orderID uuid.UUID) (*DetailDTO, 
 		Items:       items,
 		Shipments:   ships,
 	}
+	if o.ShopID != nil && s.Shops != nil {
+		sum, _ := s.Shops.GetSummary(c, *o.ShopID)
+		if sum != nil {
+			out.ShopSummary = sum
+		}
+	}
 	return &out, nil
 }
 
@@ -680,8 +735,17 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 		o.CustomerPhone = strings.TrimSpace(*body.CustomerPhone)
 	}
 
-	if body.ShopID != nil {
-		o.ShopID = body.ShopID
+	if body.SetShopIDNil {
+		o.ShopID = nil
+	} else if body.ShopID != nil {
+		if *body.ShopID == uuid.Nil {
+			o.ShopID = nil
+		} else {
+			if err := s.validateShopRef(c, body.ShopID); err != nil {
+				return nil, err
+			}
+			o.ShopID = body.ShopID
+		}
 	}
 	if body.ExternalOrderID != nil {
 		o.ExternalOrderID = body.ExternalOrderID

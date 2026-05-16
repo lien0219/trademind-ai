@@ -69,3 +69,26 @@ export const ORDER_SHIPMENT_STATUS = {
   exception: { text: '异常', color: 'error' as const },
   returned: { text: '已退回', color: 'warning' as const },
 };
+
+/** 统一店铺 shops.status */
+export const SHOP_STATUS = {
+  active: { text: '启用', color: 'success' as const },
+  disabled: { text: '停用', color: 'default' as const },
+};
+
+/** 统一店铺 shops.auth_status */
+export const SHOP_AUTH_STATUS = {
+  unauthorized: { text: '未授权', color: 'default' as const },
+  authorized: { text: '已授权', color: 'success' as const },
+  expired: { text: '已过期', color: 'warning' as const },
+  error: { text: '异常', color: 'error' as const },
+  unsupported: { text: '不支持', color: 'default' as const },
+};
+
+/** Platform Provider 元信息 status（采集与店铺_provider 语义一致） */
+export const PLATFORM_PROVIDER_STATUS = {
+  available: { text: '可用', color: 'success' as const },
+  beta: { text: '测试', color: 'processing' as const },
+  planned: { text: '规划中', color: 'default' as const },
+  disabled: { text: '停用', color: 'default' as const },
+};

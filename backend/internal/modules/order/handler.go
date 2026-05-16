@@ -56,6 +56,11 @@ func (h *Handler) List(c *gin.Context) {
 		Status:            c.Query("status"),
 		FulfillmentStatus: c.Query("fulfillmentStatus"),
 	}
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ShopID = &u
+		}
+	}
 	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
 			q.Start = &t

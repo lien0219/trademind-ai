@@ -31,12 +31,22 @@ export type OrderItemRow = {
   updatedAt: string;
 };
 
+export type OrderShopSummary = {
+  id: string;
+  platform: string;
+  shopName: string;
+  shopCode?: string;
+  status: string;
+  authStatus: string;
+};
+
 /** GET /orders/:id response (flattened header + nested children) */
 export type OrderDetailDTO = {
   id: string;
   tenantId: number;
   platform: string;
   shopId?: string;
+  shopSummary?: OrderShopSummary | null;
   externalOrderId?: string;
   orderNo: string;
   customerName: string;
@@ -61,6 +71,9 @@ export type OrderDetailDTO = {
 export type OrderListRow = {
   id: string;
   platform: string;
+  shopId?: string;
+  shopName?: string;
+  shopPlatform?: string;
   orderNo: string;
   customerName: string;
   status: string;
@@ -77,6 +90,7 @@ export async function queryOrders(params: {
   page?: number;
   pageSize?: number;
   platform?: string;
+  shopId?: string;
   orderNo?: string;
   customerName?: string;
   status?: string;
