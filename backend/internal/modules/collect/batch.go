@@ -213,11 +213,12 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		taskIDs = make([]uuid.UUID, 0, len(urls))
 		for _, u := range urls {
 			task := CollectTask{
-				BatchID:   &bid,
-				Source:    source,
-				SourceURL: u,
-				Status:    StatusPending,
-				CreatedBy: adminID,
+				BatchID:    &bid,
+				Source:     source,
+				SourceURL:  u,
+				Status:     StatusPending,
+				MaxRetries: s.defaultMaxRetriesForNewTask(),
+				CreatedBy:  adminID,
 			}
 			if err := tx.Create(&task).Error; err != nil {
 				return err
@@ -431,6 +432,9 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 				"finished_at":       nil,
 				"result_product_id": nil,
 				"raw_result":        datatypes.JSON(nil),
+				"retry_count":       0,
+				"next_retry_at":     nil,
+				"retry_enqueued_at": nil,
 				"updated_at":        retryAt,
 			})
 		if up.Error != nil {

@@ -112,6 +112,10 @@ func main() {
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
 		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc)
 		log.Info("collect_worker_started", "concurrency", workerConc, "queue", cfg.CollectQueueName)
+		if cfg.CollectAutoRetryEnabled {
+			collect.StartRetryScheduler(workerCtx, &workerWG, log, collectSvc, 5*time.Second)
+			log.Info("collect_retry_scheduler_started", "interval_sec", 5)
+		}
 	} else if cfg.CollectQueueEnabled && redisClient == nil {
 		log.Warn("collect_worker_skipped", "reason", "redis unavailable while COLLECT_QUEUE_ENABLED=true")
 	}

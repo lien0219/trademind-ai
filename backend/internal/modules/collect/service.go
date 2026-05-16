@@ -3,7 +3,6 @@ package collect
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -31,6 +30,11 @@ type Service struct {
 	QueueEnabled            bool
 	BatchMaxURLs            int
 	CollectorTimeoutSeconds int
+
+	AutoRetryEnabled  bool
+	MaxAutoRetries    int
+	RetryBaseDelaySec int
+	RetryMaxDelaySec  int
 }
 
 func clampCollectPage(page, ps int) (int, int) {
@@ -114,10 +118,12 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, msg string) {
 	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
 		Where("id = ?", tid).
 		Updates(map[string]interface{}{
-			"status":        StatusFailed,
-			"error_message": msg,
-			"finished_at":   &fin,
-			"updated_at":    fin,
+			"status":            StatusFailed,
+			"error_message":     msg,
+			"finished_at":       &fin,
+			"next_retry_at":     nil,
+			"retry_enqueued_at": nil,
+			"updated_at":        fin,
 		}).Error
 
 	if s.OpLog != nil {
@@ -128,6 +134,46 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, msg string) {
 			ResourceID:  tid.String(),
 			Status:      "failed",
 			Message:     truncateRunes(msg, 2000),
+		})
+	}
+	if task.BatchID != nil {
+		s.reconcileCollectBatch(ctx, task.BatchID)
+	}
+}
+
+func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask, msg string) {
+	if s == nil || s.DB == nil || task == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	msg = truncateRunes(strings.TrimSpace(msg), 8000)
+	fin := time.Now().UTC()
+	tid := task.ID
+	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
+		Where("id = ?", tid).
+		Updates(map[string]interface{}{
+			"status":            StatusFailed,
+			"error_message":     msg,
+			"finished_at":       &fin,
+			"next_retry_at":     nil,
+			"retry_enqueued_at": nil,
+			"updated_at":        fin,
+		}).Error
+
+	if s.OpLog != nil {
+		logMsg := fmt.Sprintf("taskId=%s retryCount=%d", tid.String(), task.RetryCount)
+		if task.BatchID != nil {
+			logMsg += fmt.Sprintf(" batchId=%s", task.BatchID.String())
+		}
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+			AdminUserID: task.CreatedBy,
+			Action:      "collect.task.retry_exhausted",
+			Resource:    "collect_task",
+			ResourceID:  tid.String(),
+			Status:      "failed",
+			Message:     truncateRunes(logMsg+" "+msg, 2000),
 		})
 	}
 	if task.BatchID != nil {
@@ -153,11 +199,12 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 	res := s.DB.WithContext(ctx).Model(&CollectTask{}).
 		Where("id = ? AND status IN ?", taskID, []string{StatusPending, StatusRetrying}).
 		Updates(map[string]interface{}{
-			"status":        StatusRunning,
-			"started_at":    &started,
-			"error_message": "",
-			"finished_at":   nil,
-			"updated_at":    started,
+			"status":            StatusRunning,
+			"started_at":        &started,
+			"error_message":     "",
+			"finished_at":       nil,
+			"retry_enqueued_at": nil,
+			"updated_at":        started,
 		})
 	if res.Error != nil {
 		s.failTask(ctx, &task, res.Error.Error())
@@ -174,25 +221,20 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 
 	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL)
 	if err != nil {
-		msg := err.Error()
-		var rej *CollectorRejectedError
-		if errors.As(err, &rej) && rej != nil && strings.TrimSpace(rej.Message) != "" {
-			msg = rej.Message
-		}
-		s.failTask(ctx, &task, msg)
+		s.handleCollectJobError(ctx, &task, err)
 		return
 	}
 
 	norm, err := parseNormalized(outcome.ProductJSON)
 	if err != nil {
-		s.failTask(ctx, &task, fmt.Sprintf("parse normalized product: %v", err))
+		s.handleCollectJobError(ctx, &task, fmt.Errorf("parse normalized product: %w", err))
 		return
 	}
 
 	params := norm.importParams(outcome.ProductJSON)
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
-		s.failTask(ctx, &task, err.Error())
+		s.handleCollectJobError(ctx, &task, err)
 		return
 	}
 
@@ -207,6 +249,9 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 			"raw_result":        rawJSON,
 			"error_message":     "",
 			"finished_at":       &fin,
+			"next_retry_at":     nil,
+			"retry_enqueued_at": nil,
+			"retry_count":       0,
 			"updated_at":        fin,
 		}).Error; err != nil {
 		s.failTask(ctx, &task, err.Error())
@@ -254,10 +299,11 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	}
 
 	task := &CollectTask{
-		Source:    source,
-		SourceURL: url,
-		Status:    StatusPending,
-		CreatedBy: adminID,
+		Source:     source,
+		SourceURL:  url,
+		Status:     StatusPending,
+		MaxRetries: s.defaultMaxRetriesForNewTask(),
+		CreatedBy:  adminID,
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(task).Error; err != nil {
 		return zero, err
@@ -308,6 +354,9 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 			"finished_at":       nil,
 			"result_product_id": nil,
 			"raw_result":        datatypes.JSON(nil),
+			"retry_count":       0,
+			"next_retry_at":     nil,
+			"retry_enqueued_at": nil,
 			"updated_at":        retryAt,
 		}).Error; err != nil {
 		return zero, err

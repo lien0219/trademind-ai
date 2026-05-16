@@ -38,6 +38,12 @@ type Config struct {
 	CollectQueueName string
 	// CollectBatchMaxURLs limits URLs per POST /collect/batches (default 50).
 	CollectBatchMaxURLs int
+
+	// Worker automatic retry (backoff via DB next_retry_at + scheduler LPUSH).
+	CollectAutoRetryEnabled       bool
+	CollectMaxRetries             int
+	CollectRetryBaseDelaySeconds  int
+	CollectRetryMaxDelaySeconds   int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -95,6 +101,11 @@ func Load() (*Config, error) {
 			"collect:tasks",
 		)),
 		CollectBatchMaxURLs: atoiOrDefault(os.Getenv("COLLECT_BATCH_MAX_URLS"), 50),
+
+		CollectAutoRetryEnabled:      envBool(os.Getenv("COLLECT_AUTO_RETRY_ENABLED"), true),
+		CollectMaxRetries:            atoiOrDefault(os.Getenv("COLLECT_MAX_RETRIES"), 3),
+		CollectRetryBaseDelaySeconds: atoiOrDefault(os.Getenv("COLLECT_RETRY_BASE_DELAY_SECONDS"), 30),
+		CollectRetryMaxDelaySeconds:  atoiOrDefault(os.Getenv("COLLECT_RETRY_MAX_DELAY_SECONDS"), 600),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))

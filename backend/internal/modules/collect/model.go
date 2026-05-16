@@ -54,6 +54,10 @@ type CollectTask struct {
 	ResultProductID *uuid.UUID     `gorm:"type:char(36);index" json:"resultProductId,omitempty"`
 	RawResult       datatypes.JSON `gorm:"type:jsonb" json:"rawResult,omitempty"`
 	ErrorMessage    string         `gorm:"type:text" json:"errorMessage,omitempty"`
+	RetryCount      int            `gorm:"not null;default:0" json:"retryCount"`
+	MaxRetries      int            `gorm:"not null;default:3" json:"maxRetries"`
+	NextRetryAt     *time.Time     `json:"nextRetryAt,omitempty"`
+	RetryEnqueuedAt *time.Time     `json:"retryEnqueuedAt,omitempty"`
 	CreatedBy       *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 	StartedAt       *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time     `json:"finishedAt,omitempty"`

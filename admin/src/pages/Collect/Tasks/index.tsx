@@ -69,14 +69,30 @@ export default function CollectTasksPage() {
         ...Object.fromEntries(
           Object.entries(COLLECT_TASK_STATUS).map(([k, v]) => [k, { text: v.text }]),
         ),
-        pending: { text: '处理中（排队）' },
+        pending: { text: '等待处理（排队）' },
         running: { text: '处理中' },
-        retrying: { text: '处理中（重试）' },
       },
       render: (_, row) => {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
         return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
       },
+    },
+    {
+      title: '重试',
+      search: false,
+      width: 180,
+      render: (_, row) => (
+        <span>
+          {row.retryCount ?? 0}/{row.maxRetries ?? '—'}
+        </span>
+      ),
+    },
+    {
+      title: '下次自动重试',
+      dataIndex: 'nextRetryAt',
+      width: 172,
+      search: false,
+      render: (_, row) => formatTs(row.nextRetryAt),
     },
     {
       title: '商品草稿',

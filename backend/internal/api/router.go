@@ -96,6 +96,10 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 		collectSvc.QueueEnabled = dep.Config.CollectQueueEnabled
 		collectSvc.BatchMaxURLs = dep.Config.CollectBatchMaxURLs
 		collectSvc.CollectorTimeoutSeconds = dep.Config.CollectorTimeoutSeconds
+		collectSvc.AutoRetryEnabled = dep.Config.CollectAutoRetryEnabled
+		collectSvc.MaxAutoRetries = dep.Config.CollectMaxRetries
+		collectSvc.RetryBaseDelaySec = dep.Config.CollectRetryBaseDelaySeconds
+		collectSvc.RetryMaxDelaySec = dep.Config.CollectRetryMaxDelaySeconds
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 

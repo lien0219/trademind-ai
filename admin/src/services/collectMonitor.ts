@@ -16,6 +16,7 @@ export type CollectMonitorData = {
   tasks: {
     pending: number;
     retrying: number;
+    retryingCount: number;
     running: number;
     success: number;
     failed: number;
@@ -36,6 +37,25 @@ export type CollectMonitorData = {
     errorMessage: string;
     updatedAt: string;
   }>;
+  recentRetrying: Array<{
+    id: string;
+    source: string;
+    sourceUrl: string;
+    batchId?: string;
+    retryCount: number;
+    maxRetries: number;
+    nextRetryAt?: string;
+    errorMessage?: string;
+    updatedAt: string;
+  }>;
+  retry: {
+    enabled: boolean;
+    maxRetries: number;
+    baseDelaySeconds: number;
+    maxDelaySeconds: number;
+    nextRetryDueCount: number;
+    oldestRetryingSeconds?: number;
+  };
   collector: {
     baseUrl: string;
     timeoutSeconds: number;

@@ -57,12 +57,13 @@ type CollectMonitorWorker struct {
 
 // CollectMonitorTaskAgg counts collect_tasks by status.
 type CollectMonitorTaskAgg struct {
-	Pending   int `json:"pending"`
-	Retrying  int `json:"retrying"`
-	Running   int `json:"running"`
-	Success   int `json:"success"`
-	Failed    int `json:"failed"`
-	Cancelled int `json:"cancelled"`
+	Pending         int `json:"pending"`
+	Retrying        int `json:"retrying"`
+	RetryingCount   int `json:"retryingCount"`
+	Running         int `json:"running"`
+	Success         int `json:"success"`
+	Failed          int `json:"failed"`
+	Cancelled       int `json:"cancelled"`
 }
 
 // CollectMonitorBatchAgg counts collect_batches by derived batch.status.
@@ -84,6 +85,29 @@ type CollectMonitorFailure struct {
 	UpdatedAt    string  `json:"updatedAt"`
 }
 
+// CollectMonitorRetry summarizes auto-retry configuration and backlog signals.
+type CollectMonitorRetry struct {
+	Enabled               bool   `json:"enabled"`
+	MaxRetries            int    `json:"maxRetries"`
+	BaseDelaySeconds      int    `json:"baseDelaySeconds"`
+	MaxDelaySeconds       int    `json:"maxDelaySeconds"`
+	NextRetryDueCount     int    `json:"nextRetryDueCount"`
+	OldestRetryingSeconds *int64 `json:"oldestRetryingSeconds,omitempty"`
+}
+
+// CollectMonitorRetrying is a compact retrying task row for the monitor dashboard.
+type CollectMonitorRetrying struct {
+	ID           string  `json:"id"`
+	Source       string  `json:"source"`
+	SourceURL    string  `json:"sourceUrl"`
+	BatchID      *string `json:"batchId,omitempty"`
+	RetryCount   int     `json:"retryCount"`
+	MaxRetries   int     `json:"maxRetries"`
+	NextRetryAt  *string `json:"nextRetryAt,omitempty"`
+	ErrorMessage string  `json:"errorMessage,omitempty"`
+	UpdatedAt    string  `json:"updatedAt"`
+}
+
 // CollectMonitorCollector summarizes outbound collector connectivity (non-sensitive).
 type CollectMonitorCollector struct {
 	BaseURL        string `json:"baseUrl"`
@@ -94,12 +118,14 @@ type CollectMonitorCollector struct {
 
 // CollectMonitorResponse is GET /api/v1/collect/monitor JSON body (wrapped by envelope).
 type CollectMonitorResponse struct {
-	Queue          CollectMonitorQueue     `json:"queue"`
-	Worker         CollectMonitorWorker    `json:"worker"`
-	Tasks          CollectMonitorTaskAgg   `json:"tasks"`
-	Batches        CollectMonitorBatchAgg  `json:"batches"`
-	RecentFailures []CollectMonitorFailure `json:"recentFailures"`
-	Collector      CollectMonitorCollector `json:"collector"`
+	Queue          CollectMonitorQueue      `json:"queue"`
+	Worker         CollectMonitorWorker     `json:"worker"`
+	Tasks          CollectMonitorTaskAgg    `json:"tasks"`
+	Batches        CollectMonitorBatchAgg   `json:"batches"`
+	RecentFailures []CollectMonitorFailure  `json:"recentFailures"`
+	RecentRetrying []CollectMonitorRetrying `json:"recentRetrying"`
+	Retry          CollectMonitorRetry      `json:"retry"`
+	Collector      CollectMonitorCollector  `json:"collector"`
 }
 
 type statusCountRow struct {
@@ -132,6 +158,7 @@ func (s *Service) GetCollectMonitor(ctx context.Context) (*CollectMonitorRespons
 			Running:     CollectWorkersRunning(),
 		},
 		RecentFailures: []CollectMonitorFailure{},
+		RecentRetrying: []CollectMonitorRetrying{},
 	}
 
 	var oldest CollectTask
@@ -171,6 +198,51 @@ func (s *Service) GetCollectMonitor(ctx context.Context) (*CollectMonitorRespons
 		case StatusCancelled:
 			out.Tasks.Cancelled += int(r.N)
 		}
+	}
+	out.Tasks.RetryingCount = out.Tasks.Retrying
+
+	nowUTC := time.Now().UTC()
+	var dueN int64
+	if err := s.DB.WithContext(ctx).Model(&CollectTask{}).
+		Where("status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?", StatusRetrying, nowUTC).
+		Count(&dueN).Error; err != nil {
+		return nil, err
+	}
+
+	var retr []CollectTask
+	if err := s.DB.WithContext(ctx).
+		Where("status = ?", StatusRetrying).
+		Find(&retr).Error; err != nil {
+		return nil, err
+	}
+	var oldestRetryWait *int64
+	if len(retr) > 0 {
+		var maxSec int64
+		for i := range retr {
+			sec := int64(nowUTC.Sub(retr[i].UpdatedAt.UTC()).Seconds())
+			if sec < 0 {
+				sec = 0
+			}
+			if sec > maxSec {
+				maxSec = sec
+			}
+		}
+		oldestRetryWait = &maxSec
+	}
+
+	cfgMax := s.MaxAutoRetries
+	if cfgMax <= 0 {
+		cfgMax = 3
+	}
+	baseD := s.effectiveRetryBaseSec()
+	maxD := s.effectiveRetryMaxSec()
+	out.Retry = CollectMonitorRetry{
+		Enabled:               s.AutoRetryEnabled,
+		MaxRetries:            cfgMax,
+		BaseDelaySeconds:      baseD,
+		MaxDelaySeconds:       maxD,
+		NextRetryDueCount:     int(dueN),
+		OldestRetryingSeconds: oldestRetryWait,
 	}
 
 	var batchRows []statusCountRow
@@ -216,6 +288,40 @@ func (s *Service) GetCollectMonitor(ctx context.Context) (*CollectMonitorRespons
 			Source:       t.Source,
 			SourceURL:    t.SourceURL,
 			BatchID:      bid,
+			ErrorMessage: t.ErrorMessage,
+			UpdatedAt:    t.UpdatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+
+	var recentR []CollectTask
+	if err := s.DB.WithContext(ctx).
+		Where("status = ?", StatusRetrying).
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&recentR).Error; err != nil {
+		return nil, err
+	}
+	out.RecentRetrying = make([]CollectMonitorRetrying, 0, len(recentR))
+	for i := range recentR {
+		t := &recentR[i]
+		var bid *string
+		if t.BatchID != nil {
+			sv := t.BatchID.String()
+			bid = &sv
+		}
+		var nxt *string
+		if t.NextRetryAt != nil {
+			v := t.NextRetryAt.UTC().Format(time.RFC3339)
+			nxt = &v
+		}
+		out.RecentRetrying = append(out.RecentRetrying, CollectMonitorRetrying{
+			ID:           t.ID.String(),
+			Source:       t.Source,
+			SourceURL:    t.SourceURL,
+			BatchID:      bid,
+			RetryCount:   t.RetryCount,
+			MaxRetries:   t.MaxRetries,
+			NextRetryAt:  nxt,
 			ErrorMessage: t.ErrorMessage,
 			UpdatedAt:    t.UpdatedAt.UTC().Format(time.RFC3339),
 		})

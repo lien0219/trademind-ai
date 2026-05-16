@@ -86,6 +86,10 @@ type TaskDTO struct {
 	ResultProductID *uuid.UUID      `json:"resultProductId,omitempty"`
 	RawResult       json.RawMessage `json:"rawResult,omitempty"`
 	ErrorMessage    string          `json:"errorMessage,omitempty"`
+	RetryCount      int             `json:"retryCount"`
+	MaxRetries      int             `json:"maxRetries"`
+	NextRetryAt     *time.Time      `json:"nextRetryAt,omitempty"`
+	RetryEnqueuedAt *time.Time      `json:"retryEnqueuedAt,omitempty"`
 	CreatedBy       *uuid.UUID      `json:"createdBy,omitempty"`
 	StartedAt       *time.Time      `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time      `json:"finishedAt,omitempty"`
@@ -116,6 +120,10 @@ func taskToDTO(t *CollectTask) TaskDTO {
 		ResultProductID: t.ResultProductID,
 		RawResult:       raw,
 		ErrorMessage:    t.ErrorMessage,
+		RetryCount:      t.RetryCount,
+		MaxRetries:      t.MaxRetries,
+		NextRetryAt:     t.NextRetryAt,
+		RetryEnqueuedAt: t.RetryEnqueuedAt,
 		CreatedBy:       t.CreatedBy,
 		StartedAt:       t.StartedAt,
 		FinishedAt:      t.FinishedAt,

@@ -17,7 +17,8 @@ function formatTs(s?: string) {
 }
 
 function sumTasks(t: CollectMonitorData['tasks']) {
-  return t.pending + t.retrying + t.running + t.success + t.failed + t.cancelled;
+  const retr = t.retryingCount ?? t.retrying;
+  return t.pending + retr + t.running + t.success + t.failed + t.cancelled;
 }
 
 function sumBatches(b: CollectMonitorData['batches']) {
@@ -148,7 +149,71 @@ export default function CollectMonitorPage() {
     },
   ];
 
+  const retryingColumns: ProColumns<CollectMonitorData['recentRetrying'][number]>[] = [
+    {
+      title: '时间',
+      dataIndex: 'updatedAt',
+      width: 172,
+      render: (_, row) => formatTs(row.updatedAt),
+    },
+    {
+      title: '来源',
+      dataIndex: 'source',
+      width: 80,
+    },
+    {
+      title: '链接',
+      dataIndex: 'sourceUrl',
+      ellipsis: true,
+      copyable: true,
+    },
+    {
+      title: '重试',
+      width: 88,
+      render: (_, row) => `${row.retryCount}/${row.maxRetries}`,
+    },
+    {
+      title: '下次重试',
+      dataIndex: 'nextRetryAt',
+      width: 172,
+      render: (_, row) => formatTs(row.nextRetryAt),
+    },
+    {
+      title: '错误摘要',
+      dataIndex: 'errorMessage',
+      ellipsis: true,
+      render: (_, row) => (
+        <Tooltip title={row.errorMessage}>
+          <Typography.Text ellipsis style={{ maxWidth: 280 }}>
+            {row.errorMessage || '—'}
+          </Typography.Text>
+        </Tooltip>
+      ),
+    },
+    {
+      title: '操作',
+      valueType: 'option',
+      width: 160,
+      render: (_, row) => {
+        const actions: ReactNode[] = [
+          <Button key="view" type="link" size="small" onClick={() => openTaskDrawer(row.id)}>
+            查看任务
+          </Button>,
+        ];
+        if (row.batchId) {
+          actions.push(
+            <Link key="batch" to={`/collect/batches?batchId=${encodeURIComponent(row.batchId)}`}>
+              跳转批次
+            </Link>,
+          );
+        }
+        return actions;
+      },
+    },
+  ];
+
   const q = data?.queue;
+  const r = data?.retry;
   const w = data?.worker;
   const col = data?.collector;
   const tasks = data?.tasks;
@@ -182,7 +247,7 @@ export default function CollectMonitorPage() {
           <Card size="small" bordered>
             <Statistic
               title="任务 pending / running / failed"
-              value={`${((tasks?.pending ?? 0) + (tasks?.retrying ?? 0)).toString()} / ${(tasks?.running ?? 0).toString()} / ${(tasks?.failed ?? 0).toString()}`}
+              value={`${((tasks?.pending ?? 0) + (tasks?.retryingCount ?? tasks?.retrying ?? 0)).toString()} / ${(tasks?.running ?? 0).toString()} / ${(tasks?.failed ?? 0).toString()}`}
             />
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               pending 含 retrying
@@ -200,6 +265,30 @@ export default function CollectMonitorPage() {
         </Col>
       </Row>
 
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} md={12}>
+          <Card size="small" bordered title="自动重试（Worker）">
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Space wrap>
+                <Tag color={r?.enabled ? 'success' : 'default'}>{r?.enabled ? '已开启' : '已关闭'}</Tag>
+                <Tag>默认最大次数 {r?.maxRetries ?? '—'}</Tag>
+                <Tag>
+                  阶梯基准 {r?.baseDelaySeconds ?? '—'}s / 上限 {r?.maxDelaySeconds ?? '—'}s
+                </Tag>
+              </Space>
+              <Typography.Text>
+                已到点待入队：<strong>{r?.nextRetryDueCount ?? 0}</strong>
+                {r?.oldestRetryingSeconds != null ? (
+                  <>
+                    {' '}
+                    · 等待重试状态最久约 <strong>{r.oldestRetryingSeconds}s</strong>
+                  </>
+                ) : null}
+              </Typography.Text>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
       {q?.oldestPendingSeconds != null && (
         <ProCard title="队列积压提示" bordered style={{ marginBottom: 16 }} size="small">
           <Typography.Text>
@@ -268,6 +357,18 @@ export default function CollectMonitorPage() {
         )}
       </ProCard>
 
+      <ProCard title="最近等待重试（10 条）" bordered style={{ marginBottom: 16 }} size="small">
+        <ProTable<CollectMonitorData['recentRetrying'][number]>
+          rowKey="id"
+          search={false}
+          options={false}
+          pagination={false}
+          columns={retryingColumns}
+          dataSource={data?.recentRetrying ?? []}
+          loading={!data}
+        />
+      </ProCard>
+
       <ProCard title="最近失败任务（10 条）" bordered size="small">
         <ProTable<CollectMonitorData['recentFailures'][number]>
           rowKey="id"
@@ -303,6 +404,13 @@ export default function CollectMonitorPage() {
             <div>
               <Typography.Text type="secondary">链接</Typography.Text>
               <Typography.Paragraph copyable>{drawerTask.sourceUrl}</Typography.Paragraph>
+            </div>
+            <div>
+              <Typography.Text type="secondary">自动重试</Typography.Text>
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                {drawerTask.retryCount ?? 0}/{drawerTask.maxRetries ?? '—'} · 下次{' '}
+                {formatTs(drawerTask.nextRetryAt)}
+              </Typography.Paragraph>
             </div>
             <div>
               <Typography.Text type="secondary">错误信息</Typography.Text>

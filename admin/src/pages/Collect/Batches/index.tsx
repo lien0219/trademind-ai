@@ -210,7 +210,7 @@ export default function CollectBatchesPage() {
       valueEnum: {
         pending: { text: '排队' },
         running: { text: '执行中' },
-        retrying: { text: '重试排队' },
+        retrying: { text: '等待重试' },
         success: { text: '成功' },
         failed: { text: '失败' },
         cancelled: { text: '取消' },
@@ -219,6 +219,23 @@ export default function CollectBatchesPage() {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
         return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
       },
+    },
+    {
+      title: '重试',
+      width: 100,
+      search: false,
+      render: (_, row) => (
+        <span>
+          {row.retryCount ?? 0}/{row.maxRetries ?? '—'}
+        </span>
+      ),
+    },
+    {
+      title: '下次重试',
+      dataIndex: 'nextRetryAt',
+      width: 168,
+      search: false,
+      render: (_, row) => formatTs(row.nextRetryAt),
     },
     {
       title: '商品草稿',
