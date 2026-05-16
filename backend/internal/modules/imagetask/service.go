@@ -98,6 +98,21 @@ func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (st
 	return v, nil
 }
 
+// AllowsGenerateSceneNoSource gates text-only ecommerce scene generation (OpenAI Image only).
+func (s *Service) AllowsGenerateSceneNoSource(ctx context.Context, explicitProvider string) bool {
+	if strings.TrimSpace(strings.ToLower(explicitProvider)) == "openai_image" {
+		return true
+	}
+	if s == nil || s.Settings == nil {
+		return false
+	}
+	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(strings.ToLower(m["provider"])) == "openai_image"
+}
+
 func inputHints(raw datatypes.JSON) map[string]any {
 	if len(raw) == 0 {
 		return nil
@@ -184,18 +199,33 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	if !isValidTaskType(p.TaskType) {
 		return nil, fmt.Errorf("invalid taskType")
 	}
-	imgID, srcURL, err := s.ResolveSource(ctx, p.SourceImageID, p.SourceImageURL)
-	if err != nil {
-		return nil, err
-	}
 	effectiveProv, err := s.resolveImageProvider(ctx, p.Provider)
 	if err != nil {
 		return nil, err
 	}
+	if p.TaskType == TaskTypeRemoveBackground {
+		effectiveProv = "removebg"
+	}
 	switch effectiveProv {
-	case "noop", "removebg":
+	case "noop", "removebg", "openai_image":
 	default:
 		return nil, fmt.Errorf("unsupported image provider %q", effectiveProv)
+	}
+
+	hasSource := (p.SourceImageID != nil && *p.SourceImageID != uuid.Nil) || strings.TrimSpace(p.SourceImageURL) != ""
+
+	var imgID *uuid.UUID
+	var srcURL string
+	if hasSource {
+		var rsErr error
+		imgID, srcURL, rsErr = s.ResolveSource(ctx, p.SourceImageID, p.SourceImageURL)
+		if rsErr != nil {
+			return nil, rsErr
+		}
+	} else if p.TaskType == TaskTypeGenerateScene && effectiveProv == "openai_image" {
+		imgID, srcURL = nil, ""
+	} else {
+		return nil, fmt.Errorf("sourceImageId or sourceImageUrl required")
 	}
 
 	row := &ImageTask{
@@ -244,19 +274,27 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		return nil
 	}
 
-	prov, err := imgprov.NewForTask(ctx, task.Provider, s.Settings)
-	if err != nil {
-		return s.fail(ctx, httpCtx, task, err.Error())
-	}
-
 	src := strings.TrimSpace(task.SourceImageURL)
 	hints := inputHints(task.Input)
+	if task.TaskType == TaskTypeGenerateScene {
+		hints = s.prepareGenerateSceneHints(ctx, task, hints)
+	}
 	timeout := s.imageOpTimeout(ctx)
 	pctx := ctx
 	var cancel context.CancelFunc
 	if timeout > 0 {
 		pctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
+	}
+
+	provName := task.Provider
+	if task.TaskType == TaskTypeRemoveBackground {
+		provName = "removebg"
+	}
+
+	prov, err := imgprov.NewForTask(ctx, provName, s.Settings)
+	if err != nil {
+		return s.fail(ctx, httpCtx, task, err.Error())
 	}
 
 	res, runErr := s.dispatch(pctx, prov, task, src, hints)
@@ -286,9 +324,10 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		if len(suffix) > 12 {
 			suffix = suffix[:12]
 		}
-		objKey := fmt.Sprintf("image-tasks/%s/%s-removebg-%s.png", day, task.ID.String(), suffix)
+		objTag := processedObjectTag(task.Provider)
+		objKey := fmt.Sprintf("image-tasks/%s/%s-%s-%s.png", day, task.ID.String(), objTag, suffix)
 		fr, saveErr := s.Files.SaveProcessed(ctx, files.SaveProcessedOpts{
-			OriginalName: fmt.Sprintf("removebg-%s.png", task.ID.String()),
+			OriginalName: fmt.Sprintf("%s-%s.png", objTag, task.ID.String()),
 			ObjectKey:    objKey,
 			Data:         res.RawPayload,
 			ContentType:  ct,
@@ -310,12 +349,26 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		"resultUrl": finalURL,
 		"provider":  task.Provider,
 	}
+	modelOut := ""
+	if res.Meta != nil {
+		if mv, ok := res.Meta["model"].(string); ok {
+			modelOut = strings.TrimSpace(mv)
+			if modelOut != "" {
+				outObj["model"] = modelOut
+			}
+		}
+	}
 	if finalFID != nil {
 		outObj["resultFileId"] = finalFID.String()
 	}
 	if ct := strings.TrimSpace(res.PayloadContentType); ct != "" {
 		outObj["contentType"] = ct
-	} else if len(res.RawPayload) > 0 {
+	} else if len(res.Meta) > 0 {
+		if cv, ok := res.Meta["contentType"].(string); ok && strings.TrimSpace(cv) != "" {
+			outObj["contentType"] = strings.TrimSpace(cv)
+		}
+	}
+	if _, has := outObj["contentType"]; !has && len(res.RawPayload) > 0 {
 		outObj["contentType"] = "image/png"
 	}
 	if len(res.Meta) > 0 {
@@ -338,7 +391,7 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
 		return err
 	}
-	s.logSuccess(ctx, httpCtx, taskID, task)
+	s.logSuccess(ctx, httpCtx, taskID, task, modelOut)
 	return nil
 }
 
@@ -414,12 +467,12 @@ func (s *Service) fail(ctx context.Context, httpCtx *gin.Context, task *ImageTas
 	return errors.New(msg)
 }
 
-func (s *Service) logSuccess(ctx context.Context, httpCtx *gin.Context, taskID uuid.UUID, task *ImageTask) {
+func (s *Service) logSuccess(ctx context.Context, httpCtx *gin.Context, taskID uuid.UUID, task *ImageTask, model string) {
 	if s.OpLog == nil {
 		return
 	}
-	msg := fmt.Sprintf("taskType=%s provider=%s productId=%s",
-		task.TaskType, task.Provider, ptrUUIDStr(task.ProductID))
+	msg := fmt.Sprintf("taskType=%s provider=%s model=%s productId=%s",
+		task.TaskType, task.Provider, strings.TrimSpace(model), ptrUUIDStr(task.ProductID))
 	opts := operationlog.WriteOpts{
 		Action:     "image.task.success",
 		Resource:   "image_task",

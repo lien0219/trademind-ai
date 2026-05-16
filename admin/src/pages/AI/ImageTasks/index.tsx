@@ -1,5 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { ModalForm, PageContainer, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
+import { ModalForm, PageContainer, ProFormDependency, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { CopyOutlined } from '@ant-design/icons';
 import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message } from 'antd';
 import dayjs from 'dayjs';
@@ -259,8 +259,14 @@ export default function ImageTasksPage() {
       <ModalForm<{
         taskType: string;
         provider?: string;
-        productId: string;
-        sourceImageUrl: string;
+        productId?: string;
+        sourceImageUrl?: string;
+        prompt?: string;
+        scene?: string;
+        style?: string;
+        size?: string;
+        background?: string;
+        platform?: string;
         inputJson: string;
       }>
         form={createForm}
@@ -272,6 +278,12 @@ export default function ImageTasksPage() {
           provider: '',
           productId: '',
           sourceImageUrl: '',
+          prompt: '',
+          scene: 'minimal studio',
+          style: 'clean ecommerce',
+          size: '1024x1024',
+          background: 'white studio background',
+          platform: 'TikTok Shop',
           inputJson: '{}',
         }}
         modalProps={{ destroyOnClose: true }}
@@ -286,13 +298,25 @@ export default function ImageTasksPage() {
               return false;
             }
           }
+          const input: Record<string, unknown> = { ...extra };
+          if ((values.taskType ?? '').trim() === 'generate_scene') {
+            const pick = {
+              prompt: (values.prompt ?? '').trim(),
+              scene: (values.scene ?? '').trim(),
+              style: (values.style ?? '').trim(),
+              size: (values.size ?? '').trim(),
+              background: (values.background ?? '').trim(),
+              platform: (values.platform ?? '').trim(),
+            };
+            Object.assign(input, pick);
+          }
           try {
             const task = await createImageTask({
               taskType: values.taskType,
               provider: values.provider?.trim() || undefined,
               productId: values.productId?.trim() || undefined,
               sourceImageUrl: values.sourceImageUrl?.trim() || undefined,
-              input: extra,
+              input,
             });
             if (task.status === 'pending' || task.status === 'running') {
               message.success('图片任务已提交，正在后台处理');
@@ -321,6 +345,9 @@ export default function ImageTasksPage() {
               if (v === 'remove_background') {
                 createForm.setFieldsValue({ provider: 'removebg' });
               }
+              if (v === 'generate_scene') {
+                createForm.setFieldsValue({ provider: 'openai_image' });
+              }
             },
           }}
         />
@@ -331,19 +358,63 @@ export default function ImageTasksPage() {
             { label: '默认（跟随系统「图片 AI」设置里的 provider）', value: '' },
             { label: 'noop', value: 'noop' },
             { label: 'remove.bg', value: 'removebg' },
+            { label: 'OpenAI Image', value: 'openai_image' },
           ]}
-          extra="去背景建议选择 remove.bg，且源图 URL 须公网可访问"
+          extra="remove_background 需 remove.bg（源图 URL 须公网可访问）；generate_scene 可选 OpenAI Image"
         />
         <ProFormText name="productId" label="商品 ID（可选）" />
-        <ProFormText
-          name="sourceImageUrl"
-          label="源图 URL"
-          rules={[{ required: true, message: '请填写可访问的源图 URL' }]}
-        />
+        <ProFormDependency name={['taskType', 'provider']}>
+          {(dep: { taskType?: string; provider?: string }) => {
+            const tt = dep.taskType ?? '';
+            const p = String(dep.provider ?? '')
+              .trim()
+              .toLowerCase();
+            const optionalSrc = tt === 'generate_scene' && p === 'openai_image';
+            return (
+              <ProFormText
+                name="sourceImageUrl"
+                label={optionalSrc ? '源图 URL（可选）' : '源图 URL'}
+                extra={
+                  optionalSrc
+                    ? 'OpenAI Image 可不填（纯文案场景）；如需参考商品请先上传并拿到公网 URL'
+                    : '请填写可从公网抓取的可访问 HTTPS 图像地址（remove.bg 必填）'
+                }
+                rules={[
+                  {
+                    validator: async (_rule, val) => {
+                      if (optionalSrc) {
+                        return Promise.resolve();
+                      }
+                      if (String(val ?? '').trim()) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error('请填写可访问的源图 URL'));
+                    },
+                  },
+                ]}
+              />
+            );
+          }}
+        </ProFormDependency>
+        <ProFormDependency name={['taskType']}>
+          {(dep: { taskType?: string }) =>
+            dep.taskType === 'generate_scene' ? (
+              <>
+                <ProFormTextArea name="prompt" label="Prompt（可选）" fieldProps={{ rows: 4 }} />
+                <ProFormText name="scene" label="Scene（可选）" placeholder="minimal studio" />
+                <ProFormText name="style" label="Style（可选）" placeholder="clean ecommerce" />
+                <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
+                <ProFormText name="background" label="背景（可选）" placeholder="white studio background" />
+                <ProFormText name="platform" label="平台（可选）" placeholder="TikTok Shop" />
+              </>
+            ) : null
+          }
+        </ProFormDependency>
         <ProFormTextArea
           name="inputJson"
-          label="Input（JSON）"
-          fieldProps={{ rows: 6, style: { fontFamily: 'monospace' } }}
+          label="追加 Input（JSON，可选）"
+          fieldProps={{ rows: 4, style: { fontFamily: 'monospace' } }}
+          extra="将与上方字段合并后提交；结构化字段可被此处同名键覆盖"
         />
       </ModalForm>
 

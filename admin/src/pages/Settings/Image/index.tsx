@@ -10,7 +10,12 @@ const FIELDS: Record<string, FieldSpec> = {
   provider: {},
   removebg_api_key: { encrypted: true },
   removebg_base_url: {},
+  openai_image_base_url: {},
+  openai_image_api_key: { encrypted: true },
   openai_image_model: {},
+  openai_image_size: {},
+  openai_image_quality: {},
+  openai_image_background: {},
   comfyui_base_url: {},
   comfyui_workflow_json: { valueType: 'json' },
   timeout_sec: {},
@@ -29,7 +34,12 @@ export default function ImageSettingsPage() {
         provider: g.provider || 'noop',
         removebg_api_key: g.removebg_api_key || '',
         removebg_base_url: g.removebg_base_url || 'https://api.remove.bg/v1.0',
-        openai_image_model: g.openai_image_model || '',
+        openai_image_base_url: g.openai_image_base_url || '',
+        openai_image_api_key: g.openai_image_api_key || '',
+        openai_image_model: g.openai_image_model || 'gpt-image-1',
+        openai_image_size: g.openai_image_size || '1024x1024',
+        openai_image_quality: g.openai_image_quality || 'standard',
+        openai_image_background: g.openai_image_background || '',
         comfyui_base_url: g.comfyui_base_url || '',
         comfyui_workflow_json: g.comfyui_workflow_json || '{}',
         timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
@@ -79,7 +89,7 @@ export default function ImageSettingsPage() {
               options={[
                 { label: 'noop（占位 / 演示）', value: 'noop' },
                 { label: 'remove.bg 去背景', value: 'removebg' },
-                { label: 'OpenAI Image（预留）', value: 'openai_image', disabled: true },
+                { label: 'OpenAI Image', value: 'openai_image' },
                 { label: 'ComfyUI（预留）', value: 'comfyui', disabled: true },
               ]}
             />
@@ -98,9 +108,41 @@ export default function ImageSettingsPage() {
           >
             <Input.Password placeholder="可选，真实接入时填写" autoComplete="new-password" />
           </Form.Item>
-          <Form.Item label="OpenAI Image 模型（预留）" name="openai_image_model">
-            <Input placeholder="例如 dall-e-3" />
+          <Form.Item
+            label="OpenAI Images Base URL"
+            name="openai_image_base_url"
+            extra="留空时后端默认 https://api.openai.com/v1；兼容自建代理"
+          >
+            <Input placeholder="https://api.openai.com/v1" />
           </Form.Item>
+          <Form.Item
+            label="OpenAI Image API Key"
+            name="openai_image_api_key"
+            extra="密文存储并脱敏；首版不推荐复用全局 AI api_key（后端侧亦未默认回退）"
+          >
+            <Input.Password placeholder="sk-…" autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item label="OpenAI Image 模型" name="openai_image_model">
+            <Input placeholder="gpt-image-1 或 dall-e-3 等" />
+          </Form.Item>
+          <Form.Item label="OpenAI Image 尺寸" name="openai_image_size">
+            <Input placeholder="例如 1024x1024" />
+          </Form.Item>
+          <Form.Item
+            label="OpenAI Image 质量档位"
+            name="openai_image_quality"
+            extra="gpt-image：low/medium/high；legacy 仍可填 standard→映射为中等"
+          >
+            <Input placeholder="standard / hd / medium…" />
+          </Form.Item>
+          <Form.Item
+            label="OpenAI Image 背景（可选）"
+            name="openai_image_background"
+            extra="部分模型接受 transparent | opaque | auto"
+          >
+            <Input placeholder="留空则由模型默认" />
+          </Form.Item>
+
           <Form.Item label="ComfyUI Base URL（预留）" name="comfyui_base_url">
             <Input placeholder="http://127.0.0.1:8188" />
           </Form.Item>

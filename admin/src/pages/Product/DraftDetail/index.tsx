@@ -97,6 +97,7 @@ export default function ProductDraftDetailPage() {
   const [aiImgRowId, setAiImgRowId] = useState<string>();
   const [aiImgProvider, setAiImgProvider] = useState<string>('');
   const [aiImgBusy, setAiImgBusy] = useState(false);
+  const [aiImgPrompt, setAiImgPrompt] = useState<string>('');
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -519,13 +520,23 @@ export default function ProductDraftDetailPage() {
               label: '图片管理',
               children: (
                 <Card bordered={false}>
-                  <Card title="AI 图片处理（预留）" size="small" style={{ marginBottom: 16 }} bordered={false}>
+                  <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} bordered={false}>
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
-                        选择已关联的商品图片创建后台任务。<Typography.Text code>resize</Typography.Text> 在 noop 下会成功并回显原图；
-                        <Typography.Text code>remove_background</Typography.Text> 在配置 remove.bg API Key 且商品图为公网 URL 时，可选择 Provider 为{' '}
-                        <Typography.Text code>removebg</Typography.Text> 调用真实去背景（结果写入存储与 files）。
+                        选择已关联的商品图创建异步任务：<Typography.Text code>resize</Typography.Text>（noop）会回显原图；{' '}
+                        <Typography.Text code>remove_background</Typography.Text> 需 Provider 选{' '}
+                        <Typography.Text code>removebg</Typography.Text>（公网可访问图源）；{' '}
+                        <Typography.Text code>generate_scene</Typography.Text> 选{' '}
+                        <Typography.Text code>openai_image</Typography.Text> 并在「图片 AI」设置中配置 OpenAI Image Key，
+                        结果写入存储与 AI 图片任务页。
                       </Typography.Text>
+                      <Input.TextArea
+                        value={aiImgPrompt}
+                        onChange={(e) => setAiImgPrompt(e.target.value)}
+                        rows={3}
+                        placeholder="场景 Prompt（可选，用于 generate_scene）"
+                        style={{ maxWidth: 560 }}
+                      />
                       <Space wrap align="start">
                         <Select
                           placeholder="选择商品图片"
@@ -545,6 +556,9 @@ export default function ProductDraftDetailPage() {
                             if (v === 'remove_background') {
                               setAiImgProvider('removebg');
                             }
+                            if (v === 'generate_scene') {
+                              setAiImgProvider('openai_image');
+                            }
                           }}
                           options={[
                             { label: '去背景 remove_background', value: 'remove_background' },
@@ -561,6 +575,7 @@ export default function ProductDraftDetailPage() {
                             { label: '默认（跟随「图片 AI」设置）', value: '' },
                             { label: 'noop', value: 'noop' },
                             { label: 'remove.bg', value: 'removebg' },
+                            { label: 'OpenAI Image', value: 'openai_image' },
                           ]}
                         />
                         <Button
@@ -571,13 +586,25 @@ export default function ProductDraftDetailPage() {
                             if (!aiImgRowId) return;
                             setAiImgBusy(true);
                             try {
+                              const input: Record<string, unknown> =
+                                aiImgTaskType === 'resize'
+                                  ? { width: 800, height: 800 }
+                                  : aiImgTaskType === 'generate_scene'
+                                    ? {
+                                        prompt: aiImgPrompt.trim(),
+                                        scene: 'minimal studio',
+                                        style: 'clean ecommerce',
+                                        size: '1024x1024',
+                                        background: 'white studio background',
+                                        platform: 'TikTok Shop',
+                                      }
+                                    : {};
                               const task = await createImageTask({
                                 taskType: aiImgTaskType,
                                 ...(aiImgProvider.trim() ? { provider: aiImgProvider.trim() } : {}),
                                 productId: id,
                                 sourceImageId: aiImgRowId,
-                                input:
-                                  aiImgTaskType === 'resize' ? { width: 800, height: 800 } : {},
+                                input,
                               });
                               if (task.status === 'pending' || task.status === 'running') {
                                 message.success('图片任务已提交，可在 AI 图片任务页查看结果');

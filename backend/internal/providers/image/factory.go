@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/providers/image/openaiimage"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/removebg"
 )
 
@@ -55,6 +56,48 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 			Timeout: time.Duration(sec) * time.Second,
 		})
 		return removebgProvider{client: cli}, nil
+	case "openai_image":
+		if settingsSvc == nil {
+			return nil, fmt.Errorf("openai Image provider requires settings service")
+		}
+		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		if err != nil {
+			return nil, err
+		}
+		// Dedicated key only — we intentionally do NOT fall back to settings.ai.api_key here
+		// (narrower blast radius / billing clarity; explicit bridging can be added later if needed).
+		key := strings.TrimSpace(im["openai_image_api_key"])
+		if key == "" {
+			return nil, fmt.Errorf("openai_image_api_key is not configured")
+		}
+		base := strings.TrimSpace(im["openai_image_base_url"])
+		model := strings.TrimSpace(im["openai_image_model"])
+		if model == "" {
+			model = "gpt-image-1"
+		}
+		size := strings.TrimSpace(im["openai_image_size"])
+		if size == "" {
+			size = "1024x1024"
+		}
+		quality := strings.TrimSpace(im["openai_image_quality"])
+		if quality == "" {
+			quality = "standard"
+		}
+		background := strings.TrimSpace(im["openai_image_background"])
+		sec := timeoutSecFromImageMap(im)
+		cli, err := openaiimage.NewClient(openaiimage.Options{
+			BaseURL:    base,
+			APIKey:     key,
+			Model:      model,
+			Size:       size,
+			Quality:    quality,
+			Background: background,
+			Timeout:    time.Duration(sec) * time.Second,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return openaiImageProvider{client: cli}, nil
 	default:
 		return nil, fmt.Errorf("unsupported image provider %q", name)
 	}
@@ -105,4 +148,74 @@ func (p removebgProvider) TranslateImage(ctx context.Context, req TranslateImage
 func (p removebgProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
 	_, _ = ctx, req
 	return nil, fmt.Errorf("remove.bg: poster_generate not implemented")
+}
+
+type openaiImageProvider struct {
+	client openaiimage.Client
+}
+
+func assembledScenePrompt(input map[string]any) string {
+	if input == nil {
+		return ""
+	}
+	switch v := input["assembled_prompt"].(type) {
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		if v != nil {
+			return strings.TrimSpace(fmt.Sprint(v))
+		}
+	}
+	return ""
+}
+
+func (p openaiImageProvider) Name() string { return "openai_image" }
+
+func (p openaiImageProvider) RemoveBackground(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("remove_background is not implemented for openai_image (use provider removebg)")
+}
+
+func (p openaiImageProvider) ReplaceBackground(ctx context.Context, req ReplaceBackgroundRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("replace_background is not implemented for openai_image yet")
+}
+
+func (p openaiImageProvider) GenerateScene(ctx context.Context, req GenerateSceneRequest) (*ImageResult, error) {
+	prompt := assembledScenePrompt(req.Input)
+	if prompt == "" {
+		return nil, fmt.Errorf("assembled prompt required for generate_scene (service must set input.assembled_prompt)")
+	}
+	img, ct, err := p.client.GenerateScene(ctx, prompt)
+	if err != nil {
+		return nil, err
+	}
+	return &ImageResult{
+		RawPayload:         img,
+		PayloadContentType: ct,
+		Meta: map[string]any{
+			"model":       p.client.ResolvedModel(),
+			"contentType": ct,
+		},
+	}, nil
+}
+
+func (p openaiImageProvider) Resize(ctx context.Context, req ResizeRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("openai_image: resize not implemented")
+}
+
+func (p openaiImageProvider) Enhance(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("openai_image: enhance not implemented")
+}
+
+func (p openaiImageProvider) TranslateImage(ctx context.Context, req TranslateImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("openai_image: translate_image not implemented")
+}
+
+func (p openaiImageProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("openai_image: poster_generate not implemented")
 }

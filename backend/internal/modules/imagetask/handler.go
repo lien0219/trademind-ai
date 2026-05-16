@@ -73,8 +73,10 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(body.SourceImageID) == "" && strings.TrimSpace(body.SourceImageURL) == "" {
-		response.Fail(c, 400, response.CodeBadRequest, "sourceImageId or sourceImageUrl required")
-		return
+		if !(strings.TrimSpace(body.TaskType) == TaskTypeGenerateScene && h.Svc.AllowsGenerateSceneNoSource(c.Request.Context(), body.Provider)) {
+			response.Fail(c, 400, response.CodeBadRequest, "sourceImageId or sourceImageUrl required")
+			return
+		}
 	}
 	var productID *uuid.UUID
 	if raw := strings.TrimSpace(body.ProductID); raw != "" {
