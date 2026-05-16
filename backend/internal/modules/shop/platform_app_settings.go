@@ -13,9 +13,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
-	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 )
 
 // PlatformAppSettingsDTO is GET /api/v1/platform/settings/:platform and PUT response body.

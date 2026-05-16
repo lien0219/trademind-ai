@@ -28,9 +28,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
-	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
