@@ -89,7 +89,7 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 	codeKey := fmt.Sprintf("email_code:%s:%s", body.Scene, emailAddr)
 	h.Redis.Set(c.Request.Context(), codeKey, code, 10*time.Minute)
 	h.Redis.Set(c.Request.Context(), cooldownKey, "1", 60*time.Second)
-	
+
 	if count == 0 {
 		h.Redis.Set(c.Request.Context(), hourlyKey, 1, time.Hour)
 	} else {
@@ -131,9 +131,9 @@ func (h *Handler) sendCodeEmail(ctx context.Context, to, code string) error {
 		}
 		p := smtp.NewProvider(cfg)
 		return p.Send(ctx, email.SendEmailRequest{
-			To:          to,
-			Subject:     "Your Verification Code - TradeMind",
-			Content:     fmt.Sprintf("Your verification code is: %s. It will expire in 10 minutes.", code),
+			To:      to,
+			Subject: "Your Verification Code - TradeMind",
+			Content: fmt.Sprintf("Your verification code is: %s. It will expire in 10 minutes.", code),
 		})
 	}
 	return fmt.Errorf("unsupported email provider %q", providerStr)

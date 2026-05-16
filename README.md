@@ -438,6 +438,12 @@ docker-compose up -d
 
 ---
 
+## CI / 自动检查
+
+本仓库使用 [GitHub Actions](.github/workflows/go.yml) 在 **`push` 与针对 `main` 的 `pull_request`** 时自动检查 **Go 后端**（`backend/`）：`gofmt` 格式、`go vet` 静态检查、`go test` 与 `go build`。
+
+---
+
 ## 贡献方向
 
 欢迎围绕以下方向参与：

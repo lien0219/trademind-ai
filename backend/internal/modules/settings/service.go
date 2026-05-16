@@ -316,9 +316,9 @@ func (s *Service) TestEmailConnection(ctx context.Context, to string) error {
 		}
 		p := smtp.NewProvider(cfg)
 		return p.Send(ctx, email.SendEmailRequest{
-			To:          to,
-			Subject:     "TradeMind Email Test",
-			Content:     "This is a test email from TradeMind.",
+			To:      to,
+			Subject: "TradeMind Email Test",
+			Content: "This is a test email from TradeMind.",
 		})
 	}
 	return fmt.Errorf("unsupported email provider %q", provider)

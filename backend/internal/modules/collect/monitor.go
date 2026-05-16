@@ -41,11 +41,11 @@ func RedisQueueDepth(ctx context.Context, redis *rdb.Client, queueName string) (
 
 // CollectMonitorQueue is queue observability for GET /collect/monitor.
 type CollectMonitorQueue struct {
-	Enabled               bool   `json:"enabled"`
-	Name                  string `json:"name"`
-	RedisAvailable        bool   `json:"redisAvailable"`
-	Depth                 int64  `json:"depth"`
-	OldestPendingSeconds *int64  `json:"oldestPendingSeconds,omitempty"`
+	Enabled              bool   `json:"enabled"`
+	Name                 string `json:"name"`
+	RedisAvailable       bool   `json:"redisAvailable"`
+	Depth                int64  `json:"depth"`
+	OldestPendingSeconds *int64 `json:"oldestPendingSeconds,omitempty"`
 }
 
 // CollectMonitorWorker exposes configured worker settings and in-process running flag.
@@ -57,13 +57,13 @@ type CollectMonitorWorker struct {
 
 // CollectMonitorTaskAgg counts collect_tasks by status.
 type CollectMonitorTaskAgg struct {
-	Pending         int `json:"pending"`
-	Retrying        int `json:"retrying"`
-	RetryingCount   int `json:"retryingCount"`
-	Running         int `json:"running"`
-	Success         int `json:"success"`
-	Failed          int `json:"failed"`
-	Cancelled       int `json:"cancelled"`
+	Pending       int `json:"pending"`
+	Retrying      int `json:"retrying"`
+	RetryingCount int `json:"retryingCount"`
+	Running       int `json:"running"`
+	Success       int `json:"success"`
+	Failed        int `json:"failed"`
+	Cancelled     int `json:"cancelled"`
 }
 
 // CollectMonitorBatchAgg counts collect_batches by derived batch.status.
@@ -354,12 +354,12 @@ func (s *Service) GetCollectMonitor(ctx context.Context) (*CollectMonitorRespons
 
 // CollectQueueHealthBlock is embedded into GET /health payloads (no collector probe).
 type CollectQueueHealthBlock struct {
-	Enabled             bool   `json:"enabled"`
-	Name                string `json:"name"`
-	RedisAvailable      bool   `json:"redisAvailable"`
-	Depth               int64  `json:"depth"`
-	WorkerEnabled       bool   `json:"workerEnabled"`
-	WorkerConcurrency   int    `json:"workerConcurrency"`
+	Enabled           bool   `json:"enabled"`
+	Name              string `json:"name"`
+	RedisAvailable    bool   `json:"redisAvailable"`
+	Depth             int64  `json:"depth"`
+	WorkerEnabled     bool   `json:"workerEnabled"`
+	WorkerConcurrency int    `json:"workerConcurrency"`
 }
 
 // BuildCollectQueueHealthBlock mirrors queue metrics for process health endpoints.

@@ -218,13 +218,13 @@ type GenerateDescriptionBody struct {
 
 // GenerateDescriptionResult is returned after an AI description generation call.
 type GenerateDescriptionResult struct {
-	Description       string   `json:"description"`
-	Highlights        []string `json:"highlights"`
-	Specifications    []string `json:"specifications"`
-	PackageIncludes   []string `json:"packageIncludes"`
-	Notes             string   `json:"notes"`
-	Reason            string   `json:"reason"`
-	TaskID            string   `json:"taskId"`
+	Description     string   `json:"description"`
+	Highlights      []string `json:"highlights"`
+	Specifications  []string `json:"specifications"`
+	PackageIncludes []string `json:"packageIncludes"`
+	Notes           string   `json:"notes"`
+	Reason          string   `json:"reason"`
+	TaskID          string   `json:"taskId"`
 }
 
 // ApplyAIDescriptionBody binds POST /products/:id/apply-ai-description.

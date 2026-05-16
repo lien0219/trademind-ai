@@ -40,10 +40,10 @@ type Config struct {
 	CollectBatchMaxURLs int
 
 	// Worker automatic retry (backoff via DB next_retry_at + scheduler LPUSH).
-	CollectAutoRetryEnabled       bool
-	CollectMaxRetries             int
-	CollectRetryBaseDelaySeconds  int
-	CollectRetryMaxDelaySeconds   int
+	CollectAutoRetryEnabled      bool
+	CollectMaxRetries            int
+	CollectRetryBaseDelaySeconds int
+	CollectRetryMaxDelaySeconds  int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
