@@ -1,6 +1,11 @@
 package platform
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+)
 
 type manualProv struct{}
 
@@ -24,6 +29,12 @@ func (manualProv) TestConnection(ctx context.Context, req TestConnectionRequest)
 	_ = ctx
 	_ = req
 	return &TestConnectionResult{OK: true, Message: "manual shop does not require remote authorization"}, nil
+}
+
+func (manualProv) SyncOrders(ctx context.Context, req SyncOrdersRequest) (*SyncOrdersResult, error) {
+	_ = ctx
+	_ = req
+	return nil, ErrManualOrderSyncUnsupported
 }
 
 type mockProv struct{}
@@ -57,6 +68,153 @@ func (mockProv) TestConnection(ctx context.Context, req TestConnectionRequest) (
 	}
 	return &TestConnectionResult{OK: true, Message: "mock: connection check OK"}, nil
 }
+
+func (mockProv) SyncOrders(ctx context.Context, req SyncOrdersRequest) (*SyncOrdersResult, error) {
+	_ = ctx
+	lim := req.Limit
+	if lim <= 0 {
+		lim = 50
+	}
+
+	base := mockCatalogOrders(req.Platform)
+	out := base
+	if lim < len(out) {
+		out = out[:lim]
+	}
+
+	return &SyncOrdersResult{
+		Orders:     out,
+		NextCursor: "",
+		HasMore:    false,
+		RawSummary: map[string]any{
+			"provider":    "mock",
+			"returned":    len(out),
+			"shopId":      req.ShopID.String(),
+			"limit":       lim,
+			"mode":        req.Mode,
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+		},
+	}, nil
+}
+
+// Deterministic mock orders for repeat upsert testing (same external IDs every sync).
+func mockCatalogOrders(platformKey string) []PlatformOrder {
+	cur := strings.TrimSpace(platformKey)
+	if cur == "" {
+		cur = "mock"
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+
+	o1Ordered := now.Add(-72 * time.Hour)
+	o1Paid := now.Add(-71 * time.Hour)
+	o2Ordered := now.Add(-48 * time.Hour)
+	o3Ordered := now.Add(-5 * time.Hour)
+
+	return []PlatformOrder{
+		{
+			ExternalOrderID:   "mock-ext-order-001",
+			OrderNo:           fmt.Sprintf("MOCK-%s-ORDER-001", cur),
+			CustomerName:      "Mock Buyer Alice",
+			Status:            "paid",
+			PaymentStatus:     "paid",
+			FulfillmentStatus: "fulfilled",
+			Currency:          "USD",
+			TotalAmount:       129.90,
+			OrderedAt:         &o1Ordered,
+			PaidAt:            &o1Paid,
+			ShippedAt:         ptrTime(now.Add(-70 * time.Hour)),
+			DeliveredAt:       ptrTime(now.Add(-12 * time.Hour)),
+			Items: []PlatformOrderItem{
+				{
+					ExternalItemID: "mock-item-001-a",
+					ProductTitle:   "Mock SKU Pack A",
+					SKUName:        "Color: Blue",
+					SKUCode:        "MOCK-SKU-A",
+					Quantity:       2,
+					UnitPrice:      49.95,
+					TotalPrice:     99.90,
+					ImageURL:       "https://example.com/mock/a.png",
+					Attrs:          map[string]any{"color": "blue"},
+				},
+				{
+					ExternalItemID: "mock-item-001-b",
+					ProductTitle:   "Mock Addon",
+					SKUCode:        "MOCK-ADDON",
+					Quantity:       1,
+					UnitPrice:      30,
+					TotalPrice:     30,
+				},
+			},
+			Shipments: []PlatformShipment{
+				{
+					Carrier:     "MockExpress",
+					TrackingNo:  "MOCKTRACK001",
+					TrackingURL: "https://example.com/track/MOCKTRACK001",
+					Status:      "delivered",
+					ShippedAt:   ptrTime(now.Add(-70 * time.Hour)),
+					DeliveredAt: ptrTime(now.Add(-12 * time.Hour)),
+				},
+			},
+			RawData: map[string]any{"mock": true, "tier": "catalog"},
+		},
+		{
+			ExternalOrderID:   "mock-ext-order-002",
+			OrderNo:           fmt.Sprintf("MOCK-%s-ORDER-002", cur),
+			CustomerName:      "Mock Buyer Bob",
+			Status:            "processing",
+			PaymentStatus:     "paid",
+			FulfillmentStatus: "partial",
+			Currency:          "USD",
+			TotalAmount:       59,
+			OrderedAt:         &o2Ordered,
+			PaidAt:            ptrTime(o2Ordered.Add(time.Hour)),
+			Items: []PlatformOrderItem{
+				{
+					ExternalItemID: "mock-item-002-a",
+					ProductTitle:   "Mock Gadget",
+					SKUCode:        "MOCK-GADGET",
+					Quantity:       1,
+					UnitPrice:      59,
+					TotalPrice:     59,
+				},
+			},
+			Shipments: []PlatformShipment{
+				{
+					Carrier:    "MockExpress",
+					TrackingNo: "MOCKTRACK002",
+					Status:     "in_transit",
+					ShippedAt:  ptrTime(now.Add(-36 * time.Hour)),
+				},
+			},
+			RawData: map[string]any{"mock": true},
+		},
+		{
+			ExternalOrderID:   "mock-ext-order-003",
+			OrderNo:           fmt.Sprintf("MOCK-%s-ORDER-003", cur),
+			CustomerName:      "Mock Buyer Chen",
+			Status:            "pending",
+			PaymentStatus:     "unpaid",
+			FulfillmentStatus: "unfulfilled",
+			Currency:          "EUR",
+			TotalAmount:       24.5,
+			OrderedAt:         &o3Ordered,
+			Items: []PlatformOrderItem{
+				{
+					ExternalItemID: "mock-item-003-a",
+					ProductTitle:   "Mock Lightweight Item",
+					SKUCode:        "MOCK-LITE",
+					Quantity:       1,
+					UnitPrice:      24.5,
+					TotalPrice:     24.5,
+				},
+			},
+			Shipments: []PlatformShipment{},
+			RawData:   map[string]any{"mock": true},
+		},
+	}
+}
+
+func ptrTime(t time.Time) *time.Time { return &t }
 
 // plannedProv is a placeholder provider with no live API.
 type plannedProv struct {
@@ -105,4 +263,11 @@ func (p *plannedProv) TestConnection(ctx context.Context, req TestConnectionRequ
 	_ = ctx
 	_ = req
 	return nil, ErrNotImplemented
+}
+
+func (p *plannedProv) SyncOrders(ctx context.Context, req SyncOrdersRequest) (*SyncOrdersResult, error) {
+	_ = p
+	_ = ctx
+	_ = req
+	return nil, ErrOrderSyncNotImplemented
 }

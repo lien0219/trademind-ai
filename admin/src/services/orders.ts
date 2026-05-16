@@ -84,6 +84,7 @@ export type OrderListRow = {
   orderedAt?: string;
   createdAt: string;
   latestShipmentStatus?: string;
+  externalOrderId?: string;
 };
 
 export async function queryOrders(params: {

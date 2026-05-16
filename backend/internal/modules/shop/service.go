@@ -670,14 +670,38 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	return s.buildAuthPublic(&tok), nil
 }
 
+// PlainAuthForProvider decrypts stored credentials for outbound Platform Provider calls (never log secrets).
+func (s *Service) PlainAuthForProvider(c *gin.Context, shopID uuid.UUID) (*Shop, platformp.TestConnectionRequest, error) {
+	if c == nil {
+		return s.PlainAuthForProviderCtx(context.Background(), shopID)
+	}
+	return s.PlainAuthForProviderCtx(c.Request.Context(), shopID)
+}
+
+// PlainAuthForProviderCtx is PlainAuthForProvider for background workers (no *gin.Context).
+func (s *Service) PlainAuthForProviderCtx(ctx context.Context, shopID uuid.UUID) (*Shop, platformp.TestConnectionRequest, error) {
+	shopRow, _, req, err := s.decryptedAuthCtx(ctx, shopID)
+	if err != nil {
+		return nil, platformp.TestConnectionRequest{}, err
+	}
+	return shopRow, req, nil
+}
+
 // decryptedAuth builds a TestConnectionRequest from DB (for test-connection only).
 func (s *Service) decryptedAuth(c *gin.Context, shopID uuid.UUID) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
+	if c == nil {
+		return s.decryptedAuthCtx(context.Background(), shopID)
+	}
+	return s.decryptedAuthCtx(c.Request.Context(), shopID)
+}
+
+func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
 	var shopRow Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&shopRow, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&shopRow, "id = ?", shopID).Error; err != nil {
 		return nil, nil, platformp.TestConnectionRequest{}, err
 	}
 	var tok ShopAuthToken
-	if err := s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &shopRow, nil, platformp.TestConnectionRequest{}, nil
 		}

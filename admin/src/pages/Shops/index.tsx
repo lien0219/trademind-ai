@@ -1,6 +1,9 @@
+import { Link } from '@umijs/max';
 import {
   ModalForm,
   PageContainer,
+  ProFormDigit,
+  ProFormRadio,
   ProFormSelect,
   ProFormText,
   ProFormTextArea,
@@ -41,6 +44,7 @@ import {
   type ShopDetail,
   type ShopListRow,
 } from '@/services/shops';
+import { syncShopOrders } from '@/services/orderSync';
 
 const STD_AUTH_KEYS = new Set([
   'appKey',
@@ -72,6 +76,8 @@ export default function ShopsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authForm] = Form.useForm();
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncTarget, setSyncTarget] = useState<{ id: string; platform: string } | null>(null);
 
   const loadProviders = useCallback(async () => {
     const res = await queryPlatformProviders();
@@ -145,6 +151,20 @@ export default function ShopsPage() {
     return payload;
   };
 
+  const openOrderSyncModal = (platform: string, shopId: string) => {
+    const p = providers.find((x) => x.platform === platform);
+    if (platform === 'manual') {
+      message.warning('手工店铺不支持订单同步');
+      return;
+    }
+    if (p?.status === 'planned') {
+      message.warning('平台订单同步暂未实现');
+      return;
+    }
+    setSyncTarget({ id: shopId, platform });
+    setSyncOpen(true);
+  };
+
   const columns: ProColumns<ShopListRow>[] = useMemo(
     () => [
       { title: '平台', dataIndex: 'platform', width: 120, copyable: true },
@@ -189,7 +209,7 @@ export default function ShopsPage() {
       {
         title: '操作',
         valueType: 'option',
-        width: 280,
+        width: 340,
         render: (_, r) => [
           <a key="v" onClick={() => void openDetail(r)}>
             查看
@@ -207,6 +227,17 @@ export default function ShopsPage() {
           <a key="a" onClick={() => void openAuthFor(r.id)}>
             授权配置
           </a>,
+          <a
+            key="osync"
+            onClick={() => {
+              openOrderSyncModal(r.platform, r.id);
+            }}
+          >
+            同步订单
+          </a>,
+          <Link key="olog" to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>
+            同步记录
+          </Link>,
           <a
             key="t"
             onClick={async () => {
@@ -234,7 +265,7 @@ export default function ShopsPage() {
         ],
       },
     ],
-    [],
+    [providers],
   );
 
   return (
@@ -360,6 +391,52 @@ export default function ShopsPage() {
         <ProFormTextArea name="remark" label="备注" fieldProps={{ rows: 2 }} />
       </ModalForm>
 
+      <ModalForm
+        title="同步店铺订单"
+        open={syncOpen}
+        modalProps={{
+          destroyOnClose: true,
+          onCancel: () => {
+            setSyncOpen(false);
+            setSyncTarget(null);
+          },
+        }}
+        initialValues={{ mode: 'incremental', limit: 50, cursor: '', start: '', end: '' }}
+        onFinish={async (vals) => {
+          if (!syncTarget) return false;
+          try {
+            await syncShopOrders(syncTarget.id, {
+              mode: vals.mode as string,
+              start: (vals.start as string | undefined) || undefined,
+              end: (vals.end as string | undefined) || undefined,
+              cursor: (vals.cursor as string | undefined) || undefined,
+              limit: vals.limit as number | undefined,
+            });
+          } catch (e: unknown) {
+            message.error(e instanceof Error ? e.message : '同步失败');
+            return false;
+          }
+          message.success('订单同步任务已提交');
+          setSyncOpen(false);
+          setSyncTarget(null);
+          return true;
+        }}
+      >
+        <ProFormRadio.Group
+          name="mode"
+          label="同步模式"
+          options={[
+            { label: '增量 incremental', value: 'incremental' },
+            { label: '全量 full', value: 'full' },
+          ]}
+          rules={[{ required: true }]}
+        />
+        <ProFormText name="start" label="开始时间（可选 RFC3339）" placeholder="2026-05-01T00:00:00Z" />
+        <ProFormText name="end" label="结束时间（可选 RFC3339）" placeholder="2026-05-16T23:59:59Z" />
+        <ProFormText name="cursor" label="游标（可选）" />
+        <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
+      </ModalForm>
+
       <Drawer
         title={detail ? `店铺：${detail.shopName}` : '店铺详情'}
         width={640}
@@ -382,6 +459,17 @@ export default function ShopsPage() {
               <Button type="primary" onClick={() => detail && void openAuthFor(detail.id)}>
                 授权配置
               </Button>
+              <Button
+                onClick={() => {
+                  if (!detail) return;
+                  openOrderSyncModal(detail.platform, detail.id);
+                }}
+              >
+                同步订单
+              </Button>
+              <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(detail?.id ?? '')}`}>
+                <Button disabled={!detail}>同步记录</Button>
+              </Link>
               <Button
                 onClick={async () => {
                   try {

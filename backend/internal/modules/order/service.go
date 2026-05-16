@@ -78,6 +78,7 @@ type ListOrderRow struct {
 	ShopID               *uuid.UUID `json:"shopId,omitempty"`
 	ShopName             string     `json:"shopName,omitempty"`
 	ShopPlatform         string     `json:"shopPlatform,omitempty"`
+	ExternalOrderID      string     `json:"externalOrderId,omitempty"`
 	OrderNo              string     `json:"orderNo"`
 	CustomerName         string     `json:"customerName"`
 	Status               string     `json:"status"`
@@ -234,6 +235,7 @@ type OrderRow struct {
 	TotalAmount       float64    `json:"totalAmount"`
 	PaidAt            *time.Time `json:"paidAt,omitempty"`
 	OrderedAt         *time.Time `json:"orderedAt,omitempty"`
+	Remark            string     `json:"remark,omitempty"`
 	CreatedBy         *uuid.UUID `json:"createdBy,omitempty"`
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
@@ -461,6 +463,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 				row.ShopPlatform = ssum.Platform
 			}
 		}
+		if r.ExternalOrderID != nil {
+			row.ExternalOrderID = *r.ExternalOrderID
+		}
 		out[i] = row
 	}
 	return &ListResult{
@@ -509,6 +514,7 @@ func orderRowDTO(o *Order) OrderRow {
 		TotalAmount:       o.TotalAmount,
 		PaidAt:            o.PaidAt,
 		OrderedAt:         o.OrderedAt,
+		Remark:            o.Remark,
 		CreatedBy:         o.CreatedBy,
 		CreatedAt:         o.CreatedAt,
 		UpdatedAt:         o.UpdatedAt,

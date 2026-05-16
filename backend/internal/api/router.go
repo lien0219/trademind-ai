@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -52,7 +53,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -161,6 +162,26 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc}
 	orderH := &order.Handler{Svc: orderSvc}
 
+	orderSyncSvc := &ordersync.Service{
+		DB:     dep.DB,
+		Redis:  dep.Redis,
+		Shops:  shopSvc,
+		Orders: orderSvc,
+		OpLog:  opLogSvc,
+	}
+	if dep.Config != nil {
+		orderSyncSvc.QueueEnabled = dep.Config.OrderSyncQueueEnabled
+		if strings.TrimSpace(dep.Config.OrderSyncQueueName) != "" {
+			orderSyncSvc.QueueName = strings.TrimSpace(dep.Config.OrderSyncQueueName)
+		} else {
+			orderSyncSvc.QueueName = "order:sync:tasks"
+		}
+		if dep.Config.OrderSyncTaskTimeoutSeconds > 0 {
+			orderSyncSvc.TaskTimeout = time.Duration(dep.Config.OrderSyncTaskTimeoutSeconds) * time.Second
+		}
+	}
+	orderSyncH := &ordersync.Handler{Svc: orderSyncSvc}
+
 	customerChatSvc := &customerchat.Service{
 		DB:        dep.DB,
 		Settings:  settingsSvc,
@@ -201,9 +222,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	collect.Register(authed, collectH)
 	collectrule.Register(authed, collectRuleH)
 	order.Register(authed, orderH)
+	ordersync.Register(authed, orderSyncH)
 	customerchat.Register(authed, customerChatH)
 	shop.Register(authed, shopH)
-	return collectSvc, imageTaskSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {
@@ -285,13 +307,32 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			status = "degraded"
 		}
 
+		osQEnabled := false
+		osQName := "order:sync:tasks"
+		osWConc := 1
+		if dep.Config != nil {
+			osQEnabled = dep.Config.OrderSyncQueueEnabled
+			if strings.TrimSpace(dep.Config.OrderSyncQueueName) != "" {
+				osQName = strings.TrimSpace(dep.Config.OrderSyncQueueName)
+			}
+			osWConc = dep.Config.OrderSyncWorkerConcurrency
+			if osWConc < 1 {
+				osWConc = 1
+			}
+		}
+		osq := ordersync.BuildOrderSyncQueueHealthBlock(ctx, dep.Redis, osQEnabled, osQName, osWConc)
+		if osQEnabled && !osq.RedisAvailable && checks["redis"] == "ok" {
+			status = "degraded"
+		}
+
 		response.OK(c, gin.H{
-			"status":       status,
-			"appEnv":       appEnv,
-			"checks":       checks,
-			"collectQueue": cq,
-			"imageQueue":   iq,
-			"timestamp":    time.Now().UTC().Format(time.RFC3339),
+			"status":         status,
+			"appEnv":         appEnv,
+			"checks":         checks,
+			"collectQueue":   cq,
+			"imageQueue":     iq,
+			"orderSyncQueue": osq,
+			"timestamp":      time.Now().UTC().Format(time.RFC3339),
 		})
 	}
 }

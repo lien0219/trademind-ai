@@ -24,6 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
@@ -105,7 +106,7 @@ func main() {
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
-	collectSvc, imageTaskSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
@@ -123,6 +124,11 @@ func main() {
 		imgWorkerConc = 2
 	}
 	imagetask.ConfigureImageWorkerMonitor(cfg.ImageQueueEnabled, imgWorkerConc)
+
+	osWorkerConc := cfg.OrderSyncWorkerConcurrency
+	if osWorkerConc < 1 {
+		osWorkerConc = 1
+	}
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
@@ -150,6 +156,17 @@ func main() {
 		}
 	} else if cfg.ImageQueueEnabled && redisClient == nil {
 		log.Warn("image_task_worker_skipped", "reason", "redis unavailable while IMAGE_QUEUE_ENABLED=true")
+	}
+
+	if cfg.OrderSyncQueueEnabled && redisClient != nil && orderSyncSvc != nil {
+		qn := strings.TrimSpace(cfg.OrderSyncQueueName)
+		if qn == "" {
+			qn = "order:sync:tasks"
+		}
+		ordersync.StartWorker(workerCtx, &workerWG, log, orderSyncSvc, qn, osWorkerConc)
+		log.Info("order_sync_worker_started", "concurrency", osWorkerConc, "queue", qn)
+	} else if cfg.OrderSyncQueueEnabled && redisClient == nil {
+		log.Warn("order_sync_worker_skipped", "reason", "redis unavailable while ORDER_SYNC_QUEUE_ENABLED=true")
 	}
 
 	srv := &http.Server{
@@ -186,6 +203,7 @@ func main() {
 
 	collect.SetCollectWorkersRunning(false)
 	imagetask.SetImageWorkersRunning(false)
+	ordersync.SetOrderSyncWorkersRunning(false)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer shutdownCancel()

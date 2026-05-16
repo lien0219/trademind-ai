@@ -118,7 +118,19 @@ export default [
     path: '/orders',
     name: '订单',
     icon: 'ContainerOutlined',
-    component: './Orders',
+    component: '@/layouts/OrderGroupLayout',
+    routes: [
+      {
+        path: '/orders',
+        name: '订单列表',
+        component: './Orders/index',
+      },
+      {
+        path: '/orders/sync-tasks',
+        name: '同步任务',
+        component: './Orders/SyncTasks',
+      },
+    ],
   },
   {
     path: '/customer',

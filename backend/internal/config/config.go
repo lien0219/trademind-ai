@@ -59,6 +59,15 @@ type Config struct {
 	ImageMaxRetries            int
 	ImageRetryBaseDelaySeconds int
 	ImageRetryMaxDelaySeconds  int
+
+	// OrderSyncQueueEnabled gates async order sync jobs (Redis list + worker).
+	OrderSyncQueueEnabled bool
+	// OrderSyncQueueName is the Redis list key for order sync payloads (default order:sync:tasks).
+	OrderSyncQueueName string
+	// OrderSyncWorkerConcurrency is concurrent BRPOP consumers for order sync (default 1).
+	OrderSyncWorkerConcurrency int
+	// OrderSyncTaskTimeoutSeconds caps each Provider.SyncOrders context (default 120).
+	OrderSyncTaskTimeoutSeconds int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -134,6 +143,14 @@ func Load() (*Config, error) {
 		ImageMaxRetries:            atoiOrDefault(os.Getenv("IMAGE_MAX_RETRIES"), 2),
 		ImageRetryBaseDelaySeconds: atoiOrDefault(os.Getenv("IMAGE_RETRY_BASE_DELAY_SECONDS"), 30),
 		ImageRetryMaxDelaySeconds:  atoiOrDefault(os.Getenv("IMAGE_RETRY_MAX_DELAY_SECONDS"), 300),
+
+		OrderSyncQueueEnabled: envBool(os.Getenv("ORDER_SYNC_QUEUE_ENABLED"), true),
+		OrderSyncQueueName: strings.TrimSpace(firstNonEmpty(
+			os.Getenv("ORDER_SYNC_QUEUE_NAME"),
+			"order:sync:tasks",
+		)),
+		OrderSyncWorkerConcurrency:  atoiOrDefault(os.Getenv("ORDER_SYNC_WORKER_CONCURRENCY"), 1),
+		OrderSyncTaskTimeoutSeconds: atoiOrDefault(os.Getenv("ORDER_SYNC_TASK_TIMEOUT_SECONDS"), 120),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))
