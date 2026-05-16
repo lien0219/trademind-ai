@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
@@ -211,41 +210,6 @@ func stringFromMap(m map[string]any, key string) string {
 	}
 }
 
-// ResolveSource looks up source_image_id in files or product_images, or uses explicit URL.
-func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, sourceURL string) (imageID *uuid.UUID, resolvedURL string, err error) {
-	urlStr := strings.TrimSpace(sourceURL)
-	if sourceImageID != nil && *sourceImageID != uuid.Nil {
-		sid := *sourceImageID
-		var fr files.FileRecord
-		if err := s.DB.WithContext(ctx).First(&fr, "id = ?", sid).Error; err == nil {
-			u := strings.TrimSpace(fr.PublicURL)
-			if u == "" {
-				return nil, "", fmt.Errorf("file has no public url")
-			}
-			return &sid, u, nil
-		}
-		var pi product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&pi, "id = ?", sid).Error; err == nil {
-			u := strings.TrimSpace(pi.PublicURL)
-			if u == "" {
-				u = strings.TrimSpace(pi.OriginURL)
-			}
-			if u == "" {
-				return nil, "", fmt.Errorf("product image has no url")
-			}
-			return &sid, u, nil
-		}
-		if urlStr != "" {
-			return nil, urlStr, nil
-		}
-		return nil, "", fmt.Errorf("sourceImageId not found")
-	}
-	if urlStr != "" {
-		return nil, urlStr, nil
-	}
-	return nil, "", fmt.Errorf("sourceImageId or sourceImageUrl required")
-}
-
 // CreateAndPersist inserts a pending task row (without running the provider).
 func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*ImageTask, error) {
 	if s == nil || s.DB == nil {
@@ -364,7 +328,26 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		return s.fail(ctx, httpCtx, task, err.Error())
 	}
 
-	res, runErr := s.dispatch(pctx, prov, task, src, hints)
+	res, runErr := func() (*imgprov.ImageResult, error) {
+		if task.TaskType == TaskTypeRemoveBackground {
+			rb, err := s.resolveRemoveBGSource(pctx, task)
+			if err != nil {
+				return nil, err
+			}
+			if rb.File != nil {
+				defer rb.File.Close()
+			}
+			imgReq := imgprov.ImageRequest{
+				SourceURL:         rb.PublicURL,
+				SourceFile:        rb.File,
+				SourceFilename:    rb.Filename,
+				SourceContentType: rb.ContentType,
+				Input:             hints,
+			}
+			return prov.RemoveBackground(pctx, imgReq)
+		}
+		return s.dispatch(pctx, prov, task, src, hints)
+	}()
 	if runErr != nil {
 		return s.fail(ctx, httpCtx, task, runErr.Error())
 	}

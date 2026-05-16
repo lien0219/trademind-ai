@@ -3,6 +3,7 @@ package image
 import (
 	"context"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -161,7 +162,16 @@ type removebgProvider struct {
 func (p removebgProvider) Name() string { return "removebg" }
 
 func (p removebgProvider) RemoveBackground(ctx context.Context, req ImageRequest) (*ImageResult, error) {
-	b, err := p.client.RemoveBackgroundPNG(ctx, req.SourceURL)
+	var rdr io.Reader
+	if req.SourceFile != nil {
+		rdr = req.SourceFile
+	}
+	b, err := p.client.RemoveBackground(ctx, removebg.RemoveBackgroundInput{
+		ImageURL:         strings.TrimSpace(req.SourceURL),
+		Image:            rdr,
+		ImageFilename:    strings.TrimSpace(req.SourceFilename),
+		ImageContentType: strings.TrimSpace(req.SourceContentType),
+	})
 	if err != nil {
 		return nil, err
 	}

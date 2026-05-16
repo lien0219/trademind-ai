@@ -1,11 +1,19 @@
 package image
 
-import "github.com/google/uuid"
+import (
+	"io"
+
+	"github.com/google/uuid"
+)
 
 // ImageRequest carries a source image URL and optional structured hints.
 type ImageRequest struct {
 	SourceURL string
 	Input     map[string]any
+	// SourceFile when non-nil: remove.bg uses multipart image_file (server reads bytes).
+	SourceFile        io.ReadCloser
+	SourceFilename    string
+	SourceContentType string
 }
 
 // ReplaceBackgroundRequest is a swap-background style operation.

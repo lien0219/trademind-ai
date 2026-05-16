@@ -3,6 +3,7 @@ package s3store
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Provider is an S3-compatible blob storage backend (implements the parent storage.Provider interface shape).
@@ -143,6 +146,63 @@ func (p *Provider) GetURL(ctx context.Context, objectKey string) (string, error)
 	}
 
 	return "", fmt.Errorf("s3 storage: configure s3_public_base or enable s3_presign_enabled for reachable URLs")
+}
+
+// Get downloads the object; the caller must close the returned ReadCloser.
+func (p *Provider) Get(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+	if p == nil || p.client == nil {
+		return nil, fmt.Errorf("s3 storage: nil provider")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	key := normKey(objectKey)
+	if key == "" {
+		cancel()
+		return nil, fmt.Errorf("s3 storage: empty object key")
+	}
+	out, err := p.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(p.cfg.Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		cancel()
+		if isS3NotFound(err) {
+			return nil, fmt.Errorf("s3 storage: file not found")
+		}
+		return nil, fmt.Errorf("s3 storage: get object: %w", err)
+	}
+	if out.Body == nil {
+		cancel()
+		return nil, fmt.Errorf("s3 storage: empty body")
+	}
+	return &s3ObjectBody{ReadCloser: out.Body, cancel: cancel}, nil
+}
+
+type s3ObjectBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *s3ObjectBody) Close() error {
+	err := b.ReadCloser.Close()
+	if b.cancel != nil {
+		b.cancel()
+	}
+	return err
+}
+
+func isS3NotFound(err error) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := strings.ToLower(apiErr.ErrorCode())
+		if code == "nosuchkey" || code == "notfound" {
+			return true
+		}
+	}
+	var re *smithyhttp.ResponseError
+	if errors.As(err, &re) && re.HTTPStatusCode() == 404 {
+		return true
+	}
+	return false
 }
 
 // Delete removes the remote object (idempotent — NoSuchKey is OK).

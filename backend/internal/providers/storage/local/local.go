@@ -96,6 +96,27 @@ func (p *Provider) GetURL(_ context.Context, objectKey string) (string, error) {
 	return p.publicBase + "/" + key, nil
 }
 
+// Get opens the object for reading; the caller must close the returned reader.
+func (p *Provider) Get(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+	path, err := p.resolve(objectKey)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("local storage: file not found")
+		}
+		return nil, fmt.Errorf("local storage: open: %w", err)
+	}
+	return f, nil
+}
+
 // Delete removes the object file.
 func (p *Provider) Delete(ctx context.Context, objectKey string) error {
 	path, err := p.resolve(objectKey)

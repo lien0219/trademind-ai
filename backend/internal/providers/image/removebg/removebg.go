@@ -8,18 +8,28 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
 )
+
+const maxSourceBytes = 32 << 20
 
 // Options configures remove.bg HTTP client (credentials must never be logged).
 type Options struct {
 	APIKey  string
 	BaseURL string
 	Timeout time.Duration
+}
+
+// RemoveBackgroundInput selects image_url vs multipart image_file mode.
+type RemoveBackgroundInput struct {
+	ImageURL         string
+	Image            io.Reader
+	ImageFilename    string
+	ImageContentType string
 }
 
 // Client calls remove.bg remote API (PNG response body).
@@ -49,24 +59,45 @@ func NewClient(opts Options) Client {
 	}
 }
 
-// RemoveBackgroundPNG posts image_url multipart field and returns PNG bytes on success.
-func (c Client) RemoveBackgroundPNG(ctx context.Context, imageURL string) ([]byte, error) {
-	src := strings.TrimSpace(imageURL)
-	if src == "" {
-		return nil, errors.New("remove.bg: source url required")
-	}
-	if err := ensurePublicHTTPSURL(src); err != nil {
-		return nil, err
-	}
+// RemoveBackground posts image_file or image_url and returns PNG bytes on success.
+// Prefer Image when readable; otherwise requires a publicly reachable ImageURL.
+func (c Client) RemoveBackground(ctx context.Context, in RemoveBackgroundInput) ([]byte, error) {
 	if strings.TrimSpace(c.apiKey) == "" {
 		return nil, errors.New("remove.bg: api key not configured")
 	}
 	endpoint := c.baseURL + "/removebg"
 
+	hasFile := in.Image != nil
+	urlStr := strings.TrimSpace(in.ImageURL)
+	if !hasFile && urlStr == "" {
+		return nil, errors.New("source image is not readable and not publicly accessible")
+	}
+
 	var buf bytes.Buffer
 	mp := multipart.NewWriter(&buf)
-	if err := mp.WriteField("image_url", src); err != nil {
-		return nil, fmt.Errorf("remove.bg: build form: %w", err)
+	if hasFile {
+		data, err := readLimitedImage(in.Image, maxSourceBytes)
+		if err != nil {
+			return nil, err
+		}
+		fn := strings.TrimSpace(in.ImageFilename)
+		if fn == "" {
+			fn = "source.png"
+		}
+		part, err := mp.CreateFormFile("image_file", fn)
+		if err != nil {
+			return nil, fmt.Errorf("remove.bg: build form: %w", err)
+		}
+		if _, err := part.Write(data); err != nil {
+			return nil, fmt.Errorf("remove.bg: write image_file: %w", err)
+		}
+	} else {
+		if !httppublic.IsPublicHTTPURL(urlStr) {
+			return nil, errors.New("source image is not readable and not publicly accessible")
+		}
+		if err := mp.WriteField("image_url", urlStr); err != nil {
+			return nil, fmt.Errorf("remove.bg: build form: %w", err)
+		}
 	}
 	if err := mp.Close(); err != nil {
 		return nil, fmt.Errorf("remove.bg: close multipart: %w", err)
@@ -112,25 +143,18 @@ func (c Client) RemoveBackgroundPNG(ctx context.Context, imageURL string) ([]byt
 	return body, nil
 }
 
-func ensurePublicHTTPSURL(raw string) error {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return errors.New("source image URL is not publicly accessible")
+func readLimitedImage(r io.Reader, max int) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, int64(max)+1))
+	if err != nil {
+		return nil, fmt.Errorf("remove.bg: read source: %w", err)
 	}
-	host := strings.TrimSpace(u.Hostname())
-	if host == "" {
-		return errors.New("source image URL is not publicly accessible")
+	if len(b) > max {
+		return nil, errors.New("source image exceeds maximum size for remove.bg upload")
 	}
-	hl := strings.ToLower(host)
-	if hl == "localhost" || hl == "127.0.0.1" || hl == "::1" || strings.HasSuffix(hl, ".localhost") {
-		return errors.New("source image URL is not publicly accessible")
+	if len(b) == 0 {
+		return nil, errors.New("source image is not readable and not publicly accessible")
 	}
-	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			return errors.New("source image URL is not publicly accessible")
-		}
-	}
-	return nil
+	return b, nil
 }
 
 func parseRemoveBGError(body []byte) string {

@@ -536,7 +536,7 @@ export default function ProductDraftDetailPage() {
                       <Typography.Text type="secondary">
                         可选择商品图作为源图（场景图在 OpenAI / ComfyUI 下可无图），任务由后端入队；结果在{' '}
                         <Typography.Link onClick={() => history.push('/ai/image-tasks')}>AI 图片任务</Typography.Link>{' '}
-                        查看。<Typography.Text code>remove_background</Typography.Text> 需 <Typography.Text code>removebg</Typography.Text> 与公网图源；<Typography.Text code>generate_scene</Typography.Text> 支持 <Typography.Text code>openai_image</Typography.Text> / <Typography.Text code>comfyui</Typography.Text>；<Typography.Text code>replace_background</Typography.Text> 请配合 <Typography.Text code>comfyui</Typography.Text> 工作流。
+                        查看。<Typography.Text code>remove_background</Typography.Text> 使用 <Typography.Text code>removebg</Typography.Text>；本地/存储中的商品图由后端读取并以 multipart 上传 remove.bg（公网 URL 仍可走 image_url）。<Typography.Text code>generate_scene</Typography.Text> 支持 <Typography.Text code>openai_image</Typography.Text> / <Typography.Text code>comfyui</Typography.Text>；<Typography.Text code>replace_background</Typography.Text> 请配合 <Typography.Text code>comfyui</Typography.Text> 工作流。
                       </Typography.Text>
                       <Input.TextArea
                         value={aiImgPrompt}

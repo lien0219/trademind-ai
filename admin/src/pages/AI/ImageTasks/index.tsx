@@ -305,6 +305,7 @@ export default function ImageTasksPage() {
           taskType: 'resize',
           provider: '',
           productId: '',
+          sourceImageId: '',
           sourceImageUrl: '',
           prompt: '',
           negativePrompt: '',
@@ -359,6 +360,7 @@ export default function ImageTasksPage() {
               taskType: values.taskType,
               provider: values.provider?.trim() || undefined,
               productId: values.productId?.trim() || undefined,
+              sourceImageId: values.sourceImageId?.trim() || undefined,
               sourceImageUrl: values.sourceImageUrl?.trim() || undefined,
               input,
             });
@@ -408,11 +410,17 @@ export default function ImageTasksPage() {
             { label: 'OpenAI Image', value: 'openai_image' },
             { label: 'ComfyUI', value: 'comfyui' },
           ]}
-          extra="remove_background 需 remove.bg 或可配置 ComfyUI 工作流；generate_scene 支持 OpenAI Image 或 ComfyUI；replace_background 首版走 ComfyUI"
+          extra="remove_background 使用 remove.bg；本地/对象存储源图由后端读取并以 multipart 直传；generate_scene 支持 OpenAI Image 或 ComfyUI；replace_background 首版走 ComfyUI"
         />
         <ProFormText name="productId" label="商品 ID（可选）" />
-        <ProFormDependency name={['taskType', 'provider']}>
-          {(dep: { taskType?: string; provider?: string }) => {
+        <ProFormText
+          name="sourceImageId"
+          label="源图 sourceImageId（可选）"
+          placeholder="files.id 或 product_images.id（UUID）"
+          extra="填写后可使用本地/云端非公网源图；与源图 URL 二选一或同时提供（优先按 ID 解析）。"
+        />
+        <ProFormDependency name={['taskType', 'provider', 'sourceImageId']}>
+          {(dep: { taskType?: string; provider?: string; sourceImageId?: string }) => {
             const tt = dep.taskType ?? '';
             const p = String(dep.provider ?? '')
               .trim()
@@ -426,7 +434,9 @@ export default function ImageTasksPage() {
                 extra={
                   optionalSrc
                     ? 'OpenAI / ComfyUI 场景可不填；有参考图时请填公网可访问 URL，或在商品详情用「商品图」创建'
-                    : '请填写可从公网抓取的可访问 HTTPS 图像地址（remove.bg 等必填）'
+                    : tt === 'remove_background'
+                      ? '可选：须公网可访问的直链；或使用上方的 sourceImageId（推荐本地/存储图）。'
+                      : '请填写可从公网抓取的可访问 HTTPS 图像地址'
                 }
                 rules={[
                   {
@@ -434,8 +444,15 @@ export default function ImageTasksPage() {
                       if (optionalSrc) {
                         return Promise.resolve();
                       }
+                      const id = String(dep.sourceImageId ?? '').trim();
+                      if (tt === 'remove_background' && id) {
+                        return Promise.resolve();
+                      }
                       if (String(val ?? '').trim()) {
                         return Promise.resolve();
+                      }
+                      if (tt === 'remove_background') {
+                        return Promise.reject(new Error('请填写源图 URL 或 sourceImageId'));
                       }
                       return Promise.reject(new Error('请填写可访问的源图 URL'));
                     },
