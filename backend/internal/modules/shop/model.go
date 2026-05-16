@@ -11,21 +11,21 @@ import (
 // Shop is a unified storefront record (channels are not duplicated per table).
 type Shop struct {
 	model.Base
-	TenantID         int64          `gorm:"default:0;index" json:"tenantId"`
-	Platform         string         `gorm:"size:32;index;not null" json:"platform"`
-	ShopName         string         `gorm:"size:255;not null" json:"shopName"`
-	ShopCode         string         `gorm:"size:128;index" json:"shopCode,omitempty"`
-	ExternalShopID   string         `gorm:"size:255;index" json:"externalShopId,omitempty"`
-	Status           string         `gorm:"size:32;index;not null" json:"status"`
-	AuthStatus       string         `gorm:"size:32;index;not null" json:"authStatus"`
-	Region           string         `gorm:"size:64" json:"region,omitempty"`
-	Currency         string         `gorm:"size:16" json:"currency,omitempty"`
-	Timezone         string         `gorm:"size:128" json:"timezone,omitempty"`
-	DefaultLanguage  string         `gorm:"size:32" json:"defaultLanguage,omitempty"`
-	Capabilities     datatypes.JSON `gorm:"type:jsonb" json:"capabilities,omitempty"`
-	PlatformConfig   datatypes.JSON `gorm:"type:jsonb" json:"platformConfig,omitempty"`
-	Remark           string         `gorm:"type:text" json:"remark,omitempty"`
-	CreatedBy        *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	TenantID        int64          `gorm:"default:0;index" json:"tenantId"`
+	Platform        string         `gorm:"size:32;index;not null" json:"platform"`
+	ShopName        string         `gorm:"size:255;not null" json:"shopName"`
+	ShopCode        string         `gorm:"size:128;index" json:"shopCode,omitempty"`
+	ExternalShopID  string         `gorm:"size:255;index" json:"externalShopId,omitempty"`
+	Status          string         `gorm:"size:32;index;not null" json:"status"`
+	AuthStatus      string         `gorm:"size:32;index;not null" json:"authStatus"`
+	Region          string         `gorm:"size:64" json:"region,omitempty"`
+	Currency        string         `gorm:"size:16" json:"currency,omitempty"`
+	Timezone        string         `gorm:"size:128" json:"timezone,omitempty"`
+	DefaultLanguage string         `gorm:"size:32" json:"defaultLanguage,omitempty"`
+	Capabilities    datatypes.JSON `gorm:"type:jsonb" json:"capabilities,omitempty"`
+	PlatformConfig  datatypes.JSON `gorm:"type:jsonb" json:"platformConfig,omitempty"`
+	Remark          string         `gorm:"type:text" json:"remark,omitempty"`
+	CreatedBy       *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 }
 
 func (Shop) TableName() string { return "shops" }
