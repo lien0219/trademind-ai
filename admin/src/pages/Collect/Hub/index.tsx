@@ -26,6 +26,7 @@ function batchRowDisabledForProvider(p: CollectProviderRow): boolean {
 function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefined {
   if (!providerRunnableForSingleTask(p.status)) return '当前版本暂未开放';
   if (!p.batchSupported) {
+    if (p.source === 'custom') return '自定义采集器暂不支持批量';
     return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
   }
   return undefined;

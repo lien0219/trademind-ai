@@ -5,6 +5,8 @@ import type { NormalizedProduct } from '../types/product.js';
 /** 单次采集入参 */
 export type CollectInput = {
   url: string;
+  /** Provider-specific payload（例如 custom：后端下发的 rule） */
+  options?: Record<string, unknown>;
 };
 
 /**

@@ -106,21 +106,3 @@ export const sourceSheinTemuProvider: CollectorProvider = {
   collect: notImplemented('SHEIN/Temu采集器暂未实现'),
 };
 
-/** 自定义链接：占位，后续规则化抽取 */
-export const sourceCustomProvider: CollectorProvider = {
-  sourceId: 'custom',
-  meta: {
-    name: '自定义链接采集器',
-    description:
-      '后续支持通过 CSS 选择器、JSON-LD、OpenGraph 等自动抽取通用商品信息（占位）。当前版本暂未开放采集执行。',
-    status: 'planned',
-    batchSupported: false,
-    urlPatterns: ['https://… 任意公有商品详情页链接'],
-    features: [],
-    notes: '',
-  },
-  canHandle(url: string): boolean {
-    return isHttpUrl(url) && url.length >= 12 && url.length <= 8192;
-  },
-  collect: notImplemented('自定义链接采集器暂未实现'),
-};

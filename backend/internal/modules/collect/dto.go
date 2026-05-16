@@ -9,8 +9,9 @@ import (
 
 // CreateTaskBody binds POST /collect/tasks.
 type CreateTaskBody struct {
-	Source string `json:"source"`
-	URL    string `json:"url"`
+	Source string  `json:"source"`
+	URL    string  `json:"url"`
+	RuleID *string `json:"ruleId,omitempty"`
 }
 
 // CreateBatchBody binds POST /collect/batches.
@@ -88,6 +89,7 @@ type TaskDTO struct {
 	ErrorMessage    string          `json:"errorMessage,omitempty"`
 	RetryCount      int             `json:"retryCount"`
 	MaxRetries      int             `json:"maxRetries"`
+	RequestOptions  json.RawMessage `json:"requestOptions,omitempty"`
 	NextRetryAt     *time.Time      `json:"nextRetryAt,omitempty"`
 	RetryEnqueuedAt *time.Time      `json:"retryEnqueuedAt,omitempty"`
 	CreatedBy       *uuid.UUID      `json:"createdBy,omitempty"`
@@ -111,6 +113,10 @@ func taskToDTO(t *CollectTask) TaskDTO {
 	if len(t.RawResult) > 0 {
 		raw = json.RawMessage(t.RawResult)
 	}
+	var reqOpts json.RawMessage
+	if len(t.RequestOptions) > 0 {
+		reqOpts = json.RawMessage(t.RequestOptions)
+	}
 	return TaskDTO{
 		ID:              t.ID,
 		BatchID:         t.BatchID,
@@ -122,6 +128,7 @@ func taskToDTO(t *CollectTask) TaskDTO {
 		ErrorMessage:    t.ErrorMessage,
 		RetryCount:      t.RetryCount,
 		MaxRetries:      t.MaxRetries,
+		RequestOptions:  reqOpts,
 		NextRetryAt:     t.NextRetryAt,
 		RetryEnqueuedAt: t.RetryEnqueuedAt,
 		CreatedBy:       t.CreatedBy,

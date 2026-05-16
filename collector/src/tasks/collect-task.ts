@@ -20,6 +20,7 @@ export type CollectTaskResult = CollectTaskSuccess | CollectTaskFailure;
 
 function mapPrefixedError(msg: string): { code: CollectTaskErrorCode; message: string } | null {
   const prefixes: { p: string; code: CollectTaskErrorCode }[] = [
+    { p: 'INVALID_REQUEST:', code: 'INVALID_REQUEST' },
     { p: 'PROVIDER_NOT_IMPLEMENTED:', code: 'PROVIDER_NOT_IMPLEMENTED' },
     { p: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
     { p: 'INVALID_URL:', code: 'INVALID_URL' },
@@ -39,7 +40,7 @@ function mapPrefixedError(msg: string): { code: CollectTaskErrorCode; message: s
  * 采集任务入口：校验 source → 选择 Provider → 执行 collect（不写库，仅返回结构化 JSON）。
  */
 export async function runCollectTask(
-  input: { source: string; url: string },
+  input: { source: string; url: string; options?: Record<string, unknown> },
   browser: BrowserManager,
 ): Promise<CollectTaskResult> {
   const source = input.source?.trim();
@@ -70,7 +71,7 @@ export async function runCollectTask(
   }
 
   try {
-    const product = await provider.collect(browser, { url });
+    const product = await provider.collect(browser, { url, options: input.options });
     return { status: 'success', product };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

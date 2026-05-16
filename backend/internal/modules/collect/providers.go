@@ -84,11 +84,11 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 		{
 			Source:         "custom",
 			Name:           "自定义链接采集器",
-			Description:    "后续支持通过 CSS 选择器、JSON-LD、OpenGraph 等自动抽取通用商品信息。当前版本暂未开放采集执行。",
-			Status:         "planned",
+			Description:    "通过用户配置的选择器规则采集通用商品页（CSS Selector / JSON-LD / OpenGraph / Meta）。",
+			Status:         "beta",
 			BatchSupported: false,
-			URLPatterns:    []string{"https://… 任意公有商品详情页链接"},
-			Features:       nil,
+			URLPatterns:    []string{"https://example.com/product/..."},
+			Features:       []string{"title", "mainImages", "descriptionImages", "attributes"},
 			Notes:          "",
 		},
 	}

@@ -2,12 +2,12 @@ import type { CollectorProvider } from './collector-provider.js';
 import { aliExpressCollectorProvider } from './sourceAliExpress/index.js';
 import { alibaba1688Provider } from './source1688/alibaba-1688.js';
 import {
-  sourceCustomProvider,
   sourcePddProvider,
   sourceSheinTemuProvider,
   sourceTaobaoProvider,
 } from './stub/placeholders.js';
 import type { CollectProviderPublic } from '../types/provider-meta.js';
+import { sourceCustomCollectorProvider } from './sourceCustom/index.js';
 
 const providers: CollectorProvider[] = [
   alibaba1688Provider,
@@ -15,7 +15,7 @@ const providers: CollectorProvider[] = [
   sourceTaobaoProvider,
   aliExpressCollectorProvider,
   sourceSheinTemuProvider,
-  sourceCustomProvider,
+  sourceCustomCollectorProvider,
 ];
 
 const bySource = new Map<string, CollectorProvider>(

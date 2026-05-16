@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Link, useLocation } from '@umijs/max';
-import { Button, Form, Input, Select, message, Tag } from 'antd';
+import { Alert, Button, Form, Input, Select, Tag, message } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
@@ -14,6 +14,8 @@ import {
   retryCollectTask,
   type CollectTaskRow,
 } from '@/services/collectTasks';
+import type { CollectRuleRow } from '@/services/collectRules';
+import { queryCollectRules } from '@/services/collectRules';
 
 function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
@@ -33,13 +35,14 @@ export default function CollectTasksPage() {
   }, [location.search]);
 
   const actionRef = useRef<ActionType>();
-  const [form] = Form.useForm<{ source: string; url: string }>();
+  const [form] = Form.useForm<{ source: string; url: string; ruleId?: string }>();
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(4000);
   const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
   const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
 
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
+  const [enabledRules, setEnabledRules] = useState<CollectRuleRow[]>([]);
   const formSource = Form.useWatch('source', form);
 
   useEffect(() => {
@@ -61,6 +64,21 @@ export default function CollectTasksPage() {
   }, []);
 
   useEffect(() => {
+    if (formSource !== 'custom') {
+      setEnabledRules([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const res = await queryCollectRules({ page: 1, pageSize: 500, status: 'enabled' });
+        setEnabledRules(res.list ?? []);
+      } catch {
+        setEnabledRules([]);
+      }
+    })();
+  }, [formSource]);
+
+  useEffect(() => {
     actionRef.current?.reload();
   }, [batchIdFromQuery]);
 
@@ -77,6 +95,7 @@ export default function CollectTasksPage() {
     form.setFieldsValue({
       source: picked,
       url: form.getFieldValue('url') ?? '',
+      ...(picked !== 'custom' ? { ruleId: undefined } : {}),
     });
   }, [providers, sourceFromQuery, form]);
 
@@ -255,6 +274,14 @@ export default function CollectTasksPage() {
       }
     >
       <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
+        {formSource === 'custom' ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="未选择规则时，系统会尝试按域名匹配启用规则。"
+          />
+        ) : null}
         <Form
           form={form}
           layout="inline"
@@ -273,7 +300,12 @@ export default function CollectTasksPage() {
             }
             setSubmitting(true);
             try {
-              await createCollectTask({ source: src, url });
+              const rid = vals.ruleId?.trim();
+              await createCollectTask({
+                source: src,
+                url,
+                ...(src === 'custom' ? { ruleId: rid || undefined } : {}),
+              });
               message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
             } catch (e) {
@@ -290,6 +322,19 @@ export default function CollectTasksPage() {
           >
             <Select style={{ width: 220 }} options={providerSelectOptions} placeholder="选择采集器" />
           </Form.Item>
+          {formSource === 'custom' ? (
+            <Form.Item label="规则" name="ruleId">
+              <Select
+                allowClear
+                placeholder="可选：指定 ruleId"
+                style={{ width: 280 }}
+                options={enabledRules.map((r) => ({
+                  label: `${r.name}（${r.domain} · p${r.priority}）`,
+                  value: r.id,
+                }))}
+              />
+            </Form.Item>
+          ) : null}
           <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
             <Input style={{ width: 480, maxWidth: '100%' }} placeholder={placeholderUrl} />
           </Form.Item>

@@ -13,6 +13,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -23,6 +24,7 @@ import (
 type Service struct {
 	DB                      *gorm.DB
 	Products                *product.Service
+	Rules                   *collectrule.Service
 	OpLog                   *operationlog.Service
 	Client                  *CollectorClient
 	Redis                   *rdb.Client
@@ -252,7 +254,38 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 	})
 	s.reconcileCollectBatch(ctx, task.BatchID)
 
-	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL)
+	var collectorOpts map[string]any
+	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
+		var snap struct {
+			RuleID       string          `json:"ruleId"`
+			RuleName     string          `json:"ruleName"`
+			Domain       string          `json:"domain"`
+			MatchPattern string          `json:"matchPattern"`
+			Rule         json.RawMessage `json:"rule"`
+		}
+		if len(task.RequestOptions) == 0 {
+			s.failTask(ctx, &task, prevStatus, "missing custom rule snapshot", nil)
+			return
+		}
+		if err := json.Unmarshal(task.RequestOptions, &snap); err != nil || len(snap.Rule) == 0 {
+			s.failTask(ctx, &task, prevStatus, "invalid custom rule snapshot", nil)
+			return
+		}
+		var ruleObj any
+		if err := json.Unmarshal(snap.Rule, &ruleObj); err != nil {
+			s.failTask(ctx, &task, prevStatus, "invalid embedded rule json", nil)
+			return
+		}
+		collectorOpts = map[string]any{
+			"ruleId":       snap.RuleID,
+			"ruleName":     snap.RuleName,
+			"domain":       snap.Domain,
+			"matchPattern": snap.MatchPattern,
+			"rule":         ruleObj,
+		}
+	}
+
+	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL, collectorOpts)
 	if err != nil {
 		s.handleCollectJobError(ctx, &task, err)
 		return
@@ -317,6 +350,21 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 	}
 }
 
+func parseOptionalRuleID(p *string) (*uuid.UUID, error) {
+	if p == nil {
+		return nil, nil
+	}
+	t := strings.TrimSpace(*p)
+	if t == "" {
+		return nil, nil
+	}
+	u, err := uuid.Parse(t)
+	if err != nil || u == uuid.Nil {
+		return nil, fmt.Errorf("invalid ruleId")
+	}
+	return &u, nil
+}
+
 func requestIDFromGin(c *gin.Context) string {
 	if c == nil {
 		return ""
@@ -350,12 +398,33 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		return zero, err
 	}
 
+	var reqOpts datatypes.JSON
+	if strings.EqualFold(strings.TrimSpace(source), "custom") {
+		if s.Rules == nil {
+			return zero, fmt.Errorf("custom collect rules unavailable")
+		}
+		explicitID, err := parseOptionalRuleID(body.RuleID)
+		if err != nil {
+			return zero, err
+		}
+		rule, err := s.Rules.ResolveEnabledRuleForCustom(c.Request.Context(), url, explicitID)
+		if err != nil {
+			return zero, err
+		}
+		blob, err := s.Rules.BuildTaskPayload(rule)
+		if err != nil {
+			return zero, err
+		}
+		reqOpts = blob
+	}
+
 	task := &CollectTask{
-		Source:     source,
-		SourceURL:  url,
-		Status:     StatusPending,
-		MaxRetries: s.defaultMaxRetriesForNewTask(),
-		CreatedBy:  adminID,
+		Source:         source,
+		SourceURL:      url,
+		Status:         StatusPending,
+		MaxRetries:     s.defaultMaxRetriesForNewTask(),
+		CreatedBy:      adminID,
+		RequestOptions: reqOpts,
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(task).Error; err != nil {
 		return zero, err

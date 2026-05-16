@@ -65,7 +65,7 @@ export async function fetchCollectTask(id: string) {
   return getJSON<CollectTaskRow>(`/api/v1/collect/tasks/${id}`);
 }
 
-export async function createCollectTask(body: { source: string; url: string }) {
+export async function createCollectTask(body: { source: string; url: string; ruleId?: string }) {
   return postJSON<CollectTaskRow>('/api/v1/collect/tasks', body);
 }
 

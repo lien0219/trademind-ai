@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
@@ -26,6 +28,18 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
+
+type collectRunnerAdapter struct {
+	c *collect.CollectorClient
+}
+
+func (a collectRunnerAdapter) RunCollect(ctx context.Context, source, rawURL string, options map[string]any) (json.RawMessage, error) {
+	out, err := a.c.Collect(ctx, source, rawURL, options)
+	if err != nil {
+		return nil, err
+	}
+	return out.ProductJSON, nil
+}
 
 // Deps holds process-wide dependencies for HTTP handlers.
 type Deps struct {
@@ -71,6 +85,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	}
 	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout)
 
+	collectRuleSvc := &collectrule.Service{
+		DB:          dep.DB,
+		OpLog:       opLogSvc,
+		Runner:      collectRunnerAdapter{c: collectorClient},
+		TestTimeout: collectorTimeout,
+	}
+
 	promptSvc := &aiprompt.Service{DB: dep.DB}
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 	aiTaskSvc := &aitask.Service{DB: dep.DB}
@@ -113,6 +134,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	collectSvc := &collect.Service{
 		DB:       dep.DB,
 		Products: productSvc,
+		Rules:    collectRuleSvc,
 		OpLog:    opLogSvc,
 		Client:   collectorClient,
 		Redis:    dep.Redis,
@@ -128,6 +150,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 		collectSvc.RetryMaxDelaySec = dep.Config.CollectRetryMaxDelaySeconds
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
+	collectRuleH := &collectrule.Handler{Svc: collectRuleSvc}
 
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc}
 	orderH := &order.Handler{Svc: orderSvc}
@@ -169,6 +192,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
+	collectrule.Register(authed, collectRuleH)
 	order.Register(authed, orderH)
 	customerchat.Register(authed, customerChatH)
 	return collectSvc, imageTaskSvc

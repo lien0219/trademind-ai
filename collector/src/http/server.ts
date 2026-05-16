@@ -60,9 +60,9 @@ export function createCollectorServer(browser: BrowserManager) {
           });
           return;
         }
-        const b = body as { source?: string; url?: string };
+        const b = body as { source?: string; url?: string; options?: Record<string, unknown> };
         const result = await runCollectTask(
-          { source: b.source ?? '', url: b.url ?? '' },
+          { source: b.source ?? '', url: b.url ?? '', options: b.options },
           browser,
         );
         if (result.status === 'success') {

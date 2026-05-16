@@ -85,9 +85,9 @@ export default [
         component: './Collect/Hub',
       },
       {
-        path: '/collect/tasks',
-        name: '采集任务',
-        component: './Collect/Tasks',
+        path: '/collect/rules',
+        name: '采集规则',
+        component: './Collect/Rules',
       },
       {
         path: '/collect/batches',

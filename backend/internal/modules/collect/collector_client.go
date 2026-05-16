@@ -64,7 +64,7 @@ type CollectOutcome struct {
 }
 
 // Collect invokes POST /v1/collect and returns normalized product JSON on success.
-func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string) (*CollectOutcome, error) {
+func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string, options map[string]any) (*CollectOutcome, error) {
 	if c == nil || c.Client == nil {
 		return nil, fmt.Errorf("collector client unavailable")
 	}
@@ -72,9 +72,12 @@ func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string) (*
 		return nil, fmt.Errorf("collector base url is empty")
 	}
 
-	body := map[string]string{
+	body := map[string]any{
 		"source": strings.TrimSpace(source),
 		"url":    strings.TrimSpace(rawURL),
+	}
+	if len(options) > 0 {
+		body["options"] = options
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
