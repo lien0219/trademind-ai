@@ -39,6 +39,7 @@
 - 所有 API 返回结构统一：{ code, message, data }。
 - 所有敏感配置必须加密存储。
 - 日志禁止输出完整 API Key、Token、Secret、密码、Cookie。
+- **Go 格式**：修改或新增 `backend/**/*.go` 后，在 `backend` 目录执行 **`go fmt ./...`** 再提交；CI 使用 **`gofmt -l`** 检查，未格式化会失败（细则见 `.cursor/rules/02-backend-go-gin.mdc`）。
 
 ## 前端规则
 

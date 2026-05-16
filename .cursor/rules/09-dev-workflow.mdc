@@ -113,6 +113,7 @@ alwaysApply: true
 7. 涉及密钥时，必须走加密和脱敏。
 8. 涉及 AI 时，必须走 AI Gateway + Prompt 模板。
 9. 涉及存储时，必须走 Storage Provider。
+10. **修改或新增 `backend/**/*.go` 时**：收尾前在 **`backend` 目录执行 `go fmt ./...`**（与 CI `gofmt -l` 一致）；细则见 **`.cursor/rules/02-backend-go-gin.mdc`** 中 **「gofmt 与 CI」**。
 
 ## 不要过度设计
 
