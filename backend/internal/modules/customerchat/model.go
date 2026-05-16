@@ -21,6 +21,7 @@ type CustomerConversation struct {
 	CustomerLanguage       string     `gorm:"size:32;default:en;not null" json:"customerLanguage"`
 	Status                 string     `gorm:"size:32;index;not null" json:"status"`
 	LastMessageAt          *time.Time `json:"lastMessageAt,omitempty"`
+	OrderID                *uuid.UUID `gorm:"type:char(36);index" json:"orderId,omitempty"`
 	CreatedBy              *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -25,6 +26,7 @@ type Service struct {
 	AITasks   *aitask.Service
 	AIGateway *aigate.Gateway
 	OpLog     *operationlog.Service
+	Orders    *order.Service
 }
 
 // --- list ---
@@ -249,13 +251,15 @@ type ConversationDetailDTO struct {
 	CustomerAvatar         string     `json:"customerAvatar,omitempty"`
 	CustomerLanguage       string     `json:"customerLanguage"`
 	Status                 string     `json:"status"`
-	LastMessageAt          *time.Time `json:"lastMessageAt,omitempty"`
-	CreatedBy              *uuid.UUID `json:"createdBy,omitempty"`
+	LastMessageAt          *time.Time                      `json:"lastMessageAt,omitempty"`
+	OrderID                *uuid.UUID                      `json:"orderId,omitempty"`
+	OrderSummary           *order.ConversationOrderSummary `json:"orderSummary,omitempty"`
+	CreatedBy              *uuid.UUID                      `json:"createdBy,omitempty"`
 	CreatedAt              time.Time  `json:"createdAt"`
 	UpdatedAt              time.Time  `json:"updatedAt"`
 }
 
-func convToDTO(r *CustomerConversation) *ConversationDetailDTO {
+func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary) *ConversationDetailDTO {
 	if r == nil {
 		return nil
 	}
@@ -269,6 +273,8 @@ func convToDTO(r *CustomerConversation) *ConversationDetailDTO {
 		CustomerLanguage:       r.CustomerLanguage,
 		Status:                 r.Status,
 		LastMessageAt:          r.LastMessageAt,
+		OrderID:                r.OrderID,
+		OrderSummary:           sum,
 		CreatedBy:              r.CreatedBy,
 		CreatedAt:              r.CreatedAt,
 		UpdatedAt:              r.UpdatedAt,
@@ -283,7 +289,14 @@ func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDe
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	return convToDTO(&row), nil
+	var sum *order.ConversationOrderSummary
+	if row.OrderID != nil && s.Orders != nil {
+		got, err := s.Orders.ConversationSummary(c, *row.OrderID)
+		if err == nil && got != nil {
+			sum = got
+		}
+	}
+	return convToDTO(&row, sum), nil
 }
 
 // UpdateConversationBody PUT
@@ -291,6 +304,7 @@ type UpdateConversationBody struct {
 	CustomerName     *string `json:"customerName"`
 	CustomerLanguage *string `json:"customerLanguage"`
 	Status           *string `json:"status"`
+	OrderID          *string `json:"orderId"`
 }
 
 func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateConversationBody, adminID *uuid.UUID) (*ConversationDetailDTO, error) {
@@ -302,6 +316,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 		return nil, err
 	}
 	prevStatus := row.Status
+	prevOrderIDStr := uuidToStrPtr(row.OrderID)
 	if body.CustomerName != nil {
 		v := strings.TrimSpace(*body.CustomerName)
 		if v == "" {
@@ -323,6 +338,43 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 		}
 		row.Status = st
 	}
+
+	if body.OrderID != nil {
+		raw := strings.TrimSpace(*body.OrderID)
+		if raw == "" {
+			row.OrderID = nil
+		} else {
+			u, err := uuid.Parse(raw)
+			if err != nil {
+				return nil, fmt.Errorf("invalid orderId")
+			}
+			if s.Orders == nil || s.Orders.DB == nil {
+				return nil, fmt.Errorf("order service unavailable")
+			}
+			var exists int64
+			if err := s.Orders.DB.WithContext(c.Request.Context()).Model(&order.Order{}).Where("id = ?", u).Count(&exists).Error; err != nil {
+				return nil, err
+			}
+			if exists == 0 {
+				return nil, fmt.Errorf("order not found")
+			}
+			row.OrderID = &u
+		}
+		newStr := uuidToStrPtr(row.OrderID)
+		if prevOrderIDStr != newStr && s.OpLog != nil {
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminID,
+				Action:      "customer.conversation.link_order",
+				Resource:    "customer_conversation",
+				ResourceID:  row.ID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("conversationId=%s orderId=%s", row.ID.String(), strOrDash(newStr)),
+			})
+		}
+	}
+
+	metaChanged := body.CustomerName != nil || body.CustomerLanguage != nil || body.Status != nil
+
 	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
 		return nil, err
 	}
@@ -337,7 +389,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 				Status:      "success",
 				Message:     fmt.Sprintf("conversationId=%s", row.ID.String()),
 			})
-		} else {
+		} else if metaChanged {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
 				Action:      "customer.conversation.update",
@@ -348,7 +400,29 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 			})
 		}
 	}
-	return convToDTO(&row), nil
+
+	var sum *order.ConversationOrderSummary
+	if row.OrderID != nil && s.Orders != nil {
+		got, err := s.Orders.ConversationSummary(c, *row.OrderID)
+		if err == nil && got != nil {
+			sum = got
+		}
+	}
+	return convToDTO(&row, sum), nil
+}
+
+func uuidToStrPtr(id *uuid.UUID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
+}
+
+func strOrDash(id string) string {
+	if strings.TrimSpace(id) == "" {
+		return "-"
+	}
+	return id
 }
 
 func validConversationStatus(st string) bool {

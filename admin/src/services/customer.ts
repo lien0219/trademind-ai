@@ -13,6 +13,29 @@ export type ConversationRow = {
   latestMessage?: string;
 };
 
+export type ConversationOrderShipment = {
+  carrier: string;
+  trackingNo: string;
+  trackingUrl?: string;
+  status: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+};
+
+export type ConversationOrderSummary = {
+  id: string;
+  orderNo: string;
+  platform: string;
+  status: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  currency: string;
+  totalAmount: number;
+  orderedAt?: string;
+  latestShipmentStatus?: string;
+  shipments?: ConversationOrderShipment[];
+};
+
 export type ConversationDetail = {
   id: string;
   platform: string;
@@ -26,6 +49,8 @@ export type ConversationDetail = {
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
+  orderId?: string;
+  orderSummary?: ConversationOrderSummary | null;
 };
 
 export type CustomerMessageRow = {
@@ -91,7 +116,7 @@ export async function getConversation(id: string): Promise<ConversationDetail> {
 
 export async function updateConversation(
   id: string,
-  payload: { customerName?: string; customerLanguage?: string; status?: string },
+  payload: { customerName?: string; customerLanguage?: string; status?: string; orderId?: string },
 ): Promise<ConversationDetail> {
   return putJSON(`/api/v1/customer/conversations/${id}`, payload);
 }

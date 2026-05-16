@@ -24,7 +24,10 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 	if err := ensureProductDescriptionGenerate(ctx, db); err != nil {
 		return err
 	}
-	return ensureCustomerReplyGenerate(ctx, db)
+	if err := ensureCustomerReplyGenerate(ctx, db); err != nil {
+		return err
+	}
+	return migrateCustomerReplyGenerateOrderContext(ctx, db)
 }
 
 func ensureProductTitleOptimize(ctx context.Context, db *gorm.DB) error {
@@ -146,7 +149,7 @@ Reply with JSON only using the schema from the system message.`)
 	return db.WithContext(ctx).Create(row).Error
 }
 
-func ensureCustomerReplyGenerate(ctx context.Context, db *gorm.DB) error {
+func builtinCustomerReplyGenerate() (string, string, datatypes.JSON) {
 	schema, _ := json.Marshal(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -159,29 +162,42 @@ func ensureCustomerReplyGenerate(ctx context.Context, db *gorm.DB) error {
 		"required": []string{"reply", "intent", "sentiment", "riskLevel", "notes"},
 	})
 	defaultSys := strings.TrimSpace(`You are a professional cross-border e-commerce customer support assistant.
-Return ONLY valid JSON (no markdown fences) with keys: reply (string), intent (string), sentiment (string), riskLevel ("low"|"medium"|"high"), notes (short string for internal staff; same language as reply when possible).
+Return ONLY valid JSON (no markdown fences) with keys: reply (string), intent (string), sentiment (string), riskLevel ("low"|"medium"|"high"), notes (short internal note for reviewers; mirrors reply language best-effort).
 
-Safety and policy rules (non-negotiable):
-- Be polite, clear, and professional; assume marketplace messaging constraints.
-- Do NOT invent order status, tracking numbers, refund outcomes, or compensation amounts.
-- Do NOT promise refunds, payouts, replacements, or fixed delivery times unless explicitly confirmed in the provided facts (there are none for order state in this MVP — stay neutral).
-- For refunds, chargebacks, negative reviews, complaints, platform disputes, or lost parcels, escalate: set riskLevel to at least "medium" unless clearly informational, and use notes to ask a human to confirm next steps.
-- Default writing language should follow the "Target language" in the user message; if unclear, mirror the customer's message language from the context.
-- Keep reply concise and suitable for chat/email; no internal jargon in "reply".`)
-	defaultUser := strings.TrimSpace(`Draft a suggested customer reply and analysis.
+Non-negotiable safety:
+- Be polite and professional within marketplace messaging limits.
+- Use ONLY factual blocks provided as JSON strings {{orderInfo}}, {{orderItems}}, {{shipmentInfo}} plus legacy {{productInfo}} (may be blank) plus {{conversationHistory}}/{{customerMessage}}. Treat empty JSON objects / arrays / unknown / missing shipment rows as UNKNOWN — NEVER invent status, SKU colors/sizes, inventory, payouts, timelines, refunds, replacements, disputes outcomes, parcel locations, carriers, tracking numbers beyond what shipments JSON states.
+- If shipmentInfo empty or lacks carrier plus tracking identifiers, NEVER claim dispatched/in-transit/delivered; explain what remains unknown politely.
+- Contradictions or ambiguity among order/payment/shipment payloads → disclose uncertainty succinctly inside reply and escalate in notes toward human oversight.
+- If customers mention refunds, payouts, replacements, lawsuits, regulators, harassment, counterfeit claims, wrong shipments, blacklist requests, or similar escalate risk appropriately (prefer at least medium; high for chargebacks/legal threats). Never promise automatic outcomes unless facts explicitly confirm settlement.
+- Do NOT leak or guess customer emails/phones/addresses in reply.
+- No automated commitments for refunds/reships/compensation timelines unless facts prove them.
+- Prefer the declared Target reply language; mirror shopper wording when ambiguous.
+- "reply" must stay concise for chat/email; NEVER paste raw JSON or internal jargon.`)
+	defaultUser := strings.TrimSpace(`Produce a shopper-facing suggestion plus reviewer metadata.
 
-Context:
-- Primary customer message: {{customerMessage}}
-- Recent conversation (oldest→newest, truncated): {{conversationHistory}}
-- Product / order facts (if any; may be empty): {{productInfo}}
+Facts:
+- Customer message focus: {{customerMessage}}
+- Conversation timeline (truncated oldest→newest upstream): {{conversationHistory}}
+- Legacy free-form merchandise notes (optional): {{productInfo}}
+- Order snapshot JSON (possibly "{}" — never invent absent keys): {{orderInfo}}
+- Line items snapshot (possibly "[]" — SKU attributes only from attrs): {{orderItems}}
+- Logistics snapshots (possibly "[]" — NEVER invent shipped/in-transit without evidence): {{shipmentInfo}}
+- Conversation profile JSON (language/platform/order cues; excludes email/phone): {{customerProfile}}
 
-Constraints:
-- Target language for the reply: {{language}}
-- Tone: {{tone}}
-- Selling / listing platform context: {{platform}}
-- Shop policy notes (optional, may be empty): {{shopPolicy}}
+Operational constraints:
+- Reply language preference: {{language}}
+- Desired tone keyword: {{tone}}
+- Selling platform label: {{platform}}
+- Merchant policy excerpts (may be blank): {{shopPolicy}}
 
-Reply with JSON only.`)
+Respond with JSON envelope only.`)
+
+	return defaultSys, defaultUser, datatypes.JSON(schema)
+}
+
+func ensureCustomerReplyGenerate(ctx context.Context, db *gorm.DB) error {
+	defaultSys, defaultUser, schema := builtinCustomerReplyGenerate()
 
 	var count int64
 	if err := db.WithContext(ctx).Model(&AIPrompt{}).Where("code = ?", CodeCustomerReplyGenerate).Count(&count).Error; err != nil {
@@ -198,10 +214,34 @@ Reply with JSON only.`)
 		Model:        "",
 		SystemPrompt: defaultSys,
 		UserPrompt:   defaultUser,
-		OutputSchema: datatypes.JSON(schema),
+		OutputSchema: schema,
 		Temperature:  0.35,
 		MaxTokens:    1200,
 		Enabled:      true,
 	}
 	return db.WithContext(ctx).Create(row).Error
+}
+
+func migrateCustomerReplyGenerateOrderContext(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	var row AIPrompt
+	if err := db.WithContext(ctx).Where("code = ?", CodeCustomerReplyGenerate).First(&row).Error; err != nil {
+		return nil
+	}
+	if strings.Contains(row.UserPrompt, "{{orderInfo}}") || strings.Contains(row.UserPrompt, "{{customerProfile}}") {
+		return nil
+	}
+	if !strings.Contains(row.UserPrompt, "Product / order facts (if any; may be empty): {{productInfo}}") {
+		return nil
+	}
+	if !strings.Contains(row.SystemPrompt, "there are none for order state in this MVP") {
+		return nil
+	}
+	sys, usr, schema := builtinCustomerReplyGenerate()
+	row.SystemPrompt = sys
+	row.UserPrompt = usr
+	row.OutputSchema = schema
+	return db.WithContext(ctx).Save(&row).Error
 }

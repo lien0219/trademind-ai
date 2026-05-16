@@ -9,16 +9,24 @@ import {
   Input,
   List,
   message,
+  Modal,
   Row,
   Select,
   Space,
   Spin,
   Tag,
   Typography,
+  Alert,
 } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
+import {
+  CUSTOMER_CONVERSATION_STATUS,
+  ORDER_FULFILLMENT_STATUS,
+  ORDER_PAYMENT_STATUS,
+  ORDER_SHIPMENT_STATUS,
+  ORDER_STATUS,
+} from '@/constants/status';
 import {
   acceptReplySuggestion,
   createMessage,
@@ -26,11 +34,19 @@ import {
   generateCustomerReply,
   getConversation,
   queryMessages,
+  updateConversation,
   updateReplySuggestion,
   type ConversationDetail,
   type CustomerMessageRow,
   type GenerateReplyResult,
 } from '@/services/customer';
+import { queryOrders, type OrderListRow } from '@/services/orders';
+
+function mapBizStatus(raw: string, dictionary: Record<string, { text: string; color: string }>) {
+  const k = dictionary[raw as keyof typeof dictionary];
+  if (!k) return <Tag>{raw}</Tag>;
+  return <Tag color={k.color as never}>{k.text}</Tag>;
+}
 
 function riskTag(level: string) {
   const l = (level || '').toLowerCase();
@@ -57,6 +73,12 @@ export default function CustomerConversationDetailPage() {
   const [aiMeta, setAiMeta] = useState<Omit<GenerateReplyResult, 'suggestionId' | 'taskId'> | null>(null);
   const [editedReply, setEditedReply] = useState('');
 
+  const [orderPickOpen, setOrderPickOpen] = useState(false);
+  const [orderSearchLoading, setOrderSearchLoading] = useState(false);
+  const [orderFilterNo, setOrderFilterNo] = useState('');
+  const [orderFilterName, setOrderFilterName] = useState('');
+  const [orderHits, setOrderHits] = useState<OrderListRow[]>([]);
+
   const loadAll = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -70,6 +92,41 @@ export default function CustomerConversationDetailPage() {
       setLoading(false);
     }
   }, [id]);
+
+  const runOrderSearch = useCallback(async () => {
+    setOrderSearchLoading(true);
+    try {
+      const res = await queryOrders({
+        page: 1,
+        pageSize: 20,
+        orderNo: orderFilterNo.trim() || undefined,
+        customerName: orderFilterName.trim() || undefined,
+      });
+      setOrderHits(res.list || []);
+    } finally {
+      setOrderSearchLoading(false);
+    }
+  }, [orderFilterName, orderFilterNo]);
+
+  const linkOrder = async (orderId: string) => {
+    if (!id) return;
+    await updateConversation(id, { orderId });
+    message.success('已关联订单');
+    setOrderPickOpen(false);
+    loadAll();
+  };
+
+  const unlinkOrder = async () => {
+    if (!id) return;
+    Modal.confirm({
+      title: '取消关联订单？',
+      onOk: async () => {
+        await updateConversation(id, { orderId: '' });
+        message.success('已取消关联');
+        loadAll();
+      },
+    });
+  };
 
   useEffect(() => {
     loadAll();
@@ -186,13 +243,74 @@ export default function CustomerConversationDetailPage() {
     <PageContainer title="AI 客服工作台" onBack={() => history.push('/customer/conversations')}>
       <Spin spinning={loading}>
         {conv && (
-          <Descriptions size="small" column={3} style={{ marginBottom: 16 }}>
-            <Descriptions.Item label="客户">{conv.customerName}</Descriptions.Item>
-            <Descriptions.Item label="platform">{conv.platform}</Descriptions.Item>
-            <Descriptions.Item label="状态">
-              {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
-            </Descriptions.Item>
-          </Descriptions>
+          <>
+            <Descriptions size="small" column={3} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="客户">{conv.customerName}</Descriptions.Item>
+              <Descriptions.Item label="platform">{conv.platform}</Descriptions.Item>
+              <Descriptions.Item label="状态">
+                {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
+              </Descriptions.Item>
+            </Descriptions>
+            <Card size="small" title="关联订单" bordered={false} style={{ marginBottom: 16 }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space wrap>
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      setOrderPickOpen(true);
+                      void runOrderSearch();
+                    }}
+                  >
+                    选择订单
+                  </Button>
+                  {conv.orderId ? (
+                    <Button danger onClick={() => void unlinkOrder()}>
+                      取消关联
+                    </Button>
+                  ) : null}
+                </Space>
+                {conv.orderSummary ? (
+                  <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
+                    <Descriptions.Item label="订单号">{conv.orderSummary.orderNo}</Descriptions.Item>
+                    <Descriptions.Item label="订单状态">
+                      {mapBizStatus(conv.orderSummary.status, ORDER_STATUS)}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="支付">{mapBizStatus(conv.orderSummary.paymentStatus, ORDER_PAYMENT_STATUS)}</Descriptions.Item>
+                    <Descriptions.Item label="履约">{mapBizStatus(conv.orderSummary.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}</Descriptions.Item>
+                    <Descriptions.Item label="订单金额">{`${conv.orderSummary.currency} ${conv.orderSummary.totalAmount}`}</Descriptions.Item>
+                    <Descriptions.Item label="下单时间">
+                      {conv.orderSummary.orderedAt ? dayjs(conv.orderSummary.orderedAt).format('YYYY-MM-DD HH:mm') : '—'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="最新物流状态" span={2}>
+                      {conv.orderSummary.latestShipmentStatus
+                        ? mapBizStatus(conv.orderSummary.latestShipmentStatus, ORDER_SHIPMENT_STATUS)
+                        : '—'}
+                    </Descriptions.Item>
+                    {(conv.orderSummary.shipments?.length ?? 0) > 0 ? (
+                      <Descriptions.Item label="物流明细" span={2}>
+                        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                          {(conv.orderSummary.shipments || []).map((s, i) => (
+                            <div key={i}>
+                              <Typography.Text>
+                                [{mapBizStatus(s.status, ORDER_SHIPMENT_STATUS)}] {s.carrier} · {s.trackingNo || '—'}
+                              </Typography.Text>
+                              {s.trackingUrl ? (
+                                <Typography.Link href={s.trackingUrl} target="_blank" style={{ marginLeft: 8 }}>
+                                  追踪
+                                </Typography.Link>
+                              ) : null}
+                            </div>
+                          ))}
+                        </Space>
+                      </Descriptions.Item>
+                    ) : null}
+                  </Descriptions>
+                ) : (
+                  <Typography.Text type="secondary">未关联手工订单；生成建议时将缺少订单、SKU、物流等结构化上下文。</Typography.Text>
+                )}
+              </Space>
+            </Card>
+          </>
         )}
 
         <Row gutter={[16, 16]}>
@@ -259,6 +377,13 @@ export default function CustomerConversationDetailPage() {
           <Col xs={24} lg={10}>
             <Card title="AI 回复建议" bordered={false}>
               <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="人工审核"
+                  description="AI 回复仅为建议；涉及退款、赔偿、投诉、履约承诺等事项请务必人工确认，勿直接对外生效。"
+                  style={{ width: '100%' }}
+                />
                 <div>
                   <Typography.Text type="secondary">针对客户消息（可选，默认取最近一条 customer）</Typography.Text>
                   <Select
@@ -337,6 +462,63 @@ export default function CustomerConversationDetailPage() {
             </Card>
           </Col>
         </Row>
+
+        <Modal
+          title="选择关联订单（手工录入的订单）"
+          open={orderPickOpen}
+          onCancel={() => setOrderPickOpen(false)}
+          footer={null}
+          width={680}
+          destroyOnClose
+        >
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Input
+              placeholder="订单号筛选"
+              value={orderFilterNo}
+              onChange={(e) => setOrderFilterNo(e.target.value)}
+              style={{ width: 180 }}
+              allowClear
+            />
+            <Input
+              placeholder="客户姓名"
+              value={orderFilterName}
+              onChange={(e) => setOrderFilterName(e.target.value)}
+              style={{ width: 160 }}
+              allowClear
+            />
+            <Button loading={orderSearchLoading} onClick={() => void runOrderSearch()}>
+              查询
+            </Button>
+          </Space>
+          <List<OrderListRow>
+            dataSource={orderHits}
+            loading={orderSearchLoading}
+            locale={{ emptyText: '暂无数据，可先输入条件再查询' }}
+            renderItem={(row) => (
+              <List.Item
+                actions={[
+                  <a key="lnk" onClick={() => void linkOrder(row.id)}>
+                    关联
+                  </a>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={`${row.orderNo} · ${row.customerName}`}
+                  description={
+                    <Space wrap size={8}>
+                      {mapBizStatus(row.status, ORDER_STATUS)}
+                      {mapBizStatus(row.paymentStatus, ORDER_PAYMENT_STATUS)}
+                      {mapBizStatus(row.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}
+                      <Typography.Text type="secondary">
+                        {row.currency} {row.totalAmount}
+                      </Typography.Text>
+                    </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Modal>
       </Spin>
     </PageContainer>
   );

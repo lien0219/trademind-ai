@@ -97,6 +97,12 @@ export default [
     ],
   },
   {
+    path: '/orders',
+    name: '订单',
+    icon: 'ContainerOutlined',
+    component: './Orders',
+  },
+  {
     path: '/customer',
     name: '客服',
     icon: 'CustomerServiceOutlined',

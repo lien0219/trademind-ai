@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -100,6 +101,84 @@ func buildHistoryLines(msgs []CustomerMessage, maxLines int, maxRunePerLine int)
 	return b.String()
 }
 
+func marshalJSONPretty(v any) string {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func adjustCustomerReplyRisk(msg string, o *customerReplyAIOut, cautiousOrder bool) {
+	if o == nil {
+		return
+	}
+	ml := strings.ToLower(msg)
+	cnTriggers := strings.Contains(ml, "退款") || strings.Contains(ml, "赔偿") ||
+		strings.Contains(ml, "投诉") || strings.Contains(ml, "差评") ||
+		strings.Contains(ml, "破损") || strings.Contains(ml, "索赔") ||
+		strings.Contains(msg, "发错货") || strings.Contains(msg, "少发")
+
+	sensitive := cnTriggers ||
+		strings.Contains(ml, "refund") ||
+		strings.Contains(ml, "chargeback") ||
+		strings.Contains(ml, "compensation") ||
+		strings.Contains(ml, "dispute") ||
+		strings.Contains(ml, "complaint") ||
+		strings.Contains(ml, "damaged") ||
+		strings.Contains(ml, "wrong item") ||
+		strings.Contains(ml, "missing item") ||
+		strings.Contains(ml, "lost package") ||
+		strings.Contains(ml, "lost order")
+
+	level := strings.ToLower(strings.TrimSpace(o.RiskLevel))
+	if level != "medium" && level != "high" {
+		level = "low"
+	}
+	if cautiousOrder && level == "low" {
+		level = "medium"
+		if o.Notes == "" {
+			o.Notes = "Order flagged for policy review."
+		}
+	}
+	if sensitive && (level == "low" || level == "") {
+		level = "medium"
+		n := strings.TrimSpace(o.Notes)
+		if !strings.Contains(strings.ToLower(n), "human") && !strings.Contains(strings.ToLower(n), "人工") && !strings.Contains(strings.ToLower(n), "manual") && !strings.Contains(strings.ToLower(n), "staff") {
+			o.Notes = strings.TrimSpace("Escalate: sensitive topic detected. Human confirmation required.\n" + n)
+		}
+	}
+	if sensitive && strings.Contains(ml, "lawsuit") && level != "high" {
+		level = "high"
+	}
+	o.RiskLevel = level
+}
+
+func orderRiskContext(o *order.AIContext) bool {
+	if o == nil || o.OrderInfo == nil {
+		return false
+	}
+	status, _ := o.OrderInfo["status"].(string)
+	payment, _ := o.OrderInfo["paymentStatus"].(string)
+	fulfill, _ := o.OrderInfo["fulfillmentStatus"].(string)
+	status = strings.TrimSpace(strings.ToLower(status))
+	payment = strings.TrimSpace(strings.ToLower(payment))
+	fulfill = strings.TrimSpace(strings.ToLower(fulfill))
+	switch status {
+	case order.StatusCancelled, order.StatusRefunded:
+		return true
+	}
+	switch payment {
+	case order.PaymentRefunded, order.PaymentPartiallyRefunded:
+		return true
+	}
+	switch fulfill {
+	case order.FulfillmentReturned:
+		return true
+	}
+	return false
+}
+
 // GenerateReply runs customer_reply_generate via AI gateway; records ai_tasks + customer_reply_suggestions.
 func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body GenerateReplyBody, adminID *uuid.UUID) (*GenerateReplyResult, error) {
 	if s == nil || s.DB == nil {
@@ -165,6 +244,38 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	history := buildHistoryLines(msgs, 20, 800)
 	productInfo := ""
 
+	var octx *order.AIContext
+	cautiousOrder := false
+	orderInfoPlain := `{}`
+	itemsPlain := `[]`
+	shipmentPlain := `[]`
+
+	customerProfile := map[string]any{
+		"conversationLanguage": lang,
+		"conversationPlatform": platform,
+		"linkedOrder":            conv.OrderID != nil,
+	}
+
+	if conv.OrderID != nil && s.Orders != nil {
+		got, err := s.Orders.BuildAIContext(c, *conv.OrderID)
+		if err == nil && got != nil {
+			octx = got
+			if got.OrderInfo != nil {
+				orderInfoPlain = marshalJSONPretty(got.OrderInfo)
+			}
+			if len(got.OrderItems) > 0 {
+				itemsPlain = marshalJSONPretty(got.OrderItems)
+			}
+			if len(got.ShipmentInfo) > 0 {
+				shipmentPlain = marshalJSONPretty(got.ShipmentInfo)
+			}
+			cautiousOrder = orderRiskContext(got)
+			if v := got.OrderInfo["orderNo"]; v != nil {
+				customerProfile["orderNo"] = v
+			}
+		}
+	}
+
 	promptRow, err := s.Prompts.GetEnabledByCode(c.Request.Context(), aiprompt.CodeCustomerReplyGenerate)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -173,10 +284,16 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 		return nil, err
 	}
 
+	customerProfileJSON := marshalJSONPretty(customerProfile)
+
 	vars := map[string]string{
 		"customerMessage":     customerMsg,
 		"conversationHistory": history,
 		"productInfo":         productInfo,
+		"orderInfo":           orderInfoPlain,
+		"orderItems":          itemsPlain,
+		"shipmentInfo":        shipmentPlain,
+		"customerProfile":     customerProfileJSON,
 		"language":            lang,
 		"tone":                tone,
 		"platform":            platform,
@@ -200,13 +317,27 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	}
 
 	inputPayload := map[string]any{
-		"promptCode":     aiprompt.CodeCustomerReplyGenerate,
-		"conversationId": conversationID.String(),
-		"language":       lang,
-		"tone":           tone,
-		"platform":       platform,
-		"shopPolicyLen":  len([]rune(shopPolicy)),
-		"customerMsgLen": len([]rune(customerMsg)),
+		"promptCode":       aiprompt.CodeCustomerReplyGenerate,
+		"conversationId":   conversationID.String(),
+		"language":         lang,
+		"tone":             tone,
+		"platform":         platform,
+		"shopPolicyLen":    len([]rune(shopPolicy)),
+		"customerMsgLen":   len([]rune(customerMsg)),
+		"orderLinked":      conv.OrderID != nil,
+		"linkedOrderCue": map[string]any{
+			"orderInfoHint": len(orderInfoPlain) > 4,
+			"itemsLines":    len(itemsPlain) > 2,
+			"shipmentsLines": len(shipmentPlain) > 2,
+		},
+	}
+	if conv.OrderID != nil {
+		inputPayload["orderId"] = conv.OrderID.String()
+	}
+	if octx != nil {
+		inputPayload["orderInfo"] = octx.OrderInfo
+		inputPayload["orderItemsSummary"] = octx.OrderItems
+		inputPayload["shipmentSummary"] = octx.ShipmentInfo
 	}
 	if mid := strings.TrimSpace(body.MessageID); mid != "" {
 		inputPayload["messageId"] = mid
@@ -266,6 +397,8 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 		}
 		return nil, fmt.Errorf("invalid model output")
 	}
+
+	adjustCustomerReplyRisk(customerMsg, &parsed, cautiousOrder)
 
 	outStruct := map[string]any{
 		"reply":     parsed.Reply,
