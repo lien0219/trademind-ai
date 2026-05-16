@@ -1,4 +1,4 @@
-// Package openaiimage is an HTTP client for OpenAI Images (generations endpoint).
+// Package openaiimage is an HTTP client for OpenAI Images (generations + edits endpoints).
 package openaiimage
 
 import (
@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
@@ -272,6 +273,125 @@ func (c Client) postJSON(ctx context.Context, path string, payload map[string]an
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	return respBody, resp.StatusCode, nil
+}
+
+const maxEditSourceBytes = 25 << 20
+
+// ReplaceBackgroundInput carries assembled prompt and source image bytes or stream for POST /images/edits.
+type ReplaceBackgroundInput struct {
+	Prompt string
+	// Image and ImageURL: provide exactly one non-empty source (caller reads storage / HTTP before calling).
+	Image            io.Reader
+	ImageURL         string
+	ImageFilename    string
+	ImageContentType string
+	Size             string
+	Quality          string
+	Model            string
+}
+
+func effectiveStr(def, override string) string {
+	if s := strings.TrimSpace(override); s != "" {
+		return s
+	}
+	return strings.TrimSpace(def)
+}
+
+// ReplaceBackground calls POST /images/edits (multipart: model, prompt, image[], size, quality, output_format, input_fidelity).
+func (c Client) ReplaceBackground(ctx context.Context, in ReplaceBackgroundInput) ([]byte, string, error) {
+	prompt := strings.TrimSpace(in.Prompt)
+	if prompt == "" {
+		return nil, "", fmt.Errorf("openai_image: empty prompt")
+	}
+	var imgBytes []byte
+	var err error
+	if in.Image != nil {
+		imgBytes, err = io.ReadAll(io.LimitReader(in.Image, maxEditSourceBytes))
+		if err != nil {
+			return nil, "", fmt.Errorf("openai_image: read source image: %w", err)
+		}
+	} else if u := strings.TrimSpace(in.ImageURL); u != "" {
+		imgBytes, _, err = downloadImage(ctx, c.httpClient, u)
+		if err != nil {
+			return nil, "", err
+		}
+	} else {
+		return nil, "", fmt.Errorf("openai_image: source image is required for replace_background")
+	}
+	if len(imgBytes) == 0 {
+		return nil, "", fmt.Errorf("openai_image: empty source image")
+	}
+
+	filename := strings.TrimSpace(in.ImageFilename)
+	if filename == "" {
+		filename = "source.png"
+	}
+
+	model := effectiveStr(c.opt.model, in.Model)
+	size := effectiveStr(c.opt.size, in.Size)
+	quality := normalizeQuality(strings.ToLower(effectiveStr(c.opt.quality, in.Quality)), model)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("model", model)
+	_ = mw.WriteField("prompt", prompt)
+	_ = mw.WriteField("n", "1")
+	_ = mw.WriteField("size", size)
+	_ = mw.WriteField("quality", quality)
+	_ = mw.WriteField("output_format", "png")
+	_ = mw.WriteField("input_fidelity", "high")
+	if bg := strings.TrimSpace(c.opt.background); bg != "" &&
+		(bg == "transparent" || bg == "opaque" || bg == "auto") {
+		_ = mw.WriteField("background", bg)
+	}
+	part, err := mw.CreateFormFile("image[]", filename)
+	if err != nil {
+		return nil, "", fmt.Errorf("openai_image: multipart file: %w", err)
+	}
+	if _, err := part.Write(imgBytes); err != nil {
+		return nil, "", fmt.Errorf("openai_image: multipart write: %w", err)
+	}
+	if err := mw.Close(); err != nil {
+		return nil, "", err
+	}
+
+	u := c.opt.baseURL + "/images/edits"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, &buf)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+c.opt.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("openai_image: request: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	apiMsg := extractOpenAIErrorMessage(body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		msg := strings.TrimSpace(apiMsg)
+		if msg == "" {
+			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		}
+		return nil, "", fmt.Errorf("openai_image: status %d %s", resp.StatusCode, msg)
+	}
+	parsed, err := parseGenerationsEnvelope(body)
+	if err != nil {
+		return nil, "", err
+	}
+	out, ct, err := decodeOrDownload(ctx, c.httpClient, parsed)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(out) == 0 {
+		return nil, "", fmt.Errorf("openai_image: empty image data")
+	}
+	if !strings.EqualFold(ct, "image/png") {
+		ct = "image/png"
+	}
+	return out, ct, nil
 }
 
 // GenerateScene calls POST /images/generations with ecommerce-safe assembled prompt wiring.

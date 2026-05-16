@@ -230,6 +230,22 @@ func assembledScenePrompt(input map[string]any) string {
 	return ""
 }
 
+func inputStr(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	switch x := v.(type) {
+	case string:
+		return strings.TrimSpace(x)
+	default:
+		return strings.TrimSpace(fmt.Sprint(x))
+	}
+}
+
 func (p openaiImageProvider) Name() string { return "openai_image" }
 
 func (p openaiImageProvider) RemoveBackground(ctx context.Context, req ImageRequest) (*ImageResult, error) {
@@ -238,8 +254,35 @@ func (p openaiImageProvider) RemoveBackground(ctx context.Context, req ImageRequ
 }
 
 func (p openaiImageProvider) ReplaceBackground(ctx context.Context, req ReplaceBackgroundRequest) (*ImageResult, error) {
-	_, _ = ctx, req
-	return nil, fmt.Errorf("replace_background is not implemented for openai_image yet")
+	prompt := assembledScenePrompt(req.Input)
+	if prompt == "" {
+		return nil, fmt.Errorf("assembled prompt required for openai_image replace_background")
+	}
+	in := openaiimage.ReplaceBackgroundInput{
+		Prompt:           prompt,
+		ImageFilename:    strings.TrimSpace(req.SourceFilename),
+		ImageContentType: strings.TrimSpace(req.SourceContentType),
+		Size:             inputStr(req.Input, "size"),
+		Quality:          inputStr(req.Input, "quality"),
+		Model:            inputStr(req.Input, "model"),
+	}
+	if req.SourceFile != nil {
+		in.Image = req.SourceFile
+	} else {
+		in.ImageURL = strings.TrimSpace(req.SourceURL)
+	}
+	img, ct, err := p.client.ReplaceBackground(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return &ImageResult{
+		RawPayload:         img,
+		PayloadContentType: ct,
+		Meta: map[string]any{
+			"model":       p.client.ResolvedModel(),
+			"contentType": ct,
+		},
+	}, nil
 }
 
 func (p openaiImageProvider) GenerateScene(ctx context.Context, req GenerateSceneRequest) (*ImageResult, error) {

@@ -378,3 +378,13 @@ func (s *Service) resolveRemoveBGFromURL(ctx context.Context, sm map[string]stri
 	}
 	return zero, errors.New("source image is not readable and not publicly accessible")
 }
+
+// resolveOpenAIReplaceBackgroundSource resolves a readable source for OpenAI Image edits (multipart / image[]).
+func (s *Service) resolveOpenAIReplaceBackgroundSource(ctx context.Context, task *ImageTask) (removeBGSource, error) {
+	var zero removeBGSource
+	rb, err := s.resolveRemoveBGSource(ctx, task)
+	if err != nil {
+		return zero, fmt.Errorf("source image is required and must be readable for openai replace_background: %w", err)
+	}
+	return rb, nil
+}

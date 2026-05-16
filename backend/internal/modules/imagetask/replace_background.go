@@ -22,10 +22,18 @@ func (s *Service) prepareReplaceBackgroundHints(ctx context.Context, task *Image
 	}
 	background := stringFromMap(next, "background")
 	style := stringFromMap(next, "style")
+	platform := stringFromMap(next, "platform")
+	if platform == "" {
+		platform = stringFromMap(next, "targetPlatform")
+	}
+	size := stringFromMap(next, "size")
 
 	var b strings.Builder
-	b.WriteString("Replace the background of the product with a clean ecommerce-ready result. ")
-	b.WriteString("Do not distort the product; preserve edges and natural shadows where appropriate. ")
+	b.WriteString("Editing task: keep the product subject exactly as-is (same colors, shape, logos, and any text printed on the product). ")
+	b.WriteString("Replace only the background with the described scene; do not invent new product features. ")
+	b.WriteString("Output should be sharp, high-resolution ecommerce imagery suitable for marketplace main or detail images. ")
+	b.WriteString("No watermarks, heavy blur, warping, or distorted geometry. ")
+	b.WriteString("Replace the surrounding scene while preserving realistic contact shadows when appropriate. ")
 	b.WriteString("Avoid adult, violent, illegal, counterfeit, or misleading content. ")
 
 	if s != nil && s.DB != nil && task != nil && task.ProductID != nil && *task.ProductID != uuid.Nil {
@@ -58,6 +66,12 @@ func (s *Service) prepareReplaceBackgroundHints(ctx context.Context, task *Image
 	}
 	if style != "" {
 		fmt.Fprintf(&b, "Visual style: %s. ", style)
+	}
+	if platform != "" {
+		fmt.Fprintf(&b, "Target platform: %s. ", platform)
+	}
+	if size != "" {
+		fmt.Fprintf(&b, "Preferred output dimensions: %s. ", size)
 	}
 	if prompt != "" {
 		fmt.Fprintf(&b, "Additional instructions: %s. ", prompt)

@@ -299,7 +299,9 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if task.TaskType == TaskTypeGenerateScene {
 		hints = s.prepareGenerateSceneHints(ctx, task, hints)
 	}
-	if task.TaskType == TaskTypeReplaceBackground && strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
+	if task.TaskType == TaskTypeReplaceBackground &&
+		(strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") ||
+			strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image")) {
 		hints = s.prepareReplaceBackgroundHints(ctx, task, hints)
 	}
 	timeout := imageOperationTimeout(ctx, s.Settings)
@@ -346,6 +348,25 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 			}
 			return prov.RemoveBackground(pctx, imgReq)
 		}
+		if task.TaskType == TaskTypeReplaceBackground && strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image") {
+			rb, err := s.resolveOpenAIReplaceBackgroundSource(pctx, task)
+			if err != nil {
+				return nil, err
+			}
+			if rb.File != nil {
+				defer rb.File.Close()
+			}
+			return prov.ReplaceBackground(pctx, imgprov.ReplaceBackgroundRequest{
+				ImageRequest: imgprov.ImageRequest{
+					SourceURL:         rb.PublicURL,
+					SourceFile:        rb.File,
+					SourceFilename:    rb.Filename,
+					SourceContentType: rb.ContentType,
+					Input:             hints,
+				},
+				Background: stringFromMap(hints, "background"),
+			})
+		}
 		return s.dispatch(pctx, prov, task, src, hints)
 	}()
 	if runErr != nil {
@@ -375,6 +396,9 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		if strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
 			objKey = fmt.Sprintf("image-tasks/%s/%s-comfyui.png", day, task.ID.String())
 			origName = fmt.Sprintf("comfyui-%s.png", task.ID.String())
+		} else if task.TaskType == TaskTypeReplaceBackground && strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image") {
+			objKey = fmt.Sprintf("image-tasks/%s/%s-openai-replace-bg.png", day, task.ID.String())
+			origName = fmt.Sprintf("openai-replace-bg-%s.png", task.ID.String())
 		} else {
 			suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
 			if len(suffix) > 12 {
@@ -405,6 +429,7 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	outObj := map[string]any{
 		"resultUrl": finalURL,
 		"provider":  task.Provider,
+		"taskType":  task.TaskType,
 	}
 	modelOut := ""
 	promptIDOut := ""

@@ -536,7 +536,15 @@ export default function ProductDraftDetailPage() {
                       <Typography.Text type="secondary">
                         可选择商品图作为源图（场景图在 OpenAI / ComfyUI 下可无图），任务由后端入队；结果在{' '}
                         <Typography.Link onClick={() => history.push('/ai/image-tasks')}>AI 图片任务</Typography.Link>{' '}
-                        查看。<Typography.Text code>remove_background</Typography.Text> 使用 <Typography.Text code>removebg</Typography.Text>；本地/存储中的商品图由后端读取并以 multipart 上传 remove.bg（公网 URL 仍可走 image_url）。<Typography.Text code>generate_scene</Typography.Text> 支持 <Typography.Text code>openai_image</Typography.Text> / <Typography.Text code>comfyui</Typography.Text>；<Typography.Text code>replace_background</Typography.Text> 请配合 <Typography.Text code>comfyui</Typography.Text> 工作流。
+                        查看。<Typography.Text code>remove_background</Typography.Text> 使用 <Typography.Text code>removebg</Typography.Text>
+                        ；本地/存储中的商品图由后端读取并以 multipart 上传 remove.bg（公网 URL 仍可走 image_url）。<Typography.Text code>
+                          generate_scene
+                        </Typography.Text>{' '}
+                        支持 <Typography.Text code>openai_image</Typography.Text> / <Typography.Text code>comfyui</Typography.Text>；<Typography.Text code>
+                          replace_background
+                        </Typography.Text>{' '}
+                        可选 <Typography.Text code>comfyui</Typography.Text>（工作流）或 <Typography.Text code>openai_image</Typography.Text>（后端读源图并以
+                        multipart 调用 OpenAI，无需前端直连）。
                       </Typography.Text>
                       <Input.TextArea
                         value={aiImgPrompt}
@@ -590,7 +598,7 @@ export default function ProductDraftDetailPage() {
                               setAiImgProvider('openai_image');
                             }
                             if (v === 'replace_background') {
-                              setAiImgProvider('comfyui');
+                              setAiImgProvider('');
                             }
                           }}
                           options={[
@@ -640,17 +648,30 @@ export default function ProductDraftDetailPage() {
                                   negativePrompt: aiImgNegPrompt.trim(),
                                   background: aiImgBackground.trim() || 'white studio background',
                                   style: aiImgStyle.trim() || 'clean ecommerce',
+                                  platform: 'TikTok Shop',
+                                  size: '1024x1024',
                                 };
                               }
+                              const srcRow = aiImgRowId
+                                ? sortedImages.find((im) => im.id === aiImgRowId)
+                                : undefined;
+                              const srcUrl = (srcRow?.publicUrl || srcRow?.originUrl || '').trim();
                               const task = await createImageTask({
                                 taskType: aiImgTaskType,
                                 ...(aiImgProvider.trim() ? { provider: aiImgProvider.trim() } : {}),
                                 productId: id,
-                                ...(aiImgRowId ? { sourceImageId: aiImgRowId } : {}),
+                                ...(aiImgRowId
+                                  ? {
+                                      sourceImageId: aiImgRowId,
+                                      ...(srcUrl ? { sourceImageUrl: srcUrl } : {}),
+                                    }
+                                  : {}),
                                 input,
                               });
-                              if (task.status === 'pending' || task.status === 'running') {
+                              if (aiImgTaskType === 'replace_background') {
                                 message.success('图片任务已提交，可在 AI 图片任务页查看结果');
+                              } else if (task.status === 'pending' || task.status === 'running') {
+                                message.success('图片任务已提交，正在后台处理');
                               } else if (task.status === 'success' && task.resultUrl) {
                                 message.success(`已完成：${task.resultUrl}`);
                               } else {

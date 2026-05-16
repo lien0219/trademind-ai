@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProFormDependency, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { CopyOutlined } from '@ant-design/icons';
-import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message } from 'antd';
+import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message, Alert } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageTaskDetail, ImageTaskListRow } from '@/services/imageTasks';
@@ -283,6 +283,7 @@ export default function ImageTasksPage() {
         taskType: string;
         provider?: string;
         productId?: string;
+        sourceImageId?: string;
         sourceImageUrl?: string;
         prompt?: string;
         negativePrompt?: string;
@@ -295,6 +296,8 @@ export default function ImageTasksPage() {
         rbNegativePrompt?: string;
         rbBackground?: string;
         rbStyle?: string;
+        rbPlatform?: string;
+        rbSize?: string;
         inputJson: string;
       }>
         form={createForm}
@@ -318,6 +321,8 @@ export default function ImageTasksPage() {
           rbNegativePrompt: '',
           rbBackground: 'white studio background',
           rbStyle: 'clean ecommerce',
+          rbPlatform: 'TikTok Shop',
+          rbSize: '1024x1024',
           inputJson: '{}',
         }}
         modalProps={{ destroyOnClose: true }}
@@ -352,6 +357,8 @@ export default function ImageTasksPage() {
               negativePrompt: (values.rbNegativePrompt ?? '').trim(),
               background: (values.rbBackground ?? '').trim(),
               style: (values.rbStyle ?? '').trim(),
+              platform: (values.rbPlatform ?? '').trim(),
+              size: (values.rbSize ?? '').trim(),
             };
             Object.assign(input, pick);
           }
@@ -395,7 +402,7 @@ export default function ImageTasksPage() {
                 createForm.setFieldsValue({ provider: 'openai_image' });
               }
               if (v === 'replace_background') {
-                createForm.setFieldsValue({ provider: 'comfyui' });
+                createForm.setFieldsValue({ provider: '' });
               }
             },
           }}
@@ -410,8 +417,23 @@ export default function ImageTasksPage() {
             { label: 'OpenAI Image', value: 'openai_image' },
             { label: 'ComfyUI', value: 'comfyui' },
           ]}
-          extra="remove_background 使用 remove.bg；本地/对象存储源图由后端读取并以 multipart 直传；generate_scene 支持 OpenAI Image 或 ComfyUI；replace_background 首版走 ComfyUI"
+          extra="remove_background 使用 remove.bg；本地/对象存储源图由后端读取并以 multipart 直传；generate_scene 支持 OpenAI Image 或 ComfyUI；replace_background 支持 ComfyUI（工作流）或 OpenAI Image（后端读源图并以 multipart 调用 /images/edits，无需前端直连）"
         />
+        <ProFormDependency name={['taskType', 'provider']}>
+          {(dep: { taskType?: string; provider?: string }) =>
+            dep.taskType === 'replace_background' &&
+            String(dep.provider ?? '')
+              .trim()
+              .toLowerCase() === 'openai_image' ? (
+              <Alert
+                style={{ marginBottom: 16 }}
+                type="info"
+                showIcon
+                message="OpenAI replace_background 会由后端读取源图并提交给 OpenAI，不需要前端直连。"
+              />
+            ) : null
+          }
+        </ProFormDependency>
         <ProFormText name="productId" label="商品 ID（可选）" />
         <ProFormText
           name="sourceImageId"
@@ -436,6 +458,8 @@ export default function ImageTasksPage() {
                     ? 'OpenAI / ComfyUI 场景可不填；有参考图时请填公网可访问 URL，或在商品详情用「商品图」创建'
                     : tt === 'remove_background'
                       ? '可选：须公网可访问的直链；或使用上方的 sourceImageId（推荐本地/存储图）。'
+                      : tt === 'replace_background' && (p === 'openai_image' || p === '')
+                      ? '可选：公网直链或与 sourceImageId 二选一；OpenAI 换背景由后端读取源图并提交，无需前端直连 OpenAI。'
                       : '请填写可从公网抓取的可访问 HTTPS 图像地址'
                 }
                 rules={[
@@ -445,13 +469,13 @@ export default function ImageTasksPage() {
                         return Promise.resolve();
                       }
                       const id = String(dep.sourceImageId ?? '').trim();
-                      if (tt === 'remove_background' && id) {
+                      if ((tt === 'remove_background' || tt === 'replace_background') && id) {
                         return Promise.resolve();
                       }
                       if (String(val ?? '').trim()) {
                         return Promise.resolve();
                       }
-                      if (tt === 'remove_background') {
+                      if (tt === 'remove_background' || tt === 'replace_background') {
                         return Promise.reject(new Error('请填写源图 URL 或 sourceImageId'));
                       }
                       return Promise.reject(new Error('请填写可访问的源图 URL'));
@@ -485,6 +509,8 @@ export default function ImageTasksPage() {
                 <ProFormText name="rbNegativePrompt" label="Negative prompt（可选）" />
                 <ProFormText name="rbBackground" label="目标背景" placeholder="white studio background" />
                 <ProFormText name="rbStyle" label="风格（可选）" placeholder="clean ecommerce" />
+                <ProFormText name="rbPlatform" label="平台（可选）" placeholder="TikTok Shop" />
+                <ProFormText name="rbSize" label="尺寸（可选）" placeholder="1024x1024" />
               </>
             ) : null
           }
