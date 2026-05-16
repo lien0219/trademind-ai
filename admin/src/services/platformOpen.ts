@@ -1,8 +1,10 @@
 import { getJSON, putJSON } from '@/services/request';
+import type { AppConfigSchemaDTO } from '@/services/shops';
 
 export type PlatformAppSettingsResp = {
   platform: string;
   groupKey: string;
+  schema: AppConfigSchemaDTO;
   values: Record<string, string>;
 };
 

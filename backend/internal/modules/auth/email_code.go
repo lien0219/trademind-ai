@@ -109,7 +109,7 @@ func (h *Handler) SendEmailCode(c *gin.Context) {
 }
 
 func (h *Handler) sendCodeEmail(ctx context.Context, to, code string) error {
-	m, err := h.Settings.PlainByGroup(ctx, 0, "email")
+	m, err := h.Settings.PlainMailSettings(ctx)
 	if err != nil {
 		return err
 	}

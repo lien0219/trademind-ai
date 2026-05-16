@@ -200,3 +200,26 @@ func (h *Handler) TestEmail(c *gin.Context) {
 	}
 	response.OK(c, gin.H{"ok": true})
 }
+
+// IntegrationSchemas GET /api/v1/settings/integration-schemas — static registry for admin UX.
+func (h *Handler) IntegrationSchemas(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+		return
+	}
+	response.OK(c, gin.H{"schemas": IntegrationConfigDefinitions()})
+}
+
+// IntegrationOverview GET /api/v1/settings/integrations/overview
+func (h *Handler) IntegrationOverview(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+		return
+	}
+	out, err := h.Svc.BuildIntegrationOverview(c.Request.Context())
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}

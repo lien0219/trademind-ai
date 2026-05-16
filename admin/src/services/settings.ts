@@ -54,3 +54,24 @@ export async function testStorageConnection() {
 export async function testEmailConnection(to: string) {
   return postJSON<{ ok: boolean }>('/api/v1/settings/test-email', { to });
 }
+
+export type IntegrationOverviewData = {
+  ai: { configured: boolean; provider?: string; model?: string };
+  image: { providerCurrent?: string; removebg: boolean; openaiImage: boolean; comfyui: boolean };
+  storage: { kind?: string; configured: boolean };
+  mail: { configured: boolean };
+  platforms: {
+    platform: string;
+    name: string;
+    status: string;
+    groupKey?: string;
+    appConfigured: boolean;
+  }[];
+  collectRulesCount: number;
+  disclaimerShort?: string;
+};
+
+/** GET /api/v1/settings/integrations/overview */
+export async function fetchIntegrationsOverview() {
+  return getJSON<IntegrationOverviewData>('/api/v1/settings/integrations/overview');
+}

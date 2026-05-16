@@ -111,10 +111,10 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   const st = STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
 
   const load = useCallback(async () => {
-    const flds = meta.appConfigSchema?.fields ?? [];
     setLoading(true);
     try {
       const row = await getPlatformAppSettings(meta.platform);
+      const flds = row.schema?.fields?.length ? row.schema.fields : meta.appConfigSchema?.fields ?? [];
       form.resetFields();
       form.setFieldsValue(valuesToFormFields(flds, row.values ?? {}));
     } catch (e: unknown) {
@@ -137,8 +137,8 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
           <Alert
             showIcon
             type="warning"
-            message="该平台 API / OAuth / 订单同步尚未接入贸灵运行时"
-            description="可先在此处保存 Partner Open Platform 凭证；连通性自检与真实拉单会返回「未实现」类错误。"
+            message="该平台能力暂未接入，可先保存开放平台配置。"
+            description="OAuth、TestConnection、订单同步等仍可能返回「未实现」；应用级参数可先保存在贸灵供后续对接使用。"
           />
         )}
         {schema.description && <Typography.Paragraph type="secondary">{schema.description}</Typography.Paragraph>}

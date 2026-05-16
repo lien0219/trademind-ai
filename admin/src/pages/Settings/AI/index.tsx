@@ -1,5 +1,6 @@
+import { Link } from '@umijs/max';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Button, Form, Input, InputNumber, message, Select, Space } from 'antd';
+import { Alert, Button, Form, Input, InputNumber, message, Select, Space } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems, testAIConnection } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
@@ -11,6 +12,8 @@ const FIELDS: Record<string, FieldSpec> = {
   base_url: {},
   model: {},
   api_key: { encrypted: true },
+  temperature: {},
+  max_tokens: {},
   timeout_sec: {},
 };
 
@@ -29,6 +32,8 @@ export default function AISettingsPage() {
         base_url: g.base_url || '',
         model: g.model || '',
         api_key: g.api_key || '',
+        temperature: g.temperature !== undefined && g.temperature !== '' ? Number(g.temperature) : 0.7,
+        max_tokens: g.max_tokens !== undefined && g.max_tokens !== '' ? Number(g.max_tokens) : 512,
         timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
       });
     } catch (e: unknown) {
@@ -44,6 +49,19 @@ export default function AISettingsPage() {
 
   return (
     <PageContainer title="AI 设置">
+      <ProCard bordered style={{ marginBottom: 16 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="自备大模型 API"
+          description={
+            <>
+              请在 OpenAI / DeepSeek / 通义 / Ollama（OpenAI 兼容）等渠道自行申请 Key 与 Base URL。贸灵前端不会请求模型接口，仅后端通过 AI Gateway 调用。摘要见{' '}
+              <Link to="/settings/integrations">第三方集成总览</Link>。
+            </>
+          }
+        />
+      </ProCard>
       <ProCard
         bordered
         extra={
@@ -58,7 +76,12 @@ export default function AISettingsPage() {
           style={{ maxWidth: 560 }}
           onFinish={async (values) => {
             try {
-              const payload = { ...values, timeout_sec: String(values.timeout_sec ?? '') };
+              const payload = {
+                ...values,
+                timeout_sec: String(values.timeout_sec ?? ''),
+                temperature: String(values.temperature ?? ''),
+                max_tokens: String(values.max_tokens ?? ''),
+              };
               await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
               message.success('已保存');
               await load();
@@ -88,10 +111,16 @@ export default function AISettingsPage() {
             <Input placeholder="gpt-4o-mini" />
           </Form.Item>
           <Form.Item label="API Key" name="api_key" rules={[{ required: true, message: '请输入 API Key' }]}>
-            <Input.Password placeholder="保存后将以密文存储" autoComplete="new-password" />
+            <Input.Password placeholder="敏感；保存后显示为 ****，留空不覆盖则需在列表里保留原占位" autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item label="Temperature" name="temperature" extra="默认 0.7；与网关缺省一致">
+            <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="Max tokens" name="max_tokens" extra="默认 512">
+            <InputNumber min={1} max={32000} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item label="超时（秒）" name="timeout_sec" rules={[{ required: true }]}>
-            <InputNumber min={5} max={120} style={{ width: '100%' }} />
+            <InputNumber min={5} max={600} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item>
             <Space>

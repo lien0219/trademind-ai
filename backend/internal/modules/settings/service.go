@@ -318,7 +318,7 @@ func (s *Service) TestStorageConnection(ctx context.Context) error {
 
 // TestEmailConnection verifies email configuration by sending a test email.
 func (s *Service) TestEmailConnection(ctx context.Context, to string) error {
-	m, err := s.PlainByGroup(ctx, 0, "email")
+	m, err := s.PlainMailSettings(ctx)
 	if err != nil {
 		return err
 	}

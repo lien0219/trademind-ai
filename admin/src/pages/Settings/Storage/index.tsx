@@ -1,3 +1,4 @@
+import { Link } from '@umijs/max';
 import {
   CloudOutlined,
   CloudServerOutlined,
@@ -8,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
+  Alert,
   Button,
   Col,
   Form,
@@ -453,6 +455,20 @@ export default function StorageSettingsPage() {
 
   return (
     <PageContainer title="存储设置">
+      <ProCard bordered style={{ marginBottom: 16 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="自备云存储与访问域名"
+          description={
+            <>
+              请在 AWS / Cloudflare R2 / MinIO / 腾讯云 COS / 阿里云 OSS 等开通 Bucket 与密钥；密钥仅在后端加密保存，浏览器不直连对象存储，上传请使用本页测试或「文件管理」走{' '}
+              <Typography.Text code>/api/v1/files/upload</Typography.Text>。总览见{' '}
+              <Link to="/settings/integrations">第三方集成总览</Link>。
+            </>
+          }
+        />
+      </ProCard>
       <ProCard
         bordered
         extra={

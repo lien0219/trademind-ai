@@ -18,9 +18,10 @@ import (
 
 // PlatformAppSettingsDTO is GET /api/v1/platform/settings/:platform and PUT response body.
 type PlatformAppSettingsDTO struct {
-	Platform string            `json:"platform"`
-	GroupKey string            `json:"groupKey"`
-	Values   map[string]string `json:"values"`
+	Platform string                            `json:"platform"`
+	GroupKey string                            `json:"groupKey"`
+	Schema   platformp.PlatformAppConfigSchema `json:"schema"`
+	Values   map[string]string                 `json:"values"`
 }
 
 func getCurField(cur map[string]string, name string) string {
@@ -143,9 +144,7 @@ func loweredMap(in map[string]string) map[string]string {
 
 func validateMergedAppSettings(platformSlug string, schema platformp.PlatformAppConfigSchema, merged map[string]string) error {
 	plat := strings.TrimSpace(platformSlug)
-
 	mm := loweredMap(merged)
-
 	switch plat {
 	case "tiktok":
 		if _, err := platformtiktok.RuntimeFromMergedMap(mm); err != nil {
@@ -198,6 +197,7 @@ func (s *Service) GetPlatformAppSettings(ctx context.Context, platformSlug strin
 	return &PlatformAppSettingsDTO{
 		Platform: plat,
 		GroupKey: gk,
+		Schema:   sch,
 		Values:   s.snapshotMaskedApp(sch, cur),
 	}, nil
 }
@@ -249,8 +249,11 @@ func (s *Service) PutPlatformAppSettings(c *gin.Context, platformSlug string, va
 		merged[f.Name] = nv
 	}
 
-	if err := validateMergedAppSettings(plat, sch, merged); err != nil {
-		return nil, err
+	// Planned providers: allow partial saves; beta/available enforce completeness (TikTok uses RuntimeFromMergedMap).
+	if p.Status() != platformp.StatusPlanned {
+		if err := validateMergedAppSettings(plat, sch, merged); err != nil {
+			return nil, err
+		}
 	}
 
 	var items []settings.PutItem

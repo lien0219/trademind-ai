@@ -1,0 +1,123 @@
+package settings
+
+// IntegrationFieldSchema documents one settings item for admin UX (static registry).
+type IntegrationFieldSchema struct {
+	Name         string                    `json:"name"`
+	Label        string                    `json:"label"`
+	Type         string                    `json:"type"`
+	Required     bool                      `json:"required"`
+	Sensitive    bool                      `json:"sensitive"`
+	Placeholder  string                    `json:"placeholder,omitempty"`
+	Help         string                    `json:"help,omitempty"`
+	DefaultValue any                       `json:"defaultValue,omitempty"`
+	Options      []IntegrationSelectOption `json:"options,omitempty"`
+}
+
+// IntegrationSelectOption is a select option for IntegrationFieldSchema.
+type IntegrationSelectOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+// IntegrationConfigSchema groups third-party capabilities for documentation-driven admin forms.
+type IntegrationConfigSchema struct {
+	Key         string                   `json:"key"`
+	Title       string                   `json:"title"`
+	Description string                   `json:"description"`
+	GroupKey    string                   `json:"groupKey"`
+	Category    string                   `json:"category"`
+	Fields      []IntegrationFieldSchema `json:"fields"`
+}
+
+// IntegrationConfigDefinitions returns the static integration registry (OpenAPI-style docs for settings groups).
+func IntegrationConfigDefinitions() []IntegrationConfigSchema {
+	return []IntegrationConfigSchema{
+		{
+			Key:         "ai",
+			Title:       "AI 大模型（文本）",
+			Category:    "ai",
+			Description: "用于标题优化、描述生成、客服建议回复等。请自行在 OpenAI / DeepSeek / Qwen / Ollama（OpenAI 兼容）等平台申请 API Key；贸灵不在仓库内置密钥，前端不直连模型，仅后端通过 AI Gateway 调用。",
+			GroupKey:    "ai",
+			Fields: []IntegrationFieldSchema{
+				{Name: "provider", Label: "Provider 类型", Type: "select", Required: true, Options: []IntegrationSelectOption{
+					{Label: "OpenAI 兼容", Value: "openai_compatible"},
+				}},
+				{Name: "base_url", Label: "Base URL", Type: "text", Required: true, Placeholder: "https://api.openai.com/v1", Help: "不含 /chat/completions"},
+				{Name: "api_key", Label: "API Key", Type: "password", Required: true, Sensitive: true},
+				{Name: "model", Label: "默认模型", Type: "text", Required: true, Placeholder: "gpt-4o-mini"},
+				{Name: "temperature", Label: "Temperature", Type: "text", Required: false, Help: "可选，默认 0.7"},
+				{Name: "max_tokens", Label: "Max tokens", Type: "text", Required: false, Help: "可选，默认 512"},
+				{Name: "timeout_sec", Label: "超时（秒）", Type: "number", Required: true, DefaultValue: 60},
+			},
+		},
+		{
+			Key:         "image",
+			Title:       "图片 AI",
+			Category:    "image",
+			Description: "remove.bg、OpenAI Image、ComfyUI 等。remove.bg / OpenAI Image 需自行申请 Key；ComfyUI 需自行部署可访问服务并配置工作流。OpenAI Image 使用本分组 openai_image_*，不回退 settings.ai.api_key。",
+			GroupKey:    "image",
+			Fields: []IntegrationFieldSchema{
+				{Name: "provider", Label: "默认 Provider", Type: "text", Required: false, Help: "noop / removebg / openai_image / comfyui"},
+				{Name: "removebg_api_key", Label: "remove.bg API Key", Type: "password", Required: false, Sensitive: true},
+				{Name: "removebg_base_url", Label: "remove.bg Base URL", Type: "text", Required: false},
+				{Name: "openai_image_api_key", Label: "OpenAI Image API Key", Type: "password", Required: false, Sensitive: true},
+				{Name: "openai_image_base_url", Label: "OpenAI Image Base URL", Type: "text", Required: false},
+				{Name: "openai_image_model", Label: "OpenAI Image 模型", Type: "text", Required: false},
+				{Name: "comfyui_base_url", Label: "ComfyUI Base URL", Type: "text", Required: false, Placeholder: "http://127.0.0.1:8188"},
+				{Name: "comfyui_api_key", Label: "ComfyUI API Key（可选）", Type: "password", Required: false, Sensitive: true},
+				{Name: "comfyui_workflow_json", Label: "ComfyUI Workflow JSON", Type: "textarea", Required: false, Help: "非密钥；请勿在操作日志全量落库"},
+				{Name: "timeout_sec", Label: "通用超时（秒）", Type: "number", Required: false},
+			},
+		},
+		{
+			Key:         "storage",
+			Title:       "对象存储",
+			Category:    "storage",
+			Description: "local / S3 兼容（含 R2、MinIO）/ 腾讯云 COS / 阿里云 OSS。AccessKey 与 Secret 加密保存；浏览器不经由前端 SDK 直传云端，上传走 POST /api/v1/files/upload 与后端探活 test-storage。",
+			GroupKey:    "storage",
+			Fields: []IntegrationFieldSchema{
+				{Name: "kind", Label: "存储类型", Type: "select", Required: true, Options: []IntegrationSelectOption{
+					{Label: "本地", Value: "local"}, {Label: "S3", Value: "s3"},
+					{Label: "Cloudflare R2", Value: "r2"}, {Label: "MinIO", Value: "minio"},
+					{Label: "腾讯云 COS", Value: "cos"}, {Label: "阿里云 OSS", Value: "oss"},
+				}},
+				{Name: "local_root", Label: "本地目录 local_root", Type: "text", Required: false},
+				{Name: "public_base", Label: "公开 URL 前缀 public_base", Type: "text", Required: false},
+				{Name: "s3_endpoint", Label: "S3 Endpoint", Type: "text", Required: false},
+				{Name: "s3_access_key_id", Label: "S3 Access Key ID", Type: "password", Required: false, Sensitive: true},
+				{Name: "s3_secret_access_key", Label: "S3 Secret", Type: "password", Required: false, Sensitive: true},
+				{Name: "cos_secret_id", Label: "COS SecretId", Type: "password", Required: false, Sensitive: true},
+				{Name: "cos_secret_key", Label: "COS SecretKey", Type: "password", Required: false, Sensitive: true},
+				{Name: "oss_access_key_id", Label: "OSS AccessKeyId", Type: "password", Required: false, Sensitive: true},
+				{Name: "oss_access_key_secret", Label: "OSS AccessKeySecret", Type: "password", Required: false, Sensitive: true},
+			},
+		},
+		{
+			Key:         "mail",
+			Title:       "邮箱（SMTP）",
+			Category:    "mail",
+			Description: "注册验证码与系统通知。请自行准备企业邮箱、QQ/网易客户端授权码、云邮件推送或 SendGrid 等 SMTP。密钥加密保存；推荐使用分组 mail（兼容 legacy email）。",
+			GroupKey:    "mail",
+			Fields: []IntegrationFieldSchema{
+				{Name: "provider", Label: "Provider", Type: "text", Required: false, DefaultValue: "smtp"},
+				{Name: "smtp_host", Label: "SMTP Host", Type: "text", Required: true},
+				{Name: "smtp_port", Label: "SMTP Port", Type: "number", Required: true},
+				{Name: "smtp_username", Label: "SMTP Username", Type: "text", Required: false},
+				{Name: "smtp_password", Label: "SMTP Password / 授权码", Type: "password", Required: false, Sensitive: true},
+				{Name: "smtp_from", Label: "发件人邮箱", Type: "text", Required: true},
+				{Name: "smtp_from_name", Label: "发件人名称", Type: "text", Required: false},
+				{Name: "smtp_use_tls", Label: "STARTTLS", Type: "switch", Required: false},
+				{Name: "smtp_use_ssl", Label: "SSL", Type: "switch", Required: false},
+				{Name: "timeout_sec", Label: "超时（秒）", Type: "number", Required: false},
+			},
+		},
+		{
+			Key:         "collect_rules",
+			Title:       "自定义采集规则",
+			Category:    "collector",
+			Description: "声明式 CSS Selector / JSON-LD / OpenGraph / Meta，用于自定义链接采集。非第三方密钥；规则 JSON 有大小限制，不执行用户 JS。管理页：采集 → 采集规则。",
+			GroupKey:    "",
+			Fields:      nil,
+		},
+	}
+}

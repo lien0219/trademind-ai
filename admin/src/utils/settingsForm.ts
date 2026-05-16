@@ -11,6 +11,23 @@ export function pickGroup(items: SettingRow[] | undefined, groupKey: string): Re
   return out;
 }
 
+/** Merge settings rows: non-empty `primaryKey` wins per item key, else `fallbackKey` (e.g. mail + legacy email). */
+export function mergeSettingsPrimaryFallback(
+  items: SettingRow[] | undefined,
+  primaryKey: string,
+  fallbackKey: string,
+): Record<string, string> {
+  const fb = pickGroup(items, fallbackKey);
+  const pr = pickGroup(items, primaryKey);
+  const keys = new Set([...Object.keys(fb), ...Object.keys(pr)]);
+  const out: Record<string, string> = {};
+  for (const k of keys) {
+    const pv = (pr[k] ?? '').trim();
+    out[k] = pv !== '' ? (pr[k] ?? '') : (fb[k] ?? '');
+  }
+  return out;
+}
+
 export type FieldSpec = { encrypted?: boolean; valueType?: string };
 
 /** Build PUT items from form values; `specs` maps itemKey -> { encrypted }. */

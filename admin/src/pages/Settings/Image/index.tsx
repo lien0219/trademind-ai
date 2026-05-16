@@ -1,5 +1,6 @@
+import { Link } from '@umijs/max';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Button, Form, Input, InputNumber, Select, message } from 'antd';
+import { Alert, Button, Form, Input, InputNumber, Select, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
@@ -73,6 +74,14 @@ export default function ImageSettingsPage() {
 
   return (
     <PageContainer title="图片 AI 设置">
+      <ProCard bordered style={{ marginBottom: 16 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="自备图片 AI 服务"
+          description="remove.bg / OpenAI Image 需自行申请 API Key（本页 openai_image_*，不用 settings.ai）；ComfyUI 需自行部署并粘贴工作流。请求仅由后端发起，前端不直连第三方。"
+        />
+      </ProCard>
       <ProCard
         bordered
         extra={

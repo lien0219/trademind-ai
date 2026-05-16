@@ -49,6 +49,8 @@ import {
   type ShopListRow,
 } from '@/services/shops';
 import { syncShopOrders } from '@/services/orderSync';
+import { getPlatformAppSettings } from '@/services/platformOpen';
+import { isDeployAppConfigComplete } from '@/utils/platformAppConfig';
 
 const STD_AUTH_KEYS = new Set([
   'appKey',
@@ -89,9 +91,13 @@ function summarizeShopTest(res: {
 }
 
 /** Map incomplete platform Partner Open settings errors → CN hints (no secrets). */
-function formatTiktokPlatformErr(err: unknown): string {
+function formatPlatformPartnerErr(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   const low = msg.toLowerCase();
+
+  if (msg.includes('required setting missing:')) {
+    return `${msg}\n请先到「设置 → 平台开放配置」补齐该平台应用参数的必填项。`;
+  }
 
   if (msg.includes('platform config incomplete: please configure platform_tiktok')) {
     return `${msg}\n请先到「设置 → 平台开放配置 → TikTok Shop」填写 App Key、App Secret 和 Redirect URI。`;
@@ -122,6 +128,7 @@ export default function ShopsPage() {
   const [syncTarget, setSyncTarget] = useState<{ id: string; platform: string } | null>(null);
   const [tiktokOAuthAuthorizeUrl, setTikTokOAuthAuthorizeUrl] = useState('');
   const [tiktokOAuthState, setTikTokOAuthState] = useState('');
+  const [authPartnerWarn, setAuthPartnerWarn] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
     const res = await queryPlatformProviders();
@@ -151,6 +158,19 @@ export default function ShopsPage() {
     const d = await getShop(shopId);
     setDetail(d);
     const p = providers.find((x) => x.platform === d.platform);
+    setAuthPartnerWarn(null);
+    if (p?.settingsGroupKey && d.platform !== 'manual') {
+      try {
+        const row = await getPlatformAppSettings(p.platform);
+        if (!isDeployAppConfigComplete(row.schema ?? p.appConfigSchema, row.values)) {
+          setAuthPartnerWarn(
+            `请先到「设置 → 平台开放配置」填写「${p.name}」开放平台应用参数（分组 ${p.settingsGroupKey}），再完成店铺授权。`,
+          );
+        }
+      } catch {
+        setAuthPartnerWarn('无法校验平台应用配置，请检查网络或稍后重试。');
+      }
+    }
     const base: Record<string, unknown> = {
       authType: d.auth?.authType || p?.authType || 'token',
       appKey: d.auth?.appKey || '',
@@ -293,7 +313,7 @@ export default function ShopsPage() {
                 const res = await testShopConnection(r.id);
                 message.success(summarizeShopTest(res));
               } catch (e: unknown) {
-                message.error(formatTiktokPlatformErr(e));
+                message.error(formatPlatformPartnerErr(e));
               }
             }}
           >
@@ -348,8 +368,24 @@ export default function ShopsPage() {
         open={createOpen}
         modalProps={{ destroyOnClose: true, onCancel: () => setCreateOpen(false) }}
         onFinish={async (vals) => {
+          const plat = vals.platform as string;
+          const meta = providers.find((x) => x.platform === plat);
+          if (meta?.settingsGroupKey && plat !== 'manual') {
+            try {
+              const row = await getPlatformAppSettings(meta.platform);
+              if (!isDeployAppConfigComplete(row.schema ?? meta.appConfigSchema, row.values)) {
+                message.error(
+                  `请先到「设置 → 平台开放配置」填写「${meta.name}」应用参数后再创建店铺。`,
+                );
+                return false;
+              }
+            } catch (e: unknown) {
+              message.error(e instanceof Error ? e.message : '加载平台配置失败');
+              return false;
+            }
+          }
           await createShop({
-            platform: vals.platform as string,
+            platform: plat,
             shopName: vals.shopName as string,
             shopCode: vals.shopCode as string | undefined,
             region: vals.region as string | undefined,
@@ -524,7 +560,7 @@ export default function ShopsPage() {
                     const res = await testShopConnection(detail.id);
                     message.success(summarizeShopTest(res));
                   } catch (e: unknown) {
-                    message.error(e instanceof Error ? e.message : '测试失败');
+                    message.error(formatPlatformPartnerErr(e));
                   }
                 }}
               >
@@ -604,6 +640,15 @@ export default function ShopsPage() {
       >
         {detail && (
           <>
+            {authPartnerWarn && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="平台开放配置可能不完整"
+                description={authPartnerWarn}
+              />
+            )}
             {detail.platform === 'manual' && (
               <Alert type="success" showIcon message="手工店铺无需授权" description="无需配置 Token / Secret。" />
             )}
@@ -730,6 +775,10 @@ export default function ShopsPage() {
                       <Button
                         type="primary"
                         onClick={async () => {
+                          if (authPartnerWarn) {
+                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            return;
+                          }
                           try {
                             const vals = authForm.getFieldsValue(true) as Record<string, unknown>;
                             const rd = String(vals.redirectUri || '').trim();
@@ -743,7 +792,7 @@ export default function ShopsPage() {
                             setTikTokOAuthState(r.state);
                             message.success('已生成授权链接');
                           } catch (e: unknown) {
-                            message.error(formatTiktokPlatformErr(e));
+                            message.error(formatPlatformPartnerErr(e));
                           }
                         }}
                       >
@@ -810,7 +859,7 @@ export default function ShopsPage() {
                           actionRef.current?.reload();
                           if (detailOpen) void refreshDetail(detail.id);
                         } catch (e: unknown) {
-                          message.error(formatTiktokPlatformErr(e));
+                          message.error(formatPlatformPartnerErr(e));
                         }
                       }}
                     >

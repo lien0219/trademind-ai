@@ -158,14 +158,19 @@ export default [
     component: '@/layouts/SettingsGroupLayout',
     routes: [
       {
-        path: '/settings/platforms',
-        name: '平台开放配置',
-        component: './Settings/Platforms',
+        path: '/settings/integrations',
+        name: '第三方集成总览',
+        component: './Settings/Integrations',
       },
       {
         path: '/settings/system',
         name: '系统设置',
         component: './Settings/System',
+      },
+      {
+        path: '/settings/email',
+        name: '邮箱设置',
+        component: './Settings/Email',
       },
       {
         path: '/settings/ai',
@@ -183,14 +188,14 @@ export default [
         component: './Settings/Storage',
       },
       {
+        path: '/settings/platforms',
+        name: '平台开放配置',
+        component: './Settings/Platforms',
+      },
+      {
         path: '/settings/collector',
         name: '采集服务',
         component: './Settings/Collector',
-      },
-      {
-        path: '/settings/email',
-        name: '邮箱设置',
-        component: './Settings/Email',
       },
       {
         path: '/settings/security',

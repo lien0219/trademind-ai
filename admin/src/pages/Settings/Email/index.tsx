@@ -1,24 +1,17 @@
 import { MailOutlined } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import {
-  Button,
-  Form,
-  Input,
-  Radio,
-  Space,
-  InputNumber,
-  message,
-} from 'antd';
+import { Alert, Button, Form, Input, InputNumber, Radio, Space, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems, testEmailConnection, type SettingPutItem } from '@/services/settings';
-import { pickGroup } from '@/utils/settingsForm';
+import { mergeSettingsPrimaryFallback } from '@/utils/settingsForm';
 
-const GROUP = 'email';
+/** Primary settings group for SMTP (legacy `email` group merged on load for backward compatibility). */
+const GROUP = 'mail';
 
 function buildEmailPutItems(values: Record<string, unknown>): SettingPutItem[] {
   const tenantId = 0;
   const provider = String(values.provider || 'smtp');
-  
+
   return [
     { tenantId, groupKey: GROUP, itemKey: 'provider', itemValue: provider, isEncrypted: false, remark: '' },
     { tenantId, groupKey: GROUP, itemKey: 'smtp_host', itemValue: String(values.smtp_host ?? ''), isEncrypted: false, remark: '' },
@@ -42,17 +35,17 @@ export default function EmailSettingsPage() {
     setLoading(true);
     try {
       const { items } = await fetchSettingsList();
-      const g = pickGroup(items, GROUP);
+      const g = mergeSettingsPrimaryFallback(items, GROUP, 'email');
       form.setFieldsValue({
         provider: g.provider || 'smtp',
         smtp_host: g.smtp_host || '',
-        smtp_port: g.smtp_port || 465,
+        smtp_port: g.smtp_port ? Number(g.smtp_port) : 465,
         smtp_username: g.smtp_username || '',
         smtp_password: g.smtp_password || '',
         smtp_from: g.smtp_from || '',
         smtp_from_name: g.smtp_from_name || '',
         smtp_use_tls: g.smtp_use_tls === 'true',
-        smtp_use_ssl: g.smtp_use_ssl !== 'false',
+        smtp_use_ssl: g.smtp_use_ssl === 'true',
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -72,7 +65,7 @@ export default function EmailSettingsPage() {
       await testEmailConnection(values.to);
       message.success('测试邮件已发送');
     } catch (e: unknown) {
-      if ((e as any).errorFields) return; // validate error
+      if ((e as any).errorFields) return;
       message.error((e as Error)?.message || '发送失败');
     } finally {
       setTesting(false);
@@ -81,6 +74,20 @@ export default function EmailSettingsPage() {
 
   return (
     <PageContainer title="邮箱设置">
+      <ProCard bordered style={{ marginBottom: 16 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="自备 SMTP 服务"
+          description={
+            <>
+              贸灵不提供邮件代发账号。请使用企业邮箱、QQ/网易客户端授权码、云邮件推送或 SendGrid / Mailgun 等 SMTP。
+              凭据保存到 <Typography.Text code>settings.mail</Typography.Text>（读取时兼容历史{' '}
+              <Typography.Text code>settings.email</Typography.Text>）；密码加密存储，接口脱敏，日志不记录明文密码。
+            </>
+          }
+        />
+      </ProCard>
       <ProCard
         bordered
         extra={
@@ -95,10 +102,10 @@ export default function EmailSettingsPage() {
           style={{ maxWidth: 600 }}
           onFinish={async (values) => {
             try {
-              // Convert booleans to strings
               const v = { ...values };
               v.smtp_use_tls = v.smtp_use_tls ? 'true' : 'false';
               v.smtp_use_ssl = v.smtp_use_ssl ? 'true' : 'false';
+              v.smtp_port = v.smtp_port != null ? String(v.smtp_port) : '';
               await saveSettingsItems(buildEmailPutItems(v));
               message.success('已保存');
               await load();
@@ -112,40 +119,42 @@ export default function EmailSettingsPage() {
               <Radio.Button value="smtp">SMTP</Radio.Button>
             </Radio.Group>
           </Form.Item>
-          
+
           <Form.Item label="SMTP 服务器 (Host)" name="smtp_host" rules={[{ required: true }]}>
             <Input placeholder="smtp.example.com" />
           </Form.Item>
-          
+
           <Form.Item label="SMTP 端口 (Port)" name="smtp_port" rules={[{ required: true }]}>
             <InputNumber style={{ width: 200 }} />
           </Form.Item>
-          
+
           <Form.Item label="邮箱账号 (Username)" name="smtp_username">
             <Input placeholder="通常为你的邮箱地址" />
           </Form.Item>
-          
-          <Form.Item label="邮箱密码 (Password / Auth Code)" name="smtp_password">
-            <Input.Password autoComplete="new-password" placeholder="密码或应用授权码" />
+
+          <Form.Item label="邮箱密码 / 授权码" name="smtp_password">
+            <Input.Password autoComplete="new-password" placeholder="敏感；保存后显示为 ****，留空不覆盖" />
           </Form.Item>
-          
-          <Form.Item label="发件人邮箱 (From Email)" name="smtp_from" rules={[{ required: true, type: 'email' }]}>
+
+          <Form.Item label="发件人邮箱 (From)" name="smtp_from" rules={[{ required: true, type: 'email' }]}>
             <Input placeholder="noreply@example.com" />
           </Form.Item>
-          
+
           <Form.Item label="发件人名称 (From Name)" name="smtp_from_name">
             <Input placeholder="TradeMind" />
           </Form.Item>
-          
-          <Form.Item label="连接安全方式">
-            <Space>
-              <Form.Item name="smtp_use_ssl" valuePropName="checked" noStyle>
-                <Radio value={true}>SSL</Radio>
-              </Form.Item>
-              <Form.Item name="smtp_use_tls" valuePropName="checked" noStyle>
-                <Radio value={true}>TLS (STARTTLS)</Radio>
-              </Form.Item>
-            </Space>
+
+          <Form.Item label="使用 SSL（SMTPS）" name="smtp_use_ssl" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+
+          <Form.Item
+            label="使用 STARTTLS"
+            name="smtp_use_tls"
+            valuePropName="checked"
+            extra="视邮件服务商要求选择 SSL 或 STARTTLS，勿同时盲目开启。"
+          >
+            <Switch />
           </Form.Item>
 
           <Form.Item>
@@ -155,7 +164,7 @@ export default function EmailSettingsPage() {
           </Form.Item>
         </Form>
       </ProCard>
-      
+
       <ProCard title="发送测试" bordered style={{ marginTop: 16 }}>
         <Form form={testForm} layout="inline" style={{ maxWidth: 600 }}>
           <Form.Item name="to" label="接收邮箱" rules={[{ required: true, type: 'email' }]}>
