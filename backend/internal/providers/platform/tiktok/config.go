@@ -14,7 +14,7 @@ import (
 
 const (
 	// ErrIncompleteCred aliases the unified platform wording for TikTok Partner app secrets / redirect_uri.
-	ErrIncompleteCred = platformp.ErrIncompleteTikTokAppConfig
+	ErrIncompleteCred     = platformp.ErrIncompleteTikTokAppConfig
 	errMissingAuthBaseURL = "tiktok platform config is incomplete: set auth_base_url in settings → platform group platform_tiktok (or legacy oauth_*_url entries)"
 	errMissingAPIBaseURL  = "tiktok platform config is incomplete: set api_base_url in settings (group platform_tiktok)"
 	errMissingAPIVersion  = "tiktok platform config is incomplete: set api_version (e.g. 202309) in settings"

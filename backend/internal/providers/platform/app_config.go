@@ -15,15 +15,15 @@ type PlatformAppConfigSchema struct {
 
 // AppConfigField is one admin-editable settings row inside groupKey.
 type AppConfigField struct {
-	Name          string               `json:"name"`
-	Label         string               `json:"label"`
-	Type          string               `json:"type"` // text, password, number, switch, select, textarea
-	Required      bool                 `json:"required"`
-	Sensitive     bool                 `json:"sensitive"` // persists with is_encrypted=true
-	Placeholder   string               `json:"placeholder,omitempty"`
-	Help          string               `json:"help,omitempty"` // UX hint / description
-	DefaultValue  any                  `json:"defaultValue,omitempty"`
-	Options       []AppConfigOption    `json:"options,omitempty"`
+	Name         string            `json:"name"`
+	Label        string            `json:"label"`
+	Type         string            `json:"type"` // text, password, number, switch, select, textarea
+	Required     bool              `json:"required"`
+	Sensitive    bool              `json:"sensitive"` // persists with is_encrypted=true
+	Placeholder  string            `json:"placeholder,omitempty"`
+	Help         string            `json:"help,omitempty"` // UX hint / description
+	DefaultValue any               `json:"defaultValue,omitempty"`
+	Options      []AppConfigOption `json:"options,omitempty"`
 }
 
 // AppConfigOption is select option wiring.

@@ -202,7 +202,6 @@ func (s *Service) GetPlatformAppSettings(ctx context.Context, platformSlug strin
 	}, nil
 }
 
-
 func (s *Service) PutPlatformAppSettings(c *gin.Context, platformSlug string, values map[string]interface{}) (*PlatformAppSettingsDTO, error) {
 	if s == nil || s.Settings == nil || c == nil {
 		return nil, errors.New("shop: settings unavailable")
