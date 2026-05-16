@@ -11,4 +11,10 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/collect/tasks", h.List)
 	g.GET("/collect/tasks/:id", h.Get)
 	g.POST("/collect/tasks/:id/retry", h.Retry)
+
+	g.POST("/collect/batches", h.CreateBatch)
+	g.GET("/collect/batches", h.ListBatches)
+	g.GET("/collect/batches/:id/tasks", h.ListBatchTasks)
+	g.GET("/collect/batches/:id", h.GetBatch)
+	g.POST("/collect/batches/:id/retry-failed", h.RetryBatchFailed)
 }

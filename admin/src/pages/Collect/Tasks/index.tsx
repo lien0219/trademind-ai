@@ -150,7 +150,7 @@ export default function CollectTasksPage() {
             setSubmitting(true);
             try {
               await createCollectTask({ source: vals.source?.trim() || '1688', url });
-              message.success('任务已提交');
+              message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
             } catch (e) {
               message.error(e instanceof Error ? e.message : '采集失败');

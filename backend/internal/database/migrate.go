@@ -27,6 +27,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},
+		&collect.CollectBatch{},
 		&collect.CollectTask{},
 		&aiprompt.AIPrompt{},
 		&aitask.AITask{},

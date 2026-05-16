@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-16（**采集任务异步化** — `POST /collect/tasks` 投递 **Redis 列表队列 `collect:tasks`**，进程内 **Collect Worker**（可配置并发）消费并调 Collector；管理端任务列表 **轮询刷新**；详见正文）
+**最后更新**：2026-05-16（**批量采集**：`collect_batches`、`collect_tasks.batch_id`、`POST /api/v1/collect/batches` 与批次查询API；Redis **同一队列 `collect:tasks`**；**Worker 与子任务成功后按 `GROUP BY status` 重算批次统计**；管理端 **`/collect/batches`**；环境变量 **`COLLECT_BATCH_MAX_URLS`**）
 
 ---
 
@@ -11,7 +11,7 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 3→4→5 阶段衔接**：**采集**为 **Node Collector 结构化解析** + **Go 异步队列编排**（Redis `collect:tasks` + Worker 调 **`POST /v1/collect`**，契约未变）。**仍未做**：批量采集、队列深度观测、AI 图片、AI 客服、云存储 Provider 等 |
+| **路线图阶段** | **第 3→4→5 阶段衔接**：**批量采集（批次 + Redis 异步）**、`NormalizedProduct` 契约未变。**仍未充分**：队列可观测指标、Worker 指数退避、任务事件表、AI 图片、云存储 Provider 等 |
 | **MVP 闭环** | 登录 → 配置 AI → 采集/草稿 → **AI 优化标题（`ai_title`）** 与 **AI 生成描述（`ai_description` 需手动应用）** 已具备（依赖有效的大模型与系统 AI 设置） |
 | **产物形态** | Monorepo 可构建；本地需 **PostgreSQL**；AI 调用走 **后端 Gateway**，前端 **不直连** 第三方模型 |
 
@@ -45,13 +45,13 @@
 - **配置**：`internal/config` 从环境变量加载（DB、Redis、**JWT**、`APP_MASTER_KEY`、**`UPLOAD_MAX_MB`（默认 10）**、**ADMIN_BOOTSTRAP_*** 等）；**生产环境**强制非默认 `JWT_SECRET`。
 - **日志**：`internal/logger`（development 文本 / production JSON）。
 - **数据库**：GORM，默认 **PostgreSQL**（`DB_DRIVER` 默认 `postgres`；未设置 `DB_PORT` 时默认 **5432**，MySQL 为 **3306**）；启动时 **Ping**；失败则进程退出。
-- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**、**`products`、`product_images`、`product_skus`、`collect_tasks`**、**`ai_prompts`、`ai_tasks`**；启动后 **`aiprompt.EnsureDefaults`** 写入默认 **`product_title_optimize`**、**`product_description_generate`**（各仅在缺失时插入）
+- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**、**`products`、`product_images`、`product_skus`、`collect_batches`、`collect_tasks`**、**`ai_prompts`、`ai_tasks`**；启动后 **`aiprompt.EnsureDefaults`** 写入默认 **`product_title_optimize`**、**`product_description_generate`**（各仅在缺失时插入）
 - **Redis**：`internal/rdb`（go-redis），连接失败 **仅告警**，服务继续（健康检查体现 `redis: skipped/degraded`）。
 - **健康检查**：`GET /health`、`GET /api/v1/health`（含 DB/Redis 检查）。
 - **ID 约定**：管理员等域表主键 **UUID**（`internal/pkg/model` + `internal/pkg/id`；GORM `char(36)`）；`settings` 表为 **`BIGINT` 自增**（与规则文档一致）。
 - **认证**：`admin_users` 模型；`POST /api/v1/auth/login`（bcrypt 口令、**JWT HS256**）；`GET /api/v1/auth/profile`、`POST /api/v1/auth/logout`（无状态，客户端弃 token）。
 - **JWT 上下文**：`BearerAuth` 写入 `ctxkey.AdminID` 与 **`ctxkey.AdminUsername`**（供审计与业务使用）。
-- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：创建任务 / 成功 / 失败 / 重试；**商品**：手工 CRUD、**草稿字段更新（`product.update`）**、**SKU 增删改（`product.sku.*`）**、**图片增删改与排序（`product.image.*`）**与 **采集入库创建草稿**；**AI 标题**：优化成功/失败、**应用 AI 标题**；**AI 描述**：**`ai.description_generate.success` / `ai.description_generate.failed`**、**`ai.description.apply`**（不写 API Key 与完整 Prompt）
+- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：**`collect.batch.create` / `collect.batch.retry_failed`**、任务 **创建 / 成功 / 失败 / 单条重试**（**不写大批量 URL**，仅 `batchId`/`task_count` 等）；**商品**：手工 CRUD、**草稿字段更新（`product.update`）**、**SKU 增删改（`product.sku.*`）**、**图片增删改与排序（`product.image.*`）**与 **采集入库创建草稿**；**AI 标题**：优化成功/失败、**应用 AI 标题**；**AI 描述**：**`ai.description_generate.success` / `ai.description_generate.failed`**、**`ai.description.apply`**（不写 API Key 与完整 Prompt）
 - **存储 Provider**：`internal/providers/storage` 接口 **Put / GetURL / Delete**；**本地实现** `internal/providers/storage/local`（`settings.storage`：`kind`、`local_root`、`public_base`）；**`GET /static/*filepath`** 按当前 `local_root` 提供只读文件（防 `..` 穿越）；上传仅当 **`kind=local`**，其它 kind 返回明确错误（云上传后续接 Provider）。
 - **文件**：`files` 表；**`POST /api/v1/files/upload`**（`multipart` 字段名 **`file`**；**jpg/jpeg/png/webp/gif**；**objectKey = 日期目录/UUID.ext**；大小默认 **10MB**，环境变量 **`UPLOAD_MAX_MB`**）；**`GET /api/v1/files`**（分页、`contentType`）；**`DELETE /api/v1/files/:id`**（删库 + Provider 删对象）。**`MaxMultipartMemory`** 与配置上限对齐。
 - **配置中心**：`settings` 模型与 `GET/PUT /api/v1/settings`；`item_value` 在 `is_encrypted=true` 时 **AES-GCM**（`APP_MASTER_KEY`）存储；列表接口 **脱敏**（`****` 规则）；PUT 若密文占位含 `****` 则 **不覆盖**原密钥，可更新 remark / value_type 等。
@@ -63,7 +63,7 @@
 - **AI 调用记录**：模块 `internal/modules/aitask`；表 **`ai_tasks`**（`task_type` / `provider` / `model` / `prompt_code` / status **`pending|running|success|failed`** 等）；**标题优化**（`task_type` **`title_optimize`**）与 **描述生成**（**`product_description_generate`**）各写一条；**`raw_response`** 仅存提供商返回 JSON 裁剪字段，**不含密钥**。**只读查询**：**`GET /api/v1/ai/tasks`**（分页；筛选 **taskType / status / provider / model / promptCode / productId / start|end（RFC3339）**；列表 **不返回** `input`/`output`/`raw_response`）；**`GET /api/v1/ai/tasks/:id`**（详情含 **input/output/rawResponse**，响应前对 JSON 内 **api_key 等敏感键** 做 **`[REDACTED]`** 脱敏）；均 **JWT**、统一 **envelope**
 - **商品 AI 标题**：**`POST /api/v1/products/:id/ai/optimize-title`**（body：`language` / `platform` / `maxLength`；**不自动改 `title`**）；**`POST /api/v1/products/:id/apply-ai-title`**（`aiTitle` + `taskId`，校验任务归属，**仅更新 `products.ai_title`**）；操作日志：**`ai.title_optimize.success` / `ai.title_optimize.failed` / `ai.title.apply`**（消息 **不含密钥与完整 Prompt**）
 - **商品 AI 描述**：**`POST /api/v1/products/:id/ai/generate-description`**（`language` / `platform` / `tone`，默认 en / TikTok Shop / professional；**Preload `images`+`skus`**；**不自动改 `products.description`**）；**`POST /api/v1/products/:id/apply-ai-description`**（`aiDescription` + `taskId`，**仅更新 `products.ai_description`**）；**`GET /api/v1/products/:id/ai/tasks`**（详情页最近任务，列表 **省略大体量 JSON 列**，含 **`title_optimize`** 与 **`product_description_generate`**）；操作日志：**`ai.description_generate.success` / `ai.description_generate.failed` / `ai.description.apply`**（同上）
-- **采集任务**：模块 `internal/modules/collect`；表 **`collect_tasks`**（**JSONB `raw_result`**、统一状态 **pending / running / success / failed / cancelled / retrying**）。**`POST /api/v1/collect/tasks`**（body：`source` + `url`）**异步**：写入 **`pending`** → **`LPUSH` Redis 队列**（默认 key **`collect:tasks`**，消息 JSON：`taskId` / `source` / `url` / `createdBy` / `requestId`）→ **立即返回**（**不等待** Collector）；若 **Redis 不可用** 或队列为禁，返回 **503** + 明确 **`Redis queue unavailable`** / **`collect queue is disabled`**（**不回退同步调用**）。**`GET /api/v1/collect/tasks`**、**`GET .../:id`** 供轮询；**`POST .../:id/retry`**（仅 **failed**）→ **`retrying`** + 重新 **入队**。**Collect Worker**：`worker.go` + `RunCollectJob`（`CAS` **pending|retrying → running**，调 Collector，**`ImportDraftWithContext`** 写草稿，**`collect.task.success`/`failed`** 走 **`operationlog.WriteBackground`**；进程内 **BRPOP** 消费，**`COLLECT_WORKER_CONCURRENCY`** 并发，**优雅关闭**时 **cancel worker context** 并 **WaitGroup**（进行中 Collector 调用使用独立 **background context** 避免半道切断）。环境变量：**`COLLECT_QUEUE_ENABLED`**、**`COLLECT_WORKER_CONCURRENCY`**、**`COLLECT_QUEUE_NAME`**（见 `.env.example`）。
+- **采集任务与批次**：模块 `internal/modules/collect`。**表**：**`collect_batches`**（聚合 `total/pending/running/success/failed/cancelled`、衍生 **`batch.status`**：**`running` / `partial_success` / `success` / `failed` / `cancelled`**）；**`collect_tasks`**：**JSONB `raw_result`**、状态 **pending / running / success / failed / cancelled / retrying**，**`batch_id` 可空**（单链接采集留空）。**单链接**：**`POST /api/v1/collect/tasks`**（`source`+`url`）→ **`pending`** → **`LPUSH` `collect:tasks`** → **`collect.task.create`**。**批量**：**`POST /api/v1/collect/batches`**，`{ source, urls[] }`（**裁剪空行**、**`COLLECT_BATCH_MAX_URLS`** 默认 **50**、**URL 去重**；接口层 bulk **仅放行 `1688`**，与 Collector 一致）→ 事务写入 **批次 + N 任务** 并 **`GROUP BY`** 聚合 → **逐条 `LPUSH`**；若 **任一入队失败** 则 **删除本批任务与批次**。**查询**：**`GET /api/v1/collect/batches`**（分页：**`source` / `status` / `start` / `end` RFC3339**）；**`GET /api/v1/collect/batches/:id`**；**`GET /api/v1/collect/batches/:id/tasks`**；**`GET /api/v1/collect/tasks?batchId=`**。**重试**：**`POST /api/v1/collect/tasks/:id/retry`**（任务带 **`batch_id`** 时 **重算批次**）；**`POST /api/v1/collect/batches/:id/retry-failed`** → **`collect.batch.retry_failed`**。**聚合**：**pending + retrying 计入 `pending_count`**；**任一 `pending|running|retrying` ⇒ `running`**；全非上述时：**全 success / 全 failed / 全 cancelled / mixed ⇒ `partial_success`**；**不写 URL 明细** 至 **`collect.batch.create`**。**Worker / Collector / 队列 key** 与异步化条目一致。
 - **Collector HTTP 客户端**：`collector_client.go`；配置 **`COLLECTOR_BASE_URL`**（默认 `http://127.0.0.1:3100`，须与 Collector 监听端口一致）、**`COLLECTOR_TIMEOUT_SECONDS`**（默认 **60**）；**请求级 context + HTTP Client Timeout**；422/`ok:false` 映射为任务 **failed** 并写入 **`error_message`**；成功时 **`raw_result` 保存完整归一化 JSON**（内含 **`raw`** 字段）。
 - **分层**：业务 Orchestration 在 **collect.Service**，采集解析仍在 **Node Collector**；Go **不写死** 1688 解析逻辑。
 
@@ -78,9 +78,8 @@
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
 - **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；**`/product/drafts/:id`** **商品草稿编辑页**：**Tabs**（**基础信息 ProTable type=form**、**AI 标题/描述**（原弹窗逻辑保留）、**图片管理**（上传走 **`/api/v1/files/upload`** + **`createProductImage`**、编辑类型与 sortOrder、**reorder**）、**SKU `EditableProTable`**、最近 **AI 任务**）；顶栏快捷 **标记 ready / 归档 / 软删草稿**。**`/ai/prompts`**、**`/ai/tasks`** 同前。**`products.ts`** 增补 **`updateProduct`、SKU/Image 全套 API 封装**。
-- **采集任务**：顶部表单 **来源（默认 1688）+ URL** → **`POST /api/v1/collect/tasks`**（**提交后即返回**，提示「**采集任务已提交，正在后台处理**」）；表格 **`GET /api/v1/collect/tasks`**（**ProTable `polling`**，默认约 **4s**，**visibility 隐藏页签时暂停**）；列含 **source、source_url、status、result_product_id…**；**pending / running / retrying** 展示为 **处理中**；**failed** 行 **重试** → **`POST .../retry`**（重新入队）；**success** 可跳转 **`/product/drafts/:id`**。
-- **请求封装**：`src/services/request.ts`、**`aiPrompts.ts`**、**`aiTasks.ts`**、`settings.ts`、`auth.ts`、**`operationLogs.ts`**、**`files.ts`**、**`products.ts`**（**商品更新、SKU、图片、reorder**、optimize-title / generate-description / apply / **ai/tasks**）、**`collectTasks.ts`**。
-- **常量**：`src/constants/status.ts`（商品状态、任务状态枚举，与规则对齐）。
+- **采集**：路由 **`/collect/tasks`** **单链接** + **`/collect/batches`** **批量**：多行链接、计数、成功后提示 **「批量采集任务已提交，共 X 条」**；**ProTable `polling`** 约 **5s**，**visibility 暂停**；**Drawer** 内该批次 **`queryCollectBatchTasks`** + **`getCollectBatch` 刷新顶栏计数**（与列表轮询互不替代）；批次 **重试失败**、任务 **单行重试**、**success → 草稿**；服务 **`services/collectTasks.ts`**、**`services/collectBatches.ts`**。
+- **常量**：`src/constants/status.ts`（商品状态、**采集任务 / 批次**状态枚举）。
 
 ### 3.4 采集服务（`collector/`）
 
@@ -118,7 +117,7 @@
 
 - [x] 登录页与 **access 模型**（@umijs/max access）；**Bearer** 请求拦截与 **401** 处理
 - [x] **系统 / AI / 存储 / 采集服务 / 安全** 设置页与 **真实 settings API**；**test-ai / test-storage**；**存储页上传测试**；**操作日志**与**文件管理**页（**ProTable**）
-- [x] **商品草稿 / 采集任务**：分页列表 API、筛选、采集提交表单与失败 **重试**
+- [x] **商品草稿 / 采集任务（含批量采集 `/collect/batches`）**：分页列表 API、筛选、**单链接**与**批量**表单；失败 **重试** / 批次 **重试失败**
 - [x] **Prompt 模板页（`/ai/prompts`）**；**商品详情编辑页（`/product/drafts/:id`）**：**Tabs**（基础表单、保留 **AI 标题/描述** 弹窗、**图片 ModalForm/Reorder**、**SKU `EditableProTable`**、最近 AI 任务）；**`/ai/tasks` 全局 AI 任务记录页**
 
 ### 4.3 采集服务
@@ -153,8 +152,8 @@ trademind-ai/
 │   ├── .umirc.ts            # 含 proxy `/api` 与 **`/static`** → 8080
 │   ├── config/routes.ts
 │   └── src/
-│       ├── pages/           # Dashboard / **System/OperationLogs** / **Files** / Settings / **AI/Prompts**、**AI/Tasks** / **Product（草稿、详情）** / **Collect/Tasks**
-│       ├── services/        # request、**aiPrompts**、**aiTasks**、settings、auth、**operationLogs**、**files**、**products**、**collectTasks**
+│       ├── pages/           # … **Collect/Tasks**、**Collect/Batches** …
+│       ├── services/        # … **`collectTasks`**、**`collectBatches`** …
 │       └── constants/       # 状态枚举
 ├── collector/               # Node 采集（Playwright）
 │   └── src/
@@ -196,7 +195,7 @@ trademind-ai/
 2. **S3 等云存储**：`test-storage` 仅校验字段完整性；**不**发起真实列举/上传；**文件上传**在 **`kind≠local`** 时仍会失败（符合当前范围）。
 3. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**；开发依赖 admin **`/static` 代理** 或直连后端端口。
 4. **1688 采集** 已升级为 **结构化首版**：多数商品页可从 DOM + JSON 抽到 **主图/详情图/属性/SKU**；**站点改版、登录/验证码/风控会导致字段缺失**，详情图若在 **跨域 iframe / 异步接口** 仍可能不完整；非生产 SLA。
-5. **采集异步化首版局限**：**批量采集未完成**；**Worker 失败重试策略仍简单**（**无自动退避重试**）；**任务历史事件表未做**；队列 **深度/延迟可观测性** 仍弱（见「下一步」）。
+5. **采集异步与批次后续**：**Worker 自动退避重试未完成**；**队列深度 / 滞留时间可观测性仍弱**；**采集任务事件/历史表未完成**（当前仅有 **`collect_tasks` 终态与操作日志关键点**）。
 6. **忘记密码未完成**：已在登录页占位，尚未实现后端逻辑。
 7. **手机号注册/短信未完成**：注册仍仅限 **邮箱 + 验证码**；**登录**已支持邮箱或手机号（规范化数字，兼容 +86）；短信注册/找回未做。
 8. **更多邮件服务商未完成**：当前仅完成了 SMTP 方式对接发送，尚未提供 Mailgun 等其它供应商实现。
@@ -218,10 +217,11 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **批量采集**：多 URL、任务批量状态与限流。
-2. **Collector 演进**：SKU 对齐与 **多维 prop**、详情 **iframe/async**、**人机验证探测**与用户侧指引（仍不迁入 Go）。
-3. **AI 图片任务预留**（路线图第 6 阶段）：表结构 / Image Provider / 任务页骨架。
-4. **云存储**：**S3/COS/OSS/R2** Provider、**kind≠local** 上传链路。
+1. **队列可观测性**：**Redis LIST 长度、消费延迟 / Lag**（管理端、`/health` 扩展或 Prometheus），判断是否堆积。
+2. **Worker / 任务模型**：**失败自动退避重试**、**采集任务事件/历史流水表**（与现有 **`collect_tasks` 状态**、`operation_logs` 互补）。
+3. **Collector 演进**：SKU **多维 prop**、详情 **iframe/async**、**人机验证**探测与指引（**不迁入 Go**）。
+4. **AI 图片任务预留**（路线图第 6 阶段）：表结构 / Image Provider / 任务页骨架。
+5. **云存储**：**S3/COS/OSS/R2** Provider、**`kind≠local` 上传**真实链路。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -244,6 +244,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-16 | **批量采集**：**`collect_batches`** + **`collect_tasks.batch_id`**；**`POST /api/v1/collect/batches`**（**URL 裁剪/去重、默认最多 50 条 `COLLECT_BATCH_MAX_URLS`、先入队失败后整批回滚**）；**批次列表 / 详情 / 子任务** API；任务列表 **`batchId`** 筛选；**Worker 与各阶段状态变更后以 `GROUP BY status` 重算批次**，**不设并发 +-1**；管理端 **`/collect/batches`**（**5s 轮询**、抽屉内任务列表 + **批次快照刷新**）；操作日志 **`collect.batch.create`** / **`collect.batch.retry_failed`**；**.env.example** 补 **`COLLECT_BATCH_MAX_URLS`**；**§7/§8** 对齐下一步与遗留 |
 | 2026-05-16 | **管理员登录**：仅 **邮箱或手机号 + 密码**（不再接受用户名）；首启账号通过 **`ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PHONE`**（至少一项）配置；`admin_users.username` 为内部不透明 ID；`docs/PROGRESS`、`.env.example` 同步 |
 | 2026-05-16 | **邮箱注册与通知**：UI 增加登录注册 Tab 切换与设计稿对齐；管理端增加 **Email 邮箱设置** 页并可测试连接（`test-email`）；后端实现 **Email Provider（SMTP）** 与 settings 写入，密码 AES-GCM；扩展 `admin_users` 邮箱与 **`account`** 登录链路；验证码限流与 TTL；注册入库并自动登录 |
 | 2026-05-16 | **管理端 UI**：Ant Design 主题与 **mix 布局**（顶栏+侧栏）、登录分区样式、工作台快捷入口；各页去掉冗余说明与 Alert；与 PROGRESS 同步 |

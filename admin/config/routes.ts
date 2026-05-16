@@ -79,6 +79,11 @@ export default [
         name: '采集任务',
         component: './Collect/Tasks',
       },
+      {
+        path: '/collect/batches',
+        name: '批量采集',
+        component: './Collect/Batches',
+      },
     ],
   },
   {

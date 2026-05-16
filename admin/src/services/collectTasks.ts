@@ -2,6 +2,7 @@ import { getJSON, getWithParams, postJSON } from './request';
 
 export type CollectTaskRow = {
   id: string;
+  batchId?: string;
   source: string;
   sourceUrl: string;
   status: string;
@@ -28,6 +29,7 @@ export async function fetchCollectTasks(params: {
   status?: string;
   source?: string;
   keyword?: string;
+  batchId?: string;
 }) {
   return getWithParams<{ list: CollectTaskRow[]; pagination: Pagination }>('/api/v1/collect/tasks', {
     page: params.page,
@@ -35,6 +37,7 @@ export async function fetchCollectTasks(params: {
     status: params.status,
     source: params.source,
     keyword: params.keyword,
+    batchId: params.batchId,
   });
 }
 

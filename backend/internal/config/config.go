@@ -36,6 +36,8 @@ type Config struct {
 	CollectWorkerConcurrency int
 	// CollectQueueName is the Redis list key for collect job payloads.
 	CollectQueueName string
+	// CollectBatchMaxURLs limits URLs per POST /collect/batches (default 50).
+	CollectBatchMaxURLs int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -92,6 +94,7 @@ func Load() (*Config, error) {
 			os.Getenv("COLLECT_QUEUE_NAME"),
 			"collect:tasks",
 		)),
+		CollectBatchMaxURLs: atoiOrDefault(os.Getenv("COLLECT_BATCH_MAX_URLS"), 50),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))

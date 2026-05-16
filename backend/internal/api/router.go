@@ -93,6 +93,7 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 	if dep.Config != nil {
 		collectSvc.QueueName = dep.Config.CollectQueueName
 		collectSvc.QueueEnabled = dep.Config.CollectQueueEnabled
+		collectSvc.BatchMaxURLs = dep.Config.CollectBatchMaxURLs
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 

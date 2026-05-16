@@ -29,6 +29,7 @@ type Service struct {
 	Redis        *rdb.Client
 	QueueName    string
 	QueueEnabled bool
+	BatchMaxURLs int
 }
 
 func clampCollectPage(page, ps int) (int, int) {
@@ -121,12 +122,15 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, msg string) {
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: task.CreatedBy,
-			Action:        "collect.task.failed",
-			Resource:      "collect_task",
-			ResourceID:    tid.String(),
-			Status:        "failed",
-			Message:       truncateRunes(msg, 2000),
+			Action:      "collect.task.failed",
+			Resource:    "collect_task",
+			ResourceID:  tid.String(),
+			Status:      "failed",
+			Message:     truncateRunes(msg, 2000),
 		})
+	}
+	if task.BatchID != nil {
+		s.reconcileCollectBatch(ctx, task.BatchID)
 	}
 }
 
@@ -165,6 +169,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return
 	}
+	s.reconcileCollectBatch(ctx, task.BatchID)
 
 	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL)
 	if err != nil {
@@ -206,15 +211,16 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 		s.failTask(ctx, &task, err.Error())
 		return
 	}
+	s.reconcileCollectBatch(ctx, task.BatchID)
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: task.CreatedBy,
-			Action:        "collect.task.success",
-			Resource:      "collect_task",
-			ResourceID:    taskID.String(),
-			Status:        "success",
-			Message:       fmt.Sprintf("product_id=%s", pid.String()),
+			Action:      "collect.task.success",
+			Resource:    "collect_task",
+			ResourceID:  taskID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("product_id=%s", pid.String()),
 		})
 	}
 }
@@ -321,8 +327,11 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 				"finished_at":   &fin,
 				"updated_at":    fin,
 			}).Error
+		s.reconcileCollectBatch(c.Request.Context(), task.BatchID)
 		return zero, err
 	}
+
+	s.reconcileCollectBatch(c.Request.Context(), task.BatchID)
 
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -363,6 +372,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if v := strings.TrimSpace(q.Source); v != "" {
 		tx = tx.Where("source = ?", v)
+	}
+	if bid := strings.TrimSpace(q.BatchID); bid != "" {
+		tx = tx.Where("batch_id = ?", bid)
 	}
 	if v := strings.TrimSpace(q.Keyword); v != "" {
 		pat := "%" + strings.ToLower(v) + "%"
