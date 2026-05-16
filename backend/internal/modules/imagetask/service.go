@@ -35,6 +35,11 @@ type Service struct {
 
 	// TaskTimeoutMax caps provider call context (0 = follow settings only).
 	TaskTimeoutMax time.Duration
+
+	AutoRetryEnabled  bool
+	MaxAutoRetries    int
+	RetryBaseDelaySec int
+	RetryMaxDelaySec  int
 }
 
 // CreatePayload is the normalized create input.
@@ -82,6 +87,34 @@ func (s *Service) comfyUIExecutionBudget(ctx context.Context) time.Duration {
 	maxPoll := comfyIntSetting(m["comfyui_max_poll_seconds"], 180, 5, 7200)
 	httpSec := comfyIntSetting(m["comfyui_timeout_sec"], 180, 5, 3600)
 	return time.Duration(maxPoll)*time.Second + time.Duration(httpSec)*time.Second + 45*time.Second
+}
+
+func (s *Service) effectiveMaxRetries(task *ImageTask) int {
+	if task != nil && task.MaxRetries > 0 {
+		return task.MaxRetries
+	}
+	if s != nil && s.MaxAutoRetries > 0 {
+		return s.MaxAutoRetries
+	}
+	return 2
+}
+
+func (s *Service) defaultMaxRetriesForNewTask() int {
+	return s.effectiveMaxRetries(nil)
+}
+
+func (s *Service) effectiveRetryBaseSec() int {
+	if s != nil && s.RetryBaseDelaySec > 0 {
+		return s.RetryBaseDelaySec
+	}
+	return 30
+}
+
+func (s *Service) effectiveRetryMaxSec() int {
+	if s != nil && s.RetryMaxDelaySec > 0 {
+		return s.RetryMaxDelaySec
+	}
+	return 300
 }
 
 func comfyIntSetting(raw string, def, minV, maxV int) int {
@@ -259,6 +292,7 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		SourceImageURL: srcURL,
 		Input:          p.Input,
 		CreatedBy:      p.CreatedBy,
+		MaxRetries:     s.defaultMaxRetriesForNewTask(),
 	}
 	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
@@ -427,11 +461,14 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	outBytes, _ := json.Marshal(outObj)
 	fin := time.Now().UTC()
 	updates := map[string]any{
-		"status":        StatusSuccess,
-		"output":        datatypes.JSON(outBytes),
-		"result_url":    finalURL,
-		"error_message": "",
-		"finished_at":   &fin,
+		"status":            StatusSuccess,
+		"output":            datatypes.JSON(outBytes),
+		"result_url":        finalURL,
+		"error_message":     "",
+		"finished_at":       &fin,
+		"retry_count":       0,
+		"next_retry_at":     nil,
+		"retry_enqueued_at": nil,
 	}
 	if finalFID != nil {
 		updates["result_file_id"] = finalFID
@@ -448,12 +485,14 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 func (s *Service) claimPendingTask(ctx context.Context, taskID uuid.UUID) (*ImageTask, bool, error) {
 	now := time.Now().UTC()
 	res := s.DB.WithContext(ctx).Model(&ImageTask{}).
-		Where("id = ? AND status = ?", taskID, StatusPending).
+		Where("id = ? AND (status = ? OR (status = ? AND next_retry_at IS NULL))",
+			taskID, StatusPending, StatusRetrying).
 		Updates(map[string]any{
-			"status":        StatusRunning,
-			"started_at":    &now,
-			"finished_at":   nil,
-			"error_message": "",
+			"status":            StatusRunning,
+			"started_at":        &now,
+			"finished_at":       nil,
+			"error_message":     "",
+			"retry_enqueued_at": nil,
 		})
 	if res.Error != nil {
 		return nil, false, res.Error
@@ -507,14 +546,123 @@ func (s *Service) dispatch(ctx context.Context, prov imgprov.Provider, task *Ima
 }
 
 func (s *Service) fail(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string) error {
+	return s.handleImageTaskFailure(ctx, httpCtx, task, errors.New(msg))
+}
+
+func (s *Service) handleImageTaskFailure(ctx context.Context, httpCtx *gin.Context, task *ImageTask, runErr error) error {
+	msg := strings.TrimSpace(runErr.Error())
+	msg = redactSensitiveErr(msg)
+	msg = truncateRunes(msg, 8000)
+
+	if httpCtx != nil || s == nil || !s.AutoRetryEnabled || !s.QueueEnabled {
+		return s.finalizeImageFailed(ctx, httpCtx, task, msg, false)
+	}
+	if !IsRetryableImageTaskError(runErr) {
+		return s.finalizeImageFailed(ctx, httpCtx, task, msg, false)
+	}
+	maxR := s.effectiveMaxRetries(task)
+	if task.RetryCount >= maxR {
+		return s.finalizeImageFailed(ctx, httpCtx, task, msg, true)
+	}
+	s.scheduleImageAutoRetry(ctx, task, msg)
+	return errors.New(msg)
+}
+
+func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, msg string) {
+	if s == nil || s.DB == nil || task == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	now := time.Now().UTC()
+	newRC := task.RetryCount + 1
+	delaySec := imageRetryDelaySeconds(newRC, s.effectiveRetryBaseSec(), s.effectiveRetryMaxSec())
+	lm := strings.ToLower(msg)
+	if strings.Contains(lm, "429") || strings.Contains(lm, "rate limit") || strings.Contains(lm, "too many requests") {
+		if delaySec < s.effectiveRetryMaxSec() {
+			delaySec *= 2
+			if delaySec > s.effectiveRetryMaxSec() {
+				delaySec = s.effectiveRetryMaxSec()
+			}
+		}
+	}
+	next := now.Add(time.Duration(delaySec) * time.Second)
+
+	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(map[string]any{
+		"status":            StatusRetrying,
+		"retry_count":       newRC,
+		"next_retry_at":     &next,
+		"error_message":     msg,
+		"finished_at":       nil,
+		"retry_enqueued_at": nil,
+	}).Error
+
+	maxR := s.effectiveMaxRetries(task)
+	if s.OpLog != nil {
+		logMsg := fmt.Sprintf("taskType=%s provider=%s retryCount=%d maxRetries=%d nextRetryAt=%s productId=%s",
+			task.TaskType, task.Provider, newRC, maxR, next.Format(time.RFC3339), ptrUUIDStr(task.ProductID))
+		var admin *uuid.UUID
+		if task.CreatedBy != nil {
+			admin = task.CreatedBy
+		}
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+			AdminUserID: admin,
+			Action:      "image.task.auto_retry_scheduled",
+			Resource:    "image_task",
+			ResourceID:  task.ID.String(),
+			Status:      "success",
+			Message:     truncateRunes(logMsg, 2000),
+		})
+	}
+}
+
+func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string, exhausted bool) error {
 	fin := time.Now().UTC()
 	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(map[string]any{
-		"status":        StatusFailed,
-		"error_message": msg,
-		"finished_at":   &fin,
+		"status":            StatusFailed,
+		"error_message":     msg,
+		"finished_at":       &fin,
+		"next_retry_at":     nil,
+		"retry_enqueued_at": nil,
 	}).Error
-	s.logFailed(ctx, httpCtx, task, msg)
+	if exhausted {
+		s.logRetryExhausted(ctx, httpCtx, task, msg)
+	} else {
+		s.logFailed(ctx, httpCtx, task, msg)
+	}
 	return errors.New(msg)
+}
+
+func (s *Service) logRetryExhausted(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string) {
+	if s.OpLog == nil {
+		return
+	}
+	maxR := s.effectiveMaxRetries(task)
+	opts := operationlog.WriteOpts{
+		Action:     "image.task.retry_exhausted",
+		Resource:   "image_task",
+		ResourceID: task.ID.String(),
+		Status:     "failed",
+		Message: fmt.Sprintf("taskType=%s provider=%s retryCount=%d maxRetries=%d productId=%s err=%s",
+			task.TaskType, task.Provider, task.RetryCount, maxR, ptrUUIDStr(task.ProductID), truncateMsg(msg, 300)),
+	}
+	if httpCtx != nil {
+		_ = s.OpLog.Write(httpCtx, opts)
+		return
+	}
+	var admin *uuid.UUID
+	if task.CreatedBy != nil {
+		admin = task.CreatedBy
+	}
+	_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+		AdminUserID: admin,
+		Action:      opts.Action,
+		Resource:    opts.Resource,
+		ResourceID:  opts.ResourceID,
+		Status:      opts.Status,
+		Message:     opts.Message,
+	})
 }
 
 func (s *Service) logSuccess(ctx context.Context, httpCtx *gin.Context, taskID uuid.UUID, task *ImageTask, model string, promptID string) {
@@ -623,14 +771,19 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		return fmt.Errorf("only failed tasks can be retried")
 	}
 
+	maxR := s.defaultMaxRetriesForNewTask()
 	updates := map[string]any{
-		"status":         StatusPending,
-		"error_message":  "",
-		"started_at":     nil,
-		"finished_at":    nil,
-		"result_url":     "",
-		"result_file_id": nil,
-		"output":         nil,
+		"status":            StatusPending,
+		"retry_count":       0,
+		"max_retries":       maxR,
+		"next_retry_at":     nil,
+		"retry_enqueued_at": nil,
+		"error_message":     "",
+		"started_at":        nil,
+		"finished_at":       nil,
+		"result_url":        "",
+		"result_file_id":    nil,
+		"output":            nil,
 	}
 	res := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", id, StatusFailed).Updates(updates)
 	if res.Error != nil {

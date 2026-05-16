@@ -54,7 +54,7 @@ type Config struct {
 	// ImageTaskTimeoutSeconds caps per-task provider context timeout (0 = use settings image timeout only).
 	ImageTaskTimeoutSeconds int
 
-	// Image auto-retry env (reserved; scheduler not implemented in v1).
+	// Image auto-retry: failed tasks enter retrying + next_retry_at; scheduler LPUSH after delay (requires IMAGE_QUEUE_ENABLED).
 	ImageAutoRetryEnabled      bool
 	ImageMaxRetries            int
 	ImageRetryBaseDelaySeconds int
@@ -130,7 +130,7 @@ func Load() (*Config, error) {
 		)),
 		ImageTaskTimeoutSeconds: atoiOrDefault(os.Getenv("IMAGE_TASK_TIMEOUT_SECONDS"), 120),
 
-		ImageAutoRetryEnabled:      envBool(os.Getenv("IMAGE_AUTO_RETRY_ENABLED"), false),
+		ImageAutoRetryEnabled:      envBool(os.Getenv("IMAGE_AUTO_RETRY_ENABLED"), true),
 		ImageMaxRetries:            atoiOrDefault(os.Getenv("IMAGE_MAX_RETRIES"), 2),
 		ImageRetryBaseDelaySeconds: atoiOrDefault(os.Getenv("IMAGE_RETRY_BASE_DELAY_SECONDS"), 30),
 		ImageRetryMaxDelaySeconds:  atoiOrDefault(os.Getenv("IMAGE_RETRY_MAX_DELAY_SECONDS"), 300),

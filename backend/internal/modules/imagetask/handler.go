@@ -215,23 +215,27 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 type taskDetailDTO struct {
-	ID             uuid.UUID       `json:"id"`
-	TaskType       string          `json:"taskType"`
-	Provider       string          `json:"provider"`
-	Status         string          `json:"status"`
-	ProductID      *uuid.UUID      `json:"productId,omitempty"`
-	SourceImageID  *uuid.UUID      `json:"sourceImageId,omitempty"`
-	SourceImageURL string          `json:"sourceImageUrl,omitempty"`
-	Input          json.RawMessage `json:"input,omitempty"`
-	Output         json.RawMessage `json:"output,omitempty"`
-	ResultFileID   *uuid.UUID      `json:"resultFileId,omitempty"`
-	ResultURL      string          `json:"resultUrl,omitempty"`
-	ErrorMessage   string          `json:"errorMessage,omitempty"`
-	CreatedBy      *uuid.UUID      `json:"createdBy,omitempty"`
-	StartedAt      *time.Time      `json:"startedAt,omitempty"`
-	FinishedAt     *time.Time      `json:"finishedAt,omitempty"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	UpdatedAt      time.Time       `json:"updatedAt"`
+	ID              uuid.UUID       `json:"id"`
+	TaskType        string          `json:"taskType"`
+	Provider        string          `json:"provider"`
+	Status          string          `json:"status"`
+	ProductID       *uuid.UUID      `json:"productId,omitempty"`
+	SourceImageID   *uuid.UUID      `json:"sourceImageId,omitempty"`
+	SourceImageURL  string          `json:"sourceImageUrl,omitempty"`
+	Input           json.RawMessage `json:"input,omitempty"`
+	Output          json.RawMessage `json:"output,omitempty"`
+	ResultFileID    *uuid.UUID      `json:"resultFileId,omitempty"`
+	ResultURL       string          `json:"resultUrl,omitempty"`
+	ErrorMessage    string          `json:"errorMessage,omitempty"`
+	RetryCount      int             `json:"retryCount"`
+	MaxRetries      int             `json:"maxRetries"`
+	NextRetryAt     *time.Time      `json:"nextRetryAt,omitempty"`
+	RetryEnqueuedAt *time.Time      `json:"retryEnqueuedAt,omitempty"`
+	CreatedBy       *uuid.UUID      `json:"createdBy,omitempty"`
+	StartedAt       *time.Time      `json:"startedAt,omitempty"`
+	FinishedAt      *time.Time      `json:"finishedAt,omitempty"`
+	CreatedAt       time.Time       `json:"createdAt"`
+	UpdatedAt       time.Time       `json:"updatedAt"`
 }
 
 // Monitor GET /api/v1/image/tasks/monitor
@@ -268,22 +272,30 @@ func (h *Handler) Get(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
+	mr := row.MaxRetries
+	if mr <= 0 {
+		mr = h.Svc.effectiveMaxRetries(row)
+	}
 	dto := taskDetailDTO{
-		ID:             row.ID,
-		TaskType:       row.TaskType,
-		Provider:       row.Provider,
-		Status:         row.Status,
-		ProductID:      row.ProductID,
-		SourceImageID:  row.SourceImageID,
-		SourceImageURL: row.SourceImageURL,
-		ResultFileID:   row.ResultFileID,
-		ResultURL:      row.ResultURL,
-		ErrorMessage:   row.ErrorMessage,
-		CreatedBy:      row.CreatedBy,
-		StartedAt:      row.StartedAt,
-		FinishedAt:     row.FinishedAt,
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
+		ID:              row.ID,
+		TaskType:        row.TaskType,
+		Provider:        row.Provider,
+		Status:          row.Status,
+		ProductID:       row.ProductID,
+		SourceImageID:   row.SourceImageID,
+		SourceImageURL:  row.SourceImageURL,
+		ResultFileID:    row.ResultFileID,
+		ResultURL:       row.ResultURL,
+		ErrorMessage:    row.ErrorMessage,
+		RetryCount:      row.RetryCount,
+		MaxRetries:      mr,
+		NextRetryAt:     row.NextRetryAt,
+		RetryEnqueuedAt: row.RetryEnqueuedAt,
+		CreatedBy:       row.CreatedBy,
+		StartedAt:       row.StartedAt,
+		FinishedAt:      row.FinishedAt,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
 	}
 	if len(row.Input) > 0 {
 		dto.Input = json.RawMessage(row.Input)

@@ -21,6 +21,7 @@ function statusTag(status: string) {
   const s = status?.trim() || '';
   if (s === 'success') return <Tag color="success">success</Tag>;
   if (s === 'failed') return <Tag color="error">failed</Tag>;
+  if (s === 'retrying') return <Tag color="warning">等待重试</Tag>;
   if (s === 'running' || s === 'pending') return <Tag color="processing">处理中</Tag>;
   if (s === 'cancelled') return <Tag>cancelled</Tag>;
   return <Tag>{s || '-'}</Tag>;
@@ -86,7 +87,7 @@ export default function ImageTasksPage() {
 
   useEffect(() => {
     if (!drawerOpen || !detail) return;
-    if (detail.status !== 'pending' && detail.status !== 'running') return;
+    if (detail.status !== 'pending' && detail.status !== 'running' && detail.status !== 'retrying') return;
     const id = detail.id;
     const iv = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
@@ -94,7 +95,7 @@ export default function ImageTasksPage() {
         try {
           const row = await getImageTask(id);
           setDetail(row);
-          if (row.status !== 'pending' && row.status !== 'running') {
+          if (row.status !== 'pending' && row.status !== 'running' && row.status !== 'retrying') {
             actionRef.current?.reload?.();
           }
         } catch {
@@ -139,6 +140,7 @@ export default function ImageTasksPage() {
       valueEnum: {
         pending: { text: 'pending' },
         running: { text: 'running' },
+        retrying: { text: 'retrying' },
         success: { text: 'success' },
         failed: { text: 'failed' },
         cancelled: { text: 'cancelled' },
@@ -150,6 +152,27 @@ export default function ImageTasksPage() {
       dataIndex: 'provider',
       width: 100,
       ellipsis: true,
+    },
+    {
+      title: '重试',
+      width: 130,
+      search: false,
+      render: (_, row) => {
+        const rc = row.retryCount ?? 0;
+        const mr = row.maxRetries ?? 0;
+        return (
+          <span>
+            {rc}/{mr || '—'}
+          </span>
+        );
+      },
+    },
+    {
+      title: '下次自动重试',
+      dataIndex: 'nextRetryAt',
+      width: 172,
+      search: false,
+      render: (_, row) => (row.nextRetryAt ? dayjs(row.nextRetryAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
     },
     {
       title: '商品 ID',
@@ -543,6 +566,12 @@ export default function ImageTasksPage() {
               </Descriptions.Item>
               <Descriptions.Item label="创建时间">
                 {dayjs(detail.createdAt).format('YYYY-MM-DD HH:mm:ss')}
+              </Descriptions.Item>
+              <Descriptions.Item label="自动重试">
+                {detail.retryCount ?? 0} / {detail.maxRetries ?? '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="下次自动重试">
+                {detail.nextRetryAt ? dayjs(detail.nextRetryAt).format('YYYY-MM-DD HH:mm:ss') : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="错误信息">{detail.errorMessage || '—'}</Descriptions.Item>
             </Descriptions>

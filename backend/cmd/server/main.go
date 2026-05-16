@@ -144,6 +144,10 @@ func main() {
 		}
 		imagetask.StartWorker(workerCtx, &workerWG, log, imageTaskSvc, qn, imgWorkerConc)
 		log.Info("image_task_worker_started", "concurrency", imgWorkerConc, "queue", qn)
+		if cfg.ImageAutoRetryEnabled {
+			imagetask.StartImageRetryScheduler(workerCtx, &workerWG, log, imageTaskSvc, 5*time.Second)
+			log.Info("image_retry_scheduler_started", "interval_sec", 5)
+		}
 	} else if cfg.ImageQueueEnabled && redisClient == nil {
 		log.Warn("image_task_worker_skipped", "reason", "redis unavailable while IMAGE_QUEUE_ENABLED=true")
 	}

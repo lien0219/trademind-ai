@@ -81,6 +81,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	}
 	if dep.Config != nil {
 		imageTaskSvc.QueueEnabled = dep.Config.ImageQueueEnabled
+		imageTaskSvc.AutoRetryEnabled = dep.Config.ImageAutoRetryEnabled
+		imageTaskSvc.MaxAutoRetries = dep.Config.ImageMaxRetries
+		imageTaskSvc.RetryBaseDelaySec = dep.Config.ImageRetryBaseDelaySeconds
+		imageTaskSvc.RetryMaxDelaySec = dep.Config.ImageRetryMaxDelaySeconds
 		if strings.TrimSpace(dep.Config.ImageQueueName) != "" {
 			imageTaskSvc.QueueName = strings.TrimSpace(dep.Config.ImageQueueName)
 		} else {

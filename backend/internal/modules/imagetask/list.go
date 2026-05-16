@@ -49,7 +49,8 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&ImageTask{}).
 		Select("id", "task_type", "provider", "status", "product_id", "source_image_id", "source_image_url",
-			"result_file_id", "result_url", "error_message", "created_by", "started_at", "finished_at", "created_at", "updated_at")
+			"result_file_id", "result_url", "error_message", "retry_count", "max_retries", "next_retry_at", "retry_enqueued_at",
+			"created_by", "started_at", "finished_at", "created_at", "updated_at")
 
 	if v := strings.TrimSpace(q.TaskType); v != "" {
 		tx = tx.Where("task_type = ?", v)
@@ -79,6 +80,12 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	var items []ImageTask
 	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&items).Error; err != nil {
 		return nil, err
+	}
+
+	for i := range items {
+		if items[i].MaxRetries <= 0 {
+			items[i].MaxRetries = s.effectiveMaxRetries(&items[i])
+		}
 	}
 
 	pages := int(total) / ps

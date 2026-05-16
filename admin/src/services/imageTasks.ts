@@ -11,6 +11,10 @@ export type ImageTaskListRow = {
   resultFileId?: string;
   resultUrl?: string;
   errorMessage?: string;
+  retryCount?: number;
+  maxRetries?: number;
+  nextRetryAt?: string;
+  retryEnqueuedAt?: string;
   createdBy?: string;
   startedAt?: string;
   finishedAt?: string;
@@ -103,10 +107,38 @@ export type ImageTaskMonitorSnapshot = {
   tasks: {
     pending: number;
     running: number;
+    retrying: number;
     success: number;
     failed: number;
     cancelled: number;
   };
+  retry: {
+    enabled: boolean;
+    maxRetries: number;
+    baseDelaySeconds: number;
+    maxDelaySeconds: number;
+    nextRetryDueCount: number;
+    oldestRetryingSeconds?: number;
+  };
+  recentRetrying: Array<{
+    id: string;
+    taskType: string;
+    provider: string;
+    productId?: string;
+    retryCount: number;
+    maxRetries: number;
+    nextRetryAt?: string;
+    errorMessage?: string;
+    updatedAt: string;
+  }>;
+  recentFailures: Array<{
+    id: string;
+    taskType: string;
+    provider: string;
+    productId?: string;
+    errorMessage: string;
+    updatedAt: string;
+  }>;
 };
 
 export async function fetchImageTaskMonitor(): Promise<ImageTaskMonitorSnapshot> {
