@@ -11,6 +11,7 @@ import (
 
 const CodeProductTitleOptimize = "product_title_optimize"
 const CodeProductDescriptionGenerate = "product_description_generate"
+const CodeCustomerReplyGenerate = "customer_reply_generate"
 
 // EnsureDefaults creates built-in prompts when missing.
 func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
@@ -20,7 +21,10 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 	if err := ensureProductTitleOptimize(ctx, db); err != nil {
 		return err
 	}
-	return ensureProductDescriptionGenerate(ctx, db)
+	if err := ensureProductDescriptionGenerate(ctx, db); err != nil {
+		return err
+	}
+	return ensureCustomerReplyGenerate(ctx, db)
 }
 
 func ensureProductTitleOptimize(ctx context.Context, db *gorm.DB) error {
@@ -137,6 +141,66 @@ Reply with JSON only using the schema from the system message.`)
 		OutputSchema: datatypes.JSON(schema),
 		Temperature:  0.45,
 		MaxTokens:    2500,
+		Enabled:      true,
+	}
+	return db.WithContext(ctx).Create(row).Error
+}
+
+func ensureCustomerReplyGenerate(ctx context.Context, db *gorm.DB) error {
+	schema, _ := json.Marshal(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"reply":     map[string]string{"type": "string"},
+			"intent":    map[string]string{"type": "string"},
+			"sentiment": map[string]string{"type": "string"},
+			"riskLevel": map[string]string{"type": "string"},
+			"notes":     map[string]string{"type": "string"},
+		},
+		"required": []string{"reply", "intent", "sentiment", "riskLevel", "notes"},
+	})
+	defaultSys := strings.TrimSpace(`You are a professional cross-border e-commerce customer support assistant.
+Return ONLY valid JSON (no markdown fences) with keys: reply (string), intent (string), sentiment (string), riskLevel ("low"|"medium"|"high"), notes (short string for internal staff; same language as reply when possible).
+
+Safety and policy rules (non-negotiable):
+- Be polite, clear, and professional; assume marketplace messaging constraints.
+- Do NOT invent order status, tracking numbers, refund outcomes, or compensation amounts.
+- Do NOT promise refunds, payouts, replacements, or fixed delivery times unless explicitly confirmed in the provided facts (there are none for order state in this MVP — stay neutral).
+- For refunds, chargebacks, negative reviews, complaints, platform disputes, or lost parcels, escalate: set riskLevel to at least "medium" unless clearly informational, and use notes to ask a human to confirm next steps.
+- Default writing language should follow the "Target language" in the user message; if unclear, mirror the customer's message language from the context.
+- Keep reply concise and suitable for chat/email; no internal jargon in "reply".`)
+	defaultUser := strings.TrimSpace(`Draft a suggested customer reply and analysis.
+
+Context:
+- Primary customer message: {{customerMessage}}
+- Recent conversation (oldest→newest, truncated): {{conversationHistory}}
+- Product / order facts (if any; may be empty): {{productInfo}}
+
+Constraints:
+- Target language for the reply: {{language}}
+- Tone: {{tone}}
+- Selling / listing platform context: {{platform}}
+- Shop policy notes (optional, may be empty): {{shopPolicy}}
+
+Reply with JSON only.`)
+
+	var count int64
+	if err := db.WithContext(ctx).Model(&AIPrompt{}).Where("code = ?", CodeCustomerReplyGenerate).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	row := &AIPrompt{
+		Code:         CodeCustomerReplyGenerate,
+		Name:         "AI 客服回复建议",
+		Scene:        "customer_service",
+		Provider:     "",
+		Model:        "",
+		SystemPrompt: defaultSys,
+		UserPrompt:   defaultUser,
+		OutputSchema: datatypes.JSON(schema),
+		Temperature:  0.35,
+		MaxTokens:    1200,
 		Enabled:      true,
 	}
 	return db.WithContext(ctx).Create(row).Error

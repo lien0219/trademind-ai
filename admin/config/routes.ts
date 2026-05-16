@@ -97,6 +97,25 @@ export default [
     ],
   },
   {
+    path: '/customer',
+    name: '客服',
+    icon: 'CustomerServiceOutlined',
+    component: '@/layouts/CustomerGroupLayout',
+    routes: [
+      {
+        path: '/customer/conversations',
+        name: '会话列表',
+        component: './Customer/Conversations',
+      },
+      {
+        path: '/customer/conversations/:id',
+        name: 'AI 客服工作台',
+        component: './Customer/ConversationDetail',
+        hideInMenu: true,
+      },
+    ],
+  },
+  {
     path: '/settings',
     name: '设置',
     icon: 'SettingOutlined',

@@ -127,6 +127,13 @@ export default function AiTasksPage() {
       copyable: true,
     },
     {
+      title: '会话 ID',
+      dataIndex: 'conversationId',
+      width: 280,
+      ellipsis: true,
+      copyable: true,
+    },
+    {
       title: 'Token in',
       dataIndex: 'tokenInput',
       width: 88,
@@ -192,6 +199,7 @@ export default function AiTasksPage() {
             model: params.model as string | undefined,
             promptCode: params.promptCode as string | undefined,
             productId: params.productId as string | undefined,
+            conversationId: params.conversationId as string | undefined,
             start: params.start as string | undefined,
             end: params.end as string | undefined,
           });

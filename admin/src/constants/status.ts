@@ -26,3 +26,11 @@ export const COLLECT_BATCH_STATUS = {
   failed: { text: '全部失败', color: 'error' as const },
   cancelled: { text: '已取消', color: 'default' as const },
 };
+
+/** 客服会话状态（后端 customer_conversations.status） */
+export const CUSTOMER_CONVERSATION_STATUS = {
+  open: { text: '进行中', color: 'processing' as const },
+  pending_reply: { text: '待回复', color: 'warning' as const },
+  replied: { text: '已回复', color: 'success' as const },
+  closed: { text: '已关闭', color: 'default' as const },
+};

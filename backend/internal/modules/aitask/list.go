@@ -11,16 +11,17 @@ import (
 
 // ListQuery binds query params for global AI task listing.
 type ListQuery struct {
-	Page       int
-	PageSize   int
-	TaskType   string
-	Status     string
-	Provider   string
-	Model      string
-	PromptCode string
-	ProductID  *uuid.UUID
-	Start      *time.Time
-	End        *time.Time
+	Page           int
+	PageSize       int
+	TaskType       string
+	Status         string
+	Provider       string
+	Model          string
+	PromptCode     string
+	ProductID      *uuid.UUID
+	ConversationID *uuid.UUID
+	Start          *time.Time
+	End            *time.Time
 }
 
 // ListResult is a paginated slice of AI tasks (summary columns only).
@@ -51,7 +52,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&AITask{}).
 		Select("id", "task_type", "provider", "model", "prompt_code", "status", "error_message",
-			"token_input", "token_output", "cost_amount", "product_id", "created_by",
+			"token_input", "token_output", "cost_amount", "product_id", "conversation_id", "created_by",
 			"started_at", "finished_at", "created_at", "updated_at")
 
 	if v := strings.TrimSpace(q.TaskType); v != "" {
@@ -71,6 +72,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if q.ProductID != nil {
 		tx = tx.Where("product_id = ?", *q.ProductID)
+	}
+	if q.ConversationID != nil {
+		tx = tx.Where("conversation_id = ?", *q.ConversationID)
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)

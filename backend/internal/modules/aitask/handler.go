@@ -39,6 +39,11 @@ func (h *Handler) List(c *gin.Context) {
 			q.ProductID = &pid
 		}
 	}
+	if raw := strings.TrimSpace(c.Query("conversationId")); raw != "" {
+		if cid, err := uuid.Parse(raw); err == nil {
+			q.ConversationID = &cid
+		}
+	}
 	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
 			q.Start = &t
@@ -68,25 +73,26 @@ func (h *Handler) List(c *gin.Context) {
 
 // taskDetailDTO is returned by GET /api/v1/ai/tasks/:id (sensitive JSON fields redacted).
 type taskDetailDTO struct {
-	ID           uuid.UUID       `json:"id"`
-	TaskType     string          `json:"taskType"`
-	Provider     string          `json:"provider"`
-	Model        string          `json:"model"`
-	PromptCode   string          `json:"promptCode"`
-	Input        json.RawMessage `json:"input,omitempty"`
-	Output       json.RawMessage `json:"output,omitempty"`
-	RawResponse  json.RawMessage `json:"rawResponse,omitempty"`
-	Status       string          `json:"status"`
-	ErrorMessage string          `json:"errorMessage,omitempty"`
-	TokenInput   int             `json:"tokenInput"`
-	TokenOutput  int             `json:"tokenOutput"`
-	CostAmount   float64         `json:"costAmount"`
-	ProductID    *uuid.UUID      `json:"productId,omitempty"`
-	CreatedBy    *uuid.UUID      `json:"createdBy,omitempty"`
-	StartedAt    *time.Time      `json:"startedAt,omitempty"`
-	FinishedAt   *time.Time      `json:"finishedAt,omitempty"`
-	CreatedAt    time.Time       `json:"createdAt"`
-	UpdatedAt    time.Time       `json:"updatedAt"`
+	ID             uuid.UUID       `json:"id"`
+	TaskType       string          `json:"taskType"`
+	Provider       string          `json:"provider"`
+	Model          string          `json:"model"`
+	PromptCode     string          `json:"promptCode"`
+	Input          json.RawMessage `json:"input,omitempty"`
+	Output         json.RawMessage `json:"output,omitempty"`
+	RawResponse    json.RawMessage `json:"rawResponse,omitempty"`
+	Status         string          `json:"status"`
+	ErrorMessage   string          `json:"errorMessage,omitempty"`
+	TokenInput     int             `json:"tokenInput"`
+	TokenOutput    int             `json:"tokenOutput"`
+	CostAmount     float64         `json:"costAmount"`
+	ProductID      *uuid.UUID      `json:"productId,omitempty"`
+	ConversationID *uuid.UUID      `json:"conversationId,omitempty"`
+	CreatedBy      *uuid.UUID      `json:"createdBy,omitempty"`
+	StartedAt      *time.Time      `json:"startedAt,omitempty"`
+	FinishedAt     *time.Time      `json:"finishedAt,omitempty"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
 }
 
 // Get GET /api/v1/ai/tasks/:id
@@ -115,25 +121,26 @@ func (h *Handler) Get(c *gin.Context) {
 	rawRed := redactSensitiveJSON(row.RawResponse)
 
 	response.OK(c, taskDetailDTO{
-		ID:           row.ID,
-		TaskType:     row.TaskType,
-		Provider:     row.Provider,
-		Model:        row.Model,
-		PromptCode:   row.PromptCode,
-		Input:        inRed,
-		Output:       outRed,
-		RawResponse:  rawRed,
-		Status:       row.Status,
-		ErrorMessage: row.ErrorMessage,
-		TokenInput:   row.TokenInput,
-		TokenOutput:  row.TokenOutput,
-		CostAmount:   row.CostAmount,
-		ProductID:    row.ProductID,
-		CreatedBy:    row.CreatedBy,
-		StartedAt:    row.StartedAt,
-		FinishedAt:   row.FinishedAt,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		ID:             row.ID,
+		TaskType:       row.TaskType,
+		Provider:       row.Provider,
+		Model:          row.Model,
+		PromptCode:     row.PromptCode,
+		Input:          inRed,
+		Output:         outRed,
+		RawResponse:    rawRed,
+		Status:         row.Status,
+		ErrorMessage:   row.ErrorMessage,
+		TokenInput:     row.TokenInput,
+		TokenOutput:    row.TokenOutput,
+		CostAmount:     row.CostAmount,
+		ProductID:      row.ProductID,
+		ConversationID: row.ConversationID,
+		CreatedBy:      row.CreatedBy,
+		StartedAt:      row.StartedAt,
+		FinishedAt:     row.FinishedAt,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
 	})
 }
 

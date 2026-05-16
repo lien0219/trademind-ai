@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -127,6 +128,16 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 
+	customerChatSvc := &customerchat.Service{
+		DB:        dep.DB,
+		Settings:  settingsSvc,
+		Prompts:   promptSvc,
+		AITasks:   aiTaskSvc,
+		AIGateway: aiGateway,
+		OpLog:     opLogSvc,
+	}
+	customerChatH := &customerchat.Handler{Svc: customerChatSvc}
+
 	r.GET("/static/*filepath", staticH.Serve)
 
 	v1 := r.Group("/api/v1")
@@ -153,6 +164,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
+	customerchat.Register(authed, customerChatH)
 	return collectSvc, imageTaskSvc
 }
 
