@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
@@ -103,7 +105,7 @@ func main() {
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
-	collectSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
@@ -116,6 +118,12 @@ func main() {
 	}
 	collect.ConfigureWorkerMonitor(cfg.CollectQueueEnabled, workerConc)
 
+	imgWorkerConc := cfg.ImageWorkerConcurrency
+	if imgWorkerConc < 1 {
+		imgWorkerConc = 2
+	}
+	imagetask.ConfigureImageWorkerMonitor(cfg.ImageQueueEnabled, imgWorkerConc)
+
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
@@ -127,6 +135,17 @@ func main() {
 		}
 	} else if cfg.CollectQueueEnabled && redisClient == nil {
 		log.Warn("collect_worker_skipped", "reason", "redis unavailable while COLLECT_QUEUE_ENABLED=true")
+	}
+
+	if cfg.ImageQueueEnabled && redisClient != nil && imageTaskSvc != nil {
+		qn := strings.TrimSpace(cfg.ImageQueueName)
+		if qn == "" {
+			qn = "image:tasks"
+		}
+		imagetask.StartWorker(workerCtx, &workerWG, log, imageTaskSvc, qn, imgWorkerConc)
+		log.Info("image_task_worker_started", "concurrency", imgWorkerConc, "queue", qn)
+	} else if cfg.ImageQueueEnabled && redisClient == nil {
+		log.Warn("image_task_worker_skipped", "reason", "redis unavailable while IMAGE_QUEUE_ENABLED=true")
 	}
 
 	srv := &http.Server{
@@ -162,6 +181,7 @@ func main() {
 	}
 
 	collect.SetCollectWorkersRunning(false)
+	imagetask.SetImageWorkersRunning(false)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer shutdownCancel()

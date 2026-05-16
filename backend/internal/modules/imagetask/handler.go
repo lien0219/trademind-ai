@@ -3,6 +3,7 @@ package imagetask
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +72,10 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid taskType")
 		return
 	}
+	if strings.TrimSpace(body.SourceImageID) == "" && strings.TrimSpace(body.SourceImageURL) == "" {
+		response.Fail(c, 400, response.CodeBadRequest, "sourceImageId or sourceImageUrl required")
+		return
+	}
 	var productID *uuid.UUID
 	if raw := strings.TrimSpace(body.ProductID); raw != "" {
 		pid, err := uuid.Parse(raw)
@@ -125,16 +130,32 @@ func (h *Handler) Create(c *gin.Context) {
 			Message:    logMessage(row),
 		})
 	}
-	if err := h.Svc.RunSync(c, row.ID, false); err != nil {
-		fresh, ferr := h.Svc.GetByID(c.Request.Context(), row.ID)
-		if ferr == nil && fresh != nil {
-			response.OK(c, fresh)
+
+	ctx := c.Request.Context()
+	if h.Svc.QueueEnabled {
+		tid, _ := c.Get(ctxkey.TraceID)
+		var rid string
+		if s, ok := tid.(string); ok {
+			rid = s
+		}
+		if err := h.Svc.enqueueTask(ctx, row.ID, row.TaskType, row.Provider, row.CreatedBy, rid); err != nil {
+			h.Svc.deleteTask(ctx, row.ID)
+			response.Fail(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable, err.Error())
 			return
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
-		return
+	} else {
+		if err := h.Svc.ProcessSyncAfterCreate(ctx, row.ID, c); err != nil {
+			fresh, ferr := h.Svc.GetByID(ctx, row.ID)
+			if ferr == nil && fresh != nil {
+				response.OK(c, fresh)
+				return
+			}
+			response.Fail(c, 400, response.CodeBadRequest, err.Error())
+			return
+		}
 	}
-	fresh, err := h.Svc.GetByID(c.Request.Context(), row.ID)
+
+	fresh, err := h.Svc.GetByID(ctx, row.ID)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -211,6 +232,20 @@ type taskDetailDTO struct {
 	UpdatedAt      time.Time       `json:"updatedAt"`
 }
 
+// Monitor GET /api/v1/image/tasks/monitor
+func (h *Handler) Monitor(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	snap, err := h.Svc.BuildMonitorSnapshot(c.Request.Context())
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, snap)
+}
+
 // Get GET /api/v1/image/tasks/:id
 func (h *Handler) Get(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -268,7 +303,11 @@ func (h *Handler) Retry(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	if err := h.Svc.RetryFailed(c, id); err != nil {
+	if err := h.Svc.RetryEnqueue(c, id); err != nil {
+		if errors.Is(err, ErrImageQueueUnavailable) {
+			response.Fail(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable, err.Error())
+			return
+		}
 		if strings.Contains(err.Error(), "only failed") {
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 			return
@@ -277,11 +316,12 @@ func (h *Handler) Retry(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
-		// Retry may end failed; still return latest row
-		fresh, ferr := h.Svc.GetByID(c.Request.Context(), id)
-		if ferr == nil && fresh != nil {
-			response.OK(c, fresh)
-			return
+		if !h.Svc.QueueEnabled {
+			fresh, ferr := h.Svc.GetByID(c.Request.Context(), id)
+			if ferr == nil && fresh != nil {
+				response.OK(c, fresh)
+				return
+			}
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return

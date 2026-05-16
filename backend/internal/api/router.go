@@ -33,8 +33,8 @@ type Deps struct {
 	Encrypter *encrypt.Service
 }
 
-// Register mounts routes on the engine and returns collect service (for optional async worker).
-func Register(r gin.IRouter, dep *Deps) *collect.Service {
+// Register mounts routes on the engine and returns services for optional async workers.
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -77,6 +77,18 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 		OpLog:    opLogSvc,
 		Settings: settingsSvc,
 		Files:    fileSvc,
+		Redis:    dep.Redis,
+	}
+	if dep.Config != nil {
+		imageTaskSvc.QueueEnabled = dep.Config.ImageQueueEnabled
+		if strings.TrimSpace(dep.Config.ImageQueueName) != "" {
+			imageTaskSvc.QueueName = strings.TrimSpace(dep.Config.ImageQueueName)
+		} else {
+			imageTaskSvc.QueueName = "image:tasks"
+		}
+		if dep.Config.ImageTaskTimeoutSeconds > 0 {
+			imageTaskSvc.TaskTimeoutMax = time.Duration(dep.Config.ImageTaskTimeoutSeconds) * time.Second
+		}
 	}
 	imageTaskH := &imagetask.Handler{Svc: imageTaskSvc}
 
@@ -137,7 +149,7 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
-	return collectSvc
+	return collectSvc, imageTaskSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {
@@ -201,11 +213,30 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			status = "degraded"
 		}
 
+		imgQEnabled := false
+		imgQName := "image:tasks"
+		imgWConc := 2
+		if dep.Config != nil {
+			imgQEnabled = dep.Config.ImageQueueEnabled
+			if strings.TrimSpace(dep.Config.ImageQueueName) != "" {
+				imgQName = strings.TrimSpace(dep.Config.ImageQueueName)
+			}
+			imgWConc = dep.Config.ImageWorkerConcurrency
+			if imgWConc < 1 {
+				imgWConc = 2
+			}
+		}
+		iq := imagetask.BuildImageQueueHealthBlock(ctx, dep.Redis, imgQEnabled, imgQName, imgWConc)
+		if imgQEnabled && !iq.RedisAvailable && checks["redis"] == "ok" {
+			status = "degraded"
+		}
+
 		response.OK(c, gin.H{
 			"status":       status,
 			"appEnv":       appEnv,
 			"checks":       checks,
 			"collectQueue": cq,
+			"imageQueue":   iq,
 			"timestamp":    time.Now().UTC().Format(time.RFC3339),
 		})
 	}

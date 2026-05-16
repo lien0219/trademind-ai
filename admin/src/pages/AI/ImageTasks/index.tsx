@@ -3,7 +3,7 @@ import { ModalForm, PageContainer, ProFormSelect, ProFormText, ProFormTextArea, 
 import { CopyOutlined } from '@ant-design/icons';
 import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message } from 'antd';
 import dayjs from 'dayjs';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageTaskDetail, ImageTaskListRow } from '@/services/imageTasks';
 import { createImageTask, getImageTask, queryImageTasks, retryImageTask } from '@/services/imageTasks';
 import { createProductImage } from '@/services/products';
@@ -21,8 +21,7 @@ function statusTag(status: string) {
   const s = status?.trim() || '';
   if (s === 'success') return <Tag color="success">success</Tag>;
   if (s === 'failed') return <Tag color="error">failed</Tag>;
-  if (s === 'running') return <Tag color="processing">running</Tag>;
-  if (s === 'pending') return <Tag>pending</Tag>;
+  if (s === 'running' || s === 'pending') return <Tag color="processing">处理中</Tag>;
   if (s === 'cancelled') return <Tag>cancelled</Tag>;
   return <Tag>{s || '-'}</Tag>;
 }
@@ -76,6 +75,35 @@ export default function ImageTasksPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<ImageTaskDetail | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    const iv = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      actionRef.current?.reload?.();
+    }, 4000);
+    return () => window.clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    if (!drawerOpen || !detail) return;
+    if (detail.status !== 'pending' && detail.status !== 'running') return;
+    const id = detail.id;
+    const iv = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void (async () => {
+        try {
+          const row = await getImageTask(id);
+          setDetail(row);
+          if (row.status !== 'pending' && row.status !== 'running') {
+            actionRef.current?.reload?.();
+          }
+        } catch {
+          /* ignore transient errors during poll */
+        }
+      })();
+    }, 4000);
+    return () => window.clearInterval(iv);
+  }, [drawerOpen, detail?.id, detail?.status]);
 
   const openDetail = useCallback(async (id: string) => {
     setDrawerOpen(true);
@@ -179,7 +207,7 @@ export default function ImageTasksPage() {
             onClick={async () => {
               try {
                 await retryImageTask(row.id);
-                message.success('已重试');
+                message.success('已提交重试，正在后台处理');
                 actionRef.current?.reload();
               } catch (e: unknown) {
                 message.error((e as Error)?.message || '重试失败');
@@ -259,14 +287,22 @@ export default function ImageTasksPage() {
             }
           }
           try {
-            await createImageTask({
+            const task = await createImageTask({
               taskType: values.taskType,
               provider: values.provider?.trim() || undefined,
               productId: values.productId?.trim() || undefined,
               sourceImageUrl: values.sourceImageUrl?.trim() || undefined,
               input: extra,
             });
-            message.success('已创建');
+            if (task.status === 'pending' || task.status === 'running') {
+              message.success('图片任务已提交，正在后台处理');
+            } else if (task.status === 'success') {
+              message.success('任务已完成');
+            } else if (task.status === 'failed') {
+              message.warning(task.errorMessage || '任务失败');
+            } else {
+              message.success('已创建');
+            }
             actionRef.current?.reload();
             return true;
           } catch (e: unknown) {
@@ -329,7 +365,7 @@ export default function ImageTasksPage() {
                   if (!detail?.id) return;
                   try {
                     await retryImageTask(detail.id);
-                    message.success('已重试');
+                    message.success('已提交重试，正在后台处理');
                     const row = await getImageTask(detail.id);
                     setDetail(row);
                     actionRef.current?.reload();

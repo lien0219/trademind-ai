@@ -15,7 +15,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
+	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -26,6 +28,13 @@ type Service struct {
 	OpLog    *operationlog.Service
 	Settings *settings.Service
 	Files    *files.Service
+	Redis    *rdb.Client
+
+	QueueEnabled bool
+	QueueName    string
+
+	// TaskTimeoutMax caps provider call context (0 = follow settings only).
+	TaskTimeoutMax time.Duration
 }
 
 // CreatePayload is the normalized create input.
@@ -60,6 +69,14 @@ func imageOperationTimeout(ctx context.Context, svc *settings.Service) time.Dura
 		sec = 600
 	}
 	return time.Duration(sec) * time.Second
+}
+
+func (s *Service) imageOpTimeout(ctx context.Context) time.Duration {
+	t := imageOperationTimeout(ctx, s.Settings)
+	if s != nil && s.TaskTimeoutMax > 0 && t > s.TaskTimeoutMax {
+		t = s.TaskTimeoutMax
+	}
+	return t
 }
 
 func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (string, error) {
@@ -197,51 +214,44 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	return row, nil
 }
 
-// RunSync executes provider logic for a task row and updates status (JWT handlers pass *gin.Context for operation logs).
-func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error {
+func (s *Service) deleteTask(ctx context.Context, id uuid.UUID) {
+	if s == nil || s.DB == nil {
+		return
+	}
+	_ = s.DB.WithContext(ctx).Unscoped().Delete(&ImageTask{}, "id = ?", id).Error
+}
+
+// ProcessQueuedTask is invoked by the image worker: CAS pending → running, then run provider.
+func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID) error {
+	return s.executeTask(ctx, taskID, nil)
+}
+
+// ProcessSyncAfterCreate runs a pending task inline (IMAGE_QUEUE_ENABLED=false development mode).
+func (s *Service) ProcessSyncAfterCreate(ctx context.Context, taskID uuid.UUID, httpCtx *gin.Context) error {
+	return s.executeTask(ctx, taskID, httpCtx)
+}
+
+func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gin.Context) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("imagetask: no db")
 	}
-	ctx := c.Request.Context()
 
-	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	task, claimed, err := s.claimPendingTask(ctx, taskID)
+	if err != nil {
 		return err
 	}
-	if logRetry {
-		if s.OpLog != nil {
-			_ = s.OpLog.Write(c, operationlog.WriteOpts{
-				Action:     "image.task.retry",
-				Resource:   "image_task",
-				ResourceID: taskID.String(),
-				Status:     "success",
-				Message: fmt.Sprintf("taskType=%s provider=%s productId=%s",
-					task.TaskType, task.Provider, ptrUUIDStr(task.ProductID)),
-			})
-		}
-	}
-
-	now := time.Now().UTC()
-	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID).Updates(map[string]any{
-		"status":        StatusRunning,
-		"started_at":    &now,
-		"finished_at":   nil,
-		"error_message": "",
-	}).Error; err != nil {
-		return err
-	}
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
-		return err
+	if !claimed {
+		return nil
 	}
 
 	prov, err := imgprov.NewForTask(ctx, task.Provider, s.Settings)
 	if err != nil {
-		return s.fail(c, &task, err.Error())
+		return s.fail(ctx, httpCtx, task, err.Error())
 	}
 
 	src := strings.TrimSpace(task.SourceImageURL)
 	hints := inputHints(task.Input)
-	timeout := imageOperationTimeout(ctx, s.Settings)
+	timeout := s.imageOpTimeout(ctx)
 	pctx := ctx
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -249,12 +259,12 @@ func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error
 		defer cancel()
 	}
 
-	res, runErr := s.dispatch(pctx, prov, &task, src, hints)
+	res, runErr := s.dispatch(pctx, prov, task, src, hints)
 	if runErr != nil {
-		return s.fail(c, &task, runErr.Error())
+		return s.fail(ctx, httpCtx, task, runErr.Error())
 	}
 	if res == nil {
-		return s.fail(c, &task, "provider returned empty result")
+		return s.fail(ctx, httpCtx, task, "provider returned empty result")
 	}
 
 	finalURL := strings.TrimSpace(res.PublicURL)
@@ -265,7 +275,7 @@ func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error
 
 	if len(res.RawPayload) > 0 {
 		if s.Files == nil {
-			return s.fail(c, &task, "files service unavailable for storing pipeline output")
+			return s.fail(ctx, httpCtx, task, "files service unavailable for storing pipeline output")
 		}
 		ct := strings.TrimSpace(res.PayloadContentType)
 		if ct == "" {
@@ -285,7 +295,7 @@ func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error
 			CreatedBy:    task.CreatedBy,
 		})
 		if saveErr != nil {
-			return s.fail(c, &task, saveErr.Error())
+			return s.fail(ctx, httpCtx, task, saveErr.Error())
 		}
 		finalURL = strings.TrimSpace(fr.PublicURL)
 		idCopy := fr.ID
@@ -293,7 +303,7 @@ func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error
 	}
 
 	if finalURL == "" {
-		return s.fail(c, &task, "provider returned empty result")
+		return s.fail(ctx, httpCtx, task, "provider returned empty result")
 	}
 
 	outObj := map[string]any{
@@ -328,17 +338,31 @@ func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error
 	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
 		return err
 	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "image.task.success",
-			Resource:   "image_task",
-			ResourceID: taskID.String(),
-			Status:     "success",
-			Message: fmt.Sprintf("taskType=%s provider=%s productId=%s",
-				task.TaskType, task.Provider, ptrUUIDStr(task.ProductID)),
-		})
-	}
+	s.logSuccess(ctx, httpCtx, taskID, task)
 	return nil
+}
+
+func (s *Service) claimPendingTask(ctx context.Context, taskID uuid.UUID) (*ImageTask, bool, error) {
+	now := time.Now().UTC()
+	res := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("id = ? AND status = ?", taskID, StatusPending).
+		Updates(map[string]any{
+			"status":        StatusRunning,
+			"started_at":    &now,
+			"finished_at":   nil,
+			"error_message": "",
+		})
+	if res.Error != nil {
+		return nil, false, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, false, nil
+	}
+	var task ImageTask
+	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+		return nil, false, err
+	}
+	return &task, true, nil
 }
 
 func (s *Service) dispatch(ctx context.Context, prov imgprov.Provider, task *ImageTask, src string, hints map[string]any) (*imgprov.ImageResult, error) {
@@ -379,25 +403,76 @@ func (s *Service) dispatch(ctx context.Context, prov imgprov.Provider, task *Ima
 	}
 }
 
-func (s *Service) fail(c *gin.Context, task *ImageTask, msg string) error {
-	ctx := c.Request.Context()
+func (s *Service) fail(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string) error {
 	fin := time.Now().UTC()
 	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(map[string]any{
 		"status":        StatusFailed,
 		"error_message": msg,
 		"finished_at":   &fin,
 	}).Error
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "image.task.failed",
-			Resource:   "image_task",
-			ResourceID: task.ID.String(),
-			Status:     "failed",
-			Message: fmt.Sprintf("taskType=%s provider=%s productId=%s err=%s",
-				task.TaskType, task.Provider, ptrUUIDStr(task.ProductID), truncateMsg(msg, 300)),
-		})
-	}
+	s.logFailed(ctx, httpCtx, task, msg)
 	return errors.New(msg)
+}
+
+func (s *Service) logSuccess(ctx context.Context, httpCtx *gin.Context, taskID uuid.UUID, task *ImageTask) {
+	if s.OpLog == nil {
+		return
+	}
+	msg := fmt.Sprintf("taskType=%s provider=%s productId=%s",
+		task.TaskType, task.Provider, ptrUUIDStr(task.ProductID))
+	opts := operationlog.WriteOpts{
+		Action:     "image.task.success",
+		Resource:   "image_task",
+		ResourceID: taskID.String(),
+		Status:     "success",
+		Message:    msg,
+	}
+	if httpCtx != nil {
+		_ = s.OpLog.Write(httpCtx, opts)
+		return
+	}
+	var admin *uuid.UUID
+	if task.CreatedBy != nil {
+		admin = task.CreatedBy
+	}
+	_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+		AdminUserID: admin,
+		Action:      opts.Action,
+		Resource:    opts.Resource,
+		ResourceID:  opts.ResourceID,
+		Status:      opts.Status,
+		Message:     opts.Message,
+	})
+}
+
+func (s *Service) logFailed(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string) {
+	if s.OpLog == nil {
+		return
+	}
+	opts := operationlog.WriteOpts{
+		Action:     "image.task.failed",
+		Resource:   "image_task",
+		ResourceID: task.ID.String(),
+		Status:     "failed",
+		Message: fmt.Sprintf("taskType=%s provider=%s productId=%s err=%s",
+			task.TaskType, task.Provider, ptrUUIDStr(task.ProductID), truncateMsg(msg, 300)),
+	}
+	if httpCtx != nil {
+		_ = s.OpLog.Write(httpCtx, opts)
+		return
+	}
+	var admin *uuid.UUID
+	if task.CreatedBy != nil {
+		admin = task.CreatedBy
+	}
+	_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+		AdminUserID: admin,
+		Action:      opts.Action,
+		Resource:    opts.Resource,
+		ResourceID:  opts.ResourceID,
+		Status:      opts.Status,
+		Message:     opts.Message,
+	})
 }
 
 func truncateMsg(s string, n int) string {
@@ -427,12 +502,13 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*ImageTask, error)
 	return &row, nil
 }
 
-// RetryFailed resets a failed task and runs again.
-func (s *Service) RetryFailed(c *gin.Context, id uuid.UUID) error {
+// RetryEnqueue resets a failed task to pending and enqueues it (async), or runs once if queue disabled.
+func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("imagetask: no db")
 	}
 	ctx := c.Request.Context()
+
 	var task ImageTask
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", id).Error; err != nil {
 		return err
@@ -440,5 +516,54 @@ func (s *Service) RetryFailed(c *gin.Context, id uuid.UUID) error {
 	if task.Status != StatusFailed {
 		return fmt.Errorf("only failed tasks can be retried")
 	}
-	return s.RunSync(c, id, true)
+
+	updates := map[string]any{
+		"status":         StatusPending,
+		"error_message":  "",
+		"started_at":     nil,
+		"finished_at":    nil,
+		"result_url":     "",
+		"result_file_id": nil,
+		"output":         nil,
+	}
+	res := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", id, StatusFailed).Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("only failed tasks can be retried")
+	}
+
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "image.task.retry",
+			Resource:   "image_task",
+			ResourceID: id.String(),
+			Status:     "success",
+			Message: fmt.Sprintf("taskType=%s provider=%s productId=%s",
+				task.TaskType, task.Provider, ptrUUIDStr(task.ProductID)),
+		})
+	}
+
+	if s.QueueEnabled {
+		reqStr, _ := c.Get(ctxkey.TraceID)
+		var rid string
+		if s, ok := reqStr.(string); ok {
+			rid = s
+		}
+		if err := s.enqueueTask(ctx, id, task.TaskType, task.Provider, task.CreatedBy, rid); err != nil {
+			_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", id).Updates(map[string]any{
+				"status":        StatusFailed,
+				"error_message": "retry enqueue failed: " + err.Error(),
+				"finished_at":   time.Now().UTC(),
+			}).Error
+			return err
+		}
+		return nil
+	}
+
+	if err := s.ProcessSyncAfterCreate(ctx, id, c); err != nil {
+		return err
+	}
+	return nil
 }

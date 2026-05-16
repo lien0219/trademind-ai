@@ -579,10 +579,12 @@ export default function ProductDraftDetailPage() {
                                 input:
                                   aiImgTaskType === 'resize' ? { width: 800, height: 800 } : {},
                               });
-                              if (task.status === 'success' && task.resultUrl) {
+                              if (task.status === 'pending' || task.status === 'running') {
+                                message.success('图片任务已提交，可在 AI 图片任务页查看结果');
+                              } else if (task.status === 'success' && task.resultUrl) {
                                 message.success(`已完成：${task.resultUrl}`);
                               } else {
-                                message.success('图片任务已创建，可在「AI 工具 → 图片任务」查看');
+                                message.success('图片任务已创建');
                               }
                             } catch (e: unknown) {
                               message.error((e as Error)?.message || '创建失败');
@@ -593,6 +595,7 @@ export default function ProductDraftDetailPage() {
                         >
                           创建图片任务
                         </Button>
+                        <Button onClick={() => history.push('/ai/image-tasks')}>查看 AI 图片任务</Button>
                       </Space>
                     </Space>
                   </Card>

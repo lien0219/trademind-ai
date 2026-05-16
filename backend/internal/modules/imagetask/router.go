@@ -10,6 +10,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	rg := g.Group("/image/tasks")
 	rg.POST("", h.Create)
 	rg.GET("", h.List)
+	rg.GET("/monitor", h.Monitor)
 	rg.GET("/:id", h.Get)
 	rg.POST("/:id/retry", h.Retry)
 }

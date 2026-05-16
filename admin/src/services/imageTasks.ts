@@ -86,3 +86,29 @@ export async function createImageTask(payload: {
 export async function retryImageTask(id: string): Promise<ImageTaskDetail> {
   return postJSON<ImageTaskDetail>(`/api/v1/image/tasks/${id}/retry`, {});
 }
+
+export type ImageQueueMonitorQueue = {
+  enabled: boolean;
+  name: string;
+  redisAvailable: boolean;
+  depth: number;
+  workerEnabled: boolean;
+  workerRunning: boolean;
+  concurrency: number;
+};
+
+export type ImageTaskMonitorSnapshot = {
+  queue: ImageQueueMonitorQueue;
+  worker: { enabled: boolean; concurrency: number; running: boolean };
+  tasks: {
+    pending: number;
+    running: number;
+    success: number;
+    failed: number;
+    cancelled: number;
+  };
+};
+
+export async function fetchImageTaskMonitor(): Promise<ImageTaskMonitorSnapshot> {
+  return getJSON<ImageTaskMonitorSnapshot>('/api/v1/image/tasks/monitor');
+}

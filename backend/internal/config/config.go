@@ -44,6 +44,21 @@ type Config struct {
 	CollectMaxRetries            int
 	CollectRetryBaseDelaySeconds int
 	CollectRetryMaxDelaySeconds  int
+
+	// ImageQueueEnabled gates async image_tasks (Redis list + in-process worker).
+	ImageQueueEnabled bool
+	// ImageWorkerConcurrency is the number of concurrent BRPOP consumers for image tasks.
+	ImageWorkerConcurrency int
+	// ImageQueueName is the Redis list key for image task payloads (default image:tasks).
+	ImageQueueName string
+	// ImageTaskTimeoutSeconds caps per-task provider context timeout (0 = use settings image timeout only).
+	ImageTaskTimeoutSeconds int
+
+	// Image auto-retry env (reserved; scheduler not implemented in v1).
+	ImageAutoRetryEnabled      bool
+	ImageMaxRetries            int
+	ImageRetryBaseDelaySeconds int
+	ImageRetryMaxDelaySeconds  int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -106,6 +121,19 @@ func Load() (*Config, error) {
 		CollectMaxRetries:            atoiOrDefault(os.Getenv("COLLECT_MAX_RETRIES"), 3),
 		CollectRetryBaseDelaySeconds: atoiOrDefault(os.Getenv("COLLECT_RETRY_BASE_DELAY_SECONDS"), 30),
 		CollectRetryMaxDelaySeconds:  atoiOrDefault(os.Getenv("COLLECT_RETRY_MAX_DELAY_SECONDS"), 600),
+
+		ImageQueueEnabled:      envBool(os.Getenv("IMAGE_QUEUE_ENABLED"), true),
+		ImageWorkerConcurrency: atoiOrDefault(os.Getenv("IMAGE_WORKER_CONCURRENCY"), 2),
+		ImageQueueName: strings.TrimSpace(firstNonEmpty(
+			os.Getenv("IMAGE_QUEUE_NAME"),
+			"image:tasks",
+		)),
+		ImageTaskTimeoutSeconds: atoiOrDefault(os.Getenv("IMAGE_TASK_TIMEOUT_SECONDS"), 120),
+
+		ImageAutoRetryEnabled:      envBool(os.Getenv("IMAGE_AUTO_RETRY_ENABLED"), false),
+		ImageMaxRetries:            atoiOrDefault(os.Getenv("IMAGE_MAX_RETRIES"), 2),
+		ImageRetryBaseDelaySeconds: atoiOrDefault(os.Getenv("IMAGE_RETRY_BASE_DELAY_SECONDS"), 30),
+		ImageRetryMaxDelaySeconds:  atoiOrDefault(os.Getenv("IMAGE_RETRY_MAX_DELAY_SECONDS"), 300),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))
