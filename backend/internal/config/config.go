@@ -73,11 +73,11 @@ type Config struct {
 	CollectTaskTimeoutSeconds int
 
 	// Worker heartbeat / lease reclaim (multi-instance workers).
-	WorkerHeartbeatEnabled        bool
-	WorkerHeartbeatIntervalSeconds int
-	WorkerStaleAfterSeconds       int
-	WorkerReaperEnabled           bool
-	WorkerReaperIntervalSeconds   int
+	WorkerHeartbeatEnabled            bool
+	WorkerHeartbeatIntervalSeconds    int
+	WorkerStaleAfterSeconds           int
+	WorkerReaperEnabled               bool
+	WorkerReaperIntervalSeconds       int
 	WorkerLegacyRunningTimeoutSeconds int
 }
 
@@ -165,11 +165,11 @@ func Load() (*Config, error) {
 
 		CollectTaskTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECT_TASK_TIMEOUT_SECONDS"), 600),
 
-		WorkerHeartbeatEnabled:           envBool(os.Getenv("WORKER_HEARTBEAT_ENABLED"), true),
-		WorkerHeartbeatIntervalSeconds:   atoiOrDefault(os.Getenv("WORKER_HEARTBEAT_INTERVAL_SECONDS"), 10),
-		WorkerStaleAfterSeconds:          atoiOrDefault(os.Getenv("WORKER_STALE_AFTER_SECONDS"), 30),
-		WorkerReaperEnabled:              envBool(os.Getenv("WORKER_REAPER_ENABLED"), true),
-		WorkerReaperIntervalSeconds:      atoiOrDefault(os.Getenv("WORKER_REAPER_INTERVAL_SECONDS"), 15),
+		WorkerHeartbeatEnabled:            envBool(os.Getenv("WORKER_HEARTBEAT_ENABLED"), true),
+		WorkerHeartbeatIntervalSeconds:    atoiOrDefault(os.Getenv("WORKER_HEARTBEAT_INTERVAL_SECONDS"), 10),
+		WorkerStaleAfterSeconds:           atoiOrDefault(os.Getenv("WORKER_STALE_AFTER_SECONDS"), 30),
+		WorkerReaperEnabled:               envBool(os.Getenv("WORKER_REAPER_ENABLED"), true),
+		WorkerReaperIntervalSeconds:       atoiOrDefault(os.Getenv("WORKER_REAPER_INTERVAL_SECONDS"), 15),
 		WorkerLegacyRunningTimeoutSeconds: atoiOrDefault(os.Getenv("WORKER_LEGACY_RUNNING_TIMEOUT_SECONDS"), 1800),
 	}
 

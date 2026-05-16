@@ -17,12 +17,12 @@ import (
 
 // Registry manages DB-backed worker instance rows and heartbeats.
 type Registry struct {
-	DB                 *gorm.DB
-	OpLog              *operationlog.Service
-	HeartbeatEnabled   bool
-	HeartbeatInterval  time.Duration
-	StaleAfter         time.Duration
-	Log                *slog.Logger
+	DB                *gorm.DB
+	OpLog             *operationlog.Service
+	HeartbeatEnabled  bool
+	HeartbeatInterval time.Duration
+	StaleAfter        time.Duration
+	Log               *slog.Logger
 }
 
 // RunningInstance is a registered consumer identity; call Stop on shutdown.
@@ -65,9 +65,9 @@ func (r *RunningInstance) Stop(ctx context.Context) {
 	_ = r.reg.DB.WithContext(ctx).Model(&Instance{}).
 		Where("id = ?", r.rowID).
 		Updates(map[string]any{
-			"status":      StatusStopped,
-			"stopped_at":  &now,
-			"updated_at":  now,
+			"status":     StatusStopped,
+			"stopped_at": &now,
+			"updated_at": now,
 		}).Error
 	if r.reg.OpLog != nil {
 		_ = r.reg.OpLog.WriteBackground(ctx, operationlog.WriteOpts{

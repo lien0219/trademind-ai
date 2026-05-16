@@ -47,9 +47,9 @@ type LeasedTaskDTO struct {
 
 // MonitorResponse is GET /api/v1/workers/monitor.
 type MonitorResponse struct {
-	Summary     MonitorSummary            `json:"summary"`
-	ByType      map[string]MonitorSummary `json:"byType"`
-	Instances   []MonitorInstanceDTO      `json:"instances"`
+	Summary     MonitorSummary             `json:"summary"`
+	ByType      map[string]MonitorSummary  `json:"byType"`
+	Instances   []MonitorInstanceDTO       `json:"instances"`
 	LeasedTasks map[string][]LeasedTaskDTO `json:"leasedTasks"`
 }
 
@@ -123,9 +123,9 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 			TypeOrderSync: {},
 		},
 		LeasedTasks: map[string][]LeasedTaskDTO{
-			"collect":    {},
-			"image":      {},
-			"orderSync":  {},
+			"collect":   {},
+			"image":     {},
+			"orderSync": {},
 		},
 	}
 

@@ -10,14 +10,14 @@ import (
 
 // HealthWorkersBlock is returned under data.workers on /health.
 type HealthWorkersBlock struct {
-	HeartbeatEnabled bool              `json:"heartbeatEnabled"`
-	ReaperEnabled    bool              `json:"reaperEnabled"`
-	Running          int               `json:"running"`
-	Stale            int               `json:"stale"`
-	Stopped          int               `json:"stopped,omitempty"`
+	HeartbeatEnabled bool                `json:"heartbeatEnabled"`
+	ReaperEnabled    bool                `json:"reaperEnabled"`
+	Running          int                 `json:"running"`
+	Stale            int                 `json:"stale"`
+	Stopped          int                 `json:"stopped,omitempty"`
 	ByType           map[string]TypeStat `json:"byType"`
-	Degraded         bool              `json:"degraded,omitempty"`
-	Error            string            `json:"error,omitempty"`
+	Degraded         bool                `json:"degraded,omitempty"`
+	Error            string              `json:"error,omitempty"`
 }
 
 // TypeStat counts per worker_type using effective status (heartbeat age).

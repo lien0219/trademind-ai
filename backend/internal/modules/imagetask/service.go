@@ -620,8 +620,8 @@ func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context,
 		"finished_at":       &fin,
 		"next_retry_at":     nil,
 		"retry_enqueued_at": nil,
-		"locked_by":        nil,
-		"locked_until":     nil,
+		"locked_by":         nil,
+		"locked_until":      nil,
 	}).Error
 	if exhausted {
 		s.logRetryExhausted(ctx, httpCtx, task, msg)
@@ -811,11 +811,11 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		}
 		if err := s.enqueueTask(ctx, id, task.TaskType, task.Provider, task.CreatedBy, rid); err != nil {
 			_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", id).Updates(map[string]any{
-				"status":         StatusFailed,
-				"error_message":  "retry enqueue failed: " + err.Error(),
-				"finished_at":    time.Now().UTC(),
-				"locked_by":      nil,
-				"locked_until":   nil,
+				"status":        StatusFailed,
+				"error_message": "retry enqueue failed: " + err.Error(),
+				"finished_at":   time.Now().UTC(),
+				"locked_by":     nil,
+				"locked_until":  nil,
 			}).Error
 			return err
 		}

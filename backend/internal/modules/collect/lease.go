@@ -178,4 +178,3 @@ func (s *Service) handleCollectPanic(parent context.Context, taskID uuid.UUID, w
 	msg := truncateRunes(fmt.Sprintf("collect worker panic: %v", panicVal), 8000)
 	s.failTask(ctx, &cur, StatusRunning, msg, map[string]any{"panic": true})
 }
-
