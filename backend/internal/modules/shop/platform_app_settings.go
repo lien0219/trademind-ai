@@ -15,6 +15,7 @@ import (
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
+	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 )
 
 // PlatformAppSettingsDTO is GET /api/v1/platform/settings/:platform and PUT response body.
@@ -154,6 +155,11 @@ func validateMergedAppSettings(platformSlug string, schema platformp.PlatformApp
 		return nil
 	case "shopee":
 		if _, err := platformshopee.RuntimeFromMergedMap(mm); err != nil {
+			return err
+		}
+		return nil
+	case "lazada":
+		if _, err := platformlazada.RuntimeFromMergedMap(mm); err != nil {
 			return err
 		}
 		return nil

@@ -60,7 +60,7 @@ func LazadaAppConfigSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{
 		GroupKey:    "platform_lazada",
 		Title:       "Lazada",
-		Description: "请在 Lazada Open Platform 创建应用后填写。",
+		Description: "请在 Lazada Open Platform 创建应用后填写。OAuth、TestConnection、订单同步为 beta。",
 		Fields: []AppConfigField{
 			{Name: "app_key", Label: "App Key", Type: "text", Required: true, Sensitive: false},
 			{Name: "app_secret", Label: "App Secret", Type: "password", Required: true, Sensitive: true},

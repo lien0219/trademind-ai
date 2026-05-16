@@ -170,3 +170,19 @@ export async function postShopeeOAuthCallback(
 ): Promise<ShopDetail> {
   return postJSON(`/api/v1/shops/${shopId}/oauth/shopee/callback`, payload);
 }
+
+export async function getLazadaOAuthAuthorizeUrl(
+  shopId: string,
+  redirectUri?: string,
+): Promise<{ authorizeUrl: string; state: string }> {
+  return getWithParams(`/api/v1/shops/${shopId}/oauth/lazada/authorize-url`, {
+    redirectUri: redirectUri || undefined,
+  });
+}
+
+export async function postLazadaOAuthCallback(
+  shopId: string,
+  payload: { code: string; state: string },
+): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/lazada/callback`, payload);
+}

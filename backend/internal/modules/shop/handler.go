@@ -357,3 +357,47 @@ func (h *Handler) ShopeeOAuthCallback(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+// LazadaOAuthAuthorizeURL GET /api/v1/shops/:id/oauth/lazada/authorize-url
+func (h *Handler) LazadaOAuthAuthorizeURL(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	redirect := strings.TrimSpace(c.Query("redirectUri"))
+	out, err := h.Svc.LazadaOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// LazadaOAuthCallback POST /api/v1/shops/:id/oauth/lazada/callback
+func (h *Handler) LazadaOAuthCallback(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body LazadaOAuthCallbackBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.LazadaOAuthCallback(c, id, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}

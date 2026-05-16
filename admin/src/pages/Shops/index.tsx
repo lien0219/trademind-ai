@@ -41,6 +41,8 @@ import {
   postTikTokOAuthCallback,
   getShopeeOAuthAuthorizeUrl,
   postShopeeOAuthCallback,
+  getLazadaOAuthAuthorizeUrl,
+  postLazadaOAuthCallback,
   queryPlatformProviders,
   queryShops,
   testShopConnection,
@@ -107,6 +109,9 @@ function formatPlatformPartnerErr(err: unknown): string {
   if (msg.includes('platform config incomplete: please configure platform_shopee')) {
     return `${msg}\n请先到「设置 → 平台开放配置 → Shopee」填写 Partner ID、Partner Key 和 Redirect URI。`;
   }
+  if (msg.includes('platform config incomplete: please configure platform_lazada')) {
+    return `${msg}\n请先到「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret 和 Redirect URI。`;
+  }
   if (
     msg.includes(
       'TikTok platform config is incomplete. Please configure App Key, App Secret and Redirect URI first.',
@@ -135,6 +140,8 @@ export default function ShopsPage() {
   const [tiktokOAuthState, setTikTokOAuthState] = useState('');
   const [shopeeOAuthAuthorizeUrl, setShopeeOAuthAuthorizeUrl] = useState('');
   const [shopeeOAuthState, setShopeeOAuthState] = useState('');
+  const [lazadaOAuthAuthorizeUrl, setLazadaOAuthAuthorizeUrl] = useState('');
+  const [lazadaOAuthState, setLazadaOAuthState] = useState('');
   const [authPartnerWarn, setAuthPartnerWarn] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
@@ -204,6 +211,8 @@ export default function ShopsPage() {
     setTikTokOAuthState('');
     setShopeeOAuthAuthorizeUrl('');
     setShopeeOAuthState('');
+    setLazadaOAuthAuthorizeUrl('');
+    setLazadaOAuthState('');
     setAuthOpen(true);
   };
 
@@ -608,6 +617,15 @@ export default function ShopsPage() {
                 description="支持 OAuth、测试连接与订单同步。请先在「设置 → 平台开放配置 → Shopee」填写 Partner ID、Partner Key 与 Redirect URI，再在「授权配置」完成授权。"
               />
             )}
+            {detail.platform === 'lazada' && provForShop.status === 'beta' && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="Lazada（测试中）"
+                description="支持 OAuth、测试连接与订单同步。请先在「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret、Auth/API Base URL 与 Redirect URI，再在「授权配置」完成授权。"
+              />
+            )}
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="平台">{providerLabel(providers, detail.platform)}</Descriptions.Item>
               <Descriptions.Item label="platform id">{detail.platform}</Descriptions.Item>
@@ -713,6 +731,22 @@ export default function ShopsPage() {
                 }
               />
             )}
+            {detail.platform === 'lazada' && provForShop?.status === 'beta' && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="Lazada OAuth 提示"
+                description={
+                  <>
+                    应用在{' '}
+                    <Link to="/settings/platforms">平台开放配置（platform_lazada）</Link>{' '}
+                    填写；<code style={{ padding: '0 4px' }}>state</code> 存 Redis；
+                    授权完成后从回调 URL 复制 <code style={{ padding: '0 4px' }}>code</code> 与签发的 state 提交即可。
+                  </>
+                }
+              />
+            )}
             {detail.platform !== 'manual' && (
               <Form form={authForm} layout="vertical">
                 <Form.Item name="authType" label="授权类型" hidden>
@@ -793,6 +827,42 @@ export default function ShopsPage() {
                       },
                     ]}
                   />
+                ) : detail.platform === 'lazada' ? (
+                  <Collapse
+                    bordered={false}
+                    style={{ marginBottom: 12 }}
+                    items={[
+                      {
+                        key: 'lazada_ov',
+                        label: '可选：覆盖 App Key / App Secret / Redirect URI',
+                        children: (
+                          <>
+                            <Form.Item
+                              name="appKey"
+                              label="覆盖 App Key"
+                              tooltip="留空则使用「平台开放配置」中的 app_key"
+                            >
+                              <Input autoComplete="off" />
+                            </Form.Item>
+                            <Form.Item
+                              name="appSecret"
+                              label="覆盖 App Secret"
+                              tooltip="留空以保持平台配置的 app_secret（加密存储）"
+                            >
+                              <Input.Password autoComplete="new-password" />
+                            </Form.Item>
+                            <Form.Item
+                              name="redirectUri"
+                              label="覆盖 Redirect URI"
+                              tooltip="留空则用平台配置的 redirect_uri；须与 Lazada App Console 登记一致"
+                            >
+                              <Input placeholder="https://…" />
+                            </Form.Item>
+                          </>
+                        ),
+                      },
+                    ]}
+                  />
                 ) : (
                   <>
                     <Form.Item name="appKey" label="App Key">
@@ -826,10 +896,16 @@ export default function ShopsPage() {
                       ? 'Seller Id（TikTok 通常不用填）'
                       : detail.platform === 'shopee'
                         ? 'Shopee shop_id（OAuth 成功后写入；可手工改）'
-                        : 'Seller Id'
+                        : detail.platform === 'lazada'
+                          ? 'Seller / short_code（OAuth 后可写入；可手工改）'
+                          : 'Seller Id'
                   }
                   tooltip={
-                    detail.platform === 'shopee' ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。' : undefined
+                    detail.platform === 'shopee'
+                      ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。'
+                      : detail.platform === 'lazada'
+                        ? 'Lazada 店铺标识；OAuth 成功后通常会自动写入。'
+                        : undefined
                   }
                 >
                   <Input />
@@ -841,14 +917,18 @@ export default function ShopsPage() {
                       ? 'Shop cipher（merchant_id）'
                       : detail.platform === 'shopee'
                         ? 'Main account id（可选）'
-                        : 'Merchant Id'
+                        : detail.platform === 'lazada'
+                          ? '扩展信息（可选）'
+                          : 'Merchant Id'
                   }
                   tooltip={
                     detail.platform === 'tiktok'
                       ? 'OAuth 成功后通常会自动写入；仅在手工调试时粘贴。'
                       : detail.platform === 'shopee'
                         ? '跨境/主帐号场景可选；OAuth 回调可一并提交。'
-                        : undefined
+                        : detail.platform === 'lazada'
+                          ? 'OAuth 回调 country / account 摘要可写入 auth_config。'
+                          : undefined
                   }
                 >
                   <Input />
@@ -1072,6 +1152,109 @@ export default function ShopsPage() {
                       }}
                     >
                       提交授权（code + state + shopId）
+                    </Button>
+                    <Divider />
+                  </>
+                )}
+                {detail.platform === 'lazada' && provForShop?.status === 'beta' && (
+                  <>
+                    <Divider>Lazada OAuth</Divider>
+                    <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接。默认使用「平台开放配置」中的 Lazada 应用参数。
+                    </Typography.Paragraph>
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        onClick={async () => {
+                          if (authPartnerWarn) {
+                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            return;
+                          }
+                          try {
+                            const vals = authForm.getFieldsValue(true) as Record<string, unknown>;
+                            const rd = String(vals.redirectUri || '').trim();
+                            const pk = String(vals.appKey || '').trim();
+                            const ps = String(vals.appSecret || '').trim();
+                            if (pk || ps || rd) {
+                              await updateShopAuth(detail.id, buildAuthPayload(vals));
+                            }
+                            const r = await getLazadaOAuthAuthorizeUrl(detail.id, rd || undefined);
+                            setLazadaOAuthAuthorizeUrl(r.authorizeUrl);
+                            setLazadaOAuthState(r.state);
+                            message.success('已生成 Lazada 授权链接');
+                          } catch (e: unknown) {
+                            message.error(formatPlatformPartnerErr(e));
+                          }
+                        }}
+                      >
+                        生成授权链接
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (!lazadaOAuthAuthorizeUrl) {
+                            message.warning('请先生成授权链接');
+                            return;
+                          }
+                          window.open(lazadaOAuthAuthorizeUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        新窗口打开
+                      </Button>
+                    </Space>
+                    <Form.Item label="authorizeUrl">
+                      <Space align="start">
+                        <Input.TextArea
+                          style={{ width: 460 }}
+                          autoSize={{ minRows: 2, maxRows: 6 }}
+                          readOnly
+                          value={lazadaOAuthAuthorizeUrl}
+                          placeholder='点击上方「生成授权链接」后出现'
+                        />
+                        <Button
+                          disabled={!lazadaOAuthAuthorizeUrl}
+                          onClick={() => {
+                            void navigator.clipboard?.writeText?.(lazadaOAuthAuthorizeUrl);
+                            message.success('已复制链接');
+                          }}
+                        >
+                          复制
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                    <Form.Item label="state（服务端签发）">
+                      <Input readOnly value={lazadaOAuthState} placeholder='生成后出现' />
+                    </Form.Item>
+                    <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      从 Lazada 授权回调 URL 复制 <code style={{ padding: '0 4px' }}>code</code>，与上方 state 一并提交：
+                    </Typography.Text>
+                    <Form.Item name="lazadaAuthCode" label="code">
+                      <Input placeholder="Paste authorization code" />
+                    </Form.Item>
+                    <Button
+                      type="default"
+                      onClick={async () => {
+                        const vals = authForm.getFieldsValue();
+                        const code = String(vals.lazadaAuthCode || '').trim();
+                        if (!detail?.id) return;
+                        if (!code || !lazadaOAuthState) {
+                          message.warning('需要 code 与已生成的 state');
+                          return;
+                        }
+                        try {
+                          await postLazadaOAuthCallback(detail.id, {
+                            code,
+                            state: lazadaOAuthState,
+                          });
+                          message.success('Lazada 授权已写入');
+                          setAuthOpen(false);
+                          actionRef.current?.reload();
+                          if (detailOpen) void refreshDetail(detail.id);
+                        } catch (e: unknown) {
+                          message.error(formatPlatformPartnerErr(e));
+                        }
+                      }}
+                    >
+                      提交授权（code + state）
                     </Button>
                     <Divider />
                   </>

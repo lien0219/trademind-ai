@@ -23,4 +23,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	s.POST("/:id/oauth/tiktok/callback", h.TikTokOAuthCallback)
 	s.GET("/:id/oauth/shopee/authorize-url", h.ShopeeOAuthAuthorizeURL)
 	s.POST("/:id/oauth/shopee/callback", h.ShopeeOAuthCallback)
+	s.GET("/:id/oauth/lazada/authorize-url", h.LazadaOAuthAuthorizeURL)
+	s.POST("/:id/oauth/lazada/callback", h.LazadaOAuthCallback)
 }

@@ -5,10 +5,6 @@ func Bootstrap() {
 	Register(newManualProvider())
 	Register(newMockProvider())
 
-	Register(newPlannedProvider("lazada", "Lazada", StatusPlanned, "oauth2", []Capability{
-		CapOrderSync, CapCustomerMessage, CapProductPublish,
-	}, nil, LazadaAppConfigSchema()))
-
 	Register(newPlannedProvider("amazon", "Amazon", StatusPlanned, "custom", []Capability{
 		CapOrderSync, CapProductPublish, CapInventorySync,
 	}, amazonAuthFields(), AmazonSPAPIAppConfigSchema()))
