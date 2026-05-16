@@ -11,10 +11,11 @@ import (
 // Worker instance table: worker_instances
 
 const (
-	TypeCollect    = "collect"
-	TypeImage      = "image"
-	TypeOrderSync  = "order_sync"
-	StatusRunning  = "running"
+	TypeCollect               = "collect"
+	TypeImage                 = "image"
+	TypeOrderSync             = "order_sync"
+	TypeCustomerMessageSync   = "customer_message_sync"
+	StatusRunning             = "running"
 	StatusStale    = "stale"
 	StatusStopped  = "stopped"
 	ActionStart    = "worker.instance.start"

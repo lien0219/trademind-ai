@@ -41,6 +41,18 @@ func (manualProv) SyncOrders(ctx context.Context, req SyncOrdersRequest) (*SyncO
 	return nil, ErrManualOrderSyncUnsupported
 }
 
+func (manualProv) PullMessages(ctx context.Context, req PullMessagesRequest) (*PullMessagesResult, error) {
+	_ = ctx
+	_ = req
+	return nil, ErrManualCustomerMessageUnsupported
+}
+
+func (manualProv) SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResult, error) {
+	_ = ctx
+	_ = req
+	return nil, ErrManualCustomerMessageUnsupported
+}
+
 type mockProv struct{}
 
 func newMockProvider() Provider { return mockProv{} }
@@ -102,6 +114,75 @@ func (mockProv) SyncOrders(ctx context.Context, req SyncOrdersRequest) (*SyncOrd
 			"mode":        req.Mode,
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
 		},
+	}, nil
+}
+
+func (mockProv) PullMessages(ctx context.Context, req PullMessagesRequest) (*PullMessagesResult, error) {
+	_ = ctx
+	prefix := fmt.Sprintf("mock-%s", req.ShopID.String())
+	now := time.Now().UTC().Truncate(time.Second)
+	convBase := []struct {
+		extID   string
+		name    string
+		lang    string
+		msgID   string
+		content string
+	}{
+		{prefix + "-conv-001", "Mock Buyer Ana", "en", prefix + "-conv-001-msg-c1", "Hello, when will my order ship?"},
+		{prefix + "-conv-002", "Mock Buyer Bo", "zh", prefix + "-conv-002-msg-c1", "您好，这个还有货吗？"},
+		{prefix + "-conv-003", "Mock Buyer Cee", "en", prefix + "-conv-003-msg-c1", "Can I change the address?"},
+	}
+	convs := make([]PlatformConversation, 0, len(convBase))
+	for _, c := range convBase {
+		mt := now.Add(-2 * time.Hour)
+		convs = append(convs, PlatformConversation{
+			ExternalConversationID: c.extID,
+			CustomerName:           c.name,
+			CustomerLanguage:       c.lang,
+			Status:                 "open",
+			LastMessageAt:          &mt,
+			Messages: []PlatformCustomerMessage{
+				{
+					ExternalMessageID: c.msgID,
+					Role:              "customer",
+					Content:           c.content,
+					MessageType:       "text",
+					Language:          c.lang,
+					CreatedAt:         &mt,
+					RawData:           TrimRawMap(map[string]any{"mock": true, "conversation": c.extID}, 8, 120),
+				},
+			},
+			RawData: TrimRawMap(map[string]any{"mock": true, "externalConversationId": c.extID}, 8, 120),
+		})
+	}
+	return &PullMessagesResult{
+		Conversations: convs,
+		NextCursor:    "",
+		HasMore:       false,
+		RawSummary: TrimRawMap(map[string]any{
+			"provider": "mock",
+			"shopId":   req.ShopID.String(),
+			"returned": len(convs),
+		}, 12, 200),
+	}, nil
+}
+
+func (mockProv) SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResult, error) {
+	_ = ctx
+	reply := strings.TrimSpace(req.Reply)
+	if reply == "" {
+		return nil, fmt.Errorf("reply is required")
+	}
+	ext := fmt.Sprintf("mock-%s-sent-%d", req.ShopID.String(), time.Now().UTC().UnixNano())
+	sent := time.Now().UTC().Truncate(time.Second)
+	return &SendMessageResult{
+		ExternalMessageID: ext,
+		SentAt:            &sent,
+		RawSummary: TrimRawMap(map[string]any{
+			"provider":               "mock",
+			"externalConversationId": strings.TrimSpace(req.ExternalConversationID),
+			"replyLen":               len([]rune(reply)),
+		}, 12, 200),
 	}, nil
 }
 
@@ -288,4 +369,18 @@ func (p *plannedProv) SyncOrders(ctx context.Context, req SyncOrdersRequest) (*S
 	_ = ctx
 	_ = req
 	return nil, ErrOrderSyncNotImplemented
+}
+
+func (p *plannedProv) PullMessages(ctx context.Context, req PullMessagesRequest) (*PullMessagesResult, error) {
+	_ = p
+	_ = ctx
+	_ = req
+	return nil, ErrCustomerMessageNotImplemented
+}
+
+func (p *plannedProv) SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResult, error) {
+	_ = p
+	_ = ctx
+	_ = req
+	return nil, ErrCustomerMessageNotImplemented
 }

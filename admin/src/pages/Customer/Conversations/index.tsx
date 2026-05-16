@@ -1,13 +1,20 @@
-import { ModalForm, ProFormSelect, ProFormText } from '@ant-design/pro-components';
+import {
+  ModalForm,
+  ProFormDigit,
+  ProFormRadio,
+  ProFormSelect,
+  ProFormText,
+} from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Button, Tag, Typography } from 'antd';
+import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
 import {
   createConversation,
   queryConversations,
+  syncCustomerMessages,
   type ConversationRow,
 } from '@/services/customer';
 import { queryShops } from '@/services/shops';
@@ -15,6 +22,7 @@ import { queryShops } from '@/services/shops';
 export default function CustomerConversationsPage() {
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
+  const [pullOpen, setPullOpen] = useState(false);
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
 
   useEffect(() => {
@@ -34,6 +42,19 @@ export default function CustomerConversationsPage() {
   }, []);
 
   const columns: ProColumns<ConversationRow>[] = [
+    {
+      title: '店铺',
+      dataIndex: 'shopId',
+      width: 200,
+      hideInTable: true,
+      valueType: 'select',
+      fieldProps: {
+        options: shopOptions,
+        showSearch: true,
+        placeholder: '按店铺筛选',
+        allowClear: true,
+      },
+    },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
@@ -124,6 +145,9 @@ export default function CustomerConversationsPage() {
         options={{ reload: true, density: true, setting: true }}
         headerTitle={false}
         toolBarRender={() => [
+          <Button key="pull" onClick={() => setPullOpen(true)}>
+            拉取平台消息
+          </Button>,
           <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
             新建会话
           </Button>,
@@ -134,6 +158,7 @@ export default function CustomerConversationsPage() {
             pageSize: params.pageSize,
             platform: params.platform as string | undefined,
             status: params.status as string | undefined,
+            shopId: params.shopId as string | undefined,
             customerName: params.customerName as string | undefined,
           });
           return {
@@ -143,6 +168,58 @@ export default function CustomerConversationsPage() {
           };
         }}
       />
+
+      <ModalForm
+        title="拉取平台客服消息"
+        open={pullOpen}
+        modalProps={{ destroyOnClose: true, onCancel: () => setPullOpen(false) }}
+        initialValues={{ mode: 'incremental', limit: 50, cursor: '', start: '', end: '' }}
+        onFinish={async (vals) => {
+          const sid = vals.shopId as string | undefined;
+          if (!sid) {
+            message.warning('请选择店铺');
+            return false;
+          }
+          try {
+            await syncCustomerMessages(sid, {
+              mode: vals.mode as string,
+              start: (vals.start as string | undefined) || undefined,
+              end: (vals.end as string | undefined) || undefined,
+              cursor: (vals.cursor as string | undefined) || undefined,
+              limit: vals.limit as number | undefined,
+            });
+          } catch (e: unknown) {
+            message.error(e instanceof Error ? e.message : '提交失败');
+            return false;
+          }
+          message.success('客服消息同步任务已提交');
+          setPullOpen(false);
+          actionRef.current?.reload();
+          return true;
+        }}
+      >
+        <ProFormSelect
+          name="shopId"
+          label="店铺"
+          options={shopOptions}
+          rules={[{ required: true, message: '请选择店铺' }]}
+          fieldProps={{ showSearch: true, optionFilterProp: 'label' }}
+        />
+        <ProFormRadio.Group
+          name="mode"
+          label="同步模式"
+          options={[
+            { label: '增量 incremental', value: 'incremental' },
+            { label: '全量 full', value: 'full' },
+            { label: '手动 manual', value: 'manual' },
+          ]}
+          rules={[{ required: true }]}
+        />
+        <ProFormText name="start" label="开始时间（可选 RFC3339）" placeholder="2026-05-01T00:00:00Z" />
+        <ProFormText name="end" label="结束时间（可选 RFC3339）" placeholder="2026-05-16T23:59:59Z" />
+        <ProFormText name="cursor" label="游标（可选）" />
+        <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
+      </ModalForm>
 
       <ModalForm
         title="新建客服会话"

@@ -39,6 +39,7 @@ type ListQuery struct {
 	PageSize     int
 	Platform     string
 	Status       string
+	ShopID       *uuid.UUID
 	CustomerName string
 	Start        *time.Time
 	End          *time.Time
@@ -92,6 +93,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
+	}
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		tx = tx.Where("shop_id = ?", *q.ShopID)
 	}
 	if v := strings.TrimSpace(q.CustomerName); v != "" {
 		tx = tx.Where("customer_name ILIKE ?", "%"+v+"%")
@@ -608,6 +612,7 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 		Role:           strings.TrimSpace(body.Role),
 		Content:        content,
 		Language:       lang,
+		MessageType:    MessageTypeText,
 		Source:         src,
 		CreatedBy:      adminID,
 	}
@@ -664,6 +669,7 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 		Role:           RoleAgent,
 		Content:        reply,
 		Language:       conv.CustomerLanguage,
+		MessageType:    MessageTypeText,
 		Source:         SourceManual,
 		CreatedBy:      adminID,
 	}
@@ -754,6 +760,7 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 			Role:           RoleAgent,
 			Content:        final,
 			Language:       conv.CustomerLanguage,
+			MessageType:    MessageTypeText,
 			Source:         SourceManual,
 			CreatedBy:      adminID,
 		}

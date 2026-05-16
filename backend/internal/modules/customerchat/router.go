@@ -15,6 +15,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	c.POST("/conversations/:id/messages", h.CreateMessage)
 	c.POST("/conversations/:id/mark-replied", h.MarkReplied)
 	c.POST("/conversations/:id/ai/generate-reply", h.GenerateReply)
+	c.POST("/conversations/:id/send-platform-message", h.SendPlatformMessage)
 
 	c.GET("/conversations/:id", h.GetConversation)
 	c.PUT("/conversations/:id", h.UpdateConversation)

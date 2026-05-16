@@ -2,6 +2,7 @@ package customerchat
 
 import (
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/gorm"
 )
 
@@ -54,6 +56,11 @@ func (h *Handler) ListConversations(c *gin.Context) {
 		Platform:     c.Query("platform"),
 		Status:       c.Query("status"),
 		CustomerName: c.Query("customerName"),
+	}
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ShopID = &u
+		}
 	}
 	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
@@ -350,4 +357,37 @@ func (h *Handler) DiscardSuggestion(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
+}
+
+// SendPlatformMessage POST /api/v1/customer/conversations/:id/send-platform-message
+func (h *Handler) SendPlatformMessage(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body SendPlatformMessageBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.SendPlatformMessage(c, id, body, adminUUID(c))
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+		case errors.Is(err, platformp.ErrCustomerMessageNotImplemented):
+			response.Fail(c, http.StatusNotImplemented, response.CodeBadRequest, err.Error())
+		case errors.Is(err, platformp.ErrPlatformCustomerMessagePermissionDenied):
+			response.Fail(c, 403, response.CodeBadRequest, err.Error())
+		default:
+			response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		}
+		return
+	}
+	response.OK(c, out)
 }

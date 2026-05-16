@@ -31,9 +31,10 @@ type TypeStat struct {
 func BuildHealthWorkersBlock(ctx context.Context, db *gorm.DB, cfg *config.Config) HealthWorkersBlock {
 	out := HealthWorkersBlock{
 		ByType: map[string]TypeStat{
-			TypeCollect:   {},
-			TypeImage:     {},
-			TypeOrderSync: {},
+			TypeCollect:             {},
+			TypeImage:               {},
+			TypeOrderSync:           {},
+			TypeCustomerMessageSync: {},
 		},
 	}
 	if cfg != nil {

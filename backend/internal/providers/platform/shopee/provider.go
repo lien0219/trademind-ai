@@ -23,7 +23,7 @@ func (shopeeProvider) Name() string { return "Shopee" }
 func (shopeeProvider) Status() string { return platformp.StatusBeta }
 
 func (shopeeProvider) Capabilities() []platformp.Capability {
-	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo}
+	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage}
 }
 
 func (shopeeProvider) AuthSchema() platformp.AuthSchema {
@@ -114,4 +114,16 @@ func (p shopeeProvider) SyncOrders(ctx context.Context, req platformp.SyncOrders
 		HasMore:    more,
 		RawSummary: raw,
 	}, nil
+}
+
+func (shopeeProvider) PullMessages(ctx context.Context, req platformp.PullMessagesRequest) (*platformp.PullMessagesResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrCustomerMessageNotImplemented
+}
+
+func (shopeeProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrCustomerMessageNotImplemented
 }

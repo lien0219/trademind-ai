@@ -101,3 +101,6 @@ export const ORDER_SYNC_TASK_STATUS = {
   failed: { text: '失败', color: 'error' as const },
   cancelled: { text: '已取消', color: 'default' as const },
 };
+
+/** 客服消息同步任务 customer_message_sync_tasks.status（与订单同步任务状态语义一致） */
+export const CUSTOMER_MESSAGE_SYNC_TASK_STATUS = ORDER_SYNC_TASK_STATUS;

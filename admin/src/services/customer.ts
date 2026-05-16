@@ -72,6 +72,7 @@ export type CustomerMessageRow = {
   role: string;
   content: string;
   language: string;
+  messageType?: string;
   source: string;
   externalMessageId?: string;
   rawData?: unknown;
@@ -99,6 +100,7 @@ export async function queryConversations(params: {
   pageSize?: number;
   platform?: string;
   status?: string;
+  shopId?: string;
   customerName?: string;
   start?: string;
   end?: string;
@@ -108,6 +110,7 @@ export async function queryConversations(params: {
     pageSize: params.pageSize,
     platform: params.platform,
     status: params.status,
+    shopId: params.shopId,
     customerName: params.customerName,
     start: params.start,
     end: params.end,
@@ -189,4 +192,68 @@ export async function acceptReplySuggestion(
 
 export async function discardReplySuggestion(id: string): Promise<{ ok: boolean }> {
   return postJSON(`/api/v1/customer/reply-suggestions/${id}/discard`, {});
+}
+
+export type CustomerMessageSyncTaskRow = {
+  id: string;
+  shopId: string;
+  shopName?: string;
+  platform: string;
+  taskType: string;
+  status: string;
+  mode: string;
+  cursor?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  totalCount: number;
+  successCount: number;
+  failedCount: number;
+  errorMessage?: string;
+  input?: unknown;
+  output?: unknown;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function syncCustomerMessages(
+  shopId: string,
+  payload: { mode?: string; start?: string; end?: string; cursor?: string; limit?: number },
+): Promise<CustomerMessageSyncTaskRow> {
+  return postJSON(`/api/v1/shops/${shopId}/sync-customer-messages`, payload);
+}
+
+export async function queryCustomerMessageSyncTasks(params: {
+  page?: number;
+  pageSize?: number;
+  shopId?: string;
+  platform?: string;
+  status?: string;
+  start?: string;
+  end?: string;
+}): Promise<{ list: CustomerMessageSyncTaskRow[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }> {
+  return getWithParams('/api/v1/customer/message-sync/tasks', {
+    page: params.page,
+    pageSize: params.pageSize,
+    shopId: params.shopId,
+    platform: params.platform,
+    status: params.status,
+    start: params.start,
+    end: params.end,
+  });
+}
+
+export async function getCustomerMessageSyncTask(id: string): Promise<CustomerMessageSyncTaskRow> {
+  return getJSON(`/api/v1/customer/message-sync/tasks/${id}`);
+}
+
+export async function retryCustomerMessageSyncTask(id: string): Promise<CustomerMessageSyncTaskRow> {
+  return postJSON(`/api/v1/customer/message-sync/tasks/${id}/retry`, {});
+}
+
+export async function sendPlatformMessage(
+  conversationId: string,
+  payload: { reply: string; suggestionId?: string; idempotencyKey?: string },
+): Promise<CustomerMessageRow> {
+  return postJSON(`/api/v1/customer/conversations/${conversationId}/send-platform-message`, payload);
 }

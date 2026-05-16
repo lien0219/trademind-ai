@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"gorm.io/gorm"
@@ -23,6 +24,7 @@ type Deps struct {
 	Collect *collect.Service
 	Image   *imagetask.Service
 	Order   *ordersync.Service
+	CustomerMessage *customersync.Service
 }
 
 // Start launches the periodic reaper until ctx is cancelled.
@@ -104,6 +106,19 @@ func runOnce(ctx context.Context, d Deps, legacyTimeout time.Duration) {
 		}
 	}
 
+	if d.CustomerMessage != nil {
+		var ids []string
+		_ = d.DB.WithContext(ctx).Model(&customersync.CustomerMessageSyncTask{}).
+			Where("status = ? AND locked_until IS NOT NULL AND locked_until < ?", customersync.StatusRunning, now).
+			Limit(50).
+			Pluck("id", &ids).Error
+		for _, sid := range ids {
+			if err := d.CustomerMessage.RecoverLeaseExpired(ctx, parseUUID(sid)); err != nil && d.Log != nil {
+				d.Log.Warn("taskreaper_customer_message_sync_lease", "taskId", sid, "error", err)
+			}
+		}
+	}
+
 	if d.Collect != nil {
 		var ids []string
 		_ = d.DB.WithContext(ctx).Model(&collect.CollectTask{}).
@@ -139,6 +154,19 @@ func runOnce(ctx context.Context, d Deps, legacyTimeout time.Duration) {
 		for _, sid := range ids {
 			if err := d.Order.RecoverLegacyRunning(ctx, parseUUID(sid), legacyCut); err != nil && d.Log != nil {
 				d.Log.Warn("taskreaper_order_sync_legacy", "taskId", sid, "error", err)
+			}
+		}
+	}
+
+	if d.CustomerMessage != nil {
+		var ids []string
+		_ = d.DB.WithContext(ctx).Model(&customersync.CustomerMessageSyncTask{}).
+			Where("status = ? AND locked_by IS NULL AND updated_at < ?", customersync.StatusRunning, legacyCut).
+			Limit(50).
+			Pluck("id", &ids).Error
+		for _, sid := range ids {
+			if err := d.CustomerMessage.RecoverLegacyRunning(ctx, parseUUID(sid), legacyCut); err != nil && d.Log != nil {
+				d.Log.Warn("taskreaper_customer_message_sync_legacy", "taskId", sid, "error", err)
 			}
 		}
 	}

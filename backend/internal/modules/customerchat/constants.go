@@ -15,6 +15,14 @@ const (
 	RoleAI       = "ai"
 )
 
+// Message types (platform / manual)
+const (
+	MessageTypeText   = "text"
+	MessageTypeImage  = "image"
+	MessageTypeOrder  = "order"
+	MessageTypeSystem = "system"
+)
+
 // Message sources
 const (
 	SourceManual       = "manual"

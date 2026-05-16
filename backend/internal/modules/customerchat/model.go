@@ -13,16 +13,17 @@ import (
 // CustomerConversation is a manual/customer-service conversation (no platform sync in MVP).
 type CustomerConversation struct {
 	model.Base
-	Platform               string     `gorm:"size:64;index;not null" json:"platform"`
-	ShopID                 *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
-	ExternalConversationID *string    `gorm:"size:255;index" json:"externalConversationId,omitempty"`
-	CustomerName           string     `gorm:"size:255;not null" json:"customerName"`
-	CustomerAvatar         string     `gorm:"type:text" json:"customerAvatar,omitempty"`
-	CustomerLanguage       string     `gorm:"size:32;default:en;not null" json:"customerLanguage"`
-	Status                 string     `gorm:"size:32;index;not null" json:"status"`
-	LastMessageAt          *time.Time `json:"lastMessageAt,omitempty"`
-	OrderID                *uuid.UUID `gorm:"type:char(36);index" json:"orderId,omitempty"`
-	CreatedBy              *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	Platform                 string         `gorm:"size:64;index;not null" json:"platform"`
+	ShopID                   *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	ExternalConversationID   *string        `gorm:"size:255;index" json:"externalConversationId,omitempty"`
+	CustomerName             string         `gorm:"size:255;not null" json:"customerName"`
+	CustomerAvatar           string         `gorm:"type:text" json:"customerAvatar,omitempty"`
+	CustomerLanguage         string         `gorm:"size:32;default:en;not null" json:"customerLanguage"`
+	Status                   string         `gorm:"size:32;index;not null" json:"status"`
+	LastMessageAt            *time.Time     `json:"lastMessageAt,omitempty"`
+	OrderID                  *uuid.UUID     `gorm:"type:char(36);index" json:"orderId,omitempty"`
+	RawData              datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	CreatedBy                *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 }
 
 func (CustomerConversation) TableName() string { return "customer_conversations" }
@@ -34,6 +35,7 @@ type CustomerMessage struct {
 	Role              string         `gorm:"size:32;index;not null" json:"role"`
 	Content           string         `gorm:"type:text;not null" json:"content"`
 	Language          string         `gorm:"size:32;not null" json:"language"`
+	MessageType       string         `gorm:"size:32;default:text;not null" json:"messageType"`
 	Source            string         `gorm:"size:32;index;not null" json:"source"`
 	ExternalMessageID *string        `gorm:"size:255" json:"externalMessageId,omitempty"`
 	RawData           datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`

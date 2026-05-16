@@ -23,6 +23,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
@@ -110,7 +111,7 @@ func main() {
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
@@ -137,18 +138,24 @@ func main() {
 		osWorkerConc = 1
 	}
 
+	cmWorkerConc := cfg.CustomerMessageSyncWorkerConcurrency
+	if cmWorkerConc < 1 {
+		cmWorkerConc = 1
+	}
+
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
 
 	worker.StartStaleMarker(workerCtx, &workerWG, db, cfg, log)
 
 	taskreaper.Start(workerCtx, &workerWG, taskreaper.Deps{
-		Log:     log,
-		DB:      db,
-		Config:  cfg,
-		Collect: collectSvc,
-		Image:   imageTaskSvc,
-		Order:   orderSyncSvc,
+		Log:             log,
+		DB:              db,
+		Config:          cfg,
+		Collect:         collectSvc,
+		Image:           imageTaskSvc,
+		Order:           orderSyncSvc,
+		CustomerMessage: customerSyncSvc,
 	})
 
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
@@ -188,6 +195,17 @@ func main() {
 		log.Warn("order_sync_worker_skipped", "reason", "redis unavailable while ORDER_SYNC_QUEUE_ENABLED=true")
 	}
 
+	if cfg.CustomerMessageSyncQueueEnabled && redisClient != nil && customerSyncSvc != nil {
+		qn := strings.TrimSpace(cfg.CustomerMessageSyncQueueName)
+		if qn == "" {
+			qn = "customer:message:sync:tasks"
+		}
+		customersync.StartWorker(workerCtx, &workerWG, log, customerSyncSvc, qn, cmWorkerConc, workerReg)
+		log.Info("customer_message_sync_worker_started", "concurrency", cmWorkerConc, "queue", qn)
+	} else if cfg.CustomerMessageSyncQueueEnabled && redisClient == nil {
+		log.Warn("customer_message_sync_worker_skipped", "reason", "redis unavailable while CUSTOMER_MESSAGE_SYNC_QUEUE_ENABLED=true")
+	}
+
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: engine,
@@ -223,6 +241,7 @@ func main() {
 	collect.SetCollectWorkersRunning(false)
 	imagetask.SetImageWorkersRunning(false)
 	ordersync.SetOrderSyncWorkersRunning(false)
+	customersync.SetCustomerMessageSyncWorkersRunning(false)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer shutdownCancel()

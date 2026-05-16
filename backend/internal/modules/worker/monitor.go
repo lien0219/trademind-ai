@@ -86,6 +86,17 @@ type leasedOrderSyncTask struct {
 
 func (leasedOrderSyncTask) TableName() string { return "order_sync_tasks" }
 
+type leasedCustomerMessageSyncTask struct {
+	ID          uuid.UUID  `gorm:"column:id"`
+	Status      string     `gorm:"column:status"`
+	LockedBy    *string    `gorm:"column:locked_by"`
+	LockedUntil *time.Time `gorm:"column:locked_until"`
+	CreatedAt   time.Time  `gorm:"column:created_at"`
+	UpdatedAt   time.Time  `gorm:"column:updated_at"`
+}
+
+func (leasedCustomerMessageSyncTask) TableName() string { return "customer_message_sync_tasks" }
+
 // BuildMonitorResponse loads instances and leased tasks (capped).
 func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) (*MonitorResponse, error) {
 	if db == nil {
@@ -118,14 +129,16 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 
 	out := &MonitorResponse{
 		ByType: map[string]MonitorSummary{
-			TypeCollect:   {},
-			TypeImage:     {},
-			TypeOrderSync: {},
+			TypeCollect:             {},
+			TypeImage:               {},
+			TypeOrderSync:           {},
+			TypeCustomerMessageSync: {},
 		},
 		LeasedTasks: map[string][]LeasedTaskDTO{
-			"collect":   {},
-			"image":     {},
-			"orderSync": {},
+			"collect":                {},
+			"image":                  {},
+			"orderSync":              {},
+			"customerMessageSync":    {},
 		},
 	}
 
@@ -217,6 +230,24 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	for i := range otasks {
 		t := otasks[i]
 		out.LeasedTasks["orderSync"] = append(out.LeasedTasks["orderSync"], LeasedTaskDTO{
+			ID:          t.ID,
+			Status:      t.Status,
+			LockedBy:    t.LockedBy,
+			LockedUntil: t.LockedUntil,
+			CreatedAt:   t.CreatedAt,
+			UpdatedAt:   t.UpdatedAt,
+		})
+	}
+
+	var cmtasks []leasedCustomerMessageSyncTask
+	_ = db.WithContext(ctx).Model(&leasedCustomerMessageSyncTask{}).
+		Where("status = ? AND locked_by IS NOT NULL", "running").
+		Order("updated_at DESC").
+		Limit(monitorLeasedLimit).
+		Find(&cmtasks).Error
+	for i := range cmtasks {
+		t := cmtasks[i]
+		out.LeasedTasks["customerMessageSync"] = append(out.LeasedTasks["customerMessageSync"], LeasedTaskDTO{
 			ID:          t.ID,
 			Status:      t.Status,
 			LockedBy:    t.LockedBy,

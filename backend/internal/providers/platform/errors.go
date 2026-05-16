@@ -22,3 +22,12 @@ var ErrManualOrderSyncUnsupported = errors.New("manual shop does not support ord
 
 // ErrOrderSyncNotImplemented is returned when order sync is not wired for a planned provider.
 var ErrOrderSyncNotImplemented = errors.New("platform order sync not implemented")
+
+// ErrManualCustomerMessageUnsupported is returned for manual shops (no remote messaging).
+var ErrManualCustomerMessageUnsupported = errors.New("manual shop does not support platform customer messages")
+
+// ErrCustomerMessageNotImplemented is returned when provider has no live buyer-seller messaging API wired yet.
+var ErrCustomerMessageNotImplemented = errors.New("platform customer message provider not implemented")
+
+// ErrPlatformCustomerMessagePermissionDenied is returned when token/scopes or platform account forbids chat APIs.
+var ErrPlatformCustomerMessagePermissionDenied = errors.New("platform customer message permission denied or not configured")

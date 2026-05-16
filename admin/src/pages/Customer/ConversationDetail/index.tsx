@@ -34,6 +34,7 @@ import {
   generateCustomerReply,
   getConversation,
   queryMessages,
+  sendPlatformMessage,
   updateConversation,
   updateReplySuggestion,
   type ConversationDetail,
@@ -252,11 +253,39 @@ export default function CustomerConversationDetailPage() {
       return;
     }
     await acceptReplySuggestion(suggestionId, { finalReply });
-    message.success('已采纳为人工回复（仅记录，不对外发送）');
+    message.success('已采纳为内部回复（仅记录，不向平台发送）');
     setSuggestionId(null);
     setAiMeta(null);
     setEditedReply('');
     loadAll();
+  };
+
+  const onSendToPlatform = async () => {
+    if (!id) return;
+    const finalReply = editedReply.trim();
+    if (!finalReply) {
+      message.warning('请填写要发送到平台的回复内容');
+      return;
+    }
+    Modal.confirm({
+      title: '确认发送到平台？',
+      content: '将向买家在对应平台发送此回复，请确认内容准确。发送后将在消息时间线中记录为人工外发。',
+      okText: '确认发送',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await sendPlatformMessage(id, {
+            reply: finalReply,
+            suggestionId: suggestionId || undefined,
+          });
+          message.success('已发送到平台');
+          loadAll();
+        } catch (e: unknown) {
+          message.error(e instanceof Error ? e.message : '发送失败');
+          return Promise.reject(e);
+        }
+      },
+    });
   };
 
   const onDiscard = async () => {
@@ -279,16 +308,24 @@ export default function CustomerConversationDetailPage() {
     ? CUSTOMER_CONVERSATION_STATUS[conv.status as keyof typeof CUSTOMER_CONVERSATION_STATUS]
     : undefined;
 
+  const canSendToPlatform = Boolean(conv?.shopId && conv?.externalConversationId);
+
   return (
     <PageContainer title="AI 客服工作台" onBack={() => history.push('/customer/conversations')}>
       <Spin spinning={loading}>
         {conv && (
           <>
-            <Descriptions size="small" column={3} style={{ marginBottom: 16 }}>
+            <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="客户">{conv.customerName}</Descriptions.Item>
               <Descriptions.Item label="platform">{conv.platform}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
+              </Descriptions.Item>
+              <Descriptions.Item label="店铺">{conv.shopSummary?.shopName ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="外部会话 ID" span={2}>
+                <Typography.Text copyable={conv.externalConversationId ? { text: conv.externalConversationId } : false}>
+                  {conv.externalConversationId ?? '—'}
+                </Typography.Text>
               </Descriptions.Item>
             </Descriptions>
             <Card size="small" title="关联店铺" bordered={false} style={{ marginBottom: 16 }}>
@@ -409,6 +446,7 @@ export default function CustomerConversationDetailPage() {
                                 </Typography.Text>
                                 <Tag>{item.role}</Tag>
                                 <Tag>{item.source}</Tag>
+                                {item.messageType ? <Tag>{item.messageType}</Tag> : null}
                               </Space>
                             }
                           >
@@ -492,36 +530,50 @@ export default function CustomerConversationDetailPage() {
                 </Typography.Paragraph>
 
                 {aiMeta && (
-                  <>
-                    <Descriptions size="small" column={1} bordered>
-                      <Descriptions.Item label="intent">{aiMeta.intent || '—'}</Descriptions.Item>
-                      <Descriptions.Item label="sentiment">{aiMeta.sentiment || '—'}</Descriptions.Item>
-                      <Descriptions.Item label="riskLevel">{riskTag(aiMeta.riskLevel)}</Descriptions.Item>
-                      <Descriptions.Item label="notes">{aiMeta.notes || '—'}</Descriptions.Item>
-                    </Descriptions>
-                    <div>
-                      <Typography.Text strong>编辑回复</Typography.Text>
-                      <Input.TextArea
-                        rows={6}
-                        value={editedReply}
-                        onChange={(e) => setEditedReply(e.target.value)}
-                        style={{ marginTop: 8 }}
-                      />
-                    </div>
-                    <Space wrap>
-                      <Button onClick={() => void onSaveEdit()} disabled={!suggestionId}>
-                        保存编辑
-                      </Button>
-                      <Button type="primary" onClick={() => void onAccept()} disabled={!suggestionId}>
-                        采纳为回复
-                      </Button>
-                      <Button danger onClick={() => void onDiscard()} disabled={!suggestionId}>
-                        废弃建议
-                      </Button>
-                      <Button onClick={() => void onCopy()}>复制回复</Button>
-                    </Space>
-                  </>
+                  <Descriptions size="small" column={1} bordered>
+                    <Descriptions.Item label="intent">{aiMeta.intent || '—'}</Descriptions.Item>
+                    <Descriptions.Item label="sentiment">{aiMeta.sentiment || '—'}</Descriptions.Item>
+                    <Descriptions.Item label="riskLevel">{riskTag(aiMeta.riskLevel)}</Descriptions.Item>
+                    <Descriptions.Item label="notes">{aiMeta.notes || '—'}</Descriptions.Item>
+                  </Descriptions>
                 )}
+                <div>
+                  <Typography.Text strong>回复内容</Typography.Text>
+                  <Typography.Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 8, fontSize: 12 }}>
+                    可先用 AI 生成并编辑，或直接手写后再「采纳为内部回复」或「发送到平台」（均须人工操作）。
+                  </Typography.Paragraph>
+                  <Input.TextArea
+                    rows={6}
+                    value={editedReply}
+                    onChange={(e) => setEditedReply(e.target.value)}
+                    placeholder="编辑或手写回复内容…"
+                  />
+                </div>
+                <Space wrap align="start">
+                  <Button onClick={() => void onSaveEdit()} disabled={!suggestionId}>
+                    保存编辑
+                  </Button>
+                  <Button type="primary" onClick={() => void onAccept()} disabled={!suggestionId}>
+                    采纳为内部回复
+                  </Button>
+                  <Button
+                    type="primary"
+                    ghost
+                    onClick={() => void onSendToPlatform()}
+                    disabled={!canSendToPlatform || !editedReply.trim()}
+                  >
+                    发送到平台
+                  </Button>
+                  <Button danger onClick={() => void onDiscard()} disabled={!suggestionId}>
+                    废弃建议
+                  </Button>
+                  <Button onClick={() => void onCopy()}>复制回复</Button>
+                </Space>
+                {!canSendToPlatform ? (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    「发送到平台」需本会话已关联店铺，且存在平台外部会话 ID（通常由「拉取平台消息」写入）。手工录入会话可无平台外发。
+                  </Typography.Text>
+                ) : null}
               </Space>
             </Card>
           </Col>

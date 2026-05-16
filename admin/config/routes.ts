@@ -155,6 +155,11 @@ export default [
         component: './Customer/ConversationDetail',
         hideInMenu: true,
       },
+      {
+        path: '/customer/message-sync-tasks',
+        name: '消息同步任务',
+        component: './Customer/MessageSyncTasks',
+      },
     ],
   },
   {

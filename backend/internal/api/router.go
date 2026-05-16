@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -60,7 +61,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -219,6 +220,27 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	customerChatH := &customerchat.Handler{Svc: customerChatSvc}
 
+	customerSyncSvc := &customersync.Service{
+		DB:           dep.DB,
+		Redis:        dep.Redis,
+		Shops:        shopSvc,
+		Settings:     settingsSvc,
+		CustomerChat: customerChatSvc,
+		OpLog:        opLogSvc,
+	}
+	if dep.Config != nil {
+		customerSyncSvc.QueueEnabled = dep.Config.CustomerMessageSyncQueueEnabled
+		if strings.TrimSpace(dep.Config.CustomerMessageSyncQueueName) != "" {
+			customerSyncSvc.QueueName = strings.TrimSpace(dep.Config.CustomerMessageSyncQueueName)
+		} else {
+			customerSyncSvc.QueueName = "customer:message:sync:tasks"
+		}
+		if dep.Config.CustomerMessageSyncTaskTimeoutSeconds > 0 {
+			customerSyncSvc.TaskTimeout = time.Duration(dep.Config.CustomerMessageSyncTaskTimeoutSeconds) * time.Second
+		}
+	}
+	customerSyncH := &customersync.Handler{Svc: customerSyncSvc}
+
 	r.GET("/static/*filepath", staticH.Serve)
 
 	v1 := r.Group("/api/v1")
@@ -252,11 +274,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectrule.Register(authed, collectRuleH)
 	order.Register(authed, orderH)
 	ordersync.Register(authed, orderSyncH)
+	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)
 	shop.Register(authed, shopH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
-	return collectSvc, imageTaskSvc, orderSyncSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {
@@ -356,6 +379,24 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			status = "degraded"
 		}
 
+		cmQEnabled := false
+		cmQName := "customer:message:sync:tasks"
+		cmWConc := 1
+		if dep.Config != nil {
+			cmQEnabled = dep.Config.CustomerMessageSyncQueueEnabled
+			if strings.TrimSpace(dep.Config.CustomerMessageSyncQueueName) != "" {
+				cmQName = strings.TrimSpace(dep.Config.CustomerMessageSyncQueueName)
+			}
+			cmWConc = dep.Config.CustomerMessageSyncWorkerConcurrency
+			if cmWConc < 1 {
+				cmWConc = 1
+			}
+		}
+		cmq := customersync.BuildCustomerMessageSyncQueueHealthBlock(ctx, dep.Redis, cmQEnabled, cmQName, cmWConc)
+		if cmQEnabled && !cmq.RedisAvailable && checks["redis"] == "ok" {
+			status = "degraded"
+		}
+
 		workers := worker.BuildHealthWorkersBlock(ctx, dep.DB, dep.Config)
 		if workers.Degraded {
 			status = "degraded"
@@ -367,8 +408,9 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			"checks":         checks,
 			"collectQueue":   cq,
 			"imageQueue":     iq,
-			"orderSyncQueue": osq,
-			"workers":        workers,
+			"orderSyncQueue":             osq,
+			"customerMessageSyncQueue":   cmq,
+			"workers":                    workers,
 			"timestamp":      time.Now().UTC().Format(time.RFC3339),
 		})
 	}

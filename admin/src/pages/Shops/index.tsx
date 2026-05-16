@@ -55,6 +55,7 @@ import {
   type ShopListRow,
 } from '@/services/shops';
 import { syncShopOrders } from '@/services/orderSync';
+import { syncCustomerMessages } from '@/services/customer';
 import { getPlatformAppSettings } from '@/services/platformOpen';
 import { isDeployAppConfigComplete } from '@/utils/platformAppConfig';
 
@@ -114,6 +115,15 @@ function formatPlatformPartnerErr(err: unknown): string {
   if (msg.includes('platform config incomplete: please configure platform_lazada')) {
     return `${msg}\n请先到「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret 和 Redirect URI。`;
   }
+  if (msg.includes('platform customer message permission denied') || msg.includes('platform customer message permission')) {
+    return `${msg}\n请先到「设置 → 平台开放配置」填写平台应用配置，并在平台开放后台确认已申请客服消息相关权限。`;
+  }
+  if (msg.includes('platform customer message provider not implemented')) {
+    return `${msg}\n当前平台客服消息 API 尚未接入，可使用 mock 店铺验证拉取与发送联调。`;
+  }
+  if (msg.includes('manual shop does not support platform customer messages')) {
+    return `${msg}\n手工店铺仅支持会话手工录入，不支持平台客服消息同步。`;
+  }
   if (msg.includes('platform config incomplete: please configure platform_amazon')) {
     return `${msg}\n请先到「设置 → 平台开放配置 → Amazon SP-API」填写 Client ID、Client Secret、Redirect URI、Marketplace ID 和 SP-API Base URL。`;
   }
@@ -144,6 +154,8 @@ export default function ShopsPage() {
   const [authForm] = Form.useForm();
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncTarget, setSyncTarget] = useState<{ id: string; platform: string } | null>(null);
+  const [cmSyncOpen, setCmSyncOpen] = useState(false);
+  const [cmSyncTarget, setCmSyncTarget] = useState<{ id: string; platform: string } | null>(null);
   const [tiktokOAuthAuthorizeUrl, setTikTokOAuthAuthorizeUrl] = useState('');
   const [tiktokOAuthState, setTikTokOAuthState] = useState('');
   const [shopeeOAuthAuthorizeUrl, setShopeeOAuthAuthorizeUrl] = useState('');
@@ -249,6 +261,25 @@ export default function ShopsPage() {
     return payload;
   };
 
+  const openCustomerMessageSyncModal = (platform: string, shopId: string) => {
+    const p = providers.find((x) => x.platform === platform);
+    if (platform === 'manual') {
+      message.warning('手工店铺不支持平台客服消息同步');
+      return;
+    }
+    const cm = p?.capabilityStatus?.customer_message;
+    if (cm === 'planned' || cm === 'disabled') {
+      message.warning('当前平台客服消息接口尚未接入；请使用 mock 店铺验证联调，或等待后续版本。');
+      return;
+    }
+    if (cm !== 'available') {
+      message.warning('当前平台不支持客服消息同步');
+      return;
+    }
+    setCmSyncTarget({ id: shopId, platform });
+    setCmSyncOpen(true);
+  };
+
   const openOrderSyncModal = (platform: string, shopId: string) => {
     const p = providers.find((x) => x.platform === platform);
     if (platform === 'manual') {
@@ -325,6 +356,17 @@ export default function ShopsPage() {
           <a key="a" onClick={() => void openAuthFor(r.id)}>
             授权配置
           </a>,
+          <a
+            key="cmsync"
+            onClick={() => {
+              openCustomerMessageSyncModal(r.platform, r.id);
+            }}
+          >
+            拉取客服消息
+          </a>,
+          <Link key="cmlog" to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(r.id)}`}>
+            客服同步记录
+          </Link>,
           <a
             key="osync"
             onClick={() => {
@@ -551,6 +593,53 @@ export default function ShopsPage() {
         <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
       </ModalForm>
 
+      <ModalForm
+        title="拉取平台客服消息"
+        open={cmSyncOpen}
+        modalProps={{
+          destroyOnClose: true,
+          onCancel: () => {
+            setCmSyncOpen(false);
+            setCmSyncTarget(null);
+          },
+        }}
+        initialValues={{ mode: 'incremental', limit: 50, cursor: '', start: '', end: '' }}
+        onFinish={async (vals) => {
+          if (!cmSyncTarget) return false;
+          try {
+            await syncCustomerMessages(cmSyncTarget.id, {
+              mode: vals.mode as string,
+              start: (vals.start as string | undefined) || undefined,
+              end: (vals.end as string | undefined) || undefined,
+              cursor: (vals.cursor as string | undefined) || undefined,
+              limit: vals.limit as number | undefined,
+            });
+          } catch (e: unknown) {
+            message.error(formatPlatformPartnerErr(e));
+            return false;
+          }
+          message.success('客服消息同步任务已提交');
+          setCmSyncOpen(false);
+          setCmSyncTarget(null);
+          return true;
+        }}
+      >
+        <ProFormRadio.Group
+          name="mode"
+          label="同步模式"
+          options={[
+            { label: '增量 incremental', value: 'incremental' },
+            { label: '全量 full', value: 'full' },
+            { label: '手动 manual', value: 'manual' },
+          ]}
+          rules={[{ required: true }]}
+        />
+        <ProFormText name="start" label="开始时间（可选 RFC3339）" placeholder="2026-05-01T00:00:00Z" />
+        <ProFormText name="end" label="结束时间（可选 RFC3339）" placeholder="2026-05-16T23:59:59Z" />
+        <ProFormText name="cursor" label="游标（可选）" />
+        <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
+      </ModalForm>
+
       <Drawer
         title={detail ? `店铺：${detail.shopName}` : '店铺详情'}
         width={640}
@@ -573,6 +662,17 @@ export default function ShopsPage() {
               <Button type="primary" onClick={() => detail && void openAuthFor(detail.id)}>
                 授权配置
               </Button>
+              <Button
+                onClick={() => {
+                  if (!detail) return;
+                  openCustomerMessageSyncModal(detail.platform, detail.id);
+                }}
+              >
+                拉取客服消息
+              </Button>
+              <Link to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(detail?.id ?? '')}`}>
+                <Button disabled={!detail}>客服同步记录</Button>
+              </Link>
               <Button
                 onClick={() => {
                   if (!detail) return;

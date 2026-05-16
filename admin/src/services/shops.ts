@@ -35,6 +35,7 @@ export type PlatformProviderMeta = {
   }[];
   appConfigSchema: AppConfigSchemaDTO;
   settingsGroupKey: string;
+  capabilityStatus?: Record<string, string>;
 };
 
 export type ShopAuthPublic = {

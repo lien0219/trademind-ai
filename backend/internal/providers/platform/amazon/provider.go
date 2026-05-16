@@ -26,6 +26,7 @@ func (amazonProvider) Capabilities() []platformp.Capability {
 	return []platformp.Capability{
 		platformp.CapOrderSync,
 		platformp.CapShopInfo,
+		platformp.CapCustomerMessage,
 	}
 }
 
@@ -121,4 +122,16 @@ func (p amazonProvider) SyncOrders(ctx context.Context, req platformp.SyncOrders
 		HasMore:    next != "",
 		RawSummary: summary,
 	}, nil
+}
+
+func (amazonProvider) PullMessages(ctx context.Context, req platformp.PullMessagesRequest) (*platformp.PullMessagesResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrCustomerMessageNotImplemented
+}
+
+func (amazonProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrCustomerMessageNotImplemented
 }
