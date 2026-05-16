@@ -98,6 +98,17 @@ export default function ProductDraftDetailPage() {
   const [aiImgProvider, setAiImgProvider] = useState<string>('');
   const [aiImgBusy, setAiImgBusy] = useState(false);
   const [aiImgPrompt, setAiImgPrompt] = useState<string>('');
+  const [aiImgNegPrompt, setAiImgNegPrompt] = useState<string>('');
+  const [aiImgBackground, setAiImgBackground] = useState<string>('white studio background');
+  const [aiImgStyle, setAiImgStyle] = useState<string>('clean ecommerce');
+
+  const aiImgAllowNoSourceImage = useMemo(() => {
+    const prov = aiImgProvider.trim().toLowerCase();
+    return (
+      aiImgTaskType === 'generate_scene' &&
+      (prov === '' || prov === 'openai_image' || prov === 'comfyui')
+    );
+  }, [aiImgTaskType, aiImgProvider]);
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -523,23 +534,42 @@ export default function ProductDraftDetailPage() {
                   <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} bordered={false}>
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
-                        选择已关联的商品图创建异步任务：<Typography.Text code>resize</Typography.Text>（noop）会回显原图；{' '}
-                        <Typography.Text code>remove_background</Typography.Text> 需 Provider 选{' '}
-                        <Typography.Text code>removebg</Typography.Text>（公网可访问图源）；{' '}
-                        <Typography.Text code>generate_scene</Typography.Text> 选{' '}
-                        <Typography.Text code>openai_image</Typography.Text> 并在「图片 AI」设置中配置 OpenAI Image Key，
-                        结果写入存储与 AI 图片任务页。
+                        可选择商品图作为源图（场景图在 OpenAI / ComfyUI 下可无图），任务由后端入队；结果在{' '}
+                        <Typography.Link onClick={() => history.push('/ai/image-tasks')}>AI 图片任务</Typography.Link>{' '}
+                        查看。<Typography.Text code>remove_background</Typography.Text> 需 <Typography.Text code>removebg</Typography.Text> 与公网图源；<Typography.Text code>generate_scene</Typography.Text> 支持 <Typography.Text code>openai_image</Typography.Text> / <Typography.Text code>comfyui</Typography.Text>；<Typography.Text code>replace_background</Typography.Text> 请配合 <Typography.Text code>comfyui</Typography.Text> 工作流。
                       </Typography.Text>
                       <Input.TextArea
                         value={aiImgPrompt}
                         onChange={(e) => setAiImgPrompt(e.target.value)}
                         rows={3}
-                        placeholder="场景 Prompt（可选，用于 generate_scene）"
+                        placeholder="补充说明 / Prompt（可选）"
+                        style={{ maxWidth: 560 }}
+                      />
+                      <Input.TextArea
+                        value={aiImgNegPrompt}
+                        onChange={(e) => setAiImgNegPrompt(e.target.value)}
+                        rows={2}
+                        placeholder="Negative prompt（可选）"
                         style={{ maxWidth: 560 }}
                       />
                       <Space wrap align="start">
+                        <Input
+                          placeholder="背景 / 目标背景"
+                          style={{ width: 260 }}
+                          value={aiImgBackground}
+                          onChange={(e) => setAiImgBackground(e.target.value)}
+                        />
+                        <Input
+                          placeholder="风格 style"
+                          style={{ width: 200 }}
+                          value={aiImgStyle}
+                          onChange={(e) => setAiImgStyle(e.target.value)}
+                        />
+                      </Space>
+                      <Space wrap align="start">
                         <Select
-                          placeholder="选择商品图片"
+                          placeholder="选择商品图片（可选，换背景/去背景/缩放建议选）"
+                          allowClear
                           style={{ minWidth: 280 }}
                           value={aiImgRowId}
                           onChange={(v) => setAiImgRowId(v)}
@@ -559,9 +589,13 @@ export default function ProductDraftDetailPage() {
                             if (v === 'generate_scene') {
                               setAiImgProvider('openai_image');
                             }
+                            if (v === 'replace_background') {
+                              setAiImgProvider('comfyui');
+                            }
                           }}
                           options={[
                             { label: '去背景 remove_background', value: 'remove_background' },
+                            { label: '换背景 replace_background', value: 'replace_background' },
                             { label: '场景图 generate_scene', value: 'generate_scene' },
                             { label: '缩放 resize', value: 'resize' },
                           ]}
@@ -576,34 +610,43 @@ export default function ProductDraftDetailPage() {
                             { label: 'noop', value: 'noop' },
                             { label: 'remove.bg', value: 'removebg' },
                             { label: 'OpenAI Image', value: 'openai_image' },
+                            { label: 'ComfyUI', value: 'comfyui' },
                           ]}
                         />
                         <Button
                           type="primary"
                           loading={aiImgBusy}
-                          disabled={!aiImgRowId}
+                          disabled={!aiImgAllowNoSourceImage && !aiImgRowId}
                           onClick={async () => {
-                            if (!aiImgRowId) return;
+                            if (!aiImgAllowNoSourceImage && !aiImgRowId) return;
                             setAiImgBusy(true);
                             try {
-                              const input: Record<string, unknown> =
-                                aiImgTaskType === 'resize'
-                                  ? { width: 800, height: 800 }
-                                  : aiImgTaskType === 'generate_scene'
-                                    ? {
-                                        prompt: aiImgPrompt.trim(),
-                                        scene: 'minimal studio',
-                                        style: 'clean ecommerce',
-                                        size: '1024x1024',
-                                        background: 'white studio background',
-                                        platform: 'TikTok Shop',
-                                      }
-                                    : {};
+                              let input: Record<string, unknown> = {};
+                              if (aiImgTaskType === 'resize') {
+                                input = { width: 800, height: 800 };
+                              } else if (aiImgTaskType === 'generate_scene') {
+                                input = {
+                                  prompt: aiImgPrompt.trim(),
+                                  negativePrompt: aiImgNegPrompt.trim(),
+                                  scene: 'minimal studio',
+                                  style: aiImgStyle.trim() || 'clean ecommerce',
+                                  size: '1024x1024',
+                                  background: aiImgBackground.trim() || 'white studio background',
+                                  platform: 'TikTok Shop',
+                                };
+                              } else if (aiImgTaskType === 'replace_background') {
+                                input = {
+                                  prompt: aiImgPrompt.trim(),
+                                  negativePrompt: aiImgNegPrompt.trim(),
+                                  background: aiImgBackground.trim() || 'white studio background',
+                                  style: aiImgStyle.trim() || 'clean ecommerce',
+                                };
+                              }
                               const task = await createImageTask({
                                 taskType: aiImgTaskType,
                                 ...(aiImgProvider.trim() ? { provider: aiImgProvider.trim() } : {}),
                                 productId: id,
-                                sourceImageId: aiImgRowId,
+                                ...(aiImgRowId ? { sourceImageId: aiImgRowId } : {}),
                                 input,
                               });
                               if (task.status === 'pending' || task.status === 'running') {

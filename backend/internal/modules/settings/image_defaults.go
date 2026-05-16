@@ -28,8 +28,15 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 		{"openai_image_size", "1024x1024", false},
 		{"openai_image_quality", "standard", false},
 		{"openai_image_background", "", false},
-		{"comfyui_base_url", "", false},
-		{"comfyui_workflow_json", "{}", false},
+		{"comfyui_base_url", "http://127.0.0.1:8188", false},
+		{"comfyui_api_key", "", true},
+		{"comfyui_workflow_json", "", false},
+		{"comfyui_prompt_node_id", "", false},
+		{"comfyui_image_node_id", "", false},
+		{"comfyui_output_node_id", "", false},
+		{"comfyui_timeout_sec", "180", false},
+		{"comfyui_poll_interval_seconds", "2", false},
+		{"comfyui_max_poll_seconds", "180", false},
 		{"timeout_sec", "60", false},
 	}
 	for _, d := range defs {
@@ -67,6 +74,9 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 		}
 		if d.key == "comfyui_workflow_json" {
 			row.ValueType = "json"
+		}
+		if d.key == "comfyui_api_key" {
+			row.Remark = "optional; encrypted when set"
 		}
 		if err := db.WithContext(ctx).Create(&row).Error; err != nil {
 			return err

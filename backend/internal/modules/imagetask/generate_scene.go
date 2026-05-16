@@ -40,6 +40,7 @@ func (s *Service) prepareGenerateSceneHints(ctx context.Context, task *ImageTask
 		var prod product.Product
 		if err := s.DB.WithContext(ctx).First(&prod, "id = ?", task.ProductID).Error; err == nil {
 			if t := strings.TrimSpace(prod.Title); t != "" {
+				next["productTitle"] = t
 				fmt.Fprintf(&b, "Product title: %s. ", t)
 			}
 			if t := strings.TrimSpace(prod.AITitle); t != "" {

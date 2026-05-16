@@ -262,11 +262,16 @@ export default function ImageTasksPage() {
         productId?: string;
         sourceImageUrl?: string;
         prompt?: string;
+        negativePrompt?: string;
         scene?: string;
         style?: string;
         size?: string;
         background?: string;
         platform?: string;
+        rbPrompt?: string;
+        rbNegativePrompt?: string;
+        rbBackground?: string;
+        rbStyle?: string;
         inputJson: string;
       }>
         form={createForm}
@@ -279,11 +284,16 @@ export default function ImageTasksPage() {
           productId: '',
           sourceImageUrl: '',
           prompt: '',
+          negativePrompt: '',
           scene: 'minimal studio',
           style: 'clean ecommerce',
           size: '1024x1024',
           background: 'white studio background',
           platform: 'TikTok Shop',
+          rbPrompt: '',
+          rbNegativePrompt: '',
+          rbBackground: 'white studio background',
+          rbStyle: 'clean ecommerce',
           inputJson: '{}',
         }}
         modalProps={{ destroyOnClose: true }}
@@ -299,14 +309,25 @@ export default function ImageTasksPage() {
             }
           }
           const input: Record<string, unknown> = { ...extra };
-          if ((values.taskType ?? '').trim() === 'generate_scene') {
+          const tt = (values.taskType ?? '').trim();
+          if (tt === 'generate_scene') {
             const pick = {
               prompt: (values.prompt ?? '').trim(),
+              negativePrompt: (values.negativePrompt ?? '').trim(),
               scene: (values.scene ?? '').trim(),
               style: (values.style ?? '').trim(),
               size: (values.size ?? '').trim(),
               background: (values.background ?? '').trim(),
               platform: (values.platform ?? '').trim(),
+            };
+            Object.assign(input, pick);
+          }
+          if (tt === 'replace_background') {
+            const pick = {
+              prompt: (values.rbPrompt ?? '').trim(),
+              negativePrompt: (values.rbNegativePrompt ?? '').trim(),
+              background: (values.rbBackground ?? '').trim(),
+              style: (values.rbStyle ?? '').trim(),
             };
             Object.assign(input, pick);
           }
@@ -348,6 +369,9 @@ export default function ImageTasksPage() {
               if (v === 'generate_scene') {
                 createForm.setFieldsValue({ provider: 'openai_image' });
               }
+              if (v === 'replace_background') {
+                createForm.setFieldsValue({ provider: 'comfyui' });
+              }
             },
           }}
         />
@@ -359,8 +383,9 @@ export default function ImageTasksPage() {
             { label: 'noop', value: 'noop' },
             { label: 'remove.bg', value: 'removebg' },
             { label: 'OpenAI Image', value: 'openai_image' },
+            { label: 'ComfyUI', value: 'comfyui' },
           ]}
-          extra="remove_background 需 remove.bg（源图 URL 须公网可访问）；generate_scene 可选 OpenAI Image"
+          extra="remove_background 需 remove.bg 或可配置 ComfyUI 工作流；generate_scene 支持 OpenAI Image 或 ComfyUI；replace_background 首版走 ComfyUI"
         />
         <ProFormText name="productId" label="商品 ID（可选）" />
         <ProFormDependency name={['taskType', 'provider']}>
@@ -369,15 +394,16 @@ export default function ImageTasksPage() {
             const p = String(dep.provider ?? '')
               .trim()
               .toLowerCase();
-            const optionalSrc = tt === 'generate_scene' && p === 'openai_image';
+            const optionalSrc =
+              tt === 'generate_scene' && (p === '' || p === 'openai_image' || p === 'comfyui');
             return (
               <ProFormText
                 name="sourceImageUrl"
                 label={optionalSrc ? '源图 URL（可选）' : '源图 URL'}
                 extra={
                   optionalSrc
-                    ? 'OpenAI Image 可不填（纯文案场景）；如需参考商品请先上传并拿到公网 URL'
-                    : '请填写可从公网抓取的可访问 HTTPS 图像地址（remove.bg 必填）'
+                    ? 'OpenAI / ComfyUI 场景可不填；有参考图时请填公网可访问 URL，或在商品详情用「商品图」创建'
+                    : '请填写可从公网抓取的可访问 HTTPS 图像地址（remove.bg 等必填）'
                 }
                 rules={[
                   {
@@ -401,11 +427,24 @@ export default function ImageTasksPage() {
             dep.taskType === 'generate_scene' ? (
               <>
                 <ProFormTextArea name="prompt" label="Prompt（可选）" fieldProps={{ rows: 4 }} />
+                <ProFormText name="negativePrompt" label="Negative prompt（可选）" />
                 <ProFormText name="scene" label="Scene（可选）" placeholder="minimal studio" />
                 <ProFormText name="style" label="Style（可选）" placeholder="clean ecommerce" />
                 <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
                 <ProFormText name="background" label="背景（可选）" placeholder="white studio background" />
                 <ProFormText name="platform" label="平台（可选）" placeholder="TikTok Shop" />
+              </>
+            ) : null
+          }
+        </ProFormDependency>
+        <ProFormDependency name={['taskType']}>
+          {(dep: { taskType?: string }) =>
+            dep.taskType === 'replace_background' ? (
+              <>
+                <ProFormTextArea name="rbPrompt" label="Prompt（可选）" fieldProps={{ rows: 3 }} />
+                <ProFormText name="rbNegativePrompt" label="Negative prompt（可选）" />
+                <ProFormText name="rbBackground" label="目标背景" placeholder="white studio background" />
+                <ProFormText name="rbStyle" label="风格（可选）" placeholder="clean ecommerce" />
               </>
             ) : null
           }

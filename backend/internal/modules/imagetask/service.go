@@ -71,12 +71,32 @@ func imageOperationTimeout(ctx context.Context, svc *settings.Service) time.Dura
 	return time.Duration(sec) * time.Second
 }
 
-func (s *Service) imageOpTimeout(ctx context.Context) time.Duration {
-	t := imageOperationTimeout(ctx, s.Settings)
-	if s != nil && s.TaskTimeoutMax > 0 && t > s.TaskTimeoutMax {
-		t = s.TaskTimeoutMax
+func (s *Service) comfyUIExecutionBudget(ctx context.Context) time.Duration {
+	if s == nil || s.Settings == nil {
+		return 0
 	}
-	return t
+	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	if err != nil {
+		return 0
+	}
+	maxPoll := comfyIntSetting(m["comfyui_max_poll_seconds"], 180, 5, 7200)
+	httpSec := comfyIntSetting(m["comfyui_timeout_sec"], 180, 5, 3600)
+	return time.Duration(maxPoll)*time.Second + time.Duration(httpSec)*time.Second + 45*time.Second
+}
+
+func comfyIntSetting(raw string, def, minV, maxV int) int {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < minV {
+		return def
+	}
+	if n > maxV {
+		return maxV
+	}
+	return n
 }
 
 func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (string, error) {
@@ -98,9 +118,10 @@ func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (st
 	return v, nil
 }
 
-// AllowsGenerateSceneNoSource gates text-only ecommerce scene generation (OpenAI Image only).
+// AllowsGenerateSceneNoSource gates text-only ecommerce scene generation (OpenAI Image or ComfyUI).
 func (s *Service) AllowsGenerateSceneNoSource(ctx context.Context, explicitProvider string) bool {
-	if strings.TrimSpace(strings.ToLower(explicitProvider)) == "openai_image" {
+	ex := strings.TrimSpace(strings.ToLower(explicitProvider))
+	if ex == "openai_image" || ex == "comfyui" {
 		return true
 	}
 	if s == nil || s.Settings == nil {
@@ -110,7 +131,8 @@ func (s *Service) AllowsGenerateSceneNoSource(ctx context.Context, explicitProvi
 	if err != nil {
 		return false
 	}
-	return strings.TrimSpace(strings.ToLower(m["provider"])) == "openai_image"
+	p := strings.TrimSpace(strings.ToLower(m["provider"]))
+	return p == "openai_image" || p == "comfyui"
 }
 
 func inputHints(raw datatypes.JSON) map[string]any {
@@ -207,7 +229,7 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		effectiveProv = "removebg"
 	}
 	switch effectiveProv {
-	case "noop", "removebg", "openai_image":
+	case "noop", "removebg", "openai_image", "comfyui":
 	default:
 		return nil, fmt.Errorf("unsupported image provider %q", effectiveProv)
 	}
@@ -222,7 +244,7 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		if rsErr != nil {
 			return nil, rsErr
 		}
-	} else if p.TaskType == TaskTypeGenerateScene && effectiveProv == "openai_image" {
+	} else if p.TaskType == TaskTypeGenerateScene && (effectiveProv == "openai_image" || effectiveProv == "comfyui") {
 		imgID, srcURL = nil, ""
 	} else {
 		return nil, fmt.Errorf("sourceImageId or sourceImageUrl required")
@@ -279,7 +301,18 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if task.TaskType == TaskTypeGenerateScene {
 		hints = s.prepareGenerateSceneHints(ctx, task, hints)
 	}
-	timeout := s.imageOpTimeout(ctx)
+	if task.TaskType == TaskTypeReplaceBackground && strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
+		hints = s.prepareReplaceBackgroundHints(ctx, task, hints)
+	}
+	timeout := imageOperationTimeout(ctx, s.Settings)
+	if strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
+		if b := s.comfyUIExecutionBudget(ctx); b > timeout {
+			timeout = b
+		}
+	}
+	if s != nil && s.TaskTimeoutMax > 0 && timeout > s.TaskTimeoutMax {
+		timeout = s.TaskTimeoutMax
+	}
 	pctx := ctx
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -320,14 +353,21 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 			ct = "image/png"
 		}
 		day := time.Now().UTC().Format("20060102")
-		suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
-		if len(suffix) > 12 {
-			suffix = suffix[:12]
-		}
 		objTag := processedObjectTag(task.Provider)
-		objKey := fmt.Sprintf("image-tasks/%s/%s-%s-%s.png", day, task.ID.String(), objTag, suffix)
+		var objKey, origName string
+		if strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
+			objKey = fmt.Sprintf("image-tasks/%s/%s-comfyui.png", day, task.ID.String())
+			origName = fmt.Sprintf("comfyui-%s.png", task.ID.String())
+		} else {
+			suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
+			if len(suffix) > 12 {
+				suffix = suffix[:12]
+			}
+			objKey = fmt.Sprintf("image-tasks/%s/%s-%s-%s.png", day, task.ID.String(), objTag, suffix)
+			origName = fmt.Sprintf("%s-%s.png", objTag, task.ID.String())
+		}
 		fr, saveErr := s.Files.SaveProcessed(ctx, files.SaveProcessedOpts{
-			OriginalName: fmt.Sprintf("%s-%s.png", objTag, task.ID.String()),
+			OriginalName: origName,
 			ObjectKey:    objKey,
 			Data:         res.RawPayload,
 			ContentType:  ct,
@@ -350,12 +390,22 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		"provider":  task.Provider,
 	}
 	modelOut := ""
+	promptIDOut := ""
 	if res.Meta != nil {
 		if mv, ok := res.Meta["model"].(string); ok {
 			modelOut = strings.TrimSpace(mv)
 			if modelOut != "" {
 				outObj["model"] = modelOut
 			}
+		}
+		if pv, ok := res.Meta["promptId"].(string); ok {
+			promptIDOut = strings.TrimSpace(pv)
+			if promptIDOut != "" {
+				outObj["promptId"] = promptIDOut
+			}
+		}
+		if wv, ok := res.Meta["workflow"].(string); ok {
+			outObj["workflow"] = wv
 		}
 	}
 	if finalFID != nil {
@@ -371,7 +421,7 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if _, has := outObj["contentType"]; !has && len(res.RawPayload) > 0 {
 		outObj["contentType"] = "image/png"
 	}
-	if len(res.Meta) > 0 {
+	if len(res.Meta) > 0 && !strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
 		outObj["meta"] = res.Meta
 	}
 	outBytes, _ := json.Marshal(outObj)
@@ -391,7 +441,7 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID).Updates(updates).Error; err != nil {
 		return err
 	}
-	s.logSuccess(ctx, httpCtx, taskID, task, modelOut)
+	s.logSuccess(ctx, httpCtx, taskID, task, modelOut, promptIDOut)
 	return nil
 }
 
@@ -467,12 +517,15 @@ func (s *Service) fail(ctx context.Context, httpCtx *gin.Context, task *ImageTas
 	return errors.New(msg)
 }
 
-func (s *Service) logSuccess(ctx context.Context, httpCtx *gin.Context, taskID uuid.UUID, task *ImageTask, model string) {
+func (s *Service) logSuccess(ctx context.Context, httpCtx *gin.Context, taskID uuid.UUID, task *ImageTask, model string, promptID string) {
 	if s.OpLog == nil {
 		return
 	}
 	msg := fmt.Sprintf("taskType=%s provider=%s model=%s productId=%s",
 		task.TaskType, task.Provider, strings.TrimSpace(model), ptrUUIDStr(task.ProductID))
+	if pid := strings.TrimSpace(promptID); pid != "" {
+		msg += " promptId=" + pid
+	}
 	opts := operationlog.WriteOpts{
 		Action:     "image.task.success",
 		Resource:   "image_task",

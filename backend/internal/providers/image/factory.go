@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/providers/image/comfyui"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/openaiimage"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/removebg"
 )
@@ -23,6 +24,21 @@ func timeoutSecFromImageMap(m map[string]string) int {
 	}
 	if n > 600 {
 		return 600
+	}
+	return n
+}
+
+func intFromImageSettings(m map[string]string, key string, def, minV, maxV int) int {
+	s := strings.TrimSpace(m[key])
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < minV {
+		return def
+	}
+	if n > maxV {
+		return maxV
 	}
 	return n
 }
@@ -98,6 +114,41 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 			return nil, err
 		}
 		return openaiImageProvider{client: cli}, nil
+	case "comfyui":
+		if settingsSvc == nil {
+			return nil, fmt.Errorf("comfyui provider requires settings service")
+		}
+		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		if err != nil {
+			return nil, err
+		}
+		base := strings.TrimSpace(im["comfyui_base_url"])
+		if base == "" {
+			return nil, fmt.Errorf("comfyui_base_url is not configured")
+		}
+		wf := strings.TrimSpace(im["comfyui_workflow_json"])
+		if wf == "" || wf == "{}" {
+			return nil, fmt.Errorf("comfyui_workflow_json is not configured")
+		}
+		apiKey := strings.TrimSpace(im["comfyui_api_key"])
+		httpSec := intFromImageSettings(im, "comfyui_timeout_sec", 180, 5, 3600)
+		pollEvery := intFromImageSettings(im, "comfyui_poll_interval_seconds", 2, 1, 60)
+		maxPoll := intFromImageSettings(im, "comfyui_max_poll_seconds", 180, 5, 7200)
+		cli, err := comfyui.NewClient(comfyui.Options{
+			BaseURL:      base,
+			APIKey:       apiKey,
+			WorkflowJSON: wf,
+			PromptNodeID: strings.TrimSpace(im["comfyui_prompt_node_id"]),
+			ImageNodeID:  strings.TrimSpace(im["comfyui_image_node_id"]),
+			OutputNodeID: strings.TrimSpace(im["comfyui_output_node_id"]),
+			HTTPTimeout:  time.Duration(httpSec) * time.Second,
+			PollInterval: time.Duration(pollEvery) * time.Second,
+			MaxPoll:      time.Duration(maxPoll) * time.Second,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return comfyuiProvider{client: cli}, nil
 	default:
 		return nil, fmt.Errorf("unsupported image provider %q", name)
 	}
@@ -218,4 +269,59 @@ func (p openaiImageProvider) TranslateImage(ctx context.Context, req TranslateIm
 func (p openaiImageProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
 	_, _ = ctx, req
 	return nil, fmt.Errorf("openai_image: poster_generate not implemented")
+}
+
+type comfyuiProvider struct {
+	client *comfyui.Client
+}
+
+func (p comfyuiProvider) Name() string { return "comfyui" }
+
+func (p comfyuiProvider) RemoveBackground(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("remove_background is not implemented for comfyui (use provider removebg)")
+}
+
+func (p comfyuiProvider) ReplaceBackground(ctx context.Context, req ReplaceBackgroundRequest) (*ImageResult, error) {
+	r, err := p.client.RunReplaceBackground(ctx, strings.TrimSpace(req.SourceURL), req.Input)
+	if err != nil {
+		return nil, err
+	}
+	return &ImageResult{
+		RawPayload:         r.PNGBytes,
+		PayloadContentType: "image/png",
+		Meta:               r.Meta,
+	}, nil
+}
+
+func (p comfyuiProvider) GenerateScene(ctx context.Context, req GenerateSceneRequest) (*ImageResult, error) {
+	r, err := p.client.RunGenerateScene(ctx, strings.TrimSpace(req.SourceURL), req.Input)
+	if err != nil {
+		return nil, err
+	}
+	return &ImageResult{
+		RawPayload:         r.PNGBytes,
+		PayloadContentType: "image/png",
+		Meta:               r.Meta,
+	}, nil
+}
+
+func (p comfyuiProvider) Resize(ctx context.Context, req ResizeRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("comfyui: resize not implemented")
+}
+
+func (p comfyuiProvider) Enhance(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("comfyui: enhance not implemented")
+}
+
+func (p comfyuiProvider) TranslateImage(ctx context.Context, req TranslateImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("comfyui: translate_image not implemented")
+}
+
+func (p comfyuiProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, fmt.Errorf("comfyui: poster_generate not implemented")
 }
