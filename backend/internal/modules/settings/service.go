@@ -15,8 +15,8 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email"
-	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
+	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
