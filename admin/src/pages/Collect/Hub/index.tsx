@@ -15,6 +15,22 @@ const FEATURE_LABEL: Record<string, string> = {
   skus: 'SKU',
 };
 
+function providerRunnableForSingleTask(status: CollectProviderStatus) {
+  return status === 'available' || status === 'beta';
+}
+
+function batchRowDisabledForProvider(p: CollectProviderRow): boolean {
+  return !providerRunnableForSingleTask(p.status) || !p.batchSupported;
+}
+
+function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefined {
+  if (!providerRunnableForSingleTask(p.status)) return '当前版本暂未开放';
+  if (!p.batchSupported) {
+    return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
+  }
+  return undefined;
+}
+
 function providerStatusPresentation(status: CollectProviderStatus) {
   switch (status) {
     case 'available':
@@ -69,7 +85,7 @@ export default function CollectHubPage() {
         <Row gutter={[16, 16]}>
           {sorted.map((p) => {
             const tag = providerStatusPresentation(p.status);
-            const runnable = p.status === 'available';
+            const runnableSingle = providerRunnableForSingleTask(p.status);
             return (
               <Col xs={24} sm={24} md={12} lg={12} xl={8} key={p.source}>
                 <div
@@ -117,24 +133,17 @@ export default function CollectHubPage() {
                   </div>
 
                   <Space wrap>
-                    <Tooltip title={runnable ? undefined : '当前版本暂未开放'}>
+                    <Tooltip title={runnableSingle ? undefined : '当前版本暂未开放'}>
                       <Button
                         type="primary"
-                        disabled={!runnable}
+                        disabled={!runnableSingle}
                         onClick={() => history.push(`/collect/tasks?source=${encodeURIComponent(p.source)}`)}
                       >
                         立即采集
                       </Button>
                     </Tooltip>
-                    <Tooltip
-                      title={
-                        !runnable ? '当前版本暂未开放' : !p.batchSupported ? '该平台暂不支持批量采集' : undefined
-                      }
-                    >
-                      <Button
-                        disabled={!runnable || !p.batchSupported}
-                        onClick={() => history.push(`/collect/batches?source=${encodeURIComponent(p.source)}`)}
-                      >
+                    <Tooltip title={batchButtonTooltipForProvider(p)}>
+                      <Button disabled={batchRowDisabledForProvider(p)} onClick={() => history.push(`/collect/batches?source=${encodeURIComponent(p.source)}`)}>
                         批量采集
                       </Button>
                     </Tooltip>

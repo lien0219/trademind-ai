@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
-import type { CollectProviderRow } from '@/services/collectProviders';
+import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import {
   createCollectTask,
@@ -14,6 +14,10 @@ import {
   retryCollectTask,
   type CollectTaskRow,
 } from '@/services/collectTasks';
+
+function providerAllowsSingleCollect(status: CollectProviderStatus) {
+  return status === 'available' || status === 'beta';
+}
 
 export default function CollectTasksPage() {
   const location = useLocation();
@@ -64,11 +68,11 @@ export default function CollectTasksPage() {
     if (!providers.length) return;
     const qs = sourceFromQuery;
     const fromQs =
-      qs && providers.some((p) => p.source === qs && p.status === 'available') ? qs : undefined;
+      qs && providers.some((p) => p.source === qs && providerAllowsSingleCollect(p.status)) ? qs : undefined;
     const picked =
       fromQs ??
-      providers.find((p) => p.source === '1688' && p.status === 'available')?.source ??
-      providers.find((p) => p.status === 'available')?.source;
+      providers.find((p) => p.source === '1688' && providerAllowsSingleCollect(p.status))?.source ??
+      providers.find((p) => providerAllowsSingleCollect(p.status))?.source;
     if (!picked) return;
     form.setFieldsValue({
       source: picked,
@@ -85,7 +89,7 @@ export default function CollectTasksPage() {
   const providerSelectOptions = providers.map((p) => ({
     label: `${p.name}（${p.source}）`,
     value: p.source,
-    disabled: p.status !== 'available',
+    disabled: !providerAllowsSingleCollect(p.status),
   }));
 
   const tableSourceEnum = useMemo(() => {
@@ -259,7 +263,7 @@ export default function CollectTasksPage() {
             const url = vals.url?.trim();
             const src = vals.source?.trim() || '';
             const p = providers.find((x) => x.source === src);
-            if (!p || p.status !== 'available') {
+            if (!p || !providerAllowsSingleCollect(p.status)) {
               message.warning('请先选择一个可用的采集平台');
               return;
             }

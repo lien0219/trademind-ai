@@ -61,12 +61,15 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 		{
 			Source:         "aliexpress",
 			Name:           "速卖通采集器",
-			Description:    "采集 AliExpress 商品详情（规划中）。",
-			Status:         "planned",
+			Description:    "采集 AliExpress 商品详情页，提取标题、图片、属性、SKU 等信息",
+			Status:         "beta",
 			BatchSupported: false,
-			URLPatterns:    []string{"https://www.aliexpress.com/item/*.html"},
-			Features:       nil,
-			Notes:          "",
+			URLPatterns: []string{
+				"https://www.aliexpress.com/item/*.html",
+				"https://*.aliexpress.com/item/*.html",
+			},
+			Features: []string{"title", "mainImages", "descriptionImages", "attributes", "skus"},
+			Notes:    "",
 		},
 		{
 			Source:         "shein_temu",
@@ -122,18 +125,26 @@ func (s *Service) ResolveCollectProviders(ctx context.Context) []CollectProvider
 	return list
 }
 
-// ValidateSourceForCollect ensures the source appears in registry and is runnable (available + optional batch constraint).
+// ValidateSourceForCollect ensures the source appears in Collector registry and passes status rules:
+// single-link task → status may be available or beta; batch → strictly available plus batchSupported.
 func (s *Service) ValidateSourceForCollect(ctx context.Context, source string, requireBatch bool) error {
 	provs := s.ResolveCollectProviders(ctx)
 	p := findCollectProvider(provs, source)
 	if p == nil {
 		return ErrUnknownCollectSource
 	}
-	if strings.TrimSpace(strings.ToLower(p.Status)) != "available" {
-		return ErrProviderNotAvailable
+	status := strings.TrimSpace(strings.ToLower(p.Status))
+	if requireBatch {
+		if status != "available" {
+			return ErrProviderNotAvailable
+		}
+		if !p.BatchSupported {
+			return ErrBatchCollectNotSupported
+		}
+		return nil
 	}
-	if requireBatch && !p.BatchSupported {
-		return ErrBatchCollectNotSupported
+	if status != "available" && status != "beta" {
+		return ErrProviderNotAvailable
 	}
 	return nil
 }

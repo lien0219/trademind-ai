@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-16（**采集 Provider 通用化**：**Collector/List + Go JWT 代理 **`/collect/providers`**、管理端 **`/collect`** 入口；**内部手工订单 + 会话关联**：表 **`orders` / `order_items` / `order_shipments`**；**JWT** **`/api/v1/orders*`** CRUD（头表软删）与 **明细行 / 发货**嵌套写入；**`customer_conversations.order_id`**、`PUT …/conversations/:id` **`orderId`（含 `""` 解绑）**、详情 **`orderSummary`**；**`customer_reply_generate`** Prompt 增补 **`{{orderInfo}}`**、**`{{orderItems}}`**、**`{{shipmentInfo}}`**、**`{{customerProfile}}`**，生成时注入关联订单快照与 **风险调高**逻辑；操作日志 **`order.*`、`customer.conversation.link_order`**；管理端 **`/orders`**、`services/orders.ts`；工作台 **选单关联 / 展示订单与物流概要 + Alert 风险提示**；**COS/OSS 云存储**等见历史记录。）
+**最后更新**：2026-05-16（**AliExpress `/item/` PDP 结构化采集（Collector beta）**：**`sourceAliExpress`**（脚本 JSON + DOM，**NormalizedProduct** 不变；标题失败 **`COLLECT_FAILED`**，人机且无标题 **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**）；**Go** 单链接任务 **`beta`/`available` 可执行**、`batches` 仍 **仅 available + batchSupported**；**管理端 **`/collect`/`/tasks` beta 可下单**、`beta` **批量禁用**提示「测试阶段暂未开放批量」；**`collect:test --source aliexpress`**。其它：**采集 Provider 通用化**；**COS/OSS**；客服/手工订单上下文等仍见本条之前历史段落。）
 
 ---
 
@@ -66,7 +66,7 @@
 - **AI 图片任务**：模块 **`internal/modules/imagetask`**；表 **`image_tasks`**（**`task_type`**：`remove_background` / …；**`status`**：**`pending` / `running` / `retrying` / `success` / `failed` / `cancelled`**；**`retry_count` / `max_retries` / `next_retry_at` / `retry_enqueued_at`**；**JSONB `input` / `output`**；**`source_image_id`**：**`files.id` / `product_images.id`**；**源解析**：**`source_resolver.go`** — 优先 **`storage_kind` + `object_key` → Provider `Get`**；失败则 **`public_url`/`origin_url`：`httppublic.IsPublicHTTPURL` → remove.bg `image_url`**；**`/static/...` 或 loopback `/static/...` → 本地 `object_key`**（见 §7 风险）；**`source_image_url`**：公网则 `image_url`，否则静态映射 / **`files.public_url` 精确匹配**再 `Get`；**`result_file_id` / `result_url`**；**不落库源图二进制**）。**Image Provider**：**`internal/providers/image`**：**`noop`**；**`removebg`**（**`image_file` 优先，其次 `image_url`**；**`internal/pkg/httppublic`**）；**`openaiimage`**；**`comfyui`**（**`POST /prompt`、`/history`、`/view`、`/upload/image`**；**日志不打 API Key / 完整 workflow**）；**`factory.NewForTask`：`noop` | `removebg` | `openai_image` | `comfyui`**，读 **`settings.image`**（密钥 **解密不写日志**，**不回退 `settings.ai.api_key`**）。**`remove_background`**：**强制 `provider=removebg`**。**`generate_scene` + `openai_image`**：**`prepareGenerateSceneHints` → `assembled_prompt`**；**+ `comfyui`**：同 **hints** + **模板变量**。**`generate_scene`**：**`openai_image` / `comfyui` 可无源图**。**`replace_background`**：**`openai_image`**（**后端 `resolveRemoveBGSource` → multipart `/images/edits`**；**`prepareReplaceBackgroundHints` → `assembled_prompt`**）；**`comfyui`**（须 **workflow + output 节点**；**`image` 节点** 用于上行源图）。**`IMAGE_QUEUE_ENABLED` + Redis**、**Worker**（认领 **`pending`** 或已调度入队的 **`retrying`**，条件 **`next_retry_at IS NULL`**）、**503 回滚**、**`GET /api/v1/image/tasks/monitor`**（**`retry` / `recentRetrying` / `recentFailures`**）、**人工 retry**；**`IMAGE_AUTO_RETRY_ENABLED`**（**.env 默认 true**；**`IMAGE_MAX_RETRIES` / `IMAGE_RETRY_*_DELAY`**）与 **`StartImageRetryScheduler`**（约 **5s**、到期 **CAS** **`LPUSH`** **`image:tasks`**）；可重试错误 **`IsRetryableImageTaskError`**（**5xx** / **429** / 超时 / 网络类；**缺 Key、workflow/JSON、源图不可读且非公网、`not implemented` 等**不重试）；操作日志 **`image.task.create` / `retry` / `success` / `failed` / `auto_retry_scheduled` / `auto_retry_enqueued` / `retry_exhausted`**（**不写密钥与完整 workflow**）；**Comfy 成功 `output`**：**`promptId`/`workflow`（空）** 等；**执行超时** 对 **`comfyui`** 不低于 **`comfyui_max_poll_seconds` + `comfyui_timeout_sec`**，再与 **`IMAGE_TASK_TIMEOUT_SECONDS`** 取 cap。**管理端**：**`/settings/image`**（**ComfyUI 大文本 workflow**）、**`/ai/image-tasks`（可选 `sourceImageId`；`replace_background` + `openai_image` 文案提示后端代传）**、**商品详情图片 Tab**（**`replace_background`：`openai_image` / `comfyui`**）。**其它**：noop **resize/enhance**；removebg **仅 remove_background**；openai **`generate_scene` + `replace_background`**。
 - **商品 AI 标题**：**`POST /api/v1/products/:id/ai/optimize-title`**（body：`language` / `platform` / `maxLength`；**不自动改 `title`**）；**`POST /api/v1/products/:id/apply-ai-title`**（`aiTitle` + `taskId`，校验任务归属，**仅更新 `products.ai_title`**）；操作日志：**`ai.title_optimize.success` / `ai.title_optimize.failed` / `ai.title.apply`**（消息 **不含密钥与完整 Prompt**）
 - **商品 AI 描述**：**`POST /api/v1/products/:id/ai/generate-description`**（`language` / `platform` / `tone`，默认 en / TikTok Shop / professional；**Preload `images`+`skus`**；**不自动改 `products.description`**）；**`POST /api/v1/products/:id/apply-ai-description`**（`aiDescription` + `taskId`，**仅更新 `products.ai_description`**）；**`GET /api/v1/products/:id/ai/tasks`**（详情页最近任务，列表 **省略大体量 JSON 列**，含 **`title_optimize`** 与 **`product_description_generate`**）；操作日志：**`ai.description_generate.success` / `ai.description_generate.failed` / `ai.description.apply`**（同上）
-- **采集任务与批次**：模块 `internal/modules/collect`。表与 **`collect_task_events`**、`GET …/tasks/:id/events`、`COLLECT_*` Worker/队列、`GET …/monitor` **与历史一致**。新增 **Provider 驱动契约**：**`GET /api/v1/collect/providers`**（JWT，优先 **`Collector` `GET /v1/providers`**，失败用 **内置兜底**）；**POST …/collect/tasks** 仅 **`provider.status===available`**；**POST …/collect/batches** 额外要求 **`batchSupported`**；**`source`** **大小写不敏感**对齐注册表；**URL** 仅接受 **`http`/`https`**，平台语义交给 Collector **`canHandle`**。**Collector 即时失败码**：**`INVALID_REQUEST`/`INVALID_URL`/`PROVIDER_NOT_FOUND`/`PROVIDER_NOT_IMPLEMENTED`/`PAGE_BLOCKED_OR_VERIFY_REQUIRED`** → **不进行自动退避重试**；**`COLLECT_FAILED`/`NAVIGATION_FAILED`**** 等**仍按 **`COLLECT_*` Retry** 阶梯执行。
+- **采集任务与批次**：模块 `internal/modules/collect`。表与 **`collect_task_events`**、`GET …/tasks/:id/events`、`COLLECT_*` Worker/队列、`GET …/monitor` **与历史一致**。新增 **Provider 驱动契约**：**`GET /api/v1/collect/providers`**（JWT，优先 **`Collector` `GET /v1/providers`**，失败用 **内置兜底**）；**`POST …/collect/tasks`** **`provider.status`** 允许 **`available` 或 `beta`**（`planned`/`disabled` 拒单）；**`POST …/collect/batches`** **仍仅** **`provider.status===available` 且 `batchSupported`**；**`source`** **大小写不敏感**对齐注册表；**URL** 仅接受 **`http`/`https`**，平台语义交给 Collector **`canHandle`**。**Collector 即时失败码**：**`INVALID_REQUEST`/`INVALID_URL`/`PROVIDER_NOT_FOUND`/`PROVIDER_NOT_IMPLEMENTED`/`PAGE_BLOCKED_OR_VERIFY_REQUIRED`** → **不进行自动退避重试**；**`COLLECT_FAILED`/`NAVIGATION_FAILED`**** 等**仍按 **`COLLECT_*` Retry** 阶梯执行。
 - **Collector HTTP 客户端**：`collector_client.go`：沿用 **`POST /v1/collect`**；新增 **`FetchProviders`** 调 **`GET /v1/providers`**（**≈3s**，与单笔采集 **`http.Client.Timeout`**** 解耦）；422/`ok:false` → **`CollectorRejectedError`**；成功 **`raw_result`** 写 **`NormalizedProduct` JSON**。
 - **分层**：业务 Orchestration 在 **collect.Service**，采集解析仍在 **Node Collector**；Go **不写死** 1688 解析逻辑。
 
@@ -81,7 +81,7 @@
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
 - **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；**`/product/drafts/:id`** **Tabs**（基础、AI 标题/描述、**图片管理**（上传、`createProductImage`、**AI 图片任务**：**resize/noop**、**remove_background**、**replace_background（`openai_image` / `comfyui`）**、**generate_scene（openai_image / comfyui）**、Prompt/背景/style、**可无源场景图**、异步提示 + **`/ai/image-tasks`**、reorder）、**SKU 表**、最近 AI 任务）；**`/ai/prompts`**、**`/ai/tasks`**、**`/ai/image-tasks`**（约 **4s** 轮询、**`document.visibilityState` 隐藏时暂停**；**新建任务可选 `sourceImageId`**）。**`products.ts` / `imageTasks.ts`** 封装 API。
-- **采集**：侧栏分组 **采集**：**`/collect`** **采集中心**（多采集器卡片、状态 Tag、能力与 URL 示例、跳转 **`/collect/tasks|batches`**）、**`/collect/tasks`**（**采集平台下拉**来自 **`GET /api/v1/collect/providers`**，**不可用项禁用**）、**`/collect/batches`**（仅 **batchSupported 且可用**的平台）、**`/collect/monitor`**；批量 **多行链接**与 **5s** 轮询；**采集任务 Timeline** **`CollectTaskEventDrawer`** **不变**；**`services/collectProviders.ts`** + **`collectTasks`** / **`collectBatches`** / **`collectMonitor`**。
+- **采集**：侧栏分组 **采集**：**`/collect`** **采集中心**（**`available` / `beta`** 可申请单链接任务；**批量**仍受 **`batchSupported`**，**beta 且无 batch 的平台** Tooltip **「测试阶段暂未开放批量」**）；**`/collect/tasks`**（下拉可选 **`beta`**；链接 **placeholder** 来自所选平台的 **`urlPatterns[0]`**）；**`/collect/batches`**（仅 **`batchSupported` 且 status=`available`** 的平台）、**`/collect/monitor`**；批量 **多行链接**与 **5s** 轮询；**采集任务 Timeline** **`CollectTaskEventDrawer`** **不变**；**`services/collectProviders.ts`** + **`collectTasks`** / **`collectBatches`** / **`collectMonitor`**。
 - **内部订单**：路由 **`/orders`**；**ProTable + Drawer**：头表表单、Tabs **明细行（`order_items`）与发货（`order_shipments`）** 及独立新增/编辑 Modal；状态 Tag 映射 **`ORDER_*`**；**`services/orders.ts`**。
 - **客服（AI MVP）**：路由 **`/customer/conversations`**（**ProTable** 会话列表 + 新建）与 **`/customer/conversations/:id`**（**关联订单卡片**【选单 Modal / 解绑确认】、**订单与物流概要**；**消息时间线 + AI 建议区**：**风险提示 Alert**、生成 / 编辑 / 采纳 / 废弃 / 复制；**不自动外发**）；**`services/customer.ts`**。
 - **常量**：`src/constants/status.ts`（商品状态、**采集任务 / 批次**状态枚举、**订单与支付 / 履约 / 发货**）。
@@ -89,13 +89,12 @@
 ### 3.4 采集服务（`collector/`）
 
 - **Playwright + TypeScript**，独立进程，**不直连主业务库**。
-- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**；**1688** **`available`**、**结构化解析不变**（非法 offer / 非 1688 仍 **`INVALID_URL`**；人机验证且无字段时用 **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**）。**占位 Provider**：**`pdd` / `taobao` / `aliexpress` / `shein_temu` / `custom`**，`collect` 返回 **`PROVIDER_NOT_IMPLEMENTED`**，**不伪造 **`NormalizedProduct`****。**统一错误码**： **`COLLECT_FAILED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
+- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**。**1688**：`available`，**结构化解析不变**。**AliExpress**：**`beta`**，**真实解析**，**`batchSupported=false`**。**占位 Provider**：**`pdd` / `taobao` / `shein_temu` / `custom`**，`collect` 仍 **`PROVIDER_NOT_IMPLEMENTED`**。**统一错误码**： **`COLLECT_FAILED`、`PAGE_BLOCKED_OR_VERIFY_REQUIRED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
 - **任务编排**：`runCollectTask`（唯一 HTTP 编排入口）。
 - **HTTP**：`GET /health`（契约不变）；**`GET /v1/providers`**（注册表 **`listProviderPublicMetas()`**）；`POST /v1/collect`（body：`source` + `url`）。
 - **浏览器**：`BrowserManager` 单例 Chromium，`withPage` 保证关闭 page/context。
-- **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；**NormalizedProduct JSON 契约未变**，`BuildImportSKU` 仍只吃 **`properties`**；采集逻辑仅在 Collector。
-- **本地调试**：包内 **`pnpm collect:test -- --url "https://detail.1688.com/offer/..."`**，或 **`COLLECT_TEST_URL`**；根仓库 **`pnpm collect:test`** 透传到 `@trademind/collector`。
-
+- **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；**NormalizedProduct JSON 契约未变**，`BuildImportSKU` 仍只吃 **`properties`**；采集解析仅在 Collector。
+- **本地调试**：**`pnpm collect:test -- --url "https://detail.1688.com/offer/..."`**（仍为默认 **`source=1688`**）；或 **`pnpm collect:test -- --source aliexpress --url "https://www.aliexpress.com/item/100500....html"`**；环境变量 **`COLLECT_TEST_URL` / `COLLECT_TEST_SOURCE`**；根 **`pnpm collect:test`** **透传到** **`@trademind/collector`**。
 ### 3.5 文档
 
 - **本文件**：`docs/PROGRESS.md`（进度与决策单一事实来源之一，与 `README` 互补）。
@@ -164,7 +163,7 @@ trademind-ai/
 ├── collector/               # Node 采集（Playwright）
 │   └── src/
 │       ├── browser/         # BrowserManager
-│       ├── providers/       # `registry` + **source1688** + **stub/placeholders**（**meta**、`/v1/providers`）
+│       ├── providers/       # `registry` + **source1688** + **sourceAliExpress** + **stub/placeholders**（**meta**、`/v1/providers`）
 │       ├── tasks/           # runCollectTask
 │       ├── http/            # HTTP 服务
 │       └── types/           # NormalizedProduct
@@ -217,8 +216,9 @@ trademind-ai/
 19. **AI 客服与内部订单上下文**：工作台已支持 **绑定内部手工订单**（§3.2 **`customer_conversations.order_id`**、`orderSummary`、生成时 **订单/SKU/物流 JSON**）；**仍无** TikTok/Shopee 等平台 **实时消息收发** / **同步平台订单**，**不外发**，**无 WebSocket**。**手工录入**的 **`orders`** 与用户真实收银/库存可能脱节，仅能作 **运营草稿与 AI 上下文**。
 20. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径；其它厂商后续可加适配。
 21. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。
-22. **多采集源占位**：拼多多 / **淘宝天猫** / **AliExpress** / **SHEIN·Temu** / **自定义链接** 仍为 **规划中** Collector Provider；**不真实解析**；**Go 不落平台 URL 正则**。**自定义规则编辑器**未完成。
-23. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
+22. **AliExpress（Collector `beta`）边界**：受 **人机验证 / 风控 / 多语言 PDP / 区域价与币种格式**影响，**SKU 映射对部分模板仍不完整**；详情若 **异步 / iframe**，**`descriptionImages` 可为空**，**候选见 `raw.detailImageCandidates`**。**批量链路未开放**（`batchSupported=false`）。
+23. **多采集源仍占位**：**拼多多 / 淘宝·天猫 / SHEIN·Temu / 自定义链接** Collector **`planned`**，**不真实解析**。**自定义规则编辑器**未完成。
+24. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
 
 ---
 
@@ -227,7 +227,7 @@ trademind-ai/
 1. ~~**订单/会话上下文**~~：**内部 `orders`** + **`order_id`** + AI Prompt **`order*` 占位符** 已 MVP 落地（见 §3.2）；后续可补强 **租户隔离、`external_order_id` 回填规范、SKU 快照与草稿联动**。
 2. **店铺授权 + 平台客服 API**：TikTok / Shopee / Lazada / Amazon 消息 **拉取/发送**（在 **不破坏不外发默认** 的策略上扩展）；**可选：平台订单与内部 `orders` 同步**。
 3. **多实例 Worker**：**Redis heartbeat**（采集 / 图片 Worker §7）。
-4. **Collector 演进（新源）**：择一 **`planned` Provider** 做 **首个真实结构化解析**（如 **拼多多**或 **AliExpress**）；占位输出 **对齐 **`NormalizedProduct`** 契约**。**自定义链接**的规则配置 **UI + 服务端契约**。**反爬与稳定性**：（SKU 多维、详情 iframe/async、人机验证路由；**逻辑留在 Collector**）。
+4. **Collector 演进（补强 / 扩展）**：**AliExpress**：**批量链路开放前**，补强 **SKU 稳定性与异步详情**。**新源**：在 **`pdd` / `taobao` / `shein_temu`** 中选 **其一**落地 **真实结构化解析**（**对齐 `NormalizedProduct`**）。**自定义链接**：**规则编辑器 UI + 服务端契约**。反爬：**SKU 多维、异步详情 iframe、人机分流**（**仅限 Collector**，Go **不写 PDP 解析**）。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -250,6 +250,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-16 | **AliExpress 速卖通真实解析（Collector `beta`）**：**`collector/src/providers/sourceAliExpress`**（脚本 JSON + DOM；标题 / 主图≤10 / 详情图≤30 / 属性 / SKU **`properties`**；**`INVALID_URL`/人机 `PAGE_BLOCKED_OR_VERIFY`/无标题 `COLLECT_FAILED`**）；移除 stub 占位；**`pnpm collect:test -- --source aliexpress`** + **`COLLECT_TEST_SOURCE`**；**Go **`ValidateSourceForCollect`** 放行 **`beta` 单笔**；**/collect Hub+Tasks **`beta`** 可跑**、**批量**仍 **可用性=available&&batchSupported**（**beta Tooltip**）；**兜底列表 `providers.go`** **`aliexpress`→`beta`**；**PROGRESS** 对齐 |
 | 2026-05-16 | **采集 Provider 通用化**：**Collector **`GET /v1/providers`** + 占位 Provider **`pdd`|`taobao`|`aliexpress`|`shein_temu`|`custom`**；Go **`GET /api/v1/collect/providers`**、创建任务 **`available`/batchSupported**、**scheme** 前缀校验与非 **Collector** 报错脱敏兜底；1688 **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**；管理端 **`/collect` Hub**、`collectProviders.ts`；**PROGRESS §3–§8** 对齐 |
 | 2026-05-16 | **内部手工订单 + 客服关联**：**`internal/modules/order`**（**`orders`/`order_items`/`order_shipments`** + JWT CRUD + **`order.*`** 日志）；**`customer_conversations.order_id`**、详情 **`orderSummary`**、**`customer.conversation.link_order`**；**`customer_reply_generate`** 增补 **`{{orderInfo}}`** 等 + **`migrateCustomerReplyGenerateOrderContext`**；生成回复 **载入订单快照与风险调高**；管理端 **`/orders`**、工作台 **选单/解绑与 Alert**；**PROGRESS** 对齐 |
 | 2026-05-16 | **AI 客服 MVP**：**`internal/modules/customerchat`** + **三表** + **Prompt `customer_reply_generate`** + **REST API** + **`ai_tasks.conversation_id` / `task_type=customer_reply_generate`** + **管理端 `/customer/*`** + **操作日志 `customer.*`**；**PROGRESS** 全篇对齐 |

@@ -1,7 +1,7 @@
 import type { CollectorProvider } from './collector-provider.js';
+import { aliExpressCollectorProvider } from './sourceAliExpress/index.js';
 import { alibaba1688Provider } from './source1688/alibaba-1688.js';
 import {
-  sourceAliExpressProvider,
   sourceCustomProvider,
   sourcePddProvider,
   sourceSheinTemuProvider,
@@ -13,7 +13,7 @@ const providers: CollectorProvider[] = [
   alibaba1688Provider,
   sourcePddProvider,
   sourceTaobaoProvider,
-  sourceAliExpressProvider,
+  aliExpressCollectorProvider,
   sourceSheinTemuProvider,
   sourceCustomProvider,
 ];

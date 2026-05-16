@@ -77,30 +77,6 @@ export const sourceTaobaoProvider: CollectorProvider = {
   collect: notImplemented('淘宝/天猫采集器暂未实现'),
 };
 
-/** 速卖通 */
-export const sourceAliExpressProvider: CollectorProvider = {
-  sourceId: 'aliexpress',
-  meta: {
-    name: '速卖通采集器',
-    description: '采集 AliExpress 商品详情（规划中）。',
-    status: 'planned',
-    batchSupported: false,
-    urlPatterns: ['https://www.aliexpress.com/item/*.html'],
-    features: [],
-    notes: '',
-  },
-  canHandle(url: string): boolean {
-    if (!isHttpUrl(url)) return false;
-    try {
-      const h = new URL(url).hostname.toLowerCase();
-      return h === 'aliexpress.com' || h.endsWith('.aliexpress.com');
-    } catch {
-      return false;
-    }
-  },
-  collect: notImplemented('速卖通采集器暂未实现'),
-};
-
 /** SHEIN / Temu 合并入口 */
 export const sourceSheinTemuProvider: CollectorProvider = {
   sourceId: 'shein_temu',
