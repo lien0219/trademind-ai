@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-16（**AI 图片任务预留**：**`image_tasks`（JSONB input/output）**、**`internal/providers/image` Provider + `noop` 占位**、**`POST|GET /api/v1/image/tasks`、详情与 `POST .../retry`**、**`settings.image` 默认种子 + 管理端「图片 AI 设置」**、**操作日志 `image.task.*`**、**`/ai/image-tasks` ProTable + Drawer**、**商品详情「图片管理」内建任务入口**；**不接**真实 remove.bg / OpenAI Image / ComfyUI。）
+**最后更新**：2026-05-16（**云存储（S3-compatible）**：**`internal/providers/storage/s3store` + AWS SDK v2**，factory 贯通 **`kind=local|s3|r2|minio`**；**`/files/upload`、`/files/:id`** 接通对象存储；**`test-storage`** **HeadBucket**；**COS/OSS** 占位；管理端 **`s3_*` 表单**；`.env.example` / README **说明**。**仍不接** COS/OSS SDK、不动 AI 真实生图链路。）
 
 ---
 
@@ -11,7 +11,7 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 5 阶段（采集）**能力保持；**第 6 阶段（AI 图片）已起步**：**`image_tasks` + Image Provider 抽象 + 管理端骨架**落地，**真实生图 / 异步队列 / 云存储上传仍不在范围** |
+| **路线图阶段** | **第 5 阶段（采集）**保持；**第 6 阶段（AI 图片）已起步**；**云对象存储**：**第 2 阶段**中的 **S3-compatible（AWS / R2 / MinIO）** 已通过 **`files/upload`** 链路 **落地**，**COS / OSS** 仍为 **占位** |
 | **MVP 闭环** | 登录 → 配置 AI → 采集/草稿 → **AI 优化标题（`ai_title`）** 与 **AI 生成描述（`ai_description` 需手动应用）** 已具备（依赖有效的大模型与系统 AI 设置） |
 | **产物形态** | Monorepo 可构建；本地需 **PostgreSQL**；AI 调用走 **后端 Gateway**，前端 **不直连** 第三方模型 |
 
@@ -52,10 +52,10 @@
 - **认证**：`admin_users` 模型；`POST /api/v1/auth/login`（bcrypt 口令、**JWT HS256**）；`GET /api/v1/auth/profile`、`POST /api/v1/auth/logout`（无状态，客户端弃 token）。
 - **JWT 上下文**：`BearerAuth` 写入 `ctxkey.AdminID` 与 **`ctxkey.AdminUsername`**（供审计与业务使用）。
 - **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：**`collect.batch.create` / `collect.batch.retry_failed`**、任务 **创建 / 成功 / 失败 / 单条重试**（**不写大批量 URL**，仅 `batchId`/`task_count` 等）；**商品**：手工 CRUD、**草稿字段更新（`product.update`）**、**SKU 增删改（`product.sku.*`）**、**图片增删改与排序（`product.image.*`）**与 **采集入库创建草稿**；**AI 标题**：优化成功/失败、**应用 AI 标题**；**AI 描述**：**`ai.description_generate.success` / `ai.description_generate.failed`**、**`ai.description.apply`**（不写 API Key 与完整 Prompt）；**图片任务**：**`image.task.create` / `image.task.retry` / `image.task.success` / `image.task.failed`**（**不写二进制、不写第三方密钥**；message 可含 **taskType / provider / productId**）
-- **存储 Provider**：`internal/providers/storage` 接口 **Put / GetURL / Delete**；**本地实现** `internal/providers/storage/local`（`settings.storage`：`kind`、`local_root`、`public_base`）；**`GET /static/*filepath`** 按当前 `local_root` 提供只读文件（防 `..` 穿越）；上传仅当 **`kind=local`**，其它 kind 返回明确错误（云上传后续接 Provider）。
-- **文件**：`files` 表；**`POST /api/v1/files/upload`**（`multipart` 字段名 **`file`**；**jpg/jpeg/png/webp/gif**；**objectKey = 日期目录/UUID.ext**；大小默认 **10MB**，环境变量 **`UPLOAD_MAX_MB`**）；**`GET /api/v1/files`**（分页、`contentType`）；**`DELETE /api/v1/files/:id`**（删库 + Provider 删对象）。**`MaxMultipartMemory`** 与配置上限对齐。
+- **存储 Provider**：`internal/providers/storage` 接口 **Put / GetURL / Delete**；**本地** `providers/storage/local`；**S3 兼容** `providers/storage/s3store`（**AWS SDK v2**，**HTTPS/HTTP Endpoint**、`Path-style`、**配置化 Region**、`s3_public_base` **或可选预签名 GET**）；**工厂**根据 **`settings.storage.kind`** 选出实现（**`local` / `s3` / `r2` / `minio`**；**`cos` / `oss` 返回未实现错误**）；**解密** **`s3_access_key_id`、`s3_secret_access_key`**；**不写密钥到日志**。**`GET /static/*filepath`** 仍仅服务 **当前 `kind=local`**。
+- **文件**：`files` 表；**`POST /api/v1/files/upload`**（`multipart` 字段名 **`file`**；**jpg/jpeg/png/webp/gif**；**objectKey = 日期目录/UUID.ext**；**`storage_kind` 落库**，**云端 `public_url`** 取自 **`GetURL`**）；**本地行为不变**。**`GET /api/v1/files`**（分页、`contentType`）；**`DELETE /api/v1/files/:id`**（**先做 Provider.Delete（按 `storage_kind`，缺省回落当前 settings.kind）**，成功后再删 DB，避免「库删了对象残留」）。
 - **配置中心**：`settings` 模型与 `GET/PUT /api/v1/settings`；`item_value` 在 `is_encrypted=true` 时 **AES-GCM**（`APP_MASTER_KEY`）存储；列表接口 **脱敏**（`****` 规则）；PUT 若密文占位含 `****` 则 **不覆盖**原密钥，可更新 remark / value_type 等。
-- **连通性测试**：`POST /api/v1/settings/test-ai`（读取 `ai` 组解密后请求 OpenAI 兼容 `POST /chat/completions`，`max_tokens:1`）；`POST /api/v1/settings/test-storage`（`local` 校验 `local_root` 可写；`s3/cos/oss/r2/minio` 校验必填字段完整）。`ai` / `storage` 组键名约定：`base_url`、`api_key`、`kind`、`local_root` 等（**snake_case item_key**）。
+- **连通性测试**：`POST /api/v1/settings/test-ai`（读取 `ai` 组解密后请求 OpenAI 兼容 `POST /chat/completions`，`max_tokens:1`）；`POST /api/v1/settings/test-storage`（**`local`** 目录可写；**`s3`/`r2`/`minio`** **HeadBucket + 短时 context**；**`cos`/`oss`** **明确告知未接入独立 Provider**。**不发真实上传**。`storage` 优先 **`s3_*`**（兼容遗留 **`endpoint`/`bucket`/`access_key`/`secret_key`/`region`**）。
 - **默认管理员**：库中无管理员时，按 **`ADMIN_BOOTSTRAP_EMAIL` 与/或 `ADMIN_BOOTSTRAP_PHONE`**（至少填一项）及 `ADMIN_BOOTSTRAP_PASSWORD`（**非 production** 空密码 Fallback `changeme` 并告警；**production** 无用户则必须配置密码）插入一条记录；**不支持用「用户名」登录**，仅邮箱或手机号 + 密码；内部 `username` 列为随机 ID，由实现自行分配。
 - **商品草稿**：模块 `internal/modules/product`；模型含 **`tenant_id`、`created_by`、JSONB `raw_data`** 及 **`product_images` / `product_skus`**（SKU **`attrs`、`raw_data` JSONB**，**前端不可改 raw_data**）。**列表**：**`GET/POST /api/v1/products`**；**详情**：**`GET/PUT/DELETE /api/v1/products/:id`**；**`PUT` 可编辑**：`title`、`originalTitle`、`aiTitle`、`description`、`aiDescription`、`currency`、`status`；**一并支持 JSON snake_case**（如 `original_title`、`ai_title`）；**不写** `id` / `created_by` / `created_at`；**不通过 PUT 修改** `source` / `source_url` / `raw_data`（采集来源与归一快照只读）。**`status`** 枚举校验：`draft` / `ai_processing` / `ready` / `published` / **`archived`**。删除仍为 **软删除**（`products.deleted_at`）。**子资源**：**`POST/PUT/DELETE /api/v1/products/:id/skus`、`:skuId`**；**`POST/POST(reorder)/PUT/DELETE /api/v1/products/:id/images`、`:imageId`、`/images/reorder`**；图片 **`image_type`** 支持 **`main` / `detail` / `sku`**（并接受旧值 **`description` 归入 detail**）；**可按 `files.id`（`fileId`）关联本地上传**；**删除 `product_images` 仅断开关联**，默认 **不删除 `files`** 存储对象。**采集入库**：新草稿详情图默认写入 **`detail`**（历史中可能仍有 **`description`** 行）。
 - **AI Provider**：`internal/providers/ai` — **`ChatRequest` / `ChatResponse`**、**`Gateway`**（只读 **`settings.ai`**：`provider`（仅 **`openai_compatible` / `openai`** 首版落地）、`base_url`、`api_key` AES-GCM 解密、`model`、`temperature`、`max_tokens`、`timeout_sec`）；**业务仅调 Gateway**；**`openai_compatible/`** 实现 HTTP **`/chat/completions`**，**Context 超时** + **http.Client Timeout**；日志与响应 **不落 api_key**
@@ -73,8 +73,8 @@
 - **@umijs/max**（脚本使用 **`max`**，禁止用 **`umi`** 跑 Max 配置，否则配置键会报错）。
 - **登录与鉴权**：`/user/login` 调用 `POST /api/v1/auth/login`；**JWT** 存入 `localStorage`（`AUTH_TOKEN_KEY`）；**`request` 拦截器**自动附加 `Authorization: Bearer`；**HTTP 401**（除登录请求外）清 token 并 **整页跳转**登录页带 `redirect`；**`access.canAdmin`** 控制侧栏与业务路由；**`getInitialState`** 用 token 拉取 `/api/v1/auth/profile`。
 - **布局**：右上角展示当前管理员与**退出**（`POST /auth/logout` + 清 token + 更新 initialState）。
-- **系统 / AI / 存储 / 采集服务 / 安全 / 图片 AI** 设置页：`GET/PUT /api/v1/settings`，按 **groupKey**（`system`、`ai`、`storage`、`collector`、`security`、**`image`**）读写 **snake_case** 的 `itemKey`；敏感项（`api_key`、`secret_key`、`ops_webhook_secret`）`isEncrypted: true`，依赖后端列表脱敏与 masked 不覆盖语义；**AI / 存储**页 **测试连接** 分别调用 **`POST .../settings/test-ai`**、**`POST .../settings/test-storage`**；**存储页**含 **上传测试**（经 **`src/services/request.ts`** 的 **`postFormData`** → **`/api/v1/files/upload`**，展示 URL 与预览）。
-- **存储页保存策略**：按当前 `kind` 仅提交相关键，避免 **local** 模式用空字段覆盖云上密钥。
+- **系统 / AI / 存储 / 采集服务 / 安全 / 图片 AI** 设置页：`GET/PUT /api/v1/settings`，按 **groupKey**（`system`、`ai`、`storage`、`collector`、`security`、**`image`**）读写 **snake_case** `itemKey`；敏感项含 **`api_key`、`secret_key`、`s3_secret_access_key`、`s3_access_key_id`** 等 **`isEncrypted: true`**；**存储页**：**`kind` 切换**（**本地** `public_base`/`local_root`；**`s3`/`r2`/`minio`**：**`s3_*`** — Endpoint/Region/Bucket、密钥 **密码输入 + 脱敏 + masked 不覆盖**、Path-style、`s3_use_ssl`、可选 **`s3_presign_*`、`s3_public_base`**）；**COS/OSS** **占位标签 + Alert**。**测试** `test-ai` / **`test-storage`（云端 HeadBucket）**；**上传测试** **`POST /api/v1/files/upload`**（前端 **不直连** S3/R2/MinIO）。
+- **存储页保存策略**：按当前 `kind` 仅提交相关键；**COS/OSS** 仅存 **`kind`**，避免无用键覆盖。
 - **操作日志页**：**`ProTable`** → **`GET /api/v1/operation-logs`**；只读、可筛选。
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
@@ -108,7 +108,7 @@
 - [x] **Settings 业务**：`settings` 表与 `GET/PUT /api/v1/settings`、**AES-GCM（APP_MASTER_KEY）**、脱敏与 masked 更新语义
 - [x] **迁移**：启动时 GORM **AutoMigrate**（地基表 + **商品 / 采集** + **`ai_prompts` / `ai_tasks` / `image_tasks`**）
 - [x] **操作日志**：表 + **`GET /api/v1/operation-logs`**；登录 / logout / settings / test-ai / test-storage / **采集关键节点 / 商品 CRUD（含采集入库、`product.update`、SKU／图片子资源、`product.image.reorder`）/ AI 标题优化与应用 / 图片任务 `image.task.*`**
-- [x] **本地存储与文件 API**：Storage **Put/GetURL/Delete**、**`POST /api/v1/files/upload`**、**`GET/DELETE /api/v1/files`**、**`/static`** 只读
+- [x] **对象存储与文件 API**：Storage **factory**（**`local`** + **`s3store`/`s3`|`r2`|`minio`**）**Put/GetURL/Delete**，**COS/OSS 未接入**；**`POST /api/v1/files/upload`**（**`storage_kind` 入库**）；**`GET/DELETE /api/v1/files`**（删 **云端对象先于 DB**，按 **`files.storage_kind`**）；**`/static`** 仅 **本地** 只读
 - [x] **settings 连通性测试**：`test-ai`、`test-storage`（见上）
 - [x] **商品草稿 API**：§3.2 **商品草稿**；**AI 标题与 AI 描述** 生成/应用 / 任务列表（见上）
 - [x] **采集任务 API + Collector Client**：§3.2 **采集任务** / **Collector HTTP 客户端**
@@ -118,7 +118,7 @@
 ### 4.2 管理端
 
 - [x] 登录页与 **access 模型**（@umijs/max access）；**Bearer** 请求拦截与 **401** 处理
-- [x] **系统 / AI / 存储 / 采集服务 / 安全 / 图片 AI** 设置页与 **真实 settings API**；**test-ai / test-storage**；**存储页上传测试**；**操作日志**与**文件管理**页（**ProTable**）
+- [x] **系统 / AI / 存储 / 采集服务 / 安全 / 图片 AI** 设置页与 **真实 settings API**；**test-ai / test-storage**（S3-compat **HeadBucket**）；**存储页**：**`s3_*` / 密钥加密 / COS·OSS 占位**；**上传测试**走 **`/files/upload`**；**操作日志**与**文件管理**页（**ProTable**）
 - [x] **商品草稿 / 采集任务（含批量采集 `/collect/batches`）**：分页列表 API、筛选、**单链接**与**批量**表单；失败 **重试** / 批次 **重试失败**
 - [x] **Prompt 模板页（`/ai/prompts`）**；**商品详情编辑页（`/product/drafts/:id`）**：**Tabs**（基础表单、保留 **AI 标题/描述** 弹窗、**图片 ModalForm/Reorder** 与 **AI 图片任务入口**、**SKU `EditableProTable`**、最近 AI 任务）；**`/ai/tasks` 全局 AI 任务记录页**；**`/ai/image-tasks` 图片任务页**；**`/settings/image` 图片 AI 设置**
 
@@ -148,7 +148,7 @@ trademind-ai/
 │       ├── rdb/             # Redis 客户端
 │       ├── middleware/      # RequestID / Recovery / AccessLog
 │       ├── pkg/             # response, id, ctxkey, model
-│       ├── providers/       # storage（**local**）+ **ai（Gateway + openai_compatible）** + **image（接口 + noop）**
+│       ├── providers/       # storage（**local + s3store**）+ **ai（Gateway + openai_compatible）** + **image（接口 + noop）**
 │       └── modules/         # auth、admin、settings、**operationlog**、**files**、**product**、**collect**、**aiprompt**、**aitask**、**imagetask**
 ├── admin/                   # Ant Design Pro（Umi Max）
 │   ├── .umirc.ts            # 含 proxy `/api` 与 **`/static`** → 8080
@@ -186,42 +186,42 @@ trademind-ai/
 | 安全 | 第三方密钥、Token **不进前端明文**；日志 **不打全量密钥** |
 | 架构 | 平台/采集/AI/存储 **走 Provider 抽象**；核心业务不直接绑定 1688/TikTok 等实现细节 |
 | 主数据库 | **PostgreSQL** 为开发与 `docker-compose` 默认；仍支持 **`DB_DRIVER=mysql`** |
-| 文件存储（MVP） | **上传到后端**；**object_key** 与 **public_url** 入库；本地 **`kind=local`** 已可用；**云 kind** 上传走 Provider **后续迭代** |
+| 文件存储（MVP） | **上传到后端**；**object_key** 与 **public_url** 入库；**`kind=local` / `s3` / `r2` / `minio`** **已走 Provider（AWS SDK v2 S3 兼容）**；**`cos`/`oss`** **独立适配未完成** |
 | AI 文本（当前） | **业务仅调用 `AI Gateway`**；**OpenAI-compatible** HTTP 适配在 **`openai_compatible/`**；**`ai_prompts` / `ai_tasks`**；标题优化 **不自动改 `products.title`**，应用只写 **`ai_title`**；描述生成 **不自动改 `products.description`**，应用只写 **`ai_description`** |
 | AI 图片（预留） | **`internal/providers/image`** **接口** + **`noop`**；**`image_tasks`** 与 **`/api/v1/image/tasks`**（首版 **同步执行**）；**真实 remove.bg / OpenAI Image / ComfyUI** 与 **Redis 异步消费** **未完成** |
 
 ## 7. 当前遗留问题 / 风险
 
 1. **401 处理**：采用**整页跳转**登录以清空 initialState；后续可改为无刷新同步 `setInitialState`。
-2. **S3 等云存储**：`test-storage` 仅校验字段完整性；**不**发起真实列举/上传；**文件上传**在 **`kind≠local`** 时仍会失败（符合当前范围）。
-3. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**；开发依赖 admin **`/static` 代理** 或直连后端端口。
-4. **1688 采集** 已升级为 **结构化首版**：多数商品页可从 DOM + JSON 抽到 **主图/详情图/属性/SKU**；**站点改版、登录/验证码/风控会导致字段缺失**，详情图若在 **跨域 iframe / 异步接口** 仍可能不完整；非生产 SLA。
-5. **多实例 Worker / 编排观测**：**`collect_task_events` 流水与单任务 Timeline 已完成**（见 §3.2）；**多实例部署下的 Worker heartbeat / 注册未完成**（当前仅为 **单进程 `running` 标记**）。
-6. **忘记密码未完成**：已在登录页占位，尚未实现后端逻辑。
-7. **手机号注册/短信未完成**：注册仍仅限 **邮箱 + 验证码**；**登录**已支持邮箱或手机号（规范化数字，兼容 +86）；短信注册/找回未做。
-8. **更多邮件服务商未完成**：当前仅完成了 SMTP 方式对接发送，尚未提供 Mailgun 等其它供应商实现。
-9. **验证码风控可继续增强**：目前已做简单的时间窗与数量限制。
-10. **历史管理员数据**：早期仅在内部 `username` 列有意义、未填 **`email` / `phone`** 的账号将无法按新规则登录；需在库里补齐邮箱或手机号，或清空表后重新 bootstrap。
-11. **端口对齐**：**`COLLECTOR_BASE_URL`**（Go）必须与 **`COLLECTOR_HTTP_ADDR`**（Collector）监听端口一致（模板默认 **3100**）；`.env.example` 已备注。
-12. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
-13. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
-14. **MySQL 可选驱动**：当前 JSON 字段迁移以 **PostgreSQL `JSONB`** 为主路径；若使用 **MySQL**，需自行核对 GORM 对 `JSON`/`JSONB` 标签的兼容性（默认开发仍为 Postgres）。
-15. **`settings.ai.provider`**：后端 Gateway 首版仅接受 **`openai_compatible` / `openai`**（兼容接口统一走 `openai_compatible` HTTP 实现；**DeepSeek / Qwen / Ollama** 等后续可增独立适配或扩展 accepted 名称）。
-16. **AI 图片处理（真实能力）**：**`image_tasks` / noop / 管理端骨架**已完成；**真实 remove.bg / OpenAI Image / ComfyUI Provider**、**异步队列化 Worker**、**成功后写入 `files` 对象** 等仍 **未完成**。
-17. **AI 客服**：**未完成**。
-18. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径；其它厂商后续可加适配。
-19. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。
-20. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
-21. **S3/COS/OSS 等多云存储**：与条目 2 一致，`test-storage` 与 **`kind≠local` 上传** 仍以 **未完成**为主路径叙事（首版 **`local`** 可用）。
+2. **`s3_presign_enabled` 入库 URL**：启用预签名时 **`files.url`** 为**短时有效链接**，过期后预览/外链失效；生产推荐配置稳定 **`s3_public_base`**（或后续做按需重签）。
+3. **COS / OSS 独立 Provider**：`kind` 为 **`cos` 或 `oss`** 仅占位；上传与 **`test-storage`** 会明确失败提示；若需 COS/OSS 原生语义（非 S3 API）须另加适配。
+4. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**（**仅本地 `kind`**）；开发依赖 admin **`/static` 代理**或直连后端端口。
+5. **1688 采集** 已升级为 **结构化首版**：多数商品页可从 DOM + JSON 抽到 **主图/详情图/属性/SKU**；**站点改版、登录/验证码/风控会导致字段缺失**，详情图若在 **跨域 iframe / 异步接口** 仍可能不完整；非生产 SLA。
+6. **多实例 Worker / 编排观测**：**`collect_task_events` 流水与单任务 Timeline 已完成**（见 §3.2）；**多实例部署下的 Worker heartbeat / 注册未完成**（当前仅为 **单进程 `running` 标记**）。
+7. **忘记密码未完成**：已在登录页占位，尚未实现后端逻辑。
+8. **手机号注册/短信未完成**：注册仍仅限 **邮箱 + 验证码**；**登录**已支持邮箱或手机号（规范化数字，兼容 +86）；短信注册/找回未做。
+9. **更多邮件服务商未完成**：当前仅完成了 SMTP 方式对接发送，尚未提供 Mailgun 等其它供应商实现。
+10. **验证码风控可继续增强**：目前已做简单的时间窗与数量限制。
+11. **历史管理员数据**：早期仅在内部 `username` 列有意义、未填 **`email` / `phone`** 的账号将无法按新规则登录；需在库里补齐邮箱或手机号，或清空表后重新 bootstrap。
+12. **端口对齐**：**`COLLECTOR_BASE_URL`**（Go）必须与 **`COLLECTOR_HTTP_ADDR`**（Collector）监听端口一致（模板默认 **3100**）；`.env.example` 已备注。
+13. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
+14. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
+15. **MySQL 可选驱动**：当前 JSON 字段迁移以 **PostgreSQL `JSONB`** 为主路径；若使用 **MySQL**，需自行核对 GORM 对 `JSON`/`JSONB` 标签的兼容性（默认开发仍为 Postgres）。
+16. **`settings.ai.provider`**：后端 Gateway 首版仅接受 **`openai_compatible` / `openai`**（兼容接口统一走 `openai_compatible` HTTP 实现；**DeepSeek / Qwen / Ollama** 等后续可增独立适配或扩展 accepted 名称）。
+17. **AI 图片处理（真实能力）**：**`image_tasks` / noop / 管理端骨架**已完成；**真实 remove.bg / OpenAI Image / ComfyUI Provider**、**异步队列化 Worker**、**成功后经 `files`/Storage 入库外链**（当前 noop **不落新对象**）仍 **未完成**。
+18. **AI 客服**：**未完成**。
+19. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径；其它厂商后续可加适配。
+20. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。
+21. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
 22. **图片任务异步化**：当前 **HTTP 请求内同步跑 `noop`**；**Redis / 独立 Worker** 消费 **`image_tasks`** 未完成。
 
 ---
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **云存储 Provider（S3/COS/OSS/R2）**：**`kind≠local` 上传**真实链路；与 **`files.public_url`** 一致化。
-2. **真实图片 Provider**：**remove.bg**；**OpenAI Image**；**ComfyUI**（读取 **`settings.image`**)；**Flux / 即梦** 预留。
-3. **图片任务异步化**：**Redis 队列**或内部 Worker；**running** 态与 **重试策略** 与采集对齐思路。
+1. **真实图片 Provider**：**remove.bg**；**OpenAI Image**；**ComfyUI**（读取 **`settings.image`**)；**Flux / 即梦** 预留。
+2. **图片任务异步化**：**Redis 队列**或内部 Worker；**running** 态与 **重试策略** 与采集对齐思路。
+3. **COS / OSS 独立 Provider**：在 **腾讯云 / 阿里云** 原生 SDK（或专有域名）上与 **`files`/设置页**对齐，而不走 S3 兼容端点。
 4. **多实例 Worker**：**Redis heartbeat** 或注册表（采集 Worker）。
 5. **Collector 演进**：SKU **多维 prop**、详情 **iframe/async**、**人机验证**探测与指引（**不迁入 Go**）。
 
@@ -246,6 +246,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-16 | **云存储 S3-compatible**：后端 **`internal/providers/storage/s3store`**（**AWS SDK v2**）、**factory**（`local`/`s3`/`r2`/`minio`；`cos`/`oss` 未实现）、**`files/upload|delete`** 与 **`test-storage` HeadBucket**；删除按 **`storage_kind`**；admin **存储设置 `s3_*`**；**`.env.example` / README** 存储说明；**go.mod** 引入 AWS SDK；**PROGRESS** 全篇对齐 |
 | 2026-05-16 | **GitHub Actions Go CI**：`.github/workflows/go.yml`（`main` 上 **push / pull_request**；`backend/` 内 **`gofmt -l` / `go vet` / `go test` / `go build`**；缺失 **`backend/`** 或 **`backend/go.mod`** 时显式失败；**`go-version-file: backend/go.mod`**）；**`go fmt`** 整理部分后端源文件以满足格式检查；**README** 增加「**CI / 自动检查**」 |
 | 2026-05-16 | **AI 图片任务预留**：**`image_tasks`**、**`internal/providers/image` + `noop`**、**`POST|GET /api/v1/image/tasks`、详情、`retry`**、**`settings.EnsureImageDefaults`（`image` 分组）**、操作日志 **`image.task.*`**、管理端 **`/ai/image-tasks`**、**`/settings/image`**、商品详情 **图片 Tab 入口**；**PROGRESS** §1/§3/§6/§7/§8 同步 |
 | 2026-05-16 | **`collect_task_events` + Timeline API + Admin Drawer**：新增表（**§3.2**）、节点写入、`GET /api/v1/collect/tasks/:id/events`（**JWT**、**ASC**、默认 **pageSize=50**）；**`CollectTaskEventDrawer`**（任务/批次/监控）；rollback 连带删事件；**§7 遗留（heartbeat/AI图/多云/Collector）§8 下一步** 重排 |

@@ -236,7 +236,7 @@ pnpm dev:collector    # 启动采集服务（HTTP :3100 默认）
 pnpm build:collector # 编译采集服务
 ```
 
-管理端开发时代理 `/api` → `http://127.0.0.1:8080`（见 `admin/.umirc.ts`），需先启动 Go 后端再调接口。采集服务为独立进程，示例：`POST http://127.0.0.1:3100/v1/collect`，body `{"source":"1688","url":"https://..."}`。
+管理端开发时代理 `/api` → `http://127.0.0.1:8080`（见 `admin/.umirc.ts`），需先启动 Go 后端再调接口。**对象存储**：默认 `kind=local`；云存储需在后台「存储设置」维护 `settings.storage`（详见根目录 `.env.example` 中 **对象存储说明**：`s3` / `r2` / `minio` 与 `COS`/`OSS` 占位说明）。采集服务为独立进程，示例：`POST http://127.0.0.1:3100/v1/collect`，body `{"source":"1688","url":"https://..."}`。
 
 ---
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email"
+	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -248,7 +249,7 @@ func (s *Service) TestAIConnection(ctx context.Context) error {
 	return nil
 }
 
-// TestStorageConnection verifies local storage path or basic S3 field presence.
+// TestStorageConnection verifies local writability or S3-compat bucket HeadBucket access.
 func (s *Service) TestStorageConnection(ctx context.Context) error {
 	m, err := s.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
@@ -278,13 +279,11 @@ func (s *Service) TestStorageConnection(ctx context.Context) error {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
 		return nil
-	case "s3", "cos", "oss", "r2", "minio":
-		endpoint := strings.TrimSpace(m["endpoint"])
-		bucket := strings.TrimSpace(m["bucket"])
-		access := strings.TrimSpace(m["access_key"])
-		secret := strings.TrimSpace(m["secret_key"])
-		if endpoint == "" || bucket == "" || access == "" || secret == "" {
-			return fmt.Errorf("incomplete %s settings: need endpoint, bucket, access_key, secret_key", kind)
+	case "cos", "oss":
+		return fmt.Errorf(`storage kind %q: dedicated provider is not implemented in this release — uploads require "local", "s3", "r2", or "minio". Tencent COS / Alibaba OSS adapters are planned separately from the S3-compatible client`, kind)
+	case "s3", "r2", "minio":
+		if err := s3store.TestConnectivity(ctx, kind, m); err != nil {
+			return err
 		}
 		return nil
 	default:

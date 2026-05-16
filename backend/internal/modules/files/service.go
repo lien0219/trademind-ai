@@ -246,7 +246,8 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	prov, _, err := storage.NewFromPlain(plain)
+	storedKind := strings.TrimSpace(row.StorageKind)
+	prov, _, err := storage.NewFromPlainForStoredKind(plain, storedKind)
 	if err != nil {
 		return err
 	}

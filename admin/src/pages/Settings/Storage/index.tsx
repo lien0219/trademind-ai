@@ -8,11 +8,13 @@ import {
 } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
+  Alert,
   Button,
   Col,
   Form,
   Image,
   Input,
+  InputNumber,
   Radio,
   Row,
   Space,
@@ -29,14 +31,26 @@ import { pickGroup } from '@/utils/settingsForm';
 
 const GROUP = 'storage';
 
-const cloudKinds = ['s3', 'cos', 'oss', 'r2', 'minio'];
+/** S3-compatible backends implemented in Go. */
+const s3CompatKinds = ['s3', 'r2', 'minio'] as const;
+
+/** Dedicated adapters not implemented yet. */
+const stubCloudKinds = ['cos', 'oss'] as const;
+
+function isS3CompatibleKind(kind: unknown): boolean {
+  return (s3CompatKinds as readonly string[]).includes(String(kind || '').toLowerCase());
+}
+
+function isStubCloudKind(kind: unknown): boolean {
+  return (stubCloudKinds as readonly string[]).includes(String(kind || '').toLowerCase());
+}
 
 type StorageKindMeta = {
   value: string;
   title: string;
   desc: string;
   Icon: ComponentType<{ style?: CSSProperties }>;
-  reserved?: boolean;
+  stub?: boolean;
 };
 
 const STORAGE_KIND_OPTIONS: StorageKindMeta[] = [
@@ -48,37 +62,35 @@ const STORAGE_KIND_OPTIONS: StorageKindMeta[] = [
   },
   {
     value: 's3',
-    title: 'S3 兼容',
-    desc: 'AWS、自有网关等兼容 S3 协议的 Bucket',
+    title: 'Amazon S3',
+    desc: '标准 AWS S3 Region + Bucket（可留空 Endpoint 使用默认分区）',
     Icon: CloudServerOutlined,
   },
   {
     value: 'cos',
     title: '腾讯云 COS',
-    desc: '对象存储接入占位',
+    desc: '独立 SDK 适配预留，当前不可用（请选 S3 / R2 / MinIO）',
     Icon: CloudOutlined,
-    reserved: true,
+    stub: true,
   },
   {
     value: 'oss',
     title: '阿里云 OSS',
-    desc: '对象存储接入占位',
+    desc: '独立 SDK 适配预留，当前不可用（请选 S3 / R2 / MinIO）',
     Icon: GlobalOutlined,
-    reserved: true,
+    stub: true,
   },
   {
     value: 'r2',
     title: 'Cloudflare R2',
-    desc: 'S3 兼容接入占位',
+    desc: 'S3 兼容 API；Region 常为 auto',
     Icon: ThunderboltOutlined,
-    reserved: true,
   },
   {
     value: 'minio',
     title: 'MinIO',
-    desc: '私有化对象存储接入占位',
+    desc: '私有化对象存储（建议 Path-style）',
     Icon: DatabaseOutlined,
-    reserved: true,
   },
 ];
 
@@ -95,33 +107,19 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       isEncrypted: false,
       remark: '',
     },
-    {
-      tenantId,
-      groupKey: GROUP,
-      itemKey: 'public_base',
-      itemValue: String(values.public_base ?? ''),
-      valueType: 'string',
-      isEncrypted: false,
-      remark: '',
-    },
   ];
+
+  if (isStubCloudKind(kind)) {
+    return items;
+  }
+
   if (kind === 'local') {
-    items.push({
-      tenantId,
-      groupKey: GROUP,
-      itemKey: 'local_root',
-      itemValue: String(values.local_root ?? ''),
-      valueType: 'string',
-      isEncrypted: false,
-      remark: '',
-    });
-  } else if (cloudKinds.includes(kind)) {
     items.push(
       {
         tenantId,
         groupKey: GROUP,
-        itemKey: 'endpoint',
-        itemValue: String(values.endpoint ?? ''),
+        itemKey: 'public_base',
+        itemValue: String(values.public_base ?? ''),
         valueType: 'string',
         isEncrypted: false,
         remark: '',
@@ -129,8 +127,33 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       {
         tenantId,
         groupKey: GROUP,
-        itemKey: 'bucket',
-        itemValue: String(values.bucket ?? ''),
+        itemKey: 'local_root',
+        itemValue: String(values.local_root ?? ''),
+        valueType: 'string',
+        isEncrypted: false,
+        remark: '',
+      },
+    );
+    return items;
+  }
+
+  if (isS3CompatibleKind(kind)) {
+    const pub = String(values.s3_public_base ?? '');
+    items.push(
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 'public_base',
+        itemValue: pub,
+        valueType: 'string',
+        isEncrypted: false,
+        remark: 'mirrors s3_public_base for compatibility',
+      },
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 's3_public_base',
+        itemValue: pub,
         valueType: 'string',
         isEncrypted: false,
         remark: '',
@@ -138,8 +161,8 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       {
         tenantId,
         groupKey: GROUP,
-        itemKey: 'region',
-        itemValue: String(values.region ?? ''),
+        itemKey: 's3_endpoint',
+        itemValue: String(values.s3_endpoint ?? ''),
         valueType: 'string',
         isEncrypted: false,
         remark: '',
@@ -147,8 +170,8 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       {
         tenantId,
         groupKey: GROUP,
-        itemKey: 'access_key',
-        itemValue: String(values.access_key ?? ''),
+        itemKey: 's3_region',
+        itemValue: String(values.s3_region ?? ''),
         valueType: 'string',
         isEncrypted: false,
         remark: '',
@@ -156,10 +179,67 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
       {
         tenantId,
         groupKey: GROUP,
-        itemKey: 'secret_key',
-        itemValue: String(values.secret_key ?? ''),
+        itemKey: 's3_bucket',
+        itemValue: String(values.s3_bucket ?? ''),
+        valueType: 'string',
+        isEncrypted: false,
+        remark: '',
+      },
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 's3_access_key_id',
+        itemValue: String(values.s3_access_key_id ?? ''),
         valueType: 'string',
         isEncrypted: true,
+        remark: '',
+      },
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 's3_secret_access_key',
+        itemValue: String(values.s3_secret_access_key ?? ''),
+        valueType: 'string',
+        isEncrypted: true,
+        remark: '',
+      },
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 's3_force_path_style',
+        itemValue: String(values.s3_force_path_style ?? 'false'),
+        valueType: 'string',
+        isEncrypted: false,
+        remark: '',
+      },
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 's3_use_ssl',
+        itemValue: String(values.s3_use_ssl ?? 'true'),
+        valueType: 'string',
+        isEncrypted: false,
+        remark: '',
+      },
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 's3_presign_enabled',
+        itemValue: String(values.s3_presign_enabled ?? 'false'),
+        valueType: 'string',
+        isEncrypted: false,
+        remark: '',
+      },
+      {
+        tenantId,
+        groupKey: GROUP,
+        itemKey: 's3_presign_expire_seconds',
+        itemValue:
+          values.s3_presign_expire_seconds != null && values.s3_presign_expire_seconds !== ''
+            ? String(values.s3_presign_expire_seconds)
+            : '3600',
+        valueType: 'string',
+        isEncrypted: false,
         remark: '',
       },
     );
@@ -174,21 +254,34 @@ export default function StorageSettingsPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const kind = Form.useWatch('kind', form);
+  const presignOn = Form.useWatch('s3_presign_enabled', form);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const { items } = await fetchSettingsList();
       const g = pickGroup(items, GROUP);
+      const effKind = g.kind || 'local';
+      const legacyPub = g.s3_public_base || g.public_base || '';
       form.setFieldsValue({
-        kind: g.kind || 'local',
+        kind: effKind,
         public_base: g.public_base || '',
         local_root: g.local_root || 'data/uploads',
-        endpoint: g.endpoint || '',
-        bucket: g.bucket || '',
-        region: g.region || '',
-        access_key: g.access_key || '',
-        secret_key: g.secret_key || '',
+        s3_endpoint: g.s3_endpoint || g.endpoint || '',
+        s3_region: g.s3_region || g.region || '',
+        s3_bucket: g.s3_bucket || g.bucket || '',
+        s3_access_key_id: g.s3_access_key_id || g.access_key || '',
+        s3_secret_access_key: g.s3_secret_access_key || g.secret_key || '',
+        s3_public_base: legacyPub,
+        s3_force_path_style:
+          String(g.s3_force_path_style || '').trim() !== ''
+            ? String(g.s3_force_path_style)
+            : effKind === 'minio'
+              ? 'true'
+              : 'false',
+        s3_use_ssl: g.s3_use_ssl === 'false' ? 'false' : 'true',
+        s3_presign_enabled: g.s3_presign_enabled === 'true' ? 'true' : 'false',
+        s3_presign_expire_seconds: g.s3_presign_expire_seconds ? Number(g.s3_presign_expire_seconds) : 3600,
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -201,7 +294,18 @@ export default function StorageSettingsPage() {
     load();
   }, [load]);
 
-  const showCloud = cloudKinds.includes(String(kind || ''));
+  const showS3Form = isS3CompatibleKind(kind);
+  const isStub = isStubCloudKind(kind);
+
+  useEffect(() => {
+    const k = String(kind || '').toLowerCase();
+    if (k === 'minio') {
+      const cur = form.getFieldValue('s3_force_path_style');
+      if (cur === undefined || cur === null || cur === '') {
+        form.setFieldValue('s3_force_path_style', 'true');
+      }
+    }
+  }, [kind, form]);
 
   return (
     <PageContainer title="存储设置">
@@ -213,6 +317,15 @@ export default function StorageSettingsPage() {
           </Button>
         }
       >
+        {isStub ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="该存储类型尚未接入后端 Provider"
+            description="保存后不会写入云 credentials；文件上传与「测试连接」会提示未实现。请改用 Amazon S3、Cloudflare R2 或 MinIO（S3 兼容）。"
+          />
+        ) : null}
         <Form
           form={form}
           layout="vertical"
@@ -230,7 +343,7 @@ export default function StorageSettingsPage() {
           <Form.Item label="存储方式" name="kind" rules={[{ required: true, message: '请选择存储方式' }]}>
             <Radio.Group className="tm-storage-kind-group">
               <Row gutter={[12, 12]}>
-                {STORAGE_KIND_OPTIONS.map(({ value, title, desc, Icon, reserved }) => (
+                {STORAGE_KIND_OPTIONS.map(({ value, title, desc, Icon, stub }) => (
                   <Col xs={24} sm={12} lg={8} key={value}>
                     <Radio value={value} className="tm-storage-kind-radio">
                       <div className="tm-storage-kind-card-main">
@@ -240,9 +353,9 @@ export default function StorageSettingsPage() {
                         <div className="tm-storage-kind-text">
                           <div className="tm-storage-kind-title-row">
                             <span className="tm-storage-kind-title">{title}</span>
-                            {reserved ? (
+                            {stub ? (
                               <Tag bordered={false} style={{ marginInlineEnd: 0 }}>
-                                预留
+                                未实现
                               </Tag>
                             ) : null}
                           </div>
@@ -255,37 +368,98 @@ export default function StorageSettingsPage() {
               </Row>
             </Radio.Group>
           </Form.Item>
-          <Form.Item
-            label="公开访问前缀 URL"
-            name="public_base"
-            extra="可填 /static 或完整 URL 前缀"
-          >
-            <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
-          </Form.Item>
+
           {kind === 'local' || !kind ? (
-            <Form.Item label="本地根目录" name="local_root" rules={[{ required: true }]}>
-              <Input placeholder="data/uploads" />
-            </Form.Item>
-          ) : null}
-          {showCloud ? (
             <>
-              <Form.Item label="Endpoint" name="endpoint" rules={[{ required: true, message: '填写 Endpoint' }]}>
-                <Input placeholder="https://s3.amazonaws.com 或区域 endpoint" />
+              <Form.Item
+                label="公开访问前缀 URL"
+                name="public_base"
+                extra="可填 /static 或完整 URL 前缀，与后端 GET /static 或反代一致"
+              >
+                <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
               </Form.Item>
-              <Form.Item label="Bucket" name="bucket" rules={[{ required: true }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="Region" name="region">
-                <Input placeholder="可选" />
-              </Form.Item>
-              <Form.Item label="Access Key" name="access_key" rules={[{ required: true }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="Secret Key" name="secret_key" rules={[{ required: true, message: '填写 Secret' }]}>
-                <Input.Password autoComplete="new-password" />
+              <Form.Item label="本地根目录" name="local_root" rules={[{ required: true }]}>
+                <Input placeholder="data/uploads" />
               </Form.Item>
             </>
           ) : null}
+
+          {showS3Form ? (
+            <>
+              <Form.Item
+                label="S3 Endpoint（s3_endpoint）"
+                name="s3_endpoint"
+                rules={
+                  kind === 'r2' || kind === 'minio'
+                    ? [{ required: true, message: '请填写 Endpoint URL（含协议，如 https:// 或 http://）' }]
+                    : []
+                }
+                extra={
+                  kind === 's3'
+                    ? '使用 AWS 官方分区时可留空；自定义网关 / MinIO / R2 需填完整 Base URL'
+                    : '示例 R2: https://<account_id>.r2.cloudflarestorage.com；MinIO: http://127.0.0.1:9000'
+                }
+              >
+                <Input placeholder="https://s3.amazonaws.com 或 MinIO / R2 地址" />
+              </Form.Item>
+              <Form.Item label="Region（s3_region）" name="s3_region">
+                <Input placeholder={kind === 'r2' ? 'auto' : kind === 'minio' ? 'us-east-1' : 'ap-southeast-1'} />
+              </Form.Item>
+              <Form.Item label="Bucket（s3_bucket）" name="s3_bucket" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item label="Access Key ID" name="s3_access_key_id" rules={[{ required: true }]}>
+                <Input.Password autoComplete="new-password" placeholder="AKIA… 或 R2 token" />
+              </Form.Item>
+              <Form.Item label="Secret Access Key" name="s3_secret_access_key" rules={[{ required: true }]}>
+                <Input.Password autoComplete="new-password" />
+              </Form.Item>
+              <Form.Item label="Path-style 访问" name="s3_force_path_style">
+                <Radio.Group>
+                  <Radio value="false">虚拟主机样式（AWS 默认）</Radio>
+                  <Radio value="true">Path-style（MinIO 常用）</Radio>
+                </Radio.Group>
+              </Form.Item>
+              <Form.Item label="传输" name="s3_use_ssl">
+                <Radio.Group>
+                  <Radio value="true">优先 HTTPS（Endpoint 无 scheme 时）</Radio>
+                  <Radio value="false">允许 HTTP（如内网 MinIO）</Radio>
+                </Radio.Group>
+              </Form.Item>
+              <Form.Item label="预签名下载 URL" name="s3_presign_enabled">
+                <Radio.Group>
+                  <Radio value="false">关闭（推荐：配置对外 URL 前缀）</Radio>
+                  <Radio value="true">启用（GetURL 返回短期预签名，链接会过期）</Radio>
+                </Radio.Group>
+              </Form.Item>
+              {presignOn === 'true' ? (
+                <Form.Item label="预签名有效期（秒）" name="s3_presign_expire_seconds">
+                  <InputNumber min={60} max={604800} style={{ width: '100%' }} />
+                </Form.Item>
+              ) : null}
+              <Form.Item
+                label="对象公开访问 URL 前缀（s3_public_base）"
+                name="s3_public_base"
+                dependencies={['s3_presign_enabled']}
+                rules={[
+                  {
+                    validator: async (_rule, v) => {
+                      if (presignOn === 'true') {
+                        return;
+                      }
+                      if (!String(v || '').trim()) {
+                        throw new Error('请填写对外可访问的 URL 前缀，或启用上方的「预签名下载 URL」');
+                      }
+                    },
+                  },
+                ]}
+                extra="例如 Cloudflare 自定义域名、CloudFront，或 MinIO 对外网关；外链形式为 prefix + 「/」 + objectKey"
+              >
+                <Input placeholder="https://cdn.example.com/my-bucket 或 https://pub-xxx.r2.dev" />
+              </Form.Item>
+            </>
+          ) : null}
+
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit" loading={loading}>
@@ -297,7 +471,7 @@ export default function StorageSettingsPage() {
                   setTesting(true);
                   try {
                     await testStorageConnection();
-                    message.success('校验通过');
+                    message.success('连接检测通过');
                   } catch (e: unknown) {
                     message.error((e as Error)?.message || '校验失败');
                   } finally {
@@ -334,7 +508,7 @@ export default function StorageSettingsPage() {
               return false;
             }}
           >
-            <Button loading={uploading}>选择图片并上传</Button>
+            <Button loading={uploading}>选择图片并上传（走 /api/v1/files/upload）</Button>
           </Upload>
           {uploadPreviewUrl ? (
             <Space direction="vertical" size="small">
