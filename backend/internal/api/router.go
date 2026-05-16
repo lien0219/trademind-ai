@@ -403,15 +403,15 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 		}
 
 		response.OK(c, gin.H{
-			"status":         status,
-			"appEnv":         appEnv,
-			"checks":         checks,
-			"collectQueue":   cq,
-			"imageQueue":     iq,
-			"orderSyncQueue":             osq,
-			"customerMessageSyncQueue":   cmq,
-			"workers":                    workers,
-			"timestamp":      time.Now().UTC().Format(time.RFC3339),
+			"status":                   status,
+			"appEnv":                   appEnv,
+			"checks":                   checks,
+			"collectQueue":             cq,
+			"imageQueue":               iq,
+			"orderSyncQueue":           osq,
+			"customerMessageSyncQueue": cmq,
+			"workers":                  workers,
+			"timestamp":                time.Now().UTC().Format(time.RFC3339),
 		})
 	}
 }

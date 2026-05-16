@@ -7,13 +7,13 @@ import (
 
 // CustomerMessageSyncQueueHealthBlock mirrors Redis LIST metrics for /health.
 type CustomerMessageSyncQueueHealthBlock struct {
-	Enabled       bool   `json:"enabled"`
-	QueueName     string `json:"queueName,omitempty"`
-	RedisOk       bool   `json:"redisOk"`
-	RedisAvailable bool  `json:"redisAvailable"`
-	LLen          int64  `json:"llen,omitempty"`
-	WorkerRunning bool   `json:"workerRunning"`
-	WorkerConcurrency int `json:"workerConcurrency,omitempty"`
+	Enabled           bool   `json:"enabled"`
+	QueueName         string `json:"queueName,omitempty"`
+	RedisOk           bool   `json:"redisOk"`
+	RedisAvailable    bool   `json:"redisAvailable"`
+	LLen              int64  `json:"llen,omitempty"`
+	WorkerRunning     bool   `json:"workerRunning"`
+	WorkerConcurrency int    `json:"workerConcurrency,omitempty"`
 }
 
 // BuildCustomerMessageSyncQueueHealthBlock builds a small health payload.

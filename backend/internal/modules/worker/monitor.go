@@ -135,10 +135,10 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 			TypeCustomerMessageSync: {},
 		},
 		LeasedTasks: map[string][]LeasedTaskDTO{
-			"collect":                {},
-			"image":                  {},
-			"orderSync":              {},
-			"customerMessageSync":    {},
+			"collect":             {},
+			"image":               {},
+			"orderSync":           {},
+			"customerMessageSync": {},
 		},
 	}
 

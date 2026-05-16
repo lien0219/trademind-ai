@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -75,12 +75,12 @@ func (s *Service) SyncPlatformCustomerMessages(ctx context.Context, shopRow *sho
 				return findErr
 			} else {
 				updates := map[string]any{
-					"customer_name":      custName,
-					"customer_avatar":    avatar,
-					"customer_language":  lang,
-					"status":             convStatus,
-					"raw_data":           datatypes.JSON(rawJSON),
-					"updated_at":         time.Now().UTC(),
+					"customer_name":     custName,
+					"customer_avatar":   avatar,
+					"customer_language": lang,
+					"status":            convStatus,
+					"raw_data":          datatypes.JSON(rawJSON),
+					"updated_at":        time.Now().UTC(),
 				}
 				if lastAt != nil {
 					updates["last_message_at"] = lastAt

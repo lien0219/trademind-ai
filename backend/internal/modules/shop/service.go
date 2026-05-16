@@ -43,16 +43,16 @@ type Service struct {
 
 // PlatformProviderDTO matches GET /platform/providers items.
 type PlatformProviderDTO struct {
-	Platform           string                            `json:"platform"`
-	Name               string                            `json:"name"`
-	Status             string                            `json:"status"`
-	AuthType           string                            `json:"authType"`
-	Capabilities       []string                          `json:"capabilities"`
-	CapabilityStatus   map[string]string                 `json:"capabilityStatus,omitempty"`
-	AuthSchema         []platformp.AuthField             `json:"authSchema"`
-	AuthSchemaType     string                            `json:"-"`
-	AppConfigSchema    platformp.PlatformAppConfigSchema `json:"appConfigSchema"`
-	SettingsGroupKey   string                            `json:"settingsGroupKey"`
+	Platform         string                            `json:"platform"`
+	Name             string                            `json:"name"`
+	Status           string                            `json:"status"`
+	AuthType         string                            `json:"authType"`
+	Capabilities     []string                          `json:"capabilities"`
+	CapabilityStatus map[string]string                 `json:"capabilityStatus,omitempty"`
+	AuthSchema       []platformp.AuthField             `json:"authSchema"`
+	AuthSchemaType   string                            `json:"-"`
+	AppConfigSchema  platformp.PlatformAppConfigSchema `json:"appConfigSchema"`
+	SettingsGroupKey string                            `json:"settingsGroupKey"`
 }
 
 // ListPlatformProviders from registry (sorted: available first, then platform id).

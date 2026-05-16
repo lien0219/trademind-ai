@@ -11,17 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 // SendPlatformMessageBody POST /customer/conversations/:id/send-platform-message
 type SendPlatformMessageBody struct {
-	Reply            string `json:"reply"`
-	SuggestionID     string `json:"suggestionId"`
-	IdempotencyKey   string `json:"idempotencyKey"`
+	Reply          string `json:"reply"`
+	SuggestionID   string `json:"suggestionId"`
+	IdempotencyKey string `json:"idempotencyKey"`
 }
 
 // SendPlatformMessage delivers a human-approved reply via the platform Provider.

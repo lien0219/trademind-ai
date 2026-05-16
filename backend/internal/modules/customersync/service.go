@@ -390,9 +390,9 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	outMap := map[string]any{
 		"conversationsTouched": convN,
-		"messagesInserted":   msgN,
-		"hasMore":            res.HasMore,
-		"nextCursor":         res.NextCursor,
+		"messagesInserted":     msgN,
+		"hasMore":              res.HasMore,
+		"nextCursor":           res.NextCursor,
 	}
 	if len(res.RawSummary) > 0 {
 		outMap["providerSummary"] = platformp.TrimRawMap(res.RawSummary, 16, 400)

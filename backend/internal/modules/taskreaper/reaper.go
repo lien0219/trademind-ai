@@ -21,9 +21,9 @@ type Deps struct {
 	DB     *gorm.DB
 	Config *config.Config
 
-	Collect *collect.Service
-	Image   *imagetask.Service
-	Order   *ordersync.Service
+	Collect         *collect.Service
+	Image           *imagetask.Service
+	Order           *ordersync.Service
 	CustomerMessage *customersync.Service
 }
 
