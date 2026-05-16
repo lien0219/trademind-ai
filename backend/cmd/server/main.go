@@ -24,8 +24,11 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
@@ -106,12 +109,16 @@ func main() {
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
+	opLogSvc := &operationlog.Service{DB: db}
 	collectSvc, imageTaskSvc, orderSyncSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
 		Encrypter: enc,
+		OpLog:     opLogSvc,
 	})
+
+	workerReg := worker.NewRegistryFromConfig(db, opLogSvc, cfg, log)
 
 	workerConc := cfg.CollectWorkerConcurrency
 	if workerConc < 1 {
@@ -132,8 +139,20 @@ func main() {
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
+
+	worker.StartStaleMarker(workerCtx, &workerWG, db, cfg, log)
+
+	taskreaper.Start(workerCtx, &workerWG, taskreaper.Deps{
+		Log:     log,
+		DB:      db,
+		Config:  cfg,
+		Collect: collectSvc,
+		Image:   imageTaskSvc,
+		Order:   orderSyncSvc,
+	})
+
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
-		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc)
+		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc, workerReg)
 		log.Info("collect_worker_started", "concurrency", workerConc, "queue", cfg.CollectQueueName)
 		if cfg.CollectAutoRetryEnabled {
 			collect.StartRetryScheduler(workerCtx, &workerWG, log, collectSvc, 5*time.Second)
@@ -148,7 +167,7 @@ func main() {
 		if qn == "" {
 			qn = "image:tasks"
 		}
-		imagetask.StartWorker(workerCtx, &workerWG, log, imageTaskSvc, qn, imgWorkerConc)
+		imagetask.StartWorker(workerCtx, &workerWG, log, imageTaskSvc, qn, imgWorkerConc, workerReg)
 		log.Info("image_task_worker_started", "concurrency", imgWorkerConc, "queue", qn)
 		if cfg.ImageAutoRetryEnabled {
 			imagetask.StartImageRetryScheduler(workerCtx, &workerWG, log, imageTaskSvc, 5*time.Second)
@@ -163,7 +182,7 @@ func main() {
 		if qn == "" {
 			qn = "order:sync:tasks"
 		}
-		ordersync.StartWorker(workerCtx, &workerWG, log, orderSyncSvc, qn, osWorkerConc)
+		ordersync.StartWorker(workerCtx, &workerWG, log, orderSyncSvc, qn, osWorkerConc, workerReg)
 		log.Info("order_sync_worker_started", "concurrency", osWorkerConc, "queue", qn)
 	} else if cfg.OrderSyncQueueEnabled && redisClient == nil {
 		log.Warn("order_sync_worker_skipped", "reason", "redis unavailable while ORDER_SYNC_QUEUE_ENABLED=true")

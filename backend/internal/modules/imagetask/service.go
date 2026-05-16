@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -272,27 +273,42 @@ func (s *Service) deleteTask(ctx context.Context, id uuid.UUID) {
 }
 
 // ProcessQueuedTask is invoked by the image worker: CAS pending → running, then run provider.
-func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID) error {
-	return s.executeTask(ctx, taskID, nil)
+func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	return s.executeTask(ctx, taskID, nil, workerID)
 }
 
 // ProcessSyncAfterCreate runs a pending task inline (IMAGE_QUEUE_ENABLED=false development mode).
 func (s *Service) ProcessSyncAfterCreate(ctx context.Context, taskID uuid.UUID, httpCtx *gin.Context) error {
-	return s.executeTask(ctx, taskID, httpCtx)
+	return s.executeTask(ctx, taskID, httpCtx, worker.GenerateInlineWorkerID(worker.TypeImage))
 }
 
-func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gin.Context) error {
+func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gin.Context, workerID string) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("imagetask: no db")
 	}
 
-	task, claimed, err := s.claimPendingTask(ctx, taskID)
+	defer func() {
+		if r := recover(); r != nil {
+			s.handleImagePanic(ctx, httpCtx, taskID, workerID, r)
+		}
+	}()
+
+	var peek ImageTask
+	if err := s.DB.WithContext(ctx).First(&peek, "id = ?", taskID).Error; err != nil {
+		return err
+	}
+	lease := s.computeExecutionTimeout(ctx, &peek)
+
+	task, claimed, err := s.tryClaimImageTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
 	if !claimed {
 		return nil
 	}
+
+	stopRen := s.startImageLeaseRenewal(ctx, taskID, workerID, lease)
+	defer stopRen()
 
 	src := strings.TrimSpace(task.SourceImageURL)
 	hints := inputHints(task.Input)
@@ -304,15 +320,7 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 			strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image")) {
 		hints = s.prepareReplaceBackgroundHints(ctx, task, hints)
 	}
-	timeout := imageOperationTimeout(ctx, s.Settings)
-	if strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
-		if b := s.comfyUIExecutionBudget(ctx); b > timeout {
-			timeout = b
-		}
-	}
-	if s != nil && s.TaskTimeoutMax > 0 && timeout > s.TaskTimeoutMax {
-		timeout = s.TaskTimeoutMax
-	}
+	timeout := s.computeExecutionTimeout(ctx, task)
 	pctx := ctx
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -477,6 +485,8 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		"retry_count":       0,
 		"next_retry_at":     nil,
 		"retry_enqueued_at": nil,
+		"locked_by":         nil,
+		"locked_until":      nil,
 	}
 	if finalFID != nil {
 		updates["result_file_id"] = finalFID
@@ -488,31 +498,6 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	}
 	s.logSuccess(ctx, httpCtx, taskID, task, modelOut, promptIDOut)
 	return nil
-}
-
-func (s *Service) claimPendingTask(ctx context.Context, taskID uuid.UUID) (*ImageTask, bool, error) {
-	now := time.Now().UTC()
-	res := s.DB.WithContext(ctx).Model(&ImageTask{}).
-		Where("id = ? AND (status = ? OR (status = ? AND next_retry_at IS NULL))",
-			taskID, StatusPending, StatusRetrying).
-		Updates(map[string]any{
-			"status":            StatusRunning,
-			"started_at":        &now,
-			"finished_at":       nil,
-			"error_message":     "",
-			"retry_enqueued_at": nil,
-		})
-	if res.Error != nil {
-		return nil, false, res.Error
-	}
-	if res.RowsAffected == 0 {
-		return nil, false, nil
-	}
-	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
-		return nil, false, err
-	}
-	return &task, true, nil
 }
 
 func (s *Service) dispatch(ctx context.Context, prov imgprov.Provider, task *ImageTask, src string, hints map[string]any) (*imgprov.ImageResult, error) {
@@ -604,6 +589,8 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 		"error_message":     msg,
 		"finished_at":       nil,
 		"retry_enqueued_at": nil,
+		"locked_by":         nil,
+		"locked_until":      nil,
 	}).Error
 
 	maxR := s.effectiveMaxRetries(task)
@@ -633,6 +620,8 @@ func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context,
 		"finished_at":       &fin,
 		"next_retry_at":     nil,
 		"retry_enqueued_at": nil,
+		"locked_by":        nil,
+		"locked_until":     nil,
 	}).Error
 	if exhausted {
 		s.logRetryExhausted(ctx, httpCtx, task, msg)
@@ -792,6 +781,8 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		"result_url":        "",
 		"result_file_id":    nil,
 		"output":            nil,
+		"locked_by":         nil,
+		"locked_until":      nil,
 	}
 	res := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", id, StatusFailed).Updates(updates)
 	if res.Error != nil {
@@ -820,9 +811,11 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		}
 		if err := s.enqueueTask(ctx, id, task.TaskType, task.Provider, task.CreatedBy, rid); err != nil {
 			_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", id).Updates(map[string]any{
-				"status":        StatusFailed,
-				"error_message": "retry enqueue failed: " + err.Error(),
-				"finished_at":   time.Now().UTC(),
+				"status":         StatusFailed,
+				"error_message":  "retry enqueue failed: " + err.Error(),
+				"finished_at":    time.Now().UTC(),
+				"locked_by":      nil,
+				"locked_until":   nil,
 			}).Error
 			return err
 		}

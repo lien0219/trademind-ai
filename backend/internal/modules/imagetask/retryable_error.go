@@ -8,11 +8,17 @@ import (
 	"strings"
 )
 
+// ErrWorkerLeaseExpired is used when a DB lease times out before work completes.
+var ErrWorkerLeaseExpired = errors.New("worker lease expired")
+
 // IsRetryableImageTaskError classifies provider / transport failures for automatic backoff.
 // Unknown errors default to non-retryable to avoid infinite loops on configuration mistakes.
 func IsRetryableImageTaskError(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, ErrWorkerLeaseExpired) {
+		return true
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true

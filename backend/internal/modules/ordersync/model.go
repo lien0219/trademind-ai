@@ -26,6 +26,9 @@ type OrderSyncTask struct {
 	Input        datatypes.JSON `gorm:"type:jsonb" json:"input,omitempty"`
 	Output       datatypes.JSON `gorm:"type:jsonb" json:"output,omitempty"`
 	CreatedBy    *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	LockedBy     *string        `gorm:"size:220;index" json:"lockedBy,omitempty"`
+	LockedUntil  *time.Time     `gorm:"index" json:"lockedUntil,omitempty"`
+	LockVersion  int            `gorm:"default:0;not null" json:"lockVersion"`
 }
 
 func (OrderSyncTask) TableName() string { return "order_sync_tasks" }

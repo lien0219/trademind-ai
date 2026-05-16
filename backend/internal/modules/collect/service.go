@@ -37,6 +37,9 @@ type Service struct {
 	MaxAutoRetries    int
 	RetryBaseDelaySec int
 	RetryMaxDelaySec  int
+
+	// TaskLeaseTimeoutSeconds is Redis/DB lease for multi-instance workers (from COLLECT_TASK_TIMEOUT_SECONDS).
+	TaskLeaseTimeoutSeconds int
 }
 
 func clampCollectPage(page, ps int) (int, int) {
@@ -129,6 +132,8 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, m
 			"finished_at":       &fin,
 			"next_retry_at":     nil,
 			"retry_enqueued_at": nil,
+			"locked_by":         nil,
+			"locked_until":      nil,
 			"updated_at":        fin,
 		}).Error
 
@@ -176,6 +181,8 @@ func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask,
 			"finished_at":       &fin,
 			"next_retry_at":     nil,
 			"retry_enqueued_at": nil,
+			"locked_by":         nil,
+			"locked_until":      nil,
 			"updated_at":        fin,
 		}).Error
 
@@ -210,7 +217,7 @@ func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask,
 }
 
 // RunCollectJob executes one task from the queue (Collector → product draft).
-func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
+func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, workerID string) {
 	if s == nil || s.DB == nil || s.Client == nil || s.Products == nil {
 		return
 	}
@@ -219,34 +226,35 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 		ctx = context.Background()
 	}
 
-	var task CollectTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	defer func() {
+		if r := recover(); r != nil {
+			s.handleCollectPanic(ctx, taskID, workerID, r)
+		}
+	}()
+
+	var peek CollectTask
+	if err := s.DB.WithContext(ctx).First(&peek, "id = ?", taskID).Error; err != nil {
 		return
 	}
-	prevStatus := task.Status
-	started := time.Now().UTC()
-	res := s.DB.WithContext(ctx).Model(&CollectTask{}).
-		Where("id = ? AND status IN ?", taskID, []string{StatusPending, StatusRetrying}).
-		Updates(map[string]interface{}{
-			"status":            StatusRunning,
-			"started_at":        &started,
-			"error_message":     "",
-			"finished_at":       nil,
-			"retry_enqueued_at": nil,
-			"updated_at":        started,
-		})
-	if res.Error != nil {
-		s.failTask(ctx, &task, prevStatus, res.Error.Error(), nil)
-		return
-	}
-	if res.RowsAffected == 0 {
+	prevStatus := peek.Status
+
+	lease := s.collectLeaseTTL()
+	task, ok := s.tryClaimCollectTask(ctx, taskID, workerID, lease)
+	if !ok {
 		return
 	}
 
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
-		return
-	}
-	s.RecordTaskEvent(ctx, &task, TaskEventInput{
+	stopRenew := s.startCollectLeaseRenewal(ctx, taskID, workerID, lease)
+	defer stopRenew()
+
+	s.RecordTaskEvent(ctx, task, TaskEventInput{
+		EventType:  EventWorkerLeaseAcquired,
+		FromStatus: prevStatus,
+		ToStatus:   StatusRunning,
+		Message:    "lease acquired",
+		PayloadMap: map[string]any{"workerId": workerID},
+	})
+	s.RecordTaskEvent(ctx, task, TaskEventInput{
 		EventType:  EventTaskRunning,
 		FromStatus: prevStatus,
 		ToStatus:   StatusRunning,
@@ -264,16 +272,16 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 			Rule         json.RawMessage `json:"rule"`
 		}
 		if len(task.RequestOptions) == 0 {
-			s.failTask(ctx, &task, prevStatus, "missing custom rule snapshot", nil)
+			s.failTask(ctx, task, prevStatus, "missing custom rule snapshot", nil)
 			return
 		}
 		if err := json.Unmarshal(task.RequestOptions, &snap); err != nil || len(snap.Rule) == 0 {
-			s.failTask(ctx, &task, prevStatus, "invalid custom rule snapshot", nil)
+			s.failTask(ctx, task, prevStatus, "invalid custom rule snapshot", nil)
 			return
 		}
 		var ruleObj any
 		if err := json.Unmarshal(snap.Rule, &ruleObj); err != nil {
-			s.failTask(ctx, &task, prevStatus, "invalid embedded rule json", nil)
+			s.failTask(ctx, task, prevStatus, "invalid embedded rule json", nil)
 			return
 		}
 		collectorOpts = map[string]any{
@@ -287,20 +295,20 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 
 	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL, collectorOpts)
 	if err != nil {
-		s.handleCollectJobError(ctx, &task, err)
+		s.handleCollectJobError(ctx, task, err)
 		return
 	}
 
 	norm, err := parseNormalized(outcome.ProductJSON)
 	if err != nil {
-		s.handleCollectJobError(ctx, &task, fmt.Errorf("parse normalized product: %w", err))
+		s.handleCollectJobError(ctx, task, fmt.Errorf("parse normalized product: %w", err))
 		return
 	}
 
 	params := norm.importParams(outcome.ProductJSON)
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
-		s.handleCollectJobError(ctx, &task, err)
+		s.handleCollectJobError(ctx, task, err)
 		return
 	}
 
@@ -318,29 +326,32 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 			"next_retry_at":     nil,
 			"retry_enqueued_at": nil,
 			"retry_count":       0,
+			"locked_by":         nil,
+			"locked_until":      nil,
 			"updated_at":        fin,
 		}).Error; err != nil {
-		s.failTask(ctx, &task, StatusRunning, err.Error(), nil)
+		s.failTask(ctx, task, StatusRunning, err.Error(), nil)
 		return
 	}
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	var refreshed CollectTask
+	if err := s.DB.WithContext(ctx).First(&refreshed, "id = ?", taskID).Error; err != nil {
 		return
 	}
-	s.reconcileCollectBatch(ctx, task.BatchID)
+	s.reconcileCollectBatch(ctx, refreshed.BatchID)
 
-	s.RecordTaskEvent(ctx, &task, TaskEventInput{
+	s.RecordTaskEvent(ctx, &refreshed, TaskEventInput{
 		EventType:  EventTaskSuccess,
 		FromStatus: StatusRunning,
 		ToStatus:   StatusSuccess,
 		Message:    "draft imported from collector response",
-		RetryCount: task.RetryCount,
-		MaxRetries: task.MaxRetries,
+		RetryCount: refreshed.RetryCount,
+		MaxRetries: refreshed.MaxRetries,
 		PayloadMap: map[string]any{"productId": pid.String()},
 	})
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
-			AdminUserID: task.CreatedBy,
+			AdminUserID: refreshed.CreatedBy,
 			Action:      "collect.task.success",
 			Resource:    "collect_task",
 			ResourceID:  taskID.String(),
@@ -499,6 +510,8 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 			"retry_count":       0,
 			"next_retry_at":     nil,
 			"retry_enqueued_at": nil,
+			"locked_by":         nil,
+			"locked_until":      nil,
 			"updated_at":        retryAt,
 		}).Error; err != nil {
 		return zero, err

@@ -24,6 +24,9 @@ const (
 	EventTaskRetryExhausted     = "task.retry_exhausted"
 	EventTaskManualRetry        = "task.manual_retry"
 	EventTaskCancelled          = "task.cancelled"
+	EventWorkerLeaseAcquired    = "worker.lease.acquired"
+	EventWorkerLeaseExpired     = "worker.lease.expired"
+	EventWorkerLeaseRecovered   = "worker.lease.recovered"
 )
 
 var blockedCollectEventPayloadKeys = map[string]struct{}{

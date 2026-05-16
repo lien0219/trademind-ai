@@ -62,6 +62,9 @@ type CollectTask struct {
 	CreatedBy       *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 	StartedAt       *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time     `json:"finishedAt,omitempty"`
+	LockedBy        *string        `gorm:"size:220;index" json:"lockedBy,omitempty"`
+	LockedUntil     *time.Time     `gorm:"index" json:"lockedUntil,omitempty"`
+	LockVersion     int            `gorm:"default:0;not null" json:"lockVersion"`
 }
 
 func (CollectTask) TableName() string { return "collect_tasks" }

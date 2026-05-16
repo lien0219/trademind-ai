@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -264,7 +265,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), task.ID)
+		return s.ProcessQueuedTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
@@ -297,26 +298,28 @@ func (s *Service) enqueue(ctx context.Context, taskID uuid.UUID) error {
 }
 
 // ProcessQueuedTask executes one task (worker or inline dev mode).
-func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID) error {
+func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("ordersync: no db")
 	}
 
-	var task OrderSyncTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	defer func() {
+		if r := recover(); r != nil {
+			s.handleOrderSyncPanic(ctx, taskID, workerID, r)
+		}
+	}()
+
+	lease := s.orderSyncLeaseTTL()
+	task, ok, err := s.tryClaimOrderSyncTask(ctx, taskID, workerID, lease)
+	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(task.Status) != StatusPending {
+	if !ok {
 		return nil
 	}
 
-	start := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":     StatusRunning,
-			"started_at": &start,
-			"updated_at": start,
-		}).Error
+	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, lease)
+	defer stopRen()
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -336,6 +339,8 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID) error
 				"status":        StatusFailed,
 				"error_message": msg,
 				"finished_at":   &fin,
+				"locked_by":     nil,
+				"locked_until":  nil,
 				"updated_at":    fin,
 			}).Error
 		if s.OpLog != nil {
@@ -416,6 +421,8 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID) error
 			"cursor":        nextCur,
 			"output":        datatypes.JSON(outJSON),
 			"error_message": "",
+			"locked_by":     nil,
+			"locked_until":  nil,
 			"updated_at":    fin,
 		}).Error
 
@@ -578,6 +585,8 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 			"success_count": 0,
 			"failed_count":  0,
 			"output":        datatypes.JSON(nil),
+			"locked_by":     nil,
+			"locked_until":  nil,
 			"updated_at":    reset,
 		}).Error; err != nil {
 		return nil, err
@@ -595,7 +604,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), taskID)
+		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {

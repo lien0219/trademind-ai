@@ -26,6 +26,12 @@ export default [
     component: './System/OperationLogs',
   },
   {
+    path: '/workers/monitor',
+    name: 'Worker 监控',
+    icon: 'CloudServerOutlined',
+    component: './Workers/Monitor',
+  },
+  {
     path: '/files',
     name: '文件管理',
     icon: 'FileImageOutlined',

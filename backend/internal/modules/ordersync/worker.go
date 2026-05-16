@@ -3,16 +3,18 @@ package ordersync
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 )
 
 // StartWorker runs BRPOP consumers until ctx is cancelled.
-func StartWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, svc *Service, queueName string, concurrency int) {
+func StartWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, svc *Service, queueName string, concurrency int, reg *worker.Registry) {
 	if svc == nil || svc.Redis == nil || svc.Redis.Client == nil {
 		return
 	}
@@ -25,14 +27,25 @@ func StartWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, svc 
 
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-		go func(workerID int) {
+		go func(slot int) {
 			defer wg.Done()
-			runOrderSyncWorker(ctx, log, svc, queueName, workerID)
+			var wid string
+			if reg != nil {
+				inst := reg.Register(ctx, worker.TypeOrderSync, fmt.Sprintf("order-sync-%d", slot), map[string]any{"queue": queueName})
+				if inst != nil {
+					defer inst.Stop(context.Background())
+					wid = inst.WorkerID()
+				}
+			}
+			if wid == "" {
+				wid = worker.GenerateWorkerID(worker.TypeOrderSync)
+			}
+			runOrderSyncWorker(ctx, log, svc, queueName, slot, wid)
 		}(i + 1)
 	}
 }
 
-func runOrderSyncWorker(ctx context.Context, log *slog.Logger, svc *Service, queueName string, workerID int) {
+func runOrderSyncWorker(ctx context.Context, log *slog.Logger, svc *Service, queueName string, slot int, workerLeaseID string) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -55,21 +68,21 @@ func runOrderSyncWorker(ctx context.Context, log *slog.Logger, svc *Service, que
 		var msg QueueMessage
 		if err := json.Unmarshal([]byte(payload), &msg); err != nil {
 			if log != nil {
-				log.Warn("order_sync_worker_bad_message", "worker", workerID, "error", err)
+				log.Warn("order_sync_worker_bad_message", "worker", slot, "error", err)
 			}
 			continue
 		}
 		tid, err := uuid.Parse(strings.TrimSpace(msg.TaskID))
 		if err != nil {
 			if log != nil {
-				log.Warn("order_sync_worker_bad_task_id", "worker", workerID, "error", err)
+				log.Warn("order_sync_worker_bad_task_id", "worker", slot, "error", err)
 			}
 			continue
 		}
 
 		jobCtx := context.Background()
-		if err := svc.ProcessQueuedTask(jobCtx, tid); err != nil && log != nil {
-			log.Warn("order_sync_worker_task_error", "worker", workerID, "taskId", tid.String(), "error", err)
+		if err := svc.ProcessQueuedTask(jobCtx, tid, workerLeaseID); err != nil && log != nil {
+			log.Warn("order_sync_worker_task_error", "worker", slot, "taskId", tid.String(), "error", err)
 		}
 	}
 }

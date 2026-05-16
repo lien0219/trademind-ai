@@ -93,6 +93,8 @@ func (s *Service) tryEnqueueScheduledImageRetry(ctx context.Context, log *slog.L
 		Updates(map[string]any{
 			"next_retry_at":     nil,
 			"retry_enqueued_at": &mark,
+			"locked_by":         nil,
+			"locked_until":      nil,
 		})
 	if res.Error != nil || res.RowsAffected == 0 {
 		return

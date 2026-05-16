@@ -68,6 +68,17 @@ type Config struct {
 	OrderSyncWorkerConcurrency int
 	// OrderSyncTaskTimeoutSeconds caps each Provider.SyncOrders context (default 120).
 	OrderSyncTaskTimeoutSeconds int
+
+	// CollectTaskTimeoutSeconds is the DB lease TTL for collect_tasks (worker reclaim).
+	CollectTaskTimeoutSeconds int
+
+	// Worker heartbeat / lease reclaim (multi-instance workers).
+	WorkerHeartbeatEnabled        bool
+	WorkerHeartbeatIntervalSeconds int
+	WorkerStaleAfterSeconds       int
+	WorkerReaperEnabled           bool
+	WorkerReaperIntervalSeconds   int
+	WorkerLegacyRunningTimeoutSeconds int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -151,6 +162,15 @@ func Load() (*Config, error) {
 		)),
 		OrderSyncWorkerConcurrency:  atoiOrDefault(os.Getenv("ORDER_SYNC_WORKER_CONCURRENCY"), 1),
 		OrderSyncTaskTimeoutSeconds: atoiOrDefault(os.Getenv("ORDER_SYNC_TASK_TIMEOUT_SECONDS"), 120),
+
+		CollectTaskTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECT_TASK_TIMEOUT_SECONDS"), 600),
+
+		WorkerHeartbeatEnabled:           envBool(os.Getenv("WORKER_HEARTBEAT_ENABLED"), true),
+		WorkerHeartbeatIntervalSeconds:   atoiOrDefault(os.Getenv("WORKER_HEARTBEAT_INTERVAL_SECONDS"), 10),
+		WorkerStaleAfterSeconds:          atoiOrDefault(os.Getenv("WORKER_STALE_AFTER_SECONDS"), 30),
+		WorkerReaperEnabled:              envBool(os.Getenv("WORKER_REAPER_ENABLED"), true),
+		WorkerReaperIntervalSeconds:      atoiOrDefault(os.Getenv("WORKER_REAPER_INTERVAL_SECONDS"), 15),
+		WorkerLegacyRunningTimeoutSeconds: atoiOrDefault(os.Getenv("WORKER_LEGACY_RUNNING_TIMEOUT_SECONDS"), 1800),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))

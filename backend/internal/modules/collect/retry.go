@@ -118,6 +118,8 @@ func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg 
 			"error_message":     truncateRunes(strings.TrimSpace(msg), 8000),
 			"finished_at":       nil,
 			"retry_enqueued_at": nil,
+			"locked_by":         nil,
+			"locked_until":      nil,
 			"updated_at":        now,
 		}).Error
 

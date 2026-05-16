@@ -25,6 +25,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -53,6 +54,8 @@ type Deps struct {
 	DB        *gorm.DB
 	Redis     *rdb.Client
 	Encrypter *encrypt.Service
+	// OpLog optional; when nil Register creates a default operation log service from DB.
+	OpLog *operationlog.Service
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
@@ -68,7 +71,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminStore := &admin.Store{DB: dep.DB}
 	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore}
 	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
-	opLogSvc := &operationlog.Service{DB: dep.DB}
+	opLogSvc := dep.OpLog
+	if opLogSvc == nil {
+		opLogSvc = &operationlog.Service{DB: dep.DB}
+	}
 
 	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc}
 	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc}
@@ -155,6 +161,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		collectSvc.MaxAutoRetries = dep.Config.CollectMaxRetries
 		collectSvc.RetryBaseDelaySec = dep.Config.CollectRetryBaseDelaySeconds
 		collectSvc.RetryMaxDelaySec = dep.Config.CollectRetryMaxDelaySeconds
+		collectSvc.TaskLeaseTimeoutSeconds = dep.Config.CollectTaskTimeoutSeconds
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 	collectRuleH := &collectrule.Handler{Svc: collectRuleSvc}
@@ -244,6 +251,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	ordersync.Register(authed, orderSyncH)
 	customerchat.Register(authed, customerChatH)
 	shop.Register(authed, shopH)
+	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
+	worker.Register(authed, workerH)
 	return collectSvc, imageTaskSvc, orderSyncSvc
 }
 
@@ -344,6 +353,11 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			status = "degraded"
 		}
 
+		workers := worker.BuildHealthWorkersBlock(ctx, dep.DB, dep.Config)
+		if workers.Degraded {
+			status = "degraded"
+		}
+
 		response.OK(c, gin.H{
 			"status":         status,
 			"appEnv":         appEnv,
@@ -351,6 +365,7 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			"collectQueue":   cq,
 			"imageQueue":     iq,
 			"orderSyncQueue": osq,
+			"workers":        workers,
 			"timestamp":      time.Now().UTC().Format(time.RFC3339),
 		})
 	}

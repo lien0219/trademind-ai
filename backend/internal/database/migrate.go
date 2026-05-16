@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"gorm.io/gorm"
 )
 
@@ -40,6 +41,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&ordersync.OrderSyncTask{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
+		&worker.Instance{},
 		&collect.CollectBatch{},
 		&collect.CollectTask{},
 		&collect.CollectTaskEvent{},
