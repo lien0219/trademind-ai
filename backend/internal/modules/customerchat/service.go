@@ -243,20 +243,20 @@ func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody
 
 // ConversationDetailDTO GET /customer/conversations/:id
 type ConversationDetailDTO struct {
-	ID                     uuid.UUID  `json:"id"`
-	Platform               string     `json:"platform"`
-	ShopID                 *uuid.UUID `json:"shopId,omitempty"`
-	ExternalConversationID *string    `json:"externalConversationId,omitempty"`
-	CustomerName           string     `json:"customerName"`
-	CustomerAvatar         string     `json:"customerAvatar,omitempty"`
-	CustomerLanguage       string     `json:"customerLanguage"`
-	Status                 string     `json:"status"`
+	ID                     uuid.UUID                       `json:"id"`
+	Platform               string                          `json:"platform"`
+	ShopID                 *uuid.UUID                      `json:"shopId,omitempty"`
+	ExternalConversationID *string                         `json:"externalConversationId,omitempty"`
+	CustomerName           string                          `json:"customerName"`
+	CustomerAvatar         string                          `json:"customerAvatar,omitempty"`
+	CustomerLanguage       string                          `json:"customerLanguage"`
+	Status                 string                          `json:"status"`
 	LastMessageAt          *time.Time                      `json:"lastMessageAt,omitempty"`
 	OrderID                *uuid.UUID                      `json:"orderId,omitempty"`
 	OrderSummary           *order.ConversationOrderSummary `json:"orderSummary,omitempty"`
 	CreatedBy              *uuid.UUID                      `json:"createdBy,omitempty"`
-	CreatedAt              time.Time  `json:"createdAt"`
-	UpdatedAt              time.Time  `json:"updatedAt"`
+	CreatedAt              time.Time                       `json:"createdAt"`
+	UpdatedAt              time.Time                       `json:"updatedAt"`
 }
 
 func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary) *ConversationDetailDTO {

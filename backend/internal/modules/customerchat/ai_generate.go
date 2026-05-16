@@ -253,7 +253,7 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	customerProfile := map[string]any{
 		"conversationLanguage": lang,
 		"conversationPlatform": platform,
-		"linkedOrder":            conv.OrderID != nil,
+		"linkedOrder":          conv.OrderID != nil,
 	}
 
 	if conv.OrderID != nil && s.Orders != nil {
@@ -317,17 +317,17 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	}
 
 	inputPayload := map[string]any{
-		"promptCode":       aiprompt.CodeCustomerReplyGenerate,
-		"conversationId":   conversationID.String(),
-		"language":         lang,
-		"tone":             tone,
-		"platform":         platform,
-		"shopPolicyLen":    len([]rune(shopPolicy)),
-		"customerMsgLen":   len([]rune(customerMsg)),
-		"orderLinked":      conv.OrderID != nil,
+		"promptCode":     aiprompt.CodeCustomerReplyGenerate,
+		"conversationId": conversationID.String(),
+		"language":       lang,
+		"tone":           tone,
+		"platform":       platform,
+		"shopPolicyLen":  len([]rune(shopPolicy)),
+		"customerMsgLen": len([]rune(customerMsg)),
+		"orderLinked":    conv.OrderID != nil,
 		"linkedOrderCue": map[string]any{
-			"orderInfoHint": len(orderInfoPlain) > 4,
-			"itemsLines":    len(itemsPlain) > 2,
+			"orderInfoHint":  len(orderInfoPlain) > 4,
+			"itemsLines":     len(itemsPlain) > 2,
 			"shipmentsLines": len(shipmentPlain) > 2,
 		},
 	}

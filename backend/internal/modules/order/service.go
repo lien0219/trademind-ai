@@ -158,28 +158,28 @@ type CreateBody struct {
 
 // UpdateBody PATCH-like PUT semantics (only non-nil / non-empty fragments apply).
 type UpdateBody struct {
-	ShopID              *uuid.UUID           `json:"shopId,omitempty"`
-	ExternalOrderID     *string              `json:"externalOrderId,omitempty"`
-	Status              string               `json:"status,omitempty"`
-	PaymentStatus       string               `json:"paymentStatus,omitempty"`
-	FulfillmentStatus   string               `json:"fulfillmentStatus,omitempty"`
-	Currency            string               `json:"currency,omitempty"`
-	CustomerName        string               `json:"customerName,omitempty"`
-	CustomerEmail       *string              `json:"customerEmail,omitempty"`
-	CustomerPhone       *string              `json:"customerPhone,omitempty"`
-	TotalAmount         *float64             `json:"totalAmount,omitempty"`
-	PaidAt              *time.Time           `json:"paidAt,omitempty"`
-	OrderedAt           *time.Time           `json:"orderedAt,omitempty"`
-	ShippedAt           *time.Time           `json:"shippedAt,omitempty"`
-	DeliveredAt         *time.Time           `json:"deliveredAt,omitempty"`
-	SetPaidAtNil        bool                 `json:"setPaidAtNil,omitempty"`
-	SetOrderedAtNil     bool                 `json:"setOrderedAtNil,omitempty"`
-	SetShippedAtNil     bool                 `json:"setShippedAtNil,omitempty"`
-	SetDeliveredAtNil   bool                 `json:"setDeliveredAtNil,omitempty"`
-	Items               []OrderItemInput     `json:"items,omitempty"`
-	Shipments           []OrderShipmentInput `json:"shipments,omitempty"`
-	ReplaceItems        bool                 `json:"replaceItems,omitempty"`
-	ReplaceShipments    bool                 `json:"replaceShipments,omitempty"`
+	ShopID            *uuid.UUID           `json:"shopId,omitempty"`
+	ExternalOrderID   *string              `json:"externalOrderId,omitempty"`
+	Status            string               `json:"status,omitempty"`
+	PaymentStatus     string               `json:"paymentStatus,omitempty"`
+	FulfillmentStatus string               `json:"fulfillmentStatus,omitempty"`
+	Currency          string               `json:"currency,omitempty"`
+	CustomerName      string               `json:"customerName,omitempty"`
+	CustomerEmail     *string              `json:"customerEmail,omitempty"`
+	CustomerPhone     *string              `json:"customerPhone,omitempty"`
+	TotalAmount       *float64             `json:"totalAmount,omitempty"`
+	PaidAt            *time.Time           `json:"paidAt,omitempty"`
+	OrderedAt         *time.Time           `json:"orderedAt,omitempty"`
+	ShippedAt         *time.Time           `json:"shippedAt,omitempty"`
+	DeliveredAt       *time.Time           `json:"deliveredAt,omitempty"`
+	SetPaidAtNil      bool                 `json:"setPaidAtNil,omitempty"`
+	SetOrderedAtNil   bool                 `json:"setOrderedAtNil,omitempty"`
+	SetShippedAtNil   bool                 `json:"setShippedAtNil,omitempty"`
+	SetDeliveredAtNil bool                 `json:"setDeliveredAtNil,omitempty"`
+	Items             []OrderItemInput     `json:"items,omitempty"`
+	Shipments         []OrderShipmentInput `json:"shipments,omitempty"`
+	ReplaceItems      bool                 `json:"replaceItems,omitempty"`
+	ReplaceShipments  bool                 `json:"replaceShipments,omitempty"`
 }
 
 // DetailDTO GET /orders/:id (flattened header + nested children).
@@ -568,14 +568,14 @@ func (s *Service) BuildAIContext(c *gin.Context, orderID uuid.UUID) (*AIContext,
 	}
 
 	orderInfo := map[string]any{
-		"orderNo":            o.OrderNo,
-		"status":             o.Status,
-		"paymentStatus":      o.PaymentStatus,
-		"fulfillmentStatus":  o.FulfillmentStatus,
-		"currency":           o.Currency,
-		"orderedAt":          formatTimeRFC(o.OrderedAt),
-		"totalAmount":        o.TotalAmount,
-		"platform":           o.Platform,
+		"orderNo":           o.OrderNo,
+		"status":            o.Status,
+		"paymentStatus":     o.PaymentStatus,
+		"fulfillmentStatus": o.FulfillmentStatus,
+		"currency":          o.Currency,
+		"orderedAt":         formatTimeRFC(o.OrderedAt),
+		"totalAmount":       o.TotalAmount,
+		"platform":          o.Platform,
 	}
 
 	return &AIContext{

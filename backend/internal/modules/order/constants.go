@@ -12,10 +12,10 @@ const (
 )
 
 const (
-	PaymentUnpaid               = "unpaid"
-	PaymentPaid                 = "paid"
-	PaymentPartiallyRefunded    = "partially_refunded"
-	PaymentRefunded             = "refunded"
+	PaymentUnpaid            = "unpaid"
+	PaymentPaid              = "paid"
+	PaymentPartiallyRefunded = "partially_refunded"
+	PaymentRefunded          = "refunded"
 )
 
 const (
@@ -26,10 +26,10 @@ const (
 )
 
 const (
-	ShipmentPending    = "pending"
-	ShipmentShipped    = "shipped"
-	ShipmentInTransit  = "in_transit"
-	ShipmentDelivered  = "delivered"
-	ShipmentException  = "exception"
-	ShipmentReturned   = "returned"
+	ShipmentPending   = "pending"
+	ShipmentShipped   = "shipped"
+	ShipmentInTransit = "in_transit"
+	ShipmentDelivered = "delivered"
+	ShipmentException = "exception"
+	ShipmentReturned  = "returned"
 )
