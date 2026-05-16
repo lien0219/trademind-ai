@@ -12,8 +12,8 @@ import (
 	"gorm.io/datatypes"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 )
 
 const amazonOAuthRedisPrefix = "oauth:amazon:state:"
@@ -136,13 +136,13 @@ func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body Ama
 	}
 
 	ub := UpdateAuthBody{
-		AuthType:     "oauth2",
-		AccessToken:  tok.AccessToken,
-		RefreshToken: tok.RefreshToken,
-		ExpiresAt:    tok.AccessExpiresAt,
-		SellerID:     spid,
+		AuthType:      "oauth2",
+		AccessToken:   tok.AccessToken,
+		RefreshToken:  tok.RefreshToken,
+		ExpiresAt:     tok.AccessExpiresAt,
+		SellerID:      spid,
 		MarketplaceID: marketplaceID,
-		AuthConfig:   acfg,
+		AuthConfig:    acfg,
 	}
 	if tok.RefreshExpiresAt != nil {
 		ub.RefreshExpiresAt = tok.RefreshExpiresAt
@@ -161,11 +161,11 @@ func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body Ama
 	}
 
 	req2 := platformp.TestConnectionRequest{
-		AuthType:            "oauth2",
-		AccessToken:         tok.AccessToken,
-		RefreshToken:        tok.RefreshToken,
-		SellerID:            spid,
-		MarketplaceID:       marketplaceID,
+		AuthType:             "oauth2",
+		AccessToken:          tok.AccessToken,
+		RefreshToken:         tok.RefreshToken,
+		SellerID:             spid,
+		MarketplaceID:        marketplaceID,
 		AccessTokenExpiresAt: tok.AccessExpiresAt,
 	}
 	cfg2, errC := platformamazon.ResolveRuntime(req2)
