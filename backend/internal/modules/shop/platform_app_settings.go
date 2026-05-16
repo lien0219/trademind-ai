@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 )
 
@@ -148,6 +149,11 @@ func validateMergedAppSettings(platformSlug string, schema platformp.PlatformApp
 	switch plat {
 	case "tiktok":
 		if _, err := platformtiktok.RuntimeFromMergedMap(mm); err != nil {
+			return err
+		}
+		return nil
+	case "shopee":
+		if _, err := platformshopee.RuntimeFromMergedMap(mm); err != nil {
 			return err
 		}
 		return nil

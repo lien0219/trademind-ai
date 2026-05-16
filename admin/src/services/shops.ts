@@ -154,3 +154,19 @@ export async function postTikTokOAuthCallback(
 ): Promise<ShopDetail> {
   return postJSON(`/api/v1/shops/${shopId}/oauth/tiktok/callback`, payload);
 }
+
+export async function getShopeeOAuthAuthorizeUrl(
+  shopId: string,
+  redirectUri?: string,
+): Promise<{ authorizeUrl: string; state: string }> {
+  return getWithParams(`/api/v1/shops/${shopId}/oauth/shopee/authorize-url`, {
+    redirectUri: redirectUri || undefined,
+  });
+}
+
+export async function postShopeeOAuthCallback(
+  shopId: string,
+  payload: { code: string; state: string; shopId: string; mainAccountId?: string },
+): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/shopee/callback`, payload);
+}

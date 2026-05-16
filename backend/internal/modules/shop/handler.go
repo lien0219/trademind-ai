@@ -313,3 +313,47 @@ func (h *Handler) TikTokOAuthCallback(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+// ShopeeOAuthAuthorizeURL GET /api/v1/shops/:id/oauth/shopee/authorize-url
+func (h *Handler) ShopeeOAuthAuthorizeURL(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	redirect := strings.TrimSpace(c.Query("redirectUri"))
+	out, err := h.Svc.ShopeeOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// ShopeeOAuthCallback POST /api/v1/shops/:id/oauth/shopee/callback
+func (h *Handler) ShopeeOAuthCallback(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body ShopeeOAuthCallbackBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ShopeeOAuthCallback(c, id, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}

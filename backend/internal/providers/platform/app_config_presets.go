@@ -42,7 +42,7 @@ func ShopeeAppConfigSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{
 		GroupKey:    "platform_shopee",
 		Title:       "Shopee",
-		Description: "请在 Shopee Open Platform 创建应用后填写 Partner 参数（能力接入仍 planned）。",
+		Description: "请在 Shopee Open Platform 创建应用后填写 Partner 参数；OAuth 与订单同步为 beta。",
 		Fields: []AppConfigField{
 			{Name: "partner_id", Label: "Partner ID", Type: "text", Required: true, Sensitive: false},
 			{Name: "partner_key", Label: "Partner Key", Type: "password", Required: true, Sensitive: true},

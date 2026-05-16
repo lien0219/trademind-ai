@@ -1,4 +1,4 @@
-import { Link } from '@umijs/max';
+import { Link } from '@umijs/renderer-react';
 import {
   Collapse,
   Descriptions,

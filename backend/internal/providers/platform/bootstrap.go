@@ -5,10 +5,6 @@ func Bootstrap() {
 	Register(newManualProvider())
 	Register(newMockProvider())
 
-	Register(newPlannedProvider("shopee", "Shopee", StatusPlanned, "oauth2", []Capability{
-		CapOrderSync, CapCustomerMessage, CapProductPublish, CapLogisticsSync,
-	}, nil, ShopeeAppConfigSchema()))
-
 	Register(newPlannedProvider("lazada", "Lazada", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapCustomerMessage, CapProductPublish,
 	}, nil, LazadaAppConfigSchema()))

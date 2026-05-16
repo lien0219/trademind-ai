@@ -14,7 +14,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { Link } from '@umijs/max';
+import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppConfigFieldDTO, PlatformProviderMeta } from '@/services/shops';
 import {

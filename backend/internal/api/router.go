@@ -28,6 +28,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
@@ -166,6 +167,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	platformtiktok.BindShops(shopSvc.TikTokShopsBridge())
 	platformtiktok.RegisterProvider()
+	platformshopee.BindShops(shopSvc.ShopeeShopsBridge())
+	platformshopee.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc}

@@ -1,6 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
-import { Link, history, useLocation } from '@umijs/max';
+import { history, useLocation } from '@umijs/max';
+import { Link } from '@umijs/renderer-react';
 import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

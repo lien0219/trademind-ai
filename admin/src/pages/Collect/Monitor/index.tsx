@@ -1,6 +1,6 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Link } from '@umijs/max';
+import { Link } from '@umijs/renderer-react';
 import { Badge, Button, Card, Col, Progress, Row, Space, Statistic, Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useState, type ReactNode } from 'react';

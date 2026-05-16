@@ -1,4 +1,4 @@
-import { Link } from '@umijs/max';
+import { Link } from '@umijs/renderer-react';
 import {
   ModalForm,
   PageContainer,
@@ -39,6 +39,8 @@ import {
   getShop,
   getTikTokOAuthAuthorizeUrl,
   postTikTokOAuthCallback,
+  getShopeeOAuthAuthorizeUrl,
+  postShopeeOAuthCallback,
   queryPlatformProviders,
   queryShops,
   testShopConnection,
@@ -102,6 +104,9 @@ function formatPlatformPartnerErr(err: unknown): string {
   if (msg.includes('platform config incomplete: please configure platform_tiktok')) {
     return `${msg}\n请先到「设置 → 平台开放配置 → TikTok Shop」填写 App Key、App Secret 和 Redirect URI。`;
   }
+  if (msg.includes('platform config incomplete: please configure platform_shopee')) {
+    return `${msg}\n请先到「设置 → 平台开放配置 → Shopee」填写 Partner ID、Partner Key 和 Redirect URI。`;
+  }
   if (
     msg.includes(
       'TikTok platform config is incomplete. Please configure App Key, App Secret and Redirect URI first.',
@@ -128,6 +133,8 @@ export default function ShopsPage() {
   const [syncTarget, setSyncTarget] = useState<{ id: string; platform: string } | null>(null);
   const [tiktokOAuthAuthorizeUrl, setTikTokOAuthAuthorizeUrl] = useState('');
   const [tiktokOAuthState, setTikTokOAuthState] = useState('');
+  const [shopeeOAuthAuthorizeUrl, setShopeeOAuthAuthorizeUrl] = useState('');
+  const [shopeeOAuthState, setShopeeOAuthState] = useState('');
   const [authPartnerWarn, setAuthPartnerWarn] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
@@ -195,6 +202,8 @@ export default function ShopsPage() {
     authForm.setFieldsValue(base);
     setTikTokOAuthAuthorizeUrl('');
     setTikTokOAuthState('');
+    setShopeeOAuthAuthorizeUrl('');
+    setShopeeOAuthState('');
     setAuthOpen(true);
   };
 
@@ -590,6 +599,15 @@ export default function ShopsPage() {
                 description="支持 OAuth、测试连接与订单同步。请先在「授权配置」保存 App Key / App Secret 与 Redirect URI，再生成授权链接并完成授权。"
               />
             )}
+            {detail.platform === 'shopee' && provForShop.status === 'beta' && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="Shopee（Beta）"
+                description="支持 OAuth、测试连接与订单同步。请先在「设置 → 平台开放配置 → Shopee」填写 Partner ID、Partner Key 与 Redirect URI，再在「授权配置」完成授权。"
+              />
+            )}
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="平台">{providerLabel(providers, detail.platform)}</Descriptions.Item>
               <Descriptions.Item label="platform id">{detail.platform}</Descriptions.Item>
@@ -678,6 +696,23 @@ export default function ShopsPage() {
                 }
               />
             )}
+            {detail.platform === 'shopee' && provForShop?.status === 'beta' && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="Shopee OAuth 提示"
+                description={
+                  <>
+                    Partner 参数在{' '}
+                    <Link to="/settings/platforms">平台开放配置（platform_shopee）</Link>{' '}
+                    填写；<code style={{ padding: '0 4px' }}>state</code> 存 Redis；
+                    Shopee 跳转回调一般会带 <code style={{ padding: '0 4px' }}>shop_id</code>
+                    ，请一并粘贴到提交表单。
+                  </>
+                }
+              />
+            )}
             {detail.platform !== 'manual' && (
               <Form form={authForm} layout="vertical">
                 <Form.Item name="authType" label="授权类型" hidden>
@@ -722,6 +757,42 @@ export default function ShopsPage() {
                       },
                     ]}
                   />
+                ) : detail.platform === 'shopee' ? (
+                  <Collapse
+                    bordered={false}
+                    style={{ marginBottom: 12 }}
+                    items={[
+                      {
+                        key: 'shopee_ov',
+                        label: '可选：覆盖 Partner ID / Partner Key / Redirect URI',
+                        children: (
+                          <>
+                            <Form.Item
+                              name="appKey"
+                              label="覆盖 Partner ID"
+                              tooltip="留空则使用「平台开放配置」中的 partner_id"
+                            >
+                              <Input autoComplete="off" />
+                            </Form.Item>
+                            <Form.Item
+                              name="appSecret"
+                              label="覆盖 Partner Key"
+                              tooltip="留空则使用平台配置中的 partner_key（加密存储）"
+                            >
+                              <Input.Password autoComplete="new-password" />
+                            </Form.Item>
+                            <Form.Item
+                              name="redirectUri"
+                              label="覆盖 Redirect URI"
+                              tooltip="留空则用平台配置的 redirect_uri；须与 Shopee Open Platform 登记一致"
+                            >
+                              <Input placeholder="https://…" />
+                            </Form.Item>
+                          </>
+                        ),
+                      },
+                    ]}
+                  />
                 ) : (
                   <>
                     <Form.Item name="appKey" label="App Key">
@@ -750,15 +821,35 @@ export default function ShopsPage() {
                 </Form.Item>
                 <Form.Item
                   name="sellerId"
-                  label="Seller Id"
-                  tooltip="非 TikTok 平台字段；可为空。"
+                  label={
+                    detail.platform === 'tiktok'
+                      ? 'Seller Id（TikTok 通常不用填）'
+                      : detail.platform === 'shopee'
+                        ? 'Shopee shop_id（OAuth 成功后写入；可手工改）'
+                        : 'Seller Id'
+                  }
+                  tooltip={
+                    detail.platform === 'shopee' ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。' : undefined
+                  }
                 >
                   <Input />
                 </Form.Item>
                 <Form.Item
                   name="merchantId"
-                  label={detail.platform === 'tiktok' ? 'Shop cipher（merchant_id）' : 'Merchant Id'}
-                  tooltip={detail.platform === 'tiktok' ? 'OAuth 成功后通常会自动写入；仅在手工调试时粘贴。' : undefined}
+                  label={
+                    detail.platform === 'tiktok'
+                      ? 'Shop cipher（merchant_id）'
+                      : detail.platform === 'shopee'
+                        ? 'Main account id（可选）'
+                        : 'Merchant Id'
+                  }
+                  tooltip={
+                    detail.platform === 'tiktok'
+                      ? 'OAuth 成功后通常会自动写入；仅在手工调试时粘贴。'
+                      : detail.platform === 'shopee'
+                        ? '跨境/主帐号场景可选；OAuth 回调可一并提交。'
+                        : undefined
+                  }
                 >
                   <Input />
                 </Form.Item>
@@ -864,6 +955,123 @@ export default function ShopsPage() {
                       }}
                     >
                       提交授权 code + state
+                    </Button>
+                    <Divider />
+                  </>
+                )}
+                {detail.platform === 'shopee' && provForShop?.status === 'beta' && (
+                  <>
+                    <Divider>Shopee OAuth</Divider>
+                    <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接。默认使用「平台开放配置」中的 partner 参数。
+                    </Typography.Paragraph>
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        onClick={async () => {
+                          if (authPartnerWarn) {
+                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            return;
+                          }
+                          try {
+                            const vals = authForm.getFieldsValue(true) as Record<string, unknown>;
+                            const rd = String(vals.redirectUri || '').trim();
+                            const pk = String(vals.appKey || '').trim();
+                            const ps = String(vals.appSecret || '').trim();
+                            if (pk || ps || rd) {
+                              await updateShopAuth(detail.id, buildAuthPayload(vals));
+                            }
+                            const r = await getShopeeOAuthAuthorizeUrl(detail.id, rd || undefined);
+                            setShopeeOAuthAuthorizeUrl(r.authorizeUrl);
+                            setShopeeOAuthState(r.state);
+                            message.success('已生成 Shopee 授权链接');
+                          } catch (e: unknown) {
+                            message.error(formatPlatformPartnerErr(e));
+                          }
+                        }}
+                      >
+                        生成授权链接
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (!shopeeOAuthAuthorizeUrl) {
+                            message.warning('请先生成授权链接');
+                            return;
+                          }
+                          window.open(shopeeOAuthAuthorizeUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        新窗口打开
+                      </Button>
+                    </Space>
+                    <Form.Item label="authorizeUrl">
+                      <Space align="start">
+                        <Input.TextArea
+                          style={{ width: 460 }}
+                          autoSize={{ minRows: 2, maxRows: 6 }}
+                          readOnly
+                          value={shopeeOAuthAuthorizeUrl}
+                          placeholder='点击上方「生成授权链接」后出现'
+                        />
+                        <Button
+                          disabled={!shopeeOAuthAuthorizeUrl}
+                          onClick={() => {
+                            void navigator.clipboard?.writeText?.(shopeeOAuthAuthorizeUrl);
+                            message.success('已复制链接');
+                          }}
+                        >
+                          复制
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                    <Form.Item label="state（服务端签发）">
+                      <Input readOnly value={shopeeOAuthState} placeholder='生成后出现' />
+                    </Form.Item>
+                    <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      授权成功后，从回调 URL 读取 <code style={{ padding: '0 4px' }}>code</code> 与{' '}
+                      <code style={{ padding: '0 4px' }}>shop_id</code>，填入下方：
+                    </Typography.Text>
+                    <Form.Item name="shopeeAuthCode" label="code">
+                      <Input placeholder="Paste authorization code" />
+                    </Form.Item>
+                    <Form.Item name="shopeeCallbackShopId" label="shopId（回调 shop_id）" rules={[{ required: false }]}>
+                      <Input placeholder="例如 92348765" />
+                    </Form.Item>
+                    <Form.Item name="shopeeMainAccountId" label="main_account_id（可选）">
+                      <Input placeholder="如需可填" />
+                    </Form.Item>
+                    <Button
+                      type="default"
+                      onClick={async () => {
+                        const vals = authForm.getFieldsValue();
+                        const code = String(vals.shopeeAuthCode || '').trim();
+                        const extShopId = String(vals.shopeeCallbackShopId || '').trim();
+                        if (!detail?.id) return;
+                        if (!code || !shopeeOAuthState) {
+                          message.warning('需要 code 与已生成的 state');
+                          return;
+                        }
+                        if (!extShopId) {
+                          message.warning('需要 shopId（Shopee 回调参数 shop_id）');
+                          return;
+                        }
+                        try {
+                          await postShopeeOAuthCallback(detail.id, {
+                            code,
+                            state: shopeeOAuthState,
+                            shopId: extShopId,
+                            mainAccountId: String(vals.shopeeMainAccountId || '').trim() || undefined,
+                          });
+                          message.success('Shopee 授权已写入');
+                          setAuthOpen(false);
+                          actionRef.current?.reload();
+                          if (detailOpen) void refreshDetail(detail.id);
+                        } catch (e: unknown) {
+                          message.error(formatPlatformPartnerErr(e));
+                        }
+                      }}
+                    >
+                      提交授权（code + state + shopId）
                     </Button>
                     <Divider />
                   </>

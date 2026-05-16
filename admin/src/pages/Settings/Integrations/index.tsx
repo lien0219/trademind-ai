@@ -1,4 +1,4 @@
-import { Link } from '@umijs/max';
+import { Link } from '@umijs/renderer-react';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { Alert, Descriptions, Spin, Tag, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';

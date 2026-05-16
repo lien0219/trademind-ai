@@ -1,7 +1,7 @@
 import { PictureOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Link } from '@umijs/max';
+import { Link } from '@umijs/renderer-react';
 import { Button, Image, Popconfirm, message } from 'antd';
 import dayjs from 'dayjs';
 import { useRef } from 'react';

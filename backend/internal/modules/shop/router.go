@@ -21,4 +21,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	s.POST("/:id/test-connection", h.TestConnection)
 	s.GET("/:id/oauth/tiktok/authorize-url", h.TikTokOAuthAuthorizeURL)
 	s.POST("/:id/oauth/tiktok/callback", h.TikTokOAuthCallback)
+	s.GET("/:id/oauth/shopee/authorize-url", h.ShopeeOAuthAuthorizeURL)
+	s.POST("/:id/oauth/shopee/callback", h.ShopeeOAuthCallback)
 }
