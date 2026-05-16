@@ -1,11 +1,13 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Link, useLocation } from '@umijs/max';
-import { Button, Form, Input, message, Tag } from 'antd';
+import { Button, Form, Input, Select, message, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
+import type { CollectProviderRow } from '@/services/collectProviders';
+import { queryCollectProviders } from '@/services/collectProviders';
 import {
   createCollectTask,
   fetchCollectTasks,
@@ -21,12 +23,20 @@ export default function CollectTasksPage() {
     return v || undefined;
   }, [location.search]);
 
+  const sourceFromQuery = useMemo(() => {
+    const q = new URLSearchParams(location.search || '');
+    return q.get('source')?.trim() ?? '';
+  }, [location.search]);
+
   const actionRef = useRef<ActionType>();
   const [form] = Form.useForm<{ source: string; url: string }>();
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(4000);
   const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
   const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
+
+  const [providers, setProviders] = useState<CollectProviderRow[]>([]);
+  const formSource = Form.useWatch('source', form);
 
   useEffect(() => {
     const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : 4000);
@@ -36,16 +46,65 @@ export default function CollectTasksPage() {
   }, []);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const rows = await queryCollectProviders();
+        setProviders(Array.isArray(rows) ? rows : []);
+      } catch {
+        setProviders([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     actionRef.current?.reload();
   }, [batchIdFromQuery]);
 
+  useEffect(() => {
+    if (!providers.length) return;
+    const qs = sourceFromQuery;
+    const fromQs =
+      qs && providers.some((p) => p.source === qs && p.status === 'available') ? qs : undefined;
+    const picked =
+      fromQs ??
+      providers.find((p) => p.source === '1688' && p.status === 'available')?.source ??
+      providers.find((p) => p.status === 'available')?.source;
+    if (!picked) return;
+    form.setFieldsValue({
+      source: picked,
+      url: form.getFieldValue('url') ?? '',
+    });
+  }, [providers, sourceFromQuery, form]);
+
+  const placeholderUrl = useMemo(() => {
+    const p = providers.find((x) => x.source === formSource);
+    const pat = p?.urlPatterns?.[0];
+    return pat && pat.length > 0 ? pat : 'https://detail.1688.com/offer/...';
+  }, [providers, formSource]);
+
+  const providerSelectOptions = providers.map((p) => ({
+    label: `${p.name}（${p.source}）`,
+    value: p.source,
+    disabled: p.status !== 'available',
+  }));
+
+  const tableSourceEnum = useMemo(() => {
+    const rec: Record<string, { text: string }> = {};
+    providers.forEach((p) => {
+      rec[p.source] = { text: `${p.name}` };
+    });
+    return Object.keys(rec).length ? rec : { '1688': { text: '1688采集器' } };
+  }, [providers]);
+
   const columns: ProColumns<CollectTaskRow>[] = [
     {
-      title: '来源',
+      title: '采集器',
       dataIndex: 'source',
-      width: 88,
+      width: 132,
       valueType: 'select',
-      valueEnum: { '1688': { text: '1688' } },
+      valueEnum: tableSourceEnum,
+      renderText: (_, row) =>
+        `${providers.find((p) => p.source === row.source)?.name ?? row.source}`,
     },
     {
       title: '链接关键词',
@@ -198,13 +257,19 @@ export default function CollectTasksPage() {
           initialValues={{ source: '1688', url: '' }}
           onFinish={async (vals) => {
             const url = vals.url?.trim();
+            const src = vals.source?.trim() || '';
+            const p = providers.find((x) => x.source === src);
+            if (!p || p.status !== 'available') {
+              message.warning('请先选择一个可用的采集平台');
+              return;
+            }
             if (!url) {
               message.warning('请填写商品链接');
               return;
             }
             setSubmitting(true);
             try {
-              await createCollectTask({ source: vals.source?.trim() || '1688', url });
+              await createCollectTask({ source: src, url });
               message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
             } catch (e) {
@@ -214,11 +279,15 @@ export default function CollectTasksPage() {
             }
           }}
         >
-          <Form.Item label="来源" name="source" rules={[{ required: true }]}>
-            <Input style={{ width: 120 }} placeholder="1688" />
+          <Form.Item
+            label="采集平台"
+            name="source"
+            rules={[{ required: true, message: '请选择采集平台' }]}
+          >
+            <Select style={{ width: 220 }} options={providerSelectOptions} placeholder="选择采集器" />
           </Form.Item>
           <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
-            <Input style={{ width: 480, maxWidth: '100%' }} placeholder="https://detail.1688.com/offer/..." />
+            <Input style={{ width: 480, maxWidth: '100%' }} placeholder={placeholderUrl} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={submitting}>

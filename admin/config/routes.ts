@@ -80,6 +80,11 @@ export default [
     component: '@/layouts/CollectGroupLayout',
     routes: [
       {
+        path: '/collect',
+        name: '采集中心',
+        component: './Collect/Hub',
+      },
+      {
         path: '/collect/tasks',
         name: '采集任务',
         component: './Collect/Tasks',

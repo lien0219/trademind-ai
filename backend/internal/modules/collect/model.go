@@ -27,7 +27,7 @@ const (
 	BatchStatusCancelled      = "cancelled"
 )
 
-// CollectBatch groups many collect_tasks (e.g. bulk 1688 links).
+// CollectBatch groups many collect_tasks within one bulk submission.
 type CollectBatch struct {
 	model.HardDeleteBase
 	Source         string     `gorm:"size:64;index;not null" json:"source"`

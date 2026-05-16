@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Link, history, useLocation } from '@umijs/max';
-import { Button, Drawer, Form, Input, message, Space, Tag } from 'antd';
+import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
@@ -14,6 +14,8 @@ import {
   retryFailedBatchTasks,
   type CollectBatchRow,
 } from '@/services/collectBatches';
+import type { CollectProviderRow } from '@/services/collectProviders';
+import { queryCollectProviders } from '@/services/collectProviders';
 import { retryCollectTask, type CollectTaskRow } from '@/services/collectTasks';
 
 const POLL_MS = 5000;
@@ -54,7 +56,19 @@ export default function CollectBatchesPage() {
   const [activeBatch, setActiveBatch] = useState<CollectBatchRow | null>(null);
   const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
   const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
+  const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const urlsWatch = Form.useWatch('urls', form) as string | undefined;
+  const formSourceWatch = Form.useWatch('source', form) as string | undefined;
+
+  const batchProviders = useMemo(
+    () => providers.filter((p) => p.batchSupported && p.status === 'available'),
+    [providers],
+  );
+
+  const sourceFromQuery = useMemo(() => {
+    const q = new URLSearchParams(location.search || '');
+    return q.get('source')?.trim() ?? '';
+  }, [location.search]);
 
   const displayCount = useMemo(() => countDedupedLines(urlsWatch ?? ''), [urlsWatch]);
 
@@ -72,6 +86,52 @@ export default function CollectBatchesPage() {
     document.addEventListener('visibilitychange', sync);
     return () => document.removeEventListener('visibilitychange', sync);
   }, [drawerOpen]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const rows = await queryCollectProviders();
+        setProviders(Array.isArray(rows) ? rows : []);
+      } catch {
+        setProviders([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!batchProviders.length) return;
+    const qs = sourceFromQuery;
+    const picked =
+      qs && batchProviders.some((p) => p.source === qs)
+        ? qs
+        : batchProviders.find((p) => p.source === '1688')?.source ?? batchProviders[0]?.source;
+    if (!picked) return;
+    form.setFieldsValue({
+      source: picked,
+      urls: form.getFieldValue('urls') ?? '',
+    });
+  }, [batchProviders, sourceFromQuery, form]);
+
+  const batchSourcePlaceholder = useMemo(() => {
+    const p = batchProviders.find((x) => x.source === formSourceWatch);
+    const line =
+      (p?.urlPatterns?.length ? p.urlPatterns[0] : undefined) ??
+      'https://detail.1688.com/offer/...';
+    return `${line}\n${line}`;
+  }, [batchProviders, formSourceWatch]);
+
+  const batchTableSourceEnum = useMemo(() => {
+    const rec: Record<string, { text: string }> = {};
+    providers.forEach((p) => {
+      rec[p.source] = { text: `${p.name}` };
+    });
+    return Object.keys(rec).length ? rec : { '1688': { text: '1688采集器' } };
+  }, [providers]);
+
+  const batchSelectOpts = useMemo(
+    () => batchProviders.map((p) => ({ label: `${p.name}`, value: p.source })),
+    [batchProviders],
+  );
 
   const openDrawer = useCallback((row: CollectBatchRow) => {
     setActiveBatch(row);
@@ -108,21 +168,23 @@ export default function CollectBatchesPage() {
     };
   }, [location.search, location.pathname, openDrawer]);
 
-  const batchColumns: ProColumns<CollectBatchRow>[] = [
-    {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      width: 168,
-      search: false,
-      render: (_, row) => formatTs(row.createdAt),
-    },
-    {
-      title: '来源',
-      dataIndex: 'source',
-      width: 88,
-      valueType: 'select',
-      valueEnum: { '1688': { text: '1688' } },
-    },
+  const batchColumns: ProColumns<CollectBatchRow>[] = useMemo(
+    () => [
+      {
+        title: '创建时间',
+        dataIndex: 'createdAt',
+        width: 168,
+        search: false,
+        render: (_, row) => formatTs(row.createdAt),
+      },
+      {
+        title: '采集器',
+        dataIndex: 'source',
+        width: 120,
+        valueType: 'select',
+        valueEnum: batchTableSourceEnum,
+        renderText: (_, row) => providers.find((p) => p.source === row.source)?.name ?? row.source,
+      },
     {
       title: '状态',
       dataIndex: 'status',
@@ -195,7 +257,9 @@ export default function CollectBatchesPage() {
         </Button>,
       ],
     },
-  ];
+  ],
+    [batchTableSourceEnum, openDrawer, providers],
+  );
 
   const taskColumns: ProColumns<CollectTaskRow>[] = [
     {
@@ -306,6 +370,24 @@ export default function CollectBatchesPage() {
   return (
     <PageContainer title="批量采集">
       <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
+        {sourceFromQuery &&
+        providers.length > 0 &&
+        !batchProviders.some((p) => p.source === sourceFromQuery) ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={`所选采集器暂不支持批量采集，已切换到当前可用的批量平台。`}
+          />
+        ) : null}
+        {batchProviders.length === 0 && providers.length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="当前没有支持批量采集的可用平台。"
+          />
+        ) : null}
         <Form
           form={form}
           layout="vertical"
@@ -316,9 +398,15 @@ export default function CollectBatchesPage() {
               message.warning('请至少填写一条链接');
               return;
             }
+            const src = vals.source?.trim() || '';
+            const allowed = batchProviders.some((p) => p.source === src);
+            if (!allowed) {
+              message.warning('该平台暂不支持批量采集');
+              return;
+            }
             setSubmitting(true);
             try {
-              const res = await createCollectBatch({ source: vals.source?.trim() || '1688', urls });
+              const res = await createCollectBatch({ source: src, urls });
               message.success(`批量采集任务已提交，共 ${res.taskCount} 条，正在后台处理`);
               form.setFieldsValue({ urls: '' });
               actionRef.current?.reload();
@@ -330,8 +418,12 @@ export default function CollectBatchesPage() {
           }}
         >
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <Form.Item label="来源" name="source" rules={[{ required: true }]}>
-              <Input style={{ maxWidth: 200 }} placeholder="1688" />
+            <Form.Item label="采集平台" name="source" rules={[{ required: true }]}>
+              <Select
+                style={{ maxWidth: 320 }}
+                options={batchSelectOpts}
+                placeholder="选择批量采集平台"
+              />
             </Form.Item>
             <Form.Item
               label={
@@ -344,14 +436,17 @@ export default function CollectBatchesPage() {
             >
               <Input.TextArea
                 rows={12}
-                placeholder={
-                  'https://detail.1688.com/offer/...\nhttps://detail.1688.com/offer/...'
-                }
+                placeholder={batchSourcePlaceholder}
                 style={{ fontFamily: 'monospace' }}
               />
             </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit" loading={submitting}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={submitting}
+                disabled={batchSelectOpts.length === 0}
+              >
                 提交批量采集
               </Button>
             </Form.Item>

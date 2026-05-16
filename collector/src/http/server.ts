@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { BrowserManager } from '../browser/manager.js';
 import { getHttpPort } from '../config/env.js';
-import { listRegisteredSources } from '../providers/registry.js';
+import { listRegisteredSources, listProviderPublicMetas } from '../providers/registry.js';
 import { runCollectTask } from '../tasks/collect-task.js';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -44,6 +44,11 @@ export function createCollectorServer(browser: BrowserManager) {
         return;
       }
 
+      if (req.method === 'GET' && req.url === '/v1/providers') {
+        json(res, 200, { ok: true, data: listProviderPublicMetas() });
+        return;
+      }
+
       if (req.method === 'POST' && req.url === '/v1/collect') {
         let body: unknown;
         try {
@@ -83,7 +88,7 @@ export function listenCollectorHttp(browser: BrowserManager): ReturnType<typeof 
   const server = createCollectorServer(browser);
   const port = getHttpPort();
   server.listen(port, () => {
-    console.info(`[collector] listening on :${port} (POST /v1/collect, GET /health)`);
+    console.info(`[collector] listening on :${port} (POST /v1/collect, GET /v1/providers, GET /health)`);
   });
   return server;
 }

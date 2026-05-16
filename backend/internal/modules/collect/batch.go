@@ -21,18 +21,6 @@ func (s *Service) batchMaxURLs() int {
 	return s.BatchMaxURLs
 }
 
-func normalizeBatchSource(source string) (string, error) {
-	source = strings.TrimSpace(source)
-	if source == "" {
-		return "", fmt.Errorf("source is required")
-	}
-	// MVP: only 1688 bulk path (collector contract).
-	if source != "1688" {
-		return "", fmt.Errorf("unsupported source %q", source)
-	}
-	return source, nil
-}
-
 // normalizeDedupeURLs trims, drops empties, de-dupes case-insensitively, caps at max.
 func normalizeDedupeURLs(urls []string, max int) ([]string, error) {
 	seen := make(map[string]string, len(urls))
@@ -40,6 +28,9 @@ func normalizeDedupeURLs(urls []string, max int) ([]string, error) {
 		u := strings.TrimSpace(raw)
 		if u == "" {
 			continue
+		}
+		if !looksLikeCollectURL(u) {
+			return nil, ErrCollectURLsNeedHTTPScheme
 		}
 		key := strings.ToLower(u)
 		if _, exists := seen[key]; exists {
@@ -182,8 +173,11 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		return zero, err
 	}
 
-	source, err := normalizeBatchSource(body.Source)
-	if err != nil {
+	source := strings.TrimSpace(body.Source)
+	if source == "" {
+		return zero, fmt.Errorf("source is required")
+	}
+	if err := s.ValidateSourceForCollect(ctx, source, true); err != nil {
 		return zero, err
 	}
 	urls, err := normalizeDedupeURLs(body.URLs, s.batchMaxURLs())

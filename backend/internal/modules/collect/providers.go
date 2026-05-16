@@ -1,0 +1,145 @@
+package collect
+
+import (
+	"context"
+	"errors"
+	"strings"
+)
+
+// CollectProviderDTO is one row from Collector GET /v1/providers (and admin GET /api/v1/collect/providers).
+type CollectProviderDTO struct {
+	Source         string   `json:"source"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	Status         string   `json:"status"`
+	BatchSupported bool     `json:"batchSupported"`
+	URLPatterns    []string `json:"urlPatterns"`
+	Features       []string `json:"features"`
+	Notes          string   `json:"notes"`
+}
+
+var (
+	ErrUnknownCollectSource      = errors.New("unknown collect source")
+	ErrProviderNotAvailable      = errors.New("Provider not available")
+	ErrBatchCollectNotSupported  = errors.New("batch collect is not supported for this provider")
+	ErrCollectURLNeedsHTTPScheme = errors.New("url must start with http:// or https://")
+	ErrCollectURLsNeedHTTPScheme = errors.New("each url must start with http:// or https://")
+)
+
+func defaultCollectProvidersFallback() []CollectProviderDTO {
+	return []CollectProviderDTO{
+		{
+			Source:         "1688",
+			Name:           "1688采集器",
+			Description:    "采集 1688 商品详情页，支持标题、主图、详情图、属性、SKU",
+			Status:         "available",
+			BatchSupported: true,
+			URLPatterns:    []string{"https://detail.1688.com/offer/*.html"},
+			Features:       []string{"title", "mainImages", "descriptionImages", "attributes", "skus"},
+			Notes:          "",
+		},
+		{
+			Source:         "pdd",
+			Name:           "拼多多采集器",
+			Description:    "采集拼多多商品详情（规划中）。",
+			Status:         "planned",
+			BatchSupported: false,
+			URLPatterns:    []string{"https://mobile.yangkeduo.com/…", "https://*.yangkeduo.com/…"},
+			Features:       nil,
+			Notes:          "",
+		},
+		{
+			Source:         "taobao",
+			Name:           "淘宝/天猫采集器",
+			Description:    "采集淘宝、天猫商品详情（规划中）。",
+			Status:         "planned",
+			BatchSupported: false,
+			URLPatterns:    []string{"https://item.taobao.com/item.htm?id=*", "https://detail.tmall.com/item.htm?id=*"},
+			Features:       nil,
+			Notes:          "",
+		},
+		{
+			Source:         "aliexpress",
+			Name:           "速卖通采集器",
+			Description:    "采集 AliExpress 商品详情（规划中）。",
+			Status:         "planned",
+			BatchSupported: false,
+			URLPatterns:    []string{"https://www.aliexpress.com/item/*.html"},
+			Features:       nil,
+			Notes:          "",
+		},
+		{
+			Source:         "shein_temu",
+			Name:           "SHEIN/Temu采集器",
+			Description:    "采集 SHEIN、Temu 等平台商品详情（规划中）。",
+			Status:         "planned",
+			BatchSupported: false,
+			URLPatterns:    []string{"https://www.shein.com/…", "https://www.temu.com/…"},
+			Features:       nil,
+			Notes:          "",
+		},
+		{
+			Source:         "custom",
+			Name:           "自定义链接采集器",
+			Description:    "后续支持通过 CSS 选择器、JSON-LD、OpenGraph 等自动抽取通用商品信息。当前版本暂未开放采集执行。",
+			Status:         "planned",
+			BatchSupported: false,
+			URLPatterns:    []string{"https://… 任意公有商品详情页链接"},
+			Features:       nil,
+			Notes:          "",
+		},
+	}
+}
+
+func findCollectProvider(list []CollectProviderDTO, source string) *CollectProviderDTO {
+	key := strings.ToLower(strings.TrimSpace(source))
+	if key == "" {
+		return nil
+	}
+	for i := range list {
+		if strings.ToLower(strings.TrimSpace(list[i].Source)) == key {
+			return &list[i]
+		}
+	}
+	return nil
+}
+
+// ResolveCollectProviders loads provider metadata from Collector when reachable; otherwise uses a built-in fallback.
+func (s *Service) ResolveCollectProviders(ctx context.Context) []CollectProviderDTO {
+	if s == nil {
+		return defaultCollectProvidersFallback()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s.Client == nil {
+		return defaultCollectProvidersFallback()
+	}
+	list, err := s.Client.FetchProviders(ctx)
+	if err != nil || len(list) == 0 {
+		return defaultCollectProvidersFallback()
+	}
+	return list
+}
+
+// ValidateSourceForCollect ensures the source appears in registry and is runnable (available + optional batch constraint).
+func (s *Service) ValidateSourceForCollect(ctx context.Context, source string, requireBatch bool) error {
+	provs := s.ResolveCollectProviders(ctx)
+	p := findCollectProvider(provs, source)
+	if p == nil {
+		return ErrUnknownCollectSource
+	}
+	if strings.TrimSpace(strings.ToLower(p.Status)) != "available" {
+		return ErrProviderNotAvailable
+	}
+	if requireBatch && !p.BatchSupported {
+		return ErrBatchCollectNotSupported
+	}
+	return nil
+}
+
+func looksLikeCollectURL(u string) bool {
+	s := strings.TrimSpace(u)
+	ls := strings.ToLower(s)
+	return strings.HasPrefix(ls, "http://") || strings.HasPrefix(ls, "https://")
+}

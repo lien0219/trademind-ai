@@ -42,6 +42,16 @@ func atoiCollectQP(c *gin.Context, key string, def int) int {
 	return n
 }
 
+// ListProviders GET /api/v1/collect/providers
+func (h *Handler) ListProviders(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	out := h.Svc.ResolveCollectProviders(c.Request.Context())
+	response.OK(c, out)
+}
+
 // Create POST /api/v1/collect/tasks
 func (h *Handler) Create(c *gin.Context) {
 	if h == nil || h.Svc == nil {

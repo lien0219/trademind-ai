@@ -144,6 +144,47 @@ func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string) (*
 	}
 }
 
+// FetchProviders calls GET /v1/providers with a short timeout (independent of Collect timeout).
+func (c *CollectorClient) FetchProviders(parent context.Context) ([]CollectProviderDTO, error) {
+	if c == nil || strings.TrimSpace(c.BaseURL) == "" {
+		return nil, fmt.Errorf("collector client unavailable")
+	}
+	ctx := parent
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/v1/providers", nil)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	var env collectEnvelope
+	if err := json.Unmarshal(respBody, &env); err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK || !env.OK {
+		return nil, fmt.Errorf("collector providers http %d", resp.StatusCode)
+	}
+	var list []CollectProviderDTO
+	if err := json.Unmarshal(env.Data, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 // ProbeHealth GET /health with a short timeout for observability (do not use for server-wide /health).
 func (c *CollectorClient) ProbeHealth(parent context.Context) (reachable bool, message string) {
 	if c == nil || strings.TrimSpace(c.BaseURL) == "" {

@@ -18,6 +18,23 @@ export type CollectTaskFailure = {
 
 export type CollectTaskResult = CollectTaskSuccess | CollectTaskFailure;
 
+function mapPrefixedError(msg: string): { code: CollectTaskErrorCode; message: string } | null {
+  const prefixes: { p: string; code: CollectTaskErrorCode }[] = [
+    { p: 'PROVIDER_NOT_IMPLEMENTED:', code: 'PROVIDER_NOT_IMPLEMENTED' },
+    { p: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+    { p: 'INVALID_URL:', code: 'INVALID_URL' },
+    { p: 'NAVIGATION_FAILED:', code: 'NAVIGATION_FAILED' },
+    { p: 'COLLECT_FAILED:', code: 'COLLECT_FAILED' },
+    { p: 'PROVIDER_NOT_AVAILABLE:', code: 'PROVIDER_NOT_AVAILABLE' },
+  ];
+  for (const { p, code } of prefixes) {
+    if (msg.startsWith(p)) {
+      return { code, message: msg.slice(p.length) };
+    }
+  }
+  return null;
+}
+
 /**
  * 采集任务入口：校验 source → 选择 Provider → 执行 collect（不写库，仅返回结构化 JSON）。
  */
@@ -45,7 +62,10 @@ export async function runCollectTask(
   if (!provider.canHandle(url)) {
     return {
       status: 'failed',
-      error: { code: 'INVALID_URL', message: `url is not supported by source "${provider.sourceId}"` },
+      error: {
+        code: 'INVALID_URL',
+        message: `url is not supported by source "${provider.sourceId}"`,
+      },
     };
   }
 
@@ -54,6 +74,10 @@ export async function runCollectTask(
     return { status: 'success', product };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const mapped = mapPrefixedError(msg);
+    if (mapped) {
+      return { status: 'failed', error: mapped };
+    }
     if (msg.startsWith('NAVIGATION_FAILED:')) {
       return {
         status: 'failed',
@@ -68,7 +92,7 @@ export async function runCollectTask(
     }
     return {
       status: 'failed',
-      error: { code: 'PROVIDER_ERROR', message: msg },
+      error: { code: 'COLLECT_FAILED', message: msg },
     };
   }
 }

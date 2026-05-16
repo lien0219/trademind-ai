@@ -17,7 +17,7 @@ const QUICK_LINKS: {
   accent: string;
 }[] = [
   { title: '商品草稿', path: '/product/drafts', icon: <ShoppingOutlined />, accent: '#2563eb' },
-  { title: '采集任务', path: '/collect/tasks', icon: <CloudDownloadOutlined />, accent: '#0891b2' },
+  { title: '采集中心', path: '/collect', icon: <CloudDownloadOutlined />, accent: '#0891b2' },
   { title: 'AI', path: '/ai/prompts', icon: <RobotOutlined />, accent: '#7c3aed' },
   { title: '文件', path: '/files', icon: <FileImageOutlined />, accent: '#ea580c' },
   { title: '设置', path: '/settings/system', icon: <SettingOutlined />, accent: '#475569' },

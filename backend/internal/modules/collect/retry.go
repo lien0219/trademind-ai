@@ -66,7 +66,8 @@ func collectErrNonRetryable(err error) bool {
 	var rej *CollectorRejectedError
 	if errors.As(err, &rej) && rej != nil {
 		switch strings.ToUpper(strings.TrimSpace(rej.Code)) {
-		case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND":
+		case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
+			"PROVIDER_NOT_AVAILABLE", "PAGE_BLOCKED_OR_VERIFY_REQUIRED":
 			return true
 		default:
 			return false

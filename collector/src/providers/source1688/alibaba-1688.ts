@@ -1,5 +1,6 @@
 import type { BrowserManager } from '../../browser/manager.js';
 import type { CollectInput, CollectorProvider } from '../collector-provider.js';
+import type { CollectFeature } from '../../types/provider-meta.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
 
@@ -39,6 +40,15 @@ function isHardEmptyCollected(r: ReturnType<typeof assembleParsedProduct>): bool
  */
 class Alibaba1688Provider implements CollectorProvider {
   readonly sourceId = '1688';
+  readonly meta = {
+    name: '1688采集器',
+    description: '采集 1688 商品详情页，支持标题、主图、详情图、属性、SKU',
+    status: 'available' as const,
+    batchSupported: true,
+    urlPatterns: ['https://detail.1688.com/offer/*.html'],
+    features: ['title', 'mainImages', 'descriptionImages', 'attributes', 'skus'] satisfies CollectFeature[],
+    notes: '',
+  };
 
   canHandle(url: string): boolean {
     try {
@@ -81,7 +91,7 @@ class Alibaba1688Provider implements CollectorProvider {
       const assembled = assembleParsedProduct(input.url, payload);
 
       if (assembled.blocked && isHardEmptyCollected(assembled)) {
-        throw new Error('INVALID_URL:verification_challenge_or_offer_unreadable');
+        throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_challenge_or_offer_unreadable');
       }
 
       const product: NormalizedProduct = {

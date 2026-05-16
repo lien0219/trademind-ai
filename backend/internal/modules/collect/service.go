@@ -343,6 +343,12 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	if source == "" || url == "" {
 		return zero, fmt.Errorf("source and url are required")
 	}
+	if !looksLikeCollectURL(url) {
+		return zero, ErrCollectURLNeedsHTTPScheme
+	}
+	if err := s.ValidateSourceForCollect(c.Request.Context(), source, false); err != nil {
+		return zero, err
+	}
 
 	task := &CollectTask{
 		Source:     source,
