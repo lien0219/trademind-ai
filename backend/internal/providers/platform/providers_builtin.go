@@ -25,6 +25,10 @@ func (manualProv) AuthSchema() AuthSchema {
 	return AuthSchema{AuthType: "manual", Fields: nil}
 }
 
+func (manualProv) AppConfigSchema() PlatformAppConfigSchema {
+	return PlatformAppConfigSchema{}
+}
+
 func (manualProv) TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error) {
 	_ = ctx
 	_ = req
@@ -59,6 +63,10 @@ func (mockProv) AuthSchema() AuthSchema {
 			{Name: "refreshToken", Label: "Refresh Token（测试）", Type: "password", Required: false, Sensitive: true},
 		},
 	}
+}
+
+func (mockProv) AppConfigSchema() PlatformAppConfigSchema {
+	return PlatformAppConfigSchema{}
 }
 
 func (mockProv) TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error) {
@@ -224,9 +232,14 @@ type plannedProv struct {
 	authType     string
 	caps         []Capability
 	schemaFields []AuthField
+	appSchema    PlatformAppConfigSchema
 }
 
-func newPlannedProvider(platformID, displayName, status, authType string, caps []Capability, fields []AuthField) *plannedProv {
+func newPlannedProvider(platformID, displayName, status, authType string, caps []Capability, fields []AuthField, appSch PlatformAppConfigSchema) *plannedProv {
+	sch := appSch
+	if strings.TrimSpace(sch.GroupKey) == "" && strings.TrimSpace(platformID) != "" {
+		sch = GenericPlannedAppSchema(platformID, displayName)
+	}
 	return &plannedProv{
 		platformKey:  platformID,
 		displayName:  displayName,
@@ -234,6 +247,7 @@ func newPlannedProvider(platformID, displayName, status, authType string, caps [
 		authType:     authType,
 		caps:         caps,
 		schemaFields: fields,
+		appSchema:    sch,
 	}
 }
 
@@ -257,6 +271,10 @@ func (p *plannedProv) AuthSchema() AuthSchema {
 	cp := make([]AuthField, len(fields))
 	copy(cp, fields)
 	return AuthSchema{AuthType: p.authType, Fields: cp}
+}
+
+func (p *plannedProv) AppConfigSchema() PlatformAppConfigSchema {
+	return p.appSchema
 }
 
 func (p *plannedProv) TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error) {

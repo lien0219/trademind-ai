@@ -8,6 +8,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g.GET("/platform/providers", h.ListProviders)
+	g.GET("/platform/settings/:platform", h.GetPlatformAppSettings)
+	g.PUT("/platform/settings/:platform", h.PutPlatformAppSettings)
 
 	s := g.Group("/shops")
 	s.GET("", h.List)
@@ -17,4 +19,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	s.DELETE("/:id", h.Delete)
 	s.PUT("/:id/auth", h.PutAuth)
 	s.POST("/:id/test-connection", h.TestConnection)
+	s.GET("/:id/oauth/tiktok/authorize-url", h.TikTokOAuthAuthorizeURL)
+	s.POST("/:id/oauth/tiktok/callback", h.TikTokOAuthCallback)
 }

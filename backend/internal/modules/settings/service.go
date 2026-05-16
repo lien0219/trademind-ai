@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
+	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	cosstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/cos"
 	ossstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/oss"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
@@ -194,6 +195,20 @@ func (s *Service) PlainByGroup(ctx context.Context, tenantID int64, groupKey str
 		out[row.ItemKey] = v
 	}
 	return out, nil
+}
+
+// ValidateTikTokPlatformConfig checks platform_tiktok items are present and coherent (URLs, timeouts, encrypted secret). Performs no TikTok outbound HTTP calls.
+func (s *Service) ValidateTikTokPlatformConfig(ctx context.Context) error {
+	m, err := s.PlainByGroup(ctx, 0, "platform_tiktok")
+	if err != nil {
+		return err
+	}
+	mm := map[string]string{}
+	for k, v := range m {
+		mm[strings.TrimSpace(strings.ToLower(k))] = strings.TrimSpace(v)
+	}
+	_, err = platformtiktok.RuntimeFromMergedMap(mm)
+	return err
 }
 
 // TestAIConnection calls the configured OpenAI-compatible chat/completions endpoint once.

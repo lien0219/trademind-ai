@@ -158,6 +158,11 @@ export default [
     component: '@/layouts/SettingsGroupLayout',
     routes: [
       {
+        path: '/settings/platforms',
+        name: '平台开放配置',
+        component: './Settings/Platforms',
+      },
+      {
         path: '/settings/system',
         name: '系统设置',
         component: './Settings/System',

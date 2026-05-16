@@ -13,7 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -33,19 +35,23 @@ type Service struct {
 	DB        *gorm.DB
 	Encrypter *encrypt.Service
 	OpLog     *operationlog.Service
+	Redis     *rdb.Client
+	Settings  *settings.Service
 }
 
 // --- platform providers (public metadata) ---
 
 // PlatformProviderDTO matches GET /platform/providers items.
 type PlatformProviderDTO struct {
-	Platform       string                `json:"platform"`
-	Name           string                `json:"name"`
-	Status         string                `json:"status"`
-	AuthType       string                `json:"authType"`
-	Capabilities   []string              `json:"capabilities"`
-	AuthSchema     []platformp.AuthField `json:"authSchema"`
-	AuthSchemaType string                `json:"-"` // internal
+	Platform           string                               `json:"platform"`
+	Name               string                               `json:"name"`
+	Status             string                               `json:"status"`
+	AuthType           string                               `json:"authType"`
+	Capabilities       []string                             `json:"capabilities"`
+	AuthSchema         []platformp.AuthField                `json:"authSchema"`
+	AuthSchemaType     string                               `json:"-"`
+	AppConfigSchema    platformp.PlatformAppConfigSchema    `json:"appConfigSchema"`
+	SettingsGroupKey   string                               `json:"settingsGroupKey"`
 }
 
 // ListPlatformProviders from registry (sorted: available first, then platform id).
@@ -95,15 +101,19 @@ func (s *Service) ListPlatformProviders() []PlatformProviderDTO {
 		if fields == nil {
 			fields = []platformp.AuthField{}
 		}
+		appSch := p.AppConfigSchema()
 		out = append(out, PlatformProviderDTO{
-			Platform:       p.Platform(),
-			Name:           p.Name(),
-			Status:         p.Status(),
-			AuthType:       schema.AuthType,
-			Capabilities:   cs,
-			AuthSchema:     fields,
-			AuthSchemaType: schema.AuthType,
+			Platform:         p.Platform(),
+			Name:             p.Name(),
+			Status:           p.Status(),
+			AuthType:         schema.AuthType,
+			Capabilities:     cs,
+			AuthSchema:       fields,
+			AuthSchemaType:   schema.AuthType,
+			AppConfigSchema:  appSch,
+			SettingsGroupKey: strings.TrimSpace(appSch.GroupKey),
 		})
+
 	}
 	return out
 }
@@ -515,6 +525,7 @@ type UpdateAuthBody struct {
 	AuthType         string         `json:"authType"`
 	AppKey           string         `json:"appKey"`
 	AppSecret        string         `json:"appSecret"`
+	RedirectURI      string         `json:"redirectUri"`
 	AccessToken      string         `json:"accessToken"`
 	RefreshToken     string         `json:"refreshToken"`
 	SellerID         string         `json:"sellerId"`
@@ -604,6 +615,18 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 
 	tok.AuthType = authTypeIn
 	tok.Platform = shopRow.Platform
+
+	if strings.EqualFold(strings.TrimSpace(shopRow.Platform), "tiktok") && strings.TrimSpace(body.RedirectURI) != "" {
+		var mc map[string]any
+		_ = json.Unmarshal(tok.AuthConfig, &mc)
+		if mc == nil {
+			mc = map[string]any{}
+		}
+		mc["redirectUri"] = strings.TrimSpace(body.RedirectURI)
+		b, _ := json.Marshal(mc)
+		tok.AuthConfig = datatypes.JSON(b)
+	}
+
 	if v := strings.TrimSpace(body.AppKey); v != "" {
 		tok.AppKey = v
 	}
@@ -718,14 +741,16 @@ func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop
 		return string(b)
 	}
 	req := platformp.TestConnectionRequest{
-		AuthType:      tok.AuthType,
-		AppKey:        tok.AppKey,
-		AppSecret:     dec(tok.AppSecretEnc),
-		AccessToken:   dec(tok.AccessTokenEnc),
-		RefreshToken:  dec(tok.RefreshTokenEnc),
-		SellerID:      tok.SellerID,
-		MerchantID:    tok.MerchantID,
-		MarketplaceID: tok.MarketplaceID,
+		AuthType:              tok.AuthType,
+		AppKey:                tok.AppKey,
+		AppSecret:             dec(tok.AppSecretEnc),
+		AccessToken:           dec(tok.AccessTokenEnc),
+		RefreshToken:          dec(tok.RefreshTokenEnc),
+		SellerID:              tok.SellerID,
+		MerchantID:            tok.MerchantID,
+		MarketplaceID:         tok.MarketplaceID,
+		AccessTokenExpiresAt:  tok.ExpiresAt,
+		RefreshTokenExpiresAt: tok.RefreshExpiresAt,
 	}
 	if len(tok.AuthConfig) > 0 {
 		var m map[string]any

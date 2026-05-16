@@ -1,6 +1,9 @@
 package platform
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Provider rollout / implementation status.
 const (
@@ -42,21 +45,28 @@ type AuthSchema struct {
 
 // TestConnectionRequest passes decrypted credentials to a provider (never log secrets).
 type TestConnectionRequest struct {
-	AuthType      string
-	AppKey        string
-	AppSecret     string
-	AccessToken   string
-	RefreshToken  string
-	SellerID      string
-	MerchantID    string
-	MarketplaceID string
-	Extra         map[string]string // from auth_config key/value when needed
+	AuthType              string
+	AppKey                string
+	AppSecret             string
+	AccessToken           string
+	RefreshToken          string
+	SellerID              string
+	MerchantID            string
+	MarketplaceID         string
+	Extra                 map[string]string // from auth_config key/value when needed
+	AccessTokenExpiresAt  *time.Time
+	RefreshTokenExpiresAt *time.Time
 }
 
 // TestConnectionResult is a minimal connectivity outcome.
 type TestConnectionResult struct {
-	OK      bool   `json:"ok"`
-	Message string `json:"message,omitempty"`
+	OK               bool   `json:"ok"`
+	Message          string `json:"message,omitempty"`
+	ShopName         string `json:"shopName,omitempty"`
+	ExternalShopID   string `json:"externalShopId,omitempty"`
+	Region           string `json:"region,omitempty"`
+	Currency         string `json:"currency,omitempty"`
+	SellerMerchantID string `json:"sellerMerchantId,omitempty"` // TikTok cipher / opaque id (non-secret)
 }
 
 // Provider describes one sales-channel integration (implemented or planned).
@@ -66,5 +76,6 @@ type Provider interface {
 	Status() string
 	Capabilities() []Capability
 	AuthSchema() AuthSchema
+	AppConfigSchema() PlatformAppConfigSchema // Open Platform Partner app credentials in settings.{group_key}; GroupKey="" => no UI
 	TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error)
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
 )
@@ -156,7 +157,15 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectH := &collect.Handler{Svc: collectSvc}
 	collectRuleH := &collectrule.Handler{Svc: collectRuleSvc}
 
-	shopSvc := &shop.Service{DB: dep.DB, Encrypter: dep.Encrypter, OpLog: opLogSvc}
+	shopSvc := &shop.Service{
+		DB:        dep.DB,
+		Encrypter: dep.Encrypter,
+		OpLog:     opLogSvc,
+		Redis:     dep.Redis,
+		Settings:  settingsSvc,
+	}
+	platformtiktok.BindShops(shopSvc.TikTokShopsBridge())
+	platformtiktok.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc}
@@ -209,6 +218,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.PUT("/settings", setH.Put)
 	authed.POST("/settings/test-ai", setH.TestAI)
 	authed.POST("/settings/test-storage", setH.TestStorage)
+	authed.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
 
 	authed.GET("/operation-logs", opLogH.List)
 	authed.POST("/files/upload", fileH.Upload)

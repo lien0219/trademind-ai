@@ -95,6 +95,19 @@ func (h *Handler) Put(c *gin.Context) {
 	response.OK(c, gin.H{"items": rows})
 }
 
+// TestPlatformTikTok POST /api/v1/settings/test-platform-tiktok validates platform_tiktok settings structure (no live TikTok call).
+func (h *Handler) TestPlatformTikTok(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+		return
+	}
+	if err := h.Svc.ValidateTikTokPlatformConfig(c.Request.Context()); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
 // TestAI POST /api/v1/settings/test-ai
 func (h *Handler) TestAI(c *gin.Context) {
 	if h == nil || h.Svc == nil {

@@ -5,49 +5,45 @@ func Bootstrap() {
 	Register(newManualProvider())
 	Register(newMockProvider())
 
-	Register(newPlannedProvider("tiktok", "TikTok Shop", StatusPlanned, "oauth2", []Capability{
-		CapOrderSync, CapCustomerMessage, CapProductPublish, CapInventorySync,
-	}, nil))
-
 	Register(newPlannedProvider("shopee", "Shopee", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapCustomerMessage, CapProductPublish, CapLogisticsSync,
-	}, nil))
+	}, nil, ShopeeAppConfigSchema()))
 
 	Register(newPlannedProvider("lazada", "Lazada", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapCustomerMessage, CapProductPublish,
-	}, nil))
+	}, nil, LazadaAppConfigSchema()))
 
 	Register(newPlannedProvider("amazon", "Amazon", StatusPlanned, "custom", []Capability{
 		CapOrderSync, CapProductPublish, CapInventorySync,
-	}, amazonAuthFields()))
+	}, amazonAuthFields(), AmazonSPAPIAppConfigSchema()))
 
 	Register(newPlannedProvider("aliexpress", "AliExpress", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapProductPublish, CapCustomerMessage,
-	}, nil))
+	}, nil, AliExpressAppConfigSchema()))
 
 	Register(newPlannedProvider("shopify", "Shopify", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapProductPublish, CapInventorySync,
-	}, nil))
+	}, nil, ShopifyAppConfigSchema()))
 
 	Register(newPlannedProvider("woocommerce", "WooCommerce", StatusPlanned, "api_key", []Capability{
 		CapOrderSync, CapProductPublish,
-	}, woocommerceAuthFields()))
+	}, woocommerceAuthFields(), WooCommerceAppConfigSchema()))
 
 	Register(newPlannedProvider("ebay", "eBay", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapProductPublish, CapCustomerMessage,
-	}, nil))
+	}, nil, EbayAppConfigSchema()))
 
 	Register(newPlannedProvider("temu", "Temu", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapProductPublish,
-	}, nil))
+	}, nil, GenericPlannedAppSchema("temu", "Temu")))
 
 	Register(newPlannedProvider("shein", "SHEIN", StatusPlanned, "oauth2", []Capability{
 		CapOrderSync, CapProductPublish,
-	}, nil))
+	}, nil, GenericPlannedAppSchema("shein", "SHEIN")))
 
 	Register(newPlannedProvider("custom", "自定义平台", StatusPlanned, "custom", []Capability{
 		CapManualManage,
-	}, customAuthFields()))
+	}, customAuthFields(), GenericPlannedAppSchema("custom", "自定义平台")))
 }
 
 func amazonAuthFields() []AuthField {

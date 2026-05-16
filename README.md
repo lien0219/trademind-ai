@@ -313,6 +313,47 @@ pnpm build:collector # 编译采集服务
 
 ---
 
+## 开放平台应用配置（多平台 Schema）
+
+各渠道的 Partner/Open API 控制台字段不尽相同，贸灵使用 **Platform Provider** 下发的 **`appConfigSchema`**（见 `GET /api/v1/platform/providers`），管理端 **`/settings/platforms`** 按字段定义 **动态渲染** 表单并把值入库到 **`settings` 分组**（如 `platform_tiktok`、`platform_shopee` …），`sensitive=true` 的项 **AES-GCM** 加密，API **统一脱敏**（占位含 `****` 的更新不会覆盖原密钥）。店铺完成 OAuth 后的 **access_token / refresh_token** 仅保存在 **`shop_auth_tokens`**，请与上述「应用级」配置区分开。
+
+你可以在对应开放平台注册自建应用后将参数填写到贸灵 **「设置 → 平台开放配置」**，常见门户示例：
+
+| 平台 | 文档 / 控制台入口 |
+|------|-------------------|
+| TikTok Shop | [partner.tiktokshop.com](https://partner.tiktokshop.com/) |
+| Shopee | [open.shopee.com](https://open.shopee.com/) |
+| Lazada | [open.lazada.com](https://open.lazada.com/) |
+| Amazon SP-API | [developer.amazonservices.com](https://developer.amazonservices.com/) |
+| AliExpress | [developers.aliexpress.com](https://developers.aliexpress.com/) |
+| Shopify | [partners.shopify.com](https://partners.shopify.com/) |
+| WooCommerce REST | [woocommerce.com/document/rest-api/](https://woocommerce.com/document/rest-api/) |
+| eBay | [developer.ebay.com](https://developer.ebay.com/) |
+
+保存与读取 API：`GET` / `PUT /api/v1/platform/settings/:platform`（后端按 Schema 校验字段，`platform.settings.update` 写入操作日志，不落明文密钥）。
+
+### TikTok Shop（首发 Beta）
+
+本项目**不内置**任何 TikTok Partner 的 App Key、App Secret，也不在代码或 `.env.example` 中写入可被误抄作生产网关的占位 URL。你在 Partner Center 获取的凭证填入 **`platform_tiktok`** 分组；随后在 **店铺管理** 中为每个店铺单独完成 OAuth。**TikTok 运行时**从 **`settings.platform_tiktok`** 读取宿主与密钥，并从 **`shop_auth_tokens`** 读取 token（缺任一必填项后端返回明确报错）。
+
+推荐步骤：
+
+1. 注册 / 登录 TikTok Shop Partner Center。
+
+2. 创建 Open API 应用并获取 App Key / App Secret。
+
+3. 在 Partner 控制台配置与你的部署域名一致的 **Redirect URI**，并勾选订单读取等相关 Scope。
+
+4. 登录贸灵管理端 **`/settings/platforms`**，在 **TikTok Shop** Tab 填写 schema 必填项（含 **`api_version`、超时与宿主 URL**，见表单说明）。
+
+5. 可先调用 `POST /api/v1/settings/test-platform-tiktok` **仅校验结构**（不真实请求 TikTok）；保存时后端亦会按 TikTok Schema 校验。
+
+6. 在 **`/shops`** 创建 TikTok 店铺并 **生成授权链接** 完成 OAuth；抽屉内「覆盖 App Key / Secret」仅用于多应用场景调试。
+
+7. 使用 **`POST /api/v1/shops/:id/sync-orders`** 或后台「同步订单」写入内部 `orders`。
+
+---
+
 ## AI 扩展方向
 
 ### AI 商品能力

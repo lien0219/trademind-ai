@@ -14,7 +14,9 @@ import {
 import {
   Alert,
   Button,
+  Collapse,
   Descriptions,
+  Divider,
   Drawer,
   Form,
   Input,
@@ -35,6 +37,8 @@ import {
   createShop,
   deleteShop,
   getShop,
+  getTikTokOAuthAuthorizeUrl,
+  postTikTokOAuthCallback,
   queryPlatformProviders,
   queryShops,
   testShopConnection,
@@ -54,6 +58,7 @@ const STD_AUTH_KEYS = new Set([
   'sellerId',
   'merchantId',
   'marketplaceId',
+  'redirectUri',
 ]);
 
 function providerLabel(list: PlatformProviderMeta[], platform: string) {
@@ -67,6 +72,43 @@ function tagFromMap(raw: string, map: Record<string, { text: string; color: stri
   return <Tag color={c.color as never}>{c.text}</Tag>;
 }
 
+function summarizeShopTest(res: {
+  ok: boolean;
+  message?: string;
+  shopName?: string;
+  externalShopId?: string;
+  region?: string;
+}) {
+  const parts = [
+    res.message,
+    res.shopName ? `店铺 ${res.shopName}` : '',
+    res.region ? `地区 ${res.region}` : '',
+    res.externalShopId ? `外部ID ${res.externalShopId}` : '',
+  ].filter(Boolean);
+  return parts.join(' · ') || '连接成功';
+}
+
+/** Map incomplete platform Partner Open settings errors → CN hints (no secrets). */
+function formatTiktokPlatformErr(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const low = msg.toLowerCase();
+
+  if (msg.includes('platform config incomplete: please configure platform_tiktok')) {
+    return `${msg}\n请先到「设置 → 平台开放配置 → TikTok Shop」填写 App Key、App Secret 和 Redirect URI。`;
+  }
+  if (
+    msg.includes(
+      'TikTok platform config is incomplete. Please configure App Key, App Secret and Redirect URI first.',
+    )
+  ) {
+    return `${msg}\n请先前往「设置 → 平台开放配置」填写 TikTok Shop（分组 platform_tiktok）必填项后再试。`;
+  }
+  if (low.includes('tiktok platform config is incomplete') || low.includes('platform_tiktok')) {
+    return `${msg}\n请到「设置 → 平台开放配置」完成 TikTok Shop 必填项后再试。`;
+  }
+  return msg;
+}
+
 export default function ShopsPage() {
   const actionRef = useRef<ActionType>();
   const [providers, setProviders] = useState<PlatformProviderMeta[]>([]);
@@ -78,6 +120,8 @@ export default function ShopsPage() {
   const [authForm] = Form.useForm();
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncTarget, setSyncTarget] = useState<{ id: string; platform: string } | null>(null);
+  const [tiktokOAuthAuthorizeUrl, setTikTokOAuthAuthorizeUrl] = useState('');
+  const [tiktokOAuthState, setTikTokOAuthState] = useState('');
 
   const loadProviders = useCallback(async () => {
     const res = await queryPlatformProviders();
@@ -116,6 +160,8 @@ export default function ShopsPage() {
       sellerId: d.auth?.sellerId || '',
       merchantId: d.auth?.merchantId || '',
       marketplaceId: d.auth?.marketplaceId || '',
+      expiresAt: d.auth?.expiresAt ? String(d.auth.expiresAt) : '',
+      refreshExpiresAt: d.auth?.refreshExpiresAt ? String(d.auth.refreshExpiresAt) : '',
     };
     if (d.auth?.authConfig && typeof d.auth.authConfig === 'object') {
       Object.assign(base, d.auth.authConfig);
@@ -127,6 +173,8 @@ export default function ShopsPage() {
     }
     authForm.resetFields();
     authForm.setFieldsValue(base);
+    setTikTokOAuthAuthorizeUrl('');
+    setTikTokOAuthState('');
     setAuthOpen(true);
   };
 
@@ -243,9 +291,9 @@ export default function ShopsPage() {
             onClick={async () => {
               try {
                 const res = await testShopConnection(r.id);
-                message.success(res.message || '连接成功');
+                message.success(summarizeShopTest(res));
               } catch (e: unknown) {
-                message.error(e instanceof Error ? e.message : '测试失败');
+                message.error(formatTiktokPlatformErr(e));
               }
             }}
           >
@@ -474,7 +522,7 @@ export default function ShopsPage() {
                 onClick={async () => {
                   try {
                     const res = await testShopConnection(detail.id);
-                    message.success(res.message || '连接成功');
+                    message.success(summarizeShopTest(res));
                   } catch (e: unknown) {
                     message.error(e instanceof Error ? e.message : '测试失败');
                   }
@@ -495,6 +543,15 @@ export default function ShopsPage() {
                 style={{ marginBottom: 12 }}
                 message="平台暂未接入"
                 description="可先创建店铺占位；真实 OAuth / 订单同步需后续实现对应 Platform Provider。"
+              />
+            )}
+            {detail.platform === 'tiktok' && provForShop.status === 'beta' && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="TikTok Shop（Beta）"
+                description="支持 OAuth、测试连接与订单同步。请先在「授权配置」保存 App Key / App Secret 与 Redirect URI，再生成授权链接并完成授权。"
               />
             )}
             <Descriptions bordered size="small" column={2}>
@@ -518,7 +575,7 @@ export default function ShopsPage() {
 
       <Drawer
         title="授权配置"
-        width={520}
+        width={640}
         open={authOpen}
         onClose={() => setAuthOpen(false)}
         destroyOnClose
@@ -559,6 +616,23 @@ export default function ShopsPage() {
                 description="可预先填写占位字段；测试连接将返回「未实现」。不真实访问平台 API。"
               />
             )}
+            {detail.platform === 'tiktok' && provForShop?.status === 'beta' && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="TikTok OAuth 提示"
+                description={
+                  <>
+                    Partner 应用在{' '}
+                    <Link to="/settings/platforms">平台开放配置（platform_tiktok）</Link>{' '}
+                    填写；OAuth <code style={{ padding: '0 4px' }}>state</code> 存 Redis，
+                    请确保本地已启动 Redis。生成链接默认使用该配置；仅在展开「可选覆盖」时才会使用本页的 App Key /
+                    Secret。
+                  </>
+                }
+              />
+            )}
             {detail.platform !== 'manual' && (
               <Form form={authForm} layout="vertical">
                 <Form.Item name="authType" label="授权类型" hidden>
@@ -567,27 +641,184 @@ export default function ShopsPage() {
                 <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
                   密钥字段已脱敏展示为 ****；不修改请留空或保持原样，保存时不覆盖。
                 </Typography.Text>
-                <Form.Item name="appKey" label="App Key">
-                  <Input />
-                </Form.Item>
-                <Form.Item name="appSecret" label="App Secret">
-                  <Input.Password autoComplete="new-password" placeholder="敏感，留空不更新" />
-                </Form.Item>
-                <Form.Item name="accessToken" label="Access Token">
+                {detail.platform === 'tiktok' ? (
+                  <Collapse
+                    bordered={false}
+                    style={{ marginBottom: 12 }}
+                    items={[
+                      {
+                        key: 'tiktok_ov',
+                        label: '可选：覆盖 Partner App Key / Secret / Redirect URI',
+                        children: (
+                          <>
+                            <Form.Item
+                              name="appKey"
+                              label="覆盖 App Key"
+                              tooltip="多数情况留空即可，使用「平台开放配置」中的默认值"
+                            >
+                              <Input autoComplete="off" />
+                            </Form.Item>
+                            <Form.Item
+                              name="appSecret"
+                              label="覆盖 App Secret"
+                              tooltip="留空以保持平台配置的 Secret；仅在多应用并行调试时使用"
+                            >
+                              <Input.Password autoComplete="new-password" />
+                            </Form.Item>
+                            <Form.Item
+                              name="redirectUri"
+                              label="覆盖 Redirect URI"
+                              tooltip="留空则用平台配置的 redirect_uri；必须与 Partner Center 登记的回调完全一致"
+                            >
+                              <Input placeholder="https://…" />
+                            </Form.Item>
+                          </>
+                        ),
+                      },
+                    ]}
+                  />
+                ) : (
+                  <>
+                    <Form.Item name="appKey" label="App Key">
+                      <Input />
+                    </Form.Item>
+                    <Form.Item name="appSecret" label="App Secret">
+                      <Input.Password autoComplete="new-password" placeholder="敏感，留空不更新" />
+                    </Form.Item>
+                  </>
+                )}
+                <Form.Item name="accessToken" label="Access Token（可手工填入调试）">
                   <Input.Password autoComplete="new-password" />
                 </Form.Item>
-                <Form.Item name="refreshToken" label="Refresh Token">
+                <Form.Item name="refreshToken" label="Refresh Token（可手工填入）">
                   <Input.Password autoComplete="new-password" />
                 </Form.Item>
-                <Form.Item name="sellerId" label="Seller Id">
+                <Form.Item
+                  name="expiresAt"
+                  label="Access Token 过期时间（RFC3339，可选）"
+                  tooltip="示例 2026-06-01T00:00:00Z"
+                >
+                  <Input placeholder="2026-06-01T00:00:00Z" />
+                </Form.Item>
+                <Form.Item name="refreshExpiresAt" label="Refresh Token 过期（RFC3339，可选）">
                   <Input />
                 </Form.Item>
-                <Form.Item name="merchantId" label="Merchant Id">
+                <Form.Item
+                  name="sellerId"
+                  label="Seller Id"
+                  tooltip="非 TikTok 平台字段；可为空。"
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item
+                  name="merchantId"
+                  label={detail.platform === 'tiktok' ? 'Shop cipher（merchant_id）' : 'Merchant Id'}
+                  tooltip={detail.platform === 'tiktok' ? 'OAuth 成功后通常会自动写入；仅在手工调试时粘贴。' : undefined}
+                >
                   <Input />
                 </Form.Item>
                 <Form.Item name="marketplaceId" label="Marketplace Id">
                   <Input />
                 </Form.Item>
+                {detail.platform === 'tiktok' && (
+                  <>
+                    <Divider>TikTok OAuth</Divider>
+                    <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接（留空则不发送覆盖项）。默认直接使用「平台开放配置」。
+                    </Typography.Paragraph>
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        onClick={async () => {
+                          try {
+                            const vals = authForm.getFieldsValue(true) as Record<string, unknown>;
+                            const rd = String(vals.redirectUri || '').trim();
+                            const pk = String(vals.appKey || '').trim();
+                            const ps = String(vals.appSecret || '').trim();
+                            if (pk || ps || rd) {
+                              await updateShopAuth(detail.id, buildAuthPayload(vals));
+                            }
+                            const r = await getTikTokOAuthAuthorizeUrl(detail.id, rd || undefined);
+                            setTikTokOAuthAuthorizeUrl(r.authorizeUrl);
+                            setTikTokOAuthState(r.state);
+                            message.success('已生成授权链接');
+                          } catch (e: unknown) {
+                            message.error(formatTiktokPlatformErr(e));
+                          }
+                        }}
+                      >
+                        生成授权链接
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (!tiktokOAuthAuthorizeUrl) {
+                            message.warning('请先生成授权链接');
+                            return;
+                          }
+                          window.open(tiktokOAuthAuthorizeUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        新窗口打开
+                      </Button>
+                    </Space>
+                    <Form.Item label="authorizeUrl">
+                      <Space align="start">
+                        <Input.TextArea
+                          style={{ width: 460 }}
+                          autoSize={{ minRows: 2, maxRows: 6 }}
+                          readOnly
+                          value={tiktokOAuthAuthorizeUrl}
+                          placeholder='点击上方「生成授权链接」后出现'
+                        />
+                        <Button
+                          disabled={!tiktokOAuthAuthorizeUrl}
+                          onClick={() => {
+                            void navigator.clipboard?.writeText?.(tiktokOAuthAuthorizeUrl);
+                            message.success('已复制链接');
+                          }}
+                        >
+                          复制
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                    <Form.Item label="state（服务端签发）">
+                      <Input readOnly value={tiktokOAuthState} placeholder='生成后出现' />
+                    </Form.Item>
+                    <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      用户在 TikTok 授权后复制返回的 code，填入下方并提交：
+                    </Typography.Text>
+                    <Form.Item name="tiktokAuthCode">
+                      <Input placeholder="Paste authorization code" />
+                    </Form.Item>
+                    <Button
+                      type="default"
+                      onClick={async () => {
+                        const vals = authForm.getFieldsValue();
+                        const code = String(vals.tiktokAuthCode || '').trim();
+                        if (!detail?.id) return;
+                        if (!code || !tiktokOAuthState) {
+                          message.warning('需要 code 与已生成的 state');
+                          return;
+                        }
+                        try {
+                          await postTikTokOAuthCallback(detail.id, {
+                            code,
+                            state: tiktokOAuthState,
+                          });
+                          message.success('TikTok 授权已写入');
+                          setAuthOpen(false);
+                          actionRef.current?.reload();
+                          if (detailOpen) void refreshDetail(detail.id);
+                        } catch (e: unknown) {
+                          message.error(formatTiktokPlatformErr(e));
+                        }
+                      }}
+                    >
+                      提交授权 code + state
+                    </Button>
+                    <Divider />
+                  </>
+                )}
                 {provForShop?.authSchema?.map((f) =>
                   STD_AUTH_KEYS.has(f.name) ? null : (
                     <Form.Item

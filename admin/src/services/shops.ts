@@ -1,5 +1,24 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
 
+export type AppConfigFieldDTO = {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  sensitive: boolean;
+  placeholder?: string;
+  help?: string;
+  defaultValue?: unknown;
+  options?: { label: string; value: string }[];
+};
+
+export type AppConfigSchemaDTO = {
+  groupKey: string;
+  title: string;
+  description?: string;
+  fields: AppConfigFieldDTO[];
+};
+
 export type PlatformProviderMeta = {
   platform: string;
   name: string;
@@ -14,6 +33,8 @@ export type PlatformProviderMeta = {
     sensitive: boolean;
     hint?: string;
   }[];
+  appConfigSchema: AppConfigSchemaDTO;
+  settingsGroupKey: string;
 };
 
 export type ShopAuthPublic = {
@@ -104,6 +125,32 @@ export async function updateShopAuth(id: string, payload: Record<string, unknown
   return putJSON(`/api/v1/shops/${id}/auth`, payload);
 }
 
-export async function testShopConnection(id: string): Promise<{ ok: boolean; message?: string }> {
+export async function testShopConnection(
+  id: string,
+): Promise<{
+  ok: boolean;
+  message?: string;
+  shopName?: string;
+  externalShopId?: string;
+  region?: string;
+  currency?: string;
+  sellerMerchantId?: string;
+}> {
   return postJSON(`/api/v1/shops/${id}/test-connection`, {});
+}
+
+export async function getTikTokOAuthAuthorizeUrl(
+  shopId: string,
+  redirectUri?: string,
+): Promise<{ authorizeUrl: string; state: string }> {
+  return getWithParams(`/api/v1/shops/${shopId}/oauth/tiktok/authorize-url`, {
+    redirectUri: redirectUri || undefined,
+  });
+}
+
+export async function postTikTokOAuthCallback(
+  shopId: string,
+  payload: { code: string; state: string },
+): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/tiktok/callback`, payload);
 }

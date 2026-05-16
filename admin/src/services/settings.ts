@@ -35,6 +35,11 @@ export async function saveSettingsItems(items: SettingPutItem[]) {
   return putJSON<SettingsListData, { items: SettingPutItem[] }>('/api/v1/settings', { items });
 }
 
+/** POST /api/v1/settings/test-platform-tiktok */
+export async function testPlatformTikTokConfig() {
+  return postJSON<{ ok: boolean }>('/api/v1/settings/test-platform-tiktok', {});
+}
+
 /** POST /api/v1/settings/test-ai */
 export async function testAIConnection() {
   return postJSON<{ ok: boolean }>('/api/v1/settings/test-ai');

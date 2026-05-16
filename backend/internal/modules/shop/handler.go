@@ -53,6 +53,45 @@ func (h *Handler) ListProviders(c *gin.Context) {
 	response.OK(c, gin.H{"list": list})
 }
 
+// GetPlatformAppSettings GET /api/v1/platform/settings/:platform
+func (h *Handler) GetPlatformAppSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	plat := strings.TrimSpace(c.Param("platform"))
+	out, err := h.Svc.GetPlatformAppSettings(c.Request.Context(), plat)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+type platformSettingsPutReq struct {
+	Values map[string]interface{} `json:"values" binding:"required"`
+}
+
+// PutPlatformAppSettings PUT /api/v1/platform/settings/:platform
+func (h *Handler) PutPlatformAppSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	plat := strings.TrimSpace(c.Param("platform"))
+	var body platformSettingsPutReq
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.PutPlatformAppSettings(c, plat, body.Values)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
 // List GET /api/v1/shops
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -229,4 +268,48 @@ func (h *Handler) TestConnection(c *gin.Context) {
 		return
 	}
 	response.OK(c, res)
+}
+
+// TikTokOAuthAuthorizeURL GET /api/v1/shops/:id/oauth/tiktok/authorize-url
+func (h *Handler) TikTokOAuthAuthorizeURL(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	redirect := strings.TrimSpace(c.Query("redirectUri"))
+	out, err := h.Svc.TikTokOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// TikTokOAuthCallback POST /api/v1/shops/:id/oauth/tiktok/callback
+func (h *Handler) TikTokOAuthCallback(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body TikTokOAuthCallbackBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.TikTokOAuthCallback(c, id, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
 }
