@@ -11,6 +11,9 @@ const ErrIncompleteShopeeAppConfig = "platform config incomplete: please configu
 // ErrIncompleteLazadaAppConfig is returned when Lazada app credentials or redirect_uri are missing in settings.platform_lazada.
 const ErrIncompleteLazadaAppConfig = "platform config incomplete: please configure platform_lazada.app_key, app_secret and redirect_uri"
 
+// ErrIncompleteAmazonAppConfig is returned when Amazon LWA / SP-API settings are incomplete in settings.platform_amazon.
+const ErrIncompleteAmazonAppConfig = "platform config incomplete: please configure platform_amazon.client_id, client_secret, redirect_uri, marketplace_id and sp_api_base_url"
+
 // ErrNotImplemented means the provider is registered but real API/OAuth is not wired yet.
 var ErrNotImplemented = errors.New("platform provider not implemented")
 

@@ -43,6 +43,8 @@ import {
   postShopeeOAuthCallback,
   getLazadaOAuthAuthorizeUrl,
   postLazadaOAuthCallback,
+  getAmazonOAuthAuthorizeUrl,
+  postAmazonOAuthCallback,
   queryPlatformProviders,
   queryShops,
   testShopConnection,
@@ -112,6 +114,12 @@ function formatPlatformPartnerErr(err: unknown): string {
   if (msg.includes('platform config incomplete: please configure platform_lazada')) {
     return `${msg}\n请先到「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret 和 Redirect URI。`;
   }
+  if (msg.includes('platform config incomplete: please configure platform_amazon')) {
+    return `${msg}\n请先到「设置 → 平台开放配置 → Amazon SP-API」填写 Client ID、Client Secret、Redirect URI、Marketplace ID 和 SP-API Base URL。`;
+  }
+  if (msg.includes('platform_amazon.lwa_auth_base_url and lwa_token_url')) {
+    return `${msg}\n请在「Amazon SP-API」配置中补齐 LWA Auth Base URL 与 LWA Token URL。`;
+  }
   if (
     msg.includes(
       'TikTok platform config is incomplete. Please configure App Key, App Secret and Redirect URI first.',
@@ -142,6 +150,8 @@ export default function ShopsPage() {
   const [shopeeOAuthState, setShopeeOAuthState] = useState('');
   const [lazadaOAuthAuthorizeUrl, setLazadaOAuthAuthorizeUrl] = useState('');
   const [lazadaOAuthState, setLazadaOAuthState] = useState('');
+  const [amazonOAuthAuthorizeUrl, setAmazonOAuthAuthorizeUrl] = useState('');
+  const [amazonOAuthState, setAmazonOAuthState] = useState('');
   const [authPartnerWarn, setAuthPartnerWarn] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
@@ -213,6 +223,8 @@ export default function ShopsPage() {
     setShopeeOAuthState('');
     setLazadaOAuthAuthorizeUrl('');
     setLazadaOAuthState('');
+    setAmazonOAuthAuthorizeUrl('');
+    setAmazonOAuthState('');
     setAuthOpen(true);
   };
 
@@ -626,6 +638,15 @@ export default function ShopsPage() {
                 description="支持 OAuth、测试连接与订单同步。请先在「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret、Auth/API Base URL 与 Redirect URI，再在「授权配置」完成授权。"
               />
             )}
+            {detail.platform === 'amazon' && provForShop.status === 'beta' && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="Amazon SP-API（测试中）"
+                description="支持 LWA OAuth、SigV4 调用 SP-API、测试连接与订单同步。请先在「设置 → 平台开放配置 → Amazon SP-API」填写完整应用参数；服务器需具备 AWS IAM 凭证以对 SP-API 请求做 SigV4 签名（环境/实例/Task 角色或 role_arn）。"
+              />
+            )}
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="平台">{providerLabel(providers, detail.platform)}</Descriptions.Item>
               <Descriptions.Item label="platform id">{detail.platform}</Descriptions.Item>
@@ -747,6 +768,23 @@ export default function ShopsPage() {
                 }
               />
             )}
+            {detail.platform === 'amazon' && provForShop?.status === 'beta' && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="Amazon OAuth 提示"
+                description={
+                  <>
+                    LWA 应用在{' '}
+                    <Link to="/settings/platforms">平台开放配置（platform_amazon）</Link>{' '}
+                    填写；<code style={{ padding: '0 4px' }}>state</code> 存 Redis。
+                    授权完成后从回调拷贝 <code style={{ padding: '0 4px' }}>spapi_oauth_code</code>（作为 code）以及{' '}
+                    <code style={{ padding: '0 4px' }}>selling_partner_id</code> 等参数提交。前端不直连 Amazon API。
+                  </>
+                }
+              />
+            )}
             {detail.platform !== 'manual' && (
               <Form form={authForm} layout="vertical">
                 <Form.Item name="authType" label="授权类型" hidden>
@@ -863,6 +901,11 @@ export default function ShopsPage() {
                       },
                     ]}
                   />
+                ) : detail.platform === 'amazon' ? (
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+                    LWA Client ID / Secret、Redirect URI、SP-API 与 LWA 端点均在「
+                    <Link to="/settings/platforms">平台开放配置</Link>」维护；本页保存店铺 Token 与 Selling Partner 标识。
+                  </Typography.Paragraph>
                 ) : (
                   <>
                     <Form.Item name="appKey" label="App Key">
@@ -898,14 +941,18 @@ export default function ShopsPage() {
                         ? 'Shopee shop_id（OAuth 成功后写入；可手工改）'
                         : detail.platform === 'lazada'
                           ? 'Seller / short_code（OAuth 后可写入；可手工改）'
-                          : 'Seller Id'
+                          : detail.platform === 'amazon'
+                            ? 'Selling Partner Id（OAuth 回调 selling_partner_id）'
+                            : 'Seller Id'
                   }
                   tooltip={
                     detail.platform === 'shopee'
                       ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。'
                       : detail.platform === 'lazada'
                         ? 'Lazada 店铺标识；OAuth 成功后通常会自动写入。'
-                        : undefined
+                        : detail.platform === 'amazon'
+                          ? 'Amazon SP-API 卖家编号；授权回调必填。'
+                          : undefined
                   }
                 >
                   <Input />
@@ -919,7 +966,9 @@ export default function ShopsPage() {
                         ? 'Main account id（可选）'
                         : detail.platform === 'lazada'
                           ? '扩展信息（可选）'
-                          : 'Merchant Id'
+                          : detail.platform === 'amazon'
+                            ? '扩展（可选）'
+                            : 'Merchant Id'
                   }
                   tooltip={
                     detail.platform === 'tiktok'
@@ -934,7 +983,11 @@ export default function ShopsPage() {
                   <Input />
                 </Form.Item>
                 <Form.Item name="marketplaceId" label="Marketplace Id">
-                  <Input />
+                  <Input
+                    placeholder={
+                      detail.platform === 'amazon' ? '可覆盖 platform_amazon 默认 Marketplace ID' : undefined
+                    }
+                  />
                 </Form.Item>
                 {detail.platform === 'tiktok' && (
                   <>
@@ -1255,6 +1308,119 @@ export default function ShopsPage() {
                       }}
                     >
                       提交授权（code + state）
+                    </Button>
+                    <Divider />
+                  </>
+                )}
+                {detail.platform === 'amazon' && provForShop?.status === 'beta' && (
+                  <>
+                    <Divider>Amazon LWA OAuth</Divider>
+                    <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+                      生成链接使用「平台开放配置」中的 Client ID、Redirect URI 与 Seller Central 基址；无需在下方手工填写 Secret。
+                    </Typography.Paragraph>
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        onClick={async () => {
+                          if (authPartnerWarn) {
+                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            return;
+                          }
+                          try {
+                            const r = await getAmazonOAuthAuthorizeUrl(detail.id);
+                            setAmazonOAuthAuthorizeUrl(r.authorizeUrl);
+                            setAmazonOAuthState(r.state);
+                            message.success('已生成 Amazon 授权链接');
+                          } catch (e: unknown) {
+                            message.error(formatPlatformPartnerErr(e));
+                          }
+                        }}
+                      >
+                        生成授权链接
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (!amazonOAuthAuthorizeUrl) {
+                            message.warning('请先生成授权链接');
+                            return;
+                          }
+                          window.open(amazonOAuthAuthorizeUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        新窗口打开
+                      </Button>
+                    </Space>
+                    <Form.Item label="authorizeUrl">
+                      <Space align="start">
+                        <Input.TextArea
+                          style={{ width: 460 }}
+                          autoSize={{ minRows: 2, maxRows: 6 }}
+                          readOnly
+                          value={amazonOAuthAuthorizeUrl}
+                          placeholder='点击上方「生成授权链接」后出现'
+                        />
+                        <Button
+                          disabled={!amazonOAuthAuthorizeUrl}
+                          onClick={() => {
+                            void navigator.clipboard?.writeText?.(amazonOAuthAuthorizeUrl);
+                            message.success('已复制链接');
+                          }}
+                        >
+                          复制
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                    <Form.Item label="state（服务端签发）">
+                      <Input readOnly value={amazonOAuthState} placeholder='生成后出现' />
+                    </Form.Item>
+                    <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      提交授权 code（Seller Central 回调中的 spapi_oauth_code）、selling_partner_id，以及可选 marketplaceId：
+                    </Typography.Text>
+                    <Form.Item name="amazonAuthCode" label="code（spapi_oauth_code）">
+                      <Input placeholder="Paste authorization code" />
+                    </Form.Item>
+                    <Form.Item
+                      name="amazonSellingPartnerId"
+                      label="sellingPartnerId"
+                    >
+                      <Input placeholder="来自回调 selling_partner_id" />
+                    </Form.Item>
+                    <Form.Item name="amazonMarketplaceId" label="marketplaceId（可选）">
+                      <Input placeholder="留空则使用平台配置默认 Marketplace ID" />
+                    </Form.Item>
+                    <Button
+                      type="default"
+                      onClick={async () => {
+                        const vals = authForm.getFieldsValue();
+                        const code = String(vals.amazonAuthCode || '').trim();
+                        const sp = String(vals.amazonSellingPartnerId || '').trim();
+                        const mp = String(vals.amazonMarketplaceId || '').trim();
+                        if (!detail?.id) return;
+                        if (!code || !amazonOAuthState) {
+                          message.warning('需要 code 与已生成的 state');
+                          return;
+                        }
+                        if (!sp) {
+                          message.warning('需要 sellingPartnerId');
+                          return;
+                        }
+                        try {
+                          await postAmazonOAuthCallback(detail.id, {
+                            code,
+                            state: amazonOAuthState,
+                            sellingPartnerId: sp,
+                            marketplaceId: mp || undefined,
+                          });
+                          message.success('Amazon 授权已写入');
+                          setAuthOpen(false);
+                          actionRef.current?.reload();
+                          if (detailOpen) void refreshDetail(detail.id);
+                        } catch (e: unknown) {
+                          message.error(formatPlatformPartnerErr(e));
+                        }
+                      }}
+                    >
+                      提交授权
                     </Button>
                     <Divider />
                   </>

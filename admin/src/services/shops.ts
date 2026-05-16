@@ -186,3 +186,19 @@ export async function postLazadaOAuthCallback(
 ): Promise<ShopDetail> {
   return postJSON(`/api/v1/shops/${shopId}/oauth/lazada/callback`, payload);
 }
+
+export async function getAmazonOAuthAuthorizeUrl(
+  shopId: string,
+  redirectUri?: string,
+): Promise<{ authorizeUrl: string; state: string }> {
+  return getWithParams(`/api/v1/shops/${shopId}/oauth/amazon/authorize-url`, {
+    redirectUri: redirectUri || undefined,
+  });
+}
+
+export async function postAmazonOAuthCallback(
+  shopId: string,
+  payload: { code: string; state: string; sellingPartnerId: string; marketplaceId?: string },
+): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/amazon/callback`, payload);
+}

@@ -29,6 +29,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
@@ -179,6 +180,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformshopee.RegisterProvider()
 	platformlazada.BindShops(shopSvc.LazadaShopsBridge())
 	platformlazada.RegisterProvider()
+	platformamazon.BindShops(shopSvc.AmazonShopsBridge())
+	platformamazon.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc}

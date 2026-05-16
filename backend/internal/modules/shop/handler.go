@@ -401,3 +401,47 @@ func (h *Handler) LazadaOAuthCallback(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+// AmazonOAuthAuthorizeURL GET /api/v1/shops/:id/oauth/amazon/authorize-url
+func (h *Handler) AmazonOAuthAuthorizeURL(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	redirect := strings.TrimSpace(c.Query("redirectUri"))
+	out, err := h.Svc.AmazonOAuthAuthorizeURL(c, id, redirect, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// AmazonOAuthCallback POST /api/v1/shops/:id/oauth/amazon/callback
+func (h *Handler) AmazonOAuthCallback(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body AmazonOAuthCallbackBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.AmazonOAuthCallback(c, id, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
