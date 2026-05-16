@@ -22,6 +22,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
@@ -73,6 +74,14 @@ func main() {
 		log.Error("encrypt_init_failed", "error", err)
 		os.Exit(1)
 	}
+
+	imgSeedCtx, imgSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureImageDefaults(imgSeedCtx, db, enc); err != nil {
+		imgSeedCancel()
+		log.Error("image_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	imgSeedCancel()
 
 	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {

@@ -10,7 +10,7 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
-import { Button, Card, Descriptions, Form, Image, Input, InputNumber, Modal, Popconfirm, Space, Spin, Tabs, Tooltip, Typography, Upload, message } from 'antd';
+import { Button, Card, Descriptions, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tooltip, Typography, Upload, message } from 'antd';
 import {
   ArrowUpOutlined,
   DeleteOutlined,
@@ -42,6 +42,7 @@ import {
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
+import { createImageTask } from '@/services/imageTasks';
 
 type SKUEditable = ProductSKURow & { attrsText?: string };
 
@@ -92,6 +93,9 @@ export default function ProductDraftDetailPage() {
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
   const [lastUpload, setLastUpload] = useState<{ id: string; url: string; objectKey: string } | null>(null);
+  const [aiImgTaskType, setAiImgTaskType] = useState<string>('resize');
+  const [aiImgRowId, setAiImgRowId] = useState<string>();
+  const [aiImgBusy, setAiImgBusy] = useState(false);
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -514,6 +518,63 @@ export default function ProductDraftDetailPage() {
               label: '图片管理',
               children: (
                 <Card bordered={false}>
+                  <Card title="AI 图片处理（预留）" size="small" style={{ marginBottom: 16 }} bordered={false}>
+                    <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                      <Typography.Text type="secondary">
+                        选择已关联的商品图片创建后台任务。noop 下 <Typography.Text code>resize</Typography.Text> 会成功并回显原图；
+                        <Typography.Text code>remove_background</Typography.Text> /{' '}
+                        <Typography.Text code>generate_scene</Typography.Text> 为失败占位，便于联调状态与日志。
+                      </Typography.Text>
+                      <Space wrap align="start">
+                        <Select
+                          placeholder="选择商品图片"
+                          style={{ minWidth: 280 }}
+                          value={aiImgRowId}
+                          onChange={(v) => setAiImgRowId(v)}
+                          options={sortedImages.map((im) => ({
+                            label: `${imageTypeLabel(im.imageType)} · ${(im.publicUrl || im.originUrl || '').slice(0, 48)}${(im.publicUrl || im.originUrl || '').length > 48 ? '…' : ''}`,
+                            value: im.id,
+                          }))}
+                        />
+                        <Select
+                          style={{ minWidth: 200 }}
+                          value={aiImgTaskType}
+                          onChange={(v) => setAiImgTaskType(v)}
+                          options={[
+                            { label: '去背景 remove_background', value: 'remove_background' },
+                            { label: '场景图 generate_scene', value: 'generate_scene' },
+                            { label: '缩放 resize', value: 'resize' },
+                          ]}
+                        />
+                        <Button
+                          type="primary"
+                          loading={aiImgBusy}
+                          disabled={!aiImgRowId}
+                          onClick={async () => {
+                            if (!aiImgRowId) return;
+                            setAiImgBusy(true);
+                            try {
+                              await createImageTask({
+                                taskType: aiImgTaskType,
+                                provider: 'noop',
+                                productId: id,
+                                sourceImageId: aiImgRowId,
+                                input:
+                                  aiImgTaskType === 'resize' ? { width: 800, height: 800 } : {},
+                              });
+                              message.success('图片任务已创建，可在「AI 工具 → 图片任务」查看');
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '创建失败');
+                            } finally {
+                              setAiImgBusy(false);
+                            }
+                          }}
+                        >
+                          创建图片任务
+                        </Button>
+                      </Space>
+                    </Space>
+                  </Card>
                   <Space style={{ marginBottom: 12 }} wrap>
                     <Button
                       type="primary"

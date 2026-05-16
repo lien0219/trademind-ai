@@ -8,6 +8,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
@@ -24,6 +25,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&settings.Setting{},
 		&operationlog.OperationLog{},
 		&files.FileRecord{},
+		&imagetask.ImageTask{},
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},

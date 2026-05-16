@@ -33,7 +33,7 @@ export default [
   },
   {
     path: '/ai',
-    name: 'AI',
+    name: 'AI 工具',
     icon: 'RobotOutlined',
     component: '@/layouts/AiGroupLayout',
     routes: [
@@ -46,6 +46,11 @@ export default [
         path: '/ai/tasks',
         name: 'AI 任务记录',
         component: './AI/Tasks',
+      },
+      {
+        path: '/ai/image-tasks',
+        name: '图片任务',
+        component: './AI/ImageTasks',
       },
     ],
   },
@@ -106,6 +111,11 @@ export default [
         path: '/settings/ai',
         name: 'AI 设置',
         component: './Settings/AI',
+      },
+      {
+        path: '/settings/image',
+        name: '图片 AI 设置',
+        component: './Settings/Image',
       },
       {
         path: '/settings/storage',

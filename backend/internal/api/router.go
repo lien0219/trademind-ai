@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
@@ -71,6 +72,8 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 	promptSvc := &aiprompt.Service{DB: dep.DB}
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 	aiTaskSvc := &aitask.Service{DB: dep.DB}
+	imageTaskSvc := &imagetask.Service{DB: dep.DB, OpLog: opLogSvc}
+	imageTaskH := &imagetask.Handler{Svc: imageTaskSvc}
 
 	productSvc := &product.Service{
 		DB:        dep.DB,
@@ -126,6 +129,7 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 
 	aiprompt.Register(authed, promptH)
 	aitask.Register(authed, aiTaskH)
+	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
 	return collectSvc

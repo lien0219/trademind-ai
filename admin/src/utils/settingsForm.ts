@@ -11,7 +11,7 @@ export function pickGroup(items: SettingRow[] | undefined, groupKey: string): Re
   return out;
 }
 
-export type FieldSpec = { encrypted?: boolean };
+export type FieldSpec = { encrypted?: boolean; valueType?: string };
 
 /** Build PUT items from form values; `specs` maps itemKey -> { encrypted }. */
 export function toPutItems(
@@ -25,7 +25,7 @@ export function toPutItems(
     groupKey,
     itemKey,
     itemValue: values[itemKey] == null ? '' : String(values[itemKey]),
-    valueType: 'string',
+    valueType: specs[itemKey]?.valueType ?? 'string',
     isEncrypted: !!specs[itemKey]?.encrypted,
     remark: '',
   }));
