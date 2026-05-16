@@ -16,6 +16,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
+	cosstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/cos"
+	ossstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/oss"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -279,8 +281,16 @@ func (s *Service) TestStorageConnection(ctx context.Context) error {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
 		return nil
-	case "cos", "oss":
-		return fmt.Errorf(`storage kind %q: dedicated provider is not implemented in this release — uploads require "local", "s3", "r2", or "minio". Tencent COS / Alibaba OSS adapters are planned separately from the S3-compatible client`, kind)
+	case "cos":
+		if err := cosstorage.TestConnectivity(ctx, m); err != nil {
+			return err
+		}
+		return nil
+	case "oss":
+		if err := ossstorage.TestConnectivity(ctx, m); err != nil {
+			return err
+		}
+		return nil
 	case "s3", "r2", "minio":
 		if err := s3store.TestConnectivity(ctx, kind, m); err != nil {
 			return err

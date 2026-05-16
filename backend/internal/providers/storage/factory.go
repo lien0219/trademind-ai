@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	cosstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/cos"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/local"
+	ossstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/oss"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 )
 
@@ -51,8 +53,18 @@ func providerForOperationalKind(m map[string]string, kind string) (Provider, str
 			return nil, kind, err
 		}
 		return p, kind, nil
-	case "cos", "oss":
-		return nil, kind, fmt.Errorf("storage provider %q is not implemented yet (use AWS S3, R2, or MinIO for now)", kind)
+	case "cos":
+		p, err := cosstorage.NewFromSettingsMap(m)
+		if err != nil {
+			return nil, kind, err
+		}
+		return p, kind, nil
+	case "oss":
+		p, err := ossstorage.NewFromSettingsMap(m)
+		if err != nil {
+			return nil, kind, err
+		}
+		return p, kind, nil
 	default:
 		return nil, kind, fmt.Errorf("storage kind %q is not supported", kind)
 	}
