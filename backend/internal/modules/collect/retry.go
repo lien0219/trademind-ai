@@ -75,7 +75,21 @@ func collectErrNonRetryable(err error) bool {
 	return false
 }
 
-func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg string) {
+func collectorRejectExtras(err error) map[string]any {
+	if err == nil {
+		return nil
+	}
+	var rej *CollectorRejectedError
+	if errors.As(err, &rej) && rej != nil {
+		code := strings.TrimSpace(rej.Code)
+		if code != "" {
+			return map[string]any{"collectorCode": code}
+		}
+	}
+	return nil
+}
+
+func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg string, extras map[string]any) {
 	if s == nil || s.DB == nil || task == nil {
 		return
 	}
@@ -87,6 +101,12 @@ func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg 
 	delaySec := collectRetryDelaySeconds(newRC, s.effectiveRetryBaseSec(), s.effectiveRetryMaxSec())
 	next := now.Add(time.Duration(delaySec) * time.Second)
 	tid := task.ID
+	maxR := s.effectiveMaxRetries(task)
+
+	payload := map[string]any{"nextDelaySeconds": delaySec}
+	for k, v := range extras {
+		payload[k] = v
+	}
 
 	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
 		Where("id = ?", tid).
@@ -102,6 +122,21 @@ func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg 
 
 	if task.BatchID != nil {
 		s.reconcileCollectBatch(ctx, task.BatchID)
+	}
+
+	var cur CollectTask
+	if err := s.DB.WithContext(ctx).First(&cur, "id = ?", tid).Error; err == nil {
+		s.RecordTaskEvent(ctx, &cur, TaskEventInput{
+			EventType:    EventTaskAutoRetryScheduled,
+			FromStatus:   StatusRunning,
+			ToStatus:     StatusRetrying,
+			Message:      "scheduled automatic retry backoff",
+			ErrorMessage: truncateRunes(strings.TrimSpace(msg), 8000),
+			RetryCount:   cur.RetryCount,
+			MaxRetries:   maxR,
+			NextRetryAt:  cur.NextRetryAt,
+			PayloadMap:   payload,
+		})
 	}
 
 	if s.OpLog != nil {
@@ -135,16 +170,17 @@ func (s *Service) handleCollectJobError(ctx context.Context, task *CollectTask, 
 	msg = truncateRunes(strings.TrimSpace(msg), 8000)
 
 	if !s.AutoRetryEnabled || collectErrNonRetryable(jobErr) {
-		s.failTask(ctx, task, msg)
+		s.failTask(ctx, task, StatusRunning, msg, collectorRejectExtras(jobErr))
 		return
 	}
 
 	maxR := s.effectiveMaxRetries(task)
+	extras := collectorRejectExtras(jobErr)
 	if task.RetryCount >= maxR {
-		s.failTaskRetryExhausted(ctx, task, msg)
+		s.failTaskRetryExhausted(ctx, task, msg, extras)
 		return
 	}
-	s.scheduleAutoRetry(ctx, task, msg)
+	s.scheduleAutoRetry(ctx, task, msg, extras)
 }
 
 // StartRetryScheduler periodically moves due retrying tasks back onto the Redis list.
@@ -229,6 +265,19 @@ func (s *Service) tryEnqueueScheduledRetry(ctx context.Context, log *slog.Logger
 				"updated_at":        time.Now().UTC(),
 			}).Error
 		return
+	}
+
+	var cur CollectTask
+	if err := s.DB.WithContext(ctx).First(&cur, "id = ?", tid).Error; err == nil {
+		s.RecordTaskEvent(ctx, &cur, TaskEventInput{
+			EventType:  EventTaskAutoRetryEnqueued,
+			FromStatus: StatusRetrying,
+			ToStatus:   StatusRetrying,
+			Message:    "due automatic retry pushed to Redis",
+			RetryCount: cur.RetryCount,
+			MaxRetries: s.effectiveMaxRetries(&cur),
+			PayloadMap: map[string]any{"requestId": "auto-retry-scheduler"},
+		})
 	}
 
 	if s.OpLog != nil {

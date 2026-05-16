@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-16（**Worker 自动退避重试**：**`collect_tasks`** 增加 **`retry_count` / `max_retries` / `next_retry_at` / `retry_enqueued_at`**；**`COLLECT_AUTO_RETRY_*`**；**阶梯退避 + `StartRetryScheduler`（5s）** 到期 **LPUSH**；**`GET /collect/monitor`** 增加 **`retry` / `recentRetrying` / `tasks.retryingCount`**；人工重试 **重置 `retry_count`**；操作日志 **`collect.task.auto_retry_*` / `retry_exhausted`**）
+**最后更新**：2026-05-16（**采集任务事件表 `collect_task_events`**：**状态迁移流水**；**节点写入**涵盖创建/入队/运行/成功/失败/自动重试/用尽/人工与批次重试；**`GET /api/v1/collect/tasks/:id/events`** JWT 分页 **`created_at ASC`**；管理端 **`CollectTaskEventDrawer`** 挂载 **采集任务 / 批次子任务表 / 监控最近失败·等待重试**；Rollup **批次聚合逻辑不变**。）
 
 ---
 
@@ -11,7 +11,7 @@
 
 | 维度 | 状态 |
 |------|------|
-| **路线图阶段** | **第 5 阶段（采集）深化**：**批量采集 + Redis 异步 + 监控 + Worker 自动退避重试**已具备，`NormalizedProduct` 契约未变。**仍未充分**：**采集任务事件/流水表**、**多实例 Worker heartbeat**、AI 图片、云存储 Provider 等 |
+| **路线图阶段** | **第 5 阶段（采集）深化**：**批量采集 + Redis 异步 + 监控 + Worker 自动退避重试 + 任务事件流水**已具备，`NormalizedProduct` 契约未变。**仍未充分**：**多实例 Worker heartbeat**、AI 图片、云存储 Provider 等 |
 | **MVP 闭环** | 登录 → 配置 AI → 采集/草稿 → **AI 优化标题（`ai_title`）** 与 **AI 生成描述（`ai_description` 需手动应用）** 已具备（依赖有效的大模型与系统 AI 设置） |
 | **产物形态** | Monorepo 可构建；本地需 **PostgreSQL**；AI 调用走 **后端 Gateway**，前端 **不直连** 第三方模型 |
 
@@ -45,7 +45,7 @@
 - **配置**：`internal/config` 从环境变量加载（DB、Redis、**JWT**、`APP_MASTER_KEY`、**`UPLOAD_MAX_MB`（默认 10）**、**ADMIN_BOOTSTRAP_*** 等）；**生产环境**强制非默认 `JWT_SECRET`。
 - **日志**：`internal/logger`（development 文本 / production JSON）。
 - **数据库**：GORM，默认 **PostgreSQL**（`DB_DRIVER` 默认 `postgres`；未设置 `DB_PORT` 时默认 **5432**，MySQL 为 **3306**）；启动时 **Ping**；失败则进程退出。
-- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**、**`products`、`product_images`、`product_skus`、`collect_batches`、`collect_tasks`**、**`ai_prompts`、`ai_tasks`**；启动后 **`aiprompt.EnsureDefaults`** 写入默认 **`product_title_optimize`**、**`product_description_generate`**（各仅在缺失时插入）
+- **迁移**：启动时 `database.AutoMigrate` — `admin_users`、`settings`、**`operation_logs`**、**`files`**、**`products`、`product_images`、`product_skus`、`collect_batches`、`collect_tasks`、`collect_task_events`**、**`ai_prompts`、`ai_tasks`**；启动后 **`aiprompt.EnsureDefaults`** 写入默认 **`product_title_optimize`**、**`product_description_generate`**（各仅在缺失时插入）
 - **Redis**：`internal/rdb`（go-redis），连接失败 **仅告警**，服务继续（健康检查体现 `redis: skipped/degraded`）。
 - **健康检查**：`GET /health`、`GET /api/v1/health`（含 DB/Redis 检查；**`data.collectQueue`**：`enabled`、`name`、`redisAvailable`、`depth`、`workerEnabled`、`workerConcurrency`；**不对 Collector 做 HTTP 探测**以免拖慢健康接口）。队列开启且 Redis **Ping 正常但 LLEN 不可得**时整体 **`status` 可标记 `degraded`**。
 - **ID 约定**：管理员等域表主键 **UUID**（`internal/pkg/model` + `internal/pkg/id`；GORM `char(36)`）；`settings` 表为 **`BIGINT` 自增**（与规则文档一致）。
@@ -63,7 +63,7 @@
 - **AI 调用记录**：模块 `internal/modules/aitask`；表 **`ai_tasks`**（`task_type` / `provider` / `model` / `prompt_code` / status **`pending|running|success|failed`** 等）；**标题优化**（`task_type` **`title_optimize`**）与 **描述生成**（**`product_description_generate`**）各写一条；**`raw_response`** 仅存提供商返回 JSON 裁剪字段，**不含密钥**。**只读查询**：**`GET /api/v1/ai/tasks`**（分页；筛选 **taskType / status / provider / model / promptCode / productId / start|end（RFC3339）**；列表 **不返回** `input`/`output`/`raw_response`）；**`GET /api/v1/ai/tasks/:id`**（详情含 **input/output/rawResponse**，响应前对 JSON 内 **api_key 等敏感键** 做 **`[REDACTED]`** 脱敏）；均 **JWT**、统一 **envelope**
 - **商品 AI 标题**：**`POST /api/v1/products/:id/ai/optimize-title`**（body：`language` / `platform` / `maxLength`；**不自动改 `title`**）；**`POST /api/v1/products/:id/apply-ai-title`**（`aiTitle` + `taskId`，校验任务归属，**仅更新 `products.ai_title`**）；操作日志：**`ai.title_optimize.success` / `ai.title_optimize.failed` / `ai.title.apply`**（消息 **不含密钥与完整 Prompt**）
 - **商品 AI 描述**：**`POST /api/v1/products/:id/ai/generate-description`**（`language` / `platform` / `tone`，默认 en / TikTok Shop / professional；**Preload `images`+`skus`**；**不自动改 `products.description`**）；**`POST /api/v1/products/:id/apply-ai-description`**（`aiDescription` + `taskId`，**仅更新 `products.ai_description`**）；**`GET /api/v1/products/:id/ai/tasks`**（详情页最近任务，列表 **省略大体量 JSON 列**，含 **`title_optimize`** 与 **`product_description_generate`**）；操作日志：**`ai.description_generate.success` / `ai.description_generate.failed` / `ai.description.apply`**（同上）
-- **采集任务与批次**：模块 `internal/modules/collect`。**表**：**`collect_batches`**（聚合与衍生 **`batch.status`** 同前）；**`collect_tasks`**：**JSONB `raw_result`**、状态 **pending / running / success / failed / cancelled / retrying**、**`retry_count` / `max_retries` / `next_retry_at` / `retry_enqueued_at`**（创建时 **`max_retries`** 默认取 **`COLLECT_MAX_RETRIES`**）。**自动重试**：**`COLLECT_AUTO_RETRY_ENABLED`** 且错误非 **Collector `INVALID_URL` / `INVALID_REQUEST` / `PROVIDER_NOT_FOUND`** 时，若 **`retry_count < max_retries`** 则 **`retrying`**、**`retry_count+=1`**、**`next_retry_at=now+delay`**（阶梯 **30→60→120s…** 上限 **`COLLECT_RETRY_MAX_DELAY_SECONDS`**）、写 **`collect.task.auto_retry_scheduled`**；否则 **`failed`**、**`collect.task.retry_exhausted`**。**`StartRetryScheduler`**（约 **5s**）将到点任务 **CAS** 清空 **`next_retry_at`**、写入 **`retry_enqueued_at`** 后 **`LPUSH`**，记 **`collect.task.auto_retry_enqueued`**；**单进程**消费，重复入队风险低。**单链接 / 批量 / 查询 / 监控** API 同前；**`GET /collect/monitor`** 另含 **`retry{...}`**、**`recentRetrying`（10）**、**`tasks.retryingCount`**。**人工重试**：**`POST .../tasks/:id/retry`**（仅 **`failed`**）、**`POST .../batches/:id/retry-failed`**：**`retry_count=0`**，**`next_retry_at`/`retry_enqueued_at` 清空**，立即入队。**聚合**：**pending + retrying 计入 `pending_count`**（不变）。**Worker**：**`StartWorker`** + **`StartRetryScheduler`**（自动重试开启时）。
+- **采集任务与批次**：模块 `internal/modules/collect`。**表**：**`collect_batches`**（聚合与衍生 **`batch.status`** 同前）；**`collect_tasks`**：**JSONB `raw_result`**、状态 **pending / running / success / failed / cancelled / retrying**、**`retry_count` / `max_retries` / `next_retry_at` / `retry_enqueued_at`**（创建时 **`max_retries`** 默认取 **`COLLECT_MAX_RETRIES`**）。**`collect_task_events`**：采集任务状态流水（**PostgreSQL **`JSONB` `payload`**；**不写**密钥/Cookie/HTML/大体量 **`raw_result`**）；事件字段含 **`task_id`、`batch_id`、`event_type`、`from_status`、`to_status`、`message`、`error_message`、`retry_count`、`max_retries`、`next_retry_at`、`created_at`**；类型：**`task.created` / `task.enqueued` / `task.running` / `task.success` / `task.failed` / `task.auto_retry_scheduled` / `task.auto_retry_enqueued` / `task.retry_exhausted` / `task.manual_retry`**（**`task.cancelled` 预留**）；**写入**覆盖创建/每条入队/Worker 认领/成功/立即失败或不可重试/自动重试调度与再入队/用尽/**人工与批次 retry-failed**/**Redis 回落失败**。只读：**`GET /api/v1/collect/tasks/:id/events`**（**JWT**，**`page|pageSize`（默认 `pageSize=50`，≤100）**，**按 `created_at ASC`**）。**自动重试**：**`COLLECT_AUTO_RETRY_ENABLED`** 且错误非 **Collector `INVALID_URL` / `INVALID_REQUEST` / `PROVIDER_NOT_FOUND`** 时，若 **`retry_count < max_retries`** 则 **`retrying`**、**`retry_count+=1`**、**`next_retry_at=now+delay`**（阶梯 **30→60→120s…** 上限 **`COLLECT_RETRY_MAX_DELAY_SECONDS`**）、写 **`collect.task.auto_retry_scheduled`**（**操作日志**，与 **`collect_task_events` 并行**）；否则 **`failed`**、**`collect.task.retry_exhausted`**。**`StartRetryScheduler`**（约 **5s**）将到点任务 **CAS** 清空 **`next_retry_at`**、写入 **`retry_enqueued_at`** 后 **`LPUSH`**，记 **`collect.task.auto_retry_enqueued`**；**单进程**消费，重复入队风险低。**单链接 / 批量 / 查询 / 监控** API 同前；**`GET /collect/monitor`** 另含 **`retry{...}`**、**`recentRetrying`（10）**、**`tasks.retryingCount`**。**人工重试**：**`POST .../tasks/:id/retry`**（仅 **`failed`**）、**`POST .../batches/:id/retry-failed`**：**`retry_count=0`**，**`next_retry_at`/`retry_enqueued_at` 清空**，立即入队。**聚合**：**pending + retrying 计入 `pending_count`**（不变）。**Worker**：**`StartWorker`** + **`StartRetryScheduler`**（自动重试开启时）。
 - **Collector HTTP 客户端**：`collector_client.go`；…；422/`ok:false` 按错误类型进入 **自动重试** 或 **立即 failed**（见上）；成功时 **`raw_result`** 保存完整归一化 JSON。
 - **分层**：业务 Orchestration 在 **collect.Service**，采集解析仍在 **Node Collector**；Go **不写死** 1688 解析逻辑。
 
@@ -78,7 +78,7 @@
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
 - **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；**`/product/drafts/:id`** **商品草稿编辑页**：**Tabs**（**基础信息 ProTable type=form**、**AI 标题/描述**（原弹窗逻辑保留）、**图片管理**（上传走 **`/api/v1/files/upload`** + **`createProductImage`**、编辑类型与 sortOrder、**reorder**）、**SKU `EditableProTable`**、最近 **AI 任务**）；顶栏快捷 **标记 ready / 归档 / 软删草稿**。**`/ai/prompts`**、**`/ai/tasks`** 同前。**`products.ts`** 增补 **`updateProduct`、SKU/Image 全套 API 封装**。
-- **采集**：路由 **`/collect/tasks`** **单链接** + **`/collect/batches`** **批量** + **`/collect/monitor`** **采集监控**：批量 **多行链接**、计数与 **5s** 轮询；任务表展示 **重试进度 / 下次自动重试时间**，**retrying** 为 **「等待重试」**；**批次 Drawer** 同步展示重试列；监控页 **自动重试参数**、**待入队重试数**、**`recentRetrying`（10）**；批次/任务 **失败重试** 与 **success → 草稿** 流程不变；服务 **`services/collectTasks.ts`**、**`services/collectBatches.ts`**、**`services/collectMonitor.ts`**。
+- **采集**：路由 **`/collect/tasks`** **单链接** + **`/collect/batches`** **批量** + **`/collect/monitor`** **采集监控**：批量 **多行链接**、计数与 **5s** 轮询；任务表展示 **重试进度 / 下次自动重试时间**，**retrying** 为 **「等待重试」**，**任务行「事件」**打开 **`CollectTaskEventDrawer`**（**`Timeline` + 任务快照 + `GET .../tasks/:id/events`**，前 100 条）；**批次 Drawer** 内子任务表 **「事件」**复用同款 Drawer；监控页 **`recentFailures` / `recentRetrying`** 列表 **「事件」**同上；批次/任务 **失败重试** 与 **success → 草稿** 流程不变；服务 **`services/collectTasks.ts`**（**`queryCollectTaskEvents`**）、**`services/collectBatches.ts`**、**`services/collectMonitor.ts`**。
 - **常量**：`src/constants/status.ts`（商品状态、**采集任务 / 批次**状态枚举）。
 
 ### 3.4 采集服务（`collector/`）
@@ -195,7 +195,7 @@ trademind-ai/
 2. **S3 等云存储**：`test-storage` 仅校验字段完整性；**不**发起真实列举/上传；**文件上传**在 **`kind≠local`** 时仍会失败（符合当前范围）。
 3. **静态访问**：生产环境需自行用 **反代 / CDN** 暴露 **`/static`** 或改写 **`public_base`**；开发依赖 admin **`/static` 代理** 或直连后端端口。
 4. **1688 采集** 已升级为 **结构化首版**：多数商品页可从 DOM + JSON 抽到 **主图/详情图/属性/SKU**；**站点改版、登录/验证码/风控会导致字段缺失**，详情图若在 **跨域 iframe / 异步接口** 仍可能不完整；非生产 SLA。
-5. **采集异步与批次后续**：**Worker 自动退避重试已完成**（见 §3.2）；**队列 / Worker / DB 聚合 + `/collect/monitor`**；**采集任务事件/历史流水表未完成**；**多实例部署下的 Worker heartbeat / 注册未完成**（当前仅为 **单进程 `running` 标记**）。
+5. **多实例 Worker / 编排观测**：**`collect_task_events` 流水与单任务 Timeline 已完成**（见 §3.2）；**多实例部署下的 Worker heartbeat / 注册未完成**（当前仅为 **单进程 `running` 标记**）。
 6. **忘记密码未完成**：已在登录页占位，尚未实现后端逻辑。
 7. **手机号注册/短信未完成**：注册仍仅限 **邮箱 + 验证码**；**登录**已支持邮箱或手机号（规范化数字，兼容 +86）；短信注册/找回未做。
 8. **更多邮件服务商未完成**：当前仅完成了 SMTP 方式对接发送，尚未提供 Mailgun 等其它供应商实现。
@@ -209,7 +209,7 @@ trademind-ai/
 16. **AI 图片处理**：**未完成**（路线图第 6 阶段）。
 17. **AI 客服**：**未完成**。
 18. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径；其它厂商后续可加适配。
-19. **1688 采集边界**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**边界；需在真实流量下持续补强选择器与健康度。
+19. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。
 20. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
 21. **S3/COS/OSS 等多云存储**：与条目 2 一致，`test-storage` 与 **`kind≠local` 上传** 仍以 **未完成**为主路径叙事（首版 **`local`** 可用）。
 
@@ -217,11 +217,10 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **采集任务事件表**（状态迁移流水，与 **`collect_tasks` 终态**、`operation_logs` 互补）。
-2. **AI 图片任务预留**（路线图第 6 阶段）：表结构 / Image Provider / 任务页骨架。
-3. **云存储 Provider**：**S3/COS/OSS/R2**、**`kind≠local` 上传**真实链路。
+1. **AI 图片任务预留**（路线图第 6 阶段）：表结构 / Image Provider / 任务页骨架。
+2. **云存储 Provider**：**S3/COS/OSS/R2**、**`kind≠local` 上传**真实链路。
+3. **多实例 Worker**：**Redis heartbeat** 或注册表，便于面板展示 **多副本** 存活与负载。
 4. **Collector 演进**：SKU **多维 prop**、详情 **iframe/async**、**人机验证**探测与指引（**不迁入 Go**）。
-5. **多实例 Worker**：**Redis heartbeat** 或注册表，便于面板展示 **多副本** 存活与负载。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -244,7 +243,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
-| 2026-05-16 | **Worker 自动退避重试**：**`collect_tasks`** 字段 **`retry_count`/`max_retries`/`next_retry_at`/`retry_enqueued_at`**；环境变量 **`COLLECT_AUTO_RETRY_ENABLED`、`COLLECT_MAX_RETRIES`、`COLLECT_RETRY_BASE_DELAY_SECONDS`、`COLLECT_RETRY_MAX_DELAY_SECONDS`**；**阶梯退避**（默认 30→60→120s 至上限）；**`StartRetryScheduler`** 定时 **LPUSH**；不可重试错误（**`INVALID_URL` 等**）立即失败；操作日志 **`auto_retry_scheduled` / `auto_retry_enqueued` / `retry_exhausted`**；人工重试 **重置 `retry_count`**；**`GET /collect/monitor`** **`retry` + `recentRetrying`**；管理端 **任务/批次/监控** 展示；**§1/§3.2/§7/§8** 同步 |
+| 2026-05-16 | **`collect_task_events` + Timeline API + Admin Drawer**：新增表（**§3.2**）、节点写入、`GET /api/v1/collect/tasks/:id/events`（**JWT**、**ASC**、默认 **pageSize=50**）；**`CollectTaskEventDrawer`**（任务/批次/监控）；rollback 连带删事件；**§7 遗留（heartbeat/AI图/多云/Collector）§8 下一步** 重排 |
 | 2026-05-16 | **采集队列可观测性**：**`GET /api/v1/collect/monitor`**（JWT；**`LLEN`**、任务/批次 **`GROUP BY status`**、**`recentFailures`**、**`oldestPendingSeconds`**、**Worker**、**Collector `/health` 短超时**）；**`/health` / `/api/v1/health`** **`collectQueue`**（无 Collector 探测）；**`ConfigureWorkerMonitor` + `SetCollectWorkersRunning`**；管理端 **`/collect/monitor`**（**5s**、**visibility** 暂停、失败任务 **Drawer**）；**`/collect/batches?batchId=`**、**`/collect/tasks?batchId=`** 深链；**§7 遗留 / §8 下一步** 按监控收尾后重排 |
 | 2026-05-16 | **批量采集**：**`collect_batches`** + **`collect_tasks.batch_id`**；**`POST /api/v1/collect/batches`**（**URL 裁剪/去重、默认最多 50 条 `COLLECT_BATCH_MAX_URLS`、先入队失败后整批回滚**）；**批次列表 / 详情 / 子任务** API；任务列表 **`batchId`** 筛选；**Worker 与各阶段状态变更后以 `GROUP BY status` 重算批次**，**不设并发 +-1**；管理端 **`/collect/batches`**（**5s 轮询**、抽屉内任务列表 + **批次快照刷新**）；操作日志 **`collect.batch.create`** / **`collect.batch.retry_failed`**；**.env.example** 补 **`COLLECT_BATCH_MAX_URLS`**；**§7/§8** 对齐下一步与遗留 |
 | 2026-05-16 | **管理员登录**：仅 **邮箱或手机号 + 密码**（不再接受用户名）；首启账号通过 **`ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PHONE`**（至少一项）配置；`admin_users.username` 为内部不透明 ID；`docs/PROGRESS`、`.env.example` 同步 |

@@ -105,12 +105,16 @@ func (n *normalizedProduct) importParams(fullJSON json.RawMessage) product.Impor
 	}
 }
 
-func (s *Service) failTask(ctx context.Context, task *CollectTask, msg string) {
+func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, msg string, payload map[string]any) {
 	if s == nil || s.DB == nil || task == nil {
 		return
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	fs := strings.TrimSpace(fromStatus)
+	if fs == "" {
+		fs = StatusRunning
 	}
 	msg = truncateRunes(strings.TrimSpace(msg), 8000)
 	fin := time.Now().UTC()
@@ -125,6 +129,17 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, msg string) {
 			"retry_enqueued_at": nil,
 			"updated_at":        fin,
 		}).Error
+
+	s.RecordTaskEvent(ctx, task, TaskEventInput{
+		EventType:    EventTaskFailed,
+		FromStatus:   fs,
+		ToStatus:     StatusFailed,
+		Message:      "collect job failed",
+		ErrorMessage: msg,
+		PayloadMap:   payload,
+		MaxRetries:   s.effectiveMaxRetries(task),
+		RetryCount:   task.RetryCount,
+	})
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -141,7 +156,7 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, msg string) {
 	}
 }
 
-func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask, msg string) {
+func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask, msg string, payload map[string]any) {
 	if s == nil || s.DB == nil || task == nil {
 		return
 	}
@@ -161,6 +176,17 @@ func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask,
 			"retry_enqueued_at": nil,
 			"updated_at":        fin,
 		}).Error
+
+	s.RecordTaskEvent(ctx, task, TaskEventInput{
+		EventType:    EventTaskRetryExhausted,
+		FromStatus:   StatusRunning,
+		ToStatus:     StatusFailed,
+		Message:      "auto-retry exhausted",
+		ErrorMessage: msg,
+		RetryCount:   task.RetryCount,
+		MaxRetries:   s.effectiveMaxRetries(task),
+		PayloadMap:   payload,
+	})
 
 	if s.OpLog != nil {
 		logMsg := fmt.Sprintf("taskId=%s retryCount=%d", tid.String(), task.RetryCount)
@@ -195,6 +221,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return
 	}
+	prevStatus := task.Status
 	started := time.Now().UTC()
 	res := s.DB.WithContext(ctx).Model(&CollectTask{}).
 		Where("id = ? AND status IN ?", taskID, []string{StatusPending, StatusRetrying}).
@@ -207,7 +234,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 			"updated_at":        started,
 		})
 	if res.Error != nil {
-		s.failTask(ctx, &task, res.Error.Error())
+		s.failTask(ctx, &task, prevStatus, res.Error.Error(), nil)
 		return
 	}
 	if res.RowsAffected == 0 {
@@ -217,6 +244,12 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return
 	}
+	s.RecordTaskEvent(ctx, &task, TaskEventInput{
+		EventType:  EventTaskRunning,
+		FromStatus: prevStatus,
+		ToStatus:   StatusRunning,
+		Message:    "worker claimed task",
+	})
 	s.reconcileCollectBatch(ctx, task.BatchID)
 
 	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL)
@@ -254,10 +287,23 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID) {
 			"retry_count":       0,
 			"updated_at":        fin,
 		}).Error; err != nil {
-		s.failTask(ctx, &task, err.Error())
+		s.failTask(ctx, &task, StatusRunning, err.Error(), nil)
+		return
+	}
+	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return
 	}
 	s.reconcileCollectBatch(ctx, task.BatchID)
+
+	s.RecordTaskEvent(ctx, &task, TaskEventInput{
+		EventType:  EventTaskSuccess,
+		FromStatus: StatusRunning,
+		ToStatus:   StatusSuccess,
+		Message:    "draft imported from collector response",
+		RetryCount: task.RetryCount,
+		MaxRetries: task.MaxRetries,
+		PayloadMap: map[string]any{"productId": pid.String()},
+	})
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -309,11 +355,32 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		return zero, err
 	}
 
+	s.RecordTaskEvent(c.Request.Context(), task, TaskEventInput{
+		EventType:  EventTaskCreated,
+		ToStatus:   StatusPending,
+		Message:    "collect task persisted",
+		MaxRetries: task.MaxRetries,
+	})
+
 	reqID := requestIDFromGin(c)
 	if err := s.enqueueTask(c.Request.Context(), task.ID, task.Source, task.SourceURL, adminID, reqID); err != nil {
+		_ = s.DB.WithContext(c.Request.Context()).Where("task_id = ?", task.ID).Delete(&CollectTaskEvent{}).Error
 		_ = s.DB.WithContext(c.Request.Context()).Unscoped().Where("id = ?", task.ID).Delete(&CollectTask{}).Error
 		return zero, err
 	}
+
+	s.RecordTaskEvent(c.Request.Context(), task, TaskEventInput{
+		EventType:  EventTaskEnqueued,
+		ToStatus:   StatusPending,
+		Message:    "queued to Redis",
+		MaxRetries: task.MaxRetries,
+		PayloadMap: func() map[string]any {
+			if strings.TrimSpace(reqID) != "" {
+				return map[string]any{"requestId": reqID}
+			}
+			return nil
+		}(),
+	})
 
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -377,9 +444,28 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 				"finished_at":   &fin,
 				"updated_at":    fin,
 			}).Error
+		var bumped CollectTask
+		if er := s.DB.WithContext(c.Request.Context()).First(&bumped, "id = ?", id).Error; er == nil {
+			s.RecordTaskEvent(c.Request.Context(), &bumped, TaskEventInput{
+				EventType:    EventTaskFailed,
+				FromStatus:   StatusRetrying,
+				ToStatus:     StatusFailed,
+				Message:      "enqueue after manual retry failed",
+				ErrorMessage: ErrRedisQueueUnavailable.Error(),
+			})
+		}
 		s.reconcileCollectBatch(c.Request.Context(), task.BatchID)
 		return zero, err
 	}
+
+	s.RecordTaskEvent(c.Request.Context(), &task, TaskEventInput{
+		EventType:  EventTaskManualRetry,
+		FromStatus: StatusFailed,
+		ToStatus:   StatusRetrying,
+		Message:    "manual retry re-queued",
+		RetryCount: task.RetryCount,
+		MaxRetries: task.MaxRetries,
+	})
 
 	s.reconcileCollectBatch(c.Request.Context(), task.BatchID)
 

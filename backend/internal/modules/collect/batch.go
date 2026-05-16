@@ -163,6 +163,7 @@ func (s *Service) rollbackBatchCreates(ctx context.Context, batchID uuid.UUID) {
 	if s == nil || s.DB == nil {
 		return
 	}
+	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Delete(&CollectTaskEvent{}).Error
 	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Unscoped().Delete(&CollectTask{}).Error
 	_ = s.DB.WithContext(ctx).Where("id = ?", batchID).Unscoped().Delete(&CollectBatch{}).Error
 }
@@ -224,6 +225,12 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 				return err
 			}
 			taskIDs = append(taskIDs, task.ID)
+			s.RecordTaskEventWithDB(tx.WithContext(ctx), ctx, &task, TaskEventInput{
+				EventType:  EventTaskCreated,
+				ToStatus:   StatusPending,
+				Message:    "bulk collect task persisted",
+				MaxRetries: task.MaxRetries,
+			})
 		}
 		return s.reconcileCollectBatchTx(ctx, tx, bid)
 	})
@@ -242,6 +249,18 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 			s.rollbackBatchCreates(ctx, batch.ID)
 			return zero, err
 		}
+		s.RecordTaskEvent(ctx, &t, TaskEventInput{
+			EventType:  EventTaskEnqueued,
+			ToStatus:   StatusPending,
+			Message:    "queued to Redis",
+			MaxRetries: t.MaxRetries,
+			PayloadMap: func() map[string]any {
+				if strings.TrimSpace(reqID) != "" {
+					return map[string]any{"requestId": reqID}
+				}
+				return nil
+			}(),
+		})
 	}
 
 	if s.OpLog != nil {
@@ -453,8 +472,30 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 					"finished_at":   &fin,
 					"updated_at":    fin,
 				}).Error
+			var bumped CollectTask
+			if er := s.DB.WithContext(ctx).First(&bumped, "id = ?", task.ID).Error; er == nil {
+				s.RecordTaskEvent(ctx, &bumped, TaskEventInput{
+					EventType:    EventTaskFailed,
+					FromStatus:   StatusRetrying,
+					ToStatus:     StatusFailed,
+					Message:      "enqueue after batch retry-failed failed",
+					ErrorMessage: ErrRedisQueueUnavailable.Error(),
+				})
+			}
 			return zero, err
 		}
+		var fresh CollectTask
+		if err := s.DB.WithContext(ctx).First(&fresh, "id = ?", task.ID).Error; err != nil {
+			return zero, err
+		}
+		s.RecordTaskEvent(ctx, &fresh, TaskEventInput{
+			EventType:  EventTaskManualRetry,
+			FromStatus: StatusFailed,
+			ToStatus:   StatusRetrying,
+			Message:    "batch retry-failed re-queued",
+			RetryCount: fresh.RetryCount,
+			MaxRetries: fresh.MaxRetries,
+		})
 		retried++
 	}
 

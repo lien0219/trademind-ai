@@ -5,6 +5,7 @@ import { Button, Form, Input, message, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import {
   createCollectTask,
   fetchCollectTasks,
@@ -24,6 +25,8 @@ export default function CollectTasksPage() {
   const [form] = Form.useForm<{ source: string; url: string }>();
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(4000);
+  const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
+  const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : 4000);
@@ -137,27 +140,40 @@ export default function CollectTasksPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 88,
+      width: 120,
       search: false,
-      render: (_, row) =>
-        row.status === 'failed'
-          ? [
-              <a
-                key="retry"
-                onClick={async () => {
-                  try {
-                    await retryCollectTask(row.id);
-                    message.success('已重新入队');
-                    actionRef.current?.reload();
-                  } catch (e) {
-                    message.error(e instanceof Error ? e.message : '重试失败');
-                  }
-                }}
-              >
-                重试
-              </a>,
-            ]
-          : [],
+      render: (_, row) => {
+        const actions = [
+          <a
+            key="events"
+            onClick={() => {
+              setEventDrawerTaskId(row.id);
+              setEventDrawerOpen(true);
+            }}
+          >
+            事件
+          </a>,
+        ];
+        if (row.status === 'failed') {
+          actions.push(
+            <a
+              key="retry"
+              onClick={async () => {
+                try {
+                  await retryCollectTask(row.id);
+                  message.success('已重新入队');
+                  actionRef.current?.reload();
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : '重试失败');
+                }
+              }}
+            >
+              重试
+            </a>,
+          );
+        }
+        return actions;
+      },
     },
   ];
 
@@ -236,6 +252,14 @@ export default function CollectTasksPage() {
             success: true,
             total: res.pagination.total,
           };
+        }}
+      />
+      <CollectTaskEventDrawer
+        taskId={eventDrawerTaskId}
+        open={eventDrawerOpen}
+        onClose={() => {
+          setEventDrawerOpen(false);
+          setEventDrawerTaskId(null);
         }}
       />
     </PageContainer>

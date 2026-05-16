@@ -5,6 +5,7 @@ import { Button, Drawer, Form, Input, message, Space, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
+import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import {
   createCollectBatch,
   getCollectBatch,
@@ -51,6 +52,8 @@ export default function CollectBatchesPage() {
   const [taskPolling, setTaskPolling] = useState<number | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeBatch, setActiveBatch] = useState<CollectBatchRow | null>(null);
+  const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
+  const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
   const urlsWatch = Form.useWatch('urls', form) as string | undefined;
 
   const displayCount = useMemo(() => countDedupedLines(urlsWatch ?? ''), [urlsWatch]);
@@ -258,30 +261,45 @@ export default function CollectBatchesPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 88,
+      width: 160,
       search: false,
-      render: (_, row) =>
-        row.status === 'failed'
-          ? [
-              <Button
-                key="r1"
-                type="link"
-                size="small"
-                onClick={async () => {
-                  try {
-                    await retryCollectTask(row.id);
-                    message.success('已重新入队');
-                    taskActionRef.current?.reload();
-                    actionRef.current?.reload();
-                  } catch (e) {
-                    message.error(e instanceof Error ? e.message : '重试失败');
-                  }
-                }}
-              >
-                重试
-              </Button>,
-            ]
-          : [],
+      render: (_, row) => {
+        const actions = [
+          <Button
+            key="ev"
+            type="link"
+            size="small"
+            onClick={() => {
+              setEventDrawerTaskId(row.id);
+              setEventDrawerOpen(true);
+            }}
+          >
+            事件
+          </Button>,
+        ];
+        if (row.status === 'failed') {
+          actions.push(
+            <Button
+              key="r1"
+              type="link"
+              size="small"
+              onClick={async () => {
+                try {
+                  await retryCollectTask(row.id);
+                  message.success('已重新入队');
+                  taskActionRef.current?.reload();
+                  actionRef.current?.reload();
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : '重试失败');
+                }
+              }}
+            >
+              重试
+            </Button>,
+          );
+        }
+        return actions;
+      },
     },
   ];
 
@@ -419,6 +437,15 @@ export default function CollectBatchesPage() {
           </>
         )}
       </Drawer>
+
+      <CollectTaskEventDrawer
+        taskId={eventDrawerTaskId}
+        open={eventDrawerOpen}
+        onClose={() => {
+          setEventDrawerOpen(false);
+          setEventDrawerTaskId(null);
+        }}
+      />
     </PageContainer>
   );
 }

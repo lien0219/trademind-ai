@@ -1,12 +1,12 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Link } from '@umijs/max';
-import { Badge, Button, Card, Col, Drawer, Progress, Row, Space, Statistic, Tag, Tooltip, Typography, message } from 'antd';
+import { Badge, Button, Card, Col, Progress, Row, Space, Statistic, Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useState, type ReactNode } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
+import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import { type CollectMonitorData, getCollectMonitor } from '@/services/collectMonitor';
-import { fetchCollectTask, type CollectTaskRow } from '@/services/collectTasks';
 
 const POLL_MS = 5000;
 
@@ -27,9 +27,8 @@ function sumBatches(b: CollectMonitorData['batches']) {
 
 export default function CollectMonitorPage() {
   const [data, setData] = useState<CollectMonitorData | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTask, setDrawerTask] = useState<CollectTaskRow | null>(null);
-  const [drawerLoading, setDrawerLoading] = useState(false);
+  const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
+  const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,21 +68,6 @@ export default function CollectMonitorPage() {
       document.removeEventListener('visibilitychange', onVis);
     };
   }, []);
-
-  const openTaskDrawer = async (id: string) => {
-    setDrawerOpen(true);
-    setDrawerLoading(true);
-    setDrawerTask(null);
-    try {
-      const row = await fetchCollectTask(id);
-      setDrawerTask(row);
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : '加载任务失败');
-      setDrawerOpen(false);
-    } finally {
-      setDrawerLoading(false);
-    }
-  };
 
   const failureColumns: ProColumns<CollectMonitorData['recentFailures'][number]>[] = [
     {
@@ -133,8 +117,16 @@ export default function CollectMonitorPage() {
       width: 200,
       render: (_, row) => {
         const actions: ReactNode[] = [
-          <Button key="view" type="link" size="small" onClick={() => openTaskDrawer(row.id)}>
-            查看任务
+          <Button
+            key="ev"
+            type="link"
+            size="small"
+            onClick={() => {
+              setEventDrawerTaskId(row.id);
+              setEventDrawerOpen(true);
+            }}
+          >
+            事件
           </Button>,
         ];
         if (row.batchId) {
@@ -196,8 +188,16 @@ export default function CollectMonitorPage() {
       width: 160,
       render: (_, row) => {
         const actions: ReactNode[] = [
-          <Button key="view" type="link" size="small" onClick={() => openTaskDrawer(row.id)}>
-            查看任务
+          <Button
+            key="ev"
+            type="link"
+            size="small"
+            onClick={() => {
+              setEventDrawerTaskId(row.id);
+              setEventDrawerOpen(true);
+            }}
+          >
+            事件
           </Button>,
         ];
         if (row.batchId) {
@@ -381,49 +381,14 @@ export default function CollectMonitorPage() {
         />
       </ProCard>
 
-      <Drawer
-        title={drawerTask ? `任务 ${drawerTask.id}` : '任务详情'}
-        width={560}
-        open={drawerOpen}
+      <CollectTaskEventDrawer
+        taskId={eventDrawerTaskId}
+        open={eventDrawerOpen}
         onClose={() => {
-          setDrawerOpen(false);
-          setDrawerTask(null);
+          setEventDrawerOpen(false);
+          setEventDrawerTaskId(null);
         }}
-        destroyOnClose
-      >
-        {drawerLoading ? (
-          <Typography.Text type="secondary">加载中…</Typography.Text>
-        ) : drawerTask ? (
-          <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <div>
-              <Typography.Text type="secondary">状态</Typography.Text>
-              <div>
-                <Tag>{drawerTask.status}</Tag>
-              </div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">链接</Typography.Text>
-              <Typography.Paragraph copyable>{drawerTask.sourceUrl}</Typography.Paragraph>
-            </div>
-            <div>
-              <Typography.Text type="secondary">自动重试</Typography.Text>
-              <Typography.Paragraph style={{ marginBottom: 0 }}>
-                {drawerTask.retryCount ?? 0}/{drawerTask.maxRetries ?? '—'} · 下次{' '}
-                {formatTs(drawerTask.nextRetryAt)}
-              </Typography.Paragraph>
-            </div>
-            <div>
-              <Typography.Text type="secondary">错误信息</Typography.Text>
-              <Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>{drawerTask.errorMessage || '—'}</Typography.Paragraph>
-            </div>
-            {drawerTask.batchId ? (
-              <Link to={`/collect/tasks?batchId=${encodeURIComponent(drawerTask.batchId)}`}>在同批次任务列表中查看</Link>
-            ) : (
-              <Link to="/collect/tasks">前往采集任务</Link>
-            )}
-          </Space>
-        ) : null}
-      </Drawer>
+      />
     </PageContainer>
   );
 }

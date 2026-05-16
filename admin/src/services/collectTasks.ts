@@ -27,6 +27,22 @@ export type Pagination = {
   totalPages: number;
 };
 
+export type CollectTaskEventRow = {
+  id: string;
+  taskId: string;
+  batchId?: string;
+  eventType: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  message?: string;
+  errorMessage?: string;
+  retryCount?: number;
+  maxRetries?: number;
+  nextRetryAt?: string | null;
+  payload?: unknown;
+  createdAt: string;
+};
+
 export async function fetchCollectTasks(params: {
   page?: number;
   pageSize?: number;
@@ -55,4 +71,17 @@ export async function createCollectTask(body: { source: string; url: string }) {
 
 export async function retryCollectTask(id: string) {
   return postJSON<CollectTaskRow>(`/api/v1/collect/tasks/${id}/retry`);
+}
+
+export async function queryCollectTaskEvents(
+  taskId: string,
+  params?: { page?: number; pageSize?: number },
+) {
+  return getWithParams<{ list: CollectTaskEventRow[]; pagination: Pagination }>(
+    `/api/v1/collect/tasks/${taskId}/events`,
+    {
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 50,
+    },
+  );
 }

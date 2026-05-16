@@ -95,6 +95,41 @@ func (h *Handler) List(c *gin.Context) {
 	})
 }
 
+// ListTaskEvents GET /api/v1/collect/tasks/:id/events
+func (h *Handler) ListTaskEvents(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	q := TaskEventsListQuery{
+		Page:     atoiCollectQP(c, "page", 1),
+		PageSize: atoiCollectQP(c, "pageSize", 50),
+	}
+	res, err := h.Svc.ListTaskEvents(c.Request.Context(), id, q)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"list": res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
+}
+
 // Get GET /api/v1/collect/tasks/:id
 func (h *Handler) Get(c *gin.Context) {
 	if h == nil || h.Svc == nil {

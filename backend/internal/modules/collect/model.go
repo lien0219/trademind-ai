@@ -64,3 +64,21 @@ type CollectTask struct {
 }
 
 func (CollectTask) TableName() string { return "collect_tasks" }
+
+// CollectTaskEvent is append-only task state history (not admin audit; see operation_logs).
+type CollectTaskEvent struct {
+	model.HardDeleteBase
+	TaskID       uuid.UUID      `gorm:"type:char(36);index;not null" json:"taskId"`
+	BatchID      *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
+	EventType    string         `gorm:"size:64;index;not null" json:"eventType"`
+	FromStatus   *string        `gorm:"size:32" json:"fromStatus,omitempty"`
+	ToStatus     *string        `gorm:"size:32" json:"toStatus,omitempty"`
+	Message      string         `gorm:"type:text" json:"message,omitempty"`
+	ErrorMessage string         `gorm:"type:text" json:"errorMessage,omitempty"`
+	RetryCount   int            `gorm:"not null;default:0" json:"retryCount"`
+	MaxRetries   int            `gorm:"not null;default:0" json:"maxRetries"`
+	NextRetryAt  *time.Time     `json:"nextRetryAt,omitempty"`
+	Payload      datatypes.JSON `gorm:"type:jsonb" json:"payload,omitempty"`
+}
+
+func (CollectTaskEvent) TableName() string { return "collect_task_events" }
