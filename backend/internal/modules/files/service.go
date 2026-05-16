@@ -2,6 +2,7 @@ package files
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"mime"
@@ -123,6 +124,74 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 		ContentType: row.ContentType,
 		Size:        row.Size,
 	}, nil
+}
+
+// SaveProcessedOpts writes arbitrary bytes via the configured Storage Provider (e.g. AI pipeline output).
+type SaveProcessedOpts struct {
+	OriginalName string
+	ObjectKey    string
+	Data         []byte
+	ContentType  string
+	CreatedBy    *uuid.UUID
+}
+
+// SaveProcessed stores bytes under ObjectKey and persists a files row (same path as multipart Upload).
+func (s *Service) SaveProcessed(ctx context.Context, opts SaveProcessedOpts) (*FileRecord, error) {
+	if s == nil || s.DB == nil || s.Settings == nil {
+		return nil, fmt.Errorf("files: misconfigured")
+	}
+	max := s.MaxBytes
+	if max <= 0 {
+		max = 10 << 20
+	}
+	data := opts.Data
+	if int64(len(data)) > max {
+		return nil, fmt.Errorf("file exceeds maximum size (%d bytes)", max)
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+	objKey := strings.TrimSpace(opts.ObjectKey)
+	if objKey == "" {
+		return nil, fmt.Errorf("objectKey required")
+	}
+	ct := strings.TrimSpace(opts.ContentType)
+	if ct == "" {
+		ct = http.DetectContentType(data)
+	}
+
+	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
+	if err != nil {
+		return nil, err
+	}
+	prov, kind, err := storage.NewFromPlain(plain)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := prov.Put(ctx, objKey, bytes.NewReader(data), int64(len(data)), ct); err != nil {
+		return nil, err
+	}
+	pubURL, err := prov.GetURL(ctx, objKey)
+	if err != nil {
+		_ = prov.Delete(ctx, objKey)
+		return nil, err
+	}
+
+	row := &FileRecord{
+		OriginalName: strings.TrimSpace(opts.OriginalName),
+		ObjectKey:    objKey,
+		PublicURL:    pubURL,
+		ContentType:  ct,
+		Size:         int64(len(data)),
+		StorageKind:  kind,
+		CreatedBy:    opts.CreatedBy,
+	}
+	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
+		_ = prov.Delete(ctx, objKey)
+		return nil, err
+	}
+	return row, nil
 }
 
 func extForContentType(ct string) (string, bool) {

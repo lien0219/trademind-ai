@@ -95,6 +95,7 @@ export default function ProductDraftDetailPage() {
   const [lastUpload, setLastUpload] = useState<{ id: string; url: string; objectKey: string } | null>(null);
   const [aiImgTaskType, setAiImgTaskType] = useState<string>('resize');
   const [aiImgRowId, setAiImgRowId] = useState<string>();
+  const [aiImgProvider, setAiImgProvider] = useState<string>('');
   const [aiImgBusy, setAiImgBusy] = useState(false);
 
   const reloadDetail = useCallback(async () => {
@@ -521,9 +522,9 @@ export default function ProductDraftDetailPage() {
                   <Card title="AI 图片处理（预留）" size="small" style={{ marginBottom: 16 }} bordered={false}>
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
-                        选择已关联的商品图片创建后台任务。noop 下 <Typography.Text code>resize</Typography.Text> 会成功并回显原图；
-                        <Typography.Text code>remove_background</Typography.Text> /{' '}
-                        <Typography.Text code>generate_scene</Typography.Text> 为失败占位，便于联调状态与日志。
+                        选择已关联的商品图片创建后台任务。<Typography.Text code>resize</Typography.Text> 在 noop 下会成功并回显原图；
+                        <Typography.Text code>remove_background</Typography.Text> 在配置 remove.bg API Key 且商品图为公网 URL 时，可选择 Provider 为{' '}
+                        <Typography.Text code>removebg</Typography.Text> 调用真实去背景（结果写入存储与 files）。
                       </Typography.Text>
                       <Space wrap align="start">
                         <Select
@@ -539,11 +540,27 @@ export default function ProductDraftDetailPage() {
                         <Select
                           style={{ minWidth: 200 }}
                           value={aiImgTaskType}
-                          onChange={(v) => setAiImgTaskType(v)}
+                          onChange={(v) => {
+                            setAiImgTaskType(v);
+                            if (v === 'remove_background') {
+                              setAiImgProvider('removebg');
+                            }
+                          }}
                           options={[
                             { label: '去背景 remove_background', value: 'remove_background' },
                             { label: '场景图 generate_scene', value: 'generate_scene' },
                             { label: '缩放 resize', value: 'resize' },
+                          ]}
+                        />
+                        <Select
+                          placeholder="Provider"
+                          style={{ minWidth: 220 }}
+                          value={aiImgProvider}
+                          onChange={(v) => setAiImgProvider(v)}
+                          options={[
+                            { label: '默认（跟随「图片 AI」设置）', value: '' },
+                            { label: 'noop', value: 'noop' },
+                            { label: 'remove.bg', value: 'removebg' },
                           ]}
                         />
                         <Button
@@ -554,15 +571,19 @@ export default function ProductDraftDetailPage() {
                             if (!aiImgRowId) return;
                             setAiImgBusy(true);
                             try {
-                              await createImageTask({
+                              const task = await createImageTask({
                                 taskType: aiImgTaskType,
-                                provider: 'noop',
+                                ...(aiImgProvider.trim() ? { provider: aiImgProvider.trim() } : {}),
                                 productId: id,
                                 sourceImageId: aiImgRowId,
                                 input:
                                   aiImgTaskType === 'resize' ? { width: 800, height: 800 } : {},
                               });
-                              message.success('图片任务已创建，可在「AI 工具 → 图片任务」查看');
+                              if (task.status === 'success' && task.resultUrl) {
+                                message.success(`已完成：${task.resultUrl}`);
+                              } else {
+                                message.success('图片任务已创建，可在「AI 工具 → 图片任务」查看');
+                              }
                             } catch (e: unknown) {
                               message.error((e as Error)?.message || '创建失败');
                             } finally {

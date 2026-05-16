@@ -72,7 +72,12 @@ func Register(r gin.IRouter, dep *Deps) *collect.Service {
 	promptSvc := &aiprompt.Service{DB: dep.DB}
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 	aiTaskSvc := &aitask.Service{DB: dep.DB}
-	imageTaskSvc := &imagetask.Service{DB: dep.DB, OpLog: opLogSvc}
+	imageTaskSvc := &imagetask.Service{
+		DB:       dep.DB,
+		OpLog:    opLogSvc,
+		Settings: settingsSvc,
+		Files:    fileSvc,
+	}
 	imageTaskH := &imagetask.Handler{Svc: imageTaskSvc}
 
 	productSvc := &product.Service{

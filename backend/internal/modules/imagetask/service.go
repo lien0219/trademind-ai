@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -20,8 +22,10 @@ import (
 
 // Service orchestrates image_tasks.
 type Service struct {
-	DB    *gorm.DB
-	OpLog *operationlog.Service
+	DB       *gorm.DB
+	OpLog    *operationlog.Service
+	Settings *settings.Service
+	Files    *files.Service
 }
 
 // CreatePayload is the normalized create input.
@@ -35,12 +39,46 @@ type CreatePayload struct {
 	CreatedBy      *uuid.UUID
 }
 
-func (payload *CreatePayload) normalizedProvider() string {
-	p := strings.TrimSpace(strings.ToLower(payload.Provider))
-	if p == "" {
-		return "noop"
+func imageOperationTimeout(ctx context.Context, svc *settings.Service) time.Duration {
+	def := 60 * time.Second
+	if svc == nil {
+		return def
 	}
-	return p
+	m, err := svc.PlainByGroup(ctx, 0, "image")
+	if err != nil {
+		return def
+	}
+	raw := strings.TrimSpace(m["timeout_sec"])
+	if raw == "" {
+		return def
+	}
+	sec, err := strconv.Atoi(raw)
+	if err != nil || sec < 5 {
+		return def
+	}
+	if sec > 600 {
+		sec = 600
+	}
+	return time.Duration(sec) * time.Second
+}
+
+func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (string, error) {
+	v := strings.TrimSpace(strings.ToLower(explicit))
+	if v != "" {
+		return v, nil
+	}
+	if s.Settings == nil {
+		return "noop", nil
+	}
+	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	if err != nil {
+		return "", err
+	}
+	v = strings.TrimSpace(strings.ToLower(m["provider"]))
+	if v == "" {
+		v = "noop"
+	}
+	return v, nil
 }
 
 func inputHints(raw datatypes.JSON) map[string]any {
@@ -133,14 +171,19 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	if err != nil {
 		return nil, err
 	}
-	provName := p.normalizedProvider()
-	if provName != "noop" {
-		return nil, fmt.Errorf("unsupported image provider %q (only noop in this version)", provName)
+	effectiveProv, err := s.resolveImageProvider(ctx, p.Provider)
+	if err != nil {
+		return nil, err
+	}
+	switch effectiveProv {
+	case "noop", "removebg":
+	default:
+		return nil, fmt.Errorf("unsupported image provider %q", effectiveProv)
 	}
 
 	row := &ImageTask{
 		TaskType:       p.TaskType,
-		Provider:       provName,
+		Provider:       effectiveProv,
 		Status:         StatusPending,
 		ProductID:      p.ProductID,
 		SourceImageID:  imgID,
@@ -191,14 +234,14 @@ func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error
 		return err
 	}
 
-	prov, err := imgprov.NewProvider(task.Provider)
+	prov, err := imgprov.NewForTask(ctx, task.Provider, s.Settings)
 	if err != nil {
 		return s.fail(c, &task, err.Error())
 	}
 
 	src := strings.TrimSpace(task.SourceImageURL)
 	hints := inputHints(task.Input)
-	timeout := 60 * time.Second
+	timeout := imageOperationTimeout(ctx, s.Settings)
 	pctx := ctx
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -210,25 +253,75 @@ func (s *Service) RunSync(c *gin.Context, taskID uuid.UUID, logRetry bool) error
 	if runErr != nil {
 		return s.fail(c, &task, runErr.Error())
 	}
-	if res == nil || strings.TrimSpace(res.PublicURL) == "" {
+	if res == nil {
+		return s.fail(c, &task, "provider returned empty result")
+	}
+
+	finalURL := strings.TrimSpace(res.PublicURL)
+	var finalFID *uuid.UUID
+	if res.FileID != nil {
+		finalFID = res.FileID
+	}
+
+	if len(res.RawPayload) > 0 {
+		if s.Files == nil {
+			return s.fail(c, &task, "files service unavailable for storing pipeline output")
+		}
+		ct := strings.TrimSpace(res.PayloadContentType)
+		if ct == "" {
+			ct = "image/png"
+		}
+		day := time.Now().UTC().Format("20060102")
+		suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
+		if len(suffix) > 12 {
+			suffix = suffix[:12]
+		}
+		objKey := fmt.Sprintf("image-tasks/%s/%s-removebg-%s.png", day, task.ID.String(), suffix)
+		fr, saveErr := s.Files.SaveProcessed(ctx, files.SaveProcessedOpts{
+			OriginalName: fmt.Sprintf("removebg-%s.png", task.ID.String()),
+			ObjectKey:    objKey,
+			Data:         res.RawPayload,
+			ContentType:  ct,
+			CreatedBy:    task.CreatedBy,
+		})
+		if saveErr != nil {
+			return s.fail(c, &task, saveErr.Error())
+		}
+		finalURL = strings.TrimSpace(fr.PublicURL)
+		idCopy := fr.ID
+		finalFID = &idCopy
+	}
+
+	if finalURL == "" {
 		return s.fail(c, &task, "provider returned empty result")
 	}
 
 	outObj := map[string]any{
-		"resultUrl": res.PublicURL,
-		"meta":      res.Meta,
+		"resultUrl": finalURL,
+		"provider":  task.Provider,
+	}
+	if finalFID != nil {
+		outObj["resultFileId"] = finalFID.String()
+	}
+	if ct := strings.TrimSpace(res.PayloadContentType); ct != "" {
+		outObj["contentType"] = ct
+	} else if len(res.RawPayload) > 0 {
+		outObj["contentType"] = "image/png"
+	}
+	if len(res.Meta) > 0 {
+		outObj["meta"] = res.Meta
 	}
 	outBytes, _ := json.Marshal(outObj)
 	fin := time.Now().UTC()
 	updates := map[string]any{
 		"status":        StatusSuccess,
 		"output":        datatypes.JSON(outBytes),
-		"result_url":    res.PublicURL,
+		"result_url":    finalURL,
 		"error_message": "",
 		"finished_at":   &fin,
 	}
-	if res.FileID != nil {
-		updates["result_file_id"] = res.FileID
+	if finalFID != nil {
+		updates["result_file_id"] = finalFID
 	} else {
 		updates["result_file_id"] = nil
 	}

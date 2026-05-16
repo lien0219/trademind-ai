@@ -1,10 +1,12 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
-import { Button, Descriptions, Drawer, Image, Space, Spin, Tag, message } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
+import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useRef, useState } from 'react';
 import type { ImageTaskDetail, ImageTaskListRow } from '@/services/imageTasks';
 import { createImageTask, getImageTask, queryImageTasks, retryImageTask } from '@/services/imageTasks';
+import { createProductImage } from '@/services/products';
 
 function formatJsonPretty(v: unknown): string {
   if (v == null) return '';
@@ -68,6 +70,7 @@ const TASK_TYPES = [
 ];
 
 export default function ImageTasksPage() {
+  const [createForm] = Form.useForm();
   const actionRef = useRef<ActionType>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -227,17 +230,18 @@ export default function ImageTasksPage() {
 
       <ModalForm<{
         taskType: string;
-        provider: string;
+        provider?: string;
         productId: string;
         sourceImageUrl: string;
         inputJson: string;
       }>
+        form={createForm}
         title="新建图片任务"
         open={createOpen}
         onOpenChange={setCreateOpen}
         initialValues={{
           taskType: 'resize',
-          provider: 'noop',
+          provider: '',
           productId: '',
           sourceImageUrl: '',
           inputJson: '{}',
@@ -257,7 +261,7 @@ export default function ImageTasksPage() {
           try {
             await createImageTask({
               taskType: values.taskType,
-              provider: values.provider,
+              provider: values.provider?.trim() || undefined,
               productId: values.productId?.trim() || undefined,
               sourceImageUrl: values.sourceImageUrl?.trim() || undefined,
               input: extra,
@@ -271,8 +275,29 @@ export default function ImageTasksPage() {
           }
         }}
       >
-        <ProFormSelect name="taskType" label="任务类型" options={TASK_TYPES} rules={[{ required: true }]} />
-        <ProFormText name="provider" label="Provider" rules={[{ required: true }]} />
+        <ProFormSelect
+          name="taskType"
+          label="任务类型"
+          options={TASK_TYPES}
+          rules={[{ required: true }]}
+          fieldProps={{
+            onChange: (v: string) => {
+              if (v === 'remove_background') {
+                createForm.setFieldsValue({ provider: 'removebg' });
+              }
+            },
+          }}
+        />
+        <ProFormSelect
+          name="provider"
+          label="Provider"
+          options={[
+            { label: '默认（跟随系统「图片 AI」设置里的 provider）', value: '' },
+            { label: 'noop', value: 'noop' },
+            { label: 'remove.bg', value: 'removebg' },
+          ]}
+          extra="去背景建议选择 remove.bg，且源图 URL 须公网可访问"
+        />
         <ProFormText name="productId" label="商品 ID（可选）" />
         <ProFormText
           name="sourceImageUrl"
@@ -296,8 +321,8 @@ export default function ImageTasksPage() {
         }}
         destroyOnClose
         extra={
-          detail?.status === 'failed' ? (
-            <Space>
+          <Space wrap>
+            {detail?.status === 'failed' ? (
               <Button
                 type="primary"
                 onClick={async () => {
@@ -315,8 +340,39 @@ export default function ImageTasksPage() {
               >
                 重试
               </Button>
-            </Space>
-          ) : null
+            ) : null}
+            {detail?.status === 'success' && detail.resultUrl ? (
+              <Button
+                icon={<CopyOutlined />}
+                onClick={() => {
+                  void navigator.clipboard.writeText(detail.resultUrl!);
+                  message.success('已复制结果 URL');
+                }}
+              >
+                复制结果 URL
+              </Button>
+            ) : null}
+            {detail?.status === 'success' && detail.productId && detail.resultFileId ? (
+              <Button
+                type="primary"
+                ghost
+                onClick={async () => {
+                  try {
+                    await createProductImage(detail.productId!, {
+                      fileId: detail.resultFileId,
+                      imageType: 'detail',
+                    });
+                    message.success('已添加到商品详情图');
+                    actionRef.current?.reload();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '添加失败');
+                  }
+                }}
+              >
+                添加到商品图片
+              </Button>
+            ) : null}
+          </Space>
         }
       >
         {detailLoading ? (

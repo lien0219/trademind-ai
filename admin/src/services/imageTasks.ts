@@ -69,14 +69,18 @@ export async function createImageTask(payload: {
   sourceImageUrl?: string;
   input?: Record<string, unknown>;
 }): Promise<ImageTaskDetail> {
-  return postJSON<ImageTaskDetail>('/api/v1/image/tasks', {
+  const body: Record<string, unknown> = {
     taskType: payload.taskType,
-    provider: payload.provider ?? 'noop',
     productId: payload.productId ?? '',
     sourceImageId: payload.sourceImageId ?? '',
     sourceImageUrl: payload.sourceImageUrl ?? '',
     input: payload.input ?? {},
-  });
+  };
+  const p = payload.provider?.trim();
+  if (p) {
+    body.provider = p;
+  }
+  return postJSON<ImageTaskDetail>('/api/v1/image/tasks', body);
 }
 
 export async function retryImageTask(id: string): Promise<ImageTaskDetail> {

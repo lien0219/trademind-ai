@@ -21,6 +21,7 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 	defs := []def{
 		{"provider", "noop", false},
 		{"removebg_api_key", "", true},
+		{"removebg_base_url", "", false},
 		{"openai_image_model", "", false},
 		{"comfyui_base_url", "", false},
 		{"comfyui_workflow_json", "{}", false},

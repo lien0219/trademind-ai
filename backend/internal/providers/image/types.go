@@ -45,4 +45,8 @@ type ImageResult struct {
 	PublicURL string
 	FileID    *uuid.UUID
 	Meta      map[string]any
+	// RawPayload when non-empty: imagetask persists bytes via Storage + files row before setting PublicURL/FileID.
+	RawPayload []byte
+	// PayloadContentType is MIME type for RawPayload (e.g. image/png).
+	PayloadContentType string
 }

@@ -9,6 +9,7 @@ const GROUP = 'image';
 const FIELDS: Record<string, FieldSpec> = {
   provider: {},
   removebg_api_key: { encrypted: true },
+  removebg_base_url: {},
   openai_image_model: {},
   comfyui_base_url: {},
   comfyui_workflow_json: { valueType: 'json' },
@@ -27,6 +28,7 @@ export default function ImageSettingsPage() {
       form.setFieldsValue({
         provider: g.provider || 'noop',
         removebg_api_key: g.removebg_api_key || '',
+        removebg_base_url: g.removebg_base_url || 'https://api.remove.bg/v1.0',
         openai_image_model: g.openai_image_model || '',
         comfyui_base_url: g.comfyui_base_url || '',
         comfyui_workflow_json: g.comfyui_workflow_json || '{}',
@@ -75,12 +77,19 @@ export default function ImageSettingsPage() {
           <Form.Item label="默认 Provider" name="provider" rules={[{ required: true }]}>
             <Select
               options={[
-                { label: 'noop（占位）', value: 'noop' },
-                { label: 'remove.bg（预留）', value: 'removebg', disabled: true },
+                { label: 'noop（占位 / 演示）', value: 'noop' },
+                { label: 'remove.bg 去背景', value: 'removebg' },
                 { label: 'OpenAI Image（预留）', value: 'openai_image', disabled: true },
                 { label: 'ComfyUI（预留）', value: 'comfyui', disabled: true },
               ]}
             />
+          </Form.Item>
+          <Form.Item
+            label="remove.bg Base URL"
+            name="removebg_base_url"
+            extra="默认 https://api.remove.bg/v1.0；一般无需修改"
+          >
+            <Input placeholder="https://api.remove.bg/v1.0" />
           </Form.Item>
           <Form.Item
             label="remove.bg API Key"
