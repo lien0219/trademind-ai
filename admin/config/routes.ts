@@ -26,10 +26,24 @@ export default [
     component: './System/OperationLogs',
   },
   {
-    path: '/workers/monitor',
-    name: 'Worker 监控',
-    icon: 'CloudServerOutlined',
-    component: './Workers/Monitor',
+    path: '/ops',
+    name: '运维',
+    icon: 'ToolOutlined',
+    component: '@/layouts/OpsGroupLayout',
+    routes: [
+      {
+        path: '/workers/monitor',
+        name: 'Worker 监控',
+        icon: 'CloudServerOutlined',
+        component: './Workers/Monitor',
+      },
+      {
+        path: '/task-center/failures',
+        name: '失败任务中心',
+        icon: 'WarningOutlined',
+        component: './TaskCenter/Failures',
+      },
+    ],
   },
   {
     path: '/files',

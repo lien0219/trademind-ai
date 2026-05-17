@@ -28,6 +28,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
@@ -327,6 +328,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	inventory.Register(authed, inventoryH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
+
+	tcSvc := &taskcenter.Service{
+		DB:             dep.DB,
+		OpLog:          opLogSvc,
+		Collect:        collectSvc,
+		Image:          imageTaskSvc,
+		OrderSync:      orderSyncSvc,
+		CustomerSync:   customerSyncSvc,
+		ProductPublish: productPublishSvc,
+		Inventory:      inventorySvc,
+	}
+	tcH := &taskcenter.Handler{Svc: tcSvc}
+	taskcenter.Register(authed, tcH)
 	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc
 }
 

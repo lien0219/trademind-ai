@@ -1,8 +1,13 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Col, Row, Statistic, Tag, Typography } from 'antd';
+import { history } from '@umijs/max';
+import { Col, Row, Statistic, Tag, Typography, Button, Space } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
+import {
+  queryTaskCenterSummary,
+  type FailuresSummary,
+} from '@/services/taskCenter';
 import { type WorkerMonitorData, type WorkerMonitorInstance, getWorkersMonitor } from '@/services/workers';
 
 const POLL_MS = 5000;
@@ -23,6 +28,7 @@ function statusTag(eff: string | undefined, raw: string) {
 
 export default function WorkersMonitorPage() {
   const [data, setData] = useState<WorkerMonitorData | null>(null);
+  const [failSum, setFailSum] = useState<FailuresSummary | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +40,12 @@ export default function WorkersMonitorPage() {
         if (!cancelled) setData(d);
       } catch {
         /* keep last snapshot */
+      }
+      try {
+        const s = await queryTaskCenterSummary();
+        if (!cancelled) setFailSum(s);
+      } catch {
+        /* ignore */
       }
     };
 
@@ -124,6 +136,28 @@ export default function WorkersMonitorPage() {
       <Typography.Paragraph type="secondary">
         展示队列 Worker 进程注册与任务租约（轮询 {POLL_MS / 1000}s；页面隐藏时暂停）。
       </Typography.Paragraph>
+
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col xs={24} md={14}>
+          <ProCard bordered size="small" title="失败任务中心快照">
+            {failSum ? (
+              <Space wrap>
+                <Statistic title="失败(归一)" value={failSum.totalFailed} />
+                <Statistic title="可重试" value={failSum.retryableCount} />
+                <Statistic
+                  title="忽略 / 已处理标记"
+                  value={`${failSum.ignoredCount} / ${failSum.handledCount}`}
+                />
+                <Button type="primary" onClick={() => history.push('/task-center/failures')}>
+                  打开失败任务中心
+                </Button>
+              </Space>
+            ) : (
+              <Typography.Text type="secondary">载入中...</Typography.Text>
+            )}
+          </ProCard>
+        </Col>
+      </Row>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8} md={6}>
