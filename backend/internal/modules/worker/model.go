@@ -16,6 +16,7 @@ const (
 	TypeOrderSync           = "order_sync"
 	TypeCustomerMessageSync = "customer_message_sync"
 	TypeProductPublish      = "product_publish"
+	TypeInventorySync       = "inventory_sync"
 	StatusRunning           = "running"
 	StatusStale             = "stale"
 	StatusStopped           = "stopped"

@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
@@ -62,7 +63,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -265,6 +266,25 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	productPublishH := &productpublish.Handler{Svc: productPublishSvc}
 
+	inventorySvc := &inventory.Service{
+		DB:    dep.DB,
+		Redis: dep.Redis,
+		Shops: shopSvc,
+		OpLog: opLogSvc,
+	}
+	if dep.Config != nil {
+		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
+		if strings.TrimSpace(dep.Config.InventorySyncQueueName) != "" {
+			inventorySvc.QueueName = strings.TrimSpace(dep.Config.InventorySyncQueueName)
+		} else {
+			inventorySvc.QueueName = "inventory:sync:tasks"
+		}
+		if dep.Config.InventorySyncTaskTimeoutSeconds > 0 {
+			inventorySvc.TaskTimeout = time.Duration(dep.Config.InventorySyncTaskTimeoutSeconds) * time.Second
+		}
+	}
+	inventoryH := &inventory.Handler{Svc: inventorySvc}
+
 	r.GET("/static/*filepath", staticH.Serve)
 
 	v1 := r.Group("/api/v1")
@@ -302,9 +322,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	customerchat.Register(authed, customerChatH)
 	shop.Register(authed, shopH)
 	productpublish.Register(authed, productPublishH)
+	inventory.Register(authed, inventoryH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {
@@ -440,6 +461,24 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			status = "degraded"
 		}
 
+		invQEnabled := false
+		invQName := "inventory:sync:tasks"
+		invWConc := 1
+		if dep.Config != nil {
+			invQEnabled = dep.Config.InventorySyncQueueEnabled
+			if strings.TrimSpace(dep.Config.InventorySyncQueueName) != "" {
+				invQName = strings.TrimSpace(dep.Config.InventorySyncQueueName)
+			}
+			invWConc = dep.Config.InventorySyncWorkerConcurrency
+			if invWConc < 1 {
+				invWConc = 1
+			}
+		}
+		invq := inventory.BuildInventorySyncQueueHealthBlock(ctx, dep.Redis, invQEnabled, invQName, invWConc)
+		if invQEnabled && !invq.RedisAvailable && checks["redis"] == "ok" {
+			status = "degraded"
+		}
+
 		workers := worker.BuildHealthWorkersBlock(ctx, dep.DB, dep.Config)
 		if workers.Degraded {
 			status = "degraded"
@@ -454,6 +493,7 @@ func healthHandler(dep *Deps) gin.HandlerFunc {
 			"orderSyncQueue":           osq,
 			"customerMessageSyncQueue": cmq,
 			"productPublishQueue":      ppq,
+			"inventorySyncQueue":       invq,
 			"workers":                  workers,
 			"timestamp":                time.Now().UTC().Format(time.RFC3339),
 		})

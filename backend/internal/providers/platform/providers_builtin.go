@@ -65,6 +65,12 @@ func (manualProv) SendMessage(ctx context.Context, req SendMessageRequest) (*Sen
 	return nil, ErrManualCustomerMessageUnsupported
 }
 
+func (manualProv) SyncInventory(ctx context.Context, req SyncInventoryRequest) (*SyncInventoryResult, error) {
+	_ = ctx
+	_ = req
+	return nil, ErrManualInventorySyncUnsupported
+}
+
 type mockProv struct{}
 
 func newMockProvider() Provider { return mockProv{} }
@@ -76,7 +82,7 @@ func (mockProv) Name() string { return "Mock 店铺（开发测试）" }
 func (mockProv) Status() string { return StatusAvailable }
 
 func (mockProv) Capabilities() []Capability {
-	return []Capability{CapOrderSync, CapCustomerMessage, CapProductPublish}
+	return []Capability{CapOrderSync, CapCustomerMessage, CapProductPublish, CapInventorySync}
 }
 
 func (mockProv) AuthSchema() AuthSchema {
@@ -238,6 +244,38 @@ func (mockProv) SendMessage(ctx context.Context, req SendMessageRequest) (*SendM
 			"externalConversationId": strings.TrimSpace(req.ExternalConversationID),
 			"replyLen":               len([]rune(reply)),
 		}, 12, 200),
+	}, nil
+}
+
+func (mockProv) SyncInventory(ctx context.Context, req SyncInventoryRequest) (*SyncInventoryResult, error) {
+	_ = ctx
+	pid := strings.TrimSpace(req.ExternalProductID)
+	sk := strings.TrimSpace(req.ExternalSKUID)
+	if pid == "" {
+		return nil, fmt.Errorf("externalProductId missing")
+	}
+	if sk == "" {
+		return nil, fmt.Errorf("externalSkuId missing")
+	}
+	if req.Stock < 0 {
+		return nil, fmt.Errorf("stock must be >= 0")
+	}
+	pl := strings.TrimSpace(req.Platform)
+	return &SyncInventoryResult{
+		ExternalProductID: pid,
+		ExternalSKUID:     sk,
+		Stock:             req.Stock,
+		Status:            "success",
+		RawSummary: TrimRawMap(map[string]any{
+			"provider":    "mock",
+			"shopId":      req.ShopID.String(),
+			"productId":   pid,
+			"skuId":       sk,
+			"syncedStock": req.Stock,
+			"syncedAt":    time.Now().UTC().Format(time.RFC3339),
+			"platform":    pl,
+			"code":        strings.TrimSpace(req.SKUCode),
+		}, 14, 120),
 	}, nil
 }
 
@@ -452,4 +490,11 @@ func (p *plannedProv) SendMessage(ctx context.Context, req SendMessageRequest) (
 	_ = ctx
 	_ = req
 	return nil, ErrCustomerMessageNotImplemented
+}
+
+func (p *plannedProv) SyncInventory(ctx context.Context, req SyncInventoryRequest) (*SyncInventoryResult, error) {
+	_ = p
+	_ = ctx
+	_ = req
+	return nil, ErrInventorySyncNotImplemented
 }

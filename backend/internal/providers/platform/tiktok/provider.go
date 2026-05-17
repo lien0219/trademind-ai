@@ -23,7 +23,9 @@ func (tikTokProvider) Name() string { return "TikTok Shop" }
 func (tikTokProvider) Status() string { return platformp.StatusBeta }
 
 func (tikTokProvider) Capabilities() []platformp.Capability {
-	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage, platformp.CapProductPublish}
+	return []platformp.Capability{
+		platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage, platformp.CapProductPublish, platformp.CapInventorySync,
+	}
 }
 
 func (tikTokProvider) AuthSchema() platformp.AuthSchema {
@@ -112,4 +114,10 @@ func (tikTokProvider) PullMessages(ctx context.Context, req platformp.PullMessag
 
 func (tikTokProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
 	return SendCustomerMessage(ctx, req)
+}
+
+func (tikTokProvider) SyncInventory(ctx context.Context, req platformp.SyncInventoryRequest) (*platformp.SyncInventoryResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrInventorySyncNotImplemented
 }

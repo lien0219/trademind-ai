@@ -122,6 +122,9 @@ func ImplementationStatusForCapability(p Provider, c Capability) string {
 	if c == CapProductPublish {
 		return ProductPublishImplementationStatus(p)
 	}
+	if c == CapInventorySync {
+		return InventorySyncImplementationStatus(p)
+	}
 	switch p.Status() {
 	case StatusPlanned, StatusDisabled:
 		return p.Status()

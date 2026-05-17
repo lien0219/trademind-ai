@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
@@ -45,6 +46,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&order.OrderShipment{},
 		&ordersync.OrderSyncTask{},
 		&customersync.CustomerMessageSyncTask{},
+		&inventory.InventorySyncTask{},
+		&inventory.InventoryChangeLog{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
 		&worker.Instance{},

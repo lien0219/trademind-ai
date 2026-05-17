@@ -87,6 +87,15 @@ type Config struct {
 	// ProductPublishTaskTimeoutSeconds caps publish worker lease TTL and provider timeout (default 180).
 	ProductPublishTaskTimeoutSeconds int
 
+	// InventorySyncQueueEnabled gates outbound inventory_sync tasks via Redis LIST + worker (false = synchronous in API goroutine).
+	InventorySyncQueueEnabled bool
+	// InventorySyncQueueName Redis list key (default inventory:sync:tasks).
+	InventorySyncQueueName string
+	// InventorySyncWorkerConcurrency concurrent BRPOP consumers (default 1).
+	InventorySyncWorkerConcurrency int
+	// InventorySyncTaskTimeoutSeconds caps worker lease TTL and provider context (default 120).
+	InventorySyncTaskTimeoutSeconds int
+
 	// CollectTaskTimeoutSeconds is the DB lease TTL for collect_tasks (worker reclaim).
 	CollectTaskTimeoutSeconds int
 
@@ -196,6 +205,14 @@ func Load() (*Config, error) {
 		)),
 		ProductPublishWorkerConcurrency:  atoiOrDefault(os.Getenv("PRODUCT_PUBLISH_WORKER_CONCURRENCY"), 1),
 		ProductPublishTaskTimeoutSeconds: atoiOrDefault(os.Getenv("PRODUCT_PUBLISH_TASK_TIMEOUT_SECONDS"), 180),
+
+		InventorySyncQueueEnabled: envBool(os.Getenv("INVENTORY_SYNC_QUEUE_ENABLED"), true),
+		InventorySyncQueueName: strings.TrimSpace(firstNonEmpty(
+			os.Getenv("INVENTORY_SYNC_QUEUE_NAME"),
+			"inventory:sync:tasks",
+		)),
+		InventorySyncWorkerConcurrency:  atoiOrDefault(os.Getenv("INVENTORY_SYNC_WORKER_CONCURRENCY"), 1),
+		InventorySyncTaskTimeoutSeconds: atoiOrDefault(os.Getenv("INVENTORY_SYNC_TASK_TIMEOUT_SECONDS"), 120),
 
 		CollectTaskTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECT_TASK_TIMEOUT_SECONDS"), 600),
 

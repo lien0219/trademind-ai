@@ -10,7 +10,7 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
-import { Button, Card, Descriptions, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
+import { Button, Card, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
 import {
   ArrowUpOutlined,
   DeleteOutlined,
@@ -50,7 +50,19 @@ import {
   type ProductPublicationRow,
 } from '@/services/productPublish';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
+import {
+  adjustSkuStock,
+  listProductPublicationSkus,
+  querySkuInventoryLogs,
+  syncPublicationSkuInventory,
+  type InventoryChangeLogRow,
+  type PublicationSkuListingRow,
+} from '@/services/inventory';
 
+function inventorySyncRunnable(cap?: string): boolean {
+  const c = (cap || '').trim().toLowerCase();
+  return c === 'available' || c === 'beta';
+}
 type SKUEditable = ProductSKURow & { attrsText?: string };
 
 const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) => ({
@@ -116,6 +128,22 @@ export default function ProductDraftDetailPage() {
   const [publishForm] = Form.useForm();
   const [publishSubmitting, setPublishSubmitting] = useState(false);
 
+  const [draftTabKey, setDraftTabKey] = useState('basic');
+  const [pubSkuRows, setPubSkuRows] = useState<PublicationSkuListingRow[]>([]);
+  const [pubSkuLoading, setPubSkuLoading] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState<ProductSKURow | null>(null);
+  const [adjustForm] = Form.useForm();
+  const [invAdjustSubmitting, setInvAdjustSubmitting] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [logsSku, setLogsSku] = useState<ProductSKURow | null>(null);
+  const [logsRows, setLogsRows] = useState<InventoryChangeLogRow[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncRow, setSyncRow] = useState<PublicationSkuListingRow | null>(null);
+  const [syncForm] = Form.useForm();
+  const [syncSubmitting, setSyncSubmitting] = useState(false);
+
   const aiImgAllowNoSourceImage = useMemo(() => {
     const prov = aiImgProvider.trim().toLowerCase();
     return (
@@ -162,6 +190,19 @@ export default function ProductDraftDetailPage() {
       setPubRows([]);
     } finally {
       setPubCtxLoading(false);
+    }
+  }, [id]);
+
+  const reloadPublicationSkus = useCallback(async () => {
+    if (!id) return;
+    setPubSkuLoading(true);
+    try {
+      const res = await listProductPublicationSkus(id);
+      setPubSkuRows(res.list ?? []);
+    } catch {
+      setPubSkuRows([]);
+    } finally {
+      setPubSkuLoading(false);
     }
   }, [id]);
 
@@ -406,7 +447,11 @@ export default function ProductDraftDetailPage() {
         <Typography.Text type="danger">{err}</Typography.Text>
       ) : data ? (
         <Tabs
-          defaultActiveKey="basic"
+          activeKey={draftTabKey}
+          onChange={(k) => {
+            setDraftTabKey(k);
+            if (k === 'inventory') void reloadPublicationSkus();
+          }}
           items={[
             {
               key: 'basic',
@@ -840,6 +885,177 @@ export default function ProductDraftDetailPage() {
               ),
             },
             {
+              key: 'inventory',
+              label: '库存',
+              children: (
+                <Card bordered={false}>
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="手动库存与同步（MVP）"
+                    description={
+                      <>
+                        <Typography.Paragraph style={{ marginBottom: 8 }}>
+                          本地 SKU 库存由后台 <Typography.Text code>product_skus</Typography.Text> 管理；平台侧上次记录在{' '}
+                          <Typography.Text code>product_publication_skus.stock</Typography.Text>。
+                          仅当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 标记为{' '}
+                          <Typography.Text code>available</Typography.Text>/
+                          <Typography.Text code>beta</Typography.Text>（如 mock）时可推送其余平台仍为 planned；
+                          TikTok / Shopee / Lazada / Amazon 真实库存 API 未接入；Worker 返回明确错误。
+                        </Typography.Paragraph>
+                        <Typography.Paragraph style={{ marginBottom: 0 }}>
+                          异步任务：<Link to="/inventory/sync-tasks">库存同步任务</Link>
+                        </Typography.Paragraph>
+                      </>
+                    }
+                  />
+
+                  <Typography.Title level={5}>本地 SKU</Typography.Title>
+                  <Table<ProductSKURow>
+                    loading={loading}
+                    size="small"
+                    pagination={false}
+                    rowKey="id"
+                    dataSource={(data.skus ?? []).filter((s) => !String(s.id).startsWith('new_'))}
+                    columns={[
+                      { title: '编码', dataIndex: 'skuCode', width: 140, ellipsis: true },
+                      { title: '名称', dataIndex: 'skuName', ellipsis: true },
+                      {
+                        title: '库存',
+                        dataIndex: 'stock',
+                        width: 92,
+                        render: (_v, r) => (typeof r.stock === 'number' ? r.stock : '—'),
+                      },
+                      {
+                        title: '操作',
+                        key: 'op',
+                        width: 260,
+                        render: (_x, r) => (
+                          <Space wrap size="small">
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ padding: 0 }}
+                              onClick={() => {
+                                setAdjustTarget(r);
+                                adjustForm.setFieldsValue({
+                                  stock: typeof r.stock === 'number' ? r.stock : 0,
+                                  reason: 'manual_adjust',
+                                  remark: '',
+                                });
+                                setAdjustOpen(true);
+                              }}
+                            >
+                              调整库存
+                            </Button>
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ padding: 0 }}
+                              onClick={async () => {
+                                setLogsSku(r);
+                                setLogsOpen(true);
+                                setLogsLoading(true);
+                                try {
+                                  const res = await querySkuInventoryLogs(id, r.id, { page: 1, pageSize: 50 });
+                                  setLogsRows(res.list ?? []);
+                                } catch {
+                                  setLogsRows([]);
+                                } finally {
+                                  setLogsLoading(false);
+                                }
+                              }}
+                            >
+                              变更记录
+                            </Button>
+                          </Space>
+                        ),
+                      },
+                    ]}
+                  />
+
+                  <Typography.Title level={5} style={{ marginTop: 24 }}>
+                    已刊登 SKU 映射
+                  </Typography.Title>
+                  <Spin spinning={pubSkuLoading}>
+                    <Table<PublicationSkuListingRow>
+                      size="small"
+                      rowKey="publicationSkuId"
+                      pagination={false}
+                      dataSource={pubSkuRows}
+                      columns={[
+                        {
+                          title: '店铺',
+                          ellipsis: true,
+                          render: (_, r) => r.shopName || '—',
+                        },
+                        { title: '平台', dataIndex: 'platform', width: 108 },
+                        {
+                          title: '本地 SKU',
+                          ellipsis: true,
+                          render: (_, r) => r.skuCode || r.productSkuId || '—',
+                        },
+                        {
+                          title: '外部商品 ID',
+                          dataIndex: 'externalProductId',
+                          ellipsis: true,
+                          render: (t: string | undefined) => t || '—',
+                        },
+                        {
+                          title: '外部 SKU ID',
+                          dataIndex: 'externalSkuId',
+                          ellipsis: true,
+                          render: (t: string | undefined) => t || '—',
+                        },
+                        {
+                          title: '平台库存快照',
+                          width: 118,
+                          render: (_x, r) => (typeof r.platformStock === 'number' ? r.platformStock : '—'),
+                        },
+                        {
+                          title: 'inventory_sync',
+                          width: 110,
+                          render: (_x, r) => r.inventorySyncCapability || '—',
+                        },
+                        {
+                          title: '操作',
+                          width: 132,
+                          render: (_x, r) => {
+                            const ok = inventorySyncRunnable(r.inventorySyncCapability);
+                            const sku = data.skus?.find((s) => s.id === r.productSkuId);
+                            const fallback = typeof sku?.stock === 'number' ? sku.stock : 0;
+                            const suggested =
+                              typeof r.platformStock === 'number' ? r.platformStock : fallback;
+                            const btn = (
+                              <Button
+                                type="link"
+                                size="small"
+                                disabled={!ok}
+                                style={{ padding: 0 }}
+                                onClick={() => {
+                                  if (!ok) return;
+                                  setSyncRow(r);
+                                  syncForm.setFieldsValue({ stock: suggested });
+                                  setSyncOpen(true);
+                                }}
+                              >
+                                同步库存
+                              </Button>
+                            );
+                            return ok ? btn : (
+                              <Tooltip title="当前平台库存同步能力暂未接入（非 available / beta）；任务将被后端拒绝或未实现">
+                                <span>{btn}</span>
+                              </Tooltip>
+                            );
+                          },
+                        },
+                      ]}
+                    />
+                  </Spin>
+                </Card>
+              ),
+            },
+            {
               key: 'publish',
               label: '刊登',
               children: (
@@ -1235,6 +1451,141 @@ export default function ProductDraftDetailPage() {
             </Button>
           </div>
         ) : null}
+      </Modal>
+
+      <Drawer
+        title={logsSku ? `库存变更 · ${logsSku.skuCode || logsSku.id}` : '库存变更'}
+        open={logsOpen}
+        width={560}
+        destroyOnClose
+        onClose={() => {
+          setLogsOpen(false);
+          setLogsSku(null);
+          setLogsRows([]);
+        }}
+      >
+        <Spin spinning={logsLoading}>
+          <Table<InventoryChangeLogRow>
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={logsRows}
+            columns={[
+              {
+                title: '时间',
+                dataIndex: 'createdAt',
+                width: 168,
+                render: (v: string) => {
+                  if (!v) return '—';
+                  const d = new Date(v);
+                  return Number.isNaN(d.getTime()) ? v : d.toLocaleString();
+                },
+              },
+              { title: '类型', dataIndex: 'changeType', width: 136 },
+              { title: '前', width: 56, dataIndex: 'beforeStock' },
+              { title: '后', width: 56, dataIndex: 'afterStock' },
+              { title: 'Δ', width: 56, dataIndex: 'delta' },
+              { title: '原因', ellipsis: true, dataIndex: 'reason' },
+              { title: '备注', ellipsis: true, dataIndex: 'remark' },
+            ]}
+          />
+        </Spin>
+      </Drawer>
+
+      <Modal
+        title={adjustTarget ? `调整库存 · ${adjustTarget.skuCode}` : '调整库存'}
+        open={adjustOpen && !!adjustTarget}
+        destroyOnClose
+        okText="保存"
+        confirmLoading={invAdjustSubmitting}
+        onCancel={() => {
+          setAdjustOpen(false);
+          setAdjustTarget(null);
+          adjustForm.resetFields();
+        }}
+        onOk={async () => {
+          if (!adjustTarget) return;
+          const v = await adjustForm.validateFields();
+          const stock = Number(v.stock);
+          setInvAdjustSubmitting(true);
+          try {
+            await adjustSkuStock(id, adjustTarget.id, {
+              stock,
+              reason: String(v.reason ?? 'manual_adjust').trim(),
+              remark: String(v.remark ?? ''),
+              sync: false,
+            });
+            message.success('库存已更新');
+            setAdjustOpen(false);
+            setAdjustTarget(null);
+            adjustForm.resetFields();
+            await reloadDetail();
+            await reloadPublicationSkus();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '调整失败');
+          } finally {
+            setInvAdjustSubmitting(false);
+          }
+        }}
+      >
+        <Form form={adjustForm} layout="vertical">
+          <Form.Item name="stock" label="库存（≥0）" rules={[{ required: true }]}>
+            <InputNumber min={0} step={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="reason" label="原因标识">
+            <Input placeholder="manual_adjust" />
+          </Form.Item>
+          <Form.Item name="remark" label="备注">
+            <Input.TextArea rows={2} placeholder="盘点修正…" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="同步刊登 SKU 库存"
+        open={syncOpen && !!syncRow}
+        destroyOnClose
+        okText="提交任务"
+        confirmLoading={syncSubmitting}
+        onCancel={() => {
+          setSyncOpen(false);
+          setSyncRow(null);
+          syncForm.resetFields();
+        }}
+        onOk={async () => {
+          if (!syncRow) return;
+          const v = await syncForm.validateFields();
+          const stock = Number(v.stock);
+          setSyncSubmitting(true);
+          try {
+            await syncPublicationSkuInventory(syncRow.publicationSkuId, {
+              stock,
+              options: {},
+            });
+            message.success('库存同步任务已创建');
+            setSyncOpen(false);
+            setSyncRow(null);
+            syncForm.resetFields();
+            await reloadPublicationSkus();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '提交失败');
+          } finally {
+            setSyncSubmitting(false);
+          }
+        }}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          平台：{syncRow?.platform ?? '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
+        </Typography.Paragraph>
+        <Form form={syncForm} layout="vertical">
+          <Form.Item
+            name="stock"
+            label="推送到平台的库存数量"
+            rules={[{ required: true, message: '必填且 ≥0' }]}
+          >
+            <InputNumber min={0} step={1} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
       </Modal>
     </PageContainer>
   );

@@ -144,7 +144,16 @@ export default function WorkersMonitorPage() {
       </Row>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        {(['collect', 'image', 'order_sync', 'customer_message_sync'] as const).map((k) => (
+        {(
+          [
+            'collect',
+            'image',
+            'order_sync',
+            'customer_message_sync',
+            'product_publish',
+            'inventory_sync',
+          ] as const
+        ).map((k) => (
           <Col xs={24} sm={8} lg={6} key={k}>
             <ProCard title={`${k} · 实例`} bordered size="small">
               <Statistic title="running" value={bt[k]?.running ?? 0} />
@@ -206,11 +215,21 @@ export default function WorkersMonitorPage() {
           pagination={{ pageSize: 10 }}
         />
       </ProCard>
-      <ProCard title="租约中的任务（product publish）" bordered>
+      <ProCard title="租约中的任务（product publish）" bordered style={{ marginBottom: 16 }}>
         <ProTable
           rowKey="id"
           columns={leaseCols()}
           dataSource={data?.leasedTasks.productPublish ?? []}
+          search={false}
+          options={false}
+          pagination={{ pageSize: 10 }}
+        />
+      </ProCard>
+      <ProCard title="租约中的任务（inventory sync）" bordered>
+        <ProTable
+          rowKey="id"
+          columns={leaseCols()}
+          dataSource={data?.leasedTasks.inventorySync ?? []}
           search={false}
           options={false}
           pagination={{ pageSize: 10 }}

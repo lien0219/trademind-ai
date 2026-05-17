@@ -25,6 +25,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -112,7 +113,7 @@ func main() {
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
@@ -158,6 +159,7 @@ func main() {
 		Order:           orderSyncSvc,
 		CustomerMessage: customerSyncSvc,
 		ProductPublish:  productPublishSvc,
+		InventorySync:   inventorySyncSvc,
 	})
 
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
@@ -223,6 +225,21 @@ func main() {
 		log.Warn("product_publish_worker_skipped", "reason", "redis unavailable while PRODUCT_PUBLISH_QUEUE_ENABLED=true")
 	}
 
+	if cfg.InventorySyncQueueEnabled && redisClient != nil && inventorySyncSvc != nil {
+		invWorkerConc := cfg.InventorySyncWorkerConcurrency
+		if invWorkerConc < 1 {
+			invWorkerConc = 1
+		}
+		invQn := strings.TrimSpace(cfg.InventorySyncQueueName)
+		if invQn == "" {
+			invQn = "inventory:sync:tasks"
+		}
+		inventory.StartWorker(workerCtx, &workerWG, log, inventorySyncSvc, invQn, invWorkerConc, workerReg)
+		log.Info("inventory_sync_worker_started", "concurrency", invWorkerConc, "queue", invQn)
+	} else if cfg.InventorySyncQueueEnabled && redisClient == nil {
+		log.Warn("inventory_sync_worker_skipped", "reason", "redis unavailable while INVENTORY_SYNC_QUEUE_ENABLED=true")
+	}
+
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: engine,
@@ -260,6 +277,7 @@ func main() {
 	ordersync.SetOrderSyncWorkersRunning(false)
 	customersync.SetCustomerMessageSyncWorkersRunning(false)
 	productpublish.SetProductPublishWorkersRunning(false)
+	inventory.SetInventorySyncWorkersRunning(false)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer shutdownCancel()

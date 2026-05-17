@@ -40,3 +40,9 @@ var ErrPlatformCustomerMessagePermissionDenied = errors.New("platform customer m
 
 // ErrPlatformProductPublishPermissionDenied is returned when token/scopes or TikTok account forbids product APIs.
 var ErrPlatformProductPublishPermissionDenied = errors.New("platform product publish permission denied or not configured")
+
+// ErrManualInventorySyncUnsupported means manual/offline shops have no remote listings API surface.
+var ErrManualInventorySyncUnsupported = errors.New("manual shop does not support inventory sync")
+
+// ErrInventorySyncNotImplemented signals provider inventory adapters are planned but not shipped in this build.
+var ErrInventorySyncNotImplemented = errors.New("platform inventory sync provider not implemented")

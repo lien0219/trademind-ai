@@ -106,6 +106,17 @@ type leasedProductPublishTask struct {
 
 func (leasedProductPublishTask) TableName() string { return "product_publish_tasks" }
 
+type leasedInventorySyncTask struct {
+	ID          uuid.UUID  `gorm:"column:id"`
+	Status      string     `gorm:"column:status"`
+	LockedBy    *string    `gorm:"column:locked_by"`
+	LockedUntil *time.Time `gorm:"column:locked_until"`
+	CreatedAt   time.Time  `gorm:"column:created_at"`
+	UpdatedAt   time.Time  `gorm:"column:updated_at"`
+}
+
+func (leasedInventorySyncTask) TableName() string { return "inventory_sync_tasks" }
+
 // BuildMonitorResponse loads instances and leased tasks (capped).
 func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) (*MonitorResponse, error) {
 	if db == nil {
@@ -143,6 +154,7 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 			TypeOrderSync:           {},
 			TypeCustomerMessageSync: {},
 			TypeProductPublish:      {},
+			TypeInventorySync:       {},
 		},
 		LeasedTasks: map[string][]LeasedTaskDTO{
 			"collect":             {},
@@ -150,6 +162,7 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 			"orderSync":           {},
 			"customerMessageSync": {},
 			"productPublish":      {},
+			"inventorySync":       {},
 		},
 	}
 
@@ -277,6 +290,24 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	for i := range pptasks {
 		t := pptasks[i]
 		out.LeasedTasks["productPublish"] = append(out.LeasedTasks["productPublish"], LeasedTaskDTO{
+			ID:          t.ID,
+			Status:      t.Status,
+			LockedBy:    t.LockedBy,
+			LockedUntil: t.LockedUntil,
+			CreatedAt:   t.CreatedAt,
+			UpdatedAt:   t.UpdatedAt,
+		})
+	}
+
+	var invtasks []leasedInventorySyncTask
+	_ = db.WithContext(ctx).Model(&leasedInventorySyncTask{}).
+		Where("status = ? AND locked_by IS NOT NULL", "running").
+		Order("updated_at DESC").
+		Limit(monitorLeasedLimit).
+		Find(&invtasks).Error
+	for i := range invtasks {
+		t := invtasks[i]
+		out.LeasedTasks["inventorySync"] = append(out.LeasedTasks["inventorySync"], LeasedTaskDTO{
 			ID:          t.ID,
 			Status:      t.Status,
 			LockedBy:    t.LockedBy,

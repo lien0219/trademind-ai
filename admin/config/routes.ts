@@ -144,6 +144,19 @@ export default [
     ],
   },
   {
+    path: '/inventory',
+    name: '库存',
+    icon: 'InboxOutlined',
+    component: '@/layouts/InventoryGroupLayout',
+    routes: [
+      {
+        path: '/inventory/sync-tasks',
+        name: '库存同步任务',
+        component: './Inventory/SyncTasks',
+      },
+    ],
+  },
+  {
     path: '/customer',
     name: '客服',
     icon: 'CustomerServiceOutlined',
