@@ -43,6 +43,12 @@ export default [
         icon: 'WarningOutlined',
         component: './TaskCenter/Failures',
       },
+      {
+        path: '/task-center/alerts',
+        name: '告警中心',
+        icon: 'BellOutlined',
+        component: './TaskCenter/Alerts',
+      },
     ],
   },
   {

@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"gorm.io/gorm"
 )
@@ -23,6 +24,7 @@ import (
 type Service struct {
 	DB             *gorm.DB
 	OpLog          *operationlog.Service
+	Settings       *settings.Service
 	Collect        *collect.Service
 	Image          *imagetask.Service
 	OrderSync      *ordersync.Service
@@ -47,6 +49,9 @@ type ListFailureParams struct {
 	End              *time.Time
 	Page             int
 	PageSize         int
+
+	FailureCategory string
+	Severity        string
 }
 
 func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {
@@ -97,7 +102,13 @@ func passesUnifiedFilters(d UnifiedTaskDTO, p ListFailureParams) bool {
 	if p.ShopID != "" && !strings.EqualFold(strings.TrimSpace(p.ShopID), strings.TrimSpace(d.ShopID)) {
 		return false
 	}
-	if !keywordMatches(p.Keyword, d.Title, d.ErrorMessage, d.ID, d.Platform, d.ShopName, d.RelatedResourceTitle) {
+	if wf := strings.TrimSpace(p.FailureCategory); wf != "" && !strings.EqualFold(wf, strings.TrimSpace(d.FailureCategory)) {
+		return false
+	}
+	if ws := strings.TrimSpace(p.Severity); ws != "" && !strings.EqualFold(ws, strings.TrimSpace(d.Severity)) {
+		return false
+	}
+	if !keywordMatches(p.Keyword, d.Title, d.ErrorMessage, d.ID, d.Platform, d.ShopName, d.RelatedResourceTitle, d.FailureCategory) {
 		return false
 	}
 	return true
@@ -118,7 +129,9 @@ func (s *Service) collectMerged(ctx context.Context, p ListFailureParams, perTyp
 		if err != nil {
 			return nil, err
 		}
-		for _, d := range part {
+		for i := range part {
+			applyClassification(&part[i])
+			d := part[i]
 			if !passesUnifiedFilters(d, p) {
 				continue
 			}
@@ -354,6 +367,9 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 	limit := mergeFetchLimit(page, pageSize)
 	merged, err := s.collectMerged(ctx, p, limit)
 	if err != nil {
+		return zero, err
+	}
+	if err := s.attachAlertStatuses(ctx, merged); err != nil {
 		return zero, err
 	}
 	summary := FailuresSummary{

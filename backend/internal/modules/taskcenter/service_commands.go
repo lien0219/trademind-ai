@@ -114,6 +114,9 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ClassifyOne(c.Request.Context(), &base); err != nil {
+		return nil, err
+	}
 	out := &FailureDetailDTO{UnifiedTaskDTO: base, Extra: map[string]any{}}
 	ctx := c.Request.Context()
 

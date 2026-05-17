@@ -100,6 +100,14 @@ func main() {
 	}
 	invSeedCancel()
 
+	tcSeedCtx, tcSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureTaskcenterDefaults(tcSeedCtx, db); err != nil {
+		tcSeedCancel()
+		log.Error("taskcenter_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	tcSeedCancel()
+
 	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {
 		cancel()

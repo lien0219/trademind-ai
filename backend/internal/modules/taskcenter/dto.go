@@ -34,6 +34,13 @@ type UnifiedTaskDTO struct {
 	RetryAction          string     `json:"retryAction,omitempty"`
 	RawSummary           string     `json:"rawSummary,omitempty"`
 	SortKey              time.Time  `json:"-"`
+	FailureCategory      string     `json:"failureCategory,omitempty"`
+	Severity             string     `json:"severity,omitempty"`
+	ClassificationReason string     `json:"classificationReason,omitempty"`
+	MatchedRule          string     `json:"matchedRule,omitempty"`
+	SuggestedAction      string     `json:"suggestedAction,omitempty"`
+	AlertStatus          string     `json:"alertStatus,omitempty"`
+	RelatedAlertID       string     `json:"relatedAlertId,omitempty"`
 }
 
 // FailuresSummary is returned with list and summary-only endpoints.

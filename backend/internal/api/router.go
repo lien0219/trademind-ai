@@ -332,6 +332,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	tcSvc := &taskcenter.Service{
 		DB:             dep.DB,
 		OpLog:          opLogSvc,
+		Settings:       settingsSvc,
 		Collect:        collectSvc,
 		Image:          imageTaskSvc,
 		OrderSync:      orderSyncSvc,

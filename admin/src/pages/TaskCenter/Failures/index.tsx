@@ -4,7 +4,7 @@ import {
   type ActionType,
   type ProColumns,
 } from '@ant-design/pro-components';
-import { history } from '@umijs/max';
+import { history, useLocation } from '@umijs/max';
 import {
   Badge,
   Button,
@@ -21,14 +21,16 @@ import {
   message,
 } from 'antd';
 import dayjs from 'dayjs';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   batchHandleTaskFailures,
   batchIgnoreTaskFailures,
   batchRetryTaskFailures,
+  generateTaskFailureAlert,
   getTaskFailureDetail,
   handleTaskFailure,
   ignoreTaskFailure,
+  queryTaskFailureCategories,
   queryTaskFailures,
   retryTaskFailure,
   unmarkTaskFailure,
@@ -63,6 +65,38 @@ function normTag(norm: string) {
   return <Tag color={m.color}>{m.text}</Tag>;
 }
 
+const SEV_META: Record<string, { color: string }> = {
+  low: { color: 'default' },
+  medium: { color: 'blue' },
+  high: { color: 'orange' },
+  critical: { color: 'red' },
+};
+
+function severityCell(sev?: string) {
+  if (!sev) return '—';
+  const m = SEV_META[sev];
+  if (!m) return <Tag>{sev}</Tag>;
+  const strong = sev === 'critical' || sev === 'high';
+  return (
+    <Tag color={m.color} style={{ fontWeight: strong ? 700 : undefined }}>
+      {sev.toUpperCase()}
+    </Tag>
+  );
+}
+
+const ALERT_ST_META: Record<string, { color: string; text: string }> = {
+  none: { color: 'default', text: '无' },
+  generated: { color: 'gold', text: '告警中' },
+  handled: { color: 'green', text: '告警已处理' },
+  ignored: { color: 'default', text: '告警忽略' },
+};
+
+function alertStatusUi(st?: string) {
+  const m = ALERT_ST_META[st || 'none'];
+  if (!m) return <Tag>{st}</Tag>;
+  return <Tag color={m.color}>{m.text}</Tag>;
+}
+
 function relatedHref(row: UnifiedTaskDTO): string | undefined {
   const t = row.relatedResourceType || '';
   const id = row.relatedResourceId || '';
@@ -72,12 +106,49 @@ function relatedHref(row: UnifiedTaskDTO): string | undefined {
 }
 
 export default function TaskCenterFailuresPage() {
+  const location = useLocation();
   const actionRef = useRef<ActionType>();
+  const [failureCatOpts, setFailureCatOpts] = useState<{ label: string; value: string }[]>([]);
   const [summary, setSummary] = useState<FailuresSummary | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<FailureDetailDTO | null>(null);
   const [sel, setSel] = useState<UnifiedTaskDTO[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const c = await queryTaskFailureCategories();
+        setFailureCatOpts(
+          (c.categories || []).map((x) => ({ label: x, value: x })),
+        );
+      } catch {
+        setFailureCatOpts([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search || '');
+    const jumpId = sp.get('jumpId');
+    const taskType = sp.get('taskType');
+    if (jumpId && taskType) {
+      void (async () => {
+        try {
+          setDetail(null);
+          setDetailOpen(true);
+          setDetailLoading(true);
+          const d = await getTaskFailureDetail(taskType, jumpId);
+          setDetail(d);
+        } catch (e) {
+          message.error((e as Error).message);
+          setDetailOpen(false);
+        } finally {
+          setDetailLoading(false);
+        }
+      })();
+    }
+  }, [location.search]);
 
   const columns: ProColumns<UnifiedTaskDTO>[] = useMemo(
     () => [
@@ -114,6 +185,30 @@ export default function TaskCenterFailuresPage() {
           allowClear: true,
         },
         render: (_, r) => normTag(r.normalizedStatus),
+      },
+      {
+        title: '失败类别',
+        dataIndex: 'failureCategory',
+        width: 132,
+        valueType: 'select',
+        fieldProps: {
+          options: failureCatOpts,
+          allowClear: true,
+          showSearch: true,
+        },
+      },
+      {
+        title: '严重等级',
+        dataIndex: 'severity',
+        width: 106,
+        valueType: 'select',
+        valueEnum: {
+          low: { text: 'LOW' },
+          medium: { text: 'MEDIUM' },
+          high: { text: 'HIGH' },
+          critical: { text: 'CRITICAL' },
+        },
+        render: (_, r) => severityCell(r.severity),
       },
       {
         title: 'platform',
@@ -192,10 +287,24 @@ export default function TaskCenterFailuresPage() {
         search: false,
       },
       {
+        title: '建议动作',
+        dataIndex: 'suggestedAction',
+        width: 160,
+        search: false,
+        ellipsis: true,
+      },
+      {
         title: '错误摘要',
         dataIndex: 'errorMessage',
         ellipsis: true,
         search: false,
+        width: 180,
+      },
+      {
+        title: '告警',
+        search: false,
+        width: 100,
+        render: (_, r) => alertStatusUi(r.alertStatus),
       },
       {
         title: '标记',
@@ -211,12 +320,23 @@ export default function TaskCenterFailuresPage() {
       {
         title: '操作',
         valueType: 'option',
-        width: 220,
+        width: 320,
         fixed: 'right',
         render: (_, r) => (
           <Space wrap size={4}>
             <Button size="small" type="link" onClick={() => void openDetail(r)}>
               详情
+            </Button>
+            <Button size="small" type="link" onClick={() => void doGenerateAlert(r)}>
+              生成告警
+            </Button>
+            <Button
+              size="small"
+              type="link"
+              disabled={!r.relatedAlertId}
+              onClick={() => history.push('/task-center/alerts')}
+            >
+              告警列表
             </Button>
             {r.detailUrl ? (
               <Button size="small" type="link" onClick={() => history.push(r.detailUrl!)}>
@@ -261,8 +381,23 @@ export default function TaskCenterFailuresPage() {
         ),
       },
     ],
-    [],
+    [failureCatOpts],
   );
+
+  async function doGenerateAlert(row: UnifiedTaskDTO) {
+    Modal.confirm({
+      title: '为该失败任务手动生成站内告警（可覆盖告警状态）',
+      onOk: async () => {
+        try {
+          await generateTaskFailureAlert(row.taskType, row.id);
+          message.success('已生成/刷新告警');
+          actionRef.current?.reload?.();
+        } catch (e) {
+          message.error((e as Error).message);
+        }
+      },
+    });
+  }
 
   async function openDetail(row: UnifiedTaskDTO) {
     setDetail(null);
@@ -452,7 +587,7 @@ export default function TaskCenterFailuresPage() {
             onChange: (_, rows) => setSel(rows),
           }}
           pagination={{ pageSize: 20, showSizeChanger: true }}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1680 }}
           tableAlertRender={false}
           request={async (params, sort, filter) => {
             const kw = typeof params.keyword === 'string' ? params.keyword.trim() : '';
@@ -465,6 +600,8 @@ export default function TaskCenterFailuresPage() {
                 platform: (params.platform as string | undefined)?.trim(),
                 shopId: (params.shopId as string | undefined)?.trim(),
                 keyword: kw || undefined,
+                failureCategory: (params.failureCategory as string | undefined)?.trim(),
+                severity: (params.severity as string | undefined)?.trim(),
               };
               if (params.includeResolved === '1') qp.includeResolved = 'true';
               if (params.includeMarked === '1') qp.includeMarked = 'true';
@@ -482,7 +619,7 @@ export default function TaskCenterFailuresPage() {
       </Space>
 
       <Drawer
-        width={560}
+        width={640}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         title="失败任务详情（摘要）"
@@ -492,23 +629,72 @@ export default function TaskCenterFailuresPage() {
           <Space direction="vertical" style={{ width: '100%' }} size={12}>
             <Typography.Title level={5}>{detail.title}</Typography.Title>
             <div>{normTag(detail.normalizedStatus)}</div>
+            <div>
+              <Typography.Text strong>失败类别：</Typography.Text> {detail.failureCategory || '—'}{' '}
+              {severityCell(detail.severity)}
+            </div>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>
+              <Typography.Text strong>归类说明：</Typography.Text>
+              <br />
+              {detail.classificationReason || '—'}
+            </Typography.Paragraph>
+            <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+              <Typography.Text strong>命中规则：</Typography.Text> {detail.matchedRule || '—'}
+            </Typography.Paragraph>
+            <Typography.Paragraph ellipsis={{ rows: 5, expandable: true }}>
+              <Typography.Text strong>建议处理：</Typography.Text>
+              <br />
+              {detail.suggestedAction || '—'}
+            </Typography.Paragraph>
+            <div>
+              <Typography.Text strong>告警状态：</Typography.Text> {alertStatusUi(detail.alertStatus)}{' '}
+              {detail.relatedAlertId ? (
+                <Typography.Link onClick={() => history.push('/task-center/alerts')}>
+                  （打开告警中心）
+                </Typography.Link>
+              ) : null}
+            </div>
             <Typography.Paragraph ellipsis={{ rows: 4, expandable: true }}>
-              <strong>错误</strong>
+              <strong>错误摘要</strong>
               <br />
               {detail.errorMessage || '—'}
             </Typography.Paragraph>
             {detail.relatedResourceTitle ? (
               <Typography.Paragraph type="secondary">关联：{detail.relatedResourceTitle}</Typography.Paragraph>
             ) : null}
+            <Space wrap>
+              {detail.taskType ? (
+                <Button
+                  onClick={() => {
+                    Modal.confirm({
+                      title: '生成站内告警记录',
+                      onOk: async () => {
+                        try {
+                          await generateTaskFailureAlert(detail.taskType, detail.id);
+                          message.success('已生成/刷新告警');
+                          actionRef.current?.reload?.();
+                          const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
+                          setDetail(refreshed);
+                        } catch (e) {
+                          message.error((e as Error).message);
+                        }
+                      },
+                    });
+                  }}
+                >
+                  生成告警
+                </Button>
+              ) : null}
+              {detail.detailUrl ? (
+                <Button type="primary" onClick={() => history.push(detail.detailUrl!)}>
+                  打开原模块页面
+                </Button>
+              ) : null}
+            </Space>
             {detail.extra && Object.keys(detail.extra).length > 0 ? (
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, margin: 0 }}>
                 {JSON.stringify(detail.extra, null, 2)}
               </pre>
-            ) : null}
-            {detail.detailUrl ? (
-              <Button type="primary" onClick={() => history.push(detail.detailUrl!)}>
-                打开原模块页面
-              </Button>
             ) : null}
           </Space>
         ) : null}

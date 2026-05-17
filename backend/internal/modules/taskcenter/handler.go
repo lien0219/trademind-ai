@@ -2,6 +2,7 @@ package taskcenter
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -79,6 +82,8 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		Platform:         strings.TrimSpace(c.Query("platform")),
 		ShopID:           strings.TrimSpace(c.Query("shopId")),
 		Keyword:          strings.TrimSpace(c.Query("keyword")),
+		FailureCategory:  strings.TrimSpace(c.Query("failureCategory")),
+		Severity:         strings.TrimSpace(c.Query("severity")),
 		IncludeResolved:  strings.EqualFold(c.Query("includeResolved"), "true") || c.Query("includeResolved") == "1",
 		IncludeMarked:    strings.EqualFold(c.Query("includeMarked"), "true") || c.Query("includeMarked") == "1",
 		Start:            startPtr,
@@ -303,4 +308,199 @@ func (h *Handler) BatchHandle(c *gin.Context) {
 	}
 	out := h.Svc.BatchHandleFailures(c, body)
 	response.OK(c, out)
+}
+
+// FailureCategories GET /task-center/failure-categories
+func (h *Handler) FailureCategories(c *gin.Context) {
+	response.OK(c, gin.H{
+		"categories": failureclassifier.AllCategories(),
+		"severities": failureclassifier.AllSeverities(),
+	})
+}
+
+// ListAlerts GET /task-center/alerts
+func (h *Handler) ListAlerts(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	startPtr, err := parseRFC3339Ptr(c.Query("start"))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid start time (RFC3339)")
+		return
+	}
+	endPtr, err := parseRFC3339Ptr(c.Query("end"))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid end time (RFC3339)")
+		return
+	}
+	p := ListAlertsParams{
+		Status:          strings.TrimSpace(c.Query("status")),
+		Severity:        strings.TrimSpace(c.Query("severity")),
+		FailureCategory: strings.TrimSpace(c.Query("failureCategory")),
+		TaskType:        strings.TrimSpace(c.Query("taskType")),
+		Platform:        strings.TrimSpace(c.Query("platform")),
+		Start:           startPtr,
+		End:             endPtr,
+		Page:            atoiQ(1, c.DefaultQuery("page", "1"), 1),
+		PageSize:        atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
+	}
+	res, err := h.Svc.ListAlerts(c.Request.Context(), p)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	page := p.Page
+	if page < 1 {
+		page = 1
+	}
+	ps := p.PageSize
+	if ps < 1 {
+		ps = 20
+	}
+	tp := res.Total / int64(ps)
+	if res.Total%int64(ps) != 0 {
+		tp++
+	}
+	response.OK(c, gin.H{
+		"list": res.List,
+		"pagination": gin.H{
+			"page":       page,
+			"pageSize":   ps,
+			"total":      res.Total,
+			"totalPages": tp,
+		},
+	})
+}
+
+// ScanAlerts POST /task-center/alerts/scan
+func (h *Handler) ScanAlerts(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	sum, err := h.Svc.ScanAndGenerateTaskAlerts(c.Request.Context())
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		msg := truncateRunes(fmt.Sprintf("scan scanned=%d gen=%d up=%d skip=%d", sum.ScannedCount, sum.GeneratedCount, sum.UpdatedCount, sum.IgnoredCount), 2000)
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "task_center.alert.scan",
+			Resource:   "task_alert",
+			ResourceID: "scan",
+			Status:     "success",
+			Message:    msg,
+		})
+		if sum.GeneratedCount > 0 {
+			_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+				Action:     "task_center.alert.generated",
+				Resource:   "task_alert",
+				ResourceID: "scan",
+				Status:     "success",
+				Message:    truncateRunes(fmt.Sprintf("generatedCount=%d", sum.GeneratedCount), 2000),
+			})
+		}
+	}
+	response.OK(c, sum)
+}
+
+// HandleAlert POST /task-center/alerts/:id/handle
+func (h *Handler) HandleAlert(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	raw := strings.TrimSpace(c.Param("id"))
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if err := h.Svc.HandleTaskAlert(c, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
+// IgnoreAlert POST /task-center/alerts/:id/ignore
+func (h *Handler) IgnoreAlert(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	raw := strings.TrimSpace(c.Param("id"))
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if err := h.Svc.IgnoreTaskAlert(c, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
+// UnmarkAlert DELETE /task-center/alerts/:id/mark
+func (h *Handler) UnmarkAlert(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	raw := strings.TrimSpace(c.Param("id"))
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if err := h.Svc.UnmarkTaskAlert(c, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
+// GenerateAlertFromFailure POST /task-center/failures/:taskType/:id/generate-alert
+func (h *Handler) GenerateAlertFromFailure(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	tid := strings.TrimSpace(c.Param("taskType"))
+	rawID := strings.TrimSpace(c.Param("id"))
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	al, err := h.Svc.GenerateAlertForFailure(c, tid, id)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "task_center.alert.generated",
+			Resource:   "task_alert",
+			ResourceID: al.ID.String(),
+			Status:     "success",
+			Message:    truncateRunes(fmt.Sprintf("taskType=%s sourceId=%s category=%s severity=%s", al.TaskType, al.SourceID, al.FailureCategory, al.Severity), 480),
+		})
+	}
+	response.OK(c, toAlertDTO(*al))
 }
