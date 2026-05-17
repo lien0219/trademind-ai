@@ -178,6 +178,9 @@ type CreateBody struct {
 	DeliveredAt       *time.Time           `json:"deliveredAt,omitempty"`
 	Items             []OrderItemInput     `json:"items,omitempty"`
 	Shipments         []OrderShipmentInput `json:"shipments,omitempty"`
+
+	DeductInventory bool `json:"deductInventory"`
+	SyncInventory   bool `json:"syncInventory"`
 }
 
 // UpdateBody PATCH-like PUT semantics (only non-nil / non-empty fragments apply).
@@ -215,6 +218,15 @@ type DetailDTO struct {
 	DeliveredAt *time.Time       `json:"deliveredAt,omitempty"`
 	Items       []OrderItem      `json:"items"`
 	Shipments   []OrderShipment  `json:"shipments"`
+
+	InventorySummary *InventoryUIMini `json:"inventorySummary,omitempty"`
+}
+
+// InventoryUIMini exposes stock-effect flags from order_inventory_effects without importing inventory in service helpers.
+type InventoryUIMini struct {
+	HasDeductionSuccess bool `json:"hasDeductionSuccess"`
+	HasRestoreSuccess   bool `json:"hasRestoreSuccess"`
+	FullyRestored       bool `json:"fullyRestored"`
 }
 
 // OrderRow base scalar fields shared by list-ish projections.
@@ -719,6 +731,45 @@ func (s *Service) Get(c *gin.Context, orderID uuid.UUID) (*DetailDTO, error) {
 		return nil, fmt.Errorf("order: no db")
 	}
 	return s.loadDetailDTO(c, orderID)
+}
+
+// PeekOrderBeforeUpdate loads current row for callers that need transitions (e.g. inventory restore gates).
+func (s *Service) PeekOrderBeforeUpdate(c *gin.Context, orderID uuid.UUID) (*Order, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("order: no db")
+	}
+	var o Order
+	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+// ShouldAutoRestoreStock returns true when the order moved into a terminal cancel/refund-ish state vs before.
+func ShouldAutoRestoreStock(before, after *Order) bool {
+	if after == nil {
+		return false
+	}
+	restoreTerminal := orderTerminalRestoreState(after)
+	if !restoreTerminal {
+		return false
+	}
+	if before == nil {
+		return restoreTerminal
+	}
+	return !orderTerminalRestoreState(before)
+}
+
+func orderTerminalRestoreState(o *Order) bool {
+	if o == nil {
+		return false
+	}
+	st := strings.TrimSpace(o.Status)
+	if st == StatusCancelled || st == StatusClosed || st == StatusRefunded {
+		return true
+	}
+	ps := strings.TrimSpace(o.PaymentStatus)
+	return ps == PaymentRefunded
 }
 
 // Update base order row and optionally replace nested collections.

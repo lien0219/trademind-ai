@@ -3,6 +3,7 @@ import {
   PageContainer,
   ProFormDigit,
   ProFormSelect,
+  ProFormSwitch,
   ProFormText,
   ProTable,
   type ActionType,
@@ -22,10 +23,12 @@ import {
   Table,
   Tabs,
   Tag,
+  Typography,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { history, useLocation } from '@umijs/max';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ORDER_FULFILLMENT_STATUS,
   ORDER_PAYMENT_STATUS,
@@ -36,11 +39,14 @@ import {
   createOrder,
   createOrderItem,
   createOrderShipment,
+  deductOrderInventory,
   deleteOrder,
   deleteOrderItem,
   deleteOrderShipment,
+  getOrderInventoryEffects,
   getOrder,
   queryOrders,
+  restoreOrderInventory,
   updateOrder,
   updateOrderItem,
   updateOrderShipment,
@@ -49,7 +55,24 @@ import {
   type OrderListRow,
   type OrderShipmentRow,
 } from '@/services/orders';
+import type { OrderInventoryEffectRow } from '@/services/inventory';
+import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
+import { pickGroup } from '@/utils/settingsForm';
+
+function truthyInventorySetting(v: string | undefined): boolean {
+  const s = String(v ?? '')
+    .trim()
+    .toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
+function summarizeInvResp(sum?: Record<string, unknown>) {
+  if (!sum) return '';
+  if (sum.skipped) return `跳过：${String(sum.skipReason || '')}`;
+  if (typeof sum.message === 'string' && sum.message) return sum.message;
+  return '已完成';
+}
 
 const ORDER_STATUS_OPTS = Object.keys(ORDER_STATUS).map((v) => ({
   label: ORDER_STATUS[v as keyof typeof ORDER_STATUS].text,
@@ -91,6 +114,18 @@ export default function OrdersPage() {
   const [shipModal, setShipModal] = useState<{ open: boolean; row?: OrderShipmentRow | null }>({ open: false });
   const [shipForm] = Form.useForm();
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
+  const { search: ordersSearch } = useLocation();
+  const [createInvDefaults, setCreateInvDefaults] = useState<{ deduct: boolean; sync: boolean }>({
+    deduct: false,
+    sync: false,
+  });
+  const [invEffectRows, setInvEffectRows] = useState<OrderInventoryEffectRow[]>([]);
+  const [invActionLoading, setInvActionLoading] = useState(false);
+  const detailIdRef = useRef<string | undefined>();
+
+  useEffect(() => {
+    detailIdRef.current = detail?.id;
+  }, [detail?.id]);
 
   useEffect(() => {
     void (async () => {
@@ -108,8 +143,23 @@ export default function OrdersPage() {
     })();
   }, []);
 
-  const refreshDetail = async (id?: string) => {
-    const oid = id || detail?.id;
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { items } = await fetchSettingsList();
+        const g = pickGroup(items, 'inventory');
+        setCreateInvDefaults({
+          deduct: truthyInventorySetting(g.auto_deduct_manual_orders),
+          sync: truthyInventorySetting(g.auto_sync_platform_inventory_after_deduct),
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  const refreshDetail = useCallback(async (id?: string) => {
+    const oid = id ?? detailIdRef.current;
     if (!oid) return;
     const d = await getOrder(oid);
     setDetail(d);
@@ -124,7 +174,28 @@ export default function OrdersPage() {
       totalAmount: d.totalAmount,
       shopId: d.shopId,
     });
-  };
+  }, [editForm]);
+
+  const loadInvEffects = useCallback(async (orderId: string) => {
+    try {
+      const r = await getOrderInventoryEffects(orderId, { page: 1, pageSize: 100 });
+      setInvEffectRows(r.list);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '加载库存影响失败');
+    }
+  }, []);
+
+  useEffect(() => {
+    const q = new URLSearchParams(ordersSearch);
+    const jid = q.get('jumpOrder')?.trim();
+    if (!jid) return;
+    history.replace('/orders');
+    setDrawerOpen(true);
+    void (async () => {
+      await refreshDetail(jid);
+      await loadInvEffects(jid);
+    })();
+  }, [ordersSearch, refreshDetail, loadInvEffects]);
 
   const columns: ProColumns<OrderListRow>[] = useMemo(
     () => [
@@ -330,6 +401,28 @@ export default function OrdersPage() {
       ]
     : [];
 
+  const inventoryEffectCols = useMemo(
+    () => [
+      { title: 'SKU', dataIndex: 'productSkuId', ellipsis: true, width: 120 },
+      { title: '类型', dataIndex: 'effectType', width: 100 },
+      { title: '状态', dataIndex: 'status', width: 92 },
+      { title: '数量', dataIndex: 'quantity', width: 64 },
+      {
+        title: '原因 / 错误',
+        key: 'msg',
+        ellipsis: true,
+        render: (_: unknown, r: OrderInventoryEffectRow) => r.errorMessage || r.reason || '—',
+      },
+      {
+        title: '时间',
+        dataIndex: 'createdAt',
+        width: 152,
+        render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm'),
+      },
+    ],
+    [],
+  );
+
   return (
     <PageContainer title="订单管理">
       <ProTable<OrderListRow>
@@ -339,7 +432,11 @@ export default function OrdersPage() {
         search={{ layout: 'vertical', defaultCollapsed: false }}
         toolBarRender={() => [
           <ModalForm
-            key="c"
+            key={`c-${createInvDefaults.deduct}-${createInvDefaults.sync}`}
+            initialValues={{
+              deductInventory: createInvDefaults.deduct,
+              syncInventory: createInvDefaults.sync,
+            }}
             title="新建手工订单"
             trigger={<Button type="primary">新建订单</Button>}
             onFinish={async (vals) => {
@@ -365,6 +462,16 @@ export default function OrdersPage() {
             <ProFormSelect name="fulfillmentStatus" label="履约状态" options={FULL_OPTS} initialValue="unfulfilled" />
             <ProFormText name="currency" label="币种" initialValue="USD" />
             <ProFormDigit name="totalAmount" label="订单总额" min={0} fieldProps={{ precision: 2 }} initialValue={0} />
+            <ProFormSwitch
+              name="deductInventory"
+              label="创建后扣减本地库存"
+              tooltip="与「设置 → 库存 / 订单 → 手工订单默认扣库存」并联"
+            />
+            <ProFormSwitch
+              name="syncInventory"
+              label="扣减后触发平台出库同步队列"
+              tooltip="需在策略中放行并具备刊登出库路由"
+            />
           </ModalForm>,
         ]}
         request={async (params) => {
@@ -392,6 +499,7 @@ export default function OrdersPage() {
         onClose={() => {
           setDrawerOpen(false);
           setDetail(null);
+          setInvEffectRows([]);
         }}
         destroyOnClose
       >
@@ -420,6 +528,9 @@ export default function OrdersPage() {
               </Popconfirm>
             </Space>
             <Tabs
+              onChange={(k) => {
+                if (k === 'inv') void loadInvEffects(detail.id);
+              }}
               items={[
                 {
                   key: 'b',
@@ -511,6 +622,118 @@ export default function OrdersPage() {
                         添加物流
                       </Button>
                       <Table<OrderShipmentRow> rowKey="id" columns={shipColumns as never} dataSource={detail.shipments} pagination={false} />
+                    </>
+                  ),
+                },
+                {
+                  key: 'inv',
+                  label: '库存',
+                  children: (
+                    <>
+                      <Space wrap style={{ marginBottom: 12 }}>
+                        {detail.inventorySummary ? (
+                          <>
+                            <Tag color={detail.inventorySummary.hasDeductionSuccess ? 'success' : 'default'}>
+                              扣库存{detail.inventorySummary.hasDeductionSuccess ? '：已有成功记录' : '：尚未成功'}
+                            </Tag>
+                            <Tag color={detail.inventorySummary.hasRestoreSuccess ? 'processing' : 'default'}>
+                              回滚{detail.inventorySummary.hasRestoreSuccess ? '：有过成功记录' : '：未记录'}
+                            </Tag>
+                          </>
+                        ) : (
+                          <Tag>库存摘要不可用</Tag>
+                        )}
+                        <Popconfirm
+                          title="扣减绑定 SKU 的本地库存（幂等；见错误提示）"
+                          onConfirm={async () => {
+                            setInvActionLoading(true);
+                            try {
+                              const r = await deductOrderInventory(detail.id, { syncInventory: false });
+                              setDetail(r.order);
+                              message.success(
+                                summarizeInvResp(r.inventoryDeduction as Record<string, unknown>),
+                              );
+                              await loadInvEffects(detail.id);
+                              actionRef.current?.reload();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '失败');
+                            } finally {
+                              setInvActionLoading(false);
+                            }
+                          }}
+                        >
+                          <Button size="small" loading={invActionLoading}>
+                            手工扣库存
+                          </Button>
+                        </Popconfirm>
+                        <Popconfirm
+                          title="扣库存并触发平台出库同步队列（仍需刊登与 outbound 就绪）"
+                          onConfirm={async () => {
+                            setInvActionLoading(true);
+                            try {
+                              const r = await deductOrderInventory(detail.id, { syncInventory: true });
+                              setDetail(r.order);
+                              message.success(
+                                summarizeInvResp(r.inventoryDeduction as Record<string, unknown>),
+                              );
+                              await loadInvEffects(detail.id);
+                              actionRef.current?.reload();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '失败');
+                            } finally {
+                              setInvActionLoading(false);
+                            }
+                          }}
+                        >
+                          <Button size="small" loading={invActionLoading}>
+                            扣库存 + 推平台任务
+                          </Button>
+                        </Popconfirm>
+                        <Popconfirm
+                          title='回滚本订单已成功扣掉的库存（需尚未被标记为「已完全对冲」等特殊状态）'
+                          onConfirm={async () => {
+                            setInvActionLoading(true);
+                            try {
+                              const r = await restoreOrderInventory(detail.id, {
+                                syncInventory: false,
+                                reason: 'manual_ui',
+                              });
+                              setDetail(r.order);
+                              message.success(
+                                summarizeInvResp(r.inventoryRestoration as Record<string, unknown>),
+                              );
+                              await loadInvEffects(detail.id);
+                              actionRef.current?.reload();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '失败');
+                            } finally {
+                              setInvActionLoading(false);
+                            }
+                          }}
+                        >
+                          <Button size="small" danger loading={invActionLoading}>
+                            手工回滚库存
+                          </Button>
+                        </Popconfirm>
+                      </Space>
+                      <Space wrap style={{ marginBottom: 8 }}>
+                        <Typography.Link href={`/inventory/effects?orderId=${encodeURIComponent(detail.id)}`}>
+                          全局影响流水
+                        </Typography.Link>
+                        <Typography.Link href={`/inventory/logs?orderId=${encodeURIComponent(detail.id)}`}>
+                          全局库存变更
+                        </Typography.Link>
+                      </Space>
+                      <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+                        策略见「设置 → 库存 / 订单」。平台同步失败不参与本地数据库事务。
+                      </Typography.Paragraph>
+                      <Table<OrderInventoryEffectRow>
+                        rowKey="id"
+                        size="small"
+                        columns={inventoryEffectCols as never}
+                        dataSource={invEffectRows}
+                        pagination={{ pageSize: 8 }}
+                      />
                     </>
                   ),
                 },

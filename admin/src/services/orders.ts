@@ -1,4 +1,5 @@
 import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
+import type { OrderInventoryEffectRow, PaginatedInventory } from '@/services/inventory';
 
 export type OrderShipmentRow = {
   id: string;
@@ -40,6 +41,13 @@ export type OrderShopSummary = {
   authStatus: string;
 };
 
+/** Order inventory flags from backend `inventory_summary` projection. */
+export type OrderInventorySummary = {
+  hasDeductionSuccess: boolean;
+  hasRestoreSuccess: boolean;
+  fullyRestored: boolean;
+};
+
 /** GET /orders/:id response (flattened header + nested children) */
 export type OrderDetailDTO = {
   id: string;
@@ -66,6 +74,7 @@ export type OrderDetailDTO = {
   updatedAt: string;
   items: OrderItemRow[];
   shipments: OrderShipmentRow[];
+  inventorySummary?: OrderInventorySummary | null;
 };
 
 export type OrderListRow = {
@@ -151,4 +160,25 @@ export async function updateOrderShipment(
 
 export async function deleteOrderShipment(orderId: string, shipmentId: string): Promise<{ ok: boolean }> {
   return deleteJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}`);
+}
+
+export async function deductOrderInventory(
+  orderId: string,
+  body?: { syncInventory?: boolean },
+): Promise<{ order: OrderDetailDTO; inventoryDeduction: Record<string, unknown> }> {
+  return postJSON(`/api/v1/orders/${orderId}/deduct-inventory`, body ?? {});
+}
+
+export async function restoreOrderInventory(
+  orderId: string,
+  body?: { syncInventory?: boolean; reason?: string },
+): Promise<{ order: OrderDetailDTO; inventoryRestoration: Record<string, unknown> }> {
+  return postJSON(`/api/v1/orders/${orderId}/restore-inventory`, body ?? {});
+}
+
+export async function getOrderInventoryEffects(
+  orderId: string,
+  params?: { page?: number; pageSize?: number },
+): Promise<{ list: OrderInventoryEffectRow[]; pagination: PaginatedInventory<OrderInventoryEffectRow>['pagination'] }> {
+  return getWithParams(`/api/v1/orders/${orderId}/inventory-effects`, params ?? {});
 }

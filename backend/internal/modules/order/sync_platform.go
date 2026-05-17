@@ -126,13 +126,14 @@ func compactRawSummary(platformKey string, shopID uuid.UUID, extID string, src m
 }
 
 // UpsertSyncedOrders writes provider-neutral payloads into orders / items / shipments (idempotent by external_order_id per shop).
-func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shopPlatform string, payloads []SyncedOrderPayload) (success int, failed int, err error) {
+// Returned order IDs are internal UUIDs successfully upserted in this batch (same order each run for the same external id).
+func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shopPlatform string, payloads []SyncedOrderPayload) (orderIDs []uuid.UUID, success int, failed int, err error) {
 	if s == nil || s.DB == nil {
-		return 0, 0, fmt.Errorf("order: no db")
+		return nil, 0, 0, fmt.Errorf("order: no db")
 	}
 	platformKey := strings.TrimSpace(shopPlatform)
 	if platformKey == "" {
-		return 0, 0, fmt.Errorf("platform is required")
+		return nil, 0, 0, fmt.Errorf("platform is required")
 	}
 	for _, p := range payloads {
 		ext := strings.TrimSpace(p.ExternalOrderID)
@@ -141,6 +142,7 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 			continue
 		}
 
+		var upsertedID uuid.UUID
 		txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			st := normalizeSyncedOrderStatus(p.Status)
 			ps := normalizeSyncedPaymentStatus(p.PaymentStatus)
@@ -197,6 +199,7 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 				if err := tx.Create(o).Error; err != nil {
 					return err
 				}
+				upsertedID = o.ID
 				return replaceSyncedChildren(tx, o.ID, p)
 			}
 
@@ -220,6 +223,7 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 			if err := tx.Save(&existing).Error; err != nil {
 				return err
 			}
+			upsertedID = existing.ID
 			return replaceSyncedChildren(tx, existing.ID, p)
 		})
 
@@ -228,19 +232,41 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 			continue
 		}
 		success++
+		if upsertedID != uuid.Nil {
+			orderIDs = append(orderIDs, upsertedID)
+		}
 	}
-	return success, failed, nil
+	return orderIDs, success, failed, nil
 }
 
 func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload) error {
-	if err := tx.Where("order_id = ?", orderID).Delete(&OrderItem{}).Error; err != nil {
-		return err
-	}
 	if err := tx.Where("order_id = ?", orderID).Delete(&OrderShipment{}).Error; err != nil {
 		return err
 	}
 
+	var existingItems []OrderItem
+	if err := tx.Where("order_id = ?", orderID).Find(&existingItems).Error; err != nil {
+		return err
+	}
+
+	byExt := make(map[string]*OrderItem)
+	for i := range existingItems {
+		ei := &existingItems[i]
+		if ei.ExternalItemID != nil && strings.TrimSpace(*ei.ExternalItemID) != "" {
+			k := strings.TrimSpace(*ei.ExternalItemID)
+			byExt[k] = ei
+		}
+	}
+
+	withExtSeen := make(map[string]struct{})
+
 	for _, it := range p.Items {
+		extRaw := strings.TrimSpace(it.ExternalItemID)
+		if extRaw == "" {
+			continue
+		}
+		withExtSeen[extRaw] = struct{}{}
+
 		title := strings.TrimSpace(it.ProductTitle)
 		if title == "" {
 			title = strings.TrimSpace(it.SKUCode)
@@ -252,6 +278,81 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		if qty < 1 {
 			qty = 1
 		}
+		var attrs datatypes.JSON
+		if len(it.Attrs) > 0 {
+			attrs = mapAttrs(it.Attrs)
+		}
+
+		prev := byExt[extRaw]
+		if prev != nil {
+			now := time.Now().UTC()
+			if err := tx.Model(prev).Updates(map[string]any{
+				"product_title": title,
+				"sku_name":      strings.TrimSpace(it.SKUName),
+				"sku_code":      strings.TrimSpace(it.SKUCode),
+				"quantity":      qty,
+				"unit_price":    it.UnitPrice,
+				"total_price":   it.TotalPrice,
+				"image_url":     strings.TrimSpace(it.ImageURL),
+				"attrs":         attrs,
+				"updated_at":    now,
+			}).Error; err != nil {
+				return err
+			}
+			continue
+		}
+
+		extCopy := extRaw
+		row := OrderItem{
+			OrderID:        orderID,
+			ExternalItemID: &extCopy,
+			ProductTitle:   title,
+			SKUName:        strings.TrimSpace(it.SKUName),
+			SKUCode:        strings.TrimSpace(it.SKUCode),
+			Quantity:       qty,
+			UnitPrice:      it.UnitPrice,
+			TotalPrice:     it.TotalPrice,
+			ImageURL:       strings.TrimSpace(it.ImageURL),
+			Attrs:          attrs,
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			return err
+		}
+	}
+
+	for ext, row := range byExt {
+		if _, ok := withExtSeen[ext]; ok {
+			continue
+		}
+		if err := tx.Delete(row).Error; err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Where("order_id = ? AND (external_item_id IS NULL OR external_item_id = '')", orderID).
+		Delete(&OrderItem{}).Error; err != nil {
+		return err
+	}
+
+	for _, it := range p.Items {
+		if strings.TrimSpace(it.ExternalItemID) != "" {
+			continue
+		}
+		title := strings.TrimSpace(it.ProductTitle)
+		if title == "" {
+			title = strings.TrimSpace(it.SKUCode)
+		}
+		if title == "" {
+			title = "(item)"
+		}
+		qty := it.Quantity
+		if qty < 1 {
+			qty = 1
+		}
+		var attrs datatypes.JSON
+		if len(it.Attrs) > 0 {
+			attrs = mapAttrs(it.Attrs)
+		}
 		row := OrderItem{
 			OrderID:      orderID,
 			ProductTitle: title,
@@ -261,13 +362,7 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 			UnitPrice:    it.UnitPrice,
 			TotalPrice:   it.TotalPrice,
 			ImageURL:     strings.TrimSpace(it.ImageURL),
-		}
-		if strings.TrimSpace(it.ExternalItemID) != "" {
-			v := strings.TrimSpace(it.ExternalItemID)
-			row.ExternalItemID = &v
-		}
-		if len(it.Attrs) > 0 {
-			row.Attrs = mapAttrs(it.Attrs)
+			Attrs:        attrs,
 		}
 		if err := tx.Create(&row).Error; err != nil {
 			return err

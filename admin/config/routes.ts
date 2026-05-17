@@ -154,6 +154,16 @@ export default [
         name: '库存同步任务',
         component: './Inventory/SyncTasks',
       },
+      {
+        path: '/inventory/effects',
+        name: '订单库存影响',
+        component: './Inventory/Effects',
+      },
+      {
+        path: '/inventory/logs',
+        name: '库存流水',
+        component: './Inventory/Logs',
+      },
     ],
   },
   {
@@ -215,6 +225,11 @@ export default [
         path: '/settings/storage',
         name: '存储设置',
         component: './Settings/Storage',
+      },
+      {
+        path: '/settings/inventory',
+        name: '库存 / 订单',
+        component: './Settings/Inventory',
       },
       {
         path: '/settings/platforms',

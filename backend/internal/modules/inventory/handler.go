@@ -223,6 +223,11 @@ func (h *Handler) ListGlobalLogs(c *gin.Context) {
 			q.ProductSKUID = &u
 		}
 	}
+	if raw := strings.TrimSpace(c.Query("orderId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.RefOrderID = &u
+		}
+	}
 	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
 			q.Start = &t
@@ -234,6 +239,54 @@ func (h *Handler) ListGlobalLogs(c *gin.Context) {
 		}
 	}
 	res, err := h.Svc.ListGlobalLogs(c.Request.Context(), q)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"list": res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
+}
+
+// ListGlobalOrderEffects GET /inventory/effects
+func (h *Handler) ListGlobalOrderEffects(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	q := OrderEffectsQuery{
+		Page:       atoiQ(c, "page", 1),
+		PageSize:   atoiQ(c, "pageSize", 20),
+		EffectType: c.Query("effectType"),
+		Status:     c.Query("status"),
+	}
+	if raw := strings.TrimSpace(c.Query("orderId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.OrderID = &u
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("productSkuId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ProductSKUID = &u
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.Start = &t
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("end")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.End = &t
+		}
+	}
+	res, err := h.Svc.ListOrderEffectsGlobal(c.Request.Context(), q)
 	if err != nil {
 		response.HandleError(c, err)
 		return

@@ -119,5 +119,19 @@ func IntegrationConfigDefinitions() []IntegrationConfigSchema {
 			GroupKey:    "",
 			Fields:      nil,
 		},
+		{
+			Key:         "inventory",
+			Title:       "库存与订单",
+			Category:    "inventory",
+			Description: "订单扣减 / 取消回滚库存、平台同步后的自动扣库策略。密钥无关；全部为布尔开关字符串（true/false）。手动创建订单可在请求体勾选扣库；平台拉单仅在「自动扣平台订单库存」开启且订单符合条件时异步扣库。",
+			GroupKey:    "inventory",
+			Fields: []IntegrationFieldSchema{
+				{Name: "auto_deduct_manual_orders", Label: "创建手工订单默认自动扣库", Type: "switch", Required: false, Help: "仅影响后台创建订单默认勾选；仍可在单笔创建时改写。", DefaultValue: false},
+				{Name: "auto_deduct_platform_orders", Label: "平台同步订单自动扣库", Type: "switch", Required: false, Help: "仅对已付款等可履约状态的平台订单生效；同步失败不回滚本地库存。", DefaultValue: false},
+				{Name: "auto_restore_cancelled_orders", Label: "订单取消 / 作废时自动回滚库存", Type: "switch", Required: false, DefaultValue: true},
+				{Name: "auto_sync_platform_inventory_after_deduct", Label: "扣库后触发平台库存同步任务", Type: "switch", Required: false, Help: "依赖店铺刊登与 outbound 路由。", DefaultValue: false},
+				{Name: "allow_negative_stock", Label: "允许 SKU 库存为负", Type: "switch", Required: false, DefaultValue: false},
+			},
+		},
 	}
 }

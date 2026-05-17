@@ -190,15 +190,36 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformamazon.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
 
+	inventorySvc := &inventory.Service{
+		DB:       dep.DB,
+		Redis:    dep.Redis,
+		Shops:    shopSvc,
+		Settings: settingsSvc,
+		OpLog:    opLogSvc,
+	}
+	if dep.Config != nil {
+		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
+		if strings.TrimSpace(dep.Config.InventorySyncQueueName) != "" {
+			inventorySvc.QueueName = strings.TrimSpace(dep.Config.InventorySyncQueueName)
+		} else {
+			inventorySvc.QueueName = "inventory:sync:tasks"
+		}
+		if dep.Config.InventorySyncTaskTimeoutSeconds > 0 {
+			inventorySvc.TaskTimeout = time.Duration(dep.Config.InventorySyncTaskTimeoutSeconds) * time.Second
+		}
+	}
+	inventoryH := &inventory.Handler{Svc: inventorySvc}
+
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc}
-	orderH := &order.Handler{Svc: orderSvc}
+	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 
 	orderSyncSvc := &ordersync.Service{
-		DB:     dep.DB,
-		Redis:  dep.Redis,
-		Shops:  shopSvc,
-		Orders: orderSvc,
-		OpLog:  opLogSvc,
+		DB:        dep.DB,
+		Redis:     dep.Redis,
+		Shops:     shopSvc,
+		Orders:    orderSvc,
+		Inventory: inventorySvc,
+		OpLog:     opLogSvc,
 	}
 	if dep.Config != nil {
 		orderSyncSvc.QueueEnabled = dep.Config.OrderSyncQueueEnabled
@@ -265,25 +286,6 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		}
 	}
 	productPublishH := &productpublish.Handler{Svc: productPublishSvc}
-
-	inventorySvc := &inventory.Service{
-		DB:    dep.DB,
-		Redis: dep.Redis,
-		Shops: shopSvc,
-		OpLog: opLogSvc,
-	}
-	if dep.Config != nil {
-		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
-		if strings.TrimSpace(dep.Config.InventorySyncQueueName) != "" {
-			inventorySvc.QueueName = strings.TrimSpace(dep.Config.InventorySyncQueueName)
-		} else {
-			inventorySvc.QueueName = "inventory:sync:tasks"
-		}
-		if dep.Config.InventorySyncTaskTimeoutSeconds > 0 {
-			inventorySvc.TaskTimeout = time.Duration(dep.Config.InventorySyncTaskTimeoutSeconds) * time.Second
-		}
-	}
-	inventoryH := &inventory.Handler{Svc: inventorySvc}
 
 	r.GET("/static/*filepath", staticH.Serve)
 

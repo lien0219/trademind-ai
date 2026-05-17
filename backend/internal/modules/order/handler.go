@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -16,8 +17,23 @@ import (
 // Handler exposes order HTTP routes.
 type Handler struct {
 	Svc *Service
+	Inv *inventory.Service
 }
 
+func (h *Handler) enrichOrderInventoryMini(c *gin.Context, out *DetailDTO) {
+	if h == nil || out == nil || h.Inv == nil {
+		return
+	}
+	sum, err := h.Inv.SummarizeOrderInventoryEffects(c.Request.Context(), out.ID)
+	if err != nil || sum == nil {
+		return
+	}
+	out.InventorySummary = &InventoryUIMini{
+		HasDeductionSuccess: sum.HasDeductionSuccess,
+		HasRestoreSuccess:   sum.HasRestoreSuccess,
+		FullyRestored:       sum.FullyRestored,
+	}
+}
 func adminUUID(c *gin.Context) *uuid.UUID {
 	if v, ok := c.Get(ctxkey.AdminID); ok {
 		if s, ok := v.(string); ok {
@@ -103,6 +119,24 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
+
+	var pol inventory.StockOrderPolicy
+	if h.Inv != nil {
+		pol, _ = h.Inv.InventoryPolicy(c.Request.Context())
+	}
+	shouldDed := h.Inv != nil && (body.DeductInventory || pol.AutoDeductManualOrders)
+	if shouldDed {
+		_, dex := h.Inv.DeductInventoryForOrder(c.Request.Context(), out.ID, inventory.OrderInventoryOptions{
+			Reason:        "order_created",
+			SyncPlatforms: body.SyncInventory,
+			CreatedBy:     adminUUID(c),
+		})
+		if dex != nil {
+			response.Fail(c, 400, response.CodeBadRequest, dex.Error())
+			return
+		}
+	}
+	h.enrichOrderInventoryMini(c, out)
 	response.OK(c, out)
 }
 
@@ -126,6 +160,7 @@ func (h *Handler) Get(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
+	h.enrichOrderInventoryMini(c, out)
 	response.OK(c, out)
 }
 
@@ -145,6 +180,14 @@ func (h *Handler) Update(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
+	var beforePtr *Order
+	if h.Inv != nil {
+		row, ierr := h.Svc.PeekOrderBeforeUpdate(c, id)
+		if ierr == nil && row != nil {
+			beforePtr = row
+		}
+	}
+
 	out, err := h.Svc.Update(c, id, body, adminUUID(c))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -154,6 +197,35 @@ func (h *Handler) Update(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
+
+	if h.Inv != nil && beforePtr != nil {
+		pol, _ := h.Inv.InventoryPolicy(c.Request.Context())
+		cur := Order{
+			Status:            out.Status,
+			PaymentStatus:     out.PaymentStatus,
+			FulfillmentStatus: out.FulfillmentStatus,
+		}
+		if pol.AutoRestoreCancelledOrders && ShouldAutoRestoreStock(beforePtr, &cur) {
+			syncPl := pol.AutoSyncPlatformInventoryAfterDeduct
+			rsn := strings.TrimSpace(body.Status)
+			if rsn == "" && strings.TrimSpace(body.PaymentStatus) != "" {
+				rsn = "payment_" + strings.TrimSpace(body.PaymentStatus)
+			}
+			if rsn == "" {
+				rsn = "order_status_auto"
+			}
+			if len(rsn) > 120 {
+				rsn = rsn[:120]
+			}
+			_, _ = h.Inv.RestoreInventoryForOrder(c.Request.Context(), id, inventory.OrderInventoryOptions{
+				Reason:        rsn,
+				SyncPlatforms: syncPl,
+				CreatedBy:     adminUUID(c),
+			})
+		}
+	}
+
+	h.enrichOrderInventoryMini(c, out)
 	response.OK(c, out)
 }
 

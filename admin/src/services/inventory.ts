@@ -34,6 +34,27 @@ export type InventoryChangeLogRow = {
   reason?: string;
   remark?: string;
   createdBy?: string | null;
+  refOrderId?: string;
+  refOrderItemId?: string;
+};
+
+export type OrderInventoryEffectRow = {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  orderId: string;
+  orderNo?: string;
+  orderItemId: string;
+  productId?: string;
+  productSkuId: string;
+  effectType: string;
+  quantity: number;
+  status: string;
+  beforeStock?: number;
+  afterStock?: number;
+  reason?: string;
+  errorMessage?: string;
+  inventoryChangeLogId?: string;
 };
 
 export type InventorySyncTaskDTO = {
@@ -126,4 +147,30 @@ export async function getInventorySyncTask(id: string) {
 
 export async function retryInventorySyncTask(id: string) {
   return postJSON<InventorySyncTaskDTO>(`/api/v1/inventory-sync/tasks/${id}/retry`, {});
+}
+
+export async function queryGlobalInventoryLogs(params?: {
+  page?: number;
+  pageSize?: number;
+  productId?: string;
+  productSkuId?: string;
+  orderId?: string;
+  changeType?: string;
+  start?: string;
+  end?: string;
+}) {
+  return getWithParams<PaginatedInventory<InventoryChangeLogRow>>('/api/v1/inventory/logs', params);
+}
+
+export async function queryGlobalInventoryEffects(params?: {
+  page?: number;
+  pageSize?: number;
+  orderId?: string;
+  productSkuId?: string;
+  effectType?: string;
+  status?: string;
+  start?: string;
+  end?: string;
+}) {
+  return getWithParams<PaginatedInventory<OrderInventoryEffectRow>>('/api/v1/inventory/effects', params);
 }

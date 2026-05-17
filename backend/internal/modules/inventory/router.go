@@ -15,6 +15,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/products/:id/sync-inventory", h.BatchSyncProduct)
 
 	g.GET("/inventory/logs", h.ListGlobalLogs)
+	g.GET("/inventory/effects", h.ListGlobalOrderEffects)
 
 	g.GET("/inventory-sync/tasks", h.ListTasks)
 	g.GET("/inventory-sync/tasks/:id", h.GetTask)

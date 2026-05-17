@@ -11,15 +11,17 @@ import (
 // InventoryChangeLog is an append-only local stock / sync audit trail (hard-deleted rows only via admin tooling).
 type InventoryChangeLog struct {
 	model.HardDeleteBase
-	ProductID    uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
-	ProductSKUID uuid.UUID  `gorm:"type:char(36);index;not null" json:"productSkuId"`
-	ChangeType   string     `gorm:"size:48;index;not null" json:"changeType"`
-	BeforeStock  int        `gorm:"not null" json:"beforeStock"`
-	AfterStock   int        `gorm:"not null" json:"afterStock"`
-	Delta        int        `gorm:"not null" json:"delta"`
-	Reason       string     `gorm:"size:128" json:"reason,omitempty"`
-	Remark       string     `gorm:"size:520" json:"remark,omitempty"`
-	CreatedBy    *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	ProductID      uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
+	ProductSKUID   uuid.UUID  `gorm:"type:char(36);index;not null" json:"productSkuId"`
+	ChangeType     string     `gorm:"size:48;index;not null" json:"changeType"`
+	BeforeStock    int        `gorm:"not null" json:"beforeStock"`
+	AfterStock     int        `gorm:"not null" json:"afterStock"`
+	Delta          int        `gorm:"not null" json:"delta"`
+	Reason         string     `gorm:"size:128" json:"reason,omitempty"`
+	Remark         string     `gorm:"size:520" json:"remark,omitempty"`
+	CreatedBy      *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	RefOrderID     *uuid.UUID `gorm:"type:char(36);index" json:"refOrderId,omitempty"`
+	RefOrderItemID *uuid.UUID `gorm:"type:char(36);index" json:"refOrderItemId,omitempty"`
 }
 
 func (InventoryChangeLog) TableName() string { return "inventory_change_logs" }

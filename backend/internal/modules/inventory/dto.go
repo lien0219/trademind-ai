@@ -82,15 +82,17 @@ type ListTasksResult struct {
 
 // ChangeLogDTO is one inventory_change_logs row projection.
 type ChangeLogDTO struct {
-	ID          uuid.UUID  `json:"id"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	ChangeType  string     `json:"changeType"`
-	BeforeStock int        `json:"beforeStock"`
-	AfterStock  int        `json:"afterStock"`
-	Delta       int        `json:"delta"`
-	Reason      string     `json:"reason,omitempty"`
-	Remark      string     `json:"remark,omitempty"`
-	CreatedBy   *uuid.UUID `json:"createdBy,omitempty"`
+	ID             uuid.UUID  `json:"id"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	ChangeType     string     `json:"changeType"`
+	BeforeStock    int        `json:"beforeStock"`
+	AfterStock     int        `json:"afterStock"`
+	Delta          int        `json:"delta"`
+	Reason         string     `json:"reason,omitempty"`
+	Remark         string     `json:"remark,omitempty"`
+	CreatedBy      *uuid.UUID `json:"createdBy,omitempty"`
+	RefOrderID     *uuid.UUID `json:"refOrderId,omitempty"`
+	RefOrderItemID *uuid.UUID `json:"refOrderItemId,omitempty"`
 }
 
 // PublicationSkuListingRow lists platform mapping rows for SKU inventory UI.
@@ -114,6 +116,7 @@ type GlobalLogsQuery struct {
 	PageSize     int
 	ProductID    *uuid.UUID
 	ProductSKUID *uuid.UUID
+	RefOrderID   *uuid.UUID
 	ChangeType   string
 	Start        *time.Time
 	End          *time.Time

@@ -78,7 +78,7 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 	}
 
 	if body.Sync {
-		n, syncErr := s.enqueueMappingsForSKU(ctx, productID, skuID, body.Stock, admin)
+		n, syncErr := s.CreateInventorySyncTasksForSKUStock(ctx, productID, skuID, body.Stock, admin)
 		if syncErr != nil {
 			return nil, syncErr
 		}
@@ -94,11 +94,21 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 	return &updated, nil
 }
 
+// CreateInventorySyncTasksForSKUStock enqueues outbound tasks for every mapped publication SKU whose platform supports runnable inventory_sync.
+func (s *Service) CreateInventorySyncTasksForSKUStock(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, target int, admin *uuid.UUID) (int, error) {
+	return s.enqueueSKUPublicationSyncTasks(ctx, productID, skuID, target, admin, map[string]any{"fromOrderStockWorkflow": true})
+}
+
 func (s *Service) enqueueMappingsForSKU(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, target int, admin *uuid.UUID) (int, error) {
+	return s.enqueueSKUPublicationSyncTasks(ctx, productID, skuID, target, admin, map[string]any{"fromAdjustStockSync": true})
+}
+
+func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, target int, admin *uuid.UUID, opt map[string]any) (int, error) {
 	var psRows []productpublish.ProductPublicationSKU
 	if err := s.DB.WithContext(ctx).Where("product_sku_id = ?", skuID).Find(&psRows).Error; err != nil {
 		return 0, err
 	}
+	optCopy := platformp.TrimRawMap(opt, 12, 200)
 	n := 0
 	for _, psku := range psRows {
 		if strings.TrimSpace(psku.ExternalSKUID) == "" {
@@ -109,18 +119,22 @@ func (s *Service) enqueueMappingsForSKU(ctx context.Context, productID uuid.UUID
 			First(&pub).Error; err != nil {
 			continue
 		}
-		if strings.TrimSpace(pub.ExternalProductID) == "" {
+		pl := strings.TrimSpace(strings.ToLower(pub.Platform))
+		extPID := strings.TrimSpace(pub.ExternalProductID)
+		if extPID == "" && pl != "amazon" {
 			continue
 		}
-		pl := strings.TrimSpace(pub.Platform)
+
 		prov := platformp.Get(pl)
 		shopRow, auth, err := s.Shops.PlainAuthForProviderCtx(ctx, pub.ShopID)
 		if err != nil {
 			return n, fmt.Errorf("shop auth: %w", err)
 		}
 		if err := ValidateShopInventoryPush(shopRow, auth, prov); err != nil {
-			return n, fmt.Errorf("%s: %w", pl, err)
+			// Planned/disabled/mock manual — skip silently
+			continue
 		}
+
 		pskuIDCopy := psku.ID
 		pubIDCopy := pub.ID
 		t := &InventorySyncTask{
@@ -129,15 +143,13 @@ func (s *Service) enqueueMappingsForSKU(ctx context.Context, productID uuid.UUID
 			PublicationID:    &pubIDCopy,
 			PublicationSkuID: &pskuIDCopy,
 			ShopID:           pub.ShopID,
-			Platform:         strings.TrimSpace(strings.ToLower(pub.Platform)),
+			Platform:         pl,
 			TaskType:         TaskTypeInventorySync,
 			Status:           StatusPending,
 			Mode:             ModeManual,
 			TargetStock:      target,
-			Input: taskInputSnap(ModeManual, target, psku.ID, ptrUUID(skuID), pub.ID, pub.ShopID, map[string]any{
-				"fromAdjustStockSync": true,
-			}),
-			CreatedBy: admin,
+			Input:            taskInputSnap(ModeManual, target, psku.ID, ptrUUID(skuID), pub.ID, pub.ShopID, optCopy),
+			CreatedBy:        admin,
 		}
 		if err := s.persistTaskAndMaybeRun(ctx, t, admin); err != nil {
 			return n, err

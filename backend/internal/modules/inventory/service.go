@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -23,6 +24,7 @@ type Service struct {
 	DB           *gorm.DB
 	Redis        *rdb.Client
 	Shops        *shop.Service
+	Settings     *settings.Service
 	OpLog        *operationlog.Service
 	QueueEnabled bool
 	QueueName    string

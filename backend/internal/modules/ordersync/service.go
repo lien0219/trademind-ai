@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -101,11 +102,12 @@ func pagesOf(total int64, ps int) int {
 
 // Service orchestrates order_sync_tasks + Platform Provider SyncOrders + order upserts.
 type Service struct {
-	DB     *gorm.DB
-	Redis  *rdb.Client
-	Shops  *shop.Service
-	Orders *order.Service
-	OpLog  *operationlog.Service
+	DB        *gorm.DB
+	Redis     *rdb.Client
+	Shops     *shop.Service
+	Orders    *order.Service
+	Inventory *inventory.Service
+	OpLog     *operationlog.Service
 
 	QueueEnabled bool
 	QueueName    string
@@ -392,9 +394,26 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 
 	payloads := ToSyncedPayloads(res.Orders)
-	successN, failedN, errUp := s.Orders.UpsertSyncedOrders(ctx, task.ShopID, shopRow.Platform, payloads)
+	orderIDs, successN, failedN, errUp := s.Orders.UpsertSyncedOrders(ctx, task.ShopID, shopRow.Platform, payloads)
 	if errUp != nil {
 		return fail(errUp.Error())
+	}
+
+	for _, oid := range orderIDs {
+		if oid == uuid.Nil || s.Inventory == nil {
+			continue
+		}
+		ds, dex := s.Inventory.DeductInventoryForOrder(ctx, oid, inventory.OrderInventoryOptions{
+			Reason:       "order_synced",
+			PlatformAuto: true,
+		})
+		if dex != nil {
+			slog.Warn("order_inventory_deduct_failed", "taskId", taskID.String(), "orderId", oid.String(), "err", dex.Error())
+			continue
+		}
+		if ds != nil && ds.Skipped {
+			slog.Info("order_inventory_deduct_skipped", "taskId", taskID.String(), "orderId", oid.String(), "reason", ds.SkipReason)
+		}
 	}
 
 	outMap := map[string]any{

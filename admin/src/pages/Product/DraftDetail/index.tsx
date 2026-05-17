@@ -924,8 +924,12 @@ export default function ProductDraftDetailPage() {
                           Listings Items <Typography.Text code>PATCH</Typography.Text> 更新{' '}
                           <Typography.Text code>fulfillment_availability</Typography.Text>。
                         </Typography.Paragraph>
-                        <Typography.Paragraph style={{ marginBottom: 0 }}>
+                        <Typography.Paragraph style={{ marginBottom: 8 }}>
                           异步任务：<Link to="/inventory/sync-tasks">库存同步任务</Link>
+                          {' · '}
+                          <Link to={`/inventory/logs?productId=${data.id}`}>按商品查库存变更</Link>
+                          {' · '}
+                          <Link to="/inventory/effects">订单扣减影响</Link>
                         </Typography.Paragraph>
                       </>
                     }

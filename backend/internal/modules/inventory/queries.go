@@ -176,15 +176,17 @@ func (s *Service) ListSKUChangeLogs(ctx context.Context, productID uuid.UUID, sk
 	items := make([]ChangeLogDTO, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, ChangeLogDTO{
-			ID:          r.ID,
-			CreatedAt:   r.CreatedAt,
-			ChangeType:  r.ChangeType,
-			BeforeStock: r.BeforeStock,
-			AfterStock:  r.AfterStock,
-			Delta:       r.Delta,
-			Reason:      r.Reason,
-			Remark:      r.Remark,
-			CreatedBy:   r.CreatedBy,
+			ID:             r.ID,
+			CreatedAt:      r.CreatedAt,
+			ChangeType:     r.ChangeType,
+			BeforeStock:    r.BeforeStock,
+			AfterStock:     r.AfterStock,
+			Delta:          r.Delta,
+			Reason:         r.Reason,
+			Remark:         r.Remark,
+			CreatedBy:      r.CreatedBy,
+			RefOrderID:     r.RefOrderID,
+			RefOrderItemID: r.RefOrderItemID,
 		})
 	}
 	return &PaginatedLogs{Items: items, Total: total, Page: page, PageSize: ps, TotalPages: pagesOf(total, ps)}, nil
@@ -210,6 +212,9 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 	if q.ProductSKUID != nil && *q.ProductSKUID != uuid.Nil {
 		tx = tx.Where("product_sku_id = ?", *q.ProductSKUID)
 	}
+	if q.RefOrderID != nil && *q.RefOrderID != uuid.Nil {
+		tx = tx.Where("ref_order_id = ?", *q.RefOrderID)
+	}
 	if strings.TrimSpace(q.ChangeType) != "" {
 		tx = tx.Where("change_type = ?", strings.TrimSpace(q.ChangeType))
 	}
@@ -231,15 +236,17 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 	items := make([]ChangeLogDTO, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, ChangeLogDTO{
-			ID:          r.ID,
-			CreatedAt:   r.CreatedAt,
-			ChangeType:  r.ChangeType,
-			BeforeStock: r.BeforeStock,
-			AfterStock:  r.AfterStock,
-			Delta:       r.Delta,
-			Reason:      r.Reason,
-			Remark:      r.Remark,
-			CreatedBy:   r.CreatedBy,
+			ID:             r.ID,
+			CreatedAt:      r.CreatedAt,
+			ChangeType:     r.ChangeType,
+			BeforeStock:    r.BeforeStock,
+			AfterStock:     r.AfterStock,
+			Delta:          r.Delta,
+			Reason:         r.Reason,
+			Remark:         r.Remark,
+			CreatedBy:      r.CreatedBy,
+			RefOrderID:     r.RefOrderID,
+			RefOrderItemID: r.RefOrderItemID,
 		})
 	}
 	return &PaginatedLogs{Items: items, Total: total, Page: page, PageSize: ps, TotalPages: pagesOf(total, ps)}, nil

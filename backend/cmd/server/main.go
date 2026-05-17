@@ -92,6 +92,14 @@ func main() {
 	}
 	imgSeedCancel()
 
+	invSeedCtx, invSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureInventoryDefaults(invSeedCtx, db); err != nil {
+		invSeedCancel()
+		log.Error("inventory_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	invSeedCancel()
+
 	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {
 		cancel()
