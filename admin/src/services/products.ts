@@ -296,3 +296,20 @@ export type AITaskRow = {
 export async function fetchProductAITasks(id: string) {
   return getJSON<{ list: AITaskRow[] }>(`/api/v1/products/${id}/ai/tasks`);
 }
+
+export type ProductSkuSearchHit = {
+  productId: string;
+  productTitle: string;
+  productSkuId: string;
+  skuCode: string;
+  skuName?: string;
+  stock?: number;
+};
+
+export async function searchProductSkus(params: { keyword?: string; productId?: string; limit?: number }) {
+  return getWithParams<{ list: ProductSkuSearchHit[] }>('/api/v1/product-skus/search', {
+    keyword: params.keyword,
+    productId: params.productId,
+    limit: params.limit,
+  });
+}

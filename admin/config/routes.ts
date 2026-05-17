@@ -141,6 +141,11 @@ export default [
         name: '同步任务',
         component: './Orders/SyncTasks',
       },
+      {
+        path: '/orders/sku-matches',
+        name: 'SKU 匹配',
+        component: './Orders/SkuMatches',
+      },
     ],
   },
   {

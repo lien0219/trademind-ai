@@ -210,8 +210,12 @@ func mapItems(in map[string]any) []platformp.PlatformOrderItem {
 		if s := pickStr(m, "variation_name"); s != "" {
 			attrs["variation"] = s
 		}
+		extSku := pickStr(m, "model_id", "item_id", "variation_id")
+		sellerSku := pickStr(m, "model_sku", "item_sku", "sku")
 		out = append(out, platformp.PlatformOrderItem{
 			ExternalItemID: ext,
+			ExternalSKUID:  extSku,
+			SellerSKU:      sellerSku,
 			ProductTitle:   title,
 			SKUName:        skuName,
 			SKUCode:        skuCode,

@@ -250,8 +250,12 @@ func mapOneItem(im map[string]any) platformp.PlatformOrderItem {
 		total = unit * float64(qty)
 	}
 	img := pickStr(im, "product_image_url", "image_url", "sku_image")
+	extSku := firstNonEmpty(pickStr(im, "sku_id", "SkuId", "product_id"), fmt.Sprint(im["sku_id"]))
+	sellerSku := firstNonEmpty(pickStr(im, "seller_sku", "shop_sku"), pickStr(im, "Sku"))
 	return platformp.PlatformOrderItem{
 		ExternalItemID: ext,
+		ExternalSKUID:  extSku,
+		SellerSKU:      sellerSku,
 		ProductTitle:   title,
 		SKUName:        pickStr(im, "variation", "sku_name"),
 		SKUCode:        sku,

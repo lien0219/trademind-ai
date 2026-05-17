@@ -17,22 +17,19 @@ function truthyStored(v: string | undefined): boolean {
 function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
   const tenantId = 0;
   const boolStr = (b: unknown) => (b ? 'true' : 'false');
-  const keys = [
-    'auto_deduct_manual_orders',
-    'auto_deduct_platform_orders',
-    'auto_restore_cancelled_orders',
-    'auto_sync_platform_inventory_after_deduct',
-    'allow_negative_stock',
-  ] as const;
-  return keys.map((k) => ({
-    tenantId,
-    groupKey: GROUP,
-    itemKey: k,
-    itemValue: boolStr(values[k]),
-    valueType: 'string',
-    isEncrypted: false,
-    remark: '',
-  }));
+  const syncAfter = boolStr(values.inventory_sync_after_deduct);
+  const rows: SettingPutItem[] = [
+    { tenantId, groupKey: GROUP, itemKey: 'auto_match_order_skus', itemValue: boolStr(values.auto_match_order_skus), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'auto_deduct_after_sku_match', itemValue: boolStr(values.auto_deduct_after_sku_match), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'auto_deduct_manual_orders', itemValue: boolStr(values.auto_deduct_manual_orders), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'auto_deduct_platform_orders', itemValue: boolStr(values.auto_deduct_platform_orders), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'auto_restore_cancelled_orders', itemValue: boolStr(values.auto_restore_cancelled_orders), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'auto_sync_inventory_after_order_deduct', itemValue: syncAfter, valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'auto_sync_platform_inventory_after_deduct', itemValue: syncAfter, valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'allow_manual_sku_bind_after_deduct', itemValue: boolStr(values.allow_manual_sku_bind_after_deduct), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'allow_negative_stock', itemValue: boolStr(values.allow_negative_stock), valueType: 'string', isEncrypted: false, remark: '' },
+  ];
+  return rows;
 }
 
 export default function InventorySettingsPage() {
@@ -44,20 +41,31 @@ export default function InventorySettingsPage() {
     try {
       const { items } = await fetchSettingsList();
       const g = pickGroup(items, GROUP);
+      const syncAfter =
+        truthyStored(g.auto_sync_inventory_after_order_deduct) ||
+        truthyStored(g.auto_sync_platform_inventory_after_deduct);
       form.setFieldsValue({
+        auto_match_order_skus:
+          g.auto_match_order_skus === '' ? true : truthyStored(g.auto_match_order_skus),
+        auto_deduct_after_sku_match: truthyStored(g.auto_deduct_after_sku_match),
         auto_deduct_manual_orders: truthyStored(g.auto_deduct_manual_orders),
         auto_deduct_platform_orders: truthyStored(g.auto_deduct_platform_orders),
         auto_restore_cancelled_orders:
           g.auto_restore_cancelled_orders === '' ? true : truthyStored(g.auto_restore_cancelled_orders),
-        auto_sync_platform_inventory_after_deduct: truthyStored(g.auto_sync_platform_inventory_after_deduct),
+        inventory_sync_after_deduct: syncAfter,
+        allow_manual_sku_bind_after_deduct:
+          g.allow_manual_sku_bind_after_deduct === '' ? true : truthyStored(g.allow_manual_sku_bind_after_deduct),
         allow_negative_stock: truthyStored(g.allow_negative_stock),
       });
       if (!Object.keys(g).length) {
         form.setFieldsValue({
+          auto_match_order_skus: true,
+          auto_deduct_after_sku_match: false,
           auto_deduct_manual_orders: false,
           auto_deduct_platform_orders: false,
           auto_restore_cancelled_orders: true,
-          auto_sync_platform_inventory_after_deduct: false,
+          inventory_sync_after_deduct: false,
+          allow_manual_sku_bind_after_deduct: true,
           allow_negative_stock: false,
         });
       }
@@ -112,6 +120,25 @@ export default function InventorySettingsPage() {
             }
           }}
         >
+          <Form.Item label="平台订单入库后自动尝试 SKU 匹配" name="auto_match_order_skus" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Typography.Paragraph type="secondary">
+            匹配走刊登 external_sku_id / sku_code / 本地 sku_code；失败不落单失败，详见订单「SKU 匹配」与{' '}
+            <Typography.Link href="/orders/sku-matches">全局匹配记录</Typography.Link>。
+          </Typography.Paragraph>
+
+          <Form.Item
+            label="平台订单：SKU 匹配成功后允许自动扣库存（仍需打开「平台同步订单到达后自动扣库存」）"
+            name="auto_deduct_after_sku_match"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Typography.Paragraph type="secondary">
+            默认关闭，避免未核对映射时误扣。打开后仅当平台同步策略允许扣库且行已绑定本地 SKU 时生效。
+          </Typography.Paragraph>
+
           <Form.Item
             label="手工订单：新建时默认自动扣库存"
             name="auto_deduct_manual_orders"
@@ -132,8 +159,20 @@ export default function InventorySettingsPage() {
           </Form.Item>
 
           <Form.Item
-            label="扣库成功后入队平台库存同步任务（需刊登与 outbound 路由）"
-            name="auto_sync_platform_inventory_after_deduct"
+            label="扣库成功后入队平台库存同步任务（需刊登与库存同步 Worker）"
+            name="inventory_sync_after_deduct"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Typography.Paragraph type="secondary">
+            写入 <code>auto_sync_inventory_after_order_deduct</code> 并与旧键 <code>auto_sync_platform_inventory_after_deduct</code>{' '}
+            同步，后端读取时优先新键。
+          </Typography.Paragraph>
+
+          <Form.Item
+            label="已有成功扣库记录时，仍允许人工绑定未匹配行并再扣（策略校验）"
+            name="allow_manual_sku_bind_after_deduct"
             valuePropName="checked"
           >
             <Switch />

@@ -55,6 +55,7 @@ import {
   type OrderListRow,
   type OrderShipmentRow,
 } from '@/services/orders';
+import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
@@ -150,7 +151,9 @@ export default function OrdersPage() {
         const g = pickGroup(items, 'inventory');
         setCreateInvDefaults({
           deduct: truthyInventorySetting(g.auto_deduct_manual_orders),
-          sync: truthyInventorySetting(g.auto_sync_platform_inventory_after_deduct),
+          sync:
+            truthyInventorySetting(g.auto_sync_inventory_after_order_deduct) ||
+            truthyInventorySetting(g.auto_sync_platform_inventory_after_deduct),
         });
       } catch {
         /* ignore */
@@ -735,6 +738,19 @@ export default function OrdersPage() {
                         pagination={{ pageSize: 8 }}
                       />
                     </>
+                  ),
+                },
+                {
+                  key: 'sku',
+                  label: 'SKU 匹配',
+                  children: (
+                    <OrderSkuMatchTab
+                      orderId={detail.id}
+                      onRefreshOrder={async () => {
+                        await refreshDetail();
+                        await loadInvEffects(detail.id);
+                      }}
+                    />
                   ),
                 },
               ]}

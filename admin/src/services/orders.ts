@@ -20,6 +20,8 @@ export type OrderItemRow = {
   productId?: string;
   productSkuId?: string;
   externalItemId?: string;
+  externalSkuId?: string;
+  sellerSku?: string;
   productTitle: string;
   skuName?: string;
   skuCode?: string;
@@ -181,4 +183,73 @@ export async function getOrderInventoryEffects(
   params?: { page?: number; pageSize?: number },
 ): Promise<{ list: OrderInventoryEffectRow[]; pagination: PaginatedInventory<OrderInventoryEffectRow>['pagination'] }> {
   return getWithParams(`/api/v1/orders/${orderId}/inventory-effects`, params ?? {});
+}
+
+export type OrderSkuMatchRow = {
+  id?: string;
+  orderId?: string;
+  orderItemId?: string;
+  platform?: string;
+  externalSkuId?: string;
+  sellerSku?: string;
+  skuCode?: string;
+  matchStatus?: string;
+  matchType?: string;
+  confidence?: number;
+  reason?: string;
+  productId?: string;
+  productSkuId?: string;
+  productTitle?: string;
+  localSkuCode?: string;
+  externalOrderId?: string;
+  candidateSkus?: Array<{
+    productSkuId: string;
+    productId: string;
+    skuCode: string;
+    skuName?: string;
+    productTitle?: string;
+  }>;
+};
+
+export async function getOrderSKUMatches(orderId: string): Promise<{ items: OrderSkuMatchRow[] }> {
+  return getJSON(`/api/v1/orders/${orderId}/sku-matches`);
+}
+
+export async function matchOrderSKUs(
+  orderId: string,
+  body?: { overwrite?: boolean; force?: boolean },
+): Promise<{ summary: Record<string, unknown> }> {
+  return postJSON(`/api/v1/orders/${orderId}/match-skus`, body ?? {});
+}
+
+export async function bindOrderItemSku(
+  itemId: string,
+  body: { productSkuId: string; deductInventory?: boolean; syncInventory?: boolean },
+): Promise<{ item: OrderItemRow; inventoryDeduction?: Record<string, unknown> }> {
+  return postJSON(`/api/v1/order-items/${itemId}/bind-sku`, body);
+}
+
+export type OrderSkuMatchListRow = OrderSkuMatchRow & {
+  shopName?: string;
+  orderNo?: string;
+  productTitle?: string;
+  localSkuCode?: string;
+};
+
+export async function queryOrderSkuMatches(params: {
+  page?: number;
+  pageSize?: number;
+  platform?: string;
+  shopId?: string;
+  matchStatus?: string;
+  matchType?: string;
+  orderId?: string;
+  productSkuId?: string;
+  start?: string;
+  end?: string;
+}): Promise<{
+  list: OrderSkuMatchListRow[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}> {
+  return getWithParams('/api/v1/order-item-sku-matches', params);
 }

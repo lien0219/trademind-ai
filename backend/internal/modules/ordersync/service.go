@@ -399,8 +399,63 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return fail(errUp.Error())
 	}
 
+	ordersSeen := 0
+	linesTotal := 0
+	matchedN := 0
+	unmatchedN := 0
+	ambiguousN := 0
+	skippedN := 0
+	manualBoundN := 0
+	preservedN := 0
+	for _, oid := range orderIDs {
+		if oid == uuid.Nil || s.Orders == nil {
+			continue
+		}
+		ms, errM := s.Orders.MatchOrderItemsForOrder(ctx, oid, order.MatchOrderItemsOptions{
+			Source:    "order_sync",
+			CreatedBy: task.CreatedBy,
+		})
+		if errM != nil {
+			slog.Warn("order_sku_match_failed", "taskId", taskID.String(), "orderId", oid.String(), "err", errM.Error())
+			continue
+		}
+		if ms != nil {
+			ordersSeen++
+			linesTotal += ms.ItemsTotal
+			matchedN += ms.Matched
+			unmatchedN += ms.Unmatched
+			ambiguousN += ms.Ambiguous
+			skippedN += ms.Skipped
+			manualBoundN += ms.ManualBound
+			preservedN += ms.Preserved
+		}
+	}
+	skuAgg := map[string]any{
+		"ordersProcessed": ordersSeen,
+		"linesTotal":      linesTotal,
+		"matched":         matchedN,
+		"unmatched":       unmatchedN,
+		"ambiguous":       ambiguousN,
+		"skipped":         skippedN,
+		"manualBound":     manualBoundN,
+		"preserved":       preservedN,
+	}
+
+	autoDeductPair := false
+	if s.Inventory != nil {
+		pol, polErr := s.Inventory.InventoryPolicy(ctx)
+		if polErr != nil {
+			slog.Warn("order_sync_inventory_policy", "taskId", taskID.String(), "err", polErr.Error())
+		} else {
+			autoDeductPair = pol.AutoDeductPlatformOrders && pol.AutoDeductAfterSKUMatch
+		}
+	}
+
 	for _, oid := range orderIDs {
 		if oid == uuid.Nil || s.Inventory == nil {
+			continue
+		}
+		if !autoDeductPair {
 			continue
 		}
 		ds, dex := s.Inventory.DeductInventoryForOrder(ctx, oid, inventory.OrderInventoryOptions{
@@ -422,6 +477,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		"upsertFailed":   failedN,
 		"hasMore":        res.HasMore,
 		"nextCursor":     res.NextCursor,
+		"skuMatch":       skuAgg,
 	}
 	if len(res.RawSummary) > 0 {
 		outMap["providerSummary"] = res.RawSummary

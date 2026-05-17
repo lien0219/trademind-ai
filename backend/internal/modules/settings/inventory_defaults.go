@@ -18,8 +18,12 @@ func EnsureInventoryDefaults(ctx context.Context, db *gorm.DB) error {
 	defs := []def{
 		{"auto_deduct_manual_orders", "false"},
 		{"auto_deduct_platform_orders", "false"},
+		{"auto_deduct_after_sku_match", "false"},
+		{"auto_match_order_skus", "true"},
 		{"auto_restore_cancelled_orders", "true"},
 		{"auto_sync_platform_inventory_after_deduct", "false"},
+		{"auto_sync_inventory_after_order_deduct", "false"},
+		{"allow_manual_sku_bind_after_deduct", "true"},
 		{"allow_negative_stock", "false"},
 	}
 	for _, d := range defs {

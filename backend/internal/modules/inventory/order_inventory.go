@@ -21,8 +21,10 @@ type StockOrderPolicy struct {
 	AutoDeductManualOrders               bool
 	AutoDeductPlatformOrders             bool
 	AutoRestoreCancelledOrders           bool
-	AutoSyncPlatformInventoryAfterDeduct bool
+	AutoSyncPlatformInventoryAfterDeduct bool // effective: auto_sync_inventory_after_order_deduct or legacy key
 	AllowNegativeStock                   bool
+	AllowManualSkuBindAfterDeduct        bool
+	AutoDeductAfterSKUMatch              bool // platform sync: require true with auto_deduct_platform_orders to auto deduct
 }
 
 func truthyInventorySetting(v string) bool {
@@ -39,12 +41,28 @@ func (s *Service) InventoryPolicy(ctx context.Context) (StockOrderPolicy, error)
 	if err != nil {
 		return def, err
 	}
+	flagOr := func(k string, defVal bool) bool {
+		v, ok := m[k]
+		if !ok || strings.TrimSpace(v) == "" {
+			return defVal
+		}
+		return truthyInventorySetting(v)
+	}
+	syncNew := strings.TrimSpace(m["auto_sync_inventory_after_order_deduct"])
+	syncLegacy := strings.TrimSpace(m["auto_sync_platform_inventory_after_deduct"])
+	syncVal := syncNew
+	if syncVal == "" {
+		syncVal = syncLegacy
+	}
+	syncOn := truthyInventorySetting(syncVal)
 	return StockOrderPolicy{
 		AutoDeductManualOrders:               truthyInventorySetting(m["auto_deduct_manual_orders"]),
 		AutoDeductPlatformOrders:             truthyInventorySetting(m["auto_deduct_platform_orders"]),
 		AutoRestoreCancelledOrders:           truthyInventorySetting(m["auto_restore_cancelled_orders"]),
-		AutoSyncPlatformInventoryAfterDeduct: truthyInventorySetting(m["auto_sync_platform_inventory_after_deduct"]),
+		AutoSyncPlatformInventoryAfterDeduct: syncOn,
 		AllowNegativeStock:                   truthyInventorySetting(m["allow_negative_stock"]),
+		AllowManualSkuBindAfterDeduct:        flagOr("allow_manual_sku_bind_after_deduct", true),
+		AutoDeductAfterSKUMatch:              truthyInventorySetting(m["auto_deduct_after_sku_match"]),
 	}, nil
 }
 
@@ -506,4 +524,18 @@ func (s *Service) SummarizeOrderInventoryEffects(ctx context.Context, orderID uu
 		sum.FullyRestored = true
 	}
 	return sum, nil
+}
+
+// HasSuccessfulOrderDeduction reports whether any successful deduct effect exists for the order.
+func (s *Service) HasSuccessfulOrderDeduction(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	if s == nil || s.DB == nil {
+		return false, fmt.Errorf("inventory: no db")
+	}
+	var n int64
+	if err := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).
+		Where("order_id = ? AND effect_type = ? AND status = ?", orderID, EffectTypeDeduct, InventoryEffectSuccess).
+		Count(&n).Error; err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }

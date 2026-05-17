@@ -45,6 +45,8 @@ type OrderItem struct {
 	ProductID      *uuid.UUID     `gorm:"type:char(36);index" json:"productId,omitempty"`
 	ProductSKUID   *uuid.UUID     `gorm:"type:char(36);index" json:"productSkuId,omitempty"`
 	ExternalItemID *string        `gorm:"size:255" json:"externalItemId,omitempty"`
+	ExternalSKUID  *string        `gorm:"size:256" json:"externalSkuId,omitempty"`
+	SellerSKU      string         `gorm:"size:128" json:"sellerSku,omitempty"`
 	ProductTitle   string         `gorm:"size:512;not null" json:"productTitle"`
 	SKUName        string         `gorm:"size:512" json:"skuName,omitempty"`
 	SKUCode        string         `gorm:"size:128" json:"skuCode,omitempty"`

@@ -210,12 +210,16 @@ func mapLineItems(in map[string]interface{}) []platformp.PlatformOrderItem {
 		if total <= 0 {
 			total = unit * float64(qty)
 		}
-		skuCode := strField(im, "seller_sku", "sku_id", "sku_code")
+		sellerSku := strField(im, "seller_sku")
+		extSkuID := strField(im, "sku_id", "id")
+		skuCode := coalesce(sellerSku, strField(im, "sku_id", "sku_code"))
 		skuName := strField(im, "sku_name", "variant")
 		img := strField(im, "image_url", "sku_image")
 		raw := compactSummary(im)
 		out = append(out, platformp.PlatformOrderItem{
 			ExternalItemID: ext,
+			ExternalSKUID:  extSkuID,
+			SellerSKU:      sellerSku,
 			ProductTitle:   title,
 			SKUName:        skuName,
 			SKUCode:        skuCode,

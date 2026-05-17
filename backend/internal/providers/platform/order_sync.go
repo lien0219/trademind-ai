@@ -55,6 +55,8 @@ type PlatformOrder struct {
 // PlatformOrderItem is a line item snapshot.
 type PlatformOrderItem struct {
 	ExternalItemID string
+	ExternalSKUID  string // platform listing / SKU identifier (e.g. TikTok sku_id, Shopee model_id)
+	SellerSKU      string // seller-facing SKU code when distinct from normalized SKUCode
 	ProductTitle   string
 	SKUName        string
 	SKUCode        string

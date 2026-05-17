@@ -188,6 +188,8 @@ func mapLineItems(items []map[string]any) []platformp.PlatformOrderItem {
 		}
 		out = append(out, platformp.PlatformOrderItem{
 			ExternalItemID: iid,
+			ExternalSKUID:  sku,
+			SellerSKU:      sku,
 			ProductTitle:   title,
 			SKUName:        skuName,
 			SKUCode:        sku,

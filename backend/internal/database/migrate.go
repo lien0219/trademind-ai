@@ -43,7 +43,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&productpublish.ProductPublicationSKU{},
 		&order.Order{},
 		&order.OrderItem{},
-		&order.OrderShipment{},
+		&order.OrderItemSKUMatch{},
 		&ordersync.OrderSyncTask{},
 		&customersync.CustomerMessageSyncTask{},
 		&inventory.InventorySyncTask{},

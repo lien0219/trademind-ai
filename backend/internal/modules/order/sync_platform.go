@@ -35,6 +35,8 @@ type SyncedOrderPayload struct {
 // SyncedOrderItemPayload is one synced line item.
 type SyncedOrderItemPayload struct {
 	ExternalItemID string
+	ExternalSKUID  string
+	SellerSKU      string
 	ProductTitle   string
 	SKUName        string
 	SKUCode        string
@@ -43,6 +45,7 @@ type SyncedOrderItemPayload struct {
 	TotalPrice     float64
 	ImageURL       string
 	Attrs          map[string]any
+	ItemRaw        map[string]any // trimmed subset for order_items.raw_data
 }
 
 // SyncedShipmentPayload is one synced shipment segment.
@@ -107,6 +110,39 @@ func normalizeSyncedShipmentStatus(v string) string {
 	default:
 		return ShipmentPending
 	}
+}
+
+func compactSyncedItemRaw(it SyncedOrderItemPayload) datatypes.JSON {
+	m := map[string]any{}
+	if s := strings.TrimSpace(it.ExternalSKUID); s != "" {
+		m["externalSkuId"] = s
+	}
+	if s := strings.TrimSpace(it.SellerSKU); s != "" {
+		m["sellerSku"] = s
+	}
+	for k, v := range it.ItemRaw {
+		lk := strings.ToLower(k)
+		if lk == "token" || lk == "access_token" || lk == "refresh_token" || lk == "authorization" {
+			continue
+		}
+		m[k] = v
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+func extSkuPtrFromPayload(it SyncedOrderItemPayload) *string {
+	s := strings.TrimSpace(it.ExternalSKUID)
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func compactRawSummary(platformKey string, shopID uuid.UUID, extID string, src map[string]any) datatypes.JSON {
@@ -282,20 +318,24 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		if len(it.Attrs) > 0 {
 			attrs = mapAttrs(it.Attrs)
 		}
+		lineRaw := compactSyncedItemRaw(it)
 
 		prev := byExt[extRaw]
 		if prev != nil {
 			now := time.Now().UTC()
 			if err := tx.Model(prev).Updates(map[string]any{
-				"product_title": title,
-				"sku_name":      strings.TrimSpace(it.SKUName),
-				"sku_code":      strings.TrimSpace(it.SKUCode),
-				"quantity":      qty,
-				"unit_price":    it.UnitPrice,
-				"total_price":   it.TotalPrice,
-				"image_url":     strings.TrimSpace(it.ImageURL),
-				"attrs":         attrs,
-				"updated_at":    now,
+				"product_title":   title,
+				"sku_name":        strings.TrimSpace(it.SKUName),
+				"sku_code":        strings.TrimSpace(it.SKUCode),
+				"seller_sku":      strings.TrimSpace(it.SellerSKU),
+				"external_sku_id": extSkuPtrFromPayload(it),
+				"quantity":        qty,
+				"unit_price":      it.UnitPrice,
+				"total_price":     it.TotalPrice,
+				"image_url":       strings.TrimSpace(it.ImageURL),
+				"attrs":           attrs,
+				"raw_data":        lineRaw,
+				"updated_at":      now,
 			}).Error; err != nil {
 				return err
 			}
@@ -306,6 +346,8 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		row := OrderItem{
 			OrderID:        orderID,
 			ExternalItemID: &extCopy,
+			ExternalSKUID:  extSkuPtrFromPayload(it),
+			SellerSKU:      strings.TrimSpace(it.SellerSKU),
 			ProductTitle:   title,
 			SKUName:        strings.TrimSpace(it.SKUName),
 			SKUCode:        strings.TrimSpace(it.SKUCode),
@@ -314,6 +356,7 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 			TotalPrice:     it.TotalPrice,
 			ImageURL:       strings.TrimSpace(it.ImageURL),
 			Attrs:          attrs,
+			RawData:        lineRaw,
 		}
 		if err := tx.Create(&row).Error; err != nil {
 			return err
@@ -353,16 +396,20 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		if len(it.Attrs) > 0 {
 			attrs = mapAttrs(it.Attrs)
 		}
+		lineRaw := compactSyncedItemRaw(it)
 		row := OrderItem{
-			OrderID:      orderID,
-			ProductTitle: title,
-			SKUName:      strings.TrimSpace(it.SKUName),
-			SKUCode:      strings.TrimSpace(it.SKUCode),
-			Quantity:     qty,
-			UnitPrice:    it.UnitPrice,
-			TotalPrice:   it.TotalPrice,
-			ImageURL:     strings.TrimSpace(it.ImageURL),
-			Attrs:        attrs,
+			OrderID:       orderID,
+			ExternalSKUID: extSkuPtrFromPayload(it),
+			SellerSKU:     strings.TrimSpace(it.SellerSKU),
+			ProductTitle:  title,
+			SKUName:       strings.TrimSpace(it.SKUName),
+			SKUCode:       strings.TrimSpace(it.SKUCode),
+			Quantity:      qty,
+			UnitPrice:     it.UnitPrice,
+			TotalPrice:    it.TotalPrice,
+			ImageURL:      strings.TrimSpace(it.ImageURL),
+			Attrs:         attrs,
+			RawData:       lineRaw,
 		}
 		if err := tx.Create(&row).Error; err != nil {
 			return err

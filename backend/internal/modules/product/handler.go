@@ -299,3 +299,24 @@ func (h *Handler) ListAITasks(c *gin.Context) {
 	}
 	response.OK(c, gin.H{"list": items})
 }
+
+// SearchSKUs GET /api/v1/product-skus/search
+func (h *Handler) SearchSKUs(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	q := SearchSKUsQuery{
+		Keyword: c.Query("keyword"),
+		Limit:   atoiQP(c, "limit", 20),
+	}
+	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
+		q.ProductID = &raw
+	}
+	list, err := h.Svc.SearchSKUs(c, q)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": list})
+}

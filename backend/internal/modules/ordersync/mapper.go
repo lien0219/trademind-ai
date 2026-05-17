@@ -21,6 +21,8 @@ func ToSyncedPayloads(in []platformp.PlatformOrder) []order.SyncedOrderPayload {
 		for _, it := range po.Items {
 			items = append(items, order.SyncedOrderItemPayload{
 				ExternalItemID: strings.TrimSpace(it.ExternalItemID),
+				ExternalSKUID:  strings.TrimSpace(it.ExternalSKUID),
+				SellerSKU:      strings.TrimSpace(it.SellerSKU),
 				ProductTitle:   it.ProductTitle,
 				SKUName:        it.SKUName,
 				SKUCode:        it.SKUCode,
@@ -29,6 +31,7 @@ func ToSyncedPayloads(in []platformp.PlatformOrder) []order.SyncedOrderPayload {
 				TotalPrice:     it.TotalPrice,
 				ImageURL:       it.ImageURL,
 				Attrs:          it.Attrs,
+				ItemRaw:        summaryFromRaw(it.RawData),
 			})
 		}
 
