@@ -141,9 +141,3 @@ func (amazonProvider) PullMessages(ctx context.Context, req platformp.PullMessag
 func (amazonProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
 	return SendCustomerMessage(ctx, req)
 }
-
-func (amazonProvider) SyncInventory(ctx context.Context, req platformp.SyncInventoryRequest) (*platformp.SyncInventoryResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrInventorySyncNotImplemented
-}

@@ -79,12 +79,20 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
       'Lazada：若平台提示与仓库 / WarehouseCode 相关，请到「设置 → 平台刊登配置 → Lazada」填写默认仓库代码（warehouse_id），或任务 options.warehouse_id 覆盖。',
     );
   }
+  if (/platform inventory config incomplete:\s*missing (marketplace_id|fulfillment_channel|product_type)/i.test(s)) {
+    hints.push(
+      'Amazon：请到「设置 → 平台刊登配置 → Amazon」补齐 Marketplace ID、Fulfillment Channel、Product Type；也可在库存同步任务的 options 中逐项覆盖。',
+    );
+  }
   if (/platform inventory sync permission denied/i.test(s)) {
     hints.push(
       '请确认已在平台侧申请库存 / 商品更新相关权限并重新授权店铺（TikTok Shop Partner Center 或 Shopee Open Platform）。',
     );
     hints.push(
       'Lazada：请确认已在 Lazada Open Platform / Seller Center 申请商品 / 库存更新相关权限并重新授权店铺。',
+    );
+    hints.push(
+      'Amazon：请确认已在 Amazon Seller Central / SP-API Developer Console 申请 Listings / Inventory 相关权限并重新授权。',
     );
   }
   if (/platform config incomplete:\s*please configure settings\.platform_tiktok/i.test(s)) {
@@ -95,6 +103,9 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
   }
   if (/platform config incomplete:\s*please configure settings\.platform_lazada/i.test(s)) {
     hints.push('请到「设置 → 平台开放配置 → Lazada」补齐开放平台应用字段。');
+  }
+  if (/platform config incomplete:\s*please configure settings\.platform_amazon|please configure platform_amazon/i.test(s)) {
+    hints.push('请到「设置 → 平台开放配置 → Amazon」补齐 SP-API / LWA 应用字段。');
   }
   return hints.length ? `${s}\n${hints.join('\n')}` : s;
 }
@@ -909,8 +920,9 @@ export default function ProductDraftDetailPage() {
                           当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 为{' '}
                           <Typography.Text code>available</Typography.Text>/
                           <Typography.Text code>beta</Typography.Text>
-                          时可创建同步任务：TikTok Shop、Shopee、Lazada 已接入真实库存更新 API（测试中）；Amazon 仍为 planned，对应
-                          Worker 会返回未实现类错误。
+                          时可创建同步任务：TikTok Shop、Shopee、Lazada、Amazon 已接入真实库存更新 API（测试中 / beta），其中 Amazon 通过 SP-API
+                          Listings Items <Typography.Text code>PATCH</Typography.Text> 更新{' '}
+                          <Typography.Text code>fulfillment_availability</Typography.Text>。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 0 }}>
                           异步任务：<Link to="/inventory/sync-tasks">库存同步任务</Link>
@@ -1052,7 +1064,7 @@ export default function ProductDraftDetailPage() {
                               </Button>
                             );
                             return ok ? btn : (
-                              <Tooltip title="当前平台 inventory_sync 仍为计划中（如 Amazon）；不包含已接入测试中的 TikTok Shop / Shopee / Lazada 真实库存同步">
+                              <Tooltip title="当前平台未开放库存同步（planned/disabled）、店铺未授权，或该映射行不可用">
                                 <span>{btn}</span>
                               </Tooltip>
                             );

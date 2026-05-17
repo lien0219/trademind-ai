@@ -31,6 +31,10 @@ func (b amazonBridge) AmazonGlobalSettings(ctx context.Context) (map[string]stri
 	return b.svc.amazonGlobalSettingsPlain(ctx)
 }
 
+func (b amazonBridge) AmazonPublishSettings(ctx context.Context) (map[string]string, error) {
+	return b.svc.amazonPublishSettingsPlain(ctx)
+}
+
 func (s *Service) amazonGlobalSettingsPlain(ctx context.Context) (map[string]string, error) {
 	if s == nil || s.Settings == nil || s.Settings.DB == nil {
 		return map[string]string{}, nil
@@ -39,6 +43,27 @@ func (s *Service) amazonGlobalSettingsPlain(ctx context.Context) (map[string]str
 		ctx = context.Background()
 	}
 	m, err := s.Settings.PlainByGroup(ctx, 0, "platform_amazon")
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return map[string]string{}, nil
+	}
+	out := map[string]string{}
+	for k, v := range m {
+		out[strings.TrimSpace(strings.ToLower(k))] = strings.TrimSpace(v)
+	}
+	return out, nil
+}
+
+func (s *Service) amazonPublishSettingsPlain(ctx context.Context) (map[string]string, error) {
+	if s == nil || s.Settings == nil || s.Settings.DB == nil {
+		return map[string]string{}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m, err := s.Settings.PlainByGroup(ctx, 0, "platform_publish_amazon")
 	if err != nil {
 		return nil, err
 	}

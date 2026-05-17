@@ -116,12 +116,13 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	if err := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", psku.PublicationID).First(&pub).Error; err != nil {
 		return fail("publication snapshot not found")
 	}
+	pl := strings.TrimSpace(strings.ToLower(taskRow.Platform))
 	extPID := strings.TrimSpace(pub.ExternalProductID)
 	extSK := strings.TrimSpace(psku.ExternalSKUID)
 	if extSK == "" {
 		return fail("external sku id missing")
 	}
-	if extPID == "" {
+	if extPID == "" && pl != "amazon" {
 		return fail("external product id missing")
 	}
 
@@ -150,7 +151,6 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		}
 	}
 
-	pl := strings.TrimSpace(strings.ToLower(taskRow.Platform))
 	timeout := s.TaskTimeout
 	if timeout <= 0 {
 		timeout = 120 * time.Second
