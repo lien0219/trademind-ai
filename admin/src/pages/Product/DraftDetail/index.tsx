@@ -1,15 +1,16 @@
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
-import type { ColumnsType } from 'antd/es/table';
+import type { ProColumns } from '@ant-design/pro-components';
 import {
   EditableProTable,
   ModalForm,
   PageContainer,
+  ProForm,
   ProFormDigit,
   ProFormSelect,
   ProFormText,
+  ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { history, useParams } from '@umijs/max';
 import { Button, Card, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
 import {
   ArrowUpOutlined,
@@ -127,8 +128,7 @@ function imageTypeLabel(t: string): string {
 }
 
 export default function ProductDraftDetailPage() {
-  const params = useParams<{ id: string }>();
-  const id = params.id ?? '';
+  const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ProductDetail | null>(null);
   const [err, setErr] = useState<string>();
@@ -294,7 +294,7 @@ export default function ProductDraftDetailPage() {
     });
   }, [shopsList, platformsMeta]);
 
-  const imageColumns: ColumnsType<ProductImageRow> = useMemo(
+  const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
     () => [
       {
         title: '预览',
@@ -303,7 +303,7 @@ export default function ProductDraftDetailPage() {
           <Image src={r.publicUrl || r.originUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 4 }} />
         ),
       },
-      { title: '类型', dataIndex: 'imageType', width: 100, render: (v: string) => imageTypeLabel(v) },
+      { title: '类型', dataIndex: 'imageType', width: 100, render: (v) => imageTypeLabel(String(v ?? '')) },
       {
         title: 'sortOrder',
         dataIndex: 'sortOrder',
@@ -461,7 +461,7 @@ export default function ProductDraftDetailPage() {
                 try {
                   await deleteProduct(id);
                   message.success('已删除');
-                  history.push('/product/drafts');
+                  window.location.href = '/product/drafts';
                 } catch (e: unknown) {
                   message.error((e as Error)?.message || '删除失败');
                 }
@@ -491,7 +491,7 @@ export default function ProductDraftDetailPage() {
               key: 'basic',
               label: '基础信息',
               children: (
-                <Card bordered={false}>
+                <Card variant="borderless">
                   <Descriptions column={2} bordered size="small" style={{ marginBottom: 16 }}>
                     <Descriptions.Item label="来源">{data.source}</Descriptions.Item>
                     <Descriptions.Item label="币种（展示）">{data.currency}</Descriptions.Item>
@@ -502,15 +502,14 @@ export default function ProductDraftDetailPage() {
                     </Descriptions.Item>
                   </Descriptions>
 
-                  <ProTable
+                  <ProForm
                     key={`basic-${data.id}-${data.updatedAt}`}
-                    type="form"
                     submitter={{
                       searchConfig: { submitText: '保存基础信息' },
                       submitButtonProps: { type: 'primary' },
                       resetButtonProps: false,
                     }}
-                    onFinish={async (vals) => {
+                    onFinish={async (vals: Record<string, unknown>) => {
                       try {
                         await updateProduct(id, {
                           title: String(vals.title ?? ''),
@@ -529,52 +528,27 @@ export default function ProductDraftDetailPage() {
                         return false;
                       }
                     }}
-                    columns={[
-                      {
-                        title: '主标题',
-                        dataIndex: 'title',
-                        formItemProps: {
-                          rules: [{ required: true, message: '必填' }],
-                        },
-                      },
-                      { title: '原始标题', dataIndex: 'originalTitle', valueType: 'textarea', fieldProps: { rows: 2 } },
-                      { title: 'AI 标题', dataIndex: 'aiTitle', valueType: 'textarea', fieldProps: { rows: 2 } },
-                      {
-                        title: '主描述',
-                        dataIndex: 'description',
-                        valueType: 'textarea',
-                        fieldProps: { rows: 5 },
-                      },
-                      {
-                        title: 'AI 描述',
-                        dataIndex: 'aiDescription',
-                        valueType: 'textarea',
-                        fieldProps: { rows: 5 },
-                      },
-                      { title: '币种', dataIndex: 'currency', width: 'md', initialValue: 'CNY' },
-                      {
-                        title: '状态',
-                        dataIndex: 'status',
-                        valueType: 'select',
-                        fieldProps: { options: PRODUCT_STATUS_OPTIONS },
-                      },
-                    ]}
-                    form={{
-                      layout: 'vertical',
-                      grid: true,
-                      colProps: { span: 12 },
-                      initialValues: {
-                        title: data.title,
-                        originalTitle: data.originalTitle,
-                        aiTitle: data.aiTitle ?? '',
-                        description: data.description ?? '',
-                        aiDescription: data.aiDescription ?? '',
-                        currency: data.currency || 'CNY',
-                        status: data.status,
-                      },
-                      submitterColSpanProps: { span: 24 },
+                    layout="vertical"
+                    grid
+                    initialValues={{
+                      title: data.title,
+                      originalTitle: data.originalTitle,
+                      aiTitle: data.aiTitle ?? '',
+                      description: data.description ?? '',
+                      aiDescription: data.aiDescription ?? '',
+                      currency: data.currency || 'CNY',
+                      status: data.status,
                     }}
-                  />
+                    colProps={{ span: 12 }}
+                  >
+                    <ProFormText name="title" label="主标题" rules={[{ required: true, message: '必填' }]} />
+                    <ProFormTextArea name="originalTitle" label="原始标题" fieldProps={{ rows: 2 }} />
+                    <ProFormTextArea name="aiTitle" label="AI 标题" fieldProps={{ rows: 2 }} />
+                    <ProFormTextArea name="description" label="主描述" fieldProps={{ rows: 5 }} />
+                    <ProFormTextArea name="aiDescription" label="AI 描述" fieldProps={{ rows: 5 }} />
+                    <ProFormText name="currency" label="币种" initialValue="CNY" />
+                    <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} />
+                  </ProForm>
                 </Card>
               ),
             },
@@ -583,7 +557,7 @@ export default function ProductDraftDetailPage() {
               label: 'AI',
               children: (
                 <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                  <Card bordered={false} bodyStyle={{ paddingBottom: 12 }}>
+                  <Card variant="borderless" styles={{ body: { paddingBottom: 12 } }}>
                     <Space wrap size="middle">
                       <Button
                         type="primary"
@@ -635,7 +609,7 @@ export default function ProductDraftDetailPage() {
                           title: '时间',
                           dataIndex: 'createdAt',
                           width: 176,
-                          render: (v: string) => v?.replace('T', ' ').slice(0, 19) ?? '—',
+                          render: (v) => String(v ?? '').replace('T', ' ').slice(0, 19) || '—',
                         },
                       ]}
                       size="small"
@@ -643,7 +617,7 @@ export default function ProductDraftDetailPage() {
                   </Card>
 
                   {data.rawData != null ? (
-                    <Card title="Raw JSON" bordered={false}>
+                    <Card title="Raw JSON" variant="borderless">
                       <pre style={{ maxHeight: 360, overflow: 'auto', fontSize: 12 }}>{JSON.stringify(data.rawData, null, 2)}</pre>
                     </Card>
                   ) : null}
@@ -654,12 +628,12 @@ export default function ProductDraftDetailPage() {
               key: 'images',
               label: '图片管理',
               children: (
-                <Card bordered={false}>
-                  <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} bordered={false}>
+                <Card variant="borderless">
+                  <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
                         可选择商品图作为源图（场景图在 OpenAI / ComfyUI 下可无图），任务由后端入队；结果在{' '}
-                        <Typography.Link onClick={() => history.push('/ai/image-tasks')}>AI 图片任务</Typography.Link>{' '}
+                        <Link to="/ai/image-tasks">AI 图片任务</Link>{' '}
                         查看。<Typography.Text code>remove_background</Typography.Text> 使用 <Typography.Text code>removebg</Typography.Text>
                         ；本地/存储中的商品图由后端读取并以 multipart 上传 remove.bg（公网 URL 仍可走 image_url）。<Typography.Text code>
                           generate_scene
@@ -810,7 +784,7 @@ export default function ProductDraftDetailPage() {
                         >
                           创建图片任务
                         </Button>
-                        <Button onClick={() => history.push('/ai/image-tasks')}>查看 AI 图片任务</Button>
+                        <Button href="/ai/image-tasks">查看 AI 图片任务</Button>
                       </Space>
                     </Space>
                   </Card>
@@ -860,7 +834,7 @@ export default function ProductDraftDetailPage() {
               key: 'skus',
               label: 'SKU 管理',
               children: (
-                <Card bordered={false}>
+                <Card variant="borderless">
                   <EditableProTable<SKUEditable>
                     rowKey="id"
                     headerTitle={false}
@@ -868,7 +842,7 @@ export default function ProductDraftDetailPage() {
                     options={false}
                     pagination={false}
                     value={skuRows}
-                    onChange={setSkuRows}
+                    onChange={(value) => setSkuRows([...value])}
                     recordCreatorProps={{
                       record: (): SKUEditable => ({
                         id: `new_${Date.now()}`,
@@ -922,7 +896,7 @@ export default function ProductDraftDetailPage() {
               key: 'inventory',
               label: '库存',
               children: (
-                <Card bordered={false}>
+                <Card variant="borderless">
                   <Alert
                     type="info"
                     showIcon
@@ -1095,7 +1069,7 @@ export default function ProductDraftDetailPage() {
               label: '刊登',
               children: (
                 <Spin spinning={pubCtxLoading}>
-                  <Card bordered={false}>
+                  <Card variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Alert
                         type="info"
@@ -1104,13 +1078,13 @@ export default function ProductDraftDetailPage() {
                         description={
                           <>
                             <Typography.Text code>product_publish</Typography.Text>{' '}
-                            为「可用」的店铺（如 mock）或「测试中 / beta」（如 TikTok Shop、Shopee、Lazada）可提交刊登任务；Amazon
-                            等平台刊登仍为计划中。请到{' '}
+                            为「可用」的店铺（如 mock）或「测试中 / beta」（如 TikTok Shop、Shopee、Lazada、Amazon）可提交刊登任务。请到{' '}
                             <Link to="/settings/platform-publish">设置 · 平台刊登预设</Link> 补齐对应平台预设（如 TikTok{' '}
                             <Typography.Text code>platform_publish_tiktok</Typography.Text>、Shopee{' '}
                             <Typography.Text code>platform_publish_shopee</Typography.Text>、Lazada{' '}
                             <Typography.Text code>platform_publish_lazada</Typography.Text>
-                            的类目、品牌、包裹重量尺寸、配送选项等）；队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
+                            、Amazon <Typography.Text code>platform_publish_amazon</Typography.Text>
+                            的类目、品牌、制造商、包裹重量尺寸、配送选项等）；队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
                           </>
                         }
                       />

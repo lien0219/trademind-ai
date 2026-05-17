@@ -74,7 +74,7 @@ func (h *Handler) Publish(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, platformp.ErrPlatformProductPublishPermissionDenied):
-			response.Fail(c, http.StatusForbidden, response.CodeBadRequest, err.Error()+" — 请确认已在对应开放平台（如 TikTok Shop Partner Center / Shopee Open Platform / Lazada Open Platform）申请商品刊登相关权限并重新授权。")
+			response.Fail(c, http.StatusForbidden, response.CodeBadRequest, err.Error()+" — 请确认已在对应开放平台（如 TikTok Shop Partner Center / Shopee Open Platform / Lazada Open Platform）申请商品刊登相关权限并重新授权；Amazon 请在 Seller Central / SP-API Developer Console 申请商品刊登相关权限并重新授权。")
 			return
 		case errors.Is(err, platformp.ErrProductPublishNotImplemented):
 			response.Fail(c, http.StatusNotImplemented, response.CodeBadRequest, err.Error())

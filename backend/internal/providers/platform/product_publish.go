@@ -94,10 +94,8 @@ func ProductPublishImplementationStatus(p Provider) string {
 		return StatusAvailable
 	case "manual":
 		return StatusDisabled
-	case "tiktok", "shopee", "lazada":
+	case "tiktok", "shopee", "lazada", "amazon":
 		return StatusBeta
-	case "amazon":
-		return StatusPlanned
 	default:
 		if !HasCapability(p, CapProductPublish) {
 			return StatusDisabled

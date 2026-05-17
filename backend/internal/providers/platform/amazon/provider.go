@@ -45,9 +45,7 @@ func (amazonProvider) PublishConfigSchema() platformp.PlatformAppConfigSchema {
 }
 
 func (amazonProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrProductPublishNotImplemented
+	return amazonProvider{}.publishProduct(ctx, req)
 }
 
 func (amazonProvider) TestConnection(ctx context.Context, req platformp.TestConnectionRequest) (*platformp.TestConnectionResult, error) {

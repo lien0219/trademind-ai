@@ -175,15 +175,20 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		"skuMapped":         len(res.SKUMappings),
 	}, 12, 200)
 	rd, _ := json.Marshal(pubSnap)
+	pubStatus := normalizePublicationStatus(res.Status)
+	var publishedAt *time.Time
+	if pubStatus == StatusPublishedRecord {
+		publishedAt = &fin
+	}
 
 	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", snap.PublicationID).
 		Updates(map[string]any{
-			"publish_status":      StatusPublishedRecord,
-			"status":              StatusPublishedRecord,
+			"publish_status":      pubStatus,
+			"status":              pubStatus,
 			"external_product_id": strings.TrimSpace(res.ExternalProductID),
 			"external_spu_id":     strings.TrimSpace(res.ExternalSPUID),
 			"external_url":        strings.TrimSpace(res.ExternalURL),
-			"published_at":        &fin,
+			"published_at":        publishedAt,
 			"last_synced_at":      &fin,
 			"raw_data":            datatypes.JSON(rd),
 			"updated_at":          fin,
@@ -238,6 +243,25 @@ func nilUUIDPtr(u uuid.UUID) *uuid.UUID {
 		return nil
 	}
 	return &u
+}
+
+func normalizePublicationStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case StatusDraft:
+		return StatusDraft
+	case StatusPublishing, "submitted", "processing":
+		return StatusPublishing
+	case StatusPublishedRecord, "success":
+		return StatusPublishedRecord
+	case StatusRejected:
+		return StatusRejected
+	case StatusOffline:
+		return StatusOffline
+	case StatusPubFailed:
+		return StatusPubFailed
+	default:
+		return StatusPublishedRecord
+	}
 }
 
 func (s *Service) handlePublishPanic(parent context.Context, taskID uuid.UUID, workerID string, panicVal any) {
