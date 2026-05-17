@@ -45,12 +45,6 @@ func (lazadaProvider) PublishConfigSchema() platformp.PlatformAppConfigSchema {
 	return platformp.PublishConfigPresetForPlatform("lazada")
 }
 
-func (lazadaProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrProductPublishNotImplemented
-}
-
 func (lazadaProvider) TestConnection(ctx context.Context, req platformp.TestConnectionRequest) (*platformp.TestConnectionResult, error) {
 	if _, err := ResolveRuntime(req); err != nil {
 		return &platformp.TestConnectionResult{OK: false, Message: err.Error()}, nil

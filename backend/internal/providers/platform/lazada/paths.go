@@ -16,4 +16,8 @@ const (
 	PathIMSessionList = "/im/session/list"
 	PathIMMessageList = "/im/message/list"
 	PathIMMessageSend = "/im/message/send"
+
+	PathProductCreate = "/product/create"
+	PathImageMigrate  = "/image/migrate"
+	PathImageUpload   = "/image/upload"
 )
