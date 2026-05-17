@@ -14,6 +14,8 @@ type ShopsBridge interface {
 	PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error
 	SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error
 	LazadaGlobalSettings(ctx context.Context) (map[string]string, error)
+	// LazadaPublishSettings reads decrypted plaintext for group platform_publish_lazada (warehouse_id optional, etc.).
+	LazadaPublishSettings(ctx context.Context) (map[string]string, error)
 }
 
 // PublishImageFetcher loads listing image bytes (storage + public HTTP), same contract as Shopee.

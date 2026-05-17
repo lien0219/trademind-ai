@@ -165,7 +165,7 @@ export default function InventorySyncTasksPage() {
   return (
     <PageContainer title="库存同步任务">
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        TikTok / Shopee / Lazada / Amazon 的真实库存写入仍为 planned / 接入中；仅 mock 或通过后续版本开放的平台可端到端演示。
+        TikTok Shop、Shopee、Lazada 已支持真实库存同步（测试中 / beta）；Amazon 仍为 planned。mock 店铺仍走模拟库存同步。
       </Typography.Paragraph>
       <ProTable<InventorySyncTaskDTO>
         rowKey="id"

@@ -119,9 +119,3 @@ func (lazadaProvider) PullMessages(ctx context.Context, req platformp.PullMessag
 func (lazadaProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
 	return SendCustomerMessage(ctx, req)
 }
-
-func (lazadaProvider) SyncInventory(ctx context.Context, req platformp.SyncInventoryRequest) (*platformp.SyncInventoryResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrInventorySyncNotImplemented
-}

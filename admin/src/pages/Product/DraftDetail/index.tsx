@@ -74,10 +74,16 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
     hints.push(
       'Shopee：请到「设置 → 平台刊登配置 → Shopee」填写默认仓库 ID，或任务 options.warehouse_id / location_id 覆盖。',
     );
+    hints.push(
+      'Lazada：若平台提示与仓库 / WarehouseCode 相关，请到「设置 → 平台刊登配置 → Lazada」填写默认仓库代码（warehouse_id），或任务 options.warehouse_id 覆盖。',
+    );
   }
   if (/platform inventory sync permission denied/i.test(s)) {
     hints.push(
       '请确认已在平台侧申请库存 / 商品更新相关权限并重新授权店铺（TikTok Shop Partner Center 或 Shopee Open Platform）。',
+    );
+    hints.push(
+      'Lazada：请确认已在 Lazada Open Platform / Seller Center 申请商品 / 库存更新相关权限并重新授权店铺。',
     );
   }
   if (/platform config incomplete:\s*please configure settings\.platform_tiktok/i.test(s)) {
@@ -85,6 +91,9 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
   }
   if (/platform config incomplete:\s*please configure settings\.platform_shopee/i.test(s)) {
     hints.push('请到「设置 → 平台开放配置 → Shopee」补齐开放平台应用字段。');
+  }
+  if (/platform config incomplete:\s*please configure settings\.platform_lazada/i.test(s)) {
+    hints.push('请到「设置 → 平台开放配置 → Lazada」补齐开放平台应用字段。');
   }
   return hints.length ? `${s}\n${hints.join('\n')}` : s;
 }
@@ -926,7 +935,7 @@ export default function ProductDraftDetailPage() {
                           当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 为{' '}
                           <Typography.Text code>available</Typography.Text>/
                           <Typography.Text code>beta</Typography.Text>
-                          时可创建同步任务：TikTok Shop、Shopee 已接入真实库存更新 API（测试中）；Lazada / Amazon 仍为 planned，
+                          时可创建同步任务：TikTok Shop、Shopee、Lazada 已接入真实库存更新 API（测试中）；Amazon 仍为 planned，对应
                           Worker 会返回未实现类错误。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 0 }}>
@@ -1069,7 +1078,7 @@ export default function ProductDraftDetailPage() {
                               </Button>
                             );
                             return ok ? btn : (
-                              <Tooltip title="当前平台 inventory_sync 仍为计划中（非 available / beta）；不包含已接入测试中的 TikTok Shop / Shopee 真实库存同步">
+                              <Tooltip title="当前平台 inventory_sync 仍为计划中（如 Amazon）；不包含已接入测试中的 TikTok Shop / Shopee / Lazada 真实库存同步">
                                 <span>{btn}</span>
                               </Tooltip>
                             );
@@ -1618,6 +1627,15 @@ export default function ProductDraftDetailPage() {
             <Typography.Text code>options.warehouse_id</Typography.Text> /
             <Typography.Text code>location_id</Typography.Text>{' '}
             覆盖。若推送失败并提示权限不足，请在 Shopee Open Platform 申请库存/商品更新相关权限后重新授权店铺。
+          </Typography.Paragraph>
+        ) : null}
+        {(syncRow?.platform || '').trim().toLowerCase() === 'lazada' ? (
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
+            Lazada 通过 Open Platform 的 <Typography.Text code>price_quantity</Typography.Text> 接口更新数量；多仓或平台要求指定{' '}
+            <Typography.Text code>WarehouseCode</Typography.Text> 时，请在「设置 → 平台刊登配置 → Lazada」填写默认{' '}
+            <Typography.Text code>warehouse_id</Typography.Text>（仓库代码），或通过任务{' '}
+            <Typography.Text code>options.warehouse_id</Typography.Text> 覆盖。若推送失败并提示权限不足，请在 Lazada Open Platform /
+            Seller Center 申请库存 / 商品更新相关权限后重新授权店铺。
           </Typography.Paragraph>
         ) : null}
         <Form form={syncForm} layout="vertical">

@@ -116,6 +116,7 @@ func lazadaPublishSchema() PlatformAppConfigSchema {
 			{Name: "warranty_type", Label: "保修类型说明", Type: "text", Required: false, Sensitive: false},
 			{Name: "warranty_period", Label: "保修期描述", Type: "text", Required: false, Sensitive: false},
 			{Name: "delivery_option", Label: "配送选项（平台取值）", Type: "text", Required: true, Sensitive: false},
+			{Name: "warehouse_id", Label: "默认仓库代码（Warehouse Code，可选）", Type: "text", Required: false, Sensitive: false, Help: "多仓履约或调用库存接口需指定 WarehouseCode 时使用；也可用任务 options.warehouse_id 覆盖。"},
 			{Name: "publish_as_draft", Label: "默认发布为草稿", Type: "switch", Required: false, Sensitive: false, DefaultValue: true},
 		},
 	}
