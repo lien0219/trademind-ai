@@ -47,5 +47,5 @@ var ErrManualInventorySyncUnsupported = errors.New("manual shop does not support
 // ErrInventorySyncNotImplemented signals provider inventory adapters are planned but not shipped in this build.
 var ErrInventorySyncNotImplemented = errors.New("platform inventory sync provider not implemented")
 
-// ErrPlatformInventorySyncPermissionDenied is returned when token/scopes or TikTok Shop account forbids inventory APIs.
+// ErrPlatformInventorySyncPermissionDenied is returned when token/scopes or platform account forbids inventory APIs.
 var ErrPlatformInventorySyncPermissionDenied = errors.New("platform inventory sync permission denied or not configured")

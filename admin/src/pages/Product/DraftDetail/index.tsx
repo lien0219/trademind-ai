@@ -69,14 +69,22 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
   const hints: string[] = [];
   if (/missing warehouse_id|platform inventory config incomplete:\s*missing warehouse_id/i.test(s)) {
     hints.push(
-      '请先到「设置 → 平台刊登配置 → TikTok Shop」填写默认仓库 ID（或通过任务 options 传入 warehouse_id 覆盖）。',
+      'TikTok Shop：请到「设置 → 平台刊登配置 → TikTok Shop」填写默认仓库 ID，或通过任务 options.warehouse_id 覆盖。',
+    );
+    hints.push(
+      'Shopee：请到「设置 → 平台刊登配置 → Shopee」填写默认仓库 ID，或任务 options.warehouse_id / location_id 覆盖。',
     );
   }
   if (/platform inventory sync permission denied/i.test(s)) {
-    hints.push('请确认已在 TikTok Shop Partner Center 申请库存更新相关权限并重新授权。');
+    hints.push(
+      '请确认已在平台侧申请库存 / 商品更新相关权限并重新授权店铺（TikTok Shop Partner Center 或 Shopee Open Platform）。',
+    );
   }
   if (/platform config incomplete:\s*please configure settings\.platform_tiktok/i.test(s)) {
     hints.push('请到「设置 → 平台开放配置 → TikTok Shop」补齐开放平台应用字段。');
+  }
+  if (/platform config incomplete:\s*please configure settings\.platform_shopee/i.test(s)) {
+    hints.push('请到「设置 → 平台开放配置 → Shopee」补齐开放平台应用字段。');
   }
   return hints.length ? `${s}\n${hints.join('\n')}` : s;
 }
@@ -918,7 +926,7 @@ export default function ProductDraftDetailPage() {
                           当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 为{' '}
                           <Typography.Text code>available</Typography.Text>/
                           <Typography.Text code>beta</Typography.Text>
-                          时可创建同步任务：TikTok Shop 已接入真实库存更新 API（测试中）；Shopee / Lazada / Amazon 仍为 planned，
+                          时可创建同步任务：TikTok Shop、Shopee 已接入真实库存更新 API（测试中）；Lazada / Amazon 仍为 planned，
                           Worker 会返回未实现类错误。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 0 }}>
@@ -1061,7 +1069,7 @@ export default function ProductDraftDetailPage() {
                               </Button>
                             );
                             return ok ? btn : (
-                              <Tooltip title="当前平台 inventory_sync 仍为计划中（非 available / beta）；不包含已接入测试中的 TikTok Shop 真实库存同步">
+                              <Tooltip title="当前平台 inventory_sync 仍为计划中（非 available / beta）；不包含已接入测试中的 TikTok Shop / Shopee 真实库存同步">
                                 <span>{btn}</span>
                               </Tooltip>
                             );
@@ -1600,6 +1608,16 @@ export default function ProductDraftDetailPage() {
             TikTok 会使用「设置 → 平台刊登配置 → TikTok Shop」中的默认仓库 ID（也可在接口层通过任务{' '}
             <Typography.Text code>options.warehouse_id</Typography.Text> 覆盖）。若推送失败并提示权限不足，请在 TikTok Shop
             Partner Center 申请库存更新相关权限后重新授权店铺。
+          </Typography.Paragraph>
+        ) : null}
+        {(syncRow?.platform || '').trim().toLowerCase() === 'shopee' ? (
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
+            Shopee 默认使用 <Typography.Text code>normal_stock</Typography.Text> 更新；若你的卖家中心要求按仓/位置维护库存，请在「设置
+            → 平台刊登配置 → Shopee」填写默认仓库 ID（对应 Open API{' '}
+            <Typography.Text code>seller_stock[].location_id</Typography.Text>），或通过任务{' '}
+            <Typography.Text code>options.warehouse_id</Typography.Text> /
+            <Typography.Text code>location_id</Typography.Text>{' '}
+            覆盖。若推送失败并提示权限不足，请在 Shopee Open Platform 申请库存/商品更新相关权限后重新授权店铺。
           </Typography.Paragraph>
         ) : null}
         <Form form={syncForm} layout="vertical">

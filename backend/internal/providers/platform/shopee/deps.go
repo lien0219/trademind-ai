@@ -26,6 +26,8 @@ type ShopsBridge interface {
 	PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error
 	SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error
 	ShopeeGlobalSettings(ctx context.Context) (map[string]string, error)
+	// ShopeePublishSettings reads decrypted plaintext for group platform_publish_shopee (warehouse_id, etc.).
+	ShopeePublishSettings(ctx context.Context) (map[string]string, error)
 }
 
 var bridges ShopsBridge

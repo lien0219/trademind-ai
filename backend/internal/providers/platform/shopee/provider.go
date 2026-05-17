@@ -129,9 +129,3 @@ func (shopeeProvider) PullMessages(ctx context.Context, req platformp.PullMessag
 func (shopeeProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
 	return SendCustomerMessage(ctx, req)
 }
-
-func (shopeeProvider) SyncInventory(ctx context.Context, req platformp.SyncInventoryRequest) (*platformp.SyncInventoryResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrInventorySyncNotImplemented
-}
