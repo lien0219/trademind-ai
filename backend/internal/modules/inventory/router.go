@@ -21,4 +21,11 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/inventory-sync/tasks", h.ListTasks)
 	g.GET("/inventory-sync/tasks/:id", h.GetTask)
 	g.POST("/inventory-sync/tasks/:id/retry", h.RetryTask)
+
+	g.POST("/inventory-sync/batches/retry-failed-tasks", h.RetryInventorySyncTasksBatch)
+	g.POST("/inventory-sync/batches", h.CreateInventorySyncBatch)
+	g.GET("/inventory-sync/batches", h.ListInventorySyncBatches)
+	g.GET("/inventory-sync/batches/:id/tasks", h.ListInventorySyncBatchTasks)
+	g.GET("/inventory-sync/batches/:id", h.GetInventorySyncBatch)
+	g.POST("/inventory-sync/batches/:id/retry-failed", h.RetryInventorySyncBatchFailed)
 }

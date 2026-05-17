@@ -3,15 +3,18 @@ import {
   ProTable,
   type ActionType,
   type ProColumns,
+  type ProFormInstance,
 } from '@ant-design/pro-components';
-import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Button, Drawer, Modal, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import dayjs from 'dayjs';
-import { useMemo, useRef, useState } from 'react';
+import { useLocation } from '@umijs/max';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
   getInventorySyncTask,
   queryInventorySyncTasks,
   retryInventorySyncTask,
+  retryInventorySyncTasksBatch,
   type InventorySyncTaskDTO,
 } from '@/services/inventory';
 
@@ -21,13 +24,37 @@ function tagFromStatus(raw: string) {
   return <Tag color={c.color}>{c.text}</Tag>;
 }
 
+const BATCH_RETRY_LIMIT = 100;
+
 export default function InventorySyncTasksPage() {
+  const location = useLocation();
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
+  const batchIdFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('batchId')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<InventorySyncTaskDTO | null>(null);
+  const [failedSelectedIds, setFailedSelectedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!batchIdFromUrl) return;
+    formRef.current?.setFieldsValue?.({ batchId: batchIdFromUrl });
+    actionRef.current?.reload?.();
+  }, [batchIdFromUrl]);
 
   const columns: ProColumns<InventorySyncTaskDTO>[] = useMemo(
     () => [
+      {
+        title: '批次 ID',
+        dataIndex: 'batchId',
+        hideInTable: true,
+      },
       {
         title: '创建时间范围',
         dataIndex: 'createdRange',
@@ -85,6 +112,14 @@ export default function InventorySyncTasksPage() {
         search: false,
         ellipsis: true,
         render: (_, r) => r.skuCode || '—',
+      },
+      {
+        title: '批次号',
+        dataIndex: 'batchNo',
+        width: 132,
+        search: false,
+        ellipsis: true,
+        render: (_, r) => r.batchNo || '—',
       },
       {
         title: 'platform',
@@ -170,14 +205,57 @@ export default function InventorySyncTasksPage() {
       <ProTable<InventorySyncTaskDTO>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
         headerTitle="任务列表"
+        rowSelection={{
+          selectedRowKeys: failedSelectedIds,
+          onChange: (keys) => setFailedSelectedIds(keys.map(String)),
+          getCheckboxProps: (record) => ({
+            disabled: record.status !== 'failed',
+          }),
+        }}
+        tableAlertRender={false}
+        toolBarRender={() => [
+          <Button
+            key="batch-retry"
+            disabled={failedSelectedIds.length === 0}
+            onClick={() => {
+              if (failedSelectedIds.length > BATCH_RETRY_LIMIT) {
+                message.warning(`单次最多选择 ${BATCH_RETRY_LIMIT} 条失败任务`);
+                return;
+              }
+              Modal.confirm({
+                title: `将 ${failedSelectedIds.length} 条失败任务归入新批次并重试？`,
+                okText: '提交',
+                onOk: async () => {
+                  try {
+                    const batch = await retryInventorySyncTasksBatch(failedSelectedIds);
+                    message.success(`已创建批次 ${batch.batchNo}`);
+                    setFailedSelectedIds([]);
+                    actionRef.current?.reload();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '批量重试失败');
+                    throw e;
+                  }
+                },
+              });
+            }}
+          >
+            批量重试失败（≤{BATCH_RETRY_LIMIT}）
+          </Button>,
+        ]}
         request={async (params) => {
+          const bid =
+            typeof params.batchId === 'string' && params.batchId.trim()
+              ? params.batchId.trim()
+              : batchIdFromUrl;
           const res = await queryInventorySyncTasks({
             page: params.current,
             pageSize: params.pageSize,
+            batchId: bid,
             shopId: params.shopId as string | undefined,
             productId: params.productId as string | undefined,
             productSkuId: params.productSkuId as string | undefined,

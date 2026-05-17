@@ -27,6 +27,11 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
   const defWarn = parseIntField(values.default_warning_stock, 5);
   const defSafe = parseIntField(values.default_safety_stock, 0);
   const mismatchTh = parseIntField(values.platform_stock_mismatch_threshold, 0);
+  const batchMax = parseIntField(values.inventory_sync_batch_max_size, 500);
+  const rlTiktok = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_tiktok, 60);
+  const rlShopee = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_shopee, 60);
+  const rlLazada = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_lazada, 60);
+  const rlAmazon = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_amazon, 30);
   const rows: SettingPutItem[] = [
     { tenantId, groupKey: GROUP, itemKey: 'default_warning_stock', itemValue: String(defWarn), valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: GROUP, itemKey: 'default_safety_stock', itemValue: String(defSafe), valueType: 'string', isEncrypted: false, remark: '' },
@@ -43,6 +48,52 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
     { tenantId, groupKey: GROUP, itemKey: 'auto_sync_platform_inventory_after_deduct', itemValue: syncAfter, valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: GROUP, itemKey: 'allow_manual_sku_bind_after_deduct', itemValue: boolStr(values.allow_manual_sku_bind_after_deduct), valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: GROUP, itemKey: 'allow_negative_stock', itemValue: boolStr(values.allow_negative_stock), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: GROUP, itemKey: 'inventory_sync_batch_max_size', itemValue: String(batchMax), valueType: 'string', isEncrypted: false, remark: '' },
+    {
+      tenantId,
+      groupKey: GROUP,
+      itemKey: 'inventory_sync_platform_rate_limit_enabled',
+      itemValue: boolStr(values.inventory_sync_platform_rate_limit_enabled),
+      valueType: 'string',
+      isEncrypted: false,
+      remark: '',
+    },
+    {
+      tenantId,
+      groupKey: GROUP,
+      itemKey: 'inventory_sync_platform_rate_limit_per_minute_tiktok',
+      itemValue: String(rlTiktok),
+      valueType: 'string',
+      isEncrypted: false,
+      remark: '',
+    },
+    {
+      tenantId,
+      groupKey: GROUP,
+      itemKey: 'inventory_sync_platform_rate_limit_per_minute_shopee',
+      itemValue: String(rlShopee),
+      valueType: 'string',
+      isEncrypted: false,
+      remark: '',
+    },
+    {
+      tenantId,
+      groupKey: GROUP,
+      itemKey: 'inventory_sync_platform_rate_limit_per_minute_lazada',
+      itemValue: String(rlLazada),
+      valueType: 'string',
+      isEncrypted: false,
+      remark: '',
+    },
+    {
+      tenantId,
+      groupKey: GROUP,
+      itemKey: 'inventory_sync_platform_rate_limit_per_minute_amazon',
+      itemValue: String(rlAmazon),
+      valueType: 'string',
+      isEncrypted: false,
+      remark: '',
+    },
   ];
   return rows;
 }
@@ -84,6 +135,15 @@ export default function InventorySettingsPage() {
         allow_manual_sku_bind_after_deduct:
           g.allow_manual_sku_bind_after_deduct === '' ? true : truthyStored(g.allow_manual_sku_bind_after_deduct),
         allow_negative_stock: truthyStored(g.allow_negative_stock),
+        inventory_sync_batch_max_size: parseN(g.inventory_sync_batch_max_size, 500),
+        inventory_sync_platform_rate_limit_enabled:
+          g.inventory_sync_platform_rate_limit_enabled === ''
+            ? true
+            : truthyStored(g.inventory_sync_platform_rate_limit_enabled),
+        inventory_sync_platform_rate_limit_per_minute_tiktok: parseN(g.inventory_sync_platform_rate_limit_per_minute_tiktok, 60),
+        inventory_sync_platform_rate_limit_per_minute_shopee: parseN(g.inventory_sync_platform_rate_limit_per_minute_shopee, 60),
+        inventory_sync_platform_rate_limit_per_minute_lazada: parseN(g.inventory_sync_platform_rate_limit_per_minute_lazada, 60),
+        inventory_sync_platform_rate_limit_per_minute_amazon: parseN(g.inventory_sync_platform_rate_limit_per_minute_amazon, 30),
       });
       if (!Object.keys(g).length) {
         form.setFieldsValue({
@@ -101,6 +161,12 @@ export default function InventorySettingsPage() {
           inventory_sync_after_deduct: false,
           allow_manual_sku_bind_after_deduct: true,
           allow_negative_stock: false,
+          inventory_sync_batch_max_size: 500,
+          inventory_sync_platform_rate_limit_enabled: true,
+          inventory_sync_platform_rate_limit_per_minute_tiktok: 60,
+          inventory_sync_platform_rate_limit_per_minute_shopee: 60,
+          inventory_sync_platform_rate_limit_per_minute_lazada: 60,
+          inventory_sync_platform_rate_limit_per_minute_amazon: 30,
         });
       }
     } catch (e: unknown) {
@@ -247,6 +313,29 @@ export default function InventorySettingsPage() {
 
           <Form.Item label="允许 SKU 本地库存扣成负数" name="allow_negative_stock" valuePropName="checked">
             <Switch />
+          </Form.Item>
+
+          <Typography.Title level={5}>批量库存同步与 Worker 节流</Typography.Title>
+          <Typography.Paragraph type="secondary">
+            控制单次批量创建任务上限与各平台每分钟近似配额（Redis 计数）。超限任务会在 Worker 侧退回队列稍后重试并记录日志。
+          </Typography.Paragraph>
+          <Form.Item label="单次批量最多创建任务数" name="inventory_sync_batch_max_size">
+            <InputNumber min={1} max={5000} style={{ width: '100%', maxWidth: 280 }} />
+          </Form.Item>
+          <Form.Item label="启用平台节流" name="inventory_sync_platform_rate_limit_enabled" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item label="TikTok 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_tiktok">
+            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
+          </Form.Item>
+          <Form.Item label="Shopee 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_shopee">
+            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
+          </Form.Item>
+          <Form.Item label="Lazada 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_lazada">
+            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
+          </Form.Item>
+          <Form.Item label="Amazon 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_amazon">
+            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
           </Form.Item>
 
           <Button type="primary" htmlType="submit">

@@ -53,6 +53,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	if !ok {
 		return nil
 	}
+	s.InventoryRateObserveStarted(ctx, taskRow.Platform)
 	stop := s.startInventoryLeaseRenewal(ctx, taskID, workerID, lease)
 	defer stop()
 
@@ -93,6 +94,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s err=%s", taskID.String(), taskRow.ShopID.String(), taskRow.Platform, clampStr(msg, 400)),
 			})
 		}
+		s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 		return fmt.Errorf("%s", msg)
 	}
 
@@ -229,6 +231,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				taskID.String(), taskRow.ShopID.String(), extSK, taskRow.TargetStock, stockOut),
 		})
 	}
+	s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 	return nil
 }
 

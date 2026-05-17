@@ -54,6 +54,7 @@ import {
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
   adjustSkuStock,
+  createInventorySyncBatch,
   listProductPublicationSkus,
   querySkuInventoryLogs,
   syncPublicationSkuInventory,
@@ -202,6 +203,8 @@ export default function ProductDraftDetailPage() {
   const [draftTabKey, setDraftTabKey] = useState('basic');
   const [pubSkuRows, setPubSkuRows] = useState<PublicationSkuListingRow[]>([]);
   const [pubSkuLoading, setPubSkuLoading] = useState(false);
+  const [pubSkuBulkPlatformFilter, setPubSkuBulkPlatformFilter] = useState('');
+  const [pubSkuSelectedKeys, setPubSkuSelectedKeys] = useState<string[]>([]);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<ProductSKURow | null>(null);
   const [adjustForm] = Form.useForm();
@@ -280,6 +283,16 @@ export default function ProductDraftDetailPage() {
       setPubSkuLoading(false);
     }
   }, [id]);
+
+  const filteredPubSkuRowsForBulk = useMemo(() => {
+    const pf = pubSkuBulkPlatformFilter.trim().toLowerCase();
+    if (!pf) return pubSkuRows;
+    return pubSkuRows.filter((r) => (r.platform || '').toLowerCase() === pf);
+  }, [pubSkuRows, pubSkuBulkPlatformFilter]);
+
+  useEffect(() => {
+    setPubSkuSelectedKeys([]);
+  }, [pubSkuBulkPlatformFilter]);
 
   useEffect(() => {
     if (!id) return;
@@ -1079,12 +1092,72 @@ export default function ProductDraftDetailPage() {
                   <Typography.Title level={5} style={{ marginTop: 24 }}>
                     已刊登 SKU 映射
                   </Typography.Title>
+                  <Space wrap style={{ marginBottom: 12 }}>
+                    <Select
+                      allowClear
+                      placeholder="按平台筛选（批量同步）"
+                      style={{ minWidth: 200 }}
+                      value={pubSkuBulkPlatformFilter || undefined}
+                      onChange={(v) => setPubSkuBulkPlatformFilter((v as string | undefined) ?? '')}
+                      options={[
+                        { label: 'TikTok', value: 'tiktok' },
+                        { label: 'Shopee', value: 'shopee' },
+                        { label: 'Lazada', value: 'lazada' },
+                        { label: 'Amazon', value: 'amazon' },
+                      ]}
+                    />
+                    <Button
+                      type="primary"
+                      disabled={pubSkuSelectedKeys.length === 0}
+                      onClick={() => {
+                        Modal.confirm({
+                          title: '批量同步选中刊登 SKU？',
+                          content: `将把本地库存写入同步队列（选中 ${pubSkuSelectedKeys.length} 条）。缺少外部映射或平台 inventory_sync 非 available/beta 的映射将由服务端跳过并计入批次 skipped。`,
+                          okText: '创建批次',
+                          onOk: async () => {
+                            try {
+                              const batch = await createInventorySyncBatch({
+                                source: 'product_detail',
+                                productId: id,
+                                publicationSkuIds: pubSkuSelectedKeys,
+                                onlyPublished: true,
+                              });
+                              message.success(
+                                `批次 ${batch.batchNo} 已创建；新建任务 ${batch.totalCount - batch.skippedCount}，跳过 ${batch.skippedCount}`,
+                              );
+                              setPubSkuSelectedKeys([]);
+                              await reloadPublicationSkus();
+                              window.location.href = `/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`;
+                            } catch (e: unknown) {
+                              message.error(formatInventorySyncTaskCreateError(e));
+                              throw e;
+                            }
+                          },
+                        });
+                      }}
+                    >
+                      批量同步到平台
+                    </Button>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      勾选表格左侧可选映射；灰色行为缺映射或未开放同步能力。
+                    </Typography.Text>
+                  </Space>
                   <Spin spinning={pubSkuLoading}>
                     <Table<PublicationSkuListingRow>
                       size="small"
                       rowKey="publicationSkuId"
                       pagination={false}
-                      dataSource={pubSkuRows}
+                      dataSource={filteredPubSkuRowsForBulk}
+                      rowSelection={{
+                        selectedRowKeys: pubSkuSelectedKeys,
+                        onChange: (keys) => setPubSkuSelectedKeys(keys.map(String)),
+                        getCheckboxProps: (r) => {
+                          const missing =
+                            !String(r.externalSkuId ?? '').trim() || !String(r.externalProductId ?? '').trim();
+                          const ok = inventorySyncRunnable(r.inventorySyncCapability);
+                          return { disabled: missing || !ok };
+                        },
+                      }}
                       columns={[
                         {
                           title: '店铺',

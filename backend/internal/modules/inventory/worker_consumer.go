@@ -80,6 +80,22 @@ func runInventorySyncWorker(ctx context.Context, log *slog.Logger, svc *Service,
 		}
 
 		jobCtx := context.Background()
+		plat := ""
+		if svc.DB != nil {
+			var probe InventorySyncTask
+			if err := svc.DB.WithContext(jobCtx).Select("platform").First(&probe, "id = ?", tid).Error; err == nil {
+				plat = strings.TrimSpace(strings.ToLower(probe.Platform))
+			}
+		}
+		deferRate, rerr := svc.InventoryRateDefer(jobCtx, plat)
+		if rerr == nil && deferRate && svc.Redis != nil && svc.Redis.Client != nil {
+			_ = svc.Redis.RPush(ctx, queueName, payload).Err()
+			if log != nil {
+				log.Warn("inventory_sync_rate_limit_deferred", "worker", slot, "taskId", tid.String(), "platform", plat)
+			}
+			continue
+		}
+
 		if err := svc.ProcessQueuedTask(jobCtx, tid, workerLeaseID); err != nil && log != nil {
 			log.Warn("inventory_sync_worker_task_error", "worker", slot, "taskId", tid.String(), "error", err)
 		}

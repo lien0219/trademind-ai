@@ -148,7 +148,7 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 			Status:           StatusPending,
 			Mode:             ModeManual,
 			TargetStock:      target,
-			Input:            taskInputSnap(ModeManual, target, psku.ID, ptrUUID(skuID), pub.ID, pub.ShopID, optCopy),
+			Input:            taskInputSnap(ModeManual, target, psku.ID, ptrUUID(skuID), pub.ID, pub.ShopID, optCopy, nil, ""),
 			CreatedBy:        admin,
 		}
 		if err := s.persistTaskAndMaybeRun(ctx, t, admin); err != nil {
@@ -211,7 +211,7 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 		Status:           StatusPending,
 		Mode:             ModePublication,
 		TargetStock:      body.Stock,
-		Input:            taskInputSnap(ModePublication, body.Stock, psku.ID, psku.ProductSKUID, pub.ID, pub.ShopID, opCopy),
+		Input:            taskInputSnap(ModePublication, body.Stock, psku.ID, psku.ProductSKUID, pub.ID, pub.ShopID, opCopy, nil, ""),
 		CreatedBy:        admin,
 	}
 	if err := s.persistTaskAndMaybeRun(ctx, &task, admin); err != nil {
@@ -289,7 +289,7 @@ func (s *Service) CreateProductShopInventoryTasks(c *gin.Context, productID uuid
 			Status:           StatusPending,
 			Mode:             ModeSKU,
 			TargetStock:      target,
-			Input:            taskInputSnap(ModeSKU, target, psku.ID, ptrUUID(sid), pub.ID, shopID, optCopy),
+			Input:            taskInputSnap(ModeSKU, target, psku.ID, ptrUUID(sid), pub.ID, shopID, optCopy, nil, ""),
 			CreatedBy:        admin,
 		}
 		if err := s.persistTaskAndMaybeRun(ctx, &t, admin); err != nil {

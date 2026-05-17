@@ -76,7 +76,7 @@ func ptrUUID(id uuid.UUID) *uuid.UUID {
 }
 
 func taskInputSnap(mode string, target int, publicationSkuID uuid.UUID, productSkuID *uuid.UUID, pubID uuid.UUID,
-	shop uuid.UUID, options map[string]any,
+	shop uuid.UUID, options map[string]any, batchID *uuid.UUID, batchNo string,
 ) datatypes.JSON {
 	m := map[string]any{
 		"taskType":    TaskTypeInventorySync,
@@ -92,6 +92,12 @@ func taskInputSnap(mode string, target int, publicationSkuID uuid.UUID, productS
 	}
 	if productSkuID != nil && *productSkuID != uuid.Nil {
 		m["productSkuId"] = productSkuID.String()
+	}
+	if batchID != nil && *batchID != uuid.Nil {
+		m["batchId"] = batchID.String()
+	}
+	if strings.TrimSpace(batchNo) != "" {
+		m["batchNo"] = strings.TrimSpace(batchNo)
 	}
 	if len(options) > 0 {
 		m["options"] = platformp.TrimRawMap(options, 12, 200)
@@ -119,7 +125,7 @@ func (s *Service) persistTaskAndMaybeRun(ctx context.Context, t *InventorySyncTa
 	if err := s.DB.WithContext(ctx).Create(t).Error; err != nil {
 		return err
 	}
-	if s.OpLog != nil {
+	if t.BatchID == nil && s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: admin,
 			Action:      "inventory.sync.create",
@@ -130,12 +136,16 @@ func (s *Service) persistTaskAndMaybeRun(ctx context.Context, t *InventorySyncTa
 				t.ID.String(), t.ShopID.String(), t.Platform, t.TargetStock, t.Mode),
 		})
 	}
+	return s.enqueueOrRunInventoryTask(ctx, t.ID)
+}
+
+func (s *Service) enqueueOrRunInventoryTask(ctx context.Context, taskID uuid.UUID) error {
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), t.ID, worker.GenerateInlineWorkerID(worker.TypeInventorySync))
+		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeInventorySync))
 	}
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
-		if err := s.enqueue(ctx, t.ID); err != nil {
-			slog.Warn("inventory_sync_enqueue_failed_run_inline", "taskId", t.ID.String(), "error", err)
+		if err := s.enqueue(ctx, taskID); err != nil {
+			slog.Warn("inventory_sync_enqueue_failed_run_inline", "taskId", taskID.String(), "error", err)
 			return runInline()
 		}
 		return nil

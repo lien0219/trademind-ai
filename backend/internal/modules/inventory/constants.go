@@ -17,6 +17,27 @@ const (
 	ModePublication  = "publication"
 	ModeSKU          = "sku"
 	ModeProductBatch = "product_batch"
+	ModeBatch        = "batch"
+)
+
+// Inventory sync batch sources (inventory_sync_batches.source).
+const (
+	BatchSourceManual         = "manual"
+	BatchSourceInventoryAlert = "inventory_alert"
+	BatchSourceProductDetail  = "product_detail"
+	BatchSourceFailedRetry    = "failed_retry"
+	BatchSourceOrderDeduct    = "order_deduct"
+	BatchSourceSystem         = "system"
+)
+
+// Inventory sync batch aggregate status.
+const (
+	BatchStatusPending        = "pending"
+	BatchStatusRunning        = "running"
+	BatchStatusSuccess        = "success"
+	BatchStatusPartialSuccess = "partial_success"
+	BatchStatusFailed         = "failed"
+	BatchStatusCancelled      = "cancelled"
 )
 
 const (

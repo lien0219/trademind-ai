@@ -78,6 +78,8 @@ export type InventorySyncTaskDTO = {
   input?: unknown;
   output?: unknown;
   createdBy?: string | null;
+  batchId?: string | null;
+  batchNo?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -133,6 +135,7 @@ export async function queryInventorySyncTasks(params?: {
   productId?: string;
   productSkuId?: string;
   shopId?: string;
+  batchId?: string;
   platform?: string;
   status?: string;
   start?: string;
@@ -245,4 +248,100 @@ export async function queryGlobalInventoryEffects(params?: {
   end?: string;
 }) {
   return getWithParams<PaginatedInventory<OrderInventoryEffectRow>>('/api/v1/inventory/effects', params);
+}
+
+export type InventorySyncBatchDTO = {
+  id: string;
+  batchNo: string;
+  source: string;
+  status: string;
+  platform?: string;
+  shopId?: string | null;
+  shopName?: string;
+  productId?: string | null;
+  totalCount: number;
+  pendingCount: number;
+  runningCount: number;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  skippedReason?: string;
+  input?: unknown;
+  output?: unknown;
+  createdBy?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  recentTasks?: InventorySyncTaskDTO[];
+};
+
+export type CreateInventorySyncBatchPayload = {
+  source: string;
+  platform?: string;
+  shopId?: string;
+  productId?: string;
+  productSkuIds?: string[];
+  publicationSkuIds?: string[];
+  onlyAlerts?: boolean;
+  alertTypes?: string[];
+  onlyPublished?: boolean;
+  confirmAll?: boolean;
+  force?: boolean;
+  options?: Record<string, unknown>;
+};
+
+export async function createInventorySyncBatch(payload: CreateInventorySyncBatchPayload) {
+  return postJSON<InventorySyncBatchDTO>('/api/v1/inventory-sync/batches', payload);
+}
+
+export async function queryInventorySyncBatches(params?: {
+  page?: number;
+  pageSize?: number;
+  source?: string;
+  status?: string;
+  platform?: string;
+  shopId?: string;
+  productId?: string;
+  start?: string;
+  end?: string;
+}) {
+  return getWithParams<{ items: InventorySyncBatchDTO[]; pagination: PaginatedInventory<InventorySyncBatchDTO>['pagination'] }>(
+    '/api/v1/inventory-sync/batches',
+    params,
+  );
+}
+
+export async function getInventorySyncBatch(id: string, params?: { recentTasks?: number }) {
+  return getWithParams<InventorySyncBatchDTO>(`/api/v1/inventory-sync/batches/${encodeURIComponent(id)}`, {
+    recentTasks: params?.recentTasks,
+  });
+}
+
+export async function queryInventorySyncBatchTasks(
+  batchId: string,
+  params?: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    platform?: string;
+    productId?: string;
+    productSkuId?: string;
+    shopId?: string;
+    start?: string;
+    end?: string;
+  },
+) {
+  return getWithParams<PaginatedInventory<InventorySyncTaskDTO>>(
+    `/api/v1/inventory-sync/batches/${encodeURIComponent(batchId)}/tasks`,
+    params,
+  );
+}
+
+export async function retryInventorySyncBatchFailed(batchId: string) {
+  return postJSON<InventorySyncBatchDTO>(`/api/v1/inventory-sync/batches/${encodeURIComponent(batchId)}/retry-failed`, {});
+}
+
+export async function retryInventorySyncTasksBatch(taskIds: string[]) {
+  return postJSON<InventorySyncBatchDTO>('/api/v1/inventory-sync/batches/retry-failed-tasks', { taskIds });
 }

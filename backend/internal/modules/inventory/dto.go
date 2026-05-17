@@ -41,6 +41,7 @@ type ListQuery struct {
 	ProductID    *uuid.UUID
 	ProductSKUID *uuid.UUID
 	ShopID       *uuid.UUID
+	BatchID      *uuid.UUID
 	Platform     string
 	Status       string
 	Start        *time.Time
@@ -69,6 +70,8 @@ type TaskDTO struct {
 	Input            any        `json:"input,omitempty"`
 	Output           any        `json:"output,omitempty"`
 	CreatedBy        *uuid.UUID `json:"createdBy,omitempty"`
+	BatchID          *uuid.UUID `json:"batchId,omitempty"`
+	BatchNo          string     `json:"batchNo,omitempty"`
 	CreatedAt        time.Time  `json:"createdAt"`
 	UpdatedAt        time.Time  `json:"updatedAt"`
 }
@@ -192,4 +195,81 @@ type AlertsListResult struct {
 	Page       int                   `json:"page"`
 	PageSize   int                   `json:"pageSize"`
 	TotalPages int                   `json:"totalPages"`
+}
+
+// CreateInventorySyncBatchBody POST /inventory-sync/batches
+type CreateInventorySyncBatchBody struct {
+	Source            string         `json:"source"`
+	Platform          string         `json:"platform"`
+	ShopID            string         `json:"shopId"`
+	ProductID         string         `json:"productId"`
+	ProductSkuIds     []string       `json:"productSkuIds"`
+	PublicationSkuIds []string       `json:"publicationSkuIds"`
+	OnlyAlerts        bool           `json:"onlyAlerts"`
+	AlertTypes        []string       `json:"alertTypes"`
+	OnlyPublished     *bool          `json:"onlyPublished"`
+	ConfirmAll        bool           `json:"confirmAll"`
+	Force             bool           `json:"force"`
+	Options           map[string]any `json:"options"`
+}
+
+func (b CreateInventorySyncBatchBody) effectiveOnlyPublished() bool {
+	if b.OnlyPublished == nil {
+		return true
+	}
+	return *b.OnlyPublished
+}
+
+// InventorySyncBatchDTO lists batch rows for admin APIs.
+type InventorySyncBatchDTO struct {
+	ID            uuid.UUID  `json:"id"`
+	BatchNo       string     `json:"batchNo"`
+	Source        string     `json:"source"`
+	Status        string     `json:"status"`
+	Platform      string     `json:"platform,omitempty"`
+	ShopID        *uuid.UUID `json:"shopId,omitempty"`
+	ShopName      string     `json:"shopName,omitempty"`
+	ProductID     *uuid.UUID `json:"productId,omitempty"`
+	TotalCount    int        `json:"totalCount"`
+	PendingCount  int        `json:"pendingCount"`
+	RunningCount  int        `json:"runningCount"`
+	SuccessCount  int        `json:"successCount"`
+	FailedCount   int        `json:"failedCount"`
+	SkippedCount  int        `json:"skippedCount"`
+	SkippedReason string     `json:"skippedReason,omitempty"`
+	Input         any        `json:"input,omitempty"`
+	Output        any        `json:"output,omitempty"`
+	CreatedBy     *uuid.UUID `json:"createdBy,omitempty"`
+	StartedAt     *time.Time `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time `json:"finishedAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+	RecentTasks   []TaskDTO  `json:"recentTasks,omitempty"`
+}
+
+// InventorySyncBatchListQuery filters GET /inventory-sync/batches.
+type InventorySyncBatchListQuery struct {
+	Source    string
+	Status    string
+	Platform  string
+	ShopID    *uuid.UUID
+	ProductID *uuid.UUID
+	Start     *time.Time
+	End       *time.Time
+	Page      int
+	PageSize  int
+}
+
+// InventorySyncBatchListResult paginates batches.
+type InventorySyncBatchListResult struct {
+	Items      []InventorySyncBatchDTO `json:"items"`
+	Total      int64                   `json:"total"`
+	Page       int                     `json:"page"`
+	PageSize   int                     `json:"pageSize"`
+	TotalPages int                     `json:"totalPages"`
+}
+
+// RetryInventorySyncTasksBatchBody POST batch retry-from-task-ids (≤100).
+type RetryInventorySyncTasksBatchBody struct {
+	TaskIds []string `json:"taskIds"`
 }

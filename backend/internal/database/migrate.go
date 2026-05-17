@@ -47,6 +47,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&order.OrderItemSKUMatch{},
 		&ordersync.OrderSyncTask{},
 		&customersync.CustomerMessageSyncTask{},
+		&inventory.InventorySyncBatch{},
 		&inventory.InventorySyncTask{},
 		&inventory.InventoryChangeLog{},
 		&inventory.OrderInventoryEffect{},

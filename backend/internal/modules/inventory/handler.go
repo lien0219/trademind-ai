@@ -381,6 +381,11 @@ func (h *Handler) ListTasks(c *gin.Context) {
 			q.ShopID = &u
 		}
 	}
+	if raw := strings.TrimSpace(c.Query("batchId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.BatchID = &u
+		}
+	}
 	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
 			q.Start = &t
@@ -442,6 +447,202 @@ func (h *Handler) RetryTask(c *gin.Context) {
 		return
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func parseUUIDQueryPtr(c *gin.Context, key string) *uuid.UUID {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil
+	}
+	u, err := uuid.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	return &u
+}
+
+// CreateInventorySyncBatch POST /inventory-sync/batches
+func (h *Handler) CreateInventorySyncBatch(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	var body CreateInventorySyncBatchBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CreateInventorySyncBatch(c.Request.Context(), body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// ListInventorySyncBatches GET /inventory-sync/batches
+func (h *Handler) ListInventorySyncBatches(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	q := InventorySyncBatchListQuery{
+		Source:    strings.TrimSpace(strings.ToLower(c.Query("source"))),
+		Status:    strings.TrimSpace(strings.ToLower(c.Query("status"))),
+		Platform:  strings.TrimSpace(strings.ToLower(c.Query("platform"))),
+		ShopID:    parseUUIDQueryPtr(c, "shopId"),
+		ProductID: parseUUIDQueryPtr(c, "productId"),
+		Page:      atoiQ(c, "page", 1),
+		PageSize:  atoiQ(c, "pageSize", 20),
+	}
+	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.Start = &t
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("end")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.End = &t
+		}
+	}
+	res, err := h.Svc.ListInventorySyncBatches(c.Request.Context(), q)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"items": res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
+}
+
+// GetInventorySyncBatch GET /inventory-sync/batches/:id
+func (h *Handler) GetInventorySyncBatch(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	recent := atoiQ(c, "recentTasks", 15)
+	if recent > 50 {
+		recent = 50
+	}
+	out, err := h.Svc.GetInventorySyncBatch(c.Request.Context(), id, recent)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// ListInventorySyncBatchTasks GET /inventory-sync/batches/:id/tasks
+func (h *Handler) ListInventorySyncBatchTasks(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid batch id")
+		return
+	}
+	q := ListQuery{
+		Page:         atoiQ(c, "page", 1),
+		PageSize:     atoiQ(c, "pageSize", 20),
+		Status:       c.Query("status"),
+		Platform:     c.Query("platform"),
+		ProductID:    parseUUIDQueryPtr(c, "productId"),
+		ProductSKUID: parseUUIDQueryPtr(c, "productSkuId"),
+		ShopID:       parseUUIDQueryPtr(c, "shopId"),
+	}
+	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.Start = &t
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("end")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.End = &t
+		}
+	}
+	res, err := h.Svc.ListInventorySyncBatchTasks(c.Request.Context(), id, q)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"list": res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
+}
+
+// RetryInventorySyncBatchFailed POST /inventory-sync/batches/:id/retry-failed
+func (h *Handler) RetryInventorySyncBatchFailed(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.RetryInventorySyncBatchFailed(c.Request.Context(), id, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// RetryInventorySyncTasksBatch POST /inventory-sync/batches/retry-failed-tasks
+func (h *Handler) RetryInventorySyncTasksBatch(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	var body RetryInventorySyncTasksBatchBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if len(body.TaskIds) == 0 {
+		response.Fail(c, 400, response.CodeBadRequest, "taskIds required")
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(body.TaskIds))
+	for _, raw := range body.TaskIds {
+		u, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid task id")
+			return
+		}
+		ids = append(ids, u)
+	}
+	out, err := h.Svc.RetryInventorySyncTasksIntoBatch(c.Request.Context(), ids, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return

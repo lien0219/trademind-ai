@@ -185,6 +185,11 @@ export default [
         component: './Inventory/SyncTasks',
       },
       {
+        path: '/inventory/sync-batches',
+        name: '库存同步批次',
+        component: './Inventory/SyncBatches',
+      },
+      {
         path: '/inventory/effects',
         name: '订单库存影响',
         component: './Inventory/Effects',

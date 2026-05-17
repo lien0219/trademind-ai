@@ -112,6 +112,7 @@ func (s *Service) handleInventoryPanic(parent context.Context, taskID uuid.UUID,
 			Message:     fmt.Sprintf("taskId=%s panic recovery", taskID.String()),
 		})
 	}
+	s.maybeReconcileInventoryBatch(ctx, cur.BatchID)
 }
 
 // RecoverLeaseExpired marks overdue running inventory tasks failed for human retry.
@@ -137,6 +138,7 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 			"locked_until":  nil,
 			"updated_at":    fin,
 		}).Error
+	bid := task.BatchID
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: task.CreatedBy,
@@ -147,6 +149,7 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 			Message:     fmt.Sprintf("taskId=%s lease_expired shopId=%s", taskID.String(), task.ShopID.String()),
 		})
 	}
+	s.maybeReconcileInventoryBatch(ctx, bid)
 	return nil
 }
 

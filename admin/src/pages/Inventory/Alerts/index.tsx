@@ -3,9 +3,11 @@ import {
   ProTable,
   type ActionType,
   type ProColumns,
+  type ProFormInstance,
 } from '@ant-design/pro-components';
 import {
   Button,
+  Checkbox,
   Descriptions,
   Form,
   InputNumber,
@@ -18,10 +20,12 @@ import {
   message,
 } from 'antd';
 import dayjs from 'dayjs';
+import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { useMemo, useRef, useState } from 'react';
 import {
   adjustSkuStock,
+  createInventorySyncBatch,
   queryInventoryAlerts,
   syncPublicationSkuInventory,
   type InventoryAlertRow,
@@ -58,6 +62,11 @@ function stockStatusTag(raw: string) {
 
 export default function InventoryAlertsPage() {
   const actionRef = useRef<ActionType>();
+  const searchFormRef = useRef<ProFormInstance>();
+  const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkIncludeLocalAlerts, setBulkIncludeLocalAlerts] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [active, setActive] = useState<InventoryAlertRow | null>(null);
@@ -311,15 +320,37 @@ export default function InventoryAlertsPage() {
     <PageContainer title="库存预警">
       <Typography.Paragraph type="secondary">
         仅查询与提醒，不自动改平台库存；推送仍走{' '}
-        <Typography.Text code>inventory_sync_tasks</Typography.Text>。
+        <Typography.Text code>inventory_sync_tasks</Typography.Text>
+        （可勾选 SKU 行后批量创建{' '}
+        <Typography.Link href="/inventory/sync-batches">同步批次</Typography.Link>
+        ）。
       </Typography.Paragraph>
       <ProTable<InventoryAlertRow>
         rowKey={(r) => r.productSkuId}
         actionRef={actionRef}
+        formRef={searchFormRef}
         columns={columns}
         scroll={{ x: 1500 }}
         search={{ labelWidth: 100 }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        rowSelection={{
+          selectedRowKeys: selectedSkuIds,
+          onChange: (keys) => setSelectedSkuIds(keys.map(String)),
+        }}
+        tableAlertRender={false}
+        toolBarRender={() => [
+          <Button
+            key="bulk-sync"
+            type="primary"
+            disabled={selectedSkuIds.length === 0}
+            onClick={() => {
+              setBulkIncludeLocalAlerts(false);
+              setBulkOpen(true);
+            }}
+          >
+            批量同步库存
+          </Button>,
+        ]}
         expandable={{
           expandedRowRender: (r) =>
             r.platformStocks?.length ? (
@@ -395,6 +426,61 @@ export default function InventoryAlertsPage() {
           }
         }}
       />
+
+      <Modal
+        title="批量同步库存"
+        open={bulkOpen}
+        onCancel={() => setBulkOpen(false)}
+        okText="创建批次"
+        confirmLoading={bulkSubmitting}
+        onOk={async () => {
+          if (selectedSkuIds.length === 0) return;
+          const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
+          const platformRaw = typeof fv.platform === 'string' ? fv.platform.trim().toLowerCase() : '';
+          const shopRaw = typeof fv.shopId === 'string' ? fv.shopId.trim() : '';
+          const alertTypes = bulkIncludeLocalAlerts
+            ? [
+                'platform_stock_mismatch',
+                'inventory_sync_failed',
+                'low_stock',
+                'out_of_stock',
+                'below_safety_stock',
+              ]
+            : ['platform_stock_mismatch', 'inventory_sync_failed'];
+          setBulkSubmitting(true);
+          try {
+            const batch = await createInventorySyncBatch({
+              source: 'inventory_alert',
+              platform: platformRaw || undefined,
+              shopId: shopRaw || undefined,
+              productSkuIds: selectedSkuIds,
+              onlyAlerts: true,
+              alertTypes,
+              onlyPublished: true,
+            });
+            message.success(`已创建批次 ${batch.batchNo}（跳过 ${batch.skippedCount}）`);
+            setBulkOpen(false);
+            setSelectedSkuIds([]);
+            actionRef.current?.reload();
+            history.push(`/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`);
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '创建失败');
+          } finally {
+            setBulkSubmitting(false);
+          }
+        }}
+      >
+        <Typography.Paragraph>
+          将为选中的 <Typography.Text strong>{selectedSkuIds.length}</Typography.Text> 个 SKU 创建库存同步批次。
+          默认仅包含「平台库存不一致」「同步失败」类预警对应的刊登 SKU；不包含单纯的本地低库存/售罄，除非你勾选下方选项。
+        </Typography.Paragraph>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+          列表筛选中的 platform / shopId 会一并传给后端以收窄刊登映射（若留空则由服务端按 SKU 聚合）。
+        </Typography.Paragraph>
+        <Checkbox checked={bulkIncludeLocalAlerts} onChange={(e) => setBulkIncludeLocalAlerts(e.target.checked)}>
+          同时包含本地低库存 / 售罄 / 低于安全线预警（将把对应刊登 SKU 推送到平台队列）
+        </Checkbox>
+      </Modal>
 
       <Modal
         title={active ? `调整库存 · ${active.skuCode}` : '调整库存'}

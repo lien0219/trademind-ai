@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
-	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 )
@@ -70,6 +68,8 @@ func (s *Service) taskToDTO(ctx context.Context, t *InventorySyncTask, skuHint s
 		Input:            input,
 		Output:           output,
 		CreatedBy:        t.CreatedBy,
+		BatchID:          t.BatchID,
+		BatchNo:          t.BatchNo,
 		CreatedAt:        t.CreatedAt,
 		UpdatedAt:        t.UpdatedAt,
 	}
@@ -272,8 +272,8 @@ func (s *Service) ListTasks(ctx context.Context, q ListQuery) (*ListTasksResult,
 	if q.ProductSKUID != nil && *q.ProductSKUID != uuid.Nil {
 		tx = tx.Where("product_sku_id = ?", *q.ProductSKUID)
 	}
-	if q.ShopID != nil && *q.ShopID != uuid.Nil {
-		tx = tx.Where("shop_id = ?", *q.ShopID)
+	if q.BatchID != nil && *q.BatchID != uuid.Nil {
+		tx = tx.Where("batch_id = ?", *q.BatchID)
 	}
 	if strings.TrimSpace(q.Platform) != "" {
 		tx = tx.Where("platform = ?", strings.TrimSpace(strings.ToLower(q.Platform)))
@@ -325,20 +325,20 @@ func (s *Service) ListTasks(ctx context.Context, q ListQuery) (*ListTasksResult,
 	}, nil
 }
 
-// RetryFailed requeues failed rows preserving Input snapshot.
-func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, admin *uuid.UUID) (*TaskDTO, error) {
+// RetryInventorySyncTask resets a failed task to pending and enqueues / runs inline.
+func (s *Service) RetryInventorySyncTask(ctx context.Context, taskID uuid.UUID, admin *uuid.UUID) (*TaskDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
 	var task InventorySyncTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(task.Status) != StatusFailed {
 		return nil, fmt.Errorf("only failed tasks can be retried")
 	}
 	reset := time.Now().UTC()
-	if err := s.DB.WithContext(c.Request.Context()).Model(&InventorySyncTask{}).Where("id = ?", taskID).
+	if err := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", taskID).
 		Updates(map[string]any{
 			"status":        StatusPending,
 			"error_message": "",
@@ -352,7 +352,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, admin *uuid.UUID
 		return nil, err
 	}
 	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: admin,
 			Action:      "inventory.sync.retry",
 			Resource:    "inventory_sync_task",
@@ -361,23 +361,19 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, admin *uuid.UUID
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
 	}
-	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeInventorySync))
-	}
-	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
-		if err := s.enqueue(c.Request.Context(), taskID); err != nil {
-			slog.Warn("inventory_sync_retry_enqueue_failed_run_inline", "taskId", taskID.String(), "error", err)
-			if err := runInline(); err != nil {
-				return nil, err
-			}
-		}
-	} else if err := runInline(); err != nil {
+	if err := s.enqueueOrRunInventoryTask(ctx, taskID); err != nil {
 		return nil, err
 	}
 	var skuUuid uuid.UUID
 	if task.ProductSKUID != nil {
 		skuUuid = *task.ProductSKUID
 	}
-	out, err := s.GetDTO(c.Request.Context(), taskID, skuUuid, "")
+	out, err := s.GetDTO(ctx, taskID, skuUuid, "")
 	return &out, err
+}
+
+// RetryFailed requeues failed rows preserving Input snapshot.
+func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, admin *uuid.UUID) (*TaskDTO, error) {
+	out, err := s.RetryInventorySyncTask(c.Request.Context(), taskID, admin)
+	return out, err
 }
