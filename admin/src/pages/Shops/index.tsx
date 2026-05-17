@@ -272,7 +272,7 @@ export default function ShopsPage() {
       message.warning('当前平台客服消息接口尚未接入；请使用 mock 店铺验证联调，或等待后续版本。');
       return;
     }
-    if (cm !== 'available') {
+    if (cm !== 'available' && cm !== 'beta') {
       message.warning('当前平台不支持客服消息同步');
       return;
     }

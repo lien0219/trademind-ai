@@ -94,7 +94,9 @@ func CustomerMessageImplementationStatus(p Provider) string {
 	switch strings.TrimSpace(strings.ToLower(p.Platform())) {
 	case "mock":
 		return StatusAvailable
-	case "tiktok", "shopee", "lazada", "amazon":
+	case "tiktok":
+		return StatusBeta
+	case "shopee", "lazada", "amazon":
 		return StatusPlanned
 	default:
 		st := p.Status()

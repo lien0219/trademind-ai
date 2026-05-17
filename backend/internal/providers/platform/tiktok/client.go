@@ -27,18 +27,7 @@ func doGET(ctx context.Context, c http.Client, rawURL string) ([]byte, int, erro
 }
 
 func doPOSTJSON(ctx context.Context, c http.Client, rawURL string, body []byte) ([]byte, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, 0, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	res, err := c.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer res.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(res.Body, 4<<20))
-	return b, res.StatusCode, nil
+	return doPOSTJSONStatus(ctx, c, rawURL, body)
 }
 
 func firstJSONMap(blob []byte) (map[string]interface{}, error) {
@@ -187,6 +176,58 @@ func signedPOSTJSON(ctx context.Context, c http.Client, cfg RuntimeConfig, path 
 	uv.RawQuery = vals.Encode()
 	b, _, err := doPOSTJSON(ctx, c, uv.String(), bodyJSON)
 	return b, err
+}
+
+func doPOSTJSONStatus(ctx context.Context, c http.Client, rawURL string, body []byte) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := c.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(res.Body, 4<<20))
+	return b, res.StatusCode, nil
+}
+
+// signedPOSTJSONStatus is like signedPOSTJSON but returns the HTTP status for caller-side retry / policy mapping.
+func signedPOSTJSONStatus(ctx context.Context, c http.Client, cfg RuntimeConfig, path string, accessToken string, body map[string]interface{}) ([]byte, int, error) {
+	accessToken = strings.TrimSpace(accessToken)
+	if accessToken == "" {
+		return nil, 0, fmt.Errorf("missing access_token")
+	}
+	bodyJSON, err := json.Marshal(body)
+	if err != nil {
+		return nil, 0, err
+	}
+	q := map[string]string{
+		"app_key":      cfg.AppKey,
+		"access_token": accessToken,
+		"version":      cfg.APIVersion,
+	}
+	if strings.TrimSpace(cfg.ShopCipher) != "" {
+		q["shop_cipher"] = cfg.ShopCipher
+	}
+	sig, ts, err := SignOpenAPI(path, cfg.AppSecret, q, string(bodyJSON), 0)
+	if err != nil {
+		return nil, 0, err
+	}
+	q["sign"] = sig
+	q["timestamp"] = fmt.Sprintf("%d", ts)
+	u := strings.TrimSuffix(cfg.OpenAPIHost, "/") + path
+	uv, err := url.Parse(u)
+	if err != nil {
+		return nil, 0, err
+	}
+	vals := url.Values{}
+	for k, v := range q {
+		vals.Set(k, v)
+	}
+	uv.RawQuery = vals.Encode()
+	return doPOSTJSONStatus(ctx, c, uv.String(), bodyJSON)
 }
 
 func signedGET(ctx context.Context, c http.Client, cfg RuntimeConfig, path string, accessToken string, extra map[string]string) ([]byte, error) {

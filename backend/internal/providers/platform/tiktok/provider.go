@@ -103,13 +103,9 @@ func (tikTokProvider) SyncOrders(ctx context.Context, req platformp.SyncOrdersRe
 }
 
 func (tikTokProvider) PullMessages(ctx context.Context, req platformp.PullMessagesRequest) (*platformp.PullMessagesResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrCustomerMessageNotImplemented
+	return PullCustomerMessages(ctx, req)
 }
 
 func (tikTokProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrCustomerMessageNotImplemented
+	return SendCustomerMessage(ctx, req)
 }
