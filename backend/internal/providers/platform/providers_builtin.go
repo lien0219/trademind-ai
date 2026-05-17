@@ -119,9 +119,9 @@ func (mockProv) PublishProduct(ctx context.Context, req PublishProductRequest) (
 		Status:            "published",
 		SKUMappings:       mappings,
 		RawSummary: TrimRawMap(map[string]any{
-			"provider": "mock",
-			"shopId":   sid,
-			"productId": pid,
+			"provider":    "mock",
+			"shopId":      sid,
+			"productId":   pid,
 			"skuMappings": len(mappings),
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
 		}, 16, 200),

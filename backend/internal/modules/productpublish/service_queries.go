@@ -152,7 +152,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		_ = s.DB.WithContext(c.Request.Context()).Model(&ProductPublication{}).Where("id = ?", rid).
 			Updates(map[string]any{
 				"status":          StatusPublishing,
-				"publish_status": StatusPublishing,
+				"publish_status":  StatusPublishing,
 				"publish_task_id": taskID,
 				"updated_at":      reset,
 			}).Error

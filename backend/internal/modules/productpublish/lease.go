@@ -102,9 +102,9 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 	if rid, ok := snapshotPublicationFromTask(&task); ok {
 		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
 			Updates(map[string]any{
-				"status":          StatusPubFailed,
-				"publish_status":  StatusPubFailed,
-				"updated_at":      fin,
+				"status":         StatusPubFailed,
+				"publish_status": StatusPubFailed,
+				"updated_at":     fin,
 			}).Error
 	}
 	if s.OpLog != nil {

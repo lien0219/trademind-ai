@@ -3,8 +3,8 @@ package productpublish
 import "sync"
 
 var (
-	ppWorkerMu    sync.Mutex
-	ppWorkersOn   bool
+	ppWorkerMu  sync.Mutex
+	ppWorkersOn bool
 )
 
 func SetProductPublishWorkersRunning(v bool) {

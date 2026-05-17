@@ -40,10 +40,10 @@ type PlatformProductSKU struct {
 
 // PublishProductRequest is passed to adapters (never log Auth secrets).
 type PublishProductRequest struct {
-	ShopID    uuid.UUID
-	Platform  string
-	Auth      TestConnectionRequest
-	Product   PlatformProductDraft
+	ShopID   uuid.UUID
+	Platform string
+	Auth     TestConnectionRequest
+	Product  PlatformProductDraft
 	// PublishConfig is merged defaults (settings.platform_publish_*) plus per-task overrides — stringified scalars plus bools encoded as strings.
 	PublishConfig map[string]any
 	Options       map[string]any

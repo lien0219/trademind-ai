@@ -166,7 +166,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	pubSnap := platformp.TrimRawMap(map[string]any{
 		"externalProductId": res.ExternalProductID,
-		"skuMapped":           len(res.SKUMappings),
+		"skuMapped":         len(res.SKUMappings),
 	}, 12, 200)
 	rd, _ := json.Marshal(pubSnap)
 

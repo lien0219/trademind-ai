@@ -10,7 +10,7 @@ import (
 
 // PublishRequestBody POST /products/:id/publish
 type PublishRequestBody struct {
-	ShopID  string                 `json:"shopId"`
+	ShopID  string         `json:"shopId"`
 	Options map[string]any `json:"options"`
 }
 
@@ -36,14 +36,14 @@ type TaskDTO struct {
 }
 
 type ListTasksQuery struct {
-	Page       int
-	PageSize   int
-	ProductID  *uuid.UUID
-	ShopID     *uuid.UUID
-	Platform   string
-	Status     string
-	Start      *time.Time
-	End        *time.Time
+	Page      int
+	PageSize  int
+	ProductID *uuid.UUID
+	ShopID    *uuid.UUID
+	Platform  string
+	Status    string
+	Start     *time.Time
+	End       *time.Time
 }
 
 type ListTasksResult struct {

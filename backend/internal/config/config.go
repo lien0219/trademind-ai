@@ -189,7 +189,7 @@ func Load() (*Config, error) {
 		CustomerMessageSyncWorkerConcurrency:  atoiOrDefault(os.Getenv("CUSTOMER_MESSAGE_SYNC_WORKER_CONCURRENCY"), 1),
 		CustomerMessageSyncTaskTimeoutSeconds: atoiOrDefault(os.Getenv("CUSTOMER_MESSAGE_SYNC_TASK_TIMEOUT_SECONDS"), 120),
 
-		ProductPublishQueueEnabled:      envBool(os.Getenv("PRODUCT_PUBLISH_QUEUE_ENABLED"), true),
+		ProductPublishQueueEnabled: envBool(os.Getenv("PRODUCT_PUBLISH_QUEUE_ENABLED"), true),
 		ProductPublishQueueName: strings.TrimSpace(firstNonEmpty(
 			os.Getenv("PRODUCT_PUBLISH_QUEUE_NAME"),
 			"product:publish:tasks",

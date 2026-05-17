@@ -18,16 +18,16 @@ func ApplyPublishOptions(base map[string]string, options map[string]any) map[str
 		return out
 	}
 	aliases := map[string]string{
-		"categoryid":           "default_category_id",
-		"shippingtemplateid":   "shipping_template_id",
-		"brandid":              "default_brand_id",
-		"warehouseid":          "warehouse_id",
-		"logisticchannelid":    "logistic_channel_id",
-		"marketplaceid":        "marketplace_id",
-		"producttype":          "product_type",
-		"draftonly":            "publish_as_draft",
+		"categoryid":            "default_category_id",
+		"shippingtemplateid":    "shipping_template_id",
+		"brandid":               "default_brand_id",
+		"warehouseid":           "warehouse_id",
+		"logisticchannelid":     "logistic_channel_id",
+		"marketplaceid":         "marketplace_id",
+		"producttype":           "product_type",
+		"draftonly":             "publish_as_draft",
 		"merchantshippinggroup": "merchant_shipping_group",
-		"browsenodeid":         "default_browse_node_id",
+		"browsenodeid":          "default_browse_node_id",
 	}
 	for rk, vv := range options {
 		key := strings.ToLower(strings.TrimSpace(rk))
