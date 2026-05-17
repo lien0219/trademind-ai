@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -97,6 +99,49 @@ func getJSONWithStatus(ctx context.Context, cfg RuntimeConfig, urlStr string) (m
 	if err != nil {
 		return nil, 0, err
 	}
+	return doShopeeHTTPRead(ctx, cfg, req)
+}
+
+// postShopMultipartImage uploads listing images to Shopee Media Space (multipart field name "image").
+func postShopMultipartImage(ctx context.Context, cfg RuntimeConfig, apiPath string, shopID int64, accessToken string, fileName string, imageBytes []byte) (map[string]any, int, error) {
+	ts := nowUnix()
+	baseStr := BaseStringShop(cfg.PartnerID, apiPath, ts, accessToken, shopID)
+	sign := SignHMAC(cfg.PartnerKey, baseStr)
+	q := url.Values{}
+	q.Set("partner_id", strconv.FormatInt(cfg.PartnerID, 10))
+	q.Set("shop_id", strconv.FormatInt(shopID, 10))
+	q.Set("timestamp", strconv.FormatInt(ts, 10))
+	q.Set("access_token", accessToken)
+	q.Set("sign", sign)
+	u := cfg.APIBaseURL + apiPath + "?" + q.Encode()
+
+	fn := strings.TrimSpace(fileName)
+	if fn == "" {
+		fn = "listing.jpg"
+	}
+	ext := strings.ToLower(filepath.Ext(fn))
+	if ext == "" {
+		fn += ".jpg"
+	}
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, err := mw.CreateFormFile("image", filepath.Base(fn))
+	if err != nil {
+		return nil, 0, err
+	}
+	if _, err := part.Write(imageBytes); err != nil {
+		return nil, 0, err
+	}
+	if err := mw.Close(); err != nil {
+		return nil, 0, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, &buf)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
 	return doShopeeHTTPRead(ctx, cfg, req)
 }
 

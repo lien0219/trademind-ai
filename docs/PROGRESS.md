@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-17（**TikTok 商品刊登真实 API（beta）**：**`providers/platform/tiktok`** 实现 **`PublishProduct`**（创建 **`/product/{api_version}/products`** + 上架前 **`/product/{api_version}/images/upload`**），复用 **`settings.platform_tiktok`** / **`settings.platform_publish_tiktok`** / **`shop_auth_tokens`** / **`ensureFreshAccess`** / **`signedPOSTJSONStatus`**；**`/api/v1/platform/providers`** 中 **`capabilityStatus.product_publish`** 对 **TikTok** 为 **`beta`**（**`mock`** 仍为 **`available`**；**Shopee / Lazada / Amazon** 仍为 **`planned`**）；**`productpublish`** Worker / **`POST /products/:id/publish`** 使用 **`IsProductPublishRunnable`（`available`｜`beta`）**；**`product_publication_skus`** 写入 **price / stock / 裁剪 raw_data**；**`api.BindPublishImages`**（**`tikTokListingImageFetcher`**：Storage **`Get`** + 公网 **`GET`** + **`/static/`** 本地 fallback）；管理端 **刊登 Tab** 可选 **beta** 店铺；权限错误 **`platform product publish permission denied or not configured`** → **HTTP 403** 中文提示。刊登 **Worker / 队列 / 表结构 / mock manual** 基座见前版条目。）
+**最后更新**：2026-05-17（**TikTok / Shopee 商品刊登真实 API（beta）**：**`providers/platform/tiktok`** · **`PublishProduct`**（**`/product/{api_version}/products`** + **`images/upload`**）；**`providers/platform/shopee`** · **`PublishProduct`**（**`/api/v2/media_space/upload_image`** + **`/api/v2/product/add_item`**，多 SKU **`/api/v2/product/init_tier_variation`**）；均复用 **`settings.platform_*`**、**`settings.platform_publish_*`**、**`shop_auth_tokens`**、**`product_publish_tasks`** / Worker；Shopee 复用 **`ensureFreshAccess`**、**`postShopWithStatus`** 与 **`postShopMultipartImage`**（签名与 TikTok 分离、仍不落 token 日志）；**`/api/v1/platform/providers`**：**`capabilityStatus.product_publish`** 为 **`mock=available`**，**`tiktok`/`shopee`=`beta`**，**`lazada`/`amazon`=`planned`**；**`platformshopee.BindPublishImages`** 与 TikTok 共用 **`tikTokListingImageFetcher`**（Storage **`Get`** + 公网 **`GET`** + **`/static/`**）；**`product_publications` / `product_publication_skus`**（**`model_id`/`item_id` 摘要 raw_data**）；**`POST /products/:id/publish`** 权限 **`platform product publish permission denied…`** → **HTTP 403**（文案含 **Shopee Open Platform**）。刊登队列 / Reaper / mock·manual 行为保持。）
 
 ---
 
@@ -84,7 +84,7 @@
 - **操作日志页**：**`ProTable`** → **`GET /api/v1/operation-logs`**；只读、可筛选。
 - **文件管理页**：**`ProTable`** → **`GET /api/v1/files`**；图片预览；删除 **`DELETE /api/v1/files/:id`**。
 - **开发代理**：`.umirc.ts` 将 **`/static`** 代理到后端，便于 **`public_base=/static`** 时预览。
-- **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；**`/product/drafts/:id`** **Tabs**（基础、AI 标题/描述、**图片管理**（上传、`createProductImage`、**AI 图片任务**：**resize/noop**、**remove_background**、**replace_background（`openai_image` / `comfyui`）**、**generate_scene（openai_image / comfyui）**、Prompt/背景/style、**可无源场景图**、异步提示 + **`/ai/image-tasks`**、reorder）、**SKU 表**、**刊登**（**已授权且 `capabilityStatus.product_publish` 为 `available`（mock）或 `beta`（TikTok Shop）** 店铺、**`POST /products/:id/publish`**、本商品 **`GET /products/:id/publications` 快照**）、最近 AI 任务）；全局 **`/product/publish-tasks`**（**`services/productPublish.ts`**）；**`/settings/platform-publish`**（**`GET/PUT /platform/publish-settings/:platform`**，与 **`/settings/platforms`** 应用配置分拆）；**`/ai/prompts`**、**`/ai/tasks`**、**`/ai/image-tasks`**（约 **4s** 轮询、**`document.visibilityState` 隐藏时暂停**；**新建任务可选 `sourceImageId`**）。**`products.ts` / `platformPublish.ts` / `imageTasks.ts`** 封装 API。
+- **商品草稿**：路由 **`/product/drafts`**，`ProTable` → **`GET /api/v1/products`**；**`/product/drafts/:id`** **Tabs**（基础、AI 标题/描述、**图片管理**（上传、`createProductImage`、**AI 图片任务**：**resize/noop**、**remove_background**、**replace_background（`openai_image` / `comfyui`）**、**generate_scene（openai_image / comfyui）**、Prompt/背景/style、**可无源场景图**、异步提示 + **`/ai/image-tasks`**、reorder）、**SKU 表**、**刊登**（**已授权且 `capabilityStatus.product_publish` 为 `available`（mock）或 `beta`（TikTok Shop / Shopee）** 店铺、**`POST /products/:id/publish`**、本商品 **`GET /products/:id/publications` 快照**）、最近 AI 任务）；全局 **`/product/publish-tasks`**（**`services/productPublish.ts`**）；**`/settings/platform-publish`**（**`GET/PUT /platform/publish-settings/:platform`**，与 **`/settings/platforms`** 应用配置分拆）；**`/ai/prompts`**、**`/ai/tasks`**、**`/ai/image-tasks`**（约 **4s** 轮询、**`document.visibilityState` 隐藏时暂停**；**新建任务可选 `sourceImageId`**）。**`products.ts` / `platformPublish.ts` / `imageTasks.ts`** 封装 API。
 - **采集**：侧栏分组 **采集**：**`/collect`** **采集中心**（**`available` / `beta`** 可申请单链接；**批量**仍受 **`batchSupported`**；**custom** Tooltip **「自定义采集器暂不支持批量」**；其余 beta Tooltip **「测试阶段暂未开放批量」**）；**`/collect/rules`**（**采集规则**：列表 / CRUD / 启用停用 / **测试预览**）；**`/collect/tasks`**（**`source=custom`** 时 **规则下拉**（可选，未选则域名自动匹配提示）；**`ruleId`** 提交）；**`/collect/batches`**（仅 **`batchSupported` 且 status=`available`**）、**`/collect/monitor`**；**`services/collectRules.ts`** + **`collectProviders`** + **`collectTasks`** / **`collectBatches`** / **`collectMonitor`**。
 - **内部订单**：路由分组 **`/orders`**（**`OrderGroupLayout`**）：**`/orders`** **订单列表** — **ProTable + Drawer**：头表表单（含可选 **`shopId`**）、**`platform` 筛选**、**外部单号列**、Tabs **明细行（`order_items`）与发货（`order_shipments`）** 及独立新增/编辑 Modal；状态 Tag 映射 **`ORDER_*`**；**`/orders/sync-tasks`** **同步任务表**（**`services/orderSync.ts`**）；**`services/orders.ts`**。
 - **店铺管理（授权基座）**：路由 **`/shops`**；**`services/shops.ts`** + **`platformOpen.ts`**：**TikTok / Shopee / Lazada / Amazon OAuth**；默认 **不写每店开放平台密钥**，引导 **「设置 → 平台开放配置」**；**`formatPlatformPartnerErr`** 映射不完整 **`platform_*`** 配置；**创建店铺 / 授权 Drawer** 前校验 **`GET /api/v1/platform/settings/:platform`** 必填（**`****` 视同已配置密钥**）；生成授权链接在无配置时 **warning**。**同步订单**、**`/orders/sync-tasks`**。**`SHOP_*` / `PLATFORM_PROVIDER_STATUS`**（**`beta`** 前端显示 **测试中**）。
@@ -225,26 +225,26 @@ trademind-ai/
 23. **多采集源仍占位**：**拼多多 / 淘宝·天猫 / SHEIN·Temu** Collector **`planned`**，**不真实解析**。**自定义链接**：Collector **`custom` 已为 `beta`**（**声明式 rule + JSON-LD / OG / Meta**）；**高级可视化规则编辑器**、**自定义批量采集**、**更强 SSRF（内网等）** 仍未完成。
 24. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
 25. **TikTok Shop、Shopee、Lazada、Amazon（beta）订单同步**：均已接 **`providers/platform/*/SyncOrders`** → **`order.UpsertSyncedOrders`** / **`order_sync_tasks`**；**Lazada** 依赖正确的 **`api_base_url`**（各站点 **`/rest`**）与时间窗；**Amazon** 依赖 **LWA**、**IAM SigV4**（运行时凭证）与 **Orders v0** 分页（**NextToken**）；**429** 等限流错误需 **人工 retry**；生产需持续压测与策略调优。
-26. **Shopee / Lazada / Amazon 商品刊登真实 API 未完成**（仍为 **`planned`** / **`ErrProductPublishNotImplemented`**）。
+26. **Lazada / Amazon 商品刊登真实 API 未完成**（仍为 **`planned`** / **`ErrProductPublishNotImplemented`**）。**Shopee** 已 **`providers/platform/shopee`** **`PublishProduct`（`beta`）**，结果写入 **`product_publications` / `product_publication_skus`**。
 27. **Lazada 库存同步未完成**。
 28. **Shopee 库存同步未完成**。
 29. **Amazon 库存同步未完成**。
 30. **Amazon FBA / 财务 / 结算未完成**。
 31. **Amazon 真实客服消息 API**：已接入 **`providers/platform/amazon`**（**Messaging API `beta`**）：**Orders + `getMessagingActionsForOrder` / `GetAttributes` / 模板 `POST`**；**买家会话正文 SP-API 不可读**，同步内容为 **模板摘要 + 免责声明**；**生产权限 / 模板可用性 / 限流**需持续实测。**订单同步不受影响**。**TikTok / Shopee / Lazada** 仍为 **`beta`**（IM 路径）。
 32. **TikTok 商品刊登（beta）边界**：依赖 **`api_version`** 与 Partner **类目必填属性**（**`product_attributes` / SKU `sales_attributes`** 需用户在 **`attrs` JSON** 或 **`options`** 中提供）；**字段映射随 TikTok 文档升级需校准**；**多 SKU** 无 **`sales_attributes`** 时会拒绝刊登。
-33. **库存同步未完成**（多平台）。
-34. **Amazon Buyer-Seller Messaging（Messaging API）**：**权限 / 模板可用性 / 合规场景**需 **生产实测**（当前 **`PullMessages`** 仅为 **Orders + 模板能力摘要**，**非买家会话正文**）。
-35. **Amazon SP-API 限流与字段映射**：Messaging **默认低速率**（实现侧 **客户端节流**）、Orders **`429`** 与 **HAL / JSON** 边界需持续优化。
+33. **Shopee 商品刊登（beta）边界**：依赖 **`settings.platform_publish_shopee`**（**`default_category_id` / `logistic_channel_id` / `default_weight`** 等）与 **`shop_auth_tokens`**；类目属性由 **`shopee_attribute_list`**（**`attrs` / `options`**）手工提供；多 SKU 默认单维度 **`Variation`**，多维规格用 **`options.shopee_tier_variation`**；**`media_space/upload_image` · `add_item` · `init_tier_variation`** 字段映射随文档升级需校准。
+34. **库存同步未完成**（多平台）。
+35. **Amazon Buyer-Seller Messaging（Messaging API）**：**权限 / 模板可用性 / 合规场景**需 **生产实测**（当前 **`PullMessages`** 仅为 **Orders + 模板能力摘要**，**非买家会话正文**）。
+36. **Amazon SP-API 限流与字段映射**：Messaging **默认低速率**（实现侧 **客户端节流**）、Orders **`429`** 与 **HAL / JSON** 边界需持续优化。
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **Shopee 商品刊登真实 API 接入**。
-2. **Lazada 商品刊登真实 API 接入**。
-3. **库存同步基础框架**（多平台）。
-4. **Amazon SP-API 生产实测与限流优化**（凭证、`429`、多区域 endpoint、Messaging 与 Orders 字段完整性；Buyer-Seller Messaging **模板可用性**随订单状态的实测）。
-5. **Collector 反爬与稳定性增强**。
-6. **TikTok / Shopee / Lazada / Amazon 订单同步生产实测**：分页、字段、沙箱与 **`cursor`/offset**；按需补 **`docs/platform-provider.md` / `api.md`**。
-7. **订单同步深化**：租户隔离、**`external_order_id`/`order_no` 冲突策略**、SKU 与 **`products` 草稿联动**、**`cursor`** 持久化策略。
+1. **Lazada 商品刊登真实 API 接入**。
+2. **库存同步基础框架**（多平台）。
+3. **Amazon SP-API 生产实测与限流优化**（凭证、`429`、多区域 endpoint、Messaging 与 Orders 字段完整性；Buyer-Seller Messaging **模板可用性**随订单状态的实测）。
+4. **Collector 反爬与稳定性增强**。
+5. **TikTok / Shopee / Lazada / Amazon 订单同步生产实测**：分页、字段、沙箱与 **`cursor`/offset**；按需补 **`docs/platform-provider.md` / `api.md`**。
+6. **订单同步深化**：租户隔离、**`external_order_id`/`order_no` 冲突策略**、SKU 与 **`products` 草稿联动**、**`cursor`** 持久化策略。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -267,6 +267,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-17 | **Shopee 商品刊登真实 API（beta）**：**`shopee/product_publish*.go`**（**`PublishProduct`**、**Media Space `upload_image`**、**`add_item`**、多 SKU **`init_tier_variation`**）、**`postShopMultipartImage`**、**`platform.ProductPublishImplementationStatus(shopee)=beta`**、**`platformshopee.BindPublishImages`**（复用 **`tikTokListingImageFetcher`**）、**`merge_publish`/`platform_publish_shopee`** 必填 **`default_weight`**、刊登 **403** 文案泛化；**PROGRESS** §1/§3/§7/§8 |
 | 2026-05-17 | **TikTok 商品刊登真实 API（beta）**：**`tiktok/product_publish*.go`**（**`PublishProduct`**、上图、映射 **`PlatformProductDraft`** → **`POST /product/{ver}/products`**）、**`platform.ProductPublishImplementationStatus(tiktok)=beta`**、**`IsProductPublishRunnable`**、**`BindPublishImages`**（**`api/tiktok_listing_images.go`**）、**`product_publication_skus` price/stock/raw_data**、**`ErrPlatformProductPublishPermissionDenied`**、管理端刊登 Tab **`beta`**；**PROGRESS** §1/§3/§7/§8 |
 | 2026-05-17 | **Amazon 真实客服消息 API（Messaging API，`beta`）**：**`amazon/customer_messages.go`** + **`customer_message_*`**（Orders + Messaging HAL；模板 **`POST`**；**`CustomerMessageImplementationStatus(amazon)=beta`**；**`send-platform-message` 403 `%w` 权限哨兵**；管理端 **`/shops`**、**权限文案**；**PROGRESS** §1/§3/§7/§8 |
 | 2026-05-17 | **Lazada 真实客服消息 API（beta）**：**`lazada/customer_messages.go`** + **`customer_message_*`**（**`/im/session/list`** / **`/im/message/list`** / **`/im/message/send`**；**`signedGET`/`signedPOSTForm`**；**`CustomerMessageImplementationStatus(lazada)=beta`**；**`platform/customer_message.go`**；管理端 **`/shops`** **权限文案含 Lazada**；**PROGRESS** §3/§7/§8 对齐 |

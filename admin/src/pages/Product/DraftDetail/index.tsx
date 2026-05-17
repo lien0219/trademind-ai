@@ -853,11 +853,12 @@ export default function ProductDraftDetailPage() {
                         description={
                           <>
                             <Typography.Text code>product_publish</Typography.Text>{' '}
-                            为「可用」的店铺（如 mock）或「测试中 / beta」（如 TikTok Shop）可提交刊登任务；Shopee / Lazada /
+                            为「可用」的店铺（如 mock）或「测试中 / beta」（如 TikTok Shop、Shopee）可提交刊登任务；Lazada /
                             Amazon 等平台刊登仍为计划中。请到{' '}
-                            <Link to="/settings/platform-publish">设置 · 平台刊登预设</Link> 补齐 TikTok
-                            类目、物流模板、仓库等（<Typography.Text code>settings.platform_publish_tiktok</Typography.Text>
-                            ）；队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
+                            <Link to="/settings/platform-publish">设置 · 平台刊登预设</Link> 补齐对应平台预设（如 TikTok{' '}
+                            <Typography.Text code>platform_publish_tiktok</Typography.Text>、Shopee{' '}
+                            <Typography.Text code>platform_publish_shopee</Typography.Text>
+                            的类目、物流渠道、包裹重量尺寸等）；队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
                           </>
                         }
                       />

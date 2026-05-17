@@ -85,7 +85,7 @@ func shopeePublishSchema() PlatformAppConfigSchema {
 			{Name: "default_brand_id", Label: "默认品牌 ID", Type: "text", Required: false, Sensitive: false},
 			{Name: "logistic_channel_id", Label: "物流渠道 ID", Type: "text", Required: true, Sensitive: false},
 			{Name: "warehouse_id", Label: "默认仓库 ID", Type: "text", Required: false, Sensitive: false},
-			{Name: "default_weight", Label: "默认包裹重量 (kg)", Type: "number", Required: false, Sensitive: false},
+			{Name: "default_weight", Label: "默认包裹重量 (kg)", Type: "number", Required: true, Sensitive: false},
 			{Name: "default_length", Label: "默认长度 (cm)", Type: "number", Required: false, Sensitive: false},
 			{Name: "default_width", Label: "默认宽度 (cm)", Type: "number", Required: false, Sensitive: false},
 			{Name: "default_height", Label: "默认高度 (cm)", Type: "number", Required: false, Sensitive: false},
@@ -95,6 +95,7 @@ func shopeePublishSchema() PlatformAppConfigSchema {
 				{Label: "自行填写文本（选择其它后在扩展字段补充）", Value: "_custom"},
 			}},
 			{Name: "days_to_ship", Label: "发货天数", Type: "number", Required: false, Sensitive: false},
+			{Name: "variation_tier_name", Label: "单规格维度名称（多 SKU 可选）", Type: "text", Required: false, Sensitive: false, Help: "未配置刊登 options.shopee_tier_variation 时，多 SKU 使用该维度名称（默认 Variant）"},
 			{Name: "publish_as_draft", Label: "默认发布为草稿", Type: "switch", Required: false, Sensitive: false, DefaultValue: true},
 		},
 	}

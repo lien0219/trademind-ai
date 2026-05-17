@@ -5,7 +5,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
+
+// PublishImageFetcher loads listing image bytes for Shopee Media Space upload (storage + public HTTP).
+type PublishImageFetcher interface {
+	FetchProductImageBytes(ctx context.Context, img platformp.PlatformProductImage) ([]byte, string, error)
+}
+
+var publishImages PublishImageFetcher
+
+// BindPublishImages wires optional image loading via Storage Provider (nil disables uploads).
+func BindPublishImages(p PublishImageFetcher) {
+	publishImages = p
+}
 
 // ShopsBridge abstracts settings + token persistence (wired from api router).
 type ShopsBridge interface {
