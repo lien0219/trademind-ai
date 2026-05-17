@@ -125,13 +125,9 @@ func (p amazonProvider) SyncOrders(ctx context.Context, req platformp.SyncOrders
 }
 
 func (amazonProvider) PullMessages(ctx context.Context, req platformp.PullMessagesRequest) (*platformp.PullMessagesResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrCustomerMessageNotImplemented
+	return PullCustomerMessages(ctx, req)
 }
 
 func (amazonProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrCustomerMessageNotImplemented
+	return SendCustomerMessage(ctx, req)
 }

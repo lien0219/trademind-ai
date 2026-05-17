@@ -383,7 +383,7 @@ func (h *Handler) SendPlatformMessage(c *gin.Context) {
 		case errors.Is(err, platformp.ErrCustomerMessageNotImplemented):
 			response.Fail(c, http.StatusNotImplemented, response.CodeBadRequest, err.Error())
 		case errors.Is(err, platformp.ErrPlatformCustomerMessagePermissionDenied):
-			response.Fail(c, 403, response.CodeBadRequest, "平台客服权限不足，请确认已在对应电商平台开放后台申请客服消息权限并重新授权店铺。")
+			response.Fail(c, 403, response.CodeBadRequest, "平台客服权限不足，请确认已在对应电商平台开放后台申请客服消息权限并重新授权店铺。（Amazon：Seller Central / SP-API 申请 Buyer-Seller Messaging / Messaging API 权限）")
 		default:
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		}

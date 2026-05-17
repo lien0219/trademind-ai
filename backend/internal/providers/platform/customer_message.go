@@ -97,7 +97,7 @@ func CustomerMessageImplementationStatus(p Provider) string {
 	case "tiktok", "shopee", "lazada":
 		return StatusBeta
 	case "amazon":
-		return StatusPlanned
+		return StatusBeta
 	default:
 		st := p.Status()
 		if st == StatusPlanned || st == StatusDisabled {
