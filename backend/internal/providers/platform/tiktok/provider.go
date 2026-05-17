@@ -45,12 +45,6 @@ func (tikTokProvider) PublishConfigSchema() platformp.PlatformAppConfigSchema {
 	return platformp.PublishConfigPresetForPlatform("tiktok")
 }
 
-func (tikTokProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrProductPublishNotImplemented
-}
-
 func (tikTokProvider) TestConnection(ctx context.Context, req platformp.TestConnectionRequest) (*platformp.TestConnectionResult, error) {
 	if strings.TrimSpace(req.AccessToken) == "" && strings.TrimSpace(req.RefreshToken) == "" {
 		return &platformp.TestConnectionResult{OK: false, Message: "unauthorized: save tokens or complete OAuth"}, nil

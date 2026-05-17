@@ -3,6 +3,7 @@ package productpublish
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -112,7 +113,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 
 	prov := platformp.Get(strings.TrimSpace(strings.ToLower(taskRow.Platform)))
-	if prov == nil || platformp.ProductPublishImplementationStatus(prov) != platformp.StatusAvailable {
+	if prov == nil || !platformp.IsProductPublishRunnable(prov) {
 		return fail(platformp.ErrProductPublishNotImplemented.Error())
 	}
 	pp, ok := platformp.AsProductPublish(prov)
@@ -134,7 +135,12 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	defer cancel()
 	res, pubErr := pp.PublishProduct(xctx, req)
 	if pubErr != nil {
-		return fail(pubErr.Error())
+		msg := pubErr.Error()
+		_ = fail(msg)
+		if errors.Is(pubErr, platformp.ErrPlatformProductPublishPermissionDenied) {
+			return platformp.ErrPlatformProductPublishPermissionDenied
+		}
+		return fmt.Errorf("%s", msg)
 	}
 	if res == nil {
 		return fail("empty publish result")
@@ -190,11 +196,17 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			ProductSKUID:  nilUUIDPtr(m.LocalSKUID),
 			ExternalSKUID: strings.TrimSpace(m.ExternalSKUID),
 			SKUCode:       strings.TrimSpace(m.SKUCode),
+			Price:         m.Price,
+			Stock:         m.Stock,
 		}
 		if skuRow.ExternalSKUID == "" {
 			continue
 		}
-		rdm, _ := json.Marshal(platformp.TrimRawMap(map[string]any{"mapped": true}, 6, 80))
+		rdSrc := m.RawData
+		if len(rdSrc) == 0 {
+			rdSrc = platformp.TrimRawMap(map[string]any{"mapped": true}, 6, 80)
+		}
+		rdm, _ := json.Marshal(platformp.TrimRawMap(rdSrc, 12, 200))
 		skuRow.RawData = datatypes.JSON(rdm)
 		_ = s.DB.WithContext(ctx).Create(&skuRow).Error
 	}

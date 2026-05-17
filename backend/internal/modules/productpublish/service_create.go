@@ -64,8 +64,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if prov == nil {
 		return nil, fmt.Errorf("unknown platform")
 	}
-	pubImpl := platformp.ProductPublishImplementationStatus(prov)
-	if pubImpl != platformp.StatusAvailable {
+	if !platformp.IsProductPublishRunnable(prov) {
 		return nil, platformp.ErrProductPublishNotImplemented
 	}
 	if _, ok := platformp.AsProductPublish(prov); !ok {

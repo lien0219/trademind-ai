@@ -177,6 +177,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Settings:  settingsSvc,
 	}
 	platformtiktok.BindShops(shopSvc.TikTokShopsBridge())
+	platformtiktok.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
 	platformtiktok.RegisterProvider()
 	platformshopee.BindShops(shopSvc.ShopeeShopsBridge())
 	platformshopee.RegisterProvider()

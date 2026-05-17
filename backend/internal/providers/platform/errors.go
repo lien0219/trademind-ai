@@ -37,3 +37,6 @@ var ErrProductPublishNotImplemented = errors.New("platform product publish provi
 
 // ErrPlatformCustomerMessagePermissionDenied is returned when token/scopes or platform account forbids chat APIs.
 var ErrPlatformCustomerMessagePermissionDenied = errors.New("platform customer message permission denied or not configured")
+
+// ErrPlatformProductPublishPermissionDenied is returned when token/scopes or TikTok account forbids product APIs.
+var ErrPlatformProductPublishPermissionDenied = errors.New("platform product publish permission denied or not configured")

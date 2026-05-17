@@ -214,7 +214,8 @@ export default function ProductDraftDetailPage() {
   const eligibleShopsForPublish = useMemo(() => {
     return shopsList.filter((s) => {
       const m = platformsMeta.find((x) => x.platform === s.platform);
-      return m?.capabilityStatus?.product_publish === 'available';
+      const st = m?.capabilityStatus?.product_publish;
+      return st === 'available' || st === 'beta';
     });
   }, [shopsList, platformsMeta]);
 
@@ -851,11 +852,12 @@ export default function ProductDraftDetailPage() {
                         message="多平台刊登基座（MVP）"
                         description={
                           <>
-                            仅 <Typography.Text code>product_publish</Typography.Text>{' '}
-                            能力为「可用」的店铺可走通 enqueue（通常为 mock）。
-                            默认刊登参数请到{' '}
-                            <Link to="/settings/platform-publish">设置 · 平台刊登预设</Link>；
-                            任务队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
+                            <Typography.Text code>product_publish</Typography.Text>{' '}
+                            为「可用」的店铺（如 mock）或「测试中 / beta」（如 TikTok Shop）可提交刊登任务；Shopee / Lazada /
+                            Amazon 等平台刊登仍为计划中。请到{' '}
+                            <Link to="/settings/platform-publish">设置 · 平台刊登预设</Link> 补齐 TikTok
+                            类目、物流模板、仓库等（<Typography.Text code>settings.platform_publish_tiktok</Typography.Text>
+                            ）；队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
                           </>
                         }
                       />
@@ -884,7 +886,7 @@ export default function ProductDraftDetailPage() {
                       >
                         <Form.Item
                           name="shopId"
-                          label="目标店铺（已授权且刊登可用）"
+                          label="目标店铺（已授权且刊登可用 / beta）"
                           rules={[{ required: true, message: '请选择店铺' }]}
                         >
                           <Select
@@ -892,10 +894,15 @@ export default function ProductDraftDetailPage() {
                             allowClear
                             showSearch
                             optionFilterProp="label"
-                            options={eligibleShopsForPublish.map((s) => ({
-                              label: `${s.shopName} (${s.platform})`,
-                              value: s.id,
-                            }))}
+                            options={eligibleShopsForPublish.map((s) => {
+                              const m = platformsMeta.find((x) => x.platform === s.platform);
+                              const st = m?.capabilityStatus?.product_publish;
+                              const betaTag = st === 'beta' ? ' [测试中/beta]' : '';
+                              return {
+                                label: `${s.shopName} (${s.platform})${betaTag}`,
+                                value: s.id,
+                              };
+                            })}
                           />
                         </Form.Item>
                         <Form.Item>

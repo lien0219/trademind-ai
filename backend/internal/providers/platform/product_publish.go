@@ -23,6 +23,7 @@ type PlatformProductDraft struct {
 // PlatformProductImage is one gallery/sku-linked image.
 type PlatformProductImage struct {
 	URL       string
+	ObjectKey string // optional local/cloud object key — prefer Storage Provider Get when URL is not public
 	Type      string // main | detail | sku
 	SortOrder int
 }
@@ -54,6 +55,9 @@ type PlatformSKUMapping struct {
 	LocalSKUID    uuid.UUID
 	ExternalSKUID string
 	SKUCode       string
+	Price         *float64
+	Stock         *int
+	RawData       map[string]any // trimmed subset for product_publication_skus.raw_data (no secrets)
 }
 
 // PublishProductResult is persisted as a trimmed summary in task output / publication rows (no secrets).
@@ -90,12 +94,24 @@ func ProductPublishImplementationStatus(p Provider) string {
 		return StatusAvailable
 	case "manual":
 		return StatusDisabled
-	case "tiktok", "shopee", "lazada", "amazon":
+	case "tiktok":
+		return StatusBeta
+	case "shopee", "lazada", "amazon":
 		return StatusPlanned
 	default:
 		if !HasCapability(p, CapProductPublish) {
 			return StatusDisabled
 		}
 		return StatusPlanned
+	}
+}
+
+// IsProductPublishRunnable reports whether the worker/API should invoke ProductPublishProvider for this registry entry.
+func IsProductPublishRunnable(p Provider) bool {
+	switch ProductPublishImplementationStatus(p) {
+	case StatusAvailable, StatusBeta:
+		return true
+	default:
+		return false
 	}
 }

@@ -60,6 +60,7 @@ func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProduct
 		}
 		plImgs = append(plImgs, platformp.PlatformProductImage{
 			URL:       url,
+			ObjectKey: strings.TrimSpace(im.ObjectKey),
 			Type:      imgType,
 			SortOrder: im.SortOrder,
 		})

@@ -107,10 +107,18 @@ func (mockProv) PublishProduct(ctx context.Context, req PublishProductRequest) (
 		if s.LocalSKUID == uuid.Nil {
 			continue
 		}
+		pr := s.Price
+		st := s.Stock
 		mappings = append(mappings, PlatformSKUMapping{
 			LocalSKUID:    s.LocalSKUID,
 			ExternalSKUID: "mock-sku-" + s.LocalSKUID.String(),
 			SKUCode:       s.SKUCode,
+			Price:         &pr,
+			Stock:         &st,
+			RawData: TrimRawMap(map[string]any{
+				"provider": "mock",
+				"mapped":   true,
+			}, 6, 80),
 		})
 	}
 	return &PublishProductResult{

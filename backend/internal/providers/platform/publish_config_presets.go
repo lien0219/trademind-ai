@@ -62,7 +62,7 @@ func tiktokPublishSchema() PlatformAppConfigSchema {
 			{Name: "default_category_id", Label: "默认类目 ID", Type: "text", Required: true, Sensitive: false},
 			{Name: "default_brand_id", Label: "默认品牌 ID", Type: "text", Required: false, Sensitive: false},
 			{Name: "shipping_template_id", Label: "物流模板 ID", Type: "text", Required: true, Sensitive: false},
-			{Name: "warehouse_id", Label: "默认仓库 ID", Type: "text", Required: false, Sensitive: false},
+			{Name: "warehouse_id", Label: "默认仓库 ID", Type: "text", Required: true, Sensitive: false},
 			{Name: "default_weight", Label: "默认包裹重量", Type: "text", Required: false, Sensitive: false, Help: "与平台度量单位保持一致；仅作草稿默认"},
 			{Name: "default_length", Label: "默认长度", Type: "text", Required: false, Sensitive: false},
 			{Name: "default_width", Label: "默认宽度", Type: "text", Required: false, Sensitive: false},
