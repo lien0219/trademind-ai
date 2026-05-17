@@ -116,7 +116,7 @@ function formatPlatformPartnerErr(err: unknown): string {
     return `${msg}\n请先到「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret 和 Redirect URI。`;
   }
   if (msg.includes('platform customer message permission denied') || msg.includes('platform customer message permission')) {
-    return `${msg}\n平台客服权限不足，请确认已在 Shopee / TikTok 等平台开放后台申请客服消息权限并重新授权。`;
+    return `${msg}\n平台客服权限不足，请确认已在 TikTok / Shopee / Lazada 等平台开放后台申请客服消息权限并重新授权。`;
   }
   if (msg.includes('platform customer message provider not implemented')) {
     return `${msg}\n当前平台客服消息 API 尚未接入，可使用 mock 店铺验证拉取与发送联调。`;

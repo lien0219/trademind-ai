@@ -107,13 +107,9 @@ func (p lazadaProvider) SyncOrders(ctx context.Context, req platformp.SyncOrders
 }
 
 func (lazadaProvider) PullMessages(ctx context.Context, req platformp.PullMessagesRequest) (*platformp.PullMessagesResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrCustomerMessageNotImplemented
+	return PullCustomerMessages(ctx, req)
 }
 
 func (lazadaProvider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
-	_ = ctx
-	_ = req
-	return nil, platformp.ErrCustomerMessageNotImplemented
+	return SendCustomerMessage(ctx, req)
 }

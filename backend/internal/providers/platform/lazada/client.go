@@ -46,36 +46,77 @@ func buildSignedQuery(cfg RuntimeConfig, apiPath string, accessToken string, ext
 	return q
 }
 
-func getSigned(ctx context.Context, cfg RuntimeConfig, restBase, apiPath, accessToken string, extra map[string]string) (map[string]any, error) {
+func signedGET(ctx context.Context, cfg RuntimeConfig, restBase, apiPath, accessToken string, extra map[string]string) (map[string]any, int, error) {
 	restBase = strings.TrimSuffix(strings.TrimSpace(restBase), "/")
 	apiPath = "/" + strings.TrimPrefix(apiPath, "/")
 	q := buildSignedQuery(cfg, apiPath, accessToken, extra)
 	u := restBase + apiPath + "?" + q.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	client := &http.Client{Timeout: cfg.HTTPTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
-		return nil, err
+		return nil, resp.StatusCode, err
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("lazada http %d: %s", resp.StatusCode, trimPreview(string(b), 400))
+	st := resp.StatusCode
+	if st < 200 || st >= 300 {
+		return nil, st, fmt.Errorf("lazada http %d: %s", st, trimPreview(string(b), 400))
 	}
 	var root map[string]any
 	if err := json.Unmarshal(b, &root); err != nil {
-		return nil, fmt.Errorf("lazada: invalid json: %w", err)
+		return nil, st, fmt.Errorf("lazada: invalid json: %w", err)
 	}
 	if err := lazadaErr(root); err != nil {
-		return nil, err
+		return root, st, err
 	}
-	return root, nil
+	return root, st, nil
+}
+
+func signedPOSTForm(ctx context.Context, cfg RuntimeConfig, restBase, apiPath, accessToken string, extra map[string]string) (map[string]any, int, error) {
+	restBase = strings.TrimSuffix(strings.TrimSpace(restBase), "/")
+	apiPath = "/" + strings.TrimPrefix(apiPath, "/")
+	q := buildSignedQuery(cfg, apiPath, accessToken, extra)
+	body := q.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, restBase+apiPath, strings.NewReader(body))
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: cfg.HTTPTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	st := resp.StatusCode
+	if st < 200 || st >= 300 {
+		return nil, st, fmt.Errorf("lazada http %d: %s", st, trimPreview(string(b), 400))
+	}
+	var root map[string]any
+	if err := json.Unmarshal(b, &root); err != nil {
+		return nil, st, fmt.Errorf("lazada: invalid json: %w", err)
+	}
+	if err := lazadaErr(root); err != nil {
+		return root, st, err
+	}
+	return root, st, nil
+}
+
+func getSigned(ctx context.Context, cfg RuntimeConfig, restBase, apiPath, accessToken string, extra map[string]string) (map[string]any, error) {
+	root, _, err := signedGET(ctx, cfg, restBase, apiPath, accessToken, extra)
+	return root, err
 }
 
 func lazadaErr(m map[string]any) error {

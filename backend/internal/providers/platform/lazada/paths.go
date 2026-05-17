@@ -10,4 +10,10 @@ const (
 	PathOrdersGet     = "/orders/get"
 	PathOrderGet      = "/order/get"
 	PathOrderItemsGet = "/order/items/get"
+
+	// Instant Messaging (buyer–seller chat). Paths match Lazada Open Platform IM APIs;
+	// response field names may differ by region/version — align parsers with official docs when needed.
+	PathIMSessionList = "/im/session/list"
+	PathIMMessageList = "/im/message/list"
+	PathIMMessageSend = "/im/message/send"
 )
