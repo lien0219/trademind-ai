@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -78,6 +80,21 @@ func (h *Handler) Put(c *gin.Context) {
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
+	}
+	alertNotifyTouch := false
+	for _, it := range items {
+		if strings.TrimSpace(it.GroupKey) == "alert_notify" {
+			alertNotifyTouch = true
+			break
+		}
+	}
+	if alertNotifyTouch && h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			Action:   "settings.alert_notify.update",
+			Resource: "settings",
+			Status:   "success",
+			Message:  "alert_notify bulk upsert",
+		})
 	}
 	if h.OpLog != nil {
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{

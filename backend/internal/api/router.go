@@ -64,7 +64,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -331,6 +331,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	tcSvc := &taskcenter.Service{
 		DB:             dep.DB,
+		Cfg:            dep.Config,
 		OpLog:          opLogSvc,
 		Settings:       settingsSvc,
 		Collect:        collectSvc,
@@ -342,7 +343,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	tcH := &taskcenter.Handler{Svc: tcSvc}
 	taskcenter.Register(authed, tcH)
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

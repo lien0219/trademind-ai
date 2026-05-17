@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
@@ -23,6 +24,7 @@ import (
 // Service aggregates read models across task tables and dispatches retries.
 type Service struct {
 	DB             *gorm.DB
+	Cfg            *config.Config
 	OpLog          *operationlog.Service
 	Settings       *settings.Service
 	Collect        *collect.Service

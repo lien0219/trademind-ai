@@ -30,6 +30,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -108,6 +109,14 @@ func main() {
 	}
 	tcSeedCancel()
 
+	anSeedCtx, anSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureAlertNotifyDefaults(anSeedCtx, db); err != nil {
+		anSeedCancel()
+		log.Error("alert_notify_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	anSeedCancel()
+
 	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {
 		cancel()
@@ -129,7 +138,7 @@ func main() {
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
@@ -177,6 +186,8 @@ func main() {
 		ProductPublish:  productPublishSvc,
 		InventorySync:   inventorySyncSvc,
 	})
+
+	taskcenter.StartAlertScanWorker(workerCtx, &workerWG, log, tcSvc, workerReg, cfg)
 
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
 		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc, workerReg)

@@ -16,15 +16,23 @@ func EnsureTaskcenterDefaults(ctx context.Context, db *gorm.DB) error {
 		val string
 	}
 	defs := []def{
-		{"enable_task_alerts", "true"},
-		{"alert_min_severity", "high"},
-		{"alert_on_platform_permission", "true"},
-		{"alert_on_platform_config", "true"},
-		{"alert_on_inventory_mapping_missing", "true"},
-		{"alert_on_worker_lease_expired", "true"},
-		{"alert_on_repeated_failures", "true"},
-		{"repeated_failure_threshold", "3"},
-		{"repeated_failure_window_minutes", "60"},
+		{"enable_task_alerts", "false"},
+		{"alert_min_severity", ""},
+		{"alert_on_platform_permission", "false"},
+		{"alert_on_platform_config", "false"},
+		{"alert_on_inventory_mapping_missing", "false"},
+		{"alert_on_worker_lease_expired", "false"},
+		{"alert_on_repeated_failures", "false"},
+		{"repeated_failure_threshold", ""},
+		{"repeated_failure_window_minutes", ""},
+		{"enable_alert_scan_worker", "false"},
+		{"alert_scan_interval_seconds", ""},
+		{"alert_detail_public_base", ""},
+		{"enable_external_notifications", "false"},
+		{"notification_min_severity", ""},
+		{"notify_on_alert_generated", "false"},
+		{"notify_on_repeated_alert", "false"},
+		{"notification_channels", "[]"},
 	}
 	for _, d := range defs {
 		var n int64

@@ -9,8 +9,10 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	}
 	tc := g.Group("/task-center")
 	tc.GET("/failure-categories", h.FailureCategories)
+	tc.GET("/alert-notifications", h.ListAlertNotifications)
 	tc.GET("/alerts", h.ListAlerts)
 	tc.POST("/alerts/scan", h.ScanAlerts)
+	tc.POST("/alerts/:id/notify", h.NotifyAlert)
 	tc.POST("/alerts/:id/handle", h.HandleAlert)
 	tc.POST("/alerts/:id/ignore", h.IgnoreAlert)
 	tc.DELETE("/alerts/:id/mark", h.Unmark)

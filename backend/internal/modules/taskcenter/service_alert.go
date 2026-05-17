@@ -68,45 +68,40 @@ func severityOrder(sev string) int {
 }
 
 func shouldEmitAutoAlert(m map[string]string, dto UnifiedTaskDTO, class failureclassifier.Result, now time.Time) bool {
-	if !parseBoolTaskCenter(m["enable_task_alerts"], true) {
+	if !parseBoolTaskCenter(m["enable_task_alerts"], false) {
 		return false
 	}
-	// Repeated failures win even when severity bucket is low/medium-heavy rules.
-	if parseBoolTaskCenter(m["alert_on_repeated_failures"], true) {
+	if parseBoolTaskCenter(m["alert_on_repeated_failures"], false) {
 		thStr := strings.TrimSpace(m["repeated_failure_threshold"])
 		n, err := strconv.Atoi(thStr)
-		if err != nil || n <= 0 {
-			n = 3
-		}
-		win := 60
-		if wm, err := strconv.Atoi(strings.TrimSpace(m["repeated_failure_window_minutes"])); err == nil && wm > 0 {
-			win = wm
-		}
-		winDur := time.Duration(win) * time.Minute
-		if dto.RetryCount >= n && dto.UpdatedAt.After(now.Add(-winDur)) {
-			return true
+		winStr := strings.TrimSpace(m["repeated_failure_window_minutes"])
+		win, winErr := strconv.Atoi(winStr)
+		if err == nil && n > 0 && winErr == nil && win > 0 {
+			winDur := time.Duration(win) * time.Minute
+			if dto.RetryCount >= n && dto.UpdatedAt.After(now.Add(-winDur)) {
+				return true
+			}
 		}
 	}
 	sevRank := severityOrder(class.Severity)
 	if sevRank <= severityOrder(failureclassifier.SeverityLow) {
 		return false
 	}
-	minRank := severityOrder(m["alert_min_severity"])
-	if minRank == 0 {
-		minRank = severityOrder(failureclassifier.SeverityHigh)
-	}
-	if sevRank >= minRank {
-		return true
+	if minStr := strings.TrimSpace(m["alert_min_severity"]); minStr != "" {
+		minRank := severityOrder(minStr)
+		if minRank > 0 && sevRank >= minRank {
+			return true
+		}
 	}
 	switch class.Category {
 	case failureclassifier.CategoryPlatformPermission:
-		return parseBoolTaskCenter(m["alert_on_platform_permission"], true)
+		return parseBoolTaskCenter(m["alert_on_platform_permission"], false)
 	case failureclassifier.CategoryPlatformConfigIncomplete:
-		return parseBoolTaskCenter(m["alert_on_platform_config"], true)
+		return parseBoolTaskCenter(m["alert_on_platform_config"], false)
 	case failureclassifier.CategoryInventoryMappingMissing:
-		return parseBoolTaskCenter(m["alert_on_inventory_mapping_missing"], true)
+		return parseBoolTaskCenter(m["alert_on_inventory_mapping_missing"], false)
 	case failureclassifier.CategoryWorkerLeaseExpired:
-		return parseBoolTaskCenter(m["alert_on_worker_lease_expired"], true)
+		return parseBoolTaskCenter(m["alert_on_worker_lease_expired"], false)
 	}
 	return false
 }
@@ -120,24 +115,26 @@ func alertTitle(tt, platform string) string {
 	return truncateRunes("任务告警 · "+label, 255)
 }
 
-func toAlertDTO(r TaskAlert) TaskAlertDTO {
-	return TaskAlertDTO{
-		ID:              r.ID.String(),
-		TaskType:        r.TaskType,
-		SourceID:        r.SourceID,
-		SourceTable:     r.SourceTable,
-		Platform:        r.Platform,
-		FailureCategory: r.FailureCategory,
-		Severity:        r.Severity,
-		Title:           r.Title,
-		Message:         truncateRunes(r.Message, 900),
-		SuggestedAction: truncateRunes(r.SuggestedAction, 600),
-		Status:          r.Status,
-		AlertCount:      r.AlertCount,
-		FirstSeenAt:     r.FirstSeenAt,
-		LastSeenAt:      r.LastSeenAt,
-		HandledAt:       r.HandledAt,
+func toAlertDTO(r TaskAlert, notificationStatus string) TaskAlertDTO {
+	dto := TaskAlertDTO{
+		ID:                 r.ID.String(),
+		TaskType:           r.TaskType,
+		SourceID:           r.SourceID,
+		SourceTable:        r.SourceTable,
+		Platform:           r.Platform,
+		FailureCategory:    r.FailureCategory,
+		Severity:           r.Severity,
+		Title:              r.Title,
+		Message:            truncateRunes(r.Message, 900),
+		SuggestedAction:    truncateRunes(r.SuggestedAction, 600),
+		Status:             r.Status,
+		AlertCount:         r.AlertCount,
+		FirstSeenAt:        r.FirstSeenAt,
+		LastSeenAt:         r.LastSeenAt,
+		HandledAt:          r.HandledAt,
+		NotificationStatus: notificationStatus,
 	}
+	return dto
 }
 
 // ListAlerts page.
@@ -178,9 +175,18 @@ func (s *Service) ListAlerts(ctx context.Context, p ListAlertsParams) (ListAlert
 	if err := q.Order("last_seen_at DESC").Offset(off).Limit(pageSize).Find(&rows).Error; err != nil {
 		return out, err
 	}
+	ids := make([]uuid.UUID, 0, len(rows))
+	for i := range rows {
+		ids = append(ids, rows[i].ID)
+	}
+	badges := s.notificationBadgeMap(ctx, ids)
 	list := make([]TaskAlertDTO, 0, len(rows))
 	for i := range rows {
-		list = append(list, toAlertDTO(rows[i]))
+		st := badges[rows[i].ID]
+		if st == "" {
+			st = "none"
+		}
+		list = append(list, toAlertDTO(rows[i], st))
 	}
 	out.List = list
 	out.Total = total
@@ -296,6 +302,7 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 	up := 0
 	ig := 0
 	scanned := 0
+	var candidates []alertNotifyCandidate
 
 	for _, tt := range types {
 		p.TaskType = tt
@@ -319,12 +326,22 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 			default:
 				ig++
 			}
+			if generated || bumped {
+				var a TaskAlert
+				if err := s.DB.WithContext(ctx).
+					Where("task_type = ? AND source_id = ? AND failure_category = ?", d.TaskType, d.SourceID, class.Category).
+					First(&a).Error; err == nil {
+					candidates = append(candidates, alertNotifyCandidate{Alert: a, IsNew: generated})
+				}
+			}
 		}
 	}
 	sum.ScannedCount = scanned
 	sum.GeneratedCount = gen
 	sum.UpdatedCount = up
 	sum.IgnoredCount = ig
+
+	s.NotifyGeneratedAlerts(ctx, candidates, false, nil, nil)
 	return sum, nil
 }
 
@@ -439,5 +456,6 @@ func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id
 	if err != nil {
 		return nil, err
 	}
+	s.NotifyGeneratedAlerts(c.Request.Context(), []alertNotifyCandidate{{Alert: al, IsNew: gen}}, false, c, nil)
 	return &al, nil
 }

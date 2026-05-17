@@ -93,6 +93,7 @@ export type TaskAlertDTO = {
   firstSeenAt: string;
   lastSeenAt: string;
   handledAt?: string;
+  notificationStatus?: string;
 };
 
 export type TaskFailureCategoriesResp = {
@@ -213,6 +214,34 @@ export async function markTaskAlertIgnored(id: string) {
     `/api/v1/task-center/alerts/${encodeURIComponent(id)}/ignore`,
     {},
   );
+}
+
+export type TaskAlertNotificationDTO = {
+  id: string;
+  alertId: string;
+  channel: string;
+  status: string;
+  target?: string;
+  sentAt?: string;
+  errorMessage?: string;
+  retryCount: number;
+  rawSummary?: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type ListAlertNotificationsResult = {
+  list: TaskAlertNotificationDTO[];
+  total: number;
+};
+
+export async function queryAlertNotifications(params: Record<string, string | number | undefined>) {
+  return getWithParams<ListAlertNotificationsResult>(`/api/v1/task-center/alert-notifications`, params);
+}
+
+export async function notifyTaskAlert(alertId: string, channels?: string[]) {
+  return postJSON<{ ok: boolean }>(`/api/v1/task-center/alerts/${encodeURIComponent(alertId)}/notify`, {
+    channels: channels ?? [],
+  });
 }
 
 export async function unmarkTaskAlertRecord(id: string) {

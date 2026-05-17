@@ -106,6 +106,12 @@ type Config struct {
 	WorkerReaperEnabled               bool
 	WorkerReaperIntervalSeconds       int
 	WorkerLegacyRunningTimeoutSeconds int
+
+	// Task alert scan worker (in-process ticker; not a Redis consumer).
+	TaskAlertScanEnabled         bool
+	TaskAlertScanIntervalSeconds int
+	TaskAlertScanLookbackMinutes int
+	TaskAlertScanLockTTLSeconds  int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -222,6 +228,11 @@ func Load() (*Config, error) {
 		WorkerReaperEnabled:               envBool(os.Getenv("WORKER_REAPER_ENABLED"), true),
 		WorkerReaperIntervalSeconds:       atoiOrDefault(os.Getenv("WORKER_REAPER_INTERVAL_SECONDS"), 15),
 		WorkerLegacyRunningTimeoutSeconds: atoiOrDefault(os.Getenv("WORKER_LEGACY_RUNNING_TIMEOUT_SECONDS"), 1800),
+
+		TaskAlertScanEnabled:         envBool(os.Getenv("TASK_ALERT_SCAN_ENABLED"), false),
+		TaskAlertScanIntervalSeconds: atoiOrDefault(os.Getenv("TASK_ALERT_SCAN_INTERVAL_SECONDS"), 60),
+		TaskAlertScanLookbackMinutes: atoiOrDefault(os.Getenv("TASK_ALERT_SCAN_LOOKBACK_MINUTES"), 120),
+		TaskAlertScanLockTTLSeconds:  atoiOrDefault(os.Getenv("TASK_ALERT_SCAN_LOCK_TTL_SECONDS"), 120),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))

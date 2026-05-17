@@ -20,7 +20,7 @@ function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
   const boolStr = (b: unknown) => (b ? 'true' : 'false');
   return [
     { tenantId, groupKey: gk, itemKey: 'enable_task_alerts', itemValue: boolStr(values.enable_task_alerts), valueType: 'string', isEncrypted: false, remark: '' },
-    { tenantId, groupKey: gk, itemKey: 'alert_min_severity', itemValue: String(values.alert_min_severity ?? 'high'), valueType: 'string', isEncrypted: false, remark: '' },
+    { tenantId, groupKey: gk, itemKey: 'alert_min_severity', itemValue: String(values.alert_min_severity ?? ''), valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: gk, itemKey: 'alert_on_platform_permission', itemValue: boolStr(values.alert_on_platform_permission), valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: gk, itemKey: 'alert_on_platform_config', itemValue: boolStr(values.alert_on_platform_config), valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: gk, itemKey: 'alert_on_inventory_mapping_missing', itemValue: boolStr(values.alert_on_inventory_mapping_missing), valueType: 'string', isEncrypted: false, remark: '' },
@@ -30,7 +30,9 @@ function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
       tenantId,
       groupKey: gk,
       itemKey: 'repeated_failure_threshold',
-      itemValue: String(values.repeated_failure_threshold ?? '3'),
+      itemValue: values.repeated_failure_threshold === undefined || values.repeated_failure_threshold === null || values.repeated_failure_threshold === ''
+        ? ''
+        : String(values.repeated_failure_threshold),
       valueType: 'string',
       isEncrypted: false,
       remark: '',
@@ -39,7 +41,27 @@ function buildTCItems(values: Record<string, unknown>): SettingPutItem[] {
       tenantId,
       groupKey: gk,
       itemKey: 'repeated_failure_window_minutes',
-      itemValue: String(values.repeated_failure_window_minutes ?? '60'),
+      itemValue:
+        values.repeated_failure_window_minutes === undefined ||
+        values.repeated_failure_window_minutes === null ||
+        values.repeated_failure_window_minutes === ''
+          ? ''
+          : String(values.repeated_failure_window_minutes),
+      valueType: 'string',
+      isEncrypted: false,
+      remark: '',
+    },
+    { tenantId, groupKey: gk, itemKey: 'enable_alert_scan_worker', itemValue: boolStr(values.enable_alert_scan_worker), valueType: 'string', isEncrypted: false, remark: '' },
+    {
+      tenantId,
+      groupKey: gk,
+      itemKey: 'alert_scan_interval_seconds',
+      itemValue:
+        values.alert_scan_interval_seconds === undefined ||
+        values.alert_scan_interval_seconds === null ||
+        values.alert_scan_interval_seconds === ''
+          ? ''
+          : String(values.alert_scan_interval_seconds),
       valueType: 'string',
       isEncrypted: false,
       remark: '',
@@ -60,22 +82,26 @@ export default function SystemSettingsPage() {
       });
       const tc = pickGroup(items, GROUP_TC);
       form.setFieldsValue({
-        enable_task_alerts:
-          tc.enable_task_alerts === '' || tc.enable_task_alerts === undefined ? true : truthyStored(tc.enable_task_alerts),
-        alert_min_severity: tc.alert_min_severity || 'high',
-        alert_on_platform_permission:
-          tc.alert_on_platform_permission === '' ? true : truthyStored(tc.alert_on_platform_permission),
-        alert_on_platform_config: tc.alert_on_platform_config === '' ? true : truthyStored(tc.alert_on_platform_config),
-        alert_on_inventory_mapping_missing:
-          tc.alert_on_inventory_mapping_missing === ''
-            ? true
-            : truthyStored(tc.alert_on_inventory_mapping_missing),
-        alert_on_worker_lease_expired:
-          tc.alert_on_worker_lease_expired === '' ? true : truthyStored(tc.alert_on_worker_lease_expired),
-        alert_on_repeated_failures:
-          tc.alert_on_repeated_failures === '' ? true : truthyStored(tc.alert_on_repeated_failures),
-        repeated_failure_threshold: parseInt(String(tc.repeated_failure_threshold ?? '3'), 10) || 3,
-        repeated_failure_window_minutes: parseInt(String(tc.repeated_failure_window_minutes ?? '60'), 10) || 60,
+        enable_task_alerts: truthyStored(tc.enable_task_alerts),
+        alert_min_severity: tc.alert_min_severity || undefined,
+        alert_on_platform_permission: truthyStored(tc.alert_on_platform_permission),
+        alert_on_platform_config: truthyStored(tc.alert_on_platform_config),
+        alert_on_inventory_mapping_missing: truthyStored(tc.alert_on_inventory_mapping_missing),
+        alert_on_worker_lease_expired: truthyStored(tc.alert_on_worker_lease_expired),
+        alert_on_repeated_failures: truthyStored(tc.alert_on_repeated_failures),
+        repeated_failure_threshold:
+          tc.repeated_failure_threshold === '' || tc.repeated_failure_threshold === undefined
+            ? undefined
+            : parseInt(String(tc.repeated_failure_threshold), 10) || undefined,
+        repeated_failure_window_minutes:
+          tc.repeated_failure_window_minutes === '' || tc.repeated_failure_window_minutes === undefined
+            ? undefined
+            : parseInt(String(tc.repeated_failure_window_minutes), 10) || undefined,
+        enable_alert_scan_worker: truthyStored(tc.enable_alert_scan_worker),
+        alert_scan_interval_seconds:
+          tc.alert_scan_interval_seconds === '' || tc.alert_scan_interval_seconds === undefined
+            ? undefined
+            : parseInt(String(tc.alert_scan_interval_seconds), 10) || undefined,
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -144,8 +170,14 @@ export default function SystemSettingsPage() {
             <Form.Item label="自动生成站内告警" name="enable_task_alerts" valuePropName="checked">
               <Switch />
             </Form.Item>
-            <Form.Item label="最低告警等级" name="alert_min_severity">
+            <Form.Item
+              label="最低告警等级（站内）"
+              name="alert_min_severity"
+              tooltip="留空则仅按下方分类开关与重复失败规则生成站内告警"
+            >
               <Select
+                allowClear
+                placeholder="未配置"
                 options={[
                   { value: 'low', label: 'low' },
                   { value: 'medium', label: 'medium' },
@@ -169,11 +201,25 @@ export default function SystemSettingsPage() {
             <Form.Item label="开启重复失败统计" name="alert_on_repeated_failures" valuePropName="checked">
               <Switch />
             </Form.Item>
-            <Form.Item label="重复失败阈值（retry_count ≥）" name="repeated_failure_threshold">
-              <InputNumber min={1} style={{ width: '100%' }} />
+            <Form.Item
+              label="重复失败阈值（retry_count ≥）"
+              name="repeated_failure_threshold"
+              tooltip="留空则不按重复失败规则生成站内告警（需开启上方开关并填写时间窗）"
+            >
+              <InputNumber min={1} style={{ width: '100%' }} placeholder="在页面配置后生效" />
             </Form.Item>
             <Form.Item label="统计时间窗（分钟）" name="repeated_failure_window_minutes">
-              <InputNumber min={5} style={{ width: '100%' }} />
+              <InputNumber min={5} style={{ width: '100%' }} placeholder="与阈值同时配置后生效" />
+            </Form.Item>
+            <Form.Item label="启用告警定时扫描 Worker（仍需环境变量 TASK_ALERT_SCAN_ENABLED）" name="enable_alert_scan_worker" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              label="扫描间隔（秒）"
+              name="alert_scan_interval_seconds"
+              tooltip="留空时使用部署环境变量 TASK_ALERT_SCAN_INTERVAL_SECONDS；仍建议在此处配置业务间隔（≥10）"
+            >
+              <InputNumber min={10} style={{ width: '100%' }} placeholder="可选，默认取环境变量" />
             </Form.Item>
           </ProCard>
           <Form.Item style={{ marginTop: 16 }}>

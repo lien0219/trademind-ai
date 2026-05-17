@@ -5,13 +5,17 @@ import {
   type ProColumns,
 } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Button, message, Modal, Tag, Typography } from 'antd';
+import { Button, Drawer, message, Modal, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
-import { useMemo, useRef } from 'react';
-import type { TaskAlertDTO } from '@/services/taskCenter';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { fetchSettingsList } from '@/services/settings';
+import { pickGroup } from '@/utils/settingsForm';
+import type { TaskAlertDTO, TaskAlertNotificationDTO } from '@/services/taskCenter';
 import {
   markTaskAlertHandled,
   markTaskAlertIgnored,
+  notifyTaskAlert,
+  queryAlertNotifications,
   queryTaskAlerts,
   scanTaskAlerts,
   unmarkTaskAlertRecord,
@@ -37,8 +41,49 @@ const STATUS_META: Record<string, { color: string; text: string }> = {
   ignored: { color: 'default', text: '已忽略' },
 };
 
+const NOTIFY_META: Record<string, { color: string; text: string }> = {
+  none: { color: 'default', text: '未通知' },
+  ok: { color: 'green', text: '已通知' },
+  failed: { color: 'red', text: '通知失败' },
+};
+
+function parseChannelList(raw: string | undefined): string[] {
+  const s = String(raw ?? '').trim();
+  if (!s) return [];
+  try {
+    const arr = JSON.parse(s) as unknown;
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((x) => String(x).trim().toLowerCase())
+      .filter((x) =>
+        ['mail', 'webhook', 'feishu', 'wecom'].includes(x),
+      );
+  } catch {
+    return [];
+  }
+}
+
 export default function TaskCenterAlertsPage() {
   const actionRef = useRef<ActionType>();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerAlert, setDrawerAlert] = useState<TaskAlertDTO | null>(null);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifRows, setNotifRows] = useState<TaskAlertNotificationDTO[]>([]);
+  const [configuredNotifyChannels, setConfiguredNotifyChannels] = useState<string[]>([]);
+
+  const loadNotifyChannelConfig = useCallback(async () => {
+    try {
+      const { items } = await fetchSettingsList();
+      const tc = pickGroup(items, 'taskcenter');
+      setConfiguredNotifyChannels(parseChannelList(tc.notification_channels));
+    } catch {
+      setConfiguredNotifyChannels([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifyChannelConfig();
+  }, [loadNotifyChannelConfig]);
 
   const columns: ProColumns<TaskAlertDTO>[] = useMemo(
     () => [
@@ -114,6 +159,17 @@ export default function TaskCenterAlertsPage() {
         },
       },
       {
+        title: '外部通知',
+        dataIndex: 'notificationStatus',
+        width: 100,
+        search: false,
+        render: (_, r) => {
+          const k = r.notificationStatus || 'none';
+          const m = NOTIFY_META[k] ?? { color: 'default', text: k };
+          return <Tag color={m.color}>{m.text}</Tag>;
+        },
+      },
+      {
         title: '建议',
         dataIndex: 'suggestedAction',
         ellipsis: true,
@@ -123,7 +179,7 @@ export default function TaskCenterAlertsPage() {
       {
         title: '操作',
         valueType: 'option',
-        width: 220,
+        width: 300,
         fixed: 'right',
         render: (_, r) => (
           <>
@@ -137,6 +193,57 @@ export default function TaskCenterAlertsPage() {
               }
             >
               失败任务
+            </Button>
+            <Button
+              size="small"
+              type="link"
+              onClick={async () => {
+                setDrawerAlert(r);
+                setDrawerOpen(true);
+                setNotifLoading(true);
+                try {
+                  const res = await queryAlertNotifications({
+                    alertId: r.id,
+                    pageSize: 50,
+                    page: 1,
+                  });
+                  setNotifRows(res.list ?? []);
+                } catch (e) {
+                  message.error((e as Error).message);
+                  setNotifRows([]);
+                } finally {
+                  setNotifLoading(false);
+                }
+              }}
+            >
+              通知记录
+            </Button>
+            <Button
+              size="small"
+              type="link"
+              onClick={() => {
+                const chans = configuredNotifyChannels;
+                if (!chans.length) {
+                  message.warning('请先在「设置 → 告警通知配置」中填写 notification_channels（JSON 数组）');
+                  return;
+                }
+                Modal.confirm({
+                  title: `向以下通道触发一次手动通知？`,
+                  content: `${chans.join(', ')}。仍走后端去重与 alert_notify 通道开关。`,
+                  okText: '发送',
+                  onOk: async () => {
+                    try {
+                      await notifyTaskAlert(r.id, chans);
+                      message.success('已触发');
+                      actionRef.current?.reload?.();
+                    } catch (e) {
+                      message.error((e as Error).message);
+                    }
+                  },
+                });
+              }}
+            >
+              发送通知
             </Button>
             <Button
               size="small"
@@ -206,14 +313,14 @@ export default function TaskCenterAlertsPage() {
         ),
       },
     ],
-    [],
+    [configuredNotifyChannels],
   );
 
   return (
     <PageContainer
       header={{
         title: '告警中心',
-        subTitle: '站内告警（任务失败归类），不向外发送通知渠道',
+        subTitle: '站内告警与可选外部通知（邮件 / Webhook；飞书与企业微信预留）',
       }}
       extra={[
         <Button
@@ -251,7 +358,7 @@ export default function TaskCenterAlertsPage() {
         actionRef={actionRef}
         search={{ layout: 'vertical' }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1400 }}
         request={async (params, _sort, _filter) => {
           try {
             const data = await queryTaskAlerts({
@@ -272,6 +379,33 @@ export default function TaskCenterAlertsPage() {
           }
         }}
       />
+      <Drawer
+        title={drawerAlert ? `通知记录 · ${drawerAlert.title}` : '通知记录'}
+        width={560}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        destroyOnClose
+      >
+        <Table<TaskAlertNotificationDTO>
+          loading={notifLoading}
+          size="small"
+          rowKey="id"
+          dataSource={notifRows}
+          pagination={false}
+          columns={[
+            { title: '通道', dataIndex: 'channel', width: 88 },
+            { title: '状态', dataIndex: 'status', width: 88 },
+            { title: '目标', dataIndex: 'target', ellipsis: true },
+            {
+              title: '时间',
+              dataIndex: 'createdAt',
+              width: 168,
+              render: (t: string) => (t ? dayjs(t).format('MM-DD HH:mm:ss') : '—'),
+            },
+            { title: '摘要', dataIndex: 'errorMessage', ellipsis: true },
+          ]}
+        />
+      </Drawer>
     </PageContainer>
   );
 }

@@ -502,5 +502,90 @@ func (h *Handler) GenerateAlertFromFailure(c *gin.Context) {
 			Message:    truncateRunes(fmt.Sprintf("taskType=%s sourceId=%s category=%s severity=%s", al.TaskType, al.SourceID, al.FailureCategory, al.Severity), 480),
 		})
 	}
-	response.OK(c, toAlertDTO(*al))
+	badges := h.Svc.notificationBadgeMap(c.Request.Context(), []uuid.UUID{al.ID})
+	st := badges[al.ID]
+	if st == "" {
+		st = "none"
+	}
+	response.OK(c, toAlertDTO(*al, st))
+}
+
+// ListAlertNotifications GET /task-center/alert-notifications
+func (h *Handler) ListAlertNotifications(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	var alertIDPtr *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("alertId")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid alertId")
+			return
+		}
+		alertIDPtr = &id
+	}
+	startPtr, err := parseRFC3339Ptr(c.Query("start"))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid start time (RFC3339)")
+		return
+	}
+	endPtr, err := parseRFC3339Ptr(c.Query("end"))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid end time (RFC3339)")
+		return
+	}
+	p := ListAlertNotificationsParams{
+		AlertID: alertIDPtr,
+		Channel: strings.TrimSpace(c.Query("channel")),
+		Status:  strings.TrimSpace(c.Query("status")),
+		Start:   startPtr,
+		End:     endPtr,
+		Page:    atoiQ(1, c.DefaultQuery("page", "1"), 1),
+		PageSz:  atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
+	}
+	res, err := h.Svc.ListAlertNotifications(c.Request.Context(), p)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, res)
+}
+
+type notifyAlertBody struct {
+	Channels []string `json:"channels"`
+}
+
+// NotifyAlert POST /task-center/alerts/:id/notify
+func (h *Handler) NotifyAlert(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
+		return
+	}
+	raw := strings.TrimSpace(c.Param("id"))
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body notifyAlertBody
+	_ = c.ShouldBindJSON(&body)
+	if err := h.Svc.NotifyTaskAlertManual(c.Request.Context(), c, id, body.Channels); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "task_center.alert.notify.manual",
+			Resource:   "task_alert",
+			ResourceID: id.String(),
+			Status:     "success",
+			Message:    truncateRunes(fmt.Sprintf("channels=%v", body.Channels), 240),
+		})
+	}
+	response.OK(c, gin.H{"ok": true})
 }

@@ -37,6 +37,7 @@ func BuildHealthWorkersBlock(ctx context.Context, db *gorm.DB, cfg *config.Confi
 			TypeCustomerMessageSync: {},
 			TypeProductPublish:      {},
 			TypeInventorySync:       {},
+			TypeTaskAlertScan:       {},
 		},
 	}
 	if cfg != nil {

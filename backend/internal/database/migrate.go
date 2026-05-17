@@ -64,5 +64,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&customerchat.CustomerReplySuggestion{},
 		&taskcenter.TaskFailureMark{},
 		&taskcenter.TaskAlert{},
+		&taskcenter.TaskAlertNotification{},
 	)
 }

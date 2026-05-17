@@ -155,6 +155,7 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 			TypeCustomerMessageSync: {},
 			TypeProductPublish:      {},
 			TypeInventorySync:       {},
+			TypeTaskAlertScan:       {},
 		},
 		LeasedTasks: map[string][]LeasedTaskDTO{
 			"collect":             {},

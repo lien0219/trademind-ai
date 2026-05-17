@@ -237,6 +237,11 @@ export default [
         component: './Settings/System',
       },
       {
+        path: '/settings/alert-notify',
+        name: '告警通知配置',
+        component: './Settings/AlertNotify',
+      },
+      {
         path: '/settings/email',
         name: '邮箱设置',
         component: './Settings/Email',
