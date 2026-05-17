@@ -26,6 +26,8 @@ type ShopsBridge interface {
 	PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error
 	SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error
 	TikTokGlobalSettings(ctx context.Context) (map[string]string, error)
+	// TikTokPublishSettings reads settings.platform_publish_tiktok plain values (warehouse_id etc.).
+	TikTokPublishSettings(ctx context.Context) (map[string]string, error)
 }
 
 var bridges ShopsBridge

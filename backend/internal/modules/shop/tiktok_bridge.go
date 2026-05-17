@@ -38,6 +38,17 @@ func (b tikTokBridge) TikTokGlobalSettings(ctx context.Context) (map[string]stri
 	return m, nil
 }
 
+func (b tikTokBridge) TikTokPublishSettings(ctx context.Context) (map[string]string, error) {
+	m, err := b.svc.tiktokPublishSettingsPlain(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return map[string]string{}, nil
+	}
+	return m, nil
+}
+
 func (s *Service) tiktokGlobalSettingsPlain(ctx context.Context) (map[string]string, error) {
 	if s == nil || s.Settings == nil || s.Settings.DB == nil {
 		return map[string]string{}, nil
@@ -46,6 +57,27 @@ func (s *Service) tiktokGlobalSettingsPlain(ctx context.Context) (map[string]str
 		ctx = context.Background()
 	}
 	m, err := s.Settings.PlainByGroup(ctx, 0, "platform_tiktok")
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return map[string]string{}, nil
+	}
+	out := map[string]string{}
+	for k, v := range m {
+		out[strings.TrimSpace(strings.ToLower(k))] = strings.TrimSpace(v)
+	}
+	return out, nil
+}
+
+func (s *Service) tiktokPublishSettingsPlain(ctx context.Context) (map[string]string, error) {
+	if s == nil || s.Settings == nil || s.Settings.DB == nil {
+		return map[string]string{}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m, err := s.Settings.PlainByGroup(ctx, 0, "platform_publish_tiktok")
 	if err != nil {
 		return nil, err
 	}

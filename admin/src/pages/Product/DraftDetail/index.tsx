@@ -63,6 +63,23 @@ function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
   return c === 'available' || c === 'beta';
 }
+
+function formatInventorySyncTaskCreateError(e: unknown): string {
+  const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
+  const hints: string[] = [];
+  if (/missing warehouse_id|platform inventory config incomplete:\s*missing warehouse_id/i.test(s)) {
+    hints.push(
+      '请先到「设置 → 平台刊登配置 → TikTok Shop」填写默认仓库 ID（或通过任务 options 传入 warehouse_id 覆盖）。',
+    );
+  }
+  if (/platform inventory sync permission denied/i.test(s)) {
+    hints.push('请确认已在 TikTok Shop Partner Center 申请库存更新相关权限并重新授权。');
+  }
+  if (/platform config incomplete:\s*please configure settings\.platform_tiktok/i.test(s)) {
+    hints.push('请到「设置 → 平台开放配置 → TikTok Shop」补齐开放平台应用字段。');
+  }
+  return hints.length ? `${s}\n${hints.join('\n')}` : s;
+}
 type SKUEditable = ProductSKURow & { attrsText?: string };
 
 const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) => ({
@@ -898,10 +915,11 @@ export default function ProductDraftDetailPage() {
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
                           本地 SKU 库存由后台 <Typography.Text code>product_skus</Typography.Text> 管理；平台侧上次记录在{' '}
                           <Typography.Text code>product_publication_skus.stock</Typography.Text>。
-                          仅当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 标记为{' '}
+                          当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 为{' '}
                           <Typography.Text code>available</Typography.Text>/
-                          <Typography.Text code>beta</Typography.Text>（如 mock）时可推送其余平台仍为 planned；
-                          TikTok / Shopee / Lazada / Amazon 真实库存 API 未接入；Worker 返回明确错误。
+                          <Typography.Text code>beta</Typography.Text>
+                          时可创建同步任务：TikTok Shop 已接入真实库存更新 API（测试中）；Shopee / Lazada / Amazon 仍为 planned，
+                          Worker 会返回未实现类错误。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 0 }}>
                           异步任务：<Link to="/inventory/sync-tasks">库存同步任务</Link>
@@ -1043,7 +1061,7 @@ export default function ProductDraftDetailPage() {
                               </Button>
                             );
                             return ok ? btn : (
-                              <Tooltip title="当前平台库存同步能力暂未接入（非 available / beta）；任务将被后端拒绝或未实现">
+                              <Tooltip title="当前平台 inventory_sync 仍为计划中（非 available / beta）；不包含已接入测试中的 TikTok Shop 真实库存同步">
                                 <span>{btn}</span>
                               </Tooltip>
                             );
@@ -1568,7 +1586,7 @@ export default function ProductDraftDetailPage() {
             syncForm.resetFields();
             await reloadPublicationSkus();
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '提交失败');
+            message.error(formatInventorySyncTaskCreateError(e));
           } finally {
             setSyncSubmitting(false);
           }
@@ -1577,6 +1595,13 @@ export default function ProductDraftDetailPage() {
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
           平台：{syncRow?.platform ?? '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
         </Typography.Paragraph>
+        {(syncRow?.platform || '').trim().toLowerCase() === 'tiktok' ? (
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
+            TikTok 会使用「设置 → 平台刊登配置 → TikTok Shop」中的默认仓库 ID（也可在接口层通过任务{' '}
+            <Typography.Text code>options.warehouse_id</Typography.Text> 覆盖）。若推送失败并提示权限不足，请在 TikTok Shop
+            Partner Center 申请库存更新相关权限后重新授权店铺。
+          </Typography.Paragraph>
+        ) : null}
         <Form form={syncForm} layout="vertical">
           <Form.Item
             name="stock"

@@ -54,7 +54,9 @@ func InventorySyncImplementationStatus(p Provider) string {
 		return StatusAvailable
 	case "manual":
 		return StatusDisabled
-	case "tiktok", "shopee", "lazada", "amazon":
+	case "tiktok":
+		return StatusBeta
+	case "shopee", "lazada", "amazon":
 		return StatusPlanned
 	default:
 		st := p.Status()
