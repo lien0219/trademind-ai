@@ -155,6 +155,11 @@ export default [
     component: '@/layouts/InventoryGroupLayout',
     routes: [
       {
+        path: '/inventory/alerts',
+        name: '库存预警',
+        component: './Inventory/Alerts',
+      },
+      {
         path: '/inventory/sync-tasks',
         name: '库存同步任务',
         component: './Inventory/SyncTasks',

@@ -1,6 +1,8 @@
 package product
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/datatypes"
@@ -69,8 +71,16 @@ type ProductSKU struct {
 	Attrs     datatypes.JSON `gorm:"type:jsonb" json:"attrs,omitempty"`
 	Price     *float64       `json:"price,omitempty"`
 	Stock     *int           `json:"stock,omitempty"`
-	ImageURL  string         `gorm:"size:2048" json:"imageUrl"`
-	RawData   datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	// WarningStock: local alert line; new rows default from settings.inventory.default_warning_stock (fallback 5).
+	WarningStock int `gorm:"column:warning_stock;default:5;not null" json:"warningStock"`
+	// SafetyStock: optional lower bound; must be <= WarningStock; 0 means unset for below-safety comparisons except stock<=0 still out_of_stock.
+	SafetyStock int `gorm:"column:safety_stock;default:0;not null" json:"safetyStock"`
+	// StockStatus optional persisted hint (normal/low_stock/below_safety_stock/out_of_stock); APIs may compute dynamically instead.
+	StockStatus string `gorm:"column:stock_status;size:32;index" json:"stockStatus,omitempty"`
+	// LastStockCheckedAt optional audit timestamp for future batch jobs.
+	LastStockCheckedAt *time.Time     `gorm:"column:last_stock_checked_at" json:"lastStockCheckedAt,omitempty"`
+	ImageURL           string         `gorm:"size:2048" json:"imageUrl"`
+	RawData            datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
 }
 
 func (ProductSKU) TableName() string { return "product_skus" }

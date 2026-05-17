@@ -55,6 +55,9 @@ export type ProductSKURow = {
   attrs?: Record<string, unknown>;
   price?: number;
   stock?: number;
+  warningStock?: number;
+  safetyStock?: number;
+  stockStatus?: string;
   imageUrl?: string;
 };
 
@@ -165,6 +168,14 @@ export async function updateProductSku(productId: string, skuId: string, body: U
     `/api/v1/products/${productId}/skus/${skuId}`,
     payload,
   );
+}
+
+export async function updateProductSkuStockSettings(
+  productId: string,
+  skuId: string,
+  body: { warningStock: number; safetyStock: number },
+) {
+  return putJSON<ProductSKURow, typeof body>(`/api/v1/products/${productId}/skus/${skuId}/stock-settings`, body);
 }
 
 export async function deleteProductSku(productId: string, skuId: string) {

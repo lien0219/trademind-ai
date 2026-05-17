@@ -454,15 +454,25 @@ func (s *Service) importDraftCore(ctx context.Context, adminID *uuid.UUID, p Imp
 			if len(line.RawSKU) > 0 {
 				rawSKU = datatypes.JSON(line.RawSKU)
 			}
+			warn, safe := 5, 0
+			if s.Settings != nil {
+				if m, e := s.Settings.PlainByGroup(ctx, 0, "inventory"); e == nil {
+					warn = settings.DefaultWarningStockFromMap(m)
+					safe = settings.DefaultSafetyStockFromMap(m)
+					warn, safe = settings.CoalesceDefaultStockLines(warn, safe)
+				}
+			}
 			row := &ProductSKU{
-				ProductID: pr.ID,
-				SKUCode:   strings.TrimSpace(line.SKUCode),
-				SKUName:   strings.TrimSpace(line.SKUName),
-				Attrs:     attrs,
-				Price:     line.Price,
-				Stock:     line.Stock,
-				ImageURL:  strings.TrimSpace(line.ImageURL),
-				RawData:   rawSKU,
+				ProductID:    pr.ID,
+				SKUCode:      strings.TrimSpace(line.SKUCode),
+				SKUName:      strings.TrimSpace(line.SKUName),
+				Attrs:        attrs,
+				Price:        line.Price,
+				Stock:        line.Stock,
+				ImageURL:     strings.TrimSpace(line.ImageURL),
+				RawData:      rawSKU,
+				WarningStock: warn,
+				SafetyStock:  safe,
 			}
 			if err := tx.Create(row).Error; err != nil {
 				return err

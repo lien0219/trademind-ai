@@ -25,6 +25,12 @@ func EnsureInventoryDefaults(ctx context.Context, db *gorm.DB) error {
 		{"auto_sync_inventory_after_order_deduct", "false"},
 		{"allow_manual_sku_bind_after_deduct", "true"},
 		{"allow_negative_stock", "false"},
+		{"default_warning_stock", "5"},
+		{"default_safety_stock", "0"},
+		{"enable_inventory_alerts", "true"},
+		{"alert_out_of_stock", "true"},
+		{"alert_platform_stock_mismatch", "true"},
+		{"platform_stock_mismatch_threshold", "0"},
 	}
 	for _, d := range defs {
 		var n int64

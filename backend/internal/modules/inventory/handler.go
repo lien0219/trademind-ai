@@ -57,6 +57,11 @@ func mapInventoryEnqueueErr(c *gin.Context, err error) bool {
 	}
 }
 
+func parseBoolQuery(c *gin.Context, key string) bool {
+	v := strings.TrimSpace(strings.ToLower(c.Query(key)))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
 // AdjustStock POST /products/:id/skus/:skuId/adjust-stock
 func (h *Handler) AdjustStock(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -287,6 +292,53 @@ func (h *Handler) ListGlobalOrderEffects(c *gin.Context) {
 		}
 	}
 	res, err := h.Svc.ListOrderEffectsGlobal(c.Request.Context(), q)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"list": res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
+}
+
+// ListAlerts GET /inventory/alerts
+func (h *Handler) ListAlerts(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	q := AlertsListQuery{
+		Keyword:       strings.TrimSpace(c.Query("keyword")),
+		Platform:      strings.TrimSpace(c.Query("platform")),
+		AlertType:     strings.TrimSpace(c.Query("alertType")),
+		StockStatus:   strings.TrimSpace(c.Query("stockStatus")),
+		OnlyPublished: parseBoolQuery(c, "onlyPublished"),
+		IncludeNormal: parseBoolQuery(c, "includeNormal"),
+		Page:          atoiQ(c, "page", 1),
+		PageSize:      atoiQ(c, "pageSize", 20),
+	}
+	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ProductID = &u
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("productSkuId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ProductSkuID = &u
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ShopID = &u
+		}
+	}
+	res, err := h.Svc.ListInventoryAlerts(c.Request.Context(), q)
 	if err != nil {
 		response.HandleError(c, err)
 		return

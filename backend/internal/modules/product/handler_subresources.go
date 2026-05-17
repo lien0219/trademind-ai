@@ -71,6 +71,39 @@ func (h *Handler) PutSKU(c *gin.Context) {
 	response.OK(c, row)
 }
 
+// PutSKUStockSettings PUT /products/:id/skus/:skuId/stock-settings
+func (h *Handler) PutSKUStockSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	skuID, err := uuid.Parse(strings.TrimSpace(c.Param("skuId")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid skuId")
+		return
+	}
+	var body SKUStockSettingsBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.UpdateSKUStockSettings(c, pid, skuID, body, adminUUID(c))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, row)
+}
+
 // DELETE /products/:id/skus/:skuId
 func (h *Handler) DeleteSKU(c *gin.Context) {
 	if h == nil || h.Svc == nil {

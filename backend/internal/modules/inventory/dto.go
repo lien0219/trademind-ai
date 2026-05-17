@@ -21,8 +21,9 @@ type AdjustStockBody struct {
 
 // PublicationSkuSyncBody POST /product-publication-skus/:id/sync-inventory
 type PublicationSkuSyncBody struct {
-	Stock   int            `json:"stock"`
-	Options map[string]any `json:"options"`
+	Stock              int            `json:"stock"`
+	Options            map[string]any `json:"options"`
+	FromInventoryAlert bool           `json:"fromInventoryAlert"`
 }
 
 // ProductBatchInventoryBody POST /products/:id/sync-inventory
@@ -129,4 +130,66 @@ type PaginatedLogs struct {
 	Page       int            `json:"page"`
 	PageSize   int            `json:"pageSize"`
 	TotalPages int            `json:"totalPages"`
+}
+
+// PlatformStockAlertEntry is one mapped listing SKU line in an alert row.
+type PlatformStockAlertEntry struct {
+	PublicationSkuID    uuid.UUID  `json:"publicationSkuId"`
+	ShopID              uuid.UUID  `json:"shopId"`
+	ShopName            string     `json:"shopName,omitempty"`
+	Platform            string     `json:"platform"`
+	ExternalProductID   string     `json:"externalProductId,omitempty"`
+	ExternalSkuID       string     `json:"externalSkuId,omitempty"`
+	PlatformStock       *int       `json:"platformStock,omitempty"`
+	PlatformStockStatus string     `json:"platformStockStatus"`
+	LastSyncedAt        *time.Time `json:"lastSyncedAt,omitempty"`
+	LastSyncTaskID      *uuid.UUID `json:"lastSyncTaskId,omitempty"`
+	LastSyncStatus      string     `json:"lastSyncStatus,omitempty"`
+	LastSyncError       string     `json:"lastSyncError,omitempty"`
+	LastSyncAt          *time.Time `json:"lastSyncAt,omitempty"`
+}
+
+// InventoryAlertEntry is one local SKU row in the inventory alerts list.
+type InventoryAlertEntry struct {
+	ProductID             uuid.UUID                 `json:"productId"`
+	ProductTitle          string                    `json:"productTitle"`
+	ProductSkuID          uuid.UUID                 `json:"productSkuId"`
+	SKUCode               string                    `json:"skuCode"`
+	SKUName               string                    `json:"skuName"`
+	Stock                 int                       `json:"stock"`
+	WarningStock          int                       `json:"warningStock"`
+	SafetyStock           int                       `json:"safetyStock"`
+	StockStatus           string                    `json:"stockStatus"`
+	AlertTypes            []string                  `json:"alertTypes"`
+	PublicationCount      int                       `json:"publicationCount"`
+	PlatformStocks        []PlatformStockAlertEntry `json:"platformStocks"`
+	LastInventoryChangeAt *time.Time                `json:"lastInventoryChangeAt,omitempty"`
+	LastSyncTaskID        *uuid.UUID                `json:"lastSyncTaskId,omitempty"`
+	LastSyncStatus        string                    `json:"lastSyncStatus,omitempty"`
+	LastSyncError         string                    `json:"lastSyncError,omitempty"`
+	LastSyncAt            *time.Time                `json:"lastSyncAt,omitempty"`
+}
+
+// AlertsListQuery filters GET /inventory/alerts.
+type AlertsListQuery struct {
+	Keyword       string
+	ProductID     *uuid.UUID
+	ProductSkuID  *uuid.UUID
+	Platform      string
+	ShopID        *uuid.UUID
+	AlertType     string
+	StockStatus   string
+	OnlyPublished bool
+	IncludeNormal bool
+	Page          int
+	PageSize      int
+}
+
+// AlertsListResult paginates alert rows.
+type AlertsListResult struct {
+	Items      []InventoryAlertEntry `json:"list"`
+	Total      int64                 `json:"total"`
+	Page       int                   `json:"page"`
+	PageSize   int                   `json:"pageSize"`
+	TotalPages int                   `json:"totalPages"`
 }

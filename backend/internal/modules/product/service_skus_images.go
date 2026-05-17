@@ -13,6 +13,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 )
 
 func validateProductStatus(s string) error {
@@ -91,13 +92,24 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 		return nil, err
 	}
 	row := &ProductSKU{
-		ProductID: productID,
-		SKUCode:   code,
-		SKUName:   name,
-		Attrs:     attrs,
-		Price:     body.Price,
-		Stock:     body.Stock,
-		ImageURL:  strings.TrimSpace(body.ImageURL),
+		ProductID:    productID,
+		SKUCode:      code,
+		SKUName:      name,
+		Attrs:        attrs,
+		Price:        body.Price,
+		Stock:        body.Stock,
+		ImageURL:     strings.TrimSpace(body.ImageURL),
+		WarningStock: 5,
+		SafetyStock:  0,
+	}
+	if s.Settings != nil {
+		if m, err := s.Settings.PlainByGroup(c.Request.Context(), 0, "inventory"); err == nil {
+			w := settings.DefaultWarningStockFromMap(m)
+			sa := settings.DefaultSafetyStockFromMap(m)
+			w, sa = settings.CoalesceDefaultStockLines(w, sa)
+			row.WarningStock = w
+			row.SafetyStock = sa
+		}
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
 		return nil, err

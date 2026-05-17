@@ -115,7 +115,7 @@ export async function listProductPublicationSkus(productId: string, params?: { p
 
 export async function syncPublicationSkuInventory(
   publicationSkuId: string,
-  payload: { stock: number; options?: Record<string, unknown> },
+  payload: { stock: number; options?: Record<string, unknown>; fromInventoryAlert?: boolean },
 ) {
   return postJSON<InventorySyncTaskDTO>(`/api/v1/product-publication-skus/${publicationSkuId}/sync-inventory`, payload);
 }
@@ -147,6 +147,78 @@ export async function getInventorySyncTask(id: string) {
 
 export async function retryInventorySyncTask(id: string) {
   return postJSON<InventorySyncTaskDTO>(`/api/v1/inventory-sync/tasks/${id}/retry`, {});
+}
+
+export type PlatformStockAlertEntry = {
+  publicationSkuId: string;
+  shopId: string;
+  shopName?: string;
+  platform: string;
+  externalProductId?: string;
+  externalSkuId?: string;
+  platformStock?: number | null;
+  platformStockStatus: string;
+  lastSyncedAt?: string;
+  lastSyncTaskId?: string;
+  lastSyncStatus?: string;
+  lastSyncError?: string;
+  lastSyncAt?: string;
+};
+
+export type InventoryAlertRow = {
+  productId: string;
+  productTitle: string;
+  productSkuId: string;
+  skuCode: string;
+  skuName: string;
+  stock: number;
+  warningStock: number;
+  safetyStock: number;
+  stockStatus: string;
+  alertTypes: string[];
+  publicationCount: number;
+  platformStocks: PlatformStockAlertEntry[];
+  lastInventoryChangeAt?: string;
+  lastSyncTaskId?: string;
+  lastSyncStatus?: string;
+  lastSyncError?: string;
+  lastSyncAt?: string;
+};
+
+export async function queryInventoryAlerts(params?: {
+  keyword?: string;
+  productId?: string;
+  productSkuId?: string;
+  platform?: string;
+  shopId?: string;
+  alertType?: string;
+  stockStatus?: string;
+  onlyPublished?: boolean;
+  includeNormal?: boolean;
+  page?: number;
+  pageSize?: number;
+}) {
+  const q: Record<string, string | number | undefined> = {
+    keyword: params?.keyword?.trim() || undefined,
+    productId: params?.productId,
+    productSkuId: params?.productSkuId,
+    platform: params?.platform?.trim() || undefined,
+    shopId: params?.shopId,
+    alertType: params?.alertType?.trim() || undefined,
+    stockStatus: params?.stockStatus?.trim() || undefined,
+    page: params?.page,
+    pageSize: params?.pageSize,
+  };
+  if (params?.onlyPublished) {
+    q.onlyPublished = 'true';
+  }
+  if (params?.includeNormal) {
+    q.includeNormal = 'true';
+  }
+  return getWithParams<{ list: InventoryAlertRow[]; pagination: PaginatedInventory<InventoryAlertRow>['pagination'] }>(
+    '/api/v1/inventory/alerts',
+    q,
+  );
 }
 
 export async function queryGlobalInventoryLogs(params?: {

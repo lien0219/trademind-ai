@@ -217,6 +217,17 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 	if err := s.persistTaskAndMaybeRun(ctx, &task, admin); err != nil {
 		return nil, err
 	}
+	if body.FromInventoryAlert && s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: admin,
+			Action:      "inventory.alert.sync_inventory",
+			Resource:    "product_publication_sku",
+			ResourceID:  publicationSkuID.String(),
+			Status:      "success",
+			Message: fmt.Sprintf("taskId=%s productSkuId=%s targetStock=%d",
+				task.ID.String(), prodSku.String(), body.Stock),
+		})
+	}
 	out, err := s.GetDTO(ctx, task.ID, prodSku, psku.SKUCode)
 	return &out, err
 }

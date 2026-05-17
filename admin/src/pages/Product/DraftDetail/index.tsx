@@ -11,7 +11,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Button, Card, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
+import { Button, Card, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
 import {
   ArrowUpOutlined,
   DeleteOutlined,
@@ -36,6 +36,7 @@ import {
   updateProduct,
   updateProductImage,
   updateProductSku,
+  updateProductSkuStockSettings,
   type AITaskRow,
   type GenerateDescriptionResult,
   type OptimizeTitleResult,
@@ -138,6 +139,31 @@ function imageTypeLabel(t: string): string {
   return t;
 }
 
+function draftStockStatusTag(raw?: string) {
+  if (!raw) return '—';
+  const m: Record<string, { t: string; c: string }> = {
+    normal: { t: '正常', c: 'green' },
+    low_stock: { t: '低库存', c: 'orange' },
+    out_of_stock: { t: '售罄', c: 'red' },
+    below_safety_stock: { t: '低于安全线', c: 'gold' },
+  };
+  const x = m[raw];
+  if (!x) return <Tag>{raw}</Tag>;
+  return <Tag color={x.c}>{x.t}</Tag>;
+}
+
+/** When stock_status 尚未落库，用阈值在前端推导展示（与后端 CalculateSKUStockStatus 一致）。 */
+function effectiveStockStatus(r: ProductSKURow): string {
+  if (r.stockStatus) return r.stockStatus;
+  const stock = typeof r.stock === 'number' ? r.stock : 0;
+  const warn = typeof r.warningStock === 'number' ? r.warningStock : 5;
+  const safe = typeof r.safetyStock === 'number' ? r.safetyStock : 0;
+  if (stock <= 0) return 'out_of_stock';
+  if (safe > 0 && stock <= safe) return 'below_safety_stock';
+  if (stock <= warn) return 'low_stock';
+  return 'normal';
+}
+
 export default function ProductDraftDetailPage() {
   const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
   const [loading, setLoading] = useState(true);
@@ -188,6 +214,10 @@ export default function ProductDraftDetailPage() {
   const [syncRow, setSyncRow] = useState<PublicationSkuListingRow | null>(null);
   const [syncForm] = Form.useForm();
   const [syncSubmitting, setSyncSubmitting] = useState(false);
+  const [stockSettingsOpen, setStockSettingsOpen] = useState(false);
+  const [stockSettingsTarget, setStockSettingsTarget] = useState<ProductSKURow | null>(null);
+  const [stockSettingsForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
+  const [stockSettingsSubmitting, setStockSettingsSubmitting] = useState(false);
 
   const aiImgAllowNoSourceImage = useMemo(() => {
     const prov = aiImgProvider.trim().toLowerCase();
@@ -290,6 +320,18 @@ export default function ProductDraftDetailPage() {
   useEffect(() => {
     void reloadPublishContext();
   }, [reloadPublishContext]);
+
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get('tab') === 'inventory') {
+        setDraftTabKey('inventory');
+        void reloadPublicationSkus();
+      }
+    } catch {
+      /* noop */
+    }
+  }, [id, reloadPublicationSkus]);
 
   const sortedImages = useMemo(() => {
     const list = [...(data?.images ?? [])];
@@ -925,7 +967,9 @@ export default function ProductDraftDetailPage() {
                           <Typography.Text code>fulfillment_availability</Typography.Text>。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          异步任务：<Link to="/inventory/sync-tasks">库存同步任务</Link>
+                          异步任务：<Link to="/inventory/alerts">库存预警</Link>
+                          {' · '}
+                          <Link to="/inventory/sync-tasks">库存同步任务</Link>
                           {' · '}
                           <Link to={`/inventory/logs?productId=${data.id}`}>按商品查库存变更</Link>
                           {' · '}
@@ -943,18 +987,36 @@ export default function ProductDraftDetailPage() {
                     rowKey="id"
                     dataSource={(data.skus ?? []).filter((s) => !String(s.id).startsWith('new_'))}
                     columns={[
-                      { title: '编码', dataIndex: 'skuCode', width: 140, ellipsis: true },
+                      { title: '编码', dataIndex: 'skuCode', width: 120, ellipsis: true },
                       { title: '名称', dataIndex: 'skuName', ellipsis: true },
                       {
                         title: '库存',
                         dataIndex: 'stock',
-                        width: 92,
+                        width: 72,
                         render: (_v, r) => (typeof r.stock === 'number' ? r.stock : '—'),
+                      },
+                      {
+                        title: '预警',
+                        dataIndex: 'warningStock',
+                        width: 64,
+                        render: (_v, r) => (typeof r.warningStock === 'number' ? r.warningStock : '—'),
+                      },
+                      {
+                        title: '安全',
+                        dataIndex: 'safetyStock',
+                        width: 64,
+                        render: (_v, r) => (typeof r.safetyStock === 'number' ? r.safetyStock : '—'),
+                      },
+                      {
+                        title: '状态',
+                        dataIndex: 'stockStatus',
+                        width: 108,
+                        render: (_v, r) => draftStockStatusTag(effectiveStockStatus(r)),
                       },
                       {
                         title: '操作',
                         key: 'op',
-                        width: 260,
+                        width: 280,
                         render: (_x, r) => (
                           <Space wrap size="small">
                             <Button
@@ -972,6 +1034,21 @@ export default function ProductDraftDetailPage() {
                               }}
                             >
                               调整库存
+                            </Button>
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ padding: 0 }}
+                              onClick={() => {
+                                setStockSettingsTarget(r);
+                                stockSettingsForm.setFieldsValue({
+                                  warningStock: typeof r.warningStock === 'number' ? r.warningStock : 5,
+                                  safetyStock: typeof r.safetyStock === 'number' ? r.safetyStock : 0,
+                                });
+                                setStockSettingsOpen(true);
+                              }}
+                            >
+                              预警线
                             </Button>
                             <Button
                               type="link"
@@ -1034,8 +1111,32 @@ export default function ProductDraftDetailPage() {
                         },
                         {
                           title: '平台库存快照',
-                          width: 118,
-                          render: (_x, r) => (typeof r.platformStock === 'number' ? r.platformStock : '—'),
+                          width: 168,
+                          render: (_x, r) => {
+                            const sku = data.skus?.find((s) => s.id === r.productSkuId);
+                            const local = typeof sku?.stock === 'number' ? sku.stock : null;
+                            const plat = r.platformStock;
+                            const nodes: JSX.Element[] = [];
+                            if (typeof plat === 'number') {
+                              nodes.push(<span key="n">{plat}</span>);
+                            } else {
+                              nodes.push(<span key="n">—</span>);
+                            }
+                            if (plat === null || plat === undefined) {
+                              nodes.push(
+                                <Tag key="u" style={{ marginLeft: 6 }}>
+                                  未知
+                                </Tag>,
+                              );
+                            } else if (local !== null && plat !== local) {
+                              nodes.push(
+                                <Tag key="m" color="orange" style={{ marginLeft: 6 }}>
+                                  与本地不一致
+                                </Tag>,
+                              );
+                            }
+                            return <span>{nodes}</span>;
+                          },
                         },
                         {
                           title: 'inventory_sync',
@@ -1634,6 +1735,52 @@ export default function ProductDraftDetailPage() {
             label="推送到平台的库存数量"
             rules={[{ required: true, message: '必填且 ≥0' }]}
           >
+            <InputNumber min={0} step={1} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={stockSettingsTarget ? `预警线 · ${stockSettingsTarget.skuCode}` : '预警线'}
+        open={stockSettingsOpen && !!stockSettingsTarget}
+        destroyOnClose
+        okText="保存"
+        confirmLoading={stockSettingsSubmitting}
+        onCancel={() => {
+          setStockSettingsOpen(false);
+          setStockSettingsTarget(null);
+          stockSettingsForm.resetFields();
+        }}
+        onOk={async () => {
+          if (!stockSettingsTarget) return;
+          const v = await stockSettingsForm.validateFields();
+          if (v.safetyStock > v.warningStock) {
+            message.error('安全线不能大于预警线');
+            return;
+          }
+          setStockSettingsSubmitting(true);
+          try {
+            await updateProductSkuStockSettings(id, stockSettingsTarget.id, {
+              warningStock: v.warningStock,
+              safetyStock: v.safetyStock,
+            });
+            message.success('已保存');
+            setStockSettingsOpen(false);
+            setStockSettingsTarget(null);
+            stockSettingsForm.resetFields();
+            await reloadDetail();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '失败');
+          } finally {
+            setStockSettingsSubmitting(false);
+          }
+        }}
+      >
+        <Form form={stockSettingsForm} layout="vertical">
+          <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
+            <InputNumber min={0} step={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
           </Form.Item>
         </Form>

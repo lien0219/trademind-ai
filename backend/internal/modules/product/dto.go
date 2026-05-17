@@ -87,6 +87,12 @@ type SKUUpdateBody struct {
 	ImageURL *string          `json:"imageUrl"`
 }
 
+// SKUStockSettingsBody binds PUT /products/:id/skus/:skuId/stock-settings.
+type SKUStockSettingsBody struct {
+	WarningStock int `json:"warningStock"`
+	SafetyStock  int `json:"safetyStock"`
+}
+
 // ImageCreateBody binds POST /products/:id/images.
 type ImageCreateBody struct {
 	FileID    *uuid.UUID `json:"fileId"`
