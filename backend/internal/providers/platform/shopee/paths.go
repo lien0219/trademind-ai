@@ -8,4 +8,10 @@ const (
 	PathGetShopInfo     = "/api/v2/shop/get_shop_info"
 	PathGetOrderList    = "/api/v2/order/get_order_list"
 	PathGetOrderDetail  = "/api/v2/order/get_order_detail"
+
+	// Seller chat (Open API v2). Paths must match Partner Center naming; adjust if Shopee renames endpoints.
+	PathSellerChatGetConversationList = "/api/v2/sellerchat/get_conversation_list"
+	PathSellerChatGetMessage          = "/api/v2/sellerchat/get_message"
+	PathSellerChatGetOneConversation  = "/api/v2/sellerchat/get_one_conversation"
+	PathSellerChatSendMessage         = "/api/v2/sellerchat/send_message"
 )

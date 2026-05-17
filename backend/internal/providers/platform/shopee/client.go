@@ -27,6 +27,12 @@ func postPublic(ctx context.Context, cfg RuntimeConfig, apiPath string, body map
 }
 
 func postShop(ctx context.Context, cfg RuntimeConfig, apiPath string, shopID int64, accessToken string, body map[string]any) (map[string]any, error) {
+	r, _, err := postShopWithStatus(ctx, cfg, apiPath, shopID, accessToken, body)
+	return r, err
+}
+
+// postShopWithStatus calls a shop-level POST endpoint and returns HTTP status for upper-layer error classification.
+func postShopWithStatus(ctx context.Context, cfg RuntimeConfig, apiPath string, shopID int64, accessToken string, body map[string]any) (map[string]any, int, error) {
 	ts := nowUnix()
 	baseStr := BaseStringShop(cfg.PartnerID, apiPath, ts, accessToken, shopID)
 	sign := SignHMAC(cfg.PartnerKey, baseStr)
@@ -37,40 +43,93 @@ func postShop(ctx context.Context, cfg RuntimeConfig, apiPath string, shopID int
 	q.Set("access_token", accessToken)
 	q.Set("sign", sign)
 	u := cfg.APIBaseURL + apiPath + "?" + q.Encode()
-	return postJSON(ctx, cfg, u, body)
+	return postJSONWithStatus(ctx, cfg, u, body)
+}
+
+// getShopWithStatus calls a shop-level GET endpoint (query in URL, signature over base shop params only).
+func getShopWithStatus(ctx context.Context, cfg RuntimeConfig, apiPath string, shopID int64, accessToken string, extra url.Values) (map[string]any, int, error) {
+	ts := nowUnix()
+	baseStr := BaseStringShop(cfg.PartnerID, apiPath, ts, accessToken, shopID)
+	sign := SignHMAC(cfg.PartnerKey, baseStr)
+	q := url.Values{}
+	q.Set("partner_id", strconv.FormatInt(cfg.PartnerID, 10))
+	q.Set("shop_id", strconv.FormatInt(shopID, 10))
+	q.Set("timestamp", strconv.FormatInt(ts, 10))
+	q.Set("access_token", accessToken)
+	q.Set("sign", sign)
+	if extra != nil {
+		for k, vs := range extra {
+			for _, v := range vs {
+				q.Add(k, v)
+			}
+		}
+	}
+	u := cfg.APIBaseURL + apiPath + "?" + q.Encode()
+	return getJSONWithStatus(ctx, cfg, u)
 }
 
 func postJSON(ctx context.Context, cfg RuntimeConfig, urlStr string, body map[string]any) (map[string]any, error) {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
+	r, _, err := postJSONWithStatus(ctx, cfg, urlStr, body)
+	return r, err
+}
+
+func postJSONWithStatus(ctx context.Context, cfg RuntimeConfig, urlStr string, body map[string]any) (map[string]any, int, error) {
+	var payload []byte
+	var err error
+	if body != nil {
+		payload, err = json.Marshal(body)
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlStr, bytes.NewReader(payload))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if len(payload) > 0 {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return doShopeeHTTPRead(ctx, cfg, req)
+}
+
+func getJSONWithStatus(ctx context.Context, cfg RuntimeConfig, urlStr string) (map[string]any, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	return doShopeeHTTPRead(ctx, cfg, req)
+}
+
+func doShopeeHTTPRead(ctx context.Context, cfg RuntimeConfig, req *http.Request) (map[string]any, int, error) {
 	client := http.Client{Timeout: cfg.HTTPTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
-		return nil, err
+		return nil, resp.StatusCode, err
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("shopee http %d: %s", resp.StatusCode, trimPreview(string(b), 400))
-	}
+	st := resp.StatusCode
 	var root map[string]any
 	if err := json.Unmarshal(b, &root); err != nil {
-		return nil, fmt.Errorf("shopee: invalid json: %w", err)
+		if st < 200 || st >= 300 {
+			return nil, st, fmt.Errorf("shopee http %d: %s", st, trimPreview(string(b), 400))
+		}
+		return nil, st, fmt.Errorf("shopee: invalid json: %w", err)
+	}
+	if st < 200 || st >= 300 {
+		if err := shopeeErr(root); err != nil {
+			return root, st, err
+		}
+		return root, st, fmt.Errorf("shopee http %d: %s", st, trimPreview(string(b), 400))
 	}
 	if err := shopeeErr(root); err != nil {
-		return nil, err
+		return nil, st, err
 	}
-	return unwrapResponse(root)
+	out, err := unwrapResponse(root)
+	return out, st, err
 }
 
 func shopeeErr(root map[string]any) error {
