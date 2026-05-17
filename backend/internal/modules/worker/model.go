@@ -15,6 +15,7 @@ const (
 	TypeImage               = "image"
 	TypeOrderSync           = "order_sync"
 	TypeCustomerMessageSync = "customer_message_sync"
+	TypeProductPublish      = "product_publish"
 	StatusRunning           = "running"
 	StatusStale             = "stale"
 	StatusStopped           = "stopped"

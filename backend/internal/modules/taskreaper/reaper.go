@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"gorm.io/gorm"
 )
 
@@ -25,6 +26,7 @@ type Deps struct {
 	Image           *imagetask.Service
 	Order           *ordersync.Service
 	CustomerMessage *customersync.Service
+	ProductPublish  *productpublish.Service
 }
 
 // Start launches the periodic reaper until ctx is cancelled.
@@ -119,6 +121,19 @@ func runOnce(ctx context.Context, d Deps, legacyTimeout time.Duration) {
 		}
 	}
 
+	if d.ProductPublish != nil {
+		var ids []string
+		_ = d.DB.WithContext(ctx).Model(&productpublish.ProductPublishTask{}).
+			Where("status = ? AND locked_until IS NOT NULL AND locked_until < ?", productpublish.TaskRunning, now).
+			Limit(50).
+			Pluck("id", &ids).Error
+		for _, sid := range ids {
+			if err := d.ProductPublish.RecoverLeaseExpired(ctx, parseUUID(sid)); err != nil && d.Log != nil {
+				d.Log.Warn("taskreaper_product_publish_lease", "taskId", sid, "error", err)
+			}
+		}
+	}
+
 	if d.Collect != nil {
 		var ids []string
 		_ = d.DB.WithContext(ctx).Model(&collect.CollectTask{}).
@@ -167,6 +182,19 @@ func runOnce(ctx context.Context, d Deps, legacyTimeout time.Duration) {
 		for _, sid := range ids {
 			if err := d.CustomerMessage.RecoverLegacyRunning(ctx, parseUUID(sid), legacyCut); err != nil && d.Log != nil {
 				d.Log.Warn("taskreaper_customer_message_sync_legacy", "taskId", sid, "error", err)
+			}
+		}
+	}
+
+	if d.ProductPublish != nil {
+		var ids []string
+		_ = d.DB.WithContext(ctx).Model(&productpublish.ProductPublishTask{}).
+			Where("status = ? AND locked_by IS NULL AND updated_at < ?", productpublish.TaskRunning, legacyCut).
+			Limit(50).
+			Pluck("id", &ids).Error
+		for _, sid := range ids {
+			if err := d.ProductPublish.RecoverLegacyRunning(ctx, parseUUID(sid), legacyCut); err != nil && d.Log != nil {
+				d.Log.Warn("taskreaper_product_publish_legacy", "taskId", sid, "error", err)
 			}
 		}
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
@@ -111,7 +112,7 @@ func main() {
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
@@ -156,6 +157,7 @@ func main() {
 		Image:           imageTaskSvc,
 		Order:           orderSyncSvc,
 		CustomerMessage: customerSyncSvc,
+		ProductPublish:  productPublishSvc,
 	})
 
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
@@ -206,6 +208,21 @@ func main() {
 		log.Warn("customer_message_sync_worker_skipped", "reason", "redis unavailable while CUSTOMER_MESSAGE_SYNC_QUEUE_ENABLED=true")
 	}
 
+	if cfg.ProductPublishQueueEnabled && redisClient != nil && productPublishSvc != nil {
+		ppWorkerConc := cfg.ProductPublishWorkerConcurrency
+		if ppWorkerConc < 1 {
+			ppWorkerConc = 1
+		}
+		ppQn := strings.TrimSpace(cfg.ProductPublishQueueName)
+		if ppQn == "" {
+			ppQn = "product:publish:tasks"
+		}
+		productpublish.StartWorker(workerCtx, &workerWG, log, productPublishSvc, ppQn, ppWorkerConc, workerReg)
+		log.Info("product_publish_worker_started", "concurrency", ppWorkerConc, "queue", ppQn)
+	} else if cfg.ProductPublishQueueEnabled && redisClient == nil {
+		log.Warn("product_publish_worker_skipped", "reason", "redis unavailable while PRODUCT_PUBLISH_QUEUE_ENABLED=true")
+	}
+
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: engine,
@@ -242,6 +259,7 @@ func main() {
 	imagetask.SetImageWorkersRunning(false)
 	ordersync.SetOrderSyncWorkersRunning(false)
 	customersync.SetCustomerMessageSyncWorkersRunning(false)
+	productpublish.SetProductPublishWorkersRunning(false)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer shutdownCancel()

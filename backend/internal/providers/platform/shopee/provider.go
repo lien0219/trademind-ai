@@ -23,7 +23,7 @@ func (shopeeProvider) Name() string { return "Shopee" }
 func (shopeeProvider) Status() string { return platformp.StatusBeta }
 
 func (shopeeProvider) Capabilities() []platformp.Capability {
-	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage}
+	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage, platformp.CapProductPublish}
 }
 
 func (shopeeProvider) AuthSchema() platformp.AuthSchema {
@@ -39,6 +39,16 @@ func (shopeeProvider) AuthSchema() platformp.AuthSchema {
 
 func (shopeeProvider) AppConfigSchema() platformp.PlatformAppConfigSchema {
 	return platformp.ShopeeAppConfigSchema()
+}
+
+func (shopeeProvider) PublishConfigSchema() platformp.PlatformAppConfigSchema {
+	return platformp.PublishConfigPresetForPlatform("shopee")
+}
+
+func (shopeeProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrProductPublishNotImplemented
 }
 
 func (shopeeProvider) TestConnection(ctx context.Context, req platformp.TestConnectionRequest) (*platformp.TestConnectionResult, error) {

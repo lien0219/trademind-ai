@@ -77,5 +77,7 @@ type Provider interface {
 	Capabilities() []Capability
 	AuthSchema() AuthSchema
 	AppConfigSchema() PlatformAppConfigSchema // Open Platform Partner app credentials in settings.{group_key}; GroupKey="" => no UI
+	// PublishConfigSchema drives settings.platform_publish_<platform> and publish modal overrides (GroupKey empty => page hidden / no persisted group).
+	PublishConfigSchema() PlatformAppConfigSchema
 	TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error)
 }

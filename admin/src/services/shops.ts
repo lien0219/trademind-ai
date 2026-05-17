@@ -34,7 +34,9 @@ export type PlatformProviderMeta = {
     hint?: string;
   }[];
   appConfigSchema: AppConfigSchemaDTO;
+  publishConfigSchema?: AppConfigSchemaDTO;
   settingsGroupKey: string;
+  publishSettingsGroupKey?: string;
   capabilityStatus?: Record<string, string>;
 };
 

@@ -30,7 +30,7 @@ func Bootstrap() {
 	}, nil, GenericPlannedAppSchema("shein", "SHEIN")))
 
 	Register(newPlannedProvider("custom", "自定义平台", StatusPlanned, "custom", []Capability{
-		CapManualManage,
+		CapManualManage, CapProductPublish,
 	}, customAuthFields(), GenericPlannedAppSchema("custom", "自定义平台")))
 }
 

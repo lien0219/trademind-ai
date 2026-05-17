@@ -196,11 +196,21 @@ export default function WorkersMonitorPage() {
           pagination={{ pageSize: 10 }}
         />
       </ProCard>
-      <ProCard title="租约中的任务（customer message sync）" bordered>
+      <ProCard title="租约中的任务（customer message sync）" bordered style={{ marginBottom: 16 }}>
         <ProTable
           rowKey="id"
           columns={leaseCols()}
           dataSource={data?.leasedTasks.customerMessageSync ?? []}
+          search={false}
+          options={false}
+          pagination={{ pageSize: 10 }}
+        />
+      </ProCard>
+      <ProCard title="租约中的任务（product publish）" bordered>
+        <ProTable
+          rowKey="id"
+          columns={leaseCols()}
+          dataSource={data?.leasedTasks.productPublish ?? []}
           search={false}
           options={false}
           pagination={{ pageSize: 10 }}

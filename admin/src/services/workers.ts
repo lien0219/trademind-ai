@@ -39,6 +39,7 @@ export type WorkerMonitorData = {
     image: LeasedTaskRow[];
     orderSync: LeasedTaskRow[];
     customerMessageSync: LeasedTaskRow[];
+    productPublish: LeasedTaskRow[];
   };
 };
 

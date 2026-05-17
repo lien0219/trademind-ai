@@ -51,8 +51,10 @@ type PlatformProviderDTO struct {
 	CapabilityStatus map[string]string                 `json:"capabilityStatus,omitempty"`
 	AuthSchema       []platformp.AuthField             `json:"authSchema"`
 	AuthSchemaType   string                            `json:"-"`
-	AppConfigSchema  platformp.PlatformAppConfigSchema `json:"appConfigSchema"`
-	SettingsGroupKey string                            `json:"settingsGroupKey"`
+	AppConfigSchema     platformp.PlatformAppConfigSchema `json:"appConfigSchema"`
+	PublishConfigSchema platformp.PlatformAppConfigSchema `json:"publishConfigSchema,omitempty"`
+	SettingsGroupKey    string                            `json:"settingsGroupKey"`
+	PublishSettingsKey  string                            `json:"publishSettingsGroupKey,omitempty"`
 }
 
 // ListPlatformProviders from registry (sorted: available first, then platform id).
@@ -105,17 +107,20 @@ func (s *Service) ListPlatformProviders() []PlatformProviderDTO {
 			fields = []platformp.AuthField{}
 		}
 		appSch := p.AppConfigSchema()
+		pubSch := p.PublishConfigSchema()
 		out = append(out, PlatformProviderDTO{
-			Platform:         p.Platform(),
-			Name:             p.Name(),
-			Status:           p.Status(),
-			AuthType:         schema.AuthType,
-			Capabilities:     cs,
-			CapabilityStatus: capSt,
-			AuthSchema:       fields,
-			AuthSchemaType:   schema.AuthType,
-			AppConfigSchema:  appSch,
-			SettingsGroupKey: strings.TrimSpace(appSch.GroupKey),
+			Platform:            p.Platform(),
+			Name:                p.Name(),
+			Status:              p.Status(),
+			AuthType:            schema.AuthType,
+			Capabilities:        cs,
+			CapabilityStatus:    capSt,
+			AuthSchema:          fields,
+			AuthSchemaType:      schema.AuthType,
+			AppConfigSchema:     appSch,
+			PublishConfigSchema: pubSch,
+			SettingsGroupKey:    strings.TrimSpace(appSch.GroupKey),
+			PublishSettingsKey:  strings.TrimSpace(pubSch.GroupKey),
 		})
 
 	}

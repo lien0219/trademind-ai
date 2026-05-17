@@ -119,6 +119,9 @@ func ImplementationStatusForCapability(p Provider, c Capability) string {
 	if c == CapCustomerMessage {
 		return CustomerMessageImplementationStatus(p)
 	}
+	if c == CapProductPublish {
+		return ProductPublishImplementationStatus(p)
+	}
 	switch p.Status() {
 	case StatusPlanned, StatusDisabled:
 		return p.Status()

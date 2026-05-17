@@ -23,7 +23,7 @@ func (tikTokProvider) Name() string { return "TikTok Shop" }
 func (tikTokProvider) Status() string { return platformp.StatusBeta }
 
 func (tikTokProvider) Capabilities() []platformp.Capability {
-	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage}
+	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage, platformp.CapProductPublish}
 }
 
 func (tikTokProvider) AuthSchema() platformp.AuthSchema {
@@ -39,6 +39,16 @@ func (tikTokProvider) AuthSchema() platformp.AuthSchema {
 
 func (tikTokProvider) AppConfigSchema() platformp.PlatformAppConfigSchema {
 	return platformp.TikTokShopAppConfigSchema()
+}
+
+func (tikTokProvider) PublishConfigSchema() platformp.PlatformAppConfigSchema {
+	return platformp.PublishConfigPresetForPlatform("tiktok")
+}
+
+func (tikTokProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrProductPublishNotImplemented
 }
 
 func (tikTokProvider) TestConnection(ctx context.Context, req platformp.TestConnectionRequest) (*platformp.TestConnectionResult, error) {

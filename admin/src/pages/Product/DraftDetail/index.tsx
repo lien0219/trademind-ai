@@ -10,7 +10,7 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
-import { Button, Card, Descriptions, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tooltip, Typography, Upload, message } from 'antd';
+import { Button, Card, Descriptions, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
 import {
   ArrowUpOutlined,
   DeleteOutlined,
@@ -43,6 +43,13 @@ import {
   type ProductSKURow,
 } from '@/services/products';
 import { createImageTask } from '@/services/imageTasks';
+import { Link } from '@umijs/renderer-react';
+import {
+  listProductPublications,
+  publishProduct,
+  type ProductPublicationRow,
+} from '@/services/productPublish';
+import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 
 type SKUEditable = ProductSKURow & { attrsText?: string };
 
@@ -102,6 +109,13 @@ export default function ProductDraftDetailPage() {
   const [aiImgBackground, setAiImgBackground] = useState<string>('white studio background');
   const [aiImgStyle, setAiImgStyle] = useState<string>('clean ecommerce');
 
+  const [pubRows, setPubRows] = useState<ProductPublicationRow[]>([]);
+  const [pubCtxLoading, setPubCtxLoading] = useState(false);
+  const [platformsMeta, setPlatformsMeta] = useState<PlatformProviderMeta[]>([]);
+  const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
+  const [publishForm] = Form.useForm();
+  const [publishSubmitting, setPublishSubmitting] = useState(false);
+
   const aiImgAllowNoSourceImage = useMemo(() => {
     const prov = aiImgProvider.trim().toLowerCase();
     return (
@@ -129,6 +143,25 @@ export default function ProductDraftDetailPage() {
       setAiTasks(list ?? []);
     } catch {
       setAiTasks([]);
+    }
+  }, [id]);
+
+  const reloadPublishContext = useCallback(async () => {
+    if (!id) return;
+    setPubCtxLoading(true);
+    try {
+      const [pubs, prov, shops] = await Promise.all([
+        listProductPublications(id),
+        queryPlatformProviders(),
+        queryShops({ page: 1, pageSize: 500, authStatus: 'authorized' }),
+      ]);
+      setPubRows(Array.isArray(pubs.list) ? pubs.list : []);
+      setPlatformsMeta(Array.isArray(prov.list) ? prov.list : []);
+      setShopsList(Array.isArray(shops.list) ? shops.list : []);
+    } catch {
+      setPubRows([]);
+    } finally {
+      setPubCtxLoading(false);
     }
   }, [id]);
 
@@ -168,11 +201,22 @@ export default function ProductDraftDetailPage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    void reloadPublishContext();
+  }, [reloadPublishContext]);
+
   const sortedImages = useMemo(() => {
     const list = [...(data?.images ?? [])];
     list.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     return list;
   }, [data?.images]);
+
+  const eligibleShopsForPublish = useMemo(() => {
+    return shopsList.filter((s) => {
+      const m = platformsMeta.find((x) => x.platform === s.platform);
+      return m?.capabilityStatus?.product_publish === 'available';
+    });
+  }, [shopsList, platformsMeta]);
 
   const imageColumns: ColumnsType<ProductImageRow> = useMemo(
     () => [
@@ -792,6 +836,107 @@ export default function ProductDraftDetailPage() {
                     scroll={{ x: 1100 }}
                   />
                 </Card>
+              ),
+            },
+            {
+              key: 'publish',
+              label: '刊登',
+              children: (
+                <Spin spinning={pubCtxLoading}>
+                  <Card bordered={false}>
+                    <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                      <Alert
+                        type="info"
+                        showIcon
+                        message="多平台刊登基座（MVP）"
+                        description={
+                          <>
+                            仅 <Typography.Text code>product_publish</Typography.Text>{' '}
+                            能力为「可用」的店铺可走通 enqueue（通常为 mock）。
+                            默认刊登参数请到{' '}
+                            <Link to="/settings/platform-publish">设置 · 平台刊登预设</Link>；
+                            任务队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
+                          </>
+                        }
+                      />
+                      <Form
+                        form={publishForm}
+                        layout="vertical"
+                        style={{ maxWidth: 560 }}
+                        onFinish={async (vals: { shopId?: string }) => {
+                          const shopId = String(vals.shopId ?? '').trim();
+                          if (!shopId) {
+                            message.error('请选择店铺');
+                            return;
+                          }
+                          setPublishSubmitting(true);
+                          try {
+                            await publishProduct(id, { shopId, options: {} });
+                            message.success('已提交刊登任务');
+                            publishForm.resetFields();
+                            await reloadPublishContext();
+                          } catch (e: unknown) {
+                            message.error((e as Error)?.message || '提交失败');
+                          } finally {
+                            setPublishSubmitting(false);
+                          }
+                        }}
+                      >
+                        <Form.Item
+                          name="shopId"
+                          label="目标店铺（已授权且刊登可用）"
+                          rules={[{ required: true, message: '请选择店铺' }]}
+                        >
+                          <Select
+                            placeholder="选择店铺"
+                            allowClear
+                            showSearch
+                            optionFilterProp="label"
+                            options={eligibleShopsForPublish.map((s) => ({
+                              label: `${s.shopName} (${s.platform})`,
+                              value: s.id,
+                            }))}
+                          />
+                        </Form.Item>
+                        <Form.Item>
+                          <Space wrap>
+                            <Button type="primary" htmlType="submit" loading={publishSubmitting}>
+                              提交刊登
+                            </Button>
+                            <Button onClick={() => void reloadPublishContext()}>刷新快照</Button>
+                          </Space>
+                        </Form.Item>
+                      </Form>
+                      <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
+                        本商品刊登记录
+                      </Typography.Title>
+                      <Table<ProductPublicationRow>
+                        size="small"
+                        rowKey="id"
+                        loading={pubCtxLoading}
+                        dataSource={pubRows}
+                        pagination={false}
+                        columns={[
+                          { title: '店铺', render: (_, r) => r.shopName || r.shopId },
+                          { title: '平台', dataIndex: 'platform', width: 96 },
+                          { title: '状态', dataIndex: 'publishStatus', width: 100 },
+                          { title: '外部商品 ID', dataIndex: 'externalProductId', ellipsis: true },
+                          {
+                            title: '外链',
+                            render: (_, r) =>
+                              r.externalUrl ? (
+                                <Typography.Link href={r.externalUrl} target="_blank" rel="noreferrer">
+                                  打开
+                                </Typography.Link>
+                              ) : (
+                                '—'
+                              ),
+                          },
+                        ]}
+                      />
+                    </Space>
+                  </Card>
+                </Spin>
               ),
             },
           ]}

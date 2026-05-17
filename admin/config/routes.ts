@@ -77,6 +77,11 @@ export default [
         name: '商品草稿',
         component: './Product/Drafts',
       },
+      {
+        path: '/product/publish-tasks',
+        name: '刊登任务',
+        component: './Product/PublishTasks',
+      },
     ],
   },
   {
@@ -202,6 +207,11 @@ export default [
         path: '/settings/platforms',
         name: '平台开放配置',
         component: './Settings/Platforms',
+      },
+      {
+        path: '/settings/platform-publish',
+        name: '平台刊登预设',
+        component: './Settings/PlatformPublish',
       },
       {
         path: '/settings/collector',

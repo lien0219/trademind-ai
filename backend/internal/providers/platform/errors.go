@@ -29,5 +29,11 @@ var ErrManualCustomerMessageUnsupported = errors.New("manual shop does not suppo
 // ErrCustomerMessageNotImplemented is returned when provider has no live buyer-seller messaging API wired yet.
 var ErrCustomerMessageNotImplemented = errors.New("platform customer message provider not implemented")
 
+// ErrManualProductPublishUnsupported is returned for manual shops (no listings API).
+var ErrManualProductPublishUnsupported = errors.New("manual shop does not support product publish")
+
+// ErrProductPublishNotImplemented means real listings API / worker path is unavailable for this platform build.
+var ErrProductPublishNotImplemented = errors.New("platform product publish provider not implemented")
+
 // ErrPlatformCustomerMessagePermissionDenied is returned when token/scopes or platform account forbids chat APIs.
 var ErrPlatformCustomerMessagePermissionDenied = errors.New("platform customer message permission denied or not configured")

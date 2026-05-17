@@ -10,6 +10,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/platform/providers", h.ListProviders)
 	g.GET("/platform/settings/:platform", h.GetPlatformAppSettings)
 	g.PUT("/platform/settings/:platform", h.PutPlatformAppSettings)
+	g.GET("/platform/publish-settings/:platform", h.GetPlatformPublishSettings)
+	g.PUT("/platform/publish-settings/:platform", h.PutPlatformPublishSettings)
 
 	s := g.Group("/shops")
 	s.GET("", h.List)

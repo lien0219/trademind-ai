@@ -23,7 +23,7 @@ func (lazadaProvider) Name() string { return "Lazada" }
 func (lazadaProvider) Status() string { return platformp.StatusBeta }
 
 func (lazadaProvider) Capabilities() []platformp.Capability {
-	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage}
+	return []platformp.Capability{platformp.CapOrderSync, platformp.CapShopInfo, platformp.CapCustomerMessage, platformp.CapProductPublish}
 }
 
 func (lazadaProvider) AuthSchema() platformp.AuthSchema {
@@ -39,6 +39,16 @@ func (lazadaProvider) AuthSchema() platformp.AuthSchema {
 
 func (lazadaProvider) AppConfigSchema() platformp.PlatformAppConfigSchema {
 	return platformp.LazadaAppConfigSchema()
+}
+
+func (lazadaProvider) PublishConfigSchema() platformp.PlatformAppConfigSchema {
+	return platformp.PublishConfigPresetForPlatform("lazada")
+}
+
+func (lazadaProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrProductPublishNotImplemented
 }
 
 func (lazadaProvider) TestConnection(ctx context.Context, req platformp.TestConnectionRequest) (*platformp.TestConnectionResult, error) {

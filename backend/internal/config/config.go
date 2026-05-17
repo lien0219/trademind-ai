@@ -78,6 +78,15 @@ type Config struct {
 	// CustomerMessageSyncTaskTimeoutSeconds caps each Provider.PullMessages context (default 120).
 	CustomerMessageSyncTaskTimeoutSeconds int
 
+	// ProductPublishQueueEnabled gates async product publish jobs (Redis list + worker).
+	ProductPublishQueueEnabled bool
+	// ProductPublishQueueName is the Redis list key for product publish payloads (default product:publish:tasks).
+	ProductPublishQueueName string
+	// ProductPublishWorkerConcurrency is concurrent BRPOP consumers (default 1).
+	ProductPublishWorkerConcurrency int
+	// ProductPublishTaskTimeoutSeconds caps publish worker lease TTL and provider timeout (default 180).
+	ProductPublishTaskTimeoutSeconds int
+
 	// CollectTaskTimeoutSeconds is the DB lease TTL for collect_tasks (worker reclaim).
 	CollectTaskTimeoutSeconds int
 
@@ -179,6 +188,14 @@ func Load() (*Config, error) {
 		)),
 		CustomerMessageSyncWorkerConcurrency:  atoiOrDefault(os.Getenv("CUSTOMER_MESSAGE_SYNC_WORKER_CONCURRENCY"), 1),
 		CustomerMessageSyncTaskTimeoutSeconds: atoiOrDefault(os.Getenv("CUSTOMER_MESSAGE_SYNC_TASK_TIMEOUT_SECONDS"), 120),
+
+		ProductPublishQueueEnabled:      envBool(os.Getenv("PRODUCT_PUBLISH_QUEUE_ENABLED"), true),
+		ProductPublishQueueName: strings.TrimSpace(firstNonEmpty(
+			os.Getenv("PRODUCT_PUBLISH_QUEUE_NAME"),
+			"product:publish:tasks",
+		)),
+		ProductPublishWorkerConcurrency:  atoiOrDefault(os.Getenv("PRODUCT_PUBLISH_WORKER_CONCURRENCY"), 1),
+		ProductPublishTaskTimeoutSeconds: atoiOrDefault(os.Getenv("PRODUCT_PUBLISH_TASK_TIMEOUT_SECONDS"), 180),
 
 		CollectTaskTimeoutSeconds: atoiOrDefault(os.Getenv("COLLECT_TASK_TIMEOUT_SECONDS"), 600),
 

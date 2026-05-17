@@ -92,6 +92,41 @@ func (h *Handler) PutPlatformAppSettings(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// GetPlatformPublishSettings GET /api/v1/platform/publish-settings/:platform
+func (h *Handler) GetPlatformPublishSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	plat := strings.TrimSpace(c.Param("platform"))
+	out, err := h.Svc.GetPlatformPublishSettings(c.Request.Context(), plat)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// PutPlatformPublishSettings PUT /api/v1/platform/publish-settings/:platform
+func (h *Handler) PutPlatformPublishSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	plat := strings.TrimSpace(c.Param("platform"))
+	var body platformSettingsPutReq
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.PutPlatformPublishSettings(c, plat, body.Values)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
 // List GET /api/v1/shops
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {

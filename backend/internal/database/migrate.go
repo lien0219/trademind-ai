@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
@@ -36,6 +37,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},
+		&productpublish.ProductPublishTask{},
+		&productpublish.ProductPublication{},
+		&productpublish.ProductPublicationSKU{},
 		&order.Order{},
 		&order.OrderItem{},
 		&order.OrderShipment{},

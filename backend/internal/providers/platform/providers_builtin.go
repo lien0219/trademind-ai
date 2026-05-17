@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type manualProv struct{}
@@ -27,6 +29,16 @@ func (manualProv) AuthSchema() AuthSchema {
 
 func (manualProv) AppConfigSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{}
+}
+
+func (manualProv) PublishConfigSchema() PlatformAppConfigSchema {
+	return emptyPublishSchema()
+}
+
+func (manualProv) PublishProduct(ctx context.Context, req PublishProductRequest) (*PublishProductResult, error) {
+	_ = ctx
+	_ = req
+	return nil, ErrManualProductPublishUnsupported
 }
 
 func (manualProv) TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error) {
@@ -79,6 +91,41 @@ func (mockProv) AuthSchema() AuthSchema {
 
 func (mockProv) AppConfigSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{}
+}
+
+func (mockProv) PublishConfigSchema() PlatformAppConfigSchema {
+	return PublishConfigPresetForPlatform("mock")
+}
+
+func (mockProv) PublishProduct(ctx context.Context, req PublishProductRequest) (*PublishProductResult, error) {
+	_ = ctx
+	pid := req.Product.ProductID.String()
+	sid := req.ShopID.String()
+	extPID := "mock-product-" + pid + "-" + sid
+	mappings := make([]PlatformSKUMapping, 0, len(req.Product.SKUs))
+	for _, s := range req.Product.SKUs {
+		if s.LocalSKUID == uuid.Nil {
+			continue
+		}
+		mappings = append(mappings, PlatformSKUMapping{
+			LocalSKUID:    s.LocalSKUID,
+			ExternalSKUID: "mock-sku-" + s.LocalSKUID.String(),
+			SKUCode:       s.SKUCode,
+		})
+	}
+	return &PublishProductResult{
+		ExternalProductID: extPID,
+		ExternalSPUID:     extPID,
+		Status:            "published",
+		SKUMappings:       mappings,
+		RawSummary: TrimRawMap(map[string]any{
+			"provider": "mock",
+			"shopId":   sid,
+			"productId": pid,
+			"skuMappings": len(mappings),
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+		}, 16, 200),
+	}, nil
 }
 
 func (mockProv) TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error) {
@@ -356,6 +403,20 @@ func (p *plannedProv) AuthSchema() AuthSchema {
 
 func (p *plannedProv) AppConfigSchema() PlatformAppConfigSchema {
 	return p.appSchema
+}
+
+func (p *plannedProv) PublishConfigSchema() PlatformAppConfigSchema {
+	if p == nil {
+		return emptyPublishSchema()
+	}
+	return PublishConfigPresetForPlatform(p.platformKey)
+}
+
+func (p *plannedProv) PublishProduct(ctx context.Context, req PublishProductRequest) (*PublishProductResult, error) {
+	_ = p
+	_ = ctx
+	_ = req
+	return nil, ErrProductPublishNotImplemented
 }
 
 func (p *plannedProv) TestConnection(ctx context.Context, req TestConnectionRequest) (*TestConnectionResult, error) {

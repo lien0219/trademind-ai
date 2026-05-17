@@ -27,6 +27,7 @@ func (amazonProvider) Capabilities() []platformp.Capability {
 		platformp.CapOrderSync,
 		platformp.CapShopInfo,
 		platformp.CapCustomerMessage,
+		platformp.CapProductPublish,
 	}
 }
 
@@ -36,6 +37,16 @@ func (amazonProvider) AuthSchema() platformp.AuthSchema {
 
 func (amazonProvider) AppConfigSchema() platformp.PlatformAppConfigSchema {
 	return platformp.AmazonSPAPIAppConfigSchema()
+}
+
+func (amazonProvider) PublishConfigSchema() platformp.PlatformAppConfigSchema {
+	return platformp.PublishConfigPresetForPlatform("amazon")
+}
+
+func (amazonProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
+	_ = ctx
+	_ = req
+	return nil, platformp.ErrProductPublishNotImplemented
 }
 
 func (amazonProvider) TestConnection(ctx context.Context, req platformp.TestConnectionRequest) (*platformp.TestConnectionResult, error) {
