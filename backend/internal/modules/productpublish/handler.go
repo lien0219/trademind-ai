@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -72,6 +73,11 @@ func (h *Handler) Publish(c *gin.Context) {
 	}
 	out, err := h.Svc.CreatePublishTask(c, pid, body, adminUUID(c))
 	if err != nil {
+		var blocked *productcheck.BlockedError
+		if errors.As(err, &blocked) && blocked.Result != nil {
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", blocked.Result)
+			return
+		}
 		switch {
 		case errors.Is(err, platformp.ErrPlatformProductPublishPermissionDenied):
 			response.Fail(c, http.StatusForbidden, response.CodeBadRequest, err.Error()+" — 请确认已在对应开放平台（如 TikTok Shop Partner Center / Shopee Open Platform / Lazada Open Platform）申请商品刊登相关权限并重新授权；Amazon 请在 Seller Central / SP-API Developer Console 申请商品刊登相关权限并重新授权。")

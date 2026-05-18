@@ -13,6 +13,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
@@ -77,6 +78,26 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 
 	if err := ensureShopAuthorizedForPublish(row, plainAuth); err != nil {
 		return nil, err
+	}
+
+	var readinessSnap *productcheck.CheckProductReadinessResult
+	if s.Readiness != nil {
+		rres, err := s.Readiness.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
+			ProductID:      productID,
+			Platform:       platKey,
+			ShopID:         &sid,
+			Mode:           "publish",
+			PublishOptions: body.Options,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if rres.ErrorCount > 0 {
+			return nil, &productcheck.BlockedError{Result: rres}
+		}
+		if rres.WarningCount > 0 {
+			readinessSnap = rres
+		}
 	}
 
 	pubSch := prov.PublishConfigSchema()
@@ -211,5 +232,11 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	}
 
 	out, err := s.GetDTO(ctx, task.ID)
-	return &out, err
+	if err != nil {
+		return nil, err
+	}
+	if readinessSnap != nil {
+		out.Readiness = readinessSnap
+	}
+	return &out, nil
 }

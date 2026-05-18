@@ -5,14 +5,23 @@ import {
 } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Image, Tag, Typography } from 'antd';
+import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { useRef, useState } from 'react';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
+import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
+import { queryShops, type ShopListRow } from '@/services/shops';
 
 export default function ProductDraftsPage() {
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchPlat, setBatchPlat] = useState<string>('tiktok');
+  const [batchShopId, setBatchShopId] = useState<string>('');
+  const [batchResult, setBatchResult] = useState<ProductReadinessResult[]>([]);
+  const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
 
   const columns: ProColumns<ProductListRow>[] = [
     {
@@ -85,17 +94,81 @@ export default function ProductDraftsPage() {
     },
   ];
 
+  const eligibleBatchPlatforms = ['tiktok', 'shopee', 'lazada', 'amazon', 'mock'];
+
+  const shopsForBatchPlat = shopsList.filter(
+    (s) =>
+      (s.platform || '').toLowerCase() === batchPlat.toLowerCase() && s.authStatus === 'authorized',
+  );
+
+  const openBatchDrawer = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先勾选商品');
+      return;
+    }
+    if (selectedRowKeys.length > 100) {
+      message.error('单次最多检查 100 个商品');
+      return;
+    }
+    setBatchOpen(true);
+    setBatchResult([]);
+    try {
+      const shops = await queryShops({ page: 1, pageSize: 500, authStatus: 'authorized' });
+      setShopsList(Array.isArray(shops.list) ? shops.list : []);
+    } catch {
+      setShopsList([]);
+    }
+  };
+
+  const runBatchReadiness = async () => {
+    if (!batchShopId) {
+      message.error('请选择店铺');
+      return;
+    }
+    setBatchLoading(true);
+    try {
+      const { list } = await batchCheckProductReadiness({
+        productIds: selectedRowKeys,
+        platform: batchPlat,
+        shopId: batchShopId,
+      });
+      setBatchResult(Array.isArray(list) ? list : []);
+      message.success('检查完成');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '检查失败');
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
   return (
     <PageContainer title="商品草稿">
       <ProTable<ProductListRow>
         rowKey="id"
         actionRef={actionRef}
+        rowSelection={{
+          type: 'checkbox',
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys as string[]),
+        }}
+        tableAlertRender={({ selectedRowKeys: keys }) => (
+          <Space>
+            <span>已选 {keys.length} 项</span>
+          </Space>
+        )}
         columns={columns}
         search={{ labelWidth: 'auto' }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         options={{ reload: true, density: true, setting: true }}
         headerTitle={false}
         toolBarRender={() => [
+          <Button
+            key="readiness"
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => void openBatchDrawer()}
+          >
+            批量发布检查
+          </Button>,
           <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
             新建草稿
           </Button>,
@@ -137,6 +210,78 @@ export default function ProductDraftsPage() {
         <ProFormText name="sourceUrl" label="来源链接" />
         <ProFormTextArea name="description" label="描述" fieldProps={{ rows: 3 }} />
       </ModalForm>
+
+      <Drawer
+        title="批量发布检查"
+        width={720}
+        open={batchOpen}
+        onClose={() => setBatchOpen(false)}
+        destroyOnClose
+        extra={
+          <Button type="primary" loading={batchLoading} onClick={() => void runBatchReadiness()}>
+            开始检查
+          </Button>
+        }
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <Form layout="vertical">
+            <Form.Item label="平台">
+              <Select
+                value={batchPlat}
+                onChange={(v) => {
+                  setBatchPlat(String(v));
+                  setBatchShopId('');
+                }}
+                options={eligibleBatchPlatforms.map((p) => ({ label: p, value: p }))}
+              />
+            </Form.Item>
+            <Form.Item label="店铺">
+              <Select
+                placeholder="选择已授权店铺"
+                value={batchShopId || undefined}
+                onChange={(v) => setBatchShopId(v ? String(v) : '')}
+                options={shopsForBatchPlat.map((s) => ({
+                  label: `${s.shopName} (${s.platform})`,
+                  value: s.id,
+                }))}
+                showSearch
+                optionFilterProp="label"
+              />
+            </Form.Item>
+          </Form>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            已选 {selectedRowKeys.length} 个商品；单次最多 100 个。检查不修改商品数据，不调用平台 API。
+          </Typography.Paragraph>
+          <Table<ProductReadinessResult>
+            size="small"
+            rowKey="productId"
+            dataSource={batchResult}
+            pagination={false}
+            columns={[
+              {
+                title: '商品 ID',
+                dataIndex: 'productId',
+                ellipsis: true,
+                render: (v: string) => (
+                  <Typography.Link href={`/product/drafts/${v}?tab=readiness`}>{v}</Typography.Link>
+                ),
+              },
+              {
+                title: '状态',
+                width: 100,
+                render: (_, r) => {
+                  if (!r.canPublish) return <Tag color="red">阻止</Tag>;
+                  if (r.warningCount > 0) return <Tag color="orange">警告</Tag>;
+                  return <Tag color="green">就绪</Tag>;
+                },
+              },
+              { title: '分', dataIndex: 'score', width: 64 },
+              { title: '错', dataIndex: 'errorCount', width: 56 },
+              { title: '警', dataIndex: 'warningCount', width: 56 },
+            ]}
+          />
+        </Space>
+      </Drawer>
     </PageContainer>
   );
 }

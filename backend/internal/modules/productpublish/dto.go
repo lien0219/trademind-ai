@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"gorm.io/datatypes"
 )
 
@@ -12,6 +13,8 @@ import (
 type PublishRequestBody struct {
 	ShopID  string         `json:"shopId"`
 	Options map[string]any `json:"options"`
+	// Force is reserved for future use; errors from readiness checks cannot be bypassed in v1.
+	Force bool `json:"force"`
 }
 
 // TaskDTO API shape for CRUD endpoints.
@@ -33,6 +36,8 @@ type TaskDTO struct {
 	CreatedBy    *uuid.UUID `json:"createdBy,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    time.Time  `json:"updatedAt"`
+	// Readiness is present when the publish path ran a pre-check and there were warnings (no errors).
+	Readiness *productcheck.CheckProductReadinessResult `json:"readiness,omitempty"`
 }
 
 type ListTasksQuery struct {

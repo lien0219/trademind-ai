@@ -25,6 +25,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -268,12 +269,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	customerSyncH := &customersync.Handler{Svc: customerSyncSvc}
 
-	productPublishSvc := &productpublish.Service{
+	readinessSvc := &productcheck.Service{
 		DB:       dep.DB,
-		Redis:    dep.Redis,
-		Shops:    shopSvc,
 		Settings: settingsSvc,
-		OpLog:    opLogSvc,
+		Shops:    shopSvc,
+	}
+
+	productPublishSvc := &productpublish.Service{
+		DB:        dep.DB,
+		Redis:     dep.Redis,
+		Shops:     shopSvc,
+		Settings:  settingsSvc,
+		OpLog:     opLogSvc,
+		Readiness: readinessSvc,
 	}
 	if dep.Config != nil {
 		productPublishSvc.QueueEnabled = dep.Config.ProductPublishQueueEnabled
@@ -287,6 +295,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		}
 	}
 	productPublishH := &productpublish.Handler{Svc: productPublishSvc}
+	readinessH := &productcheck.Handler{
+		Svc:   readinessSvc,
+		OpLog: opLogSvc,
+	}
 
 	r.GET("/static/*filepath", staticH.Serve)
 
@@ -319,6 +331,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
 	collectrule.Register(authed, collectRuleH)
+	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	ordersync.Register(authed, orderSyncH)
 	customersync.Register(authed, customerSyncH)

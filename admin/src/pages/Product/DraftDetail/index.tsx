@@ -11,7 +11,31 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Button, Card, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Popconfirm, Radio, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
+import {
+  Button,
+  Card,
+  Collapse,
+  Descriptions,
+  Drawer,
+  Form,
+  Image,
+  Input,
+  InputNumber,
+  Modal,
+  Popconfirm,
+  Radio,
+  Select,
+  Space,
+  Spin,
+  Tabs,
+  Tag,
+  Tooltip,
+  Typography,
+  Alert,
+  Upload,
+  Table,
+  message,
+} from 'antd';
 import {
   ArrowUpOutlined,
   DeleteOutlined,
@@ -51,6 +75,7 @@ import {
   publishProduct,
   type ProductPublicationRow,
 } from '@/services/productPublish';
+import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
   adjustSkuStock,
@@ -169,6 +194,51 @@ function effectiveStockStatus(r: ProductSKURow): string {
   return 'normal';
 }
 
+const READINESS_GROUP_LABEL: Record<string, string> = {
+  product: '商品信息',
+  sku: 'SKU',
+  image: '图片',
+  inventory: '库存',
+  platform: '平台配置',
+};
+
+function readinessStatusTag(r: ProductReadinessResult | null) {
+  if (!r) return null;
+  if (r.status === 'blocked' || (r.errorCount ?? 0) > 0) {
+    return <Tag color="red">阻止发布</Tag>;
+  }
+  if (r.status === 'warning' || (r.warningCount ?? 0) > 0) {
+    return <Tag color="orange">有警告</Tag>;
+  }
+  return <Tag color="green">可发布</Tag>;
+}
+
+function fixLinkForReadinessCode(code: string): { tab?: string; href?: string; label: string } | null {
+  const c = (code || '').toLowerCase();
+  if (c.startsWith('product.title') || c === 'product.currency_missing' || c === 'product.archived') {
+    return { tab: 'basic', label: '去基础信息' };
+  }
+  if (c.startsWith('product.description')) {
+    return { tab: 'ai', label: '去 AI 描述' };
+  }
+  if (c.startsWith('sku.')) {
+    return { tab: 'skus', label: '去 SKU' };
+  }
+  if (c.startsWith('image.')) {
+    return { tab: 'images', label: '去图片' };
+  }
+  if (c.startsWith('inventory.')) {
+    return { tab: 'inventory', label: '去库存' };
+  }
+  if (c.startsWith('platform.shop') || c === 'platform.shop_inactive' || c === 'platform.shop_not_authorized') {
+    return { href: '/shops', label: '店铺管理' };
+  }
+  if (c.startsWith('platform.')) {
+    return { href: '/settings/platform-publish', label: '平台刊登配置' };
+  }
+  return null;
+}
+
 export default function ProductDraftDetailPage() {
   const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
   const [loading, setLoading] = useState(true);
@@ -205,6 +275,13 @@ export default function ProductDraftDetailPage() {
   const [publishSubmitting, setPublishSubmitting] = useState(false);
 
   const [draftTabKey, setDraftTabKey] = useState('basic');
+  const [readinessPlat, setReadinessPlat] = useState<string>('tiktok');
+  const [readinessShopId, setReadinessShopId] = useState<string>('');
+  const [readinessResult, setReadinessResult] = useState<ProductReadinessResult | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [publishReadiness, setPublishReadiness] = useState<ProductReadinessResult | null>(null);
+  const [publishReadinessLoading, setPublishReadinessLoading] = useState(false);
+
   const [pubSkuRows, setPubSkuRows] = useState<PublicationSkuListingRow[]>([]);
   const [pubSkuLoading, setPubSkuLoading] = useState(false);
   const [pubSkuBulkPlatformFilter, setPubSkuBulkPlatformFilter] = useState('');
@@ -385,6 +462,9 @@ export default function ProductDraftDetailPage() {
         setDraftTabKey('inventory');
         void reloadPublicationSkus();
       }
+      if (q.get('tab') === 'readiness') {
+        setDraftTabKey('readiness');
+      }
     } catch {
       /* noop */
     }
@@ -403,6 +483,63 @@ export default function ProductDraftDetailPage() {
       return st === 'available' || st === 'beta';
     });
   }, [shopsList, platformsMeta]);
+
+  const shopsForReadinessPlat = useMemo(() => {
+    const p = readinessPlat.trim().toLowerCase();
+    return shopsList.filter((s) => (s.platform || '').toLowerCase() === p && s.authStatus === 'authorized');
+  }, [shopsList, readinessPlat]);
+
+  const runReadinessForTab = useCallback(async () => {
+    if (!id) return;
+    setReadinessLoading(true);
+    try {
+      const r = await getProductReadiness(id, {
+        platform: readinessPlat,
+        shopId: readinessShopId || undefined,
+        mode: 'draft',
+      });
+      setReadinessResult(r);
+    } catch (e: unknown) {
+      setReadinessResult(null);
+      message.error((e as Error)?.message || '检查失败');
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [id, readinessPlat, readinessShopId]);
+
+  const refreshPublishReadiness = useCallback(
+    async (shopId: string) => {
+      if (!shopId || !id) {
+        setPublishReadiness(null);
+        return;
+      }
+      const row = eligibleShopsForPublish.find((s) => s.id === shopId);
+      if (!row) {
+        setPublishReadiness(null);
+        return;
+      }
+      setPublishReadinessLoading(true);
+      try {
+        const r = await getProductReadiness(id, {
+          platform: row.platform,
+          shopId,
+          mode: 'publish',
+        });
+        setPublishReadiness(r);
+      } catch {
+        setPublishReadiness(null);
+      } finally {
+        setPublishReadinessLoading(false);
+      }
+    },
+    [id, eligibleShopsForPublish],
+  );
+
+  useEffect(() => {
+    if (draftTabKey !== 'publish' || !id) return;
+    const sid = publishForm.getFieldValue('shopId') as string | undefined;
+    if (sid) void refreshPublishReadiness(String(sid));
+  }, [draftTabKey, id, publishForm, refreshPublishReadiness]);
 
   const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
     () => [
@@ -1400,10 +1537,113 @@ export default function ProductDraftDetailPage() {
               ),
             },
             {
+              key: 'readiness',
+              label: '发布检查',
+              children: (
+                <Card variant="borderless">
+                  <Space direction="vertical" style={{ width: '100%' }} size="large">
+                    <Space wrap align="center">
+                      <Typography.Text strong>目标平台</Typography.Text>
+                      <Select
+                        style={{ minWidth: 160 }}
+                        value={readinessPlat}
+                        onChange={(v) => setReadinessPlat(v)}
+                        options={['tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
+                          label: p,
+                          value: p,
+                        }))}
+                      />
+                      <Typography.Text strong>店铺</Typography.Text>
+                      <Select
+                        style={{ minWidth: 240 }}
+                        placeholder="选择已授权店铺"
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        value={readinessShopId || undefined}
+                        onChange={(v) => setReadinessShopId(v ? String(v) : '')}
+                        options={shopsForReadinessPlat.map((s) => ({
+                          label: `${s.shopName} (${s.platform})`,
+                          value: s.id,
+                        }))}
+                      />
+                      <Button type="primary" loading={readinessLoading} onClick={() => void runReadinessForTab()}>
+                        重新检查
+                      </Button>
+                    </Space>
+                    {readinessResult ? (
+                      <>
+                        <Descriptions bordered size="small" column={2}>
+                          <Descriptions.Item label="总状态">{readinessStatusTag(readinessResult)}</Descriptions.Item>
+                          <Descriptions.Item label="分数">{readinessResult.score}</Descriptions.Item>
+                          <Descriptions.Item label="错误数">{readinessResult.errorCount}</Descriptions.Item>
+                          <Descriptions.Item label="警告数">{readinessResult.warningCount}</Descriptions.Item>
+                        </Descriptions>
+                        <Collapse
+                          defaultActiveKey={['product', 'sku', 'image', 'inventory', 'platform']}
+                          items={['product', 'sku', 'image', 'inventory', 'platform'].map((g) => ({
+                            key: g,
+                            label: READINESS_GROUP_LABEL[g] || g,
+                            children: (
+                              <Table
+                                size="small"
+                                pagination={false}
+                                rowKey={(_, i) => `${g}-${i}`}
+                                dataSource={readinessResult.checks.filter((c) => c.group === g)}
+                                columns={[
+                                  {
+                                    title: '级别',
+                                    width: 88,
+                                    render: (_: unknown, row: ReadinessCheckItem) => (
+                                      <Tag color={row.level === 'error' ? 'red' : 'orange'}>{row.level}</Tag>
+                                    ),
+                                  },
+                                  { title: '说明', dataIndex: 'message', ellipsis: true },
+                                  { title: '代码', dataIndex: 'code', width: 200, ellipsis: true },
+                                  {
+                                    title: '建议 / 操作',
+                                    width: 220,
+                                    render: (_: unknown, row: ReadinessCheckItem) => {
+                                      const fx = fixLinkForReadinessCode(row.code);
+                                      return (
+                                        <Space direction="vertical" size={4}>
+                                          <Typography.Text type="secondary">{row.suggestion}</Typography.Text>
+                                          {fx ? (
+                                            fx.tab ? (
+                                              <Button
+                                                type="link"
+                                                size="small"
+                                                style={{ padding: 0 }}
+                                                onClick={() => setDraftTabKey(fx.tab!)}
+                                              >
+                                                {fx.label}
+                                              </Button>
+                                            ) : (
+                                              <Link to={fx.href!}>{fx.label}</Link>
+                                            )
+                                          ) : null}
+                                        </Space>
+                                      );
+                                    },
+                                  },
+                                ]}
+                              />
+                            ),
+                          }))}
+                        />
+                      </>
+                    ) : (
+                      <Typography.Text type="secondary">选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / SKU / 图片（不校验店铺与平台配置）。</Typography.Text>
+                    )}
+                  </Space>
+                </Card>
+              ),
+            },
+            {
               key: 'publish',
               label: '刊登',
               children: (
-                <Spin spinning={pubCtxLoading}>
+                <Spin spinning={pubCtxLoading || publishReadinessLoading}>
                   <Card variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Alert
@@ -1423,6 +1663,54 @@ export default function ProductDraftDetailPage() {
                           </>
                         }
                       />
+                      {publishReadiness ? (
+                        <Alert
+                          type={
+                            !publishReadiness.canPublish
+                              ? 'error'
+                              : publishReadiness.warningCount > 0
+                                ? 'warning'
+                                : 'success'
+                          }
+                          showIcon
+                          message={
+                            <Space wrap align="center">
+                              <span>发布检查</span>
+                              {readinessStatusTag(publishReadiness)}
+                              <Typography.Text type="secondary">
+                                分 {publishReadiness.score} · 错误 {publishReadiness.errorCount} · 警告{' '}
+                                {publishReadiness.warningCount}
+                              </Typography.Text>
+                              <Button
+                                type="link"
+                                size="small"
+                                style={{ padding: 0 }}
+                                onClick={() => setDraftTabKey('readiness')}
+                              >
+                                查看明细
+                              </Button>
+                            </Space>
+                          }
+                          description={
+                            publishReadiness.checks.length ? (
+                              <div>
+                                {publishReadiness.checks.slice(0, 5).map((c, i) => (
+                                  <div key={`${c.code}-${i}`} style={{ marginBottom: 4 }}>
+                                    <Tag color={c.level === 'error' ? 'red' : 'orange'}>{c.level}</Tag> {c.message}
+                                  </div>
+                                ))}
+                                {publishReadiness.checks.length > 5 ? (
+                                  <Typography.Text type="secondary">
+                                    … 共 {publishReadiness.checks.length} 项
+                                  </Typography.Text>
+                                ) : null}
+                              </div>
+                            ) : (
+                              '未发现问题'
+                            )
+                          }
+                        />
+                      ) : null}
                       <Form
                         form={publishForm}
                         layout="vertical"
@@ -1433,14 +1721,62 @@ export default function ProductDraftDetailPage() {
                             message.error('请选择店铺');
                             return;
                           }
+                          const shop = eligibleShopsForPublish.find((s) => s.id === shopId);
+                          if (!shop) {
+                            message.error('店铺不可用');
+                            return;
+                          }
                           setPublishSubmitting(true);
                           try {
-                            await publishProduct(id, { shopId, options: {} });
+                            const r = await getProductReadiness(id, {
+                              platform: shop.platform,
+                              shopId,
+                              mode: 'publish',
+                            });
+                            setPublishReadiness(r);
+                            if (!r.canPublish) {
+                              Modal.error({
+                                title: '发布检查未通过',
+                                width: 600,
+                                content: (
+                                  <div>
+                                    {r.checks.map((c, i) => (
+                                      <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
+                                        <Tag color={c.level === 'error' ? 'red' : 'orange'}>{c.level}</Tag> {c.message}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ),
+                              });
+                              return;
+                            }
+                            const task = await publishProduct(id, { shopId, options: {} });
+                            if (task.readiness) setPublishReadiness(task.readiness);
                             message.success('已提交刊登任务');
                             publishForm.resetFields();
+                            setPublishReadiness(null);
                             await reloadPublishContext();
                           } catch (e: unknown) {
-                            message.error((e as Error)?.message || '提交失败');
+                            const ex = e as Error & { data?: unknown };
+                            if (ex.message === 'product readiness check failed' && ex.data && typeof ex.data === 'object') {
+                              const r = ex.data as ProductReadinessResult;
+                              setPublishReadiness(r);
+                              Modal.error({
+                                title: '发布检查未通过',
+                                width: 600,
+                                content: (
+                                  <div>
+                                    {(r.checks || []).map((c, i) => (
+                                      <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
+                                        <Tag color={c.level === 'error' ? 'red' : 'orange'}>{c.level}</Tag> {c.message}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ),
+                              });
+                            } else {
+                              message.error((ex as Error)?.message || '提交失败');
+                            }
                           } finally {
                             setPublishSubmitting(false);
                           }
@@ -1456,6 +1792,7 @@ export default function ProductDraftDetailPage() {
                             allowClear
                             showSearch
                             optionFilterProp="label"
+                            onChange={(v) => void refreshPublishReadiness(v ? String(v) : '')}
                             options={eligibleShopsForPublish.map((s) => {
                               const m = platformsMeta.find((x) => x.platform === s.platform);
                               const st = m?.capabilityStatus?.product_publish;
@@ -1469,7 +1806,12 @@ export default function ProductDraftDetailPage() {
                         </Form.Item>
                         <Form.Item>
                           <Space wrap>
-                            <Button type="primary" htmlType="submit" loading={publishSubmitting}>
+                            <Button
+                              type="primary"
+                              htmlType="submit"
+                              loading={publishSubmitting}
+                              disabled={!!publishReadiness && !publishReadiness.canPublish}
+                            >
                               提交刊登
                             </Button>
                             <Button onClick={() => void reloadPublishContext()}>刷新快照</Button>

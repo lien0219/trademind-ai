@@ -1,4 +1,7 @@
+import { request } from '@umijs/max';
+import type { ApiResponse } from '@/services/request';
 import { getWithParams, getJSON, postJSON } from '@/services/request';
+import type { ProductReadinessResult } from '@/services/productReadiness';
 
 export type ProductPublicationRow = {
   id: string;
@@ -34,13 +37,24 @@ export type ProductPublishTaskDTO = {
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
+  readiness?: ProductReadinessResult;
 };
 
 export async function publishProduct(
   productId: string,
-  body: { shopId: string; options?: Record<string, unknown> },
+  body: { shopId: string; options?: Record<string, unknown>; force?: boolean },
 ): Promise<ProductPublishTaskDTO> {
-  return postJSON(`/api/v1/products/${productId}/publish`, body);
+  const res = await request<ApiResponse<ProductPublishTaskDTO>>(`/api/v1/products/${encodeURIComponent(productId)}/publish`, {
+    method: 'POST',
+    data: body,
+  });
+  if (res.code !== 0) {
+    const err = new Error(res.message || 'publish_failed') as Error & { businessCode?: number; data?: unknown };
+    err.businessCode = res.code;
+    err.data = res.data;
+    throw err;
+  }
+  return res.data as ProductPublishTaskDTO;
 }
 
 export async function listProductPublications(productId: string): Promise<{ list: ProductPublicationRow[] }> {

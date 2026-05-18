@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -13,11 +14,12 @@ import (
 
 // Service wires DB + outbound provider execution for product_publish_tasks.
 type Service struct {
-	DB       *gorm.DB
-	Redis    *rdb.Client
-	Shops    *shop.Service
-	Settings *settings.Service
-	OpLog    *operationlog.Service
+	DB        *gorm.DB
+	Redis     *rdb.Client
+	Shops     *shop.Service
+	Settings  *settings.Service
+	OpLog     *operationlog.Service
+	Readiness *productcheck.Service
 
 	QueueEnabled bool
 	QueueName    string
