@@ -182,6 +182,11 @@ export default [
         name: 'SKU 匹配',
         component: './Orders/SkuMatches',
       },
+      {
+        path: '/orders/exceptions',
+        name: '异常工作台',
+        component: './Orders/Exceptions',
+      },
     ],
   },
   {

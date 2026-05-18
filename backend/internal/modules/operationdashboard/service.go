@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
@@ -26,9 +27,10 @@ const (
 
 // Service builds read-only product operations dashboard aggregates.
 type Service struct {
-	DB         *gorm.DB
-	Inventory  *inventory.Service
-	TaskCenter *taskcenter.Service
+	DB              *gorm.DB
+	Inventory       *inventory.Service
+	TaskCenter      *taskcenter.Service
+	OrderExceptions *orderexception.Service
 }
 
 // GetProductOperationDashboard returns dashboard data (local DB only; no side effects).
@@ -171,6 +173,15 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query) (*P
 	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
 		Where("status = ?", taskcenter.TaskAlertStatusOpen).
 		Count(&sum.OpenAlertCount).Error
+
+	if s.OrderExceptions != nil {
+		ex, err := s.OrderExceptions.DashboardSummary(ctx, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End)
+		if err == nil {
+			sum.OrderExceptionTotal = ex.TotalOpen
+			sum.SKUUnmatchedOrderItems = ex.SKUUnmatched
+			sum.InventoryDeductFailedOrders = ex.InsufficientStock + ex.InventoryDeductFailed
+		}
+	}
 
 	// Publishable / blocked counts for todos
 	publishableTx := s.publishableProductsTx(ctx, q)
@@ -369,6 +380,10 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			Description: "会话处于开放或待回复状态", Link: "/customer/conversations?status=open"},
 		{ID: "failures", Title: "失败任务（汇总）", Count: sum.FailedTaskTotal, Severity: failureclassifier.SeverityHigh,
 			Description: "统一失败任务中心统计", Link: "/task-center/failures"},
+		{ID: "order_exceptions", Title: "订单异常工作台", Count: sum.OrderExceptionTotal, Severity: failureclassifier.SeverityHigh,
+			Description: "未匹配 SKU / 扣库存失败 / 库存同步失败等需人工处理项（不含已处理/已忽略）", Link: "/orders/exceptions"},
+		{ID: "sku_unmatched_order_items", Title: "未匹配 SKU", Count: sum.SKUUnmatchedOrderItems, Severity: failureclassifier.SeverityHigh,
+			Description: "平台订单行尚未绑定本地 SKU", Link: "/orders/exceptions?exceptionType=sku_unmatched"},
 	}
 }
 

@@ -11,6 +11,7 @@ import {
 } from '@ant-design/pro-components';
 import {
   Badge,
+  Alert,
   Button,
   Drawer,
   Form,
@@ -123,6 +124,11 @@ export default function OrdersPage() {
   const [invEffectRows, setInvEffectRows] = useState<OrderInventoryEffectRow[]>([]);
   const [invActionLoading, setInvActionLoading] = useState(false);
   const detailIdRef = useRef<string | undefined>();
+
+  const invEffectFailures = useMemo(
+    () => invEffectRows.filter((r) => r.status === 'failed'),
+    [invEffectRows],
+  );
 
   useEffect(() => {
     detailIdRef.current = detail?.id;
@@ -633,6 +639,28 @@ export default function OrdersPage() {
                   label: '库存',
                   children: (
                     <>
+                      {detail && invEffectFailures.length > 0 ? (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          style={{ marginBottom: 12 }}
+                          message="存在失败的库存扣减或恢复记录"
+                          description={
+                            <span>
+                              请在异常工作台查看是否需要重新绑定 SKU、补库存或重试扣减。{' '}
+                              <Typography.Link
+                                onClick={() =>
+                                  history.push(
+                                    `/orders/exceptions?orderId=${encodeURIComponent(detail.id)}`,
+                                  )
+                                }
+                              >
+                                打开异常工作台
+                              </Typography.Link>
+                            </span>
+                          }
+                        />
+                      ) : null}
                       <Space wrap style={{ marginBottom: 12 }}>
                         {detail.inventorySummary ? (
                           <>

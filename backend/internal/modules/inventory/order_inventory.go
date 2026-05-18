@@ -111,7 +111,183 @@ type DeductionSummary struct {
 	Error        string `json:"error,omitempty"`
 }
 
-// DeductInventoryForOrder applies SKU stock decreases per line (transactional).
+type deductLineOutcome struct {
+	synced             bool
+	skipped            bool
+	failedInsufficient bool
+}
+
+// deductOneOrderLine runs inside a DB transaction for a single order line (commits independently).
+func (s *Service) deductOneOrderLine(tx *gorm.DB, orderID uuid.UUID, o orderMirror, it orderLineMirror, reasonBase string, allowNeg bool, opts OrderInventoryOptions) (deductLineOutcome, error) {
+	out := deductLineOutcome{}
+	now := time.Now().UTC()
+
+	if it.ProductSKUID == nil || *it.ProductSKUID == uuid.Nil {
+		sk := NilInventorySKUUID
+		count := int64(0)
+		_ = tx.Model(&OrderInventoryEffect{}).
+			Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ?", it.ID, sk, EffectTypeDeduct).
+			Count(&count).Error
+		if count == 0 {
+			e := OrderInventoryEffect{
+				OrderID:      orderID,
+				OrderItemID:  it.ID,
+				ProductID:    it.ProductID,
+				ProductSKUID: sk,
+				EffectType:   EffectTypeDeduct,
+				Quantity:     0,
+				Status:       InventoryEffectSkipped,
+				Reason:       "missing_product_sku_id",
+				CreatedBy:    opts.CreatedBy,
+			}
+			if err := tx.Create(&e).Error; err != nil {
+				return out, err
+			}
+		}
+		out.skipped = true
+		return out, nil
+	}
+
+	qty := it.Quantity
+	if qty <= 0 {
+		out.skipped = true
+		return out, nil
+	}
+
+	var hitSuccess int64
+	if err := tx.Model(&OrderInventoryEffect{}).
+		Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, *it.ProductSKUID, EffectTypeDeduct, InventoryEffectSuccess).
+		Count(&hitSuccess).Error; err != nil {
+		return out, err
+	}
+	if hitSuccess > 0 {
+		out.skipped = true
+		return out, nil
+	}
+
+	var sku product.ProductSKU
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&sku, "id = ? AND deleted_at IS NULL", it.ProductSKUID).Error; err != nil {
+		return out, err
+	}
+	if it.ProductID != nil && *it.ProductID != uuid.Nil && sku.ProductID != *it.ProductID {
+		return out, fmt.Errorf("sku %s does not belong to declared product row", sku.ID.String())
+	}
+
+	before := derefStock(sku.Stock)
+	if before < qty && !allowNeg {
+		if err := upsertFailedDeductEffect(tx, orderID, it, sku.ID, reasonBase, qty, true, opts.CreatedBy); err != nil {
+			return out, err
+		}
+		out.failedInsufficient = true
+		return out, nil
+	}
+	after := before - qty
+	if after < 0 && !allowNeg {
+		if err := upsertFailedDeductEffect(tx, orderID, it, sku.ID, reasonBase, qty, true, opts.CreatedBy); err != nil {
+			return out, err
+		}
+		out.failedInsufficient = true
+		return out, nil
+	}
+
+	rm := remarkForOrderStock(o.OrderNo, it.ID.String(), it.ExternalItemID)
+	chg := InventoryChangeLog{
+		ProductID:      sku.ProductID,
+		ProductSKUID:   sku.ID,
+		ChangeType:     ChangeOrderDeduct,
+		BeforeStock:    before,
+		AfterStock:     after,
+		Delta:          -qty,
+		Reason:         reasonBase,
+		Remark:         rm,
+		CreatedBy:      opts.CreatedBy,
+		RefOrderID:     &orderID,
+		RefOrderItemID: &it.ID,
+	}
+	if err := tx.Create(&chg).Error; err != nil {
+		return out, err
+	}
+	if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
+		Updates(map[string]any{"stock": after, "updated_at": now}).Error; err != nil {
+		return out, err
+	}
+
+	var prodForEff *uuid.UUID
+	if it.ProductID != nil && *it.ProductID != uuid.Nil {
+		pp := *it.ProductID
+		prodForEff = &pp
+	}
+
+	// Remove prior failed deduct attempt for this line + SKU so we can record success cleanly.
+	_ = tx.Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, sku.ID, EffectTypeDeduct, InventoryEffectFailed).
+		Delete(&OrderInventoryEffect{}).Error
+
+	eff := OrderInventoryEffect{
+		OrderID:      orderID,
+		OrderItemID:  it.ID,
+		ProductID:    prodForEff,
+		ProductSKUID: sku.ID,
+		EffectType:   EffectTypeDeduct,
+		Quantity:     qty,
+		Status:       InventoryEffectSuccess,
+		BeforeStock:  intPtr(before),
+		AfterStock:   intPtr(after),
+		Reason:       reasonBase,
+		LogID:        &chg.ID,
+		CreatedBy:    opts.CreatedBy,
+	}
+	if err := tx.Create(&eff).Error; err != nil {
+		return out, err
+	}
+	out.synced = true
+	return out, nil
+}
+
+func upsertFailedDeductEffect(tx *gorm.DB, orderID uuid.UUID, it orderLineMirror, skuID uuid.UUID, reasonBase string, qty int, insufficient bool, admin *uuid.UUID) error {
+	msg := "deduct failed"
+	if insufficient {
+		msg = "insufficient stock"
+	}
+	var prodForEff *uuid.UUID
+	if it.ProductID != nil && *it.ProductID != uuid.Nil {
+		pp := *it.ProductID
+		prodForEff = &pp
+	}
+	var row OrderInventoryEffect
+	err := tx.Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ?", it.ID, skuID, EffectTypeDeduct).
+		First(&row).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if row.ID != uuid.Nil && row.Status == InventoryEffectSuccess {
+		return nil
+	}
+	payload := OrderInventoryEffect{
+		OrderID:      orderID,
+		OrderItemID:  it.ID,
+		ProductID:    prodForEff,
+		ProductSKUID: skuID,
+		EffectType:   EffectTypeDeduct,
+		Quantity:     qty,
+		Status:       InventoryEffectFailed,
+		Reason:       reasonBase,
+		ErrorMessage: clampStr(msg, 1024),
+		CreatedBy:    admin,
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return tx.Create(&payload).Error
+	}
+	return tx.Model(&OrderInventoryEffect{}).Where("id = ?", row.ID).Updates(map[string]any{
+		"status":        InventoryEffectFailed,
+		"quantity":      qty,
+		"error_message": clampStr(msg, 1024),
+		"reason":        reasonBase,
+		"updated_at":    time.Now().UTC(),
+	}).Error
+}
+
+// DeductInventoryForOrder applies SKU stock decreases per line (one independent DB transaction per line).
 func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID, opts OrderInventoryOptions) (*DeductionSummary, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
@@ -145,138 +321,41 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 
 	allowNeg := allowNegative(policy, opts.AllowNegativeStock)
 
-	var synced, skippedCount int
-
-	txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		now := time.Now().UTC()
-		reasonBase := clampStr(strings.TrimSpace(opts.Reason), 128)
-		if reasonBase == "" {
-			if opts.PlatformAuto {
-				reasonBase = "order_synced"
-			} else {
-				reasonBase = "order_created"
-			}
+	reasonBase := clampStr(strings.TrimSpace(opts.Reason), 128)
+	if reasonBase == "" {
+		if opts.PlatformAuto {
+			reasonBase = "order_synced"
+		} else {
+			reasonBase = "order_created"
 		}
+	}
 
-		itemCopy := append([]orderLineMirror(nil), items...)
-		for _, it := range itemCopy {
-			if it.ProductSKUID == nil || *it.ProductSKUID == uuid.Nil {
-				sk := NilInventorySKUUID
-				count := int64(0)
-				_ = tx.Model(&OrderInventoryEffect{}).
-					Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ?", it.ID, sk, EffectTypeDeduct).
-					Count(&count).Error
-				if count == 0 {
-					e := OrderInventoryEffect{
-						OrderID:      orderID,
-						OrderItemID:  it.ID,
-						ProductID:    it.ProductID,
-						ProductSKUID: sk,
-						EffectType:   EffectTypeDeduct,
-						Quantity:     0,
-						Status:       InventoryEffectSkipped,
-						Reason:       "missing_product_sku_id",
-						CreatedBy:    opts.CreatedBy,
-					}
-					if err := tx.Create(&e).Error; err != nil {
-						return err
-					}
-				}
-				skippedCount++
-				continue
-			}
-			qty := it.Quantity
-			if qty <= 0 {
-				skippedCount++
-				continue
-			}
+	var synced, skippedCount, failedCount int
+	var insufficientAny bool
 
-			var hit int64
-			if err := tx.Model(&OrderInventoryEffect{}).
-				Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, *it.ProductSKUID, EffectTypeDeduct, InventoryEffectSuccess).
-				Count(&hit).Error; err != nil {
-				return err
-			}
-			if hit > 0 {
-				continue
-			}
-
-			var sku product.ProductSKU
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				First(&sku, "id = ? AND deleted_at IS NULL", it.ProductSKUID).Error; err != nil {
-				return err
-			}
-			if it.ProductID != nil && *it.ProductID != uuid.Nil && sku.ProductID != *it.ProductID {
-				return fmt.Errorf("sku %s does not belong to declared product row", sku.ID.String())
-			}
-			before := derefStock(sku.Stock)
-			if before < qty && !allowNeg {
-				return ErrInsufficientSKUStock
-			}
-			after := before - qty
-			if after < 0 && !allowNeg {
-				return ErrInsufficientSKUStock
-			}
-
-			rm := remarkForOrderStock(o.OrderNo, it.ID.String(), it.ExternalItemID)
-			chg := InventoryChangeLog{
-				ProductID:      sku.ProductID,
-				ProductSKUID:   sku.ID,
-				ChangeType:     ChangeOrderDeduct,
-				BeforeStock:    before,
-				AfterStock:     after,
-				Delta:          -qty,
-				Reason:         reasonBase,
-				Remark:         rm,
-				CreatedBy:      opts.CreatedBy,
-				RefOrderID:     &orderID,
-				RefOrderItemID: &it.ID,
-			}
-			if err := tx.Create(&chg).Error; err != nil {
-				return err
-			}
-			if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
-				Updates(map[string]any{"stock": after, "updated_at": now}).Error; err != nil {
-				return err
-			}
-
-			var prodForEff *uuid.UUID
-			if it.ProductID != nil && *it.ProductID != uuid.Nil {
-				pp := *it.ProductID
-				prodForEff = &pp
-			}
-
-			eff := OrderInventoryEffect{
-				OrderID:      orderID,
-				OrderItemID:  it.ID,
-				ProductID:    prodForEff,
-				ProductSKUID: sku.ID,
-				EffectType:   EffectTypeDeduct,
-				Quantity:     qty,
-				Status:       InventoryEffectSuccess,
-				BeforeStock:  intPtr(before),
-				AfterStock:   intPtr(after),
-				Reason:       reasonBase,
-				LogID:        &chg.ID,
-				CreatedBy:    opts.CreatedBy,
-			}
-			if err := tx.Create(&eff).Error; err != nil {
-				return err
-			}
-			synced++
-		}
-		return nil
-	})
-
-	if txErr != nil {
-		sum := &DeductionSummary{
-			Error: txErr.Error(),
-		}
-		if errors.Is(txErr, ErrInsufficientSKUStock) {
-			sum.Message = ErrInsufficientSKUStock.Error()
+	for _, it := range append([]orderLineMirror(nil), items...) {
+		var line deductLineOutcome
+		txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			var ierr error
+			line, ierr = s.deductOneOrderLine(tx, orderID, o, it, reasonBase, allowNeg, opts)
+			return ierr
+		})
+		if txErr != nil {
+			sum := &DeductionSummary{Error: txErr.Error()}
 			return sum, txErr
 		}
-		return sum, txErr
+		if line.synced {
+			synced++
+			continue
+		}
+		if line.failedInsufficient {
+			failedCount++
+			insufficientAny = true
+			continue
+		}
+		if line.skipped {
+			skippedCount++
+		}
 	}
 
 	if syncAfter && synced > 0 {
@@ -294,7 +373,6 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 			}
 			syncedSKU[*it.ProductSKUID] = struct{}{}
 			if _, err := s.CreateInventorySyncTasksForSKUStock(ctx, sku.ProductID, sku.ID, derefStock(sku.Stock), opts.CreatedBy); err != nil {
-				// platform sync failures do not rollback local deduction
 				if s.OpLog != nil {
 					_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 						AdminUserID: opts.CreatedBy,
@@ -309,11 +387,18 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 		}
 	}
 
-	return &DeductionSummary{
+	sum := &DeductionSummary{
 		LinesSynced:  synced,
 		LinesSkipped: skippedCount,
+		LinesFailed:  failedCount,
 		Message:      "ok",
-	}, nil
+	}
+	if insufficientAny {
+		sum.Message = ErrInsufficientSKUStock.Error()
+		sum.Error = ErrInsufficientSKUStock.Error()
+		return sum, ErrInsufficientSKUStock
+	}
+	return sum, nil
 }
 
 // RestorationSummary aggregates restore attempts.

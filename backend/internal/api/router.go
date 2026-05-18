@@ -25,6 +25,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
@@ -248,6 +249,22 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	orderSyncH := &ordersync.Handler{Svc: orderSyncSvc}
 
+	excSvc := &orderexception.Service{
+		DB:     dep.DB,
+		Orders: orderSvc,
+		Inv:    inventorySvc,
+	}
+	excCmd := &orderexception.Commands{
+		Svc:    excSvc,
+		Orders: orderSvc,
+		Inv:    inventorySvc,
+	}
+	excH := &orderexception.Handler{
+		Svc:   excSvc,
+		Cmds:  excCmd,
+		OpLog: opLogSvc,
+	}
+
 	customerChatSvc := &customerchat.Service{
 		DB:        dep.DB,
 		Settings:  settingsSvc,
@@ -346,6 +363,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectrule.Register(authed, collectRuleH)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	orderexception.Register(authed, excH)
 	ordersync.Register(authed, orderSyncH)
 	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)
@@ -370,7 +388,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	tcH := &taskcenter.Handler{Svc: tcSvc}
 	taskcenter.Register(authed, tcH)
 
-	dashSvc := &operationdashboard.Service{DB: dep.DB, Inventory: inventorySvc, TaskCenter: tcSvc}
+	dashSvc := &operationdashboard.Service{
+		DB:              dep.DB,
+		Inventory:       inventorySvc,
+		TaskCenter:      tcSvc,
+		OrderExceptions: excSvc,
+	}
 	dashH := &operationdashboard.Handler{Svc: dashSvc}
 	operationdashboard.Register(authed, dashH)
 

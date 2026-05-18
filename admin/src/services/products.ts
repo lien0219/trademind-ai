@@ -323,6 +323,7 @@ export type ProductSkuSearchHit = {
   skuCode: string;
   skuName?: string;
   stock?: number;
+  attrs?: Record<string, unknown> | unknown;
 };
 
 export async function searchProductSkus(params: { keyword?: string; productId?: string; limit?: number }) {

@@ -1,4 +1,5 @@
-import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
+import { history } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
 import {
   bindOrderItemSku,
@@ -58,6 +59,10 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
     void load();
   }, [load]);
 
+  const skuWorkbenchRows = rows.filter((r) =>
+    ['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || '')),
+  );
+
   const runSearch = async () => {
     try {
       const r = await searchProductSkus({ keyword: kw.trim(), limit: 20 });
@@ -84,6 +89,26 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
 
   return (
     <>
+      {skuWorkbenchRows.length > 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="部分明细需要人工处理 SKU 匹配"
+          description={
+            <span>
+              未匹配或多候选行可到异常工作台统一筛选与绑定。{' '}
+              <Typography.Link
+                onClick={() =>
+                  history.push(`/orders/exceptions?orderId=${encodeURIComponent(orderId)}`)
+                }
+              >
+                跳转异常工作台
+              </Typography.Link>
+            </span>
+          }
+        />
+      ) : null}
       <Space wrap style={{ marginBottom: 12 }}>
         <Popconfirm
           title="对未锁定行执行自动匹配？已 manual_bound 默认不覆盖。"
@@ -171,6 +196,15 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
               <Space wrap size="small">
                 {r.orderItemId ? (
                   <>
+                    {['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || '')) ? (
+                      <Typography.Link
+                        onClick={() =>
+                          history.push(`/orders/exceptions?orderId=${encodeURIComponent(orderId)}`)
+                        }
+                      >
+                        去工作台处理
+                      </Typography.Link>
+                    ) : null}
                     <Button size="small" onClick={() => openBind(r.orderItemId!)}>
                       绑定 SKU
                     </Button>

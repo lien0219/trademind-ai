@@ -1,5 +1,7 @@
 import {
   BellOutlined,
+  CloseCircleOutlined,
+  ContainerOutlined,
   InboxOutlined,
   RobotOutlined,
   SendOutlined,
@@ -159,6 +161,33 @@ export default function ProductOperationsDashboardPage() {
               onClick={() => history.push('/task-center/failures')}
             />
           </Col>
+          <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+            <SummaryCard
+              title="订单异常（待处理）"
+              value={summary.orderExceptionTotal}
+              icon={<ContainerOutlined />}
+              tone="#b45309"
+              onClick={() => history.push('/orders/exceptions')}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+            <SummaryCard
+              title="未匹配 SKU（行）"
+              value={summary.skuUnmatchedOrderItems}
+              icon={<WarningOutlined />}
+              tone="#c2410c"
+              onClick={() => history.push('/orders/exceptions?exceptionType=sku_unmatched')}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+            <SummaryCard
+              title="扣库存失败（订单侧）"
+              value={summary.inventoryDeductFailedOrders}
+              icon={<CloseCircleOutlined />}
+              tone="#991b1b"
+              onClick={() => history.push('/orders/exceptions?exceptionType=inventory_deduct_failed')}
+            />
+          </Col>
         </Row>
       ) : null}
 
@@ -215,6 +244,9 @@ export default function ProductOperationsDashboardPage() {
                 <Descriptions.Item label="开放告警 / 严重">
                   {summary.openAlertCount} / {summary.criticalAlertCount}
                 </Descriptions.Item>
+                <Descriptions.Item label="订单异常（待处理）">{summary.orderExceptionTotal}</Descriptions.Item>
+                <Descriptions.Item label="未匹配 SKU（行）">{summary.skuUnmatchedOrderItems}</Descriptions.Item>
+                <Descriptions.Item label="扣库存失败（订单侧）">{summary.inventoryDeductFailedOrders}</Descriptions.Item>
               </Descriptions>
             </ProCard>
           ) : null}

@@ -31,6 +31,12 @@ export type DashboardSummary = {
   failedTaskTotal: number;
   criticalAlertCount: number;
   openAlertCount: number;
+  /** 订单异常工作台：待处理异常总数（与 GET /orders/exceptions 默认视图一致） */
+  orderExceptionTotal: number;
+  /** 未匹配 / skipped SKU 行对应异常计数（工作台聚合） */
+  skuUnmatchedOrderItems: number;
+  /** 扣库存失败相关订单异常计数（工作台聚合） */
+  inventoryDeductFailedOrders: number;
 };
 
 export type DashboardTodo = {

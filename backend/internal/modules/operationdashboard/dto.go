@@ -44,6 +44,9 @@ type Summary struct {
 	FailedTaskTotal               int64 `json:"failedTaskTotal"`
 	CriticalAlertCount            int64 `json:"criticalAlertCount"`
 	OpenAlertCount                int64 `json:"openAlertCount"`
+	OrderExceptionTotal           int64 `json:"orderExceptionTotal"`
+	SKUUnmatchedOrderItems        int64 `json:"skuUnmatchedOrderItems"`
+	InventoryDeductFailedOrders   int64 `json:"inventoryDeductFailedOrders"`
 }
 
 // TodoCard is a single actionable backlog bucket.
