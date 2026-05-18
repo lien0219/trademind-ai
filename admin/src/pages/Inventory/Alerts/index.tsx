@@ -13,6 +13,7 @@ import {
   InputNumber,
   Modal,
   Popover,
+  Radio,
   Space,
   Switch,
   Tag,
@@ -22,15 +23,42 @@ import {
 import dayjs from 'dayjs';
 import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   adjustSkuStock,
+  batchUpdateStockSettings,
   createInventorySyncBatch,
+  previewBatchStockSettings,
   queryInventoryAlerts,
   syncPublicationSkuInventory,
   type InventoryAlertRow,
 } from '@/services/inventory';
 import { updateProductSkuStockSettings } from '@/services/products';
+
+const BATCH_STOCK_DEFAULT_MAX = 500;
+
+function alertsStockBatchNeedsConfirmAll(p: {
+  productSkuIds?: string[];
+  productId?: string;
+  platform?: string;
+  shopId?: string;
+  keyword?: string;
+  stockStatus?: string;
+  onlyPublished?: boolean;
+  alertTypes?: string[];
+  includeNormal?: boolean;
+}): boolean {
+  if (p.productSkuIds?.length) return false;
+  if ((p.productId ?? '').trim()) return false;
+  if ((p.platform ?? '').trim()) return false;
+  if ((p.shopId ?? '').trim()) return false;
+  if ((p.keyword ?? '').trim()) return false;
+  if ((p.stockStatus ?? '').trim()) return false;
+  if (p.onlyPublished) return false;
+  if (p.alertTypes?.length) return false;
+  if (!p.includeNormal) return false;
+  return true;
+}
 
 const ALERT_TYPE_LABEL: Record<string, string> = {
   out_of_stock: '售罄',
@@ -71,9 +99,55 @@ export default function InventoryAlertsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [active, setActive] = useState<InventoryAlertRow | null>(null);
   const [adjustSubmitting, setAdjustSubmitting] = useState(false);
-  const [settingsSubmitting, setSettingsSubmitting] = useState(false);
-  const [adjustForm] = Form.useForm<{ stock: number }>();
-  const [settingsForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
+  const [batchStockOpen, setBatchStockOpen] = useState(false);
+  const [batchStockScope, setBatchStockScope] = useState<'selected' | 'filter'>('selected');
+  const [batchMatched, setBatchMatched] = useState<number | null>(null);
+  const [batchPreviewLoading, setBatchPreviewLoading] = useState(false);
+  const [batchStockSubmitting, setBatchStockSubmitting] = useState(false);
+  const [batchStockForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
+
+  const buildStockBatchPayload = () => {
+    const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
+    const alertType = typeof fv.alertType === 'string' ? fv.alertType.trim() : '';
+    const alertTypes = alertType ? [alertType] : [];
+    const base = {
+      keyword: (fv.keyword as string)?.trim() || undefined,
+      platform: (fv.platform as string)?.trim().toLowerCase() || undefined,
+      shopId: (fv.shopId as string)?.trim() || undefined,
+      stockStatus: (fv.stockStatus as string)?.trim() || undefined,
+      onlyPublished: Boolean(fv.onlyPublished),
+      includeNormal: Boolean(fv.includeNormal),
+      alertTypes: alertTypes.length ? alertTypes : undefined,
+    };
+    if (batchStockScope === 'selected' && selectedSkuIds.length > 0) {
+      return { ...base, productSkuIds: selectedSkuIds };
+    }
+    return base;
+  };
+
+  const runBatchPreview = async () => {
+    setBatchPreviewLoading(true);
+    try {
+      const raw = buildStockBatchPayload();
+      const res = await previewBatchStockSettings({
+        ...raw,
+        page: 1,
+        pageSize: 10,
+      });
+      setBatchMatched(res.matchedCount);
+    } catch (e) {
+      setBatchMatched(null);
+      message.error((e as Error)?.message || '预览失败');
+    } finally {
+      setBatchPreviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!batchStockOpen) return;
+    void runBatchPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchStockOpen, batchStockScope]);
 
   const columns: ProColumns<InventoryAlertRow>[] = useMemo(
     () => [
@@ -340,6 +414,17 @@ export default function InventoryAlertsPage() {
         tableAlertRender={false}
         toolBarRender={() => [
           <Button
+            key="batch-stock"
+            onClick={() => {
+              const scope = selectedSkuIds.length ? 'selected' : 'filter';
+              setBatchStockScope(scope);
+              batchStockForm.setFieldsValue({ warningStock: 10, safetyStock: 2 });
+              setBatchStockOpen(true);
+            }}
+          >
+            批量设置预警线
+          </Button>,
+          <Button
             key="bulk-sync"
             type="primary"
             disabled={selectedSkuIds.length === 0}
@@ -549,6 +634,119 @@ export default function InventoryAlertsPage() {
           <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="批量设置预警线"
+        open={batchStockOpen}
+        onCancel={() => {
+          setBatchStockOpen(false);
+          setBatchMatched(null);
+        }}
+        okText="应用"
+        confirmLoading={batchStockSubmitting}
+        onOk={() => {
+          return batchStockForm
+            .validateFields()
+            .then((v) => {
+              if (v.safetyStock > v.warningStock) {
+                message.error('安全线不能大于预警线');
+                return Promise.reject(new Error('validation'));
+              }
+              if (batchStockScope === 'selected' && selectedSkuIds.length === 0) {
+                message.error('请先勾选 SKU，或改用「当前筛选结果」');
+                return Promise.reject(new Error('validation'));
+              }
+              const payload = buildStockBatchPayload();
+              const needAll = alertsStockBatchNeedsConfirmAll({
+                ...payload,
+                productSkuIds: payload.productSkuIds,
+              });
+              return new Promise<void>((resolve, reject) => {
+                Modal.confirm({
+                  title: '确认仅修改预警线？',
+                  width: 520,
+                  content: (
+                    <div>
+                      <Typography.Paragraph>
+                        将修改 <Typography.Text strong>{batchMatched ?? '—'}</Typography.Text>{' '}
+                        个 SKU 的预警线 / 安全线；不修改本地实际库存，不写入库存流水，不创建平台同步任务。
+                      </Typography.Paragraph>
+                      {needAll ? (
+                        <Typography.Paragraph type="warning">
+                          当前为「含正常 SKU 的全表筛选」，将附加 confirmAll 提交。
+                        </Typography.Paragraph>
+                      ) : null}
+                      {(batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX ? (
+                        <Typography.Paragraph type="warning">
+                          匹配数超过默认单次上限 {BATCH_STOCK_DEFAULT_MAX}，将附加 confirmLarge。
+                        </Typography.Paragraph>
+                      ) : null}
+                    </div>
+                  ),
+                  okText: '确认应用',
+                  onOk: async () => {
+                    setBatchStockSubmitting(true);
+                    try {
+                      const raw = buildStockBatchPayload();
+                      await batchUpdateStockSettings({
+                        ...raw,
+                        warningStock: v.warningStock,
+                        safetyStock: v.safetyStock,
+                        confirm: true,
+                        confirmLarge: (batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX,
+                        confirmAll: needAll,
+                      });
+                      message.success('已批量更新预警线');
+                      setBatchStockOpen(false);
+                      setBatchMatched(null);
+                      setSelectedSkuIds([]);
+                      actionRef.current?.reload();
+                      resolve();
+                    } catch (e) {
+                      message.error((e as Error)?.message || '失败');
+                      reject(e);
+                    } finally {
+                      setBatchStockSubmitting(false);
+                    }
+                  },
+                });
+              });
+            })
+            .catch((e: unknown) => {
+              if ((e as Error)?.message === 'validation') return;
+              throw e;
+            });
+        }}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          仅更新 product_skus.warning_stock / safety_stock，并重新计算 stock_status。
+        </Typography.Paragraph>
+        <Form form={batchStockForm} layout="vertical" initialValues={{ warningStock: 10, safetyStock: 2 }}>
+          <Form.Item label="应用范围">
+            <Radio.Group
+              value={batchStockScope}
+              onChange={(e) => setBatchStockScope(e.target.value as 'selected' | 'filter')}
+            >
+              <Radio value="selected" disabled={selectedSkuIds.length === 0}>
+                仅选中行（{selectedSkuIds.length}）
+              </Radio>
+              <Radio value="filter">当前筛选结果（含列表搜索条件）</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+            影响数量：{batchPreviewLoading ? '计算中…' : batchMatched !== null ? `${batchMatched} 个 SKU` : '—'}
+          </Typography.Paragraph>
+          <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Button type="link" size="small" onClick={() => void runBatchPreview()} loading={batchPreviewLoading}>
+            刷新匹配数
+          </Button>
         </Form>
       </Modal>
     </PageContainer>

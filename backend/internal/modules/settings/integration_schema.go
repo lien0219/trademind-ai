@@ -158,6 +158,7 @@ func IntegrationConfigDefinitions() []IntegrationConfigSchema {
 				{Name: "auto_sync_platform_inventory_after_deduct", Label: "扣库后触发平台库存同步任务", Type: "switch", Required: false, Help: "依赖店铺刊登与 outbound 路由。", DefaultValue: false},
 				{Name: "allow_negative_stock", Label: "允许 SKU 库存为负", Type: "switch", Required: false, DefaultValue: false},
 				{Name: "inventory_sync_batch_max_size", Label: "单次批量库存同步最多创建任务数", Type: "number", Required: false, Help: "上限建议 ≤500。", DefaultValue: 500},
+				{Name: "inventory_stock_settings_batch_max_size", Label: "单次批量设置预警线最多影响 SKU 数", Type: "number", Required: false, Help: "仅限制批量修改预警线/安全线，不影响库存同步批次大小。", DefaultValue: 500},
 				{Name: "inventory_sync_platform_rate_limit_enabled", Label: "启用库存同步 Worker 基础节流（Redis）", Type: "switch", Required: false, DefaultValue: true},
 				{Name: "inventory_sync_platform_rate_limit_per_minute_tiktok", Label: "TikTok 每分钟起始配额（计数近似）", Type: "number", Required: false, DefaultValue: 60},
 				{Name: "inventory_sync_platform_rate_limit_per_minute_shopee", Label: "Shopee 每分钟起始配额", Type: "number", Required: false, DefaultValue: 60},

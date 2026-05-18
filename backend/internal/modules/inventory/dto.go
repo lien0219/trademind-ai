@@ -273,3 +273,52 @@ type InventorySyncBatchListResult struct {
 type RetryInventorySyncTasksBatchBody struct {
 	TaskIds []string `json:"taskIds"`
 }
+
+// StockSettingsBatchPreviewBody POST /inventory/stock-settings/batch-preview
+type StockSettingsBatchPreviewBody struct {
+	ProductID     string   `json:"productId"`
+	ProductSkuIDs []string `json:"productSkuIds"`
+	Platform      string   `json:"platform"`
+	ShopID        string   `json:"shopId"`
+	StockStatus   string   `json:"stockStatus"`
+	AlertTypes    []string `json:"alertTypes"`
+	Keyword       string   `json:"keyword"`
+	OnlyPublished bool     `json:"onlyPublished"`
+	IncludeNormal bool     `json:"includeNormal"`
+	Page          int      `json:"page"`
+	PageSize      int      `json:"pageSize"`
+}
+
+// StockSettingsBatchUpdateBody POST /inventory/stock-settings/batch-update
+type StockSettingsBatchUpdateBody struct {
+	StockSettingsBatchPreviewBody
+	WarningStock int  `json:"warningStock"`
+	SafetyStock  int  `json:"safetyStock"`
+	Confirm      bool `json:"confirm"`
+	ConfirmLarge bool `json:"confirmLarge"`
+	ConfirmAll   bool `json:"confirmAll"`
+}
+
+// StockSettingsSampleSKU is a preview row without platform payloads.
+type StockSettingsSampleSKU struct {
+	ProductID    uuid.UUID `json:"productId"`
+	ProductSkuID uuid.UUID `json:"productSkuId"`
+	SKUCode      string    `json:"skuCode"`
+	ProductTitle string    `json:"productTitle,omitempty"`
+}
+
+// StockSettingsBatchPreviewResult matches POST /inventory/stock-settings/batch-preview data.
+type StockSettingsBatchPreviewResult struct {
+	MatchedCount int64                    `json:"matchedCount"`
+	SampleSkus   []StockSettingsSampleSKU `json:"sampleSkus"`
+	Page         int                      `json:"page"`
+	PageSize     int                      `json:"pageSize"`
+	TotalPages   int                      `json:"totalPages"`
+}
+
+// StockSettingsBatchUpdateResult matches POST /inventory/stock-settings/batch-update data.
+type StockSettingsBatchUpdateResult struct {
+	MatchedCount int64  `json:"matchedCount"`
+	UpdatedCount int64  `json:"updatedCount"`
+	Summary      string `json:"summary"`
+}

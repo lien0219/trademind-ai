@@ -649,3 +649,41 @@ func (h *Handler) RetryInventorySyncTasksBatch(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+// BatchPreviewStockSettings POST /inventory/stock-settings/batch-preview
+func (h *Handler) BatchPreviewStockSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	var body StockSettingsBatchPreviewBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.PreviewStockSettingsBatch(c.Request.Context(), body)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// BatchUpdateStockSettings POST /inventory/stock-settings/batch-update
+func (h *Handler) BatchUpdateStockSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	var body StockSettingsBatchUpdateBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.BatchUpdateStockSettings(c.Request.Context(), body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}

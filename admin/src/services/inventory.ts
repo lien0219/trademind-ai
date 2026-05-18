@@ -345,3 +345,54 @@ export async function retryInventorySyncBatchFailed(batchId: string) {
 export async function retryInventorySyncTasksBatch(taskIds: string[]) {
   return postJSON<InventorySyncBatchDTO>('/api/v1/inventory-sync/batches/retry-failed-tasks', { taskIds });
 }
+
+export type BatchStockSettingsPreviewPayload = {
+  productId?: string;
+  productSkuIds?: string[];
+  platform?: string;
+  shopId?: string;
+  stockStatus?: string;
+  alertTypes?: string[];
+  keyword?: string;
+  onlyPublished?: boolean;
+  includeNormal?: boolean;
+  page?: number;
+  pageSize?: number;
+};
+
+export type BatchStockSettingsSampleSku = {
+  productId: string;
+  productSkuId: string;
+  skuCode?: string;
+  productTitle?: string;
+};
+
+export type BatchStockSettingsPreviewResult = {
+  matchedCount: number;
+  sampleSkus: BatchStockSettingsSampleSku[];
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export async function previewBatchStockSettings(payload: BatchStockSettingsPreviewPayload) {
+  return postJSON<BatchStockSettingsPreviewResult>('/api/v1/inventory/stock-settings/batch-preview', payload);
+}
+
+export type BatchStockSettingsUpdatePayload = BatchStockSettingsPreviewPayload & {
+  warningStock: number;
+  safetyStock: number;
+  confirm: boolean;
+  confirmLarge?: boolean;
+  confirmAll?: boolean;
+};
+
+export type BatchStockSettingsUpdateResult = {
+  matchedCount: number;
+  updatedCount: number;
+  summary: string;
+};
+
+export async function batchUpdateStockSettings(payload: BatchStockSettingsUpdatePayload) {
+  return postJSON<BatchStockSettingsUpdateResult>('/api/v1/inventory/stock-settings/batch-update', payload);
+}

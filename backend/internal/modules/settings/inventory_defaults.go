@@ -32,6 +32,7 @@ func EnsureInventoryDefaults(ctx context.Context, db *gorm.DB) error {
 		{"alert_platform_stock_mismatch", "true"},
 		{"platform_stock_mismatch_threshold", "0"},
 		{"inventory_sync_batch_max_size", "500"},
+		{"inventory_stock_settings_batch_max_size", "500"},
 		{"inventory_sync_platform_rate_limit_enabled", "true"},
 		{"inventory_sync_platform_rate_limit_per_minute_tiktok", "60"},
 		{"inventory_sync_platform_rate_limit_per_minute_shopee", "60"},

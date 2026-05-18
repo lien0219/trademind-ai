@@ -11,7 +11,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Button, Card, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
+import { Button, Card, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Popconfirm, Radio, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, Alert, Upload, Table, message } from 'antd';
 import {
   ArrowUpOutlined,
   DeleteOutlined,
@@ -54,8 +54,10 @@ import {
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
   adjustSkuStock,
+  batchUpdateStockSettings,
   createInventorySyncBatch,
   listProductPublicationSkus,
+  previewBatchStockSettings,
   querySkuInventoryLogs,
   syncPublicationSkuInventory,
   type InventoryChangeLogRow,
@@ -66,6 +68,8 @@ function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
   return c === 'available' || c === 'beta';
 }
+
+const SKU_BATCH_STOCK_MAX_HINT = 500;
 
 function formatInventorySyncTaskCreateError(e: unknown): string {
   const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
@@ -221,6 +225,12 @@ export default function ProductDraftDetailPage() {
   const [stockSettingsTarget, setStockSettingsTarget] = useState<ProductSKURow | null>(null);
   const [stockSettingsForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
   const [stockSettingsSubmitting, setStockSettingsSubmitting] = useState(false);
+  const [skuBatchStockOpen, setSkuBatchStockOpen] = useState(false);
+  const [skuBatchScope, setSkuBatchScope] = useState<'selected' | 'all'>('all');
+  const [skuBatchSelKeys, setSkuBatchSelKeys] = useState<string[]>([]);
+  const [skuBatchMatched, setSkuBatchMatched] = useState<number | null>(null);
+  const [skuBatchPreviewLoading, setSkuBatchPreviewLoading] = useState(false);
+  const [skuBatchStockForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
 
   const aiImgAllowNoSourceImage = useMemo(() => {
     const prov = aiImgProvider.trim().toLowerCase();
@@ -289,6 +299,40 @@ export default function ProductDraftDetailPage() {
     if (!pf) return pubSkuRows;
     return pubSkuRows.filter((r) => (r.platform || '').toLowerCase() === pf);
   }, [pubSkuRows, pubSkuBulkPlatformFilter]);
+
+  const buildSkuStockPayload = useCallback(() => {
+    const base: { productId: string; includeNormal: boolean; productSkuIds?: string[] } = {
+      productId: id,
+      includeNormal: true,
+    };
+    if (skuBatchScope === 'selected' && skuBatchSelKeys.length > 0) {
+      base.productSkuIds = skuBatchSelKeys;
+    }
+    return base;
+  }, [id, skuBatchScope, skuBatchSelKeys]);
+
+  const runSkuBatchPreview = useCallback(async () => {
+    if (!id) return;
+    setSkuBatchPreviewLoading(true);
+    try {
+      const res = await previewBatchStockSettings({
+        ...buildSkuStockPayload(),
+        page: 1,
+        pageSize: 10,
+      });
+      setSkuBatchMatched(res.matchedCount);
+    } catch (e) {
+      setSkuBatchMatched(null);
+      message.error((e as Error)?.message || '预览失败');
+    } finally {
+      setSkuBatchPreviewLoading(false);
+    }
+  }, [id, buildSkuStockPayload]);
+
+  useEffect(() => {
+    if (!skuBatchStockOpen) return;
+    void runSkuBatchPreview();
+  }, [skuBatchStockOpen, skuBatchScope, skuBatchSelKeys, runSkuBatchPreview]);
 
   useEffect(() => {
     setPubSkuSelectedKeys([]);
@@ -992,13 +1036,31 @@ export default function ProductDraftDetailPage() {
                     }
                   />
 
-                  <Typography.Title level={5}>本地 SKU</Typography.Title>
+                  <Space align="center" style={{ marginBottom: 8 }} wrap>
+                    <Typography.Title level={5} style={{ margin: 0 }}>
+                      本地 SKU
+                    </Typography.Title>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setSkuBatchScope(skuBatchSelKeys.length ? 'selected' : 'all');
+                        skuBatchStockForm.setFieldsValue({ warningStock: 10, safetyStock: 2 });
+                        setSkuBatchStockOpen(true);
+                      }}
+                    >
+                      批量设置预警线
+                    </Button>
+                  </Space>
                   <Table<ProductSKURow>
                     loading={loading}
                     size="small"
                     pagination={false}
                     rowKey="id"
                     dataSource={(data.skus ?? []).filter((s) => !String(s.id).startsWith('new_'))}
+                    rowSelection={{
+                      selectedRowKeys: skuBatchSelKeys,
+                      onChange: (keys) => setSkuBatchSelKeys(keys.map(String)),
+                    }}
                     columns={[
                       { title: '编码', dataIndex: 'skuCode', width: 120, ellipsis: true },
                       { title: '名称', dataIndex: 'skuName', ellipsis: true },
@@ -1088,6 +1150,89 @@ export default function ProductDraftDetailPage() {
                       },
                     ]}
                   />
+
+                  <Modal
+                    title="批量设置预警线（本商品）"
+                    open={skuBatchStockOpen}
+                    onCancel={() => {
+                      setSkuBatchStockOpen(false);
+                      setSkuBatchMatched(null);
+                    }}
+                    okText="应用"
+                    onOk={() => {
+                      return skuBatchStockForm
+                        .validateFields()
+                        .then((v) => {
+                          if (v.safetyStock > v.warningStock) {
+                            message.error('安全线不能大于预警线');
+                            return Promise.reject(new Error('validation'));
+                          }
+                          if (skuBatchScope === 'selected' && skuBatchSelKeys.length === 0) {
+                            message.error('请勾选 SKU，或改用「本商品全部 SKU」');
+                            return Promise.reject(new Error('validation'));
+                          }
+                          return new Promise<void>((resolve, reject) => {
+                            Modal.confirm({
+                              title: '确认仅修改预警线？',
+                              content:
+                                '不修改实际库存，不同步平台，不写入库存流水。将影响的 SKU 数：' +
+                                String(skuBatchMatched ?? '—'),
+                              okText: '确认',
+                              onOk: async () => {
+                                try {
+                                  await batchUpdateStockSettings({
+                                    ...buildSkuStockPayload(),
+                                    warningStock: v.warningStock,
+                                    safetyStock: v.safetyStock,
+                                    confirm: true,
+                                    confirmLarge: (skuBatchMatched ?? 0) > SKU_BATCH_STOCK_MAX_HINT,
+                                  });
+                                  message.success('已批量更新预警线');
+                                  setSkuBatchStockOpen(false);
+                                  setSkuBatchMatched(null);
+                                  setSkuBatchSelKeys([]);
+                                  await reloadDetail();
+                                  resolve();
+                                } catch (e) {
+                                  message.error((e as Error)?.message || '失败');
+                                  reject(e);
+                                }
+                              },
+                            });
+                          });
+                        })
+                        .catch((e: unknown) => {
+                          if ((e as Error)?.message === 'validation') return;
+                          throw e;
+                        });
+                    }}
+                  >
+                    <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+                      匹配数：{skuBatchPreviewLoading ? '计算中…' : skuBatchMatched !== null ? `${skuBatchMatched} 个 SKU` : '—'}
+                    </Typography.Paragraph>
+                    <Form form={skuBatchStockForm} layout="vertical" initialValues={{ warningStock: 10, safetyStock: 2 }}>
+                      <Form.Item label="应用范围">
+                        <Radio.Group
+                          value={skuBatchScope}
+                          onChange={(e) => setSkuBatchScope(e.target.value as 'selected' | 'all')}
+                        >
+                          <Radio value="all">本商品全部 SKU</Radio>
+                          <Radio value="selected" disabled={skuBatchSelKeys.length === 0}>
+                            仅选中（{skuBatchSelKeys.length}）
+                          </Radio>
+                        </Radio.Group>
+                      </Form.Item>
+                      <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
+                        <InputNumber min={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                      <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
+                        <InputNumber min={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                      <Button type="link" size="small" onClick={() => void runSkuBatchPreview()} loading={skuBatchPreviewLoading}>
+                        刷新匹配数
+                      </Button>
+                    </Form>
+                  </Modal>
 
                   <Typography.Title level={5} style={{ marginTop: 24 }}>
                     已刊登 SKU 映射

@@ -28,6 +28,7 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
   const defSafe = parseIntField(values.default_safety_stock, 0);
   const mismatchTh = parseIntField(values.platform_stock_mismatch_threshold, 0);
   const batchMax = parseIntField(values.inventory_sync_batch_max_size, 500);
+  const batchWarn = parseIntField(values.inventory_stock_settings_batch_max_size, 500);
   const rlTiktok = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_tiktok, 60);
   const rlShopee = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_shopee, 60);
   const rlLazada = parseIntField(values.inventory_sync_platform_rate_limit_per_minute_lazada, 60);
@@ -49,6 +50,15 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
     { tenantId, groupKey: GROUP, itemKey: 'allow_manual_sku_bind_after_deduct', itemValue: boolStr(values.allow_manual_sku_bind_after_deduct), valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: GROUP, itemKey: 'allow_negative_stock', itemValue: boolStr(values.allow_negative_stock), valueType: 'string', isEncrypted: false, remark: '' },
     { tenantId, groupKey: GROUP, itemKey: 'inventory_sync_batch_max_size', itemValue: String(batchMax), valueType: 'string', isEncrypted: false, remark: '' },
+    {
+      tenantId,
+      groupKey: GROUP,
+      itemKey: 'inventory_stock_settings_batch_max_size',
+      itemValue: String(batchWarn),
+      valueType: 'string',
+      isEncrypted: false,
+      remark: '',
+    },
     {
       tenantId,
       groupKey: GROUP,
@@ -136,6 +146,7 @@ export default function InventorySettingsPage() {
           g.allow_manual_sku_bind_after_deduct === '' ? true : truthyStored(g.allow_manual_sku_bind_after_deduct),
         allow_negative_stock: truthyStored(g.allow_negative_stock),
         inventory_sync_batch_max_size: parseN(g.inventory_sync_batch_max_size, 500),
+        inventory_stock_settings_batch_max_size: parseN(g.inventory_stock_settings_batch_max_size, 500),
         inventory_sync_platform_rate_limit_enabled:
           g.inventory_sync_platform_rate_limit_enabled === ''
             ? true
@@ -162,6 +173,7 @@ export default function InventorySettingsPage() {
           allow_manual_sku_bind_after_deduct: true,
           allow_negative_stock: false,
           inventory_sync_batch_max_size: 500,
+          inventory_stock_settings_batch_max_size: 500,
           inventory_sync_platform_rate_limit_enabled: true,
           inventory_sync_platform_rate_limit_per_minute_tiktok: 60,
           inventory_sync_platform_rate_limit_per_minute_shopee: 60,
@@ -227,7 +239,7 @@ export default function InventorySettingsPage() {
             type="info"
             style={{ marginBottom: 16 }}
             message="库存预警默认值说明"
-            description="下列「默认预警 / 安全线」只影响新创建的 SKU，不会批量改写已有 SKU；已有行的预警线请在商品详情「库存」或「库存预警」中单独设置（后续可再做批量工具）。"
+            description="下列「默认预警 / 安全线」只影响新创建的 SKU，不会批量改写已有 SKU；已有行可在商品详情「库存」或「库存预警」中单条或批量设置预警线。"
           />
           <Typography.Title level={5}>库存预警（只读查询策略）</Typography.Title>
           <Form.Item label="新建 SKU 默认预警线（warning_stock）" name="default_warning_stock">
@@ -320,6 +332,13 @@ export default function InventorySettingsPage() {
             控制单次批量创建任务上限与各平台每分钟近似配额（Redis 计数）。超限任务会在 Worker 侧退回队列稍后重试并记录日志。
           </Typography.Paragraph>
           <Form.Item label="单次批量最多创建任务数" name="inventory_sync_batch_max_size">
+            <InputNumber min={1} max={5000} style={{ width: '100%', maxWidth: 280 }} />
+          </Form.Item>
+          <Form.Item
+            label="单次批量设置预警线最多影响 SKU 数"
+            name="inventory_stock_settings_batch_max_size"
+            extra="仅限制批量修改预警线/安全线；与上方「单次批量库存同步最多创建任务数」无关。"
+          >
             <InputNumber min={1} max={5000} style={{ width: '100%', maxWidth: 280 }} />
           </Form.Item>
           <Form.Item label="启用平台节流" name="inventory_sync_platform_rate_limit_enabled" valuePropName="checked">

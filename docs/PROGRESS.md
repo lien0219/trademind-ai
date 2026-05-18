@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-17（**批量库存同步批次**：**`inventory_sync_batches`**；**`inventory_sync_tasks.batch_id`/`batch_no`**；**`POST|GET /api/v1/inventory-sync/batches`**、**`GET …/:id`**、**`GET …/:id/tasks`**、**`POST …/:id/retry-failed`**、**`POST …/batches/retry-failed-tasks`**（≤100）；Worker **任务终态幂等聚合批次**（**`partial_success`**）；**`settings.inventory`** **`inventory_sync_batch_max_size`** + **平台每分钟限流开关与各平台阈值**（Worker **`inventory_rate` 初版 defer/requeue**）；管理端 **`/inventory/sync-batches`**，**`/inventory/alerts` 勾选批量同步**，草稿库存 Tab **刊登映射批量同步**，**`/inventory/sync-tasks` 失败批量重试 + `batchId` 筛选**；操作日志 **`inventory.sync_batch.*`**（摘要）。**未修改** TikTok/Shopee/Lazada/Amazon **`InventorySyncProvider`** 核心。**告警通知 / 失败中心** 等上一版能力仍有效，详见下文。）
+**最后更新**：2026-05-18（**批量设置库存预警线**：**`POST /api/v1/inventory/stock-settings/batch-preview`**、**`POST /api/v1/inventory/stock-settings/batch-update`**（**仅** **`warning_stock`/`safety_stock`/`stock_status`**；**不改** **`product_skus.stock`**；**不写** **`inventory_change_logs`**；**不创建** **`inventory_sync_tasks`**；**不调用**平台 API）；**`settings.inventory`** **`inventory_stock_settings_batch_max_size`**（默认 **500**，**EnsureInventoryDefaults** 幂等；**`integration_schema`**）；**`inventory.stock_alert.batch_update`** 操作日志（摘要 **matched/updated/筛选维度**，**SKU ID 前缀截断**）；管理端 **`/inventory/alerts`** **批量设置预警线**（**仅选中 / 当前筛选**、**preview**、**confirm / confirmLarge / confirmAll**）；**`/product/drafts/:id`「库存」Tab** **多选 SKU 批量预警线**（**本商品全部 / 仅选中**）；**`admin/src/services/inventory.ts`** **`previewBatchStockSettings`/`batchUpdateStockSettings`**。上一版 **批量库存同步批次**、四平台 **`InventorySyncProvider`**、订单扣库存与 **`SKU` 匹配** 能力不变。）
 
 ---
 
@@ -56,7 +56,7 @@
 - **ID 约定**：管理员等域表主键 **UUID**（`internal/pkg/model` + `internal/pkg/id`；GORM `char(36)`）；`settings` 表为 **`BIGINT` 自增**（与规则文档一致）。
 - **认证**：`admin_users` 模型；`POST /api/v1/auth/login`（bcrypt 口令、**JWT HS256**）；`GET /api/v1/auth/profile`、`POST /api/v1/auth/logout`（无状态，客户端弃 token）。
 - **JWT 上下文**：`BearerAuth` 写入 `ctxkey.AdminID` 与 **`ctxkey.AdminUsername`**（供审计与业务使用）。
-- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**platform.settings.update**（Partner 应用配置；**不落明文密钥**）、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：…；**商品**：…；**AI 标题**：…；**AI 描述**：…；**内部订单**：**`order.create` / `order.update` / `order.delete`（软删）**、**`order.item.{create|update|delete}`**、**`order.shipment.{create|update|delete}`**、**`order.sku_match.{auto|manual_bind|unmatched|ambiguous|rebuild}`**（摘要 **orderId / orderItemId / productSkuId**，**不落 token**）；**订单同步任务**：**`order.sync.create` / `order.sync.running` / `order.sync.success` / `order.sync.failed` / `order.sync.retry`**（**不落 token / 不全量 raw_data**）；**店铺 OAuth**：**`shop.oauth.tiktok.success|failed`、`shop.oauth.shopee.success|failed`、`shop.oauth.lazada.success|failed`、`shop.oauth.amazon.success|failed`**（不落 token）；**客服（MVP + 平台同步）**：**`customer.conversation.create` / `customer.conversation.update` / `customer.conversation.close`（含软删会话）**、**`customer.conversation.link_order`**、**`customer.message.create`**、**`customer.conversation.replied`**、**`customer.reply_generate.success` / `customer.reply_generate.failed`**、**`customer.reply_suggestion.edit` / `accept` / `discard`**（**不落客户正文全量**；可含 **conversationId / suggestionId / platform / 长度摘要**）；**`customer.platform_message.send.success` / `customer.platform_message.send.failed`**（**不落 token / 不全文记录客户消息**）；**库存预警（只读策略外仅记阈值/同步人工触发）**：**`inventory.stock_alert.update`**（**productSkuId / warningStock / safetyStock** 摘要）、**`inventory.alert.sync_inventory`**（**`fromInventoryAlert` 成功**摘要，**不写 token / 不全量平台响应**）；**图片任务**：…
+- **操作日志**：`operation_logs` 表；模块 `internal/modules/operationlog`；**`GET /api/v1/operation-logs`**（分页；**action / username / resource / start / end（RFC3339）** 筛选）。写入场景：**登录成功/失败**、**logout**、**settings 批量保存成功/失败**、**platform.settings.update**（Partner 应用配置；**不落明文密钥**）、**test-ai / test-storage 成功/失败**（消息不落敏感配置明文）；**采集**：…；**商品**：…；**AI 标题**：…；**AI 描述**：…；**内部订单**：**`order.create` / `order.update` / `order.delete`（软删）**、**`order.item.{create|update|delete}`**、**`order.shipment.{create|update|delete}`**、**`order.sku_match.{auto|manual_bind|unmatched|ambiguous|rebuild}`**（摘要 **orderId / orderItemId / productSkuId**，**不落 token**）；**订单同步任务**：**`order.sync.create` / `order.sync.running` / `order.sync.success` / `order.sync.failed` / `order.sync.retry`**（**不落 token / 不全量 raw_data**）；**店铺 OAuth**：**`shop.oauth.tiktok.success|failed`、`shop.oauth.shopee.success|failed`、`shop.oauth.lazada.success|failed`、`shop.oauth.amazon.success|failed`**（不落 token）；**客服（MVP + 平台同步）**：**`customer.conversation.create` / `customer.conversation.update` / `customer.conversation.close`（含软删会话）**、**`customer.conversation.link_order`**、**`customer.message.create`**、**`customer.conversation.replied`**、**`customer.reply_generate.success` / `customer.reply_generate.failed`**、**`customer.reply_suggestion.edit` / `accept` / `discard`**（**不落客户正文全量**；可含 **conversationId / suggestionId / platform / 长度摘要**）；**`customer.platform_message.send.success` / `customer.platform_message.send.failed`**（**不落 token / 不全文记录客户消息**）；**库存预警（只读策略外仅记阈值/同步人工触发）**：**`inventory.stock_alert.update`**（**productSkuId / warningStock / safetyStock** 摘要）、**`inventory.stock_alert.batch_update`**（**matched/updated/筛选条件**摘要，**SKU ID 前缀截断**）、**`inventory.alert.sync_inventory`**（**`fromInventoryAlert` 成功**摘要，**不写 token / 不全量平台响应**）；**图片任务**：…
 - **存储 Provider**：`internal/providers/storage` 接口 **Put / GetURL / Delete / Get**（调用方 **`Close` Get 返回体**）；**本地** `providers/storage/local`；**S3 兼容** `providers/storage/s3store`（**AWS SDK v2**）；**腾讯云 COS** **`providers/storage/cos`**（**`cos-go-sdk-v5`**）；**阿里云 OSS** **`providers/storage/oss`**（**`aliyun-oss-go-sdk`**）；**工厂** **`settings.storage.kind`** → **`local` / `s3` / `r2` / `minio` / `cos` / `oss`**（按 **`PlainByGroup`** 解密：**`s3_*`、`cos_*`、`oss_*`** 密钥）；**对象键** **`keypath.NormalizeSafe`** 防 **`..` 与非法路径段**；**不写密钥到日志**。**`GET /static/*filepath`** 仍仅 **`kind=local`**。
 - **文件**：`files` 表；**`POST /api/v1/files/upload`**（`multipart` 字段名 **`file`**；**jpg/jpeg/png/webp/gif**；**objectKey = 日期目录/UUID.ext**；**`storage_kind` 落库**，**云端 `public_url`** 取自 **`GetURL`**）；**本地行为不变**。**`GET /api/v1/files`**（分页、`contentType`）；**`DELETE /api/v1/files/:id`**（**先做 Provider.Delete（按 `storage_kind`，缺省回落当前 settings.kind）**，成功后再删 DB，避免「库删了对象残留」）。
 - **配置中心**：`settings` 模型与 `GET/PUT /api/v1/settings`；`item_value` 在 `is_encrypted=true` 时 **AES-GCM**（`APP_MASTER_KEY`）存储；列表接口 **脱敏**（`****` 规则）；PUT 若密文占位含 `****` 则 **不覆盖**原密钥，可更新 remark / value_type 等。
@@ -245,7 +245,7 @@ trademind-ai/
 34. **Lazada 商品刊登（beta）边界**：依赖 **`settings.platform_publish_lazada`**（**`default_category_id` / 包裹重量·长宽高 / `delivery_option` / `default_brand_id`（写入 `brand`）** 等）与 **`attrs` + `options.lazada_attributes`** 填报类目必填属性；**`/image/migrate`**（公网图）+ **`/image/upload`**（Storage **Get**）；**`payload` JSON** **`Request.Product`** 随 **Open Platform** 演进需校准；**`publish_as_draft`** 仅落摘要，**不强改平台字段**。
 35. **Shopee 商品刊登（beta）边界**：依赖 **`settings.platform_publish_shopee`**（**`default_category_id` / `logistic_channel_id` / `default_weight`** 等）与 **`shop_auth_tokens`**；类目属性由 **`shopee_attribute_list`**（**`attrs` / `options`**）手工提供；多 SKU 默认单维度 **`Variation`**，多维规格用 **`options.shopee_tier_variation`**；**`media_space/upload_image` · `add_item` · `init_tier_variation`** 字段映射随文档升级需校准。
 36. **Lazada 库存同步（beta）边界**：**`/product/price_quantity/update`** 与 **`/product/item/get`**、`payload` **JSON Schema**（**camelCase/PascalCase**）随 **Open Platform** 演进需校准；**`SellerSku`** 取自 **`sku_code`** 或由 **item get** 反查；按仓 **`WarehouseQty`** 依赖 **`platform_publish_lazada`** 或 **`options`** 的 **`warehouse_id`（WarehouseCode）**；**429 / 5xx / 超时** 文案带 **`retryable`**，由 **人工 retry**。
-37. **库存预警 — 批量设置预警线（未完成）**：当前为 **逐 SKU `PUT …/stock-settings`**；按商品/店铺/导入模板 **批量** 未做。
+37. **（已落地，见 §3.2 / 头部日期）批量设置库存预警线**：**`batch-preview`/`batch-update`** 与 **`/inventory/alerts`**、草稿 **「库存」Tab** UI；**不改** **`stock`**、**不写** **`inventory_change_logs`**、**不创建** **`inventory_sync_tasks`**。**仍不做**：按 **Excel/导入模板** 批量（仅筛选 + 多选）。
 38. **自动补货建议（未完成）**：MVP **不做**；仅 **提醒**，无采购/补货编排。
 39. **多仓库存 / WMS（未完成）**：单仓 **本地 `stock` + 平台镜像** 模型；**多仓**、库区、调拨未做。
 40. **采购入库（未完成）**：无 **ASN/采购单/入库单** 与库存流水类型的 **采购入账** 链路。
@@ -264,19 +264,20 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
-1. **批量设置库存预警线**：按商品 / 店铺 / 导入模板 **批量写入** **`warning_stock` / `safety_stock`**（**与现有 `stock-settings` 校验一致**）。
-2. **平台批量库存 Feed / API**：在 **`inventory_sync_batches`** 聚合之上接入 **Amazon Feeds** 等批量通路（与 Worker **幂等批次统计**兼容）。
-3. **多仓库存基础**：最小 **`warehouse`** 映射与 **按仓同步** 预留（避免推翻 **`product_skus.stock`** 单字段心智前先做 Schema 预留）。
-4. **飞书 / 企业微信真实通知**：接入官方机器人/SDK，沿用 **`notify` Provider** 与 **`task_alert_notifications`** 审计。
-5. **通知重试队列**：失败 **指数退避**、**可配置最大次数**（与 **taskreaper** 解耦、轻量即可）。
-6. **SKU 候选推荐（非自动绑定）**：在 **ambiguous / unmatched** 场景提供 **标题/属性** 辅助候选项（**不落 `product_sku_id` 直至人工确认**）。
-7. **失败归因深化**：在同 **规则引擎**上扩展关键词/别名；可选 **LLM 摘要路径**（**强脱敏**，**不改变** retry）。
-8. **Amazon Product Type Definitions / 刊登字段配置增强**：拉取 Product Type Definitions、沉淀 attributes 配置模板，并对 Listings Items 字段映射做生产实测（含 **PATCH 库存** 与各 **`product_type`**）。
-9. **Amazon SP-API 生产实测与限流优化**（凭证、`429`、多区域 endpoint、Listings / Messaging / Orders 字段完整性；Buyer-Seller Messaging **模板可用性**随订单状态的实测）。
-10. **Collector 反爬与稳定性增强**。
-11. **TikTok / Shopee / Lazada / Amazon 订单同步生产实测**：分页、字段、沙箱与 **`cursor`/offset**；按需补 **`docs/platform-provider.md` / `api.md`**。
-12. **订单同步深化**：租户隔离、**`external_order_id`/`order_no` 冲突策略**、**SKU 映射批量导入**、**`cursor`** 持久化策略。
-13. **TikTok / Shopee / Lazada / Amazon 库存同步生产实测**：与 **Partner / SP-API 文档**对齐、**部分失败** 摘要、**SKU 映射**准确性、**Amazon PATCH issues** 与 **异步提交** 行为。
+1. **平台批量库存 Feed / API 优化**：在 **`inventory_sync_batches`** 聚合之上接入 **Amazon Feeds** 等批量通路（与 Worker **幂等批次统计**兼容；与 **`inventory_rate` 延迟队列/精确限流**协同）。
+2. **多仓库存基础**：最小 **`warehouse`** 映射与 **按仓同步** 预留（避免推翻 **`product_skus.stock`** 单字段心智前先做 Schema 预留）。
+3. **库存预测 / 补货建议**：销量平滑 + 阈值建议（**不自动下单**；可与 **`warning_stock`/`safety_stock`** 提示联动）。
+4. **采购入库 MVP**：**ASN/采购单 → 入库** 与 **`inventory_change_logs`** 类型扩展（与 **订单扣库** 分轨）。
+5. **飞书 / 企业微信真实通知**：接入官方机器人/SDK，沿用 **`notify` Provider** 与 **`task_alert_notifications`** 审计。
+6. **通知重试队列**：失败 **指数退避**、**可配置最大次数**（与 **taskreaper** 解耦、轻量即可）。
+7. **SKU 候选推荐（非自动绑定）**：在 **ambiguous / unmatched** 场景提供 **标题/属性** 辅助候选项（**不落 `product_sku_id` 直至人工确认**）。
+8. **失败归因深化**：在同 **规则引擎**上扩展关键词/别名；可选 **LLM 摘要路径**（**强脱敏**，**不改变** retry）。
+9. **Amazon Product Type Definitions / 刊登字段配置增强**：拉取 Product Type Definitions、沉淀 attributes 配置模板，并对 Listings Items 字段映射做生产实测（含 **PATCH 库存** 与各 **`product_type`**）。
+10. **Amazon SP-API 生产实测与限流优化**（凭证、`429`、多区域 endpoint、Listings / Messaging / Orders 字段完整性；Buyer-Seller Messaging **模板可用性**随订单状态的实测）。
+11. **Collector 反爬与稳定性增强**。
+12. **TikTok / Shopee / Lazada / Amazon 订单同步生产实测**：分页、字段、沙箱与 **`cursor`/offset**；按需补 **`docs/platform-provider.md` / `api.md`**。
+13. **订单同步深化**：租户隔离、**`external_order_id`/`order_no` 冲突策略**、**SKU 映射批量导入**、**`cursor`** 持久化策略。
+14. **TikTok / Shopee / Lazada / Amazon 库存同步生产实测**：与 **Partner / SP-API 文档**对齐、**部分失败** 摘要、**SKU 映射**准确性、**Amazon PATCH issues** 与 **异步提交** 行为。
 
 （细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
 
@@ -299,6 +300,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-18 | **批量设置库存预警线**：**`POST /api/v1/inventory/stock-settings/batch-preview`** · **`batch-update`**；**`settings.inventory.inventory_stock_settings_batch_max_size`**；**`inventory.stock_alert.batch_update`**；管理端 **`/inventory/alerts`**、草稿 **「库存」Tab**、**设置 → 库存/订单**；**不改 stock / 不写 inventory_change_logs / 不创建 inventory_sync_tasks`**；**PROGRESS** §1·§3·§7·§8 |
 | 2026-05-17 | **批量库存同步批次**：**`inventory_sync_batches`** + **`inventory_sync_tasks.batch_id`/`batch_no`**；**`POST|GET /api/v1/inventory-sync/batches`** 及详情/任务/重试 API；Worker **幂等聚合批次** + **`inventory_rate` 初版限流**；**`settings.inventory`** 批量上限与各平台每分钟阈值；管理端 **`/inventory/sync-batches`**、预警页 **勾选批量同步**、草稿库存 Tab **刊登映射批量同步**、同步任务页 **失败批量重试 + `batchId` 筛选**；**`inventory.sync_batch.*`** 操作日志；**PROGRESS** §3/§7/§8 |
 | 2026-05-17 | **告警通知配置 settings 化（收紧）**：通知业务项 **不写入 .env**（移除示例中的 **详情前缀 / Webhook 超时**）；新增 **`taskcenter.alert_detail_public_base`**、**`alert_notify.webhook_timeout_seconds`**；**EnsureTaskcenterDefaults / EnsureAlertNotifyDefaults** 初装 **空/false**；站内告警 **去掉代码内嵌阈值默认**；**`/settings/alert-notify`** 页正名为 **告警通知配置**；**`PROGRESS`** 与 **`integration_schema`** 对齐 |
 | 2026-05-17 | **告警外部通知 + `task_alert_scan` Worker**：**`task_alert_notifications`** **AutoMigrate**；**`settings.alert_notify`/`EnsureAlertNotifyDefaults`**（**Webhook/飞书/企微 URL·Secret 加密**）；**扩展 `taskcenter`**（**`enable_external_notifications`** 等）；**`internal/modules/taskcenter/notify`**（**mail+SMTP**、**Webhook+HMAC**、**feishu/wecom planned**）；**扫描/生成后 `NotifyGeneratedAlerts`**（**去重** / **`alert_count` 重复规则**）；API **`GET /task-center/alert-notifications`**、**`POST /alerts/:id/notify`**；**`task_alert_scan`** **`worker_instances`**；**`/health` `byType`**；**`settings.alert_notify.update`** 等操作日志；管理端 **`/settings/alert-notify`**、**`/task-center/alerts`** **通知列·Drawer**；**.env.example** **`TASK_ALERT_SCAN_*`（部署门闸）**；**PROGRESS** 头部·§7·§8·变更记录 |
