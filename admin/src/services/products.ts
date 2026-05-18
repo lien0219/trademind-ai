@@ -27,6 +27,10 @@ export async function fetchProducts(params: {
   status?: string;
   source?: string;
   keyword?: string;
+  missingAiTitle?: boolean;
+  missingAiDescription?: boolean;
+  readinessBlocked?: boolean;
+  publishable?: boolean;
 }) {
   return getWithParams<{ list: ProductListRow[]; pagination: Pagination }>('/api/v1/products', {
     page: params.page,
@@ -34,6 +38,10 @@ export async function fetchProducts(params: {
     status: params.status,
     source: params.source,
     keyword: params.keyword,
+    missingAiTitle: params.missingAiTitle ? '1' : undefined,
+    missingAiDescription: params.missingAiDescription ? '1' : undefined,
+    readiness: params.readinessBlocked ? 'blocked' : undefined,
+    publishable: params.publishable ? '1' : undefined,
   });
 }
 

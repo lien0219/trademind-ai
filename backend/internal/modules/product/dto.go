@@ -124,6 +124,11 @@ type ListQuery struct {
 	Status   string
 	Source   string
 	Keyword  string
+	// Dashboard deep-link filters (optional).
+	MissingAiTitle       bool
+	MissingAiDescription bool
+	ReadinessBlocked     bool
+	Publishable          bool
 }
 
 // ListItem is one row for draft list (includes optional cover).

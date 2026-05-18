@@ -40,6 +40,11 @@ func atoiQP(c *gin.Context, key string, def int) int {
 	return n
 }
 
+func queryTruthy(c *gin.Context, key string) bool {
+	v := strings.TrimSpace(strings.ToLower(c.Query(key)))
+	return v == "1" || v == "true" || v == "yes"
+}
+
 // List GET /api/v1/products
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -47,11 +52,15 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	q := ListQuery{
-		Page:     atoiQP(c, "page", 1),
-		PageSize: atoiQP(c, "pageSize", 20),
-		Status:   c.Query("status"),
-		Source:   c.Query("source"),
-		Keyword:  c.Query("keyword"),
+		Page:                 atoiQP(c, "page", 1),
+		PageSize:             atoiQP(c, "pageSize", 20),
+		Status:               c.Query("status"),
+		Source:               c.Query("source"),
+		Keyword:              c.Query("keyword"),
+		MissingAiTitle:       queryTruthy(c, "missingAiTitle"),
+		MissingAiDescription: queryTruthy(c, "missingAiDescription"),
+		ReadinessBlocked:     strings.TrimSpace(strings.ToLower(c.Query("readiness"))) == "blocked",
+		Publishable:          queryTruthy(c, "publishable"),
 	}
 	res, err := h.Svc.List(c, q)
 	if err != nil {

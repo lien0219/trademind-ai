@@ -6,8 +6,8 @@ import {
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber } from 'antd';
-import { useRef, useState } from 'react';
-import { history } from '@umijs/max';
+import { useRef, useState, useMemo, useEffect } from 'react';
+import { history, useLocation } from '@umijs/max';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
@@ -15,6 +15,17 @@ import { batchCheckProductReadiness, type ProductReadinessResult } from '@/servi
 import { queryShops, type ShopListRow } from '@/services/shops';
 
 export default function ProductDraftsPage() {
+  const location = useLocation();
+  const urlFilters = useMemo(() => {
+    const sp = new URLSearchParams(location.search);
+    return {
+      missingAiTitle: sp.get('missingAiTitle') === '1',
+      missingAiDescription: sp.get('missingAiDescription') === '1',
+      readinessBlocked: sp.get('readiness') === 'blocked',
+      publishable: sp.get('publishable') === '1',
+    };
+  }, [location.search]);
+
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
@@ -30,6 +41,10 @@ export default function ProductDraftsPage() {
   const [bulkForm] = Form.useForm();
   const [bulkOp, setBulkOp] = useState<string>('title_optimize');
   const [bulkConfirmFiltered, setBulkConfirmFiltered] = useState(false);
+
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [location.search]);
 
   const columns: ProColumns<ProductListRow>[] = [
     {
@@ -219,6 +234,17 @@ export default function ProductDraftsPage() {
 
   return (
     <PageContainer title="商品草稿">
+      {(urlFilters.missingAiTitle ||
+        urlFilters.missingAiDescription ||
+        urlFilters.readinessBlocked ||
+        urlFilters.publishable) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="已从运营看板带入列表筛选（只影响本页查询，不写库）。"
+        />
+      )}
       <ProTable<ProductListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -280,6 +306,10 @@ export default function ProductDraftsPage() {
             status: params.status as string | undefined,
             source: params.source as string | undefined,
             keyword: params.keyword as string | undefined,
+            missingAiTitle: urlFilters.missingAiTitle || undefined,
+            missingAiDescription: urlFilters.missingAiDescription || undefined,
+            readinessBlocked: urlFilters.readinessBlocked || undefined,
+            publishable: urlFilters.publishable || undefined,
           });
           return {
             data: res.list,

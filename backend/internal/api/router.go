@@ -22,6 +22,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
@@ -368,6 +369,11 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	tcH := &taskcenter.Handler{Svc: tcSvc}
 	taskcenter.Register(authed, tcH)
+
+	dashSvc := &operationdashboard.Service{DB: dep.DB, Inventory: inventorySvc, TaskCenter: tcSvc}
+	dashH := &operationdashboard.Handler{Svc: dashSvc}
+	operationdashboard.Register(authed, dashH)
+
 	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc
 }
 

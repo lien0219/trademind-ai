@@ -68,6 +68,43 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		pat := "%" + strings.ToLower(v) + "%"
 		tx = tx.Where("LOWER(title) LIKE ? OR LOWER(original_title) LIKE ?", pat, pat)
 	}
+	if q.MissingAiTitle {
+		tx = tx.Where("status <> ?", StatusArchived).
+			Where("TRIM(COALESCE(ai_title,'')) = ''").
+			Where("( TRIM(COALESCE(title,'')) <> '' OR TRIM(COALESCE(original_title,'')) <> '' )")
+	}
+	if q.MissingAiDescription {
+		tx = tx.Where("status <> ?", StatusArchived).
+			Where("TRIM(COALESCE(ai_description,'')) = ''").
+			Where("( TRIM(COALESCE(description,'')) = '' OR LENGTH(TRIM(COALESCE(description,''))) < ? )", 60)
+	}
+	if q.ReadinessBlocked {
+		tx = tx.Where("status <> ?", StatusArchived).
+			Where(`(
+			(TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '')
+			OR TRIM(COALESCE(currency,'')) = ''
+			OR NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps0 WHERE ps0.product_id = products.id AND ps0.deleted_at IS NULL)
+			OR EXISTS (SELECT 1 FROM product_skus ps1 WHERE ps1.product_id = products.id AND ps1.deleted_at IS NULL AND (ps1.price IS NULL OR ps1.price <= 0))
+		)`, ImageTypeMain)
+	}
+	if q.Publishable {
+		tx = tx.Where("status IN ?", []string{StatusDraft, StatusReady}).
+			Where("( TRIM(COALESCE(title,'')) <> '' OR TRIM(COALESCE(original_title,'')) <> '' )").
+			Where("TRIM(COALESCE(currency,'')) <> ''").
+			Where(`EXISTS (
+			SELECT 1 FROM product_images pi
+			WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL
+		)`, ImageTypeMain).
+			Where(`EXISTS (
+			SELECT 1 FROM product_skus ps
+			WHERE ps.product_id = products.id AND ps.deleted_at IS NULL
+		)`).
+			Where(`NOT EXISTS (
+			SELECT 1 FROM product_skus ps2
+			WHERE ps2.product_id = products.id AND ps2.deleted_at IS NULL AND (ps2.price IS NULL OR ps2.price <= 0)
+		)`)
+	}
 
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {

@@ -17,7 +17,18 @@ export default [
     path: '/dashboard',
     name: '工作台',
     icon: 'DashboardOutlined',
-    component: './Dashboard',
+    component: '@/layouts/DashboardGroupLayout',
+    routes: [
+      {
+        path: '/dashboard',
+        redirect: '/dashboard/product-operations',
+      },
+      {
+        path: '/dashboard/product-operations',
+        name: '商品运营看板',
+        component: './Dashboard/ProductOperations',
+      },
+    ],
   },
   {
     path: '/system/operation-logs',
