@@ -365,6 +365,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the detailed roadmap.
 | [docs/architecture.md](docs/architecture.md) | architecture design |
 | [docs/provider.md](docs/provider.md) | Provider extension mechanism |
 | [docs/roadmap.md](docs/roadmap.md) | roadmap |
+| [docs/branching.md](docs/branching.md) | branching and PR rules |
 | [docs/sponsor.md](docs/sponsor.md) | sponsor information |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | contribution guide |
 | [SECURITY.md](SECURITY.md) | security policy |

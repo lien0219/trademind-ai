@@ -365,6 +365,7 @@ Go Gin API
 | [docs/architecture.md](docs/architecture.md) | 架构设计 |
 | [docs/provider.md](docs/provider.md) | Provider 扩展机制 |
 | [docs/roadmap.md](docs/roadmap.md) | 路线图 |
+| [docs/branching.md](docs/branching.md) | 分支管理与 PR 规则 |
 | [docs/sponsor.md](docs/sponsor.md) | 赞助支持 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
 | [SECURITY.md](SECURITY.md) | 安全策略 |
