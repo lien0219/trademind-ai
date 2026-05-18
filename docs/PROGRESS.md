@@ -3,17 +3,97 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-18 — （**SKU 候选推荐，只读辅助人工**）后端 **`internal/modules/skucandidate`**：**只读实时计算**，**不写** `order_items`/`order_item_sku_matches.manual_bound`/`inventory_*`/`inventory_sync_tasks`，**不调平台**、**不落** `raw_data` 大包。**JWT** **`GET /api/v1/order-items/:itemId/sku-candidates`**（`limit`≤20，默认 **`confidence`**≥40，`includeLowConfidence`）；**`POST /api/v1/orders/:orderId/sku-candidates/batch`**（单次 ≤30 `orderItemIds`）；候选来源：**历史 manual_bound**、`product_publication_skus`、本地 **`product_skus.sku_code`**、**标题 token Jaccard**、**规格属性**；**从不自动绑定/扣库/入队库存同步**。绑定仍走 **`POST /order-items/:id/bind-sku`** 与异常工作台 **`bind-sku`**；**`order.exception.bind_sku` / `order.sku_match.manual_bind`** 摘要可含 **`candidateConfidence`/`candidateSource`**。管理端 **`/orders/exceptions`**（抽屉候选表 + 「查看候选」Modal）与订单 **SKU 匹配 Tab**（行展开加载候选、绑定 Modal「二次确认绑定」）。同期保留：**订单异常工作台**（**`order_exception_marks` + `orderexception`**）与**商品运营看板**（**`operationdashboard`**，只读）主线不变。
+**最后更新**：2026-05-19 — **在文件顶部固化《当前产品路线》**：**双主线优先级**（AI 商品运营工具 → 多平台跨境 ERP MVP → 完整 ERP 增强后置）；**当前阶段非完整 ERP 扩展阶段**，仅收口前述两条主线；明确两条主线的**目标链路**、**完整 ERP 后置清单**与**下一步（验收 / 体验 / 演示）**。技术细节仍以正文 **§3.2** 与 **变更记录**为准。
 
 ---
 
+## 当前产品路线
+
+**当前阶段不是「完整 ERP 扩展阶段」。** 开发只收口以下两条主线：
+
+1. **第一优先级**：**AI 商品运营工具**
+2. **第二优先级**：**多平台跨境 ERP**（MVP）
+3. **后续迭代**：**完整 ERP 增强**，**暂时不做**
+
+**完整 ERP 增强**包括多仓、采购、售后退款、财务、预测补货、复杂 BI、WMS/OMS 等能力，**全部后置**到后续版本。
+
+**当前开发重点：**
+
+- **SKU 候选推荐**（已落地，见正文 §3.2 / 变更记录 2026-05-18；持续联调、验收与文档对齐）
+- **多平台跨境 ERP MVP 验收检查**
+- **AI 商品运营工具体验打磨**
+
+---
+
+### 一、AI 商品运营工具当前目标
+
+优先保证以下链路**可用、可演示、可小规模试用**：
+
+采集商品 → 商品草稿 → **AI 标题优化** → **AI 描述生成** → **AI 图片处理** → **批量 AI 商品运营** → **商品发布前检查** → **商品刊登** → **库存预警** → **商品运营看板**
+
+---
+
+### 二、多平台跨境 ERP 当前目标
+
+优先保证以下链路**可用、可演示、可小规模试用**：
+
+店铺授权 → **平台订单同步** → **SKU 自动匹配** → **未匹配 SKU 进入异常工作台** → **SKU 候选推荐** → **人工绑定 SKU** → **订单扣减库存** → **平台库存同步** → **客服消息拉取** → **AI 客服建议** → **人工确认发送** → **失败任务中心 / 告警兜底**
+
+---
+
+### 三、完整 ERP 增强全部后置
+
+以下能力**暂时不进入当前开发范围**，只作为后续版本迭代：
+
+- 多仓库存
+- 采购入库
+- 供应商管理
+- 库存预测
+- 自动补货
+- 财务结算
+- 售后 / 退款
+- 退货入库
+- 平台售后单同步
+- 平台批量库存 Feed 深度优化
+- 飞书 / 企业微信真实通知
+- AI 智能归因深化
+- 复杂 BI 报表
+- 完整 WMS / OMS / 财务系统
+
+---
+
+### 四、当前下一步
+
+**SKU 候选推荐**已按主线交付（见 §3.2「内部订单」与变更记录 **2026-05-18**）。**做完该条目的收口与联调后，不要继续新增完整 ERP 高级模块。**
+
+接下来进入：
+
+1. **多平台跨境 ERP MVP 验收检查**
+2. **AI 商品运营工具体验打磨**
+3. **错误提示 / 空状态 / 引导文案优化**
+4. **演示版本准备**
+
+（与下文 **§8 下一步开发计划** 对齐。）
+
+---
+
+### 五、文档口径（必读）
+
+在后续迭代与 Cursor 会话中，默认遵守：
+
+- **当前阶段**只聚焦 **AI 商品运营工具** 与 **多平台跨境 ERP MVP** 两条主线。
+- **完整 ERP 增强**一律视为**后续迭代**，不纳入当前排期。
+- **工程收口**：优先把已落地能力做到**可演示、可小规模试用**，而非横向扩张重型 ERP 模块。
+
+---
 
 ## 1. 当前阶段
 
 | 维度 | 状态 |
 |------|------|
 | **路线图阶段** | **第 5 阶段（采集）**保持；**第 6 阶段（AI 图片）**保持（见 §3.2）；**AI 客服 MVP**：手工 / **平台拉取** 会话 + **AI 建议**；**仅人工**可 **发送到平台**（**不自动外发**） |
-| **优先级（2026-05-18）** | **1）AI 商品运营工具 MVP 收口** → **2）多平台跨境 ERP MVP** → **3）完整 ERP 增强**；供应链深能力（多仓/采购预测/财务等）**刻意后置** |
+| **当前阶段定位（2026-05-19）** | **非**完整 ERP 扩展阶段；**只收口**：**① AI 商品运营工具**、**② 多平台跨境 ERP MVP**。**完整 ERP 增强**（多仓、采购、售后财务、WMS/OMS 等）**后置**，见上文 **《当前产品路线》** |
+| **优先级** | **1）第一优先级：AI 商品运营工具** → **2）第二优先级：多平台跨境 ERP** → **3）后续迭代：完整 ERP 增强（暂时不做）**；供应链深能力**刻意不在当前排期** |
 | **MVP 闭环** | 登录 → 配置 AI → 采集/草稿 → **AI 标题/描述** → **可选：手工录入或拉取平台客服消息** → 关联内部手工订单（可选）→ AI 生成建议（含订单/物流快照）→ **人工采纳（仅入库）或人工确认后外发到平台**（依赖有效大模型与平台客服权限） |
 | **产物形态** | Monorepo 可构建；本地需 **PostgreSQL**；AI 调用走 **后端 Gateway**，前端 **不直连** 第三方模型 |
 
@@ -276,17 +356,24 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
+与文件顶部 **《当前产品路线》§四** 对齐；**SKU 候选推荐**已交付（**2026-05-18**），当前进入 **双主线 MVP 验收与体验收口**，**不新增完整 ERP 高级模块**。
+
+**当前排期（1–4）**
+
 1. **多平台跨境 ERP MVP 验收检查**：四平台订单/刊登/库存同步 **`beta`** 实测与 **`taskcenter`** 联动。
-2. **AI 商品运营工具体验打磨**：批量 AI、草稿链路、提示与错误文案。
-3. **售后 / 退款基础能力**：退换货异常不进工作台 **SKU 主线**，单列迭代。
-4. **Amazon Product Type Definitions / 刊登字段配置增强**：拉取 **PTD**、`amazon_attributes` 模板化，与 **Listings Items** 实测对齐。
-5. **Amazon SP-API / 各平台** **限流与部分失败** 策略在 **`taskcenter` / Worker** 上持续调优（**不引入过重编排**）。
-6. **Collector 反爬与稳定性增强**（**自定义规则**与 **AliExpress beta** 并行迭代）。
-7. **通知重试队列**（**Webhook/邮件** 出站 **退避**；**飞书/企微真实发送**仍遵循 §7 **暂缓**节奏）。
+2. **AI 商品运营工具体验打磨**：批量 AI、草稿全链路、关键路径提示与稳定性。
+3. **错误提示 / 空状态 / 引导文案优化**：列表与详情、失败与重试、设置与授权等高频路径。
+4. **演示版本准备**：可稳定跑通顶部 **§一 / §二** 两条目标链路的演示包与检查清单。
 
-（**2026-05-18**：**SKU 候选推荐** 已交付：只读 API + 管理端联动；**不自动绑定/扣库/同步**。）
+**后续迭代（非当前「完整 ERP」排期；按需穿插，不阻断 1–4）**
 
-（完整 ERP 增强项：**多仓 / 采购入库 / 库存预测 / 自动补货 / 财务结算 / 平台批量 Feed 深度优化** 等 **刻意暂缓**；细化任务时仍以 `.cursor/rules/09-dev-workflow.mdc` 的阶段为准。）
+- **Amazon Product Type Definitions / 刊登字段配置增强**（**PTD**、`amazon_attributes` 模板化，与 **Listings Items** 实测对齐）
+- **Amazon SP-API / 各平台** 限流与部分失败策略在 **`taskcenter` / Worker** 上持续调优（**不引入过重编排**）
+- **Collector** 反爬与稳定性增强（**自定义规则**与 **AliExpress beta**）
+- **通知重试队列**（**Webhook/邮件** 出站退避；飞书/企微真实发送仍属 **§7 暂缓** / 《当前产品路线》**§三** 后置项）
+- **售后 / 退款基础能力**：属 **完整 ERP 增强**方向，**不纳入**当前双主线 MVP 收口；若单列迭代须单独立项
+
+（**完整 ERP 增强**清单见文件顶部 **《当前产品路线》§三**；规则性阶段划分仍可参考 **`.cursor/rules/09-dev-workflow.mdc`**。）
 
 ---
 
@@ -307,7 +394,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
-| 2026-05-18 | **订单异常 / 未匹配 SKU 工作台**：**`order_exception_marks`**；**`internal/modules/orderexception`**；**`GET|POST|DELETE /api/v1/orders/exceptions*`**（列表 **`summary`**、详情、**handle/ignore/unmark**、**bind-sku**、**retry-deduct**、**retry-inventory-sync**）；**`order.exception.*`** 操作日志；**扣库存失败 `order_inventory_effects`** 摘要；**operationdashboard** **`orderExceptionTotal`** 等；管理端 **`/orders/exceptions`**、**`services/orderExceptions.ts`**、订单 Drawer **库存/SKU 匹配**、看板卡片；**PROGRESS** §1·§3·§7·§8 |
+| 2026-05-19 | **产品路线固化**：文件顶部新增 **《当前产品路线》**（双主线优先级、§一§二目标链路、§三完整 ERP 后置清单、§四下一步、§五文档口径）；**§1** 补充「当前阶段定位」；**§8** 与验收/体验/演示收口对齐；**最后更新** 日期调整 |
 | 2026-05-18 | **商品运营看板 / 待办中心**：**`internal/modules/operationdashboard`**、**`GET /api/v1/dashboard/product-operations`**（只读）；**`/dashboard/product-operations`**、**`services/dashboard.ts`**；**`GET /products`** 深链筛选；**PROGRESS** §1·§3·§7·§8 |
 | 2026-05-18 | **商品发布前检查（productcheck）**：**`GET/POST …/readiness(/batch)`**、**刊登前强制检查**、管理端 **发布检查 Tab / 刊登联动 / 草稿列表批量**；**PROGRESS** §1·§3·§7·§8 |**`POST /api/v1/inventory/stock-settings/batch-preview`** · **`batch-update`**；**`settings.inventory.inventory_stock_settings_batch_max_size`**；**`inventory.stock_alert.batch_update`**；管理端 **`/inventory/alerts`**、草稿 **「库存」Tab**、**设置 → 库存/订单**；**不改 stock / 不写 inventory_change_logs / 不创建 inventory_sync_tasks`**；**PROGRESS** §1·§3·§7·§8 |
 | 2026-05-17 | **批量库存同步批次**：**`inventory_sync_batches`** + **`inventory_sync_tasks.batch_id`/`batch_no`**；**`POST|GET /api/v1/inventory-sync/batches`** 及详情/任务/重试 API；Worker **幂等聚合批次** + **`inventory_rate` 初版限流**；**`settings.inventory`** 批量上限与各平台每分钟阈值；管理端 **`/inventory/sync-batches`**、预警页 **勾选批量同步**、草稿库存 Tab **刊登映射批量同步**、同步任务页 **失败批量重试 + `batchId` 筛选**；**`inventory.sync_batch.*`** 操作日志；**PROGRESS** §3/§7/§8 |
