@@ -14,6 +14,7 @@ import {
   Space,
   Statistic,
   Switch,
+  Table,
   Tag,
   Typography,
   message,
@@ -30,6 +31,7 @@ import {
   postOrderExceptionRetryInventorySync,
   queryOrderExceptions,
 } from '@/services/orderExceptions';
+import { getOrderItemSkuCandidates, type SkuCandidateRow } from '@/services/skuCandidates';
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 import { queryShops } from '@/services/shops';
 
@@ -58,6 +60,13 @@ function sevColor(s: string) {
   }
 }
 
+function candTrustBadge(conf: number) {
+  if (conf >= 90) return <Tag color="green">高可信</Tag>;
+  if (conf >= 70) return <Tag color="gold">中可信</Tag>;
+  if (conf >= 40) return <Tag>低可信</Tag>;
+  return <Tag color="default">参考</Tag>;
+}
+
 export default function OrderExceptionsPage() {
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -70,8 +79,16 @@ export default function OrderExceptionsPage() {
   const [skuKw, setSkuKw] = useState('');
   const [skuHits, setSkuHits] = useState<ProductSkuSearchHit[]>([]);
   const [pickedSku, setPickedSku] = useState<string>();
+  const [pickedCandMeta, setPickedCandMeta] = useState<{ confidence: number; source: string } | null>(
+    null,
+  );
   const [deduct, setDeduct] = useState(true);
   const [syncPlat, setSyncPlat] = useState(false);
+  const [candLoading, setCandLoading] = useState(false);
+  const [candRows, setCandRows] = useState<SkuCandidateRow[]>([]);
+  const [candModalOpen, setCandModalOpen] = useState(false);
+  const [candModalRows, setCandModalRows] = useState<SkuCandidateRow[]>([]);
+  const [candModalTitle, setCandModalTitle] = useState('');
 
   useEffect(() => {
     void (async () => {
@@ -100,15 +117,54 @@ export default function OrderExceptionsPage() {
     actionRef.current?.reload();
   }, []);
 
-  const openBind = (row: OrderExceptionRow) => {
+  const openBind = useCallback((row: OrderExceptionRow) => {
     setBindRow(row);
     setSkuKw('');
     setSkuHits([]);
     setPickedSku(undefined);
+    setPickedCandMeta(null);
+    setCandRows([]);
     setDeduct(true);
     setSyncPlat(false);
     setBindOpen(true);
-  };
+  }, []);
+
+  const refreshDrawerCandidates = useCallback(async (orderItemId: string) => {
+    setCandLoading(true);
+    try {
+      const r = await getOrderItemSkuCandidates(orderItemId, { limit: 10 });
+      setCandRows(r.list ?? []);
+    } catch {
+      message.error('候选加载失败');
+      setCandRows([]);
+    } finally {
+      setCandLoading(false);
+    }
+  }, []);
+
+  const openCandModalOnly = useCallback(async (row: OrderExceptionRow) => {
+    if (!row.orderItemId) {
+      message.warning('缺少明细行 ID，可到订单 SKU 匹配页查看候选');
+      return;
+    }
+    setCandModalTitle(row.orderNo || row.orderItemId || '候选');
+    setCandModalOpen(true);
+    try {
+      const r = await getOrderItemSkuCandidates(row.orderItemId, { limit: 15 });
+      setCandModalRows(r.list ?? []);
+    } catch {
+      message.error('加载候选失败');
+      setCandModalRows([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const oid = bindRow?.orderItemId;
+    if (!bindOpen || !oid || !bindRow) return;
+    const et = bindRow.exceptionType;
+    if (et !== 'sku_unmatched' && et !== 'sku_ambiguous') return;
+    void refreshDrawerCandidates(oid);
+  }, [bindOpen, bindRow?.orderItemId, bindRow?.exceptionType, refreshDrawerCandidates]);
 
   const runSkuSearch = async () => {
     try {
@@ -122,6 +178,11 @@ export default function OrderExceptionsPage() {
   const pickedHit = useMemo(
     () => skuHits.find((h) => h.productSkuId === pickedSku),
     [skuHits, pickedSku],
+  );
+
+  const maxCandConf = useMemo(
+    () => (candRows.length ? candRows.reduce((m, x) => Math.max(m, x.confidence), 0) : 0),
+    [candRows],
   );
 
   const columns: ProColumns<OrderExceptionRow>[] = useMemo(
@@ -266,7 +327,7 @@ export default function OrderExceptionsPage() {
       {
         title: '操作',
         valueType: 'option',
-        width: 280,
+        width: 360,
         fixed: 'right',
         render: (_, r) => (
           <Space wrap size={4}>
@@ -280,7 +341,10 @@ export default function OrderExceptionsPage() {
               </a>
             ) : null}
             {(r.exceptionType === 'sku_unmatched' || r.exceptionType === 'sku_ambiguous') && (
-              <a onClick={() => openBind(r)}>绑定 SKU</a>
+              <>
+                <a onClick={() => void openCandModalOnly(r)}>查看候选</a>
+                <a onClick={() => openBind(r)}>绑定 SKU（候选）</a>
+              </>
             )}
             {r.orderId &&
               (r.exceptionType === 'insufficient_stock' ||
@@ -400,7 +464,7 @@ export default function OrderExceptionsPage() {
         ),
       },
     ],
-    [reload, shopOpts],
+    [reload, shopOpts, openCandModalOnly, openBind],
   );
 
   return (
@@ -478,7 +542,7 @@ export default function OrderExceptionsPage() {
 
       <Drawer
         title="绑定本地 SKU"
-        width={520}
+        width={640}
         open={bindOpen}
         onClose={() => setBindOpen(false)}
         destroyOnClose
@@ -486,7 +550,10 @@ export default function OrderExceptionsPage() {
           <Space>
             <Button onClick={() => setBindOpen(false)}>取消</Button>
             <Popconfirm
-              title="确认绑定并执行所选库存动作？"
+              title={`确认所选本地 SKU${pickedCandMeta ? `（候选分 ${pickedCandMeta.confidence} · ${pickedCandMeta.source}）` : ''}
+并执行所选库存动作？`}
+              okText="确认"
+              cancelText="返回"
               onConfirm={async () => {
                 if (!bindRow || !pickedSku) {
                   message.warning('请选择本地 SKU');
@@ -499,6 +566,8 @@ export default function OrderExceptionsPage() {
                     deductInventory: deduct,
                     syncInventory: syncPlat,
                     autoMarkHandled: true,
+                    candidateConfidence: pickedCandMeta?.confidence,
+                    candidateSource: pickedCandMeta?.source,
                   });
                   if (out.inventoryDeductionError) {
                     message.error(out.inventoryDeductionError);
@@ -533,6 +602,63 @@ export default function OrderExceptionsPage() {
             <Typography.Paragraph type="secondary">
               匹配状态：{bindRow.exceptionType} · {bindRow.suggestedAction}
             </Typography.Paragraph>
+            <Typography.Title level={5}>候选推荐（只读 · 不自动绑定）</Typography.Title>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+              默认不选中；最高分行已浅绿高亮。点「选择该候选」后再用底部「确认」完成绑定与库存动作（二次确认）。
+            </Typography.Paragraph>
+            <Table
+              loading={candLoading}
+              size="small"
+              pagination={false}
+              style={{ marginBottom: 16 }}
+              dataSource={candRows}
+              rowKey={(r) => r.productSkuId}
+              onRow={(r) => ({
+                style:
+                  candRows.length > 1 && r.confidence === maxCandConf
+                    ? { background: '#f6ffed' }
+                    : undefined,
+              })}
+              columns={[
+                {
+                  title: '推荐分',
+                  dataIndex: 'confidence',
+                  width: 120,
+                  render: (v: number) => (
+                    <Space size={4} wrap>
+                      <Typography.Text strong>{v}</Typography.Text>
+                      {candTrustBadge(v)}
+                    </Space>
+                  ),
+                },
+                { title: '原因 / 信号', key: 'rs', ellipsis: true, render: (_, r) => `${r.reason || '—'} ${(r.matchSignals || []).join(',')}` },
+                { title: '商品标题', dataIndex: 'productTitle', width: 140, ellipsis: true },
+                { title: 'SKU Code', dataIndex: 'skuCode', width: 112, ellipsis: true },
+                { title: 'SKU 名称', dataIndex: 'skuName', width: 112, ellipsis: true },
+                { title: '库存', dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
+                {
+                  title: '操作',
+                  key: 'pick',
+                  width: 112,
+                  render: (_, r) => (
+                    <Button
+                      size="small"
+                      type={pickedSku === r.productSkuId ? 'primary' : 'default'}
+                      onClick={() => {
+                        setPickedSku(r.productSkuId);
+                        setPickedCandMeta({ confidence: r.confidence, source: r.source });
+                        message.success('已选为绑定目标');
+                      }}
+                    >
+                      选择该候选
+                    </Button>
+                  ),
+                },
+              ]}
+              locale={{ emptyText: candLoading ? '加载中…' : '暂无候选（可尝试勾选「低置信」查询参数或改用下方手动搜索）' }}
+            />
+
+            <Typography.Title level={5}>手动搜索</Typography.Title>
             <Space wrap style={{ marginBottom: 8 }}>
               <Input.Search
                 placeholder="搜索本地 SKU / 商品"
@@ -549,7 +675,10 @@ export default function OrderExceptionsPage() {
               style={{ width: '100%', marginBottom: 16 }}
               placeholder="选择 SKU"
               value={pickedSku}
-              onChange={setPickedSku}
+              onChange={(v) => {
+                setPickedSku(v);
+                setPickedCandMeta(null);
+              }}
               options={skuHits.map((h) => ({
                 value: h.productSkuId,
                 label: `${h.skuCode || '—'} · ${h.productTitle || ''} · stock=${h.stock ?? '?'}`,
@@ -584,6 +713,50 @@ export default function OrderExceptionsPage() {
           </>
         ) : null}
       </Drawer>
+
+      <Modal
+        title={`查看候选 · ${candModalTitle}`}
+        width={900}
+        open={candModalOpen}
+        footer={null}
+        onCancel={() => setCandModalOpen(false)}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary">
+          仅浏览：不修改数据。需绑定时请点「绑定 SKU（候选）」进入抽屉操作。
+        </Typography.Paragraph>
+        <Table
+          size="small"
+          pagination={false}
+          dataSource={candModalRows}
+          rowKey={(r) => r.productSkuId}
+          columns={[
+            {
+              title: '推荐分',
+              dataIndex: 'confidence',
+              width: 120,
+              render: (v: number) => (
+                <Space wrap>
+                  <Typography.Text strong>{v}</Typography.Text>
+                  {candTrustBadge(v)}
+                </Space>
+              ),
+            },
+            { title: '原因', dataIndex: 'reason', ellipsis: true },
+            { title: '来源', dataIndex: 'source', width: 160, ellipsis: true },
+            { title: '商品标题', dataIndex: 'productTitle', width: 160, ellipsis: true },
+            { title: 'SKU Code', dataIndex: 'skuCode', width: 120 },
+            { title: 'SKU 名称', dataIndex: 'skuName', width: 120, ellipsis: true },
+            { title: '库存', dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
+            {
+              title: '信号',
+              dataIndex: 'matchSignals',
+              ellipsis: true,
+              render: (s: string[]) => (s?.length ? s.join(' · ') : '—'),
+            },
+          ]}
+        />
+      </Modal>
     </PageContainer>
   );
 }

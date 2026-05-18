@@ -164,8 +164,10 @@ func (s *Service) ListSKUMatchGlobal(c *gin.Context, q SKUMatchListQuery) ([]SKU
 
 // BindOrderItemSKUInput is the service input for manual bind.
 type BindOrderItemSKUInput struct {
-	OrderItemID  uuid.UUID
-	ProductSKUID uuid.UUID
+	OrderItemID         uuid.UUID
+	ProductSKUID        uuid.UUID
+	CandidateConfidence *int
+	CandidateSource     string
 }
 
 // BindOrderItemSKU performs manual binding (inventory deduct handled in HTTP layer).
@@ -221,14 +223,21 @@ func (s *Service) BindOrderItemSKU(ctx context.Context, in BindOrderItemSKUInput
 		return nil, err
 	}
 	if s.OpLog != nil {
+		msg := fmt.Sprintf("orderId=%s orderItemId=%s productSkuId=%s matchType=manual",
+			it.OrderID.String(), it.ID.String(), sid.String())
+		if in.CandidateConfidence != nil {
+			msg += fmt.Sprintf(" candidateConfidence=%d", *in.CandidateConfidence)
+		}
+		if cs := strings.TrimSpace(in.CandidateSource); cs != "" {
+			msg += " candidateSource=" + cs
+		}
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: admin,
 			Action:      "order.sku_match.manual_bind",
 			Resource:    "order_item",
 			ResourceID:  it.ID.String(),
 			Status:      "success",
-			Message: fmt.Sprintf("orderId=%s orderItemId=%s productSkuId=%s matchType=manual",
-				it.OrderID.String(), it.ID.String(), sid.String()),
+			Message:     msg,
 		})
 	}
 	var out OrderItem

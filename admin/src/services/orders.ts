@@ -224,7 +224,13 @@ export async function matchOrderSKUs(
 
 export async function bindOrderItemSku(
   itemId: string,
-  body: { productSkuId: string; deductInventory?: boolean; syncInventory?: boolean },
+  body: {
+    productSkuId: string;
+    deductInventory?: boolean;
+    syncInventory?: boolean;
+    candidateConfidence?: number | null;
+    candidateSource?: string;
+  },
 ): Promise<{ item: OrderItemRow; inventoryDeduction?: Record<string, unknown> }> {
   return postJSON(`/api/v1/order-items/${itemId}/bind-sku`, body);
 }

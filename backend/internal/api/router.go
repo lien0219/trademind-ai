@@ -32,6 +32,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -363,6 +364,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectrule.Register(authed, collectRuleH)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
+	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)
 	ordersync.Register(authed, orderSyncH)
 	customersync.Register(authed, customerSyncH)

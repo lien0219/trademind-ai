@@ -7,12 +7,20 @@ import {
   matchOrderSKUs,
   type OrderSkuMatchRow,
 } from '@/services/orders';
+import { getOrderItemSkuCandidates, type SkuCandidateRow } from '@/services/skuCandidates';
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 
 type Props = {
   orderId: string;
   onRefreshOrder: () => Promise<void>;
 };
+
+function candTrustBadge(conf: number) {
+  if (conf >= 90) return <Tag color="green">高可信</Tag>;
+  if (conf >= 70) return <Tag color="gold">中可信</Tag>;
+  if (conf >= 40) return <Tag>低可信</Tag>;
+  return <Tag color="default">参考</Tag>;
+}
 
 function statusColor(s: string | undefined) {
   switch (s) {
@@ -39,15 +47,22 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
   const [bindItemId, setBindItemId] = useState<string | null>(null);
   const [skuOpts, setSkuOpts] = useState<{ label: string; value: string }[]>([]);
   const [pickedSku, setPickedSku] = useState<string | undefined>();
+  const [pickedCandMeta, setPickedCandMeta] = useState<{ confidence: number; source: string } | null>(null);
   const [kw, setKw] = useState('');
   const [deduct, setDeduct] = useState(false);
   const [syncPlat, setSyncPlat] = useState(false);
+
+  const [candCache, setCandCache] = useState<Record<string, SkuCandidateRow[]>>({});
+  const [rowCandLoading, setRowCandLoading] = useState<Record<string, boolean>>({});
+  const [bindDrawerCands, setBindDrawerCands] = useState<SkuCandidateRow[]>([]);
+  const [bindCandLoading, setBindCandLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await getOrderSKUMatches(orderId);
       setRows(r.items ?? []);
+      setCandCache({});
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载 SKU 匹配失败');
     } finally {
@@ -59,9 +74,110 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
     void load();
   }, [load]);
 
+  const refreshBindDrawerCandidates = useCallback(async (itemId: string) => {
+    setBindCandLoading(true);
+    try {
+      const r = await getOrderItemSkuCandidates(itemId, { limit: 10 });
+      setBindDrawerCands(r.list ?? []);
+    } catch {
+      message.error('候选加载失败');
+      setBindDrawerCands([]);
+    } finally {
+      setBindCandLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!bindOpen || !bindItemId) return;
+    void refreshBindDrawerCandidates(bindItemId);
+  }, [bindOpen, bindItemId, refreshBindDrawerCandidates]);
+
+  const loadRowCandidatesIfNeeded = useCallback(async (itemId: string) => {
+    setRowCandLoading((m) => ({ ...m, [itemId]: true }));
+    try {
+      const r = await getOrderItemSkuCandidates(itemId, { limit: 10 });
+      setCandCache((c) => ({ ...c, [itemId]: r.list ?? [] }));
+    } catch {
+      message.error('候选加载失败');
+      setCandCache((c) => ({ ...c, [itemId]: [] }));
+    } finally {
+      setRowCandLoading((m) => {
+        const n = { ...m };
+        delete n[itemId];
+        return n;
+      });
+    }
+  }, []);
+
   const skuWorkbenchRows = rows.filter((r) =>
     ['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || '')),
   );
+
+  const maxBindCandConf = bindDrawerCands.length
+    ? bindDrawerCands.reduce((m, x) => Math.max(m, x.confidence), 0)
+    : 0;
+
+  const expandedRowRender = (r: OrderSkuMatchRow) => {
+    const id = r.orderItemId;
+    if (!id || !['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || ''))) {
+      return <Typography.Text type="secondary">—</Typography.Text>;
+    }
+    const list = candCache[id] ?? [];
+    const loadingRow = !!rowCandLoading[id];
+    return (
+      <div style={{ padding: '8px 0', maxWidth: 960 }}>
+        <Typography.Text type="secondary">规则推荐 SKU（须人工确认，不自动绑定）</Typography.Text>
+        <Table
+          size="small"
+          pagination={false}
+          loading={loadingRow && list.length === 0}
+          dataSource={list}
+          rowKey={(row) => row.productSkuId}
+          onRow={(row) => ({
+            style:
+              list.length > 1 && row.confidence === Math.max(...list.map((x) => x.confidence))
+                ? { background: '#f6ffed' }
+                : undefined,
+          })}
+          columns={[
+            {
+              title: '分',
+              width: 100,
+              dataIndex: 'confidence',
+              render: (v: number) => (
+                <Space size={4} wrap>
+                  <Typography.Text strong>{v}</Typography.Text>
+                  {candTrustBadge(v)}
+                </Space>
+              ),
+            },
+            { title: '原因', dataIndex: 'reason', ellipsis: true },
+            { title: '来源', dataIndex: 'source', width: 120, ellipsis: true },
+            { title: 'SKU', width: 200, ellipsis: true, render: (_, row) => row.skuCode || row.productSkuId },
+            { title: '库存', dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
+            {
+              title: '操作',
+              key: 'pick',
+              width: 100,
+              render: (_, row) => (
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setBindItemId(id);
+                    setPickedSku(row.productSkuId);
+                    setPickedCandMeta({ confidence: row.confidence, source: row.source });
+                    setBindOpen(true);
+                  }}
+                >
+                  以此为候选绑定
+                </Button>
+              ),
+            },
+          ]}
+        />
+      </div>
+    );
+  };
 
   const runSearch = async () => {
     try {
@@ -80,6 +196,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
   const openBind = (orderItemId: string) => {
     setBindItemId(orderItemId);
     setPickedSku(undefined);
+    setPickedCandMeta(null);
     setKw('');
     setSkuOpts([]);
     setDeduct(false);
@@ -97,7 +214,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
           message="部分明细需要人工处理 SKU 匹配"
           description={
             <span>
-              未匹配或多候选行可到异常工作台统一筛选与绑定。{' '}
+              未匹配或多候选行可点击下方行展开<strong>查看候选</strong>，或到异常工作台筛选。{' '}
               <Typography.Link
                 onClick={() =>
                   history.push(`/orders/exceptions?orderId=${encodeURIComponent(orderId)}`)
@@ -140,6 +257,17 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
         size="small"
         pagination={false}
         dataSource={rows}
+        expandable={{
+          expandRowByClick: true,
+          onExpand: (expanded, record) => {
+            const id = record.orderItemId;
+            if (!expanded || !id) return;
+            void loadRowCandidatesIfNeeded(id);
+          },
+          expandedRowRender,
+          rowExpandable: (record) =>
+            ['unmatched', 'skipped', 'ambiguous'].includes(String(record.matchStatus || '')),
+        }}
         columns={[
           { title: '明细标题', dataIndex: 'productTitle', key: 'productTitle', width: 160, ellipsis: true },
           {
@@ -268,29 +396,102 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
       <Modal
         title="人工绑定 SKU"
         open={bindOpen}
-        onCancel={() => setBindOpen(false)}
         destroyOnClose
-        onOk={async () => {
-          if (!bindItemId || !pickedSku) {
-            message.error('请选择 SKU');
-            return;
-          }
-          try {
-            await bindOrderItemSku(bindItemId, {
-              productSkuId: pickedSku,
-              deductInventory: deduct,
-              syncInventory: syncPlat,
-            });
-            message.success('已绑定');
-            setBindOpen(false);
-            await load();
-            await onRefreshOrder();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '失败');
-          }
-        }}
+        width={720}
+        footer={
+          <Space>
+            <Button onClick={() => setBindOpen(false)}>关闭</Button>
+            <Popconfirm
+              title={
+                pickedCandMeta
+                  ? `确认绑定所选 SKU（候选分 ${pickedCandMeta.confidence} · ${pickedCandMeta.source}）并执行所选库存策略？`
+                  : '确认绑定所选 SKU（未使用候选摘要）并执行所选库存策略？'
+              }
+              okText="确认"
+              cancelText="再想想"
+              onConfirm={async () => {
+                if (!bindItemId || !pickedSku) {
+                  message.warning('请选择 SKU');
+                  return;
+                }
+                try {
+                  await bindOrderItemSku(bindItemId, {
+                    productSkuId: pickedSku,
+                    deductInventory: deduct,
+                    syncInventory: syncPlat,
+                    candidateConfidence: pickedCandMeta?.confidence,
+                    candidateSource: pickedCandMeta?.source,
+                  });
+                  message.success('已绑定');
+                  setBindOpen(false);
+                  setCandCache({});
+                  await load();
+                  await onRefreshOrder();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '失败');
+                }
+              }}
+            >
+              <Button type="primary">二次确认绑定</Button>
+            </Popconfirm>
+          </Space>
+        }
+        onCancel={() => setBindOpen(false)}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Typography.Title level={5}>SKU 候选</Typography.Title>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            只读推荐；请选择一行或用手动搜索。「二次确认绑定」前请核对扣库与平台同步开关。
+          </Typography.Paragraph>
+          <Table
+            loading={bindCandLoading}
+            size="small"
+            pagination={false}
+            dataSource={bindDrawerCands}
+            rowKey={(row) => row.productSkuId}
+            onRow={(row) => ({
+              style:
+                bindDrawerCands.length > 1 && row.confidence === maxBindCandConf
+                  ? { background: '#f6ffed' }
+                  : undefined,
+            })}
+            columns={[
+              {
+                title: '分',
+                width: 110,
+                dataIndex: 'confidence',
+                render: (v: number) => (
+                  <Space wrap>
+                    <Typography.Text strong>{v}</Typography.Text>
+                    {candTrustBadge(v)}
+                  </Space>
+                ),
+              },
+              { title: '原因', dataIndex: 'reason', ellipsis: true },
+              { title: '标题', dataIndex: 'productTitle', width: 140, ellipsis: true },
+              { title: 'Code', dataIndex: 'skuCode', width: 120, ellipsis: true },
+              { title: '名称', dataIndex: 'skuName', width: 120, ellipsis: true },
+              { title: '库存', dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
+              {
+                title: ' ',
+                key: 'p',
+                width: 116,
+                render: (_, row) => (
+                  <Button
+                    size="small"
+                    type={pickedSku === row.productSkuId ? 'primary' : 'default'}
+                    onClick={() => {
+                      setPickedSku(row.productSkuId);
+                      setPickedCandMeta({ confidence: row.confidence, source: row.source });
+                    }}
+                  >
+                    选择候选
+                  </Button>
+                ),
+              },
+            ]}
+          />
+          <Typography.Title level={5}>手动搜索 SKU</Typography.Title>
           <Input.Search
             placeholder="关键词：skuCode / 名称 / 商品标题"
             onSearch={() => void runSearch()}
@@ -304,7 +505,10 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
             style={{ width: '100%' }}
             options={skuOpts}
             value={pickedSku}
-            onChange={(v) => setPickedSku(v)}
+            onChange={(v) => {
+              setPickedSku(v);
+              setPickedCandMeta(null);
+            }}
             optionFilterProp="label"
           />
           <Space wrap>

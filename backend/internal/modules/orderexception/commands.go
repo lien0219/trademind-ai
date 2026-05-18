@@ -49,8 +49,10 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 	}
 
 	if _, err := c.Orders.BindOrderItemSKU(ctx, order.BindOrderItemSKUInput{
-		OrderItemID:  itemID,
-		ProductSKUID: skuID,
+		OrderItemID:         itemID,
+		ProductSKUID:        skuID,
+		CandidateConfidence: body.CandidateConfidence,
+		CandidateSource:     strings.TrimSpace(body.CandidateSource),
 	}, admin); err != nil {
 		return nil, err
 	}

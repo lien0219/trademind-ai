@@ -142,9 +142,11 @@ func (h *Handler) ListGlobalSKUMatches(c *gin.Context) {
 }
 
 type bindOrderItemSKUBody struct {
-	ProductSKUID    string `json:"productSkuId"`
-	DeductInventory bool   `json:"deductInventory"`
-	SyncInventory   bool   `json:"syncInventory"`
+	ProductSKUID        string `json:"productSkuId"`
+	DeductInventory     bool   `json:"deductInventory"`
+	SyncInventory       bool   `json:"syncInventory"`
+	CandidateConfidence *int   `json:"candidateConfidence"`
+	CandidateSource     string `json:"candidateSource"`
 }
 
 // POST /order-items/:itemId/bind-sku
@@ -192,8 +194,10 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 	}
 
 	out, err := h.Svc.BindOrderItemSKU(c.Request.Context(), BindOrderItemSKUInput{
-		OrderItemID:  itemID,
-		ProductSKUID: skuID,
+		OrderItemID:         itemID,
+		ProductSKUID:        skuID,
+		CandidateConfidence: body.CandidateConfidence,
+		CandidateSource:     strings.TrimSpace(body.CandidateSource),
 	}, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

@@ -72,11 +72,13 @@ type OrderExceptionDTO struct {
 
 // BindSKURequest binds POST .../bind-sku.
 type BindSKURequest struct {
-	ExceptionType   string `json:"exceptionType"`
-	ProductSKUID    string `json:"productSkuId"`
-	DeductInventory *bool  `json:"deductInventory"` // nil => true (workbench default)
-	SyncInventory   *bool  `json:"syncInventory"`   // nil => false
-	AutoMarkHandled *bool  `json:"autoMarkHandled"` // nil => true
+	ExceptionType       string `json:"exceptionType"`
+	ProductSKUID        string `json:"productSkuId"`
+	DeductInventory     *bool  `json:"deductInventory"` // nil => true (workbench default)
+	SyncInventory       *bool  `json:"syncInventory"`   // nil => false
+	AutoMarkHandled     *bool  `json:"autoMarkHandled"` // nil => true
+	CandidateConfidence *int   `json:"candidateConfidence"`
+	CandidateSource     string `json:"candidateSource"`
 }
 
 // HandleBody binds POST .../handle.

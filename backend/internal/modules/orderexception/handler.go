@@ -231,13 +231,20 @@ func (h *Handler) BindSKU(c *gin.Context) {
 		return
 	}
 	if h.OpLog != nil {
+		msg := "sourceType=" + st + " skuId=" + strings.TrimSpace(body.ProductSKUID)
+		if body.CandidateConfidence != nil {
+			msg += " candidateConfidence=" + strconv.Itoa(*body.CandidateConfidence)
+		}
+		if cs := strings.TrimSpace(body.CandidateSource); cs != "" {
+			msg += " candidateSource=" + cs
+		}
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminUUID(c),
 			Action:      "order.exception.bind_sku",
 			Resource:    "order_exception",
 			ResourceID:  sid,
 			Status:      "success",
-			Message:     truncateExcMsg("sourceType=" + st + " skuId=" + strings.TrimSpace(body.ProductSKUID)),
+			Message:     truncateExcMsg(msg),
 		})
 	}
 	response.OK(c, out)

@@ -115,6 +115,8 @@ export async function postOrderExceptionBindSku(
     deductInventory?: boolean | null;
     syncInventory?: boolean | null;
     autoMarkHandled?: boolean | null;
+    candidateConfidence?: number | null;
+    candidateSource?: string;
   },
 ): Promise<OrderExceptionBindSkuResult> {
   return postJSON(`/api/v1/orders/exceptions/${encodeURIComponent(sourceType)}/${encodeURIComponent(sourceId)}/bind-sku`, body);
