@@ -5,13 +5,17 @@
 ## 参与方式
 
 1. Fork 本仓库。
-2. 从 `main` 创建功能分支。
+2. 从 `dev` 创建功能分支。
 3. 在本地完成修改并补充必要测试或文档。
-4. 提交 Pull Request，并按模板填写变更说明。
+4. 提交 Pull Request 到 `dev`，并按模板填写变更说明。
 
 ```bash
-git checkout -b feat/your-feature-name
+git switch dev
+git pull --ff-only origin dev
+git switch -c feat/your-feature-name
 ```
+
+分支策略与 PR 合并规则见 [docs/branching.md](docs/branching.md)。
 
 ## 本地启动
 
@@ -59,6 +63,7 @@ chore: update issue templates
 提交 PR 前请确认：
 
 - 变更范围清晰，避免混入无关修改。
+- 目标分支符合 [docs/branching.md](docs/branching.md)：`feat/*` 与普通 `fix/*` 先合并到 `dev`，`release/*` 再合并到 `main`。
 - 涉及后端 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。
 - 涉及前端或 Collector 时已执行相关构建或说明未执行原因。
 - 涉及接口、部署、环境变量或 Provider 机制时同步更新文档。
