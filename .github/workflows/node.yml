@@ -5,7 +5,15 @@ on:
     branches:
       - main
       - dev
+      - "feat/**"
+      - "fix/**"
+      - "release/**"
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
       - dev
