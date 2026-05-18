@@ -18,14 +18,6 @@
 | --- | --- |
 | <img src="./assets/sponsor-wechat.jpg" alt="微信赞助二维码" width="260"> | <img src="./assets/sponsor-alipay.png" alt="支付宝赞助二维码" width="260"> |
 
-## 赞助榜
-
-> 如果你希望公开展示赞助信息，可以在赞助时备注展示名称与链接。默认不会公开个人信息。
-
-| 赞助者 | 支持方式 | 链接 |
-| --- | --- | --- |
-| Coming soon | WeChat / Alipay / GitHub Sponsor | - |
-
 ## Sponsor
 
 If TradeMind helps you, please consider supporting the project by starring, sharing, contributing, or sponsoring future development.
