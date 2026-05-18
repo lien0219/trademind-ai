@@ -25,6 +25,14 @@
 
 > TradeMind is an open-source AI operation tool for cross-border commerce sellers. It currently supports product collection, product drafts, AI title optimization, AI description generation, image management, AI image tasks, store authorization, order sync, SKU matching, product publishing, inventory sync, and AI customer service reply suggestions.
 
+## Screenshots / Demo
+
+> Demo and screenshots are reserved. PRs are welcome to improve the project showcase.
+
+| Admin Console | Product Drafts | AI Product Optimization |
+| --- | --- | --- |
+| Coming soon | Coming soon | Coming soon |
+
 ## Table of Contents
 
 - [Introduction](#introduction)
@@ -40,6 +48,9 @@
 - [Current Development Priorities](#current-development-priorities)
 - [Roadmap](#roadmap)
 - [Documentation](#documentation)
+- [Partners](#partners)
+- [Contributors Board](#contributors-board)
+- [Sponsors Board](#sponsors-board)
 - [Open Source Usage](#open-source-usage)
 - [Contributing](#contributing)
 - [Sponsor](#sponsor)
@@ -81,7 +92,7 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 | Product Publishing | Multi-platform publishing tasks, readiness checks, publication snapshots | In progress |
 | Inventory Sync | Local stock, platform stock mirror, inventory alerts, sync tasks | In progress |
 | AI Customer Service | Message sync, AI suggested replies, manual send confirmation | In progress |
-| Operation Automation | Failure task center, alerts, batch AI, task retry | Planned |
+| Operation Automation | Failure task center, alerts, batch AI, task retry | Architecture reserved |
 
 ## Product Capability Map
 
@@ -296,7 +307,7 @@ Provider architecture:
 Go Gin API
 ├── AI Provider
 │   ├── OpenAI-compatible
-│   ├── DeepSeek / Qwen / Doubao / Gemini / Claude / Ollama extensible
+│   ├── DeepSeek / Qwen / Doubao / Gemini / Claude / Ollama reserved
 │   └── prompt templates and call records
 ├── Storage Provider
 │   ├── local
@@ -357,7 +368,23 @@ See [docs/roadmap.md](docs/roadmap.md) for the detailed roadmap.
 | [docs/sponsor.md](docs/sponsor.md) | sponsor information |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | contribution guide |
 
-<!-- Partners, contributors board, and sponsors board will be shown when real entries are available. -->
+## Partners
+
+| Partner | Area | Status |
+| --- | --- | --- |
+| Coming soon | AI / Platform / Storage / Collector / Operation Service | Reserved |
+
+## Contributors Board
+
+| Contributor | Contribution Area | Link |
+| --- | --- | --- |
+| Coming soon | Code / Docs / Provider / Prompt / Docker | - |
+
+## Sponsors Board
+
+| Sponsor | Support Method | Link |
+| --- | --- | --- |
+| Coming soon | WeChat / Alipay / GitHub Sponsor | - |
 
 ## Open Source Usage
 
