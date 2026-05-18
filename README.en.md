@@ -357,20 +357,15 @@ See [docs/roadmap.md](docs/roadmap.md) for the detailed roadmap.
 
 ## Documentation
 
-| Document | Description |
+The full documentation index is available at [docs/README.md](docs/README.md).
+
+| Category | Documents |
 | --- | --- |
-| [README.md](README.md) | 简体中文 README |
-| [docs/development.md](docs/development.md) | local development guide |
-| [docs/docker-deployment.md](docs/docker-deployment.md) | Docker deployment guide |
-| [docs/architecture.md](docs/architecture.md) | architecture design |
-| [docs/provider.md](docs/provider.md) | Provider extension mechanism |
-| [docs/roadmap.md](docs/roadmap.md) | roadmap |
-| [docs/branching.md](docs/branching.md) | branching and PR rules |
-| [docs/sponsor.md](docs/sponsor.md) | sponsor information |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | contribution guide |
-| [SECURITY.md](SECURITY.md) | security policy |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | community code of conduct |
-| [NOTICE](NOTICE) | third-party notices and acknowledgements |
+| Quick Start | [Local Development](docs/development.md) · [Docker Deployment](docs/docker-deployment.md) |
+| Architecture | [Architecture](docs/architecture.md) · [Provider Extension](docs/provider.md) · [Roadmap](docs/roadmap.md) |
+| Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) |
+| Community | [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Sponsor](docs/sponsor.md) · [NOTICE](NOTICE) |
+| Languages | [简体中文 README](README.md) |
 
 ## Partners
 

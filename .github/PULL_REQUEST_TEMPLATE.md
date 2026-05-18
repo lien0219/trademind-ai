@@ -40,6 +40,8 @@
 
 - [ ] 我已确认没有提交 `.env`、密钥、Token、Cookie 或真实平台凭证。
 - [ ] 涉及 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。
-- [ ] 涉及接口、环境变量、部署或 Provider 机制时已更新文档。
+- [ ] 我已阅读并遵守 `docs/ai-coding-rules.md`。
+- [ ] 涉及接口、环境变量、配置文件、部署或 Provider 机制时已更新文档。
+- [ ] 新增或修改环境变量时已同步 `.env.example`；Docker 部署需要时也已同步 `.env.docker.example` 与 `docker-compose.full.yml`。
 - [ ] 涉及用户可见行为时已补充截图、录屏或说明。
 - [ ] 我已阅读并遵守 `CONTRIBUTING.md`。

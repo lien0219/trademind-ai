@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；新增 **Node CI**（admin / collector 构建）与 **`docs/branching.md`** 分支管理和 PR 规则文档，并同步 README / README.en / CONTRIBUTING / PR 模板。GitHub 首页文档保持 **中文 `README.md` + 独立英文 `README.en.md`**，两份 README 结构一致并互相跳转；开源文档体系包含 **Apache-2.0 `LICENSE`**、`CONTRIBUTING.md`、Issue / PR 模板、`SECURITY.md`、`CODE_OF_CONDUCT.md`、`NOTICE`、`docs/*` 与 `.github/FUNDING.yml`。
+**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；新增 **`docs/README.md` 文档中心**，将文档按快速开始、架构扩展、协作规范、社区治理分组；README / README.en 的文档导航改为分组入口，降低首页维护成本。AI 编程规则、Node CI、分支策略、开源治理与中英文 README 文档体系保持有效。
 
 ---
 
@@ -395,6 +395,10 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-19 | **通用 AI Agent 入口**：新增根目录 **`AGENTS.md`**，作为 Cursor 以外 AI 编辑器 / Agent 的通用协作入口，集中说明必读文档、技术栈、开发规则、文档同步要求、检查命令与禁止事项；README / README.en / docs index 增加入口。 |
+| 2026-05-19 | **Cursor rules 轻整理**：新增 **`.cursor/rules/README.md`**，按全局规则与领域规则列出每个 `.mdc` 的用途、适用范围和新增规则 checklist；`docs/README.md` 增加 Cursor rules 索引入口。 |
+| 2026-05-19 | **文档中心整理**：新增 **`docs/README.md`**，统一收口开发、部署、架构、Provider、路线图、分支规则、AI 编程规则、赞助、安全、行为准则等入口；README / README.en 文档导航改为分组式入口，首页更清爽，后续新增文档优先维护 docs index。 |
+| 2026-05-19 | **AI 编程规则与文档同步要求**：新增 **`docs/ai-coding-rules.md`** 与 Cursor 持久规则 **`.cursor/rules/12-ai-coding-doc-sync.mdc`**，明确代码、配置、环境变量、Docker、CI、API、Provider、页面、任务、数据库与安全变更必须同步相关文档；同步 **README / README.en / CONTRIBUTING / PR 模板**。 |
 | 2026-05-19 | **CI 与分支策略文档**：新增 **`.github/workflows/node.yml`**，对 **admin** 执行 `pnpm build:admin`、对 **collector** 执行 `pnpm build:collector`（push / PR 到 `main`、`dev`）；新增 **`docs/branching.md`**，固化 `main` / `dev` / `feat/*` / `fix/*` / `release/*` 分支策略与 PR 合并规则；更新 **README / README.en / CONTRIBUTING / PR 模板** 导航与检查项。 |
 | 2026-05-19 | **开源社区治理文件补齐**：新增 **`.github/ISSUE_TEMPLATE/config.yml`**（关闭空 Issue，提供文档 / 安全 / 赞助入口）、**`SECURITY.md`**、**`CODE_OF_CONDUCT.md`**、**`NOTICE`**，并同步 README / README.en 文档导航。 |
 | 2026-05-19 | **README 中英文拆分与展示区补齐**：中文首页保留在 **`README.md`**，英文首页独立为 **`README.en.md`**，两者结构一致并互相跳转；标题改为居中；项目介绍改为当前已支持能力表达；新增 **合作商展示 / 贡献榜 / 赞助榜** 预留区；README 命令仅保留根 `package.json` 实际脚本与现有 Docker Compose 命令。 |

@@ -64,9 +64,10 @@ chore: update issue templates
 
 - 变更范围清晰，避免混入无关修改。
 - 目标分支符合 [docs/branching.md](docs/branching.md)：`feat/*` 与普通 `fix/*` 先合并到 `dev`，`release/*` 再合并到 `main`。
+- 已阅读并遵守 [docs/ai-coding-rules.md](docs/ai-coding-rules.md)，代码、配置、示例和文档需要同步更新。
 - 涉及后端 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。
 - 涉及前端或 Collector 时已执行相关构建或说明未执行原因。
-- 涉及接口、部署、环境变量或 Provider 机制时同步更新文档。
+- 涉及接口、部署、环境变量、配置文件或 Provider 机制时同步更新文档。
 - 不提交 `.env`、密钥、Token、Cookie、真实平台凭证。
 
 ## Issue 模板说明
@@ -99,6 +100,8 @@ chore: update issue templates
 - 示例配置与故障排查
 
 新增核心模块、公共契约或部署方式时，请同步更新 `README.md`、`docs/` 下相关文档，并在必要时更新 `docs/PROGRESS.md`。
+
+配置文件变更也必须同步文档：新增或修改环境变量时更新 `.env.example`；Docker 部署也需要时更新 `.env.docker.example` 与 `docker-compose.full.yml`；命令、端口、路径或服务名变化时同步 README 与对应 docs。
 
 ## Open Source Usage
 

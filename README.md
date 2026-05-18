@@ -357,20 +357,15 @@ Go Gin API
 
 ## 文档导航
 
-| 文档 | 说明 |
+完整文档入口见 [docs/README.md](docs/README.md)。
+
+| 分类 | 文档 |
 | --- | --- |
-| [README.en.md](README.en.md) | English README |
-| [docs/development.md](docs/development.md) | 本地开发说明 |
-| [docs/docker-deployment.md](docs/docker-deployment.md) | Docker 部署说明 |
-| [docs/architecture.md](docs/architecture.md) | 架构设计 |
-| [docs/provider.md](docs/provider.md) | Provider 扩展机制 |
-| [docs/roadmap.md](docs/roadmap.md) | 路线图 |
-| [docs/branching.md](docs/branching.md) | 分支管理与 PR 规则 |
-| [docs/sponsor.md](docs/sponsor.md) | 赞助支持 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
-| [SECURITY.md](SECURITY.md) | 安全策略 |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | 社区行为准则 |
-| [NOTICE](NOTICE) | 第三方声明与致谢 |
+| 快速开始 | [本地开发](docs/development.md) · [Docker 部署](docs/docker-deployment.md) |
+| 架构扩展 | [架构设计](docs/architecture.md) · [Provider 扩展](docs/provider.md) · [路线图](docs/roadmap.md) |
+| 协作规范 | [贡献指南](CONTRIBUTING.md) · [AI Agent 规则](AGENTS.md) · [分支规则](docs/branching.md) · [AI 编程规则](docs/ai-coding-rules.md) |
+| 社区治理 | [安全策略](SECURITY.md) · [行为准则](CODE_OF_CONDUCT.md) · [赞助支持](docs/sponsor.md) · [NOTICE](NOTICE) |
+| 多语言 | [English README](README.en.md) |
 
 ## 合作商展示
 
