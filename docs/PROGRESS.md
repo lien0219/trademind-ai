@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；完成 GitHub 开源首页与文档体系重构：`README.md` 改为中英文双语首页，新增 **Apache-2.0 `LICENSE`**、`CONTRIBUTING.md`、Issue / PR 模板与 `docs/development.md`、`docs/docker-deployment.md`、`docs/architecture.md`、`docs/provider.md`、`docs/roadmap.md`。此前新增 **Docker 部署启动**（`docker-compose.full.yml` + `backend`/`admin`/`collector` Dockerfile、`admin/nginx.conf`、`.env.docker.example`）与 README 启动方式分层仍有效；边界：**不覆盖用户已有 `.env`**、镜像内 **不写死密钥**、默认 **`down` 不删 volume**、admin **经 nginx 代理后端**。
+**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；GitHub 首页文档调整为 **中文 `README.md` + 独立英文 `README.en.md`**，两份 README 结构一致并互相跳转；顶部标题居中，产品介绍改为当前已支持能力表达，并预留 **合作商展示 / 贡献榜 / 赞助榜**。开源文档体系仍包含 **Apache-2.0 `LICENSE`**、`CONTRIBUTING.md`、Issue / PR 模板与 `docs/development.md`、`docs/docker-deployment.md`、`docs/architecture.md`、`docs/provider.md`、`docs/roadmap.md`、`docs/sponsor.md`、`.github/FUNDING.yml`。
 
 ---
 
@@ -197,7 +197,7 @@
 ### 3.5 文档
 
 - **本文件**：`docs/PROGRESS.md`（进度与决策单一事实来源之一，与 `README` 互补）。
-- **开源文档体系**：`README.md` 已重构为 GitHub 首页风格（中文为主 + English），明确 **Apache-2.0**、原项目地址、赞助与贡献入口；新增 `LICENSE`、`CONTRIBUTING.md`、Issue / PR 模板、`docs/development.md`、`docs/docker-deployment.md`、`docs/architecture.md`、`docs/provider.md`、`docs/roadmap.md`、`docs/sponsor.md` 与 `.github/FUNDING.yml`。
+- **开源文档体系**：`README.md` 为中文 GitHub 首页，`README.en.md` 为结构一致的英文首页；明确 **Apache-2.0**、原项目地址、赞助与贡献入口；新增 `LICENSE`、`CONTRIBUTING.md`、Issue / PR 模板、`docs/development.md`、`docs/docker-deployment.md`、`docs/architecture.md`、`docs/provider.md`、`docs/roadmap.md`、`docs/sponsor.md` 与 `.github/FUNDING.yml`；README 预留 **合作商展示 / 贡献榜 / 赞助榜**。
 
 ---
 
@@ -395,6 +395,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-19 | **README 中英文拆分与展示区补齐**：中文首页保留在 **`README.md`**，英文首页独立为 **`README.en.md`**，两者结构一致并互相跳转；标题改为居中；项目介绍改为当前已支持能力表达；新增 **合作商展示 / 贡献榜 / 赞助榜** 预留区；README 命令仅保留根 `package.json` 实际脚本与现有 Docker Compose 命令。 |
 | 2026-05-19 | **赞助入口补充**：新增 **`docs/sponsor.md`**（微信 / 支付宝二维码赞助说明，图片位于 **`docs/assets/`**），新增 **`.github/FUNDING.yml`** 指向赞助说明页，README 中英文赞助章节与文档导航同步更新。 |
 | 2026-05-19 | **GitHub 开源文档体系建设**：重构根 **`README.md`** 为中英文双语开源首页（Banner、Badges、导航、功能表、启动方式、架构、Roadmap、开源使用规范、Sponsor、License）；新增 **Apache-2.0 `LICENSE`**、**`CONTRIBUTING.md`**、**Issue / PR 模板**、基础 docs（development / docker-deployment / architecture / provider / roadmap）；原项目地址明确为 **`https://github.com/lien0219/trademind-ai`**。 |
 | 2026-05-19 | **Docker 部署启动**：根 **`docker-compose.full.yml`**（独立 **`name: trademind-full`**；postgres 16 + redis 7 + **backend / admin / collector** 分容器；**backend** `COLLECTOR_BASE_URL=http://collector:3001`、持久卷 **`trademind_full_*`**；**admin** **`Dockerfile`** + **`nginx.conf`** 代理 **`/api` `/static`** → backend，SPA **`try_files`**）；**`backend/Dockerfile`**（Go 多阶段）；**`collector/Dockerfile`**（**`mcr.microsoft.com/playwright`** + pnpm build）；**`.env.docker.example`**；README **「启动方式」**：方式一 **pnpm dev**（沿用 `scripts/`）、方式二 **Docker 部署启动** + FAQ；**不移除** `docker-compose.yml` / 不写密钥入镜像 / 默认 **`down` 不 `-v`** / admin **不直连第三方**。 |
