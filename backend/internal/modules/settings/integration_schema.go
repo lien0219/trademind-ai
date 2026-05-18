@@ -48,6 +48,10 @@ func IntegrationConfigDefinitions() []IntegrationConfigSchema {
 				{Name: "temperature", Label: "Temperature", Type: "text", Required: false, Help: "可选，默认 0.7"},
 				{Name: "max_tokens", Label: "Max tokens", Type: "text", Required: false, Help: "可选，默认 512"},
 				{Name: "timeout_sec", Label: "超时（秒）", Type: "number", Required: true, DefaultValue: 60},
+				{Name: "ai_batch_enabled", Label: "启用批量 AI", Type: "text", Required: false, Help: "true / false；关闭后批量接口拒绝执行"},
+				{Name: "ai_batch_max_size", Label: "单次批量最大商品数", Type: "text", Required: false, Help: "默认 100；上限 5000"},
+				{Name: "ai_batch_concurrency", Label: "批量并发数", Type: "text", Required: false, Help: "文本 AI 并行调用数，1–16，默认 2"},
+				{Name: "ai_batch_auto_save_ai_field", Label: "默认保存到 AI 字段", Type: "text", Required: false, Help: "true / false；未传 applyMode 时是否默认写入 ai_title / ai_description"},
 			},
 		},
 		{

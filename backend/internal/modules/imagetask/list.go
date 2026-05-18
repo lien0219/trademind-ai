@@ -17,6 +17,7 @@ type ListQuery struct {
 	Status    string
 	Provider  string
 	ProductID *uuid.UUID
+	BatchID   *uuid.UUID
 	Start     *time.Time
 	End       *time.Time
 }
@@ -49,7 +50,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&ImageTask{}).
 		Select("id", "task_type", "provider", "status", "product_id", "source_image_id", "source_image_url",
-			"result_file_id", "result_url", "error_message", "retry_count", "max_retries", "next_retry_at", "retry_enqueued_at",
+			"batch_id", "batch_no", "result_file_id", "result_url", "error_message", "retry_count", "max_retries", "next_retry_at", "retry_enqueued_at",
 			"created_by", "started_at", "finished_at", "created_at", "updated_at")
 
 	if v := strings.TrimSpace(q.TaskType); v != "" {
@@ -63,6 +64,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if q.ProductID != nil {
 		tx = tx.Where("product_id = ?", *q.ProductID)
+	}
+	if q.BatchID != nil {
+		tx = tx.Where("batch_id = ?", *q.BatchID)
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)

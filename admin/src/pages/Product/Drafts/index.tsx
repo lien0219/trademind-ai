@@ -5,9 +5,11 @@ import {
 } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber } from 'antd';
 import { useRef, useState } from 'react';
+import { history } from '@umijs/max';
 import { PRODUCT_STATUS } from '@/constants/status';
+import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
@@ -22,6 +24,12 @@ export default function ProductDraftsPage() {
   const [batchShopId, setBatchShopId] = useState<string>('');
   const [batchResult, setBatchResult] = useState<ProductReadinessResult[]>([]);
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
+  const [listFilters, setListFilters] = useState<{ keyword?: string; status?: string; source?: string }>({});
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkForm] = Form.useForm();
+  const [bulkOp, setBulkOp] = useState<string>('title_optimize');
+  const [bulkConfirmFiltered, setBulkConfirmFiltered] = useState(false);
 
   const columns: ProColumns<ProductListRow>[] = [
     {
@@ -141,6 +149,74 @@ export default function ProductDraftsPage() {
     }
   };
 
+  const submitBulkAI = async () => {
+    try {
+      const vals = await bulkForm.validateFields();
+      const productIds = [...selectedRowKeys];
+      if (productIds.length === 0 && !bulkConfirmFiltered) {
+        message.error('未勾选商品时，请勾选「按当前筛选」确认项');
+        return;
+      }
+      const narrow = !!(listFilters.keyword || listFilters.status || listFilters.source);
+      if (productIds.length === 0 && !narrow) {
+        message.error('当前无任何列表筛选；若需全表批量，请先在列表中设置状态/来源/关键字筛选，或勾选商品。');
+        return;
+      }
+      setBulkLoading(true);
+      const filtBase =
+        productIds.length === 0
+          ? {
+              keyword: listFilters.keyword ?? '',
+              status: listFilters.status ?? '',
+              source: listFilters.source ?? '',
+            }
+          : {};
+      if (
+        bulkOp === 'title_optimize' ||
+        bulkOp === 'description_generate'
+      ) {
+        await createProductTextBatch({
+          operationType: bulkOp,
+          productIds,
+          filters: filtBase,
+          options: {
+            language: vals.language,
+            platform: vals.platform,
+            maxLength: vals.maxLength,
+            tone: vals.tone,
+          },
+          applyMode: vals.applyMode,
+          confirmAll: productIds.length === 0,
+        });
+      } else {
+        await createProductImagesBatch({
+          operationType: bulkOp,
+          productIds,
+          filters: {
+            ...filtBase,
+            onlyHasMainImage: true,
+          },
+          options: {
+            provider: vals.provider,
+            prompt: vals.prompt,
+            backgroundPrompt: vals.backgroundPrompt,
+            style: vals.style,
+          },
+          confirmAll: productIds.length === 0,
+        });
+      }
+      message.success('批次已创建');
+      setBulkOpen(false);
+      history.push('/ai/batches');
+      actionRef.current?.reload();
+    } catch (e: unknown) {
+      if ((e as { errorFields?: unknown })?.errorFields) return;
+      message.error((e as Error)?.message || '创建失败');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <PageContainer title="商品草稿">
       <ProTable<ProductListRow>
@@ -163,6 +239,25 @@ export default function ProductDraftsPage() {
         headerTitle={false}
         toolBarRender={() => [
           <Button
+            key="bulkAi"
+            onClick={() => {
+              bulkForm.resetFields();
+              bulkForm.setFieldsValue({
+                language: 'en',
+                platform: 'TikTok Shop',
+                maxLength: 120,
+                tone: 'professional',
+                applyMode: 'save_ai_field',
+                provider: 'removebg',
+              });
+              setBulkOp('title_optimize');
+              setBulkConfirmFiltered(false);
+              setBulkOpen(true);
+            }}
+          >
+            批量 AI
+          </Button>,
+          <Button
             key="readiness"
             disabled={selectedRowKeys.length === 0}
             onClick={() => void openBatchDrawer()}
@@ -174,6 +269,11 @@ export default function ProductDraftsPage() {
           </Button>,
         ]}
         request={async (params) => {
+          setListFilters({
+            keyword: params.keyword as string | undefined,
+            status: params.status as string | undefined,
+            source: params.source as string | undefined,
+          });
           const res = await fetchProducts({
             page: params.current,
             pageSize: params.pageSize,
@@ -281,6 +381,97 @@ export default function ProductDraftsPage() {
             ]}
           />
         </Space>
+      </Drawer>
+
+      <Drawer
+        title="批量 AI（商品草稿）"
+        width={560}
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        destroyOnClose
+        extra={
+          <Button
+            type="primary"
+            loading={bulkLoading}
+            onClick={() => void submitBulkAI()}
+          >
+            创建批次
+          </Button>
+        }
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="不会自动覆盖正式标题/详情，不会替换主图，不会刊登。文本结果见 AI 任务与草稿「AI 标题/描述」；图片结果见「图片任务」。"
+        />
+        <Typography.Paragraph type="secondary">
+          已勾选 <strong>{selectedRowKeys.length}</strong> 个商品。
+          {selectedRowKeys.length === 0 ? (
+            <>未勾选时将使用下方「与列表相同的筛选条件」；必须勾选确认项。</>
+          ) : null}
+        </Typography.Paragraph>
+        <Form form={bulkForm} layout="vertical">
+          <Form.Item label="操作类型" required>
+            <Radio.Group
+              value={bulkOp}
+              onChange={(e) => setBulkOp(e.target.value)}
+              options={[
+                { label: 'AI 标题优化', value: 'title_optimize' },
+                { label: 'AI 描述生成', value: 'description_generate' },
+                { label: '去背景（主图）', value: 'image_remove_background' },
+                { label: '生成场景图（主图）', value: 'image_generate_scene' },
+              ]}
+            />
+          </Form.Item>
+          {(bulkOp === 'title_optimize' || bulkOp === 'description_generate') && (
+            <>
+              <Form.Item name="language" label="语言" rules={[{ required: true }]}>
+                <Input placeholder="en" />
+              </Form.Item>
+              <Form.Item name="platform" label="平台口径" rules={[{ required: true }]}>
+                <Input placeholder="TikTok Shop" />
+              </Form.Item>
+              {bulkOp === 'title_optimize' && (
+                <Form.Item name="maxLength" label="最大长度">
+                  <InputNumber min={20} max={300} style={{ width: '100%' }} />
+                </Form.Item>
+              )}
+              <Form.Item name="tone" label="语气 / 风格">
+                <Input placeholder="professional" />
+              </Form.Item>
+              <Form.Item name="applyMode" label="应用策略" tooltip="save_ai_field：成功后写入草稿的 ai_title / ai_description">
+                <Select
+                  options={[
+                    { label: '仅任务记录（不写 AI 草稿字段）', value: 'task_only' },
+                    { label: '写入 AI 草稿字段（ai_title / ai_description）', value: 'save_ai_field' },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+          {(bulkOp === 'image_remove_background' || bulkOp === 'image_generate_scene') && (
+            <>
+              <Form.Item
+                name="provider"
+                label="图片 Provider"
+                tooltip={bulkOp === 'image_remove_background' ? '后端会强制 removebg' : '如 openai_image / comfyui'}
+              >
+                <Input placeholder={bulkOp === 'image_remove_background' ? 'removebg' : 'openai_image'} />
+              </Form.Item>
+              <Form.Item name="prompt" label="Prompt（摘要入任务，可选）">
+                <Input.TextArea rows={3} placeholder="场景/风格提示；勿在公开场合粘贴完整商业秘密" />
+              </Form.Item>
+            </>
+          )}
+          {selectedRowKeys.length === 0 && (
+            <Form.Item>
+              <Checkbox checked={bulkConfirmFiltered} onChange={(e) => setBulkConfirmFiltered(e.target.checked)}>
+                我确认：对当前列表<strong>完全相同</strong>的筛选条件下的商品执行批量 AI（关键字 / 状态 / 来源）。
+              </Checkbox>
+            </Form.Item>
+          )}
+        </Form>
       </Drawer>
     </PageContainer>
   );

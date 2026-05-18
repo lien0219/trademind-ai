@@ -93,6 +93,14 @@ func main() {
 	}
 	imgSeedCancel()
 
+	aiBatchSeedCtx, aiBatchSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureAIBatchDefaults(aiBatchSeedCtx, db); err != nil {
+		aiBatchSeedCancel()
+		log.Error("ai_batch_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	aiBatchSeedCancel()
+
 	invSeedCtx, invSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	if err := settings.EnsureInventoryDefaults(invSeedCtx, db); err != nil {
 		invSeedCancel()

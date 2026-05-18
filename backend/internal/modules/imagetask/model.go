@@ -48,6 +48,8 @@ type ImageTask struct {
 	NextRetryAt     *time.Time     `json:"nextRetryAt,omitempty"`
 	RetryEnqueuedAt *time.Time     `json:"retryEnqueuedAt,omitempty"`
 	CreatedBy       *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	BatchID         *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
+	BatchNo         string         `gorm:"size:64;index" json:"batchNo,omitempty"`
 	StartedAt       *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time     `json:"finishedAt,omitempty"`
 	LockedBy        *string        `gorm:"size:220;index" json:"lockedBy,omitempty"`

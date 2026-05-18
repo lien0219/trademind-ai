@@ -1,6 +1,6 @@
 import { Link } from '@umijs/renderer-react';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, InputNumber, message, Select, Space } from 'antd';
+import { Alert, Button, Checkbox, Form, Input, InputNumber, message, Select, Space, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchSettingsList, saveSettingsItems, testAIConnection } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
@@ -15,6 +15,10 @@ const FIELDS: Record<string, FieldSpec> = {
   temperature: {},
   max_tokens: {},
   timeout_sec: {},
+  ai_batch_enabled: {},
+  ai_batch_max_size: {},
+  ai_batch_concurrency: {},
+  ai_batch_auto_save_ai_field: {},
 };
 
 export default function AISettingsPage() {
@@ -35,6 +39,10 @@ export default function AISettingsPage() {
         temperature: g.temperature !== undefined && g.temperature !== '' ? Number(g.temperature) : 0.7,
         max_tokens: g.max_tokens !== undefined && g.max_tokens !== '' ? Number(g.max_tokens) : 512,
         timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
+        ai_batch_enabled: g.ai_batch_enabled !== 'false',
+        ai_batch_max_size: g.ai_batch_max_size ? Number(g.ai_batch_max_size) : 100,
+        ai_batch_concurrency: g.ai_batch_concurrency ? Number(g.ai_batch_concurrency) : 2,
+        ai_batch_auto_save_ai_field: g.ai_batch_auto_save_ai_field !== 'false',
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -81,6 +89,10 @@ export default function AISettingsPage() {
                 timeout_sec: String(values.timeout_sec ?? ''),
                 temperature: String(values.temperature ?? ''),
                 max_tokens: String(values.max_tokens ?? ''),
+                ai_batch_enabled: values.ai_batch_enabled ? 'true' : 'false',
+                ai_batch_max_size: String(values.ai_batch_max_size ?? '100'),
+                ai_batch_concurrency: String(values.ai_batch_concurrency ?? '2'),
+                ai_batch_auto_save_ai_field: values.ai_batch_auto_save_ai_field ? 'true' : 'false',
               };
               await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
               message.success('已保存');
@@ -121,6 +133,30 @@ export default function AISettingsPage() {
           </Form.Item>
           <Form.Item label="超时（秒）" name="timeout_sec" rules={[{ required: true }]}>
             <InputNumber min={5} max={600} style={{ width: '100%' }} />
+          </Form.Item>
+          <Typography.Title level={5}>批量 AI（商品运营）</Typography.Title>
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="批量调用可能产生模型费用，请控制单次数量与并发（见下方配置）。"
+          />
+          <Form.Item name="ai_batch_enabled" valuePropName="checked" label="启用批量 AI 接口">
+            <Checkbox>开启后管理端可创建批量任务；关闭后接口拒绝执行</Checkbox>
+          </Form.Item>
+          <Form.Item
+            label="单次批量上限（商品数）"
+            name="ai_batch_max_size"
+            rules={[{ required: true }]}
+            extra="与后端校验一致；过大可能超时或产生高额费用。"
+          >
+            <InputNumber min={1} max={5000} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="并行度（文本）" name="ai_batch_concurrency" rules={[{ required: true }]}>
+            <InputNumber min={1} max={16} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="ai_batch_auto_save_ai_field" valuePropName="checked" label="默认写入 AI 草稿字段">
+            <Checkbox>批量请求未显式传入 applyMode 时，默认使用 save_ai_field（写入 ai_title / ai_description）</Checkbox>
           </Form.Item>
           <Form.Item>
             <Space>

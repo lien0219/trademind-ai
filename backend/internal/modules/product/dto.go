@@ -199,6 +199,15 @@ type OptimizeTitleBody struct {
 	Language  string `json:"language"`
 	Platform  string `json:"platform"`
 	MaxLength int    `json:"maxLength"`
+	Tone      string `json:"tone"` // optional; included in prompt vars when set
+}
+
+// AITitleRunExtra links a title optimization to a bulk batch and optional field writes.
+type AITitleRunExtra struct {
+	BatchID         *uuid.UUID
+	BatchNo         string
+	SkipSingleOpLog bool
+	SaveAIField     bool // updates products.ai_title only; never products.title
 }
 
 // OptimizeTitleResult is returned after an AI title optimization call.
@@ -231,6 +240,14 @@ type GenerateDescriptionResult struct {
 	Notes           string   `json:"notes"`
 	Reason          string   `json:"reason"`
 	TaskID          string   `json:"taskId"`
+}
+
+// AIDescriptionRunExtra links description generation to a bulk batch.
+type AIDescriptionRunExtra struct {
+	BatchID         *uuid.UUID
+	BatchNo         string
+	SkipSingleOpLog bool
+	SaveAIField     bool // updates products.ai_description only
 }
 
 // ApplyAIDescriptionBody binds POST /products/:id/apply-ai-description.

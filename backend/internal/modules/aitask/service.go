@@ -94,7 +94,7 @@ func (s *Service) ListRecentForProduct(ctx context.Context, productID uuid.UUID,
 	}
 	var rows []AITask
 	if err := s.DB.WithContext(ctx).
-		Select("id", "task_type", "provider", "model", "prompt_code", "status", "error_message", "token_input", "token_output", "cost_amount", "product_id", "conversation_id", "created_by", "started_at", "finished_at", "created_at", "updated_at").
+		Select("id", "task_type", "provider", "model", "prompt_code", "status", "error_message", "token_input", "token_output", "cost_amount", "product_id", "conversation_id", "created_by", "batch_id", "batch_no", "started_at", "finished_at", "created_at", "updated_at").
 		Where("product_id = ?", productID).
 		Order("created_at DESC").
 		Limit(limit).

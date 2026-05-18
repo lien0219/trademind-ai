@@ -34,6 +34,8 @@ type AITask struct {
 	ProductID      *uuid.UUID     `gorm:"type:char(36);index" json:"productId,omitempty"`
 	ConversationID *uuid.UUID     `gorm:"type:char(36);index" json:"conversationId,omitempty"`
 	CreatedBy      *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	BatchID        *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
+	BatchNo        string         `gorm:"size:64;index" json:"batchNo,omitempty"`
 	StartedAt      *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt     *time.Time     `json:"finishedAt,omitempty"`
 }

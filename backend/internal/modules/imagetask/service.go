@@ -51,6 +51,8 @@ type CreatePayload struct {
 	SourceImageURL string
 	Input          datatypes.JSON
 	CreatedBy      *uuid.UUID
+	BatchID        *uuid.UUID
+	BatchNo        string
 }
 
 func imageOperationTimeout(ctx context.Context, svc *settings.Service) time.Duration {
@@ -258,11 +260,36 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		Input:          p.Input,
 		CreatedBy:      p.CreatedBy,
 		MaxRetries:     s.defaultMaxRetriesForNewTask(),
+		BatchID:        p.BatchID,
+		BatchNo:        strings.TrimSpace(p.BatchNo),
 	}
 	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
 	}
 	return row, nil
+}
+
+// FinalizeNewImageTask enqueues a pending task or runs it inline (same contract as HTTP POST /image/tasks).
+func (s *Service) FinalizeNewImageTask(ctx context.Context, c *gin.Context, row *ImageTask) error {
+	if s == nil || row == nil {
+		return fmt.Errorf("imagetask: invalid finalize")
+	}
+	if s.QueueEnabled {
+		var rid string
+		if c != nil {
+			if tid, ok := c.Get(ctxkey.TraceID); ok {
+				if str, ok := tid.(string); ok {
+					rid = str
+				}
+			}
+		}
+		if err := s.enqueueTask(ctx, row.ID, row.TaskType, row.Provider, row.CreatedBy, rid); err != nil {
+			s.deleteTask(ctx, row.ID)
+			return err
+		}
+		return nil
+	}
+	return s.ProcessSyncAfterCreate(ctx, row.ID, c)
 }
 
 func (s *Service) deleteTask(ctx context.Context, id uuid.UUID) {

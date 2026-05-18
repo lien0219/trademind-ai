@@ -187,6 +187,11 @@ func (h *Handler) List(c *gin.Context) {
 			q.ProductID = &pid
 		}
 	}
+	if raw := strings.TrimSpace(c.Query("batchId")); raw != "" {
+		if bid, err := uuid.Parse(raw); err == nil {
+			q.BatchID = &bid
+		}
+	}
 	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
 		if t, err := time.Parse(time.RFC3339, raw); err == nil {
 			q.Start = &t
@@ -232,6 +237,8 @@ type taskDetailDTO struct {
 	NextRetryAt     *time.Time      `json:"nextRetryAt,omitempty"`
 	RetryEnqueuedAt *time.Time      `json:"retryEnqueuedAt,omitempty"`
 	CreatedBy       *uuid.UUID      `json:"createdBy,omitempty"`
+	BatchID         *uuid.UUID      `json:"batchId,omitempty"`
+	BatchNo         string          `json:"batchNo,omitempty"`
 	StartedAt       *time.Time      `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time      `json:"finishedAt,omitempty"`
 	CreatedAt       time.Time       `json:"createdAt"`
@@ -292,6 +299,8 @@ func (h *Handler) Get(c *gin.Context) {
 		NextRetryAt:     row.NextRetryAt,
 		RetryEnqueuedAt: row.RetryEnqueuedAt,
 		CreatedBy:       row.CreatedBy,
+		BatchID:         row.BatchID,
+		BatchNo:         row.BatchNo,
 		StartedAt:       row.StartedAt,
 		FinishedAt:      row.FinishedAt,
 		CreatedAt:       row.CreatedAt,

@@ -123,6 +123,15 @@ func parseTitleOptimizeJSON(content string) (titleOptimizeOutput, error) {
 
 // OptimizeTitle runs the product_title_optimize prompt via AI gateway.
 func (s *Service) OptimizeTitle(c *gin.Context, productID uuid.UUID, body OptimizeTitleBody, adminID *uuid.UUID) (*OptimizeTitleResult, error) {
+	return s.optimizeTitleWithExtra(c, productID, body, adminID, nil)
+}
+
+// OptimizeTitleWithBatch runs title optimization with optional batch linkage (bulk AI).
+func (s *Service) OptimizeTitleWithBatch(c *gin.Context, productID uuid.UUID, body OptimizeTitleBody, adminID *uuid.UUID, extra *AITitleRunExtra) (*OptimizeTitleResult, error) {
+	return s.optimizeTitleWithExtra(c, productID, body, adminID, extra)
+}
+
+func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, body OptimizeTitleBody, adminID *uuid.UUID, extra *AITitleRunExtra) (*OptimizeTitleResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
@@ -141,6 +150,10 @@ func (s *Service) OptimizeTitle(c *gin.Context, productID uuid.UUID, body Optimi
 	maxLen := body.MaxLength
 	if maxLen <= 0 {
 		maxLen = 120
+	}
+	tone := strings.TrimSpace(body.Tone)
+	if tone == "" {
+		tone = "professional"
 	}
 
 	var p Product
@@ -165,6 +178,7 @@ func (s *Service) OptimizeTitle(c *gin.Context, productID uuid.UUID, body Optimi
 		"language":   lang,
 		"maxLength":  fmt.Sprintf("%d", maxLen),
 		"platform":   platform,
+		"tone":       tone,
 	}
 	if vars["category"] == "" {
 		vars["category"] = "unknown"
@@ -210,6 +224,10 @@ func (s *Service) OptimizeTitle(c *gin.Context, productID uuid.UUID, body Optimi
 		TokenOutput: 0,
 		CostAmount:  0,
 	}
+	if extra != nil && extra.BatchID != nil {
+		task.BatchID = extra.BatchID
+		task.BatchNo = strings.TrimSpace(extra.BatchNo)
+	}
 	if err := s.AITasks.Create(c.Request.Context(), task); err != nil {
 		return nil, err
 	}
@@ -218,7 +236,7 @@ func (s *Service) OptimizeTitle(c *gin.Context, productID uuid.UUID, body Optimi
 	resp, err := s.AIGateway.Chat(c.Request.Context(), req)
 	if err != nil {
 		_ = s.AITasks.MarkFailed(c.Request.Context(), taskID, err.Error())
-		if s.OpLog != nil {
+		if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
 				Action:      "ai.title_optimize.failed",
@@ -235,7 +253,7 @@ func (s *Service) OptimizeTitle(c *gin.Context, productID uuid.UUID, body Optimi
 	if perr != nil {
 		msg := fmt.Sprintf("parse ai json: %v", perr)
 		_ = s.AITasks.MarkFailed(c.Request.Context(), taskID, msg)
-		if s.OpLog != nil {
+		if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
 				Action:      "ai.title_optimize.failed",
@@ -259,7 +277,11 @@ func (s *Service) OptimizeTitle(c *gin.Context, productID uuid.UUID, body Optimi
 	}
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, outJSON, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 
-	if s.OpLog != nil {
+	if extra != nil && extra.SaveAIField && strings.TrimSpace(parsed.OptimizedTitle) != "" {
+		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ?", p.ID).Update("ai_title", strings.TrimSpace(parsed.OptimizedTitle)).Error
+	}
+
+	if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
 			Action:      "ai.title_optimize.success",

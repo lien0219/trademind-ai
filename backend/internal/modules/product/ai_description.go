@@ -72,6 +72,15 @@ func parseDescriptionGenerateJSON(content string) (descriptionGenerateOutput, er
 
 // GenerateDescription runs product_description_generate via AI gateway.
 func (s *Service) GenerateDescription(c *gin.Context, productID uuid.UUID, body GenerateDescriptionBody, adminID *uuid.UUID) (*GenerateDescriptionResult, error) {
+	return s.generateDescriptionWithExtra(c, productID, body, adminID, nil)
+}
+
+// GenerateDescriptionWithBatch runs description generation with optional batch linkage.
+func (s *Service) GenerateDescriptionWithBatch(c *gin.Context, productID uuid.UUID, body GenerateDescriptionBody, adminID *uuid.UUID, extra *AIDescriptionRunExtra) (*GenerateDescriptionResult, error) {
+	return s.generateDescriptionWithExtra(c, productID, body, adminID, extra)
+}
+
+func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UUID, body GenerateDescriptionBody, adminID *uuid.UUID, extra *AIDescriptionRunExtra) (*GenerateDescriptionResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
@@ -168,6 +177,10 @@ func (s *Service) GenerateDescription(c *gin.Context, productID uuid.UUID, body 
 		TokenOutput: 0,
 		CostAmount:  0,
 	}
+	if extra != nil && extra.BatchID != nil {
+		task.BatchID = extra.BatchID
+		task.BatchNo = strings.TrimSpace(extra.BatchNo)
+	}
 	if err := s.AITasks.Create(c.Request.Context(), task); err != nil {
 		return nil, err
 	}
@@ -176,7 +189,7 @@ func (s *Service) GenerateDescription(c *gin.Context, productID uuid.UUID, body 
 	resp, err := s.AIGateway.Chat(c.Request.Context(), req)
 	if err != nil {
 		_ = s.AITasks.MarkFailed(c.Request.Context(), taskID, err.Error())
-		if s.OpLog != nil {
+		if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
 				Action:      "ai.description_generate.failed",
@@ -193,7 +206,7 @@ func (s *Service) GenerateDescription(c *gin.Context, productID uuid.UUID, body 
 	if perr != nil {
 		msg := fmt.Sprintf("parse ai json: %v", perr)
 		_ = s.AITasks.MarkFailed(c.Request.Context(), taskID, msg)
-		if s.OpLog != nil {
+		if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
 				Action:      "ai.description_generate.failed",
@@ -217,7 +230,11 @@ func (s *Service) GenerateDescription(c *gin.Context, productID uuid.UUID, body 
 	}
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, outJSON, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 
-	if s.OpLog != nil {
+	if extra != nil && extra.SaveAIField && strings.TrimSpace(parsed.Description) != "" {
+		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ?", p.ID).Update("ai_description", strings.TrimSpace(parsed.Description)).Error
+	}
+
+	if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
 			Action:      "ai.description_generate.success",

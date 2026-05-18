@@ -78,6 +78,11 @@ export default [
         name: '图片任务',
         component: './AI/ImageTasks',
       },
+      {
+        path: '/ai/batches',
+        name: 'AI 批次',
+        component: './AI/Batches',
+      },
     ],
   },
   {

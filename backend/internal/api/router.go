@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
@@ -147,6 +148,16 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		AIGateway: aiGateway,
 	}
 	productH := &product.Handler{Svc: productSvc}
+
+	aiBatchSvc := &aioperationbatch.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Products: productSvc,
+		Image:    imageTaskSvc,
+		OpLog:    opLogSvc,
+	}
+	aiBatchH := &aioperationbatch.Handler{Svc: aiBatchSvc}
+
 	promptH := &aiprompt.Handler{Svc: promptSvc}
 	aiTaskH := &aitask.Handler{Svc: aiTaskSvc}
 
@@ -326,6 +337,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.DELETE("/files/:id", fileH.Delete)
 
 	aiprompt.Register(authed, promptH)
+	aioperationbatch.Register(authed, aiBatchH)
 	aitask.Register(authed, aiTaskH)
 	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)

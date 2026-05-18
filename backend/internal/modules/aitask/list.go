@@ -20,6 +20,7 @@ type ListQuery struct {
 	PromptCode     string
 	ProductID      *uuid.UUID
 	ConversationID *uuid.UUID
+	BatchID        *uuid.UUID
 	Start          *time.Time
 	End            *time.Time
 }
@@ -53,7 +54,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	tx := s.DB.WithContext(c.Request.Context()).Model(&AITask{}).
 		Select("id", "task_type", "provider", "model", "prompt_code", "status", "error_message",
 			"token_input", "token_output", "cost_amount", "product_id", "conversation_id", "created_by",
-			"started_at", "finished_at", "created_at", "updated_at")
+			"batch_id", "batch_no", "started_at", "finished_at", "created_at", "updated_at")
 
 	if v := strings.TrimSpace(q.TaskType); v != "" {
 		tx = tx.Where("task_type = ?", v)
@@ -75,6 +76,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if q.ConversationID != nil {
 		tx = tx.Where("conversation_id = ?", *q.ConversationID)
+	}
+	if q.BatchID != nil {
+		tx = tx.Where("batch_id = ?", *q.BatchID)
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)
