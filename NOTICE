@@ -1,0 +1,18 @@
+TradeMind
+Copyright 2026 TradeMind contributors
+
+This product includes software developed by the TradeMind contributors.
+
+TradeMind is licensed under the Apache License, Version 2.0.
+See the LICENSE file for the full license text.
+
+This project uses and acknowledges open-source technologies including Go,
+Gin, GORM, PostgreSQL, Redis, React, Ant Design Pro, TypeScript, pnpm,
+Docker, and Playwright. Each third-party dependency remains under its own
+license terms.
+
+The names of third-party platforms, services, and products mentioned in this
+project, such as TikTok Shop, Shopee, Lazada, Amazon, OpenAI, remove.bg,
+ComfyUI, Tencent COS, and Aliyun OSS, are trademarks or service marks of their
+respective owners. Their mention in this project does not imply endorsement
+or partnership unless explicitly stated.

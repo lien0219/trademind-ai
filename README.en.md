@@ -367,6 +367,9 @@ See [docs/roadmap.md](docs/roadmap.md) for the detailed roadmap.
 | [docs/roadmap.md](docs/roadmap.md) | roadmap |
 | [docs/sponsor.md](docs/sponsor.md) | sponsor information |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | contribution guide |
+| [SECURITY.md](SECURITY.md) | security policy |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | community code of conduct |
+| [NOTICE](NOTICE) | third-party notices and acknowledgements |
 
 ## Partners
 

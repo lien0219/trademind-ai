@@ -395,6 +395,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-19 | **开源社区治理文件补齐**：新增 **`.github/ISSUE_TEMPLATE/config.yml`**（关闭空 Issue，提供文档 / 安全 / 赞助入口）、**`SECURITY.md`**、**`CODE_OF_CONDUCT.md`**、**`NOTICE`**，并同步 README / README.en 文档导航。 |
 | 2026-05-19 | **README 中英文拆分与展示区补齐**：中文首页保留在 **`README.md`**，英文首页独立为 **`README.en.md`**，两者结构一致并互相跳转；标题改为居中；项目介绍改为当前已支持能力表达；新增 **合作商展示 / 贡献榜 / 赞助榜** 预留区；README 命令仅保留根 `package.json` 实际脚本与现有 Docker Compose 命令。 |
 | 2026-05-19 | **赞助入口补充**：新增 **`docs/sponsor.md`**（微信 / 支付宝二维码赞助说明，图片位于 **`docs/assets/`**），新增 **`.github/FUNDING.yml`** 指向赞助说明页，README 中英文赞助章节与文档导航同步更新。 |
 | 2026-05-19 | **GitHub 开源文档体系建设**：重构根 **`README.md`** 为中英文双语开源首页（Banner、Badges、导航、功能表、启动方式、架构、Roadmap、开源使用规范、Sponsor、License）；新增 **Apache-2.0 `LICENSE`**、**`CONTRIBUTING.md`**、**Issue / PR 模板**、基础 docs（development / docker-deployment / architecture / provider / roadmap）；原项目地址明确为 **`https://github.com/lien0219/trademind-ai`**。 |

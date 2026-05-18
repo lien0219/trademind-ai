@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: TradeMind Documentation
+    url: https://github.com/lien0219/trademind-ai#文档导航
+    about: Read the documentation before opening an issue.
+  - name: Security Vulnerability Report
+    url: https://github.com/lien0219/trademind-ai/blob/main/SECURITY.md
+    about: Please do not disclose security vulnerabilities in public issues.
+  - name: Sponsor TradeMind
+    url: https://github.com/lien0219/trademind-ai/blob/main/docs/sponsor.md
+    about: Support ongoing maintenance and open-source development.

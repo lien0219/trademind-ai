@@ -367,6 +367,9 @@ Go Gin API
 | [docs/roadmap.md](docs/roadmap.md) | 路线图 |
 | [docs/sponsor.md](docs/sponsor.md) | 赞助支持 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
+| [SECURITY.md](SECURITY.md) | 安全策略 |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | 社区行为准则 |
+| [NOTICE](NOTICE) | 第三方声明与致谢 |
 
 ## 合作商展示
 
