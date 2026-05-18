@@ -133,6 +133,108 @@ AI 能力采用可插拔 Provider 设计，优先支持 OpenAI-Compatible API，
 
 ---
 
+## 本地一键启动（小白推荐）
+
+前置：**Node.js**、**pnpm**、**Go**、**Docker Desktop**（或已运行的 Docker 引擎）。仓库默认数据库为 **PostgreSQL**，缓存为 **Redis**，由根目录 `docker-compose.yml` 提供。
+
+### 1. 安装依赖
+
+```bash
+pnpm install
+```
+
+首次使用 Playwright 采集前，建议在仓库根目录执行一次：
+
+```bash
+pnpm install:collector:browsers
+```
+
+### 2. 启动全部服务
+
+```bash
+pnpm dev
+```
+
+会自动：
+
+- 若根目录 **没有** `.env`：从 **`.env.example`** 复制一份（**不会覆盖**已有 `.env`）
+- 执行 **`docker compose up -d`** 拉起 **PostgreSQL** 与 **Redis**（**不会**执行 `docker compose down`，也不会删卷）
+- 并行启动 **Go backend**、**admin** 管理端、**collector** 采集服务
+
+启动成功后，控制台会给出类似链接（具体端口以 `.env` 与终端为准）：
+
+- **Backend**：默认常为 `http://127.0.0.1:8080`（`APP_HTTP_ADDR`）
+- **Admin**：Umi 默认常为 `http://127.0.0.1:8000`（以终端输出的 **Local:** 为准）
+- **Collector**：默认常为 `http://127.0.0.1:3100`（`COLLECTOR_HTTP_ADDR`）
+
+按 **Ctrl+C** 可结束本次启动的三个子进程；**不会**自动停止 Docker 容器。
+
+### 3. 打开后台
+
+在浏览器打开管理端地址（一般为 **`http://127.0.0.1:8000`**），登录与引导见界面说明。
+
+### 4. 健康检查
+
+- **Backend**：`http://127.0.0.1:8080/health`（或你的 `APP_HTTP_ADDR` 对应主机端口）
+- **Collector**：`http://127.0.0.1:3100/health`（或你的 Collector 监听端口）
+
+### 5. 环境与诊断命令
+
+```bash
+pnpm check:dev    # 检查 Node / pnpm / Go / Docker / .env 等（不打印密钥或完整 .env）
+pnpm dev:infra    # 仅启动 PostgreSQL + Redis
+pnpm dev:stop     # 停止 compose 服务（不删 volume）
+```
+
+### 6. 常见问题
+
+- **Docker 没启动 / `docker ps` 报错**  
+  先启动 **Docker Desktop**（Windows/macOS）或系统 Docker 服务（Linux），再执行 `pnpm dev`。
+
+- **Go 未安装**  
+  从 [go.dev/dl](https://go.dev/dl/) 安装，终端可运行 `go version`。
+
+- **pnpm 未安装**  
+  可先装 Node.js，再执行：`npm install -g pnpm@9`。
+
+- **端口被占用**  
+  修改根目录 `.env` 中 **`APP_HTTP_ADDR`**、**`COLLECTOR_HTTP_ADDR`** 等，避免与本地其它服务冲突；管理端端口可在启动日志中确认或使用 Umi 环境变量（见 admin 文档）。
+
+- **数据库连接失败**  
+  确认容器已起：`pnpm dev:infra`；确认 `.env` 中 **`DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`** 与 `docker-compose.yml` 一致（示例默认为本机 `5432`）。
+
+- **Collector 未启动导致采集失败**  
+  采集由独立进程提供；请保证 **`pnpm dev`** 或 **`pnpm dev:collector`** 已运行，且后端 **`COLLECTOR_BASE_URL`** 与 Collector 监听地址一致（见 `.env.example`）。
+
+### 7. 重置数据库（慎用）
+
+会删除 Compose 管理的数据卷，**清空 PostgreSQL 数据**。仅在确认无需保留本地数据时使用：
+
+```bash
+pnpm dev:reset
+```
+
+按提示输入 **`RESET`** 后才会执行 **`docker compose down -v`**。完成后请自行执行 **`pnpm dev:infra`** 或 **`pnpm dev`** 重新创建容器。
+
+---
+
+## 分开启动（高级）
+
+适合需要单独调试某一服务的开发者：
+
+```bash
+docker compose up -d
+
+cd backend
+go run ./cmd/server
+
+# 另开终端，在仓库根目录：
+pnpm dev:admin
+pnpm dev:collector
+```
+
+---
+
 ## 架构设计
 
 ### MVP 架构
@@ -199,7 +301,8 @@ Go Gin API
 trademind-ai/
 ├── pnpm-workspace.yaml     # pnpm 工作区（admin + collector）
 ├── pnpm-lock.yaml
-├── package.json            # 根脚本：dev:admin / build:admin 等
+├── package.json            # 根脚本：dev（一键启）/ dev:admin / dev:collector 等
+├── scripts/                # 本地开发编排（check-dev-env / dev-all / dev-backend）
 ├── docker-compose.yml      # 本地 PostgreSQL + Redis
 ├── .env.example            # 环境变量示例（复制为 .env）
 ├── backend/
@@ -226,6 +329,8 @@ trademind-ai/
 ```
 
 ### 本地开发（pnpm）
+
+日常推荐：见上文 **「本地一键启动（小白推荐）」**，执行 **`pnpm dev`** 即可。
 
 ```bash
 pnpm install          # 工作区安装依赖（admin postinstall 会执行 max setup）
