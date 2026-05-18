@@ -274,16 +274,21 @@ pnpm install:collector:browsers
 
 ```text
 trademind-ai/
+├── .github/                 # GitHub 配置：CI、Issue / PR 模板、CODEOWNERS、Dependabot、Labeler
+├── .cursor/rules/           # Cursor / AI Agent 持久规则
 ├── backend/                 # Go + Gin + GORM 主业务服务
 ├── admin/                   # React + TypeScript + Ant Design Pro 管理后台
 ├── collector/               # Node.js + TypeScript + Playwright 采集服务
-├── docs/                    # 项目文档
+├── docs/                    # 项目文档、API 契约、环境变量、Provider 模板、AI 协作规则
 ├── scripts/                 # 本地开发编排脚本
 ├── data/uploads/            # 本地上传目录
 ├── docker-compose.yml       # 本地开发基础设施：PostgreSQL + Redis
 ├── docker-compose.full.yml  # 完整 Docker 部署编排
 ├── .env.example             # 本地开发环境变量模板
 ├── .env.docker.example      # Docker 部署环境变量模板
+├── AGENTS.md                # 通用 AI Agent 协作入口
+├── CHANGELOG.md             # 版本与重要变更记录
+├── README.md                # 中文 README
 ├── README.en.md             # 英文 README
 ├── CONTRIBUTING.md          # 贡献指南
 └── LICENSE                  # Apache-2.0 License

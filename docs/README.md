@@ -57,6 +57,24 @@
 | [../LICENSE](../LICENSE) | Apache-2.0 开源协议 |
 | [../CHANGELOG.md](../CHANGELOG.md) | 版本与重要变更记录 |
 
+## 仓库关键文件说明
+
+| 路径 | 作用 |
+| --- | --- |
+| `.github/CODEOWNERS` | 定义关键目录负责人，PR 改动匹配路径时请求维护者 review。 |
+| `.github/dependabot.yml` | 自动检查 GitHub Actions、pnpm、Go modules、Docker 依赖更新。 |
+| `.github/labeler.yml` | 按改动路径为 PR 自动打 `area:*`、`needs:*` 标签。 |
+| `.github/workflows/` | Go / Node / Docker 配置检查 / PR Labeler 等 GitHub Actions。 |
+| `.github/ISSUE_TEMPLATE/` | Bug、Feature、Documentation Issue 模板与入口配置。 |
+| `.github/PULL_REQUEST_TEMPLATE.md` | PR 描述、测试方式、目标分支与关联内容同步清单。 |
+| `.cursor/rules/` | Cursor / AI Agent 项目级持久规则。 |
+| `AGENTS.md` | 通用 AI 编程工具协作入口，适用于 Cursor 以外的 Agent。 |
+| `CHANGELOG.md` | 版本与重要变更记录。 |
+| `.env.example` | 本地开发环境变量模板。 |
+| `.env.docker.example` | Docker 完整部署环境变量模板。 |
+| `docker-compose.yml` | 本地开发基础设施：PostgreSQL + Redis。 |
+| `docker-compose.full.yml` | 完整 Docker 部署编排：PostgreSQL + Redis + backend + admin + collector。 |
+
 ## 维护规则
 
 新增或修改功能时，请同步检查：

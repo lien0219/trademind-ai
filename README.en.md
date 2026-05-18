@@ -274,16 +274,21 @@ Do not commit sensitive information. AI keys, storage secrets, platform app secr
 
 ```text
 trademind-ai/
+├── .github/                 # GitHub config: CI, issue / PR templates, CODEOWNERS, Dependabot, Labeler
+├── .cursor/rules/           # Cursor / AI Agent persistent rules
 ├── backend/                 # Go + Gin + GORM main service
 ├── admin/                   # React + TypeScript + Ant Design Pro admin console
 ├── collector/               # Node.js + TypeScript + Playwright collector service
-├── docs/                    # project documentation
+├── docs/                    # docs, API contract, env reference, Provider templates, AI collaboration rules
 ├── scripts/                 # local development orchestration scripts
 ├── data/uploads/            # local upload directory
 ├── docker-compose.yml       # local development infrastructure: PostgreSQL + Redis
 ├── docker-compose.full.yml  # full Docker deployment compose file
 ├── .env.example             # local development env template
 ├── .env.docker.example      # Docker deployment env template
+├── AGENTS.md                # general AI Agent collaboration entry point
+├── CHANGELOG.md             # version and notable change log
+├── README.en.md             # English README
 ├── README.md                # Simplified Chinese README
 ├── CONTRIBUTING.md          # contribution guide
 └── LICENSE                  # Apache-2.0 License
