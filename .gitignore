@@ -49,7 +49,7 @@ __debug_bin*
 
 # Logs
 *.log
-logs/
+/logs/
 
 # IDE / 编辑器
 .idea/

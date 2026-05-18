@@ -274,16 +274,21 @@ Do not commit sensitive information. AI keys, storage secrets, platform app secr
 
 ```text
 trademind-ai/
+├── .github/                 # GitHub config: CI, issue / PR templates, CODEOWNERS, Dependabot, Labeler
+├── .cursor/rules/           # Cursor / AI Agent persistent rules
 ├── backend/                 # Go + Gin + GORM main service
 ├── admin/                   # React + TypeScript + Ant Design Pro admin console
 ├── collector/               # Node.js + TypeScript + Playwright collector service
-├── docs/                    # project documentation
+├── docs/                    # docs, API contract, env reference, Provider templates, AI collaboration rules
 ├── scripts/                 # local development orchestration scripts
 ├── data/uploads/            # local upload directory
 ├── docker-compose.yml       # local development infrastructure: PostgreSQL + Redis
 ├── docker-compose.full.yml  # full Docker deployment compose file
 ├── .env.example             # local development env template
 ├── .env.docker.example      # Docker deployment env template
+├── AGENTS.md                # general AI Agent collaboration entry point
+├── CHANGELOG.md             # version and notable change log
+├── README.en.md             # English README
 ├── README.md                # Simplified Chinese README
 ├── CONTRIBUTING.md          # contribution guide
 └── LICENSE                  # Apache-2.0 License
@@ -357,20 +362,15 @@ See [docs/roadmap.md](docs/roadmap.md) for the detailed roadmap.
 
 ## Documentation
 
-| Document | Description |
+The full documentation index is available at [docs/README.md](docs/README.md).
+
+| Category | Documents |
 | --- | --- |
-| [README.md](README.md) | 简体中文 README |
-| [docs/development.md](docs/development.md) | local development guide |
-| [docs/docker-deployment.md](docs/docker-deployment.md) | Docker deployment guide |
-| [docs/architecture.md](docs/architecture.md) | architecture design |
-| [docs/provider.md](docs/provider.md) | Provider extension mechanism |
-| [docs/roadmap.md](docs/roadmap.md) | roadmap |
-| [docs/branching.md](docs/branching.md) | branching and PR rules |
-| [docs/sponsor.md](docs/sponsor.md) | sponsor information |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | contribution guide |
-| [SECURITY.md](SECURITY.md) | security policy |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | community code of conduct |
-| [NOTICE](NOTICE) | third-party notices and acknowledgements |
+| Quick Start | [Local Development](docs/development.md) · [Docker Deployment](docs/docker-deployment.md) · [Environment Variables](docs/env.md) |
+| Architecture | [Architecture](docs/architecture.md) · [API Contract](docs/api.md) · [Provider Extension](docs/provider.md) · [Roadmap](docs/roadmap.md) |
+| Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
+| Community | [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Sponsor](docs/sponsor.md) · [NOTICE](NOTICE) |
+| Languages | [简体中文 README](README.md) |
 
 ## Partners
 

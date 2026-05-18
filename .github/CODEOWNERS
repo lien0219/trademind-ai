@@ -1,0 +1,19 @@
+# TradeMind code owners
+#
+# GitHub uses this file to request reviews from maintainers when a pull request
+# changes matching paths. Replace @lien0219 or add more maintainers as the
+# project grows.
+
+* @lien0219
+
+/backend/ @lien0219
+/admin/ @lien0219
+/collector/ @lien0219
+/docs/ @lien0219
+/.cursor/rules/ @lien0219
+/.github/ @lien0219
+/.github/workflows/ @lien0219
+/docker-compose.yml @lien0219
+/docker-compose.full.yml @lien0219
+/.env.example @lien0219
+/.env.docker.example @lien0219
