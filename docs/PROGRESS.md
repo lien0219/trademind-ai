@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-19 — **在文件顶部固化《当前产品路线》**（双主线优先级与 §四 下一步）；并新增根目录 **`pnpm dev` 一键本地启动**（Compose + backend + admin + collector，`scripts/`），README **小白启动**与 **`pnpm check:dev`**。技术细节仍以正文 **§3.2** 与 **变更记录**为准。
+**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；新增 **Docker 部署启动**（`docker-compose.full.yml` + `backend`/`admin`/`collector` Dockerfile、`admin/nginx.conf`、`.env.docker.example`），README **启动方式** 分为 **开发者模式（pnpm dev）** 与 **Docker 部署启动**；边界：**不覆盖用户已有 `.env`**、镜像内 **不写死密钥**、默认 **`down` 不删 volume**、admin **经 nginx 代理后端**。技术细节仍以正文 **§3.2** 与 **变更记录**为准。
 
 ---
 
@@ -394,7 +394,8 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
-| 2026-05-19 | **开源一键本地开发启动**：根 **`pnpm dev`**（`scripts/dev-all.ts`）拉起 **PostgreSQL+Redis** 与 **backend/admin/collector** 并行；**`pnpm check:dev` / `dev:infra` / `dev:backend` / `dev:stop` / `dev:reset`（输入 RESET 确认后才 `docker compose down -v`）**；**.env 仅在缺失时从 `.env.example` 复制**；README **本地一键启动** + **分开启动**；根 **devDependencies：`tsx`/`execa`/`picocolors`** |
+| 2026-05-19 | **Docker 部署启动**：根 **`docker-compose.full.yml`**（独立 **`name: trademind-full`**；postgres 16 + redis 7 + **backend / admin / collector** 分容器；**backend** `COLLECTOR_BASE_URL=http://collector:3001`、持久卷 **`trademind_full_*`**；**admin** **`Dockerfile`** + **`nginx.conf`** 代理 **`/api` `/static`** → backend，SPA **`try_files`**）；**`backend/Dockerfile`**（Go 多阶段）；**`collector/Dockerfile`**（**`mcr.microsoft.com/playwright`** + pnpm build）；**`.env.docker.example`**；README **「启动方式」**：方式一 **pnpm dev**（沿用 `scripts/`）、方式二 **Docker 部署启动** + FAQ；**不移除** `docker-compose.yml` / 不写密钥入镜像 / 默认 **`down` 不 `-v`** / admin **不直连第三方**。 |
+| 2026-05-19 | **开源一键本地开发启动**：根 **`pnpm dev`**（`scripts/dev-all.ts`）拉起 **PostgreSQL+Redis** 与 **backend/admin/collector** 并行；**`pnpm check:dev` / `dev:infra` / `dev:backend` / `dev:stop` / `dev:reset`**；**.env 仅在缺失时从 `.env.example` 复制**；README **「启动方式」方式一** 与 **分开启动**；根 **devDependencies：`tsx`/`execa`/`picocolors`** |
 | 2026-05-19 | **产品路线固化**：文件顶部新增 **《当前产品路线》**（双主线优先级、§一§二目标链路、§三完整 ERP 后置清单、§四下一步、§五文档口径）；**§1** 补充「当前阶段定位」；**§8** 与验收/体验/演示收口对齐；**最后更新** 日期调整 |
 | 2026-05-18 | **商品运营看板 / 待办中心**：**`internal/modules/operationdashboard`**、**`GET /api/v1/dashboard/product-operations`**（只读）；**`/dashboard/product-operations`**、**`services/dashboard.ts`**；**`GET /products`** 深链筛选；**PROGRESS** §1·§3·§7·§8 |
 | 2026-05-18 | **商品发布前检查（productcheck）**：**`GET/POST …/readiness(/batch)`**、**刊登前强制检查**、管理端 **发布检查 Tab / 刊登联动 / 草稿列表批量**；**PROGRESS** §1·§3·§7·§8 |**`POST /api/v1/inventory/stock-settings/batch-preview`** · **`batch-update`**；**`settings.inventory.inventory_stock_settings_batch_max_size`**；**`inventory.stock_alert.batch_update`**；管理端 **`/inventory/alerts`**、草稿 **「库存」Tab**、**设置 → 库存/订单**；**不改 stock / 不写 inventory_change_logs / 不创建 inventory_sync_tasks`**；**PROGRESS** §1·§3·§7·§8 |

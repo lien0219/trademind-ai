@@ -1,0 +1,114 @@
+# TradeMind — Docker 部署启动（PostgreSQL + Redis + backend + admin + collector）
+# 使用方式：复制 .env.docker.example 为 .env 后执行
+#   docker compose -f docker-compose.full.yml up --build
+# 请勿与本仓库 docker-compose.yml（仅 infra）混淆；本文件不会删除或修改原有 compose。
+
+name: trademind-full
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trademind}
+      POSTGRES_USER: ${POSTGRES_USER:-trademind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trademind_dev_password}
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+    volumes:
+      - trademind_full_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PUBLISH_PORT:-6379}:6379"
+    volumes:
+      - trademind_full_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  collector:
+    build:
+      context: .
+      dockerfile: collector/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # 编排约定：容器内固定监听 3001，宿主机端口见 COLLECTOR_PUBLISH_PORT
+      COLLECTOR_HTTP_ADDR: ":3001"
+      NODE_ENV: production
+    ports:
+      - "${COLLECTOR_PUBLISH_PORT:-3001}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:3001/health >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_HTTP_ADDR: ":8080"
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      COLLECTOR_BASE_URL: http://collector:3001
+    ports:
+      - "${BACKEND_PUBLISH_PORT:-8080}:8080"
+    volumes:
+      - trademind_full_uploads:/app/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      collector:
+        condition: service_started
+    healthcheck:
+      test:
+        ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  admin:
+    build:
+      context: .
+      dockerfile: admin/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_PUBLISH_PORT:-8000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  trademind_full_pg_data:
+  trademind_full_redis_data:
+  trademind_full_uploads:

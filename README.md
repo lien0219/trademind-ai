@@ -133,88 +133,147 @@ AI 能力采用可插拔 Provider 设计，优先支持 OpenAI-Compatible API，
 
 ---
 
-## 本地一键启动（小白推荐）
+## 启动方式
 
-前置：**Node.js**、**pnpm**、**Go**、**Docker Desktop**（或已运行的 Docker 引擎）。仓库默认数据库为 **PostgreSQL**，缓存为 **Redis**，由根目录 `docker-compose.yml` 提供。
+### 方式一：开发者模式（pnpm dev）
 
-### 1. 安装依赖
+适合本地改代码、热更新与调试。需要安装 **Node.js**、**pnpm**、**Go**，并用 Docker 运行 **PostgreSQL / Redis**（见根目录 `docker-compose.yml`）。
 
 ```bash
 pnpm install
-```
-
-首次使用 Playwright 采集前，建议在仓库根目录执行一次：
-
-```bash
-pnpm install:collector:browsers
-```
-
-### 2. 启动全部服务
-
-```bash
 pnpm dev
 ```
 
-会自动：
+`pnpm dev` 会在根目录 **没有** `.env` 时从 `.env.example` **复制生成** `.env`（**不会覆盖**已有 `.env`）；并行启动 **backend / admin / collector**，并拉起 **`docker compose`** 中的 **postgres / redis**。按 **Ctrl+C** 结束脚本拉起的子进程时，**不会**自动停止数据库容器。
 
-- 若根目录 **没有** `.env`：从 **`.env.example`** 复制一份（**不会覆盖**已有 `.env`）
-- 执行 **`docker compose up -d`** 拉起 **PostgreSQL** 与 **Redis**（**不会**执行 `docker compose down`，也不会删卷）
-- 并行启动 **Go backend**、**admin** 管理端、**collector** 采集服务
-
-启动成功后，控制台会给出类似链接（具体端口以 `.env` 与终端为准）：
-
-- **Backend**：默认常为 `http://127.0.0.1:8080`（`APP_HTTP_ADDR`）
-- **Admin**：Umi 默认常为 `http://127.0.0.1:8000`（以终端输出的 **Local:** 为准）
-- **Collector**：默认常为 `http://127.0.0.1:3100`（`COLLECTOR_HTTP_ADDR`）
-
-按 **Ctrl+C** 可结束本次启动的三个子进程；**不会**自动停止 Docker 容器。
-
-### 3. 打开后台
-
-在浏览器打开管理端地址（一般为 **`http://127.0.0.1:8000`**），登录与引导见界面说明。
-
-### 4. 健康检查
-
-- **Backend**：`http://127.0.0.1:8080/health`（或你的 `APP_HTTP_ADDR` 对应主机端口）
-- **Collector**：`http://127.0.0.1:3100/health`（或你的 Collector 监听端口）
-
-### 5. 环境与诊断命令
+常用诊断：
 
 ```bash
-pnpm check:dev    # 检查 Node / pnpm / Go / Docker / .env 等（不打印密钥或完整 .env）
-pnpm dev:infra    # 仅启动 PostgreSQL + Redis
-pnpm dev:stop     # 停止 compose 服务（不删 volume）
+pnpm check:dev     # Node / pnpm / Go / Docker / .env 等（不打印密钥）
+pnpm dev:infra     # 仅 postgres + redis
+pnpm dev:stop      # 停止 docker-compose.yml 中的服务（不删 volume）
+pnpm install:collector:browsers   # 本机 Playwright Chromium（docker 部署启动不需要）
 ```
 
-### 6. 常见问题
+默认端口（可按根目录 `.env` 调整）：**Backend** `8080`（`APP_HTTP_ADDR`）、**Admin** 多为 `8000`（以终端 **Local:** 为准）、**Collector** 多为 `3100`（`COLLECTOR_HTTP_ADDR`）。健康检查示例：`http://127.0.0.1:8080/health`、`http://127.0.0.1:3100/health`。
 
-- **Docker 没启动 / `docker ps` 报错**  
-  先启动 **Docker Desktop**（Windows/macOS）或系统 Docker 服务（Linux），再执行 `pnpm dev`。
+**重置本机 Compose 数据库卷（慎用）**：`pnpm dev:reset`，并按提示输入 **`RESET`** 后才会执行 **`docker compose down -v`**（针对默认 **`docker-compose.yml`** 项目，会清空该编排下的 PostgreSQL 数据）。
 
-- **Go 未安装**  
-  从 [go.dev/dl](https://go.dev/dl/) 安装，终端可运行 `go version`。
+其它：**`pnpm dev`** 使用的 Compose 文件是 **`docker-compose.yml`**，与下文 **Docker 部署启动** 的 **`docker-compose.full.yml`** 无关（端口 / 数据卷均独立）。若 **`pnpm check:dev`** 提示 Docker 未就绪，请先启动 Docker；Go / pnpm 的安装见上文命令说明。
 
-- **pnpm 未安装**  
-  可先装 Node.js，再执行：`npm install -g pnpm@9`。
+---
 
-- **端口被占用**  
-  修改根目录 `.env` 中 **`APP_HTTP_ADDR`**、**`COLLECTOR_HTTP_ADDR`** 等，避免与本地其它服务冲突；管理端端口可在启动日志中确认或使用 Umi 环境变量（见 admin 文档）。
+### 方式二：Docker 部署启动
 
-- **数据库连接失败**  
-  确认容器已起：`pnpm dev:infra`；确认 `.env` 中 **`DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`** 与 `docker-compose.yml` 一致（示例默认为本机 `5432`）。
+适合快速部署、试用或演示：**不需要**在本机安装 Go / Node 开发环境，仅需 **Docker**（含 Compose）。将 **PostgreSQL、Redis、backend、admin、collector** 分别运行在独立容器中（**admin** 通过内置 **nginx** 把 **`/api`、`/static`** 反向代理到 **backend**，前端**不直连**第三方 AI / 平台 API / Collector）。
 
-- **Collector 未启动导致采集失败**  
-  采集由独立进程提供；请保证 **`pnpm dev`** 或 **`pnpm dev:collector`** 已运行，且后端 **`COLLECTOR_BASE_URL`** 与 Collector 监听地址一致（见 `.env.example`）。
-
-### 7. 重置数据库（慎用）
-
-会删除 Compose 管理的数据卷，**清空 PostgreSQL 数据**。仅在确认无需保留本地数据时使用：
+**1. 准备环境变量**
 
 ```bash
-pnpm dev:reset
+cp .env.docker.example .env
 ```
 
-按提示输入 **`RESET`** 后才会执行 **`docker compose down -v`**。完成后请自行执行 **`pnpm dev:infra`** 或 **`pnpm dev`** 重新创建容器。
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.docker.example .env
+```
+
+请阅读 `.env` 顶部说明：**生产环境必须**修改 **`JWT_SECRET`、`APP_MASTER_KEY`、`ADMIN_BOOTSTRAP_PASSWORD`、数据库密码** 等；不要将真实 AI Key、平台密钥写入仓库。
+
+**2. 构建并启动**
+
+```bash
+docker compose -f docker-compose.full.yml up --build
+```
+
+后台运行：
+
+```bash
+docker compose -f docker-compose.full.yml up -d --build
+```
+
+首次构建会下载基础镜像并编译 admin/collector/backend，**耗时可能较长**（Collector 基于 Playwright 镜像）。
+
+**3. 访问入口（默认端口）**
+
+| 说明 | URL |
+|------|-----|
+| 管理端 | http://localhost:8000 |
+| 后端健康检查 | http://localhost:8080/health |
+| 经 nginx 探测后端 | http://localhost:8000/health-backend |
+| Collector 能力列表 | http://localhost:3001/v1/providers |
+
+端口映射可在 `.env` 中用 **`ADMIN_PUBLISH_PORT`、`BACKEND_PUBLISH_PORT`、`COLLECTOR_PUBLISH_PORT`、`POSTGRES_PUBLISH_PORT`、`REDIS_PUBLISH_PORT`** 调整（见 `.env.docker.example` 注释）。
+
+**4. 默认管理员**
+
+账号与密码来自 `.env` 中的 **`ADMIN_BOOTSTRAP_EMAIL`**（或手机号流程，若你配置了 **`ADMIN_BOOTSTRAP_PHONE`**）与 **`ADMIN_BOOTSTRAP_PASSWORD`**。首次登录后请尽快修改密码；生产环境务必改掉示例口令。
+
+**5. 停止与数据**
+
+```bash
+docker compose -f docker-compose.full.yml stop
+```
+
+删除容器但**保留**命名卷（PostgreSQL / Redis / 上传目录数据默认保留）：
+
+```bash
+docker compose -f docker-compose.full.yml down
+```
+
+**慎用**：以下命令会移除 Compose 管理的卷，**清空数据库等持久化数据**，执行前请确认无需保留：
+
+```bash
+docker compose -f docker-compose.full.yml down -v
+```
+
+---
+
+### 常见问题（Docker 部署启动）
+
+1. **Docker 没启动怎么办？**  
+   先启动 **Docker Desktop**（Windows/macOS）或本机 Docker 服务（Linux），终端执行 `docker version` 无报错后再运行 Compose。
+
+2. **端口 8000 / 8080 / 3001 / 5432 / 6379 被占用？**  
+   在 `.env` 中修改对应的 **`*_PUBLISH_PORT`**（见 `.env.docker.example`），或停止占用端口的其他程序。
+
+3. **admin 能打开页面但 `/api` 失败？**  
+   打开浏览器开发者工具查看请求地址是否仍为 **`/api/...`**（同域）；确认 **backend** 容器健康（`docker compose ... ps`）。可通过 **`http://localhost:8000/health-backend`** 观察经 nginx 到后端的链路。
+
+4. **backend 连不上数据库？**  
+   确认 **postgres** 为 **healthy**；`.env` 中 **`DB_*`** 与 **`POSTGRES_*`** 一致；不要被宿主机上的另一套 PostgreSQL（例如 `docker-compose.yml` 占用的 **5432**）干扰——两套 Compose 使用不同数据卷。
+
+5. **Collector 未启动导致采集失败？**  
+   确认 **collector** 容器在运行，且后端使用的 **`COLLECTOR_BASE_URL`** 在编排内为 **`http://collector:3001`**（已由 **`docker-compose.full.yml`** 覆盖，无需改前端）。
+
+6. **首次登录失败？**  
+   核对 `.env` 中引导账号 **`ADMIN_BOOTSTRAP_*`**；数据库 volume 若非全新，可能已有旧管理员数据，需用已有账号或执行 **`down -v` 重置（会删数据）**。
+
+7. **修改 `.env` 后是否要重启？**  
+   要。请 **`docker compose -f docker-compose.full.yml up -d --build`** 或至少 **`restart`** 相关服务使环境变量生效。
+
+8. **如何查看日志？**
+
+```bash
+docker compose -f docker-compose.full.yml logs -f backend
+docker compose -f docker-compose.full.yml logs -f admin
+docker compose -f docker-compose.full.yml logs -f collector
+docker compose -f docker-compose.full.yml logs -f postgres
+docker compose -f docker-compose.full.yml logs -f redis
+```
+
+9. **如何更新镜像？**
+
+```bash
+docker compose -f docker-compose.full.yml build --no-cache
+docker compose -f docker-compose.full.yml up -d
+```
+
+或直接：`docker compose -f docker-compose.full.yml up -d --build`。
+
+10. **生产环境要改哪些密钥？**  
+    至少：**`JWT_SECRET`、`APP_MASTER_KEY`、数据库口令、`ADMIN_BOOTSTRAP_PASSWORD`**；所有第三方 **AI / 存储 / 平台** 凭证仅在管理端或加密存储中配置，**不要**写入镜像或提交 `.env`。
 
 ---
 
@@ -303,8 +362,10 @@ trademind-ai/
 ├── pnpm-lock.yaml
 ├── package.json            # 根脚本：dev（一键启）/ dev:admin / dev:collector 等
 ├── scripts/                # 本地开发编排（check-dev-env / dev-all / dev-backend）
-├── docker-compose.yml      # 本地 PostgreSQL + Redis
-├── .env.example            # 环境变量示例（复制为 .env）
+├── docker-compose.yml      # 开发者模式：仅 PostgreSQL + Redis（pnpm dev / dev:infra）
+├── docker-compose.full.yml # Docker 部署启动：postgres + redis + backend + admin + collector
+├── .env.example            # 本机开发环境变量示例（复制为 .env）
+├── .env.docker.example     # Docker 部署启动环境变量示例（复制为 .env 后配合 compose.full）
 ├── backend/
 │   ├── cmd/server/         # main 入口
 │   ├── internal/
@@ -317,20 +378,24 @@ trademind-ai/
 │   │   ├── pkg/response/    # 统一 API 响应结构
 │   │   ├── providers/      # Storage / AI / Image / Platform / Collector 抽象
 │   │   └── queue/
+│   ├── Dockerfile          # Docker 部署启动：多阶段构建 API 二进制
 │   ├── migrations/
 │   ├── configs/
 │   └── go.mod
-├── admin/                  # React + Ant Design Pro 后台（脚手架占位）
+├── admin/                  # React + Ant Design Pro 后台
+│   ├── Dockerfile          # Docker 部署启动：pnpm build + nginx
+│   ├── nginx.conf          # 反向代理 /api /static → backend；SPA fallback
 │   └── src/
 ├── collector/              # Node + Playwright 采集（HTTP /v1/collect）
-│   └── src/                # providers / browser / tasks / http
+│   ├── Dockerfile          # Docker 部署启动：Playwright 基础镜像 + pnpm build
+│   └── src/
 ├── docs/                   # 项目文档
 └── data/uploads/           # 本地存储挂载目录（默认）
 ```
 
 ### 本地开发（pnpm）
 
-日常推荐：见上文 **「本地一键启动（小白推荐）」**，执行 **`pnpm dev`** 即可。
+日常推荐：见上文「启动方式」中的 **方式一：开发者模式（pnpm dev）**。
 
 ```bash
 pnpm install          # 工作区安装依赖（admin postinstall 会执行 max setup）
