@@ -7,10 +7,13 @@ alwaysApply: true
 
 - 修改代码前先读取相关代码、配置与文档，不凭空假设脚本、端口、路径或变量。
 - 变更必须保持 **代码 / 配置 / 示例 / Docker / CI / 文档** 同步。
-- 新增或修改环境变量时，同步更新 `.env.example`；Docker 也需要时同步 `.env.docker.example` 与 `docker-compose.full.yml`。
+- 跨模块改动先查 `docs/module-map.md`；收尾时按 `docs/task-checklist.md` 自查。
+- 新增或修改环境变量时，同步更新 `.env.example`、`docs/env.md`；Docker 也需要时同步 `.env.docker.example` 与 `docker-compose.full.yml`。
 - 新增或修改命令时，同步更新 `README.md`、`README.en.md`、`docs/development.md` 和 `package.json` 脚本说明。
 - 新增或修改 Docker 部署行为时，同步更新 `docs/docker-deployment.md`。
-- 新增 API、Provider、异步任务、后台页面、数据库表或公共契约时，同步更新对应 `docs/`，较大变更必须更新 `docs/PROGRESS.md`。
+- 新增 API 或改变 DTO / 返回字段时，同步 `docs/api.md`、前端 `admin/src/services`、`admin/src/types` 和相关页面。
+- 新增 Provider 时按 `docs/provider-template.md` 检查接口、配置、超时、错误处理和安全要求，并同步 `docs/provider.md`。
+- 新增异步任务、后台页面、数据库表或公共契约时，同步更新对应 `docs/`，较大变更必须更新 `docs/PROGRESS.md`。
 - 涉及分支、CI、PR 流程时，同步更新 `docs/branching.md`、`CONTRIBUTING.md` 与 PR 模板。
 - 涉及密钥、Token、授权、加密或日志安全时，同步更新 `SECURITY.md` 或相关设置文档。
 - 提交前按改动范围执行检查：后端 `go fmt ./...`，admin `pnpm build:admin`，collector `pnpm build:collector`；未执行需说明原因。

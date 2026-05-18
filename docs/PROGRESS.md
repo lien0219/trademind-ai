@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；新增 **`docs/README.md` 文档中心**，将文档按快速开始、架构扩展、协作规范、社区治理分组；README / README.en 的文档导航改为分组入口，降低首页维护成本。AI 编程规则、Node CI、分支策略、开源治理与中英文 README 文档体系保持有效。
+**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；补齐开源治理与 AI 关联配置：新增 **CODEOWNERS / Dependabot / Labeler / Docker Config CI / CHANGELOG**，以及 **`docs/module-map.md`、`docs/env.md`、`docs/api.md`、`docs/provider-template.md`、`docs/task-checklist.md`**；同步 `AGENTS.md`、Cursor rule、PR 模板与文档中心，强化“改 A 必查 B/C/D”的关联同步。
 
 ---
 
@@ -395,6 +395,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-19 | **开源治理与 AI 关联配置补齐**：新增 **`.github/CODEOWNERS`**、**`.github/dependabot.yml`**、**`.github/labeler.yml`**、**`.github/workflows/labeler.yml`**、**`.github/workflows/docker.yml`**、**`CHANGELOG.md`**；Go / Node CI 增加 **`workflow_dispatch`**；新增 **`docs/module-map.md`**、**`docs/env.md`**、**`docs/api.md`**、**`docs/provider-template.md`**、**`docs/task-checklist.md`**，并同步 **AGENTS / Cursor rule / docs index / README / CONTRIBUTING / PR 模板**，用于约束环境变量、API、Provider、Docker、CI 与文档联动。 |
 | 2026-05-19 | **通用 AI Agent 入口**：新增根目录 **`AGENTS.md`**，作为 Cursor 以外 AI 编辑器 / Agent 的通用协作入口，集中说明必读文档、技术栈、开发规则、文档同步要求、检查命令与禁止事项；README / README.en / docs index 增加入口。 |
 | 2026-05-19 | **Cursor rules 轻整理**：新增 **`.cursor/rules/README.md`**，按全局规则与领域规则列出每个 `.mdc` 的用途、适用范围和新增规则 checklist；`docs/README.md` 增加 Cursor rules 索引入口。 |
 | 2026-05-19 | **文档中心整理**：新增 **`docs/README.md`**，统一收口开发、部署、架构、Provider、路线图、分支规则、AI 编程规则、赞助、安全、行为准则等入口；README / README.en 文档导航改为分组式入口，首页更清爽，后续新增文档优先维护 docs index。 |

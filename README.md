@@ -361,9 +361,9 @@ Go Gin API
 
 | 分类 | 文档 |
 | --- | --- |
-| 快速开始 | [本地开发](docs/development.md) · [Docker 部署](docs/docker-deployment.md) |
-| 架构扩展 | [架构设计](docs/architecture.md) · [Provider 扩展](docs/provider.md) · [路线图](docs/roadmap.md) |
-| 协作规范 | [贡献指南](CONTRIBUTING.md) · [AI Agent 规则](AGENTS.md) · [分支规则](docs/branching.md) · [AI 编程规则](docs/ai-coding-rules.md) |
+| 快速开始 | [本地开发](docs/development.md) · [Docker 部署](docs/docker-deployment.md) · [环境变量](docs/env.md) |
+| 架构扩展 | [架构设计](docs/architecture.md) · [API 契约](docs/api.md) · [Provider 扩展](docs/provider.md) · [路线图](docs/roadmap.md) |
+| 协作规范 | [贡献指南](CONTRIBUTING.md) · [AI Agent 规则](AGENTS.md) · [分支规则](docs/branching.md) · [AI 编程规则](docs/ai-coding-rules.md) · [模块关联索引](docs/module-map.md) |
 | 社区治理 | [安全策略](SECURITY.md) · [行为准则](CODE_OF_CONDUCT.md) · [赞助支持](docs/sponsor.md) · [NOTICE](NOTICE) |
 | 多语言 | [English README](README.en.md) |
 

@@ -8,7 +8,7 @@
 - 全局、必须长期遵守的规则使用 `alwaysApply: true`。
 - 只在特定目录或技术栈生效的规则使用 `globs` + `alwaysApply: false`。
 - 新增规则时优先保持简短、可执行、无冲突。
-- 修改代码、配置、环境变量、Docker、CI、API、Provider 或公共契约时，必须遵守 `12-ai-coding-doc-sync.mdc` 的文档同步要求。
+- 修改代码、配置、环境变量、Docker、CI、API、Provider 或公共契约时，必须遵守 `12-ai-coding-doc-sync.mdc` 的文档同步要求，并优先查阅 `docs/module-map.md`、`docs/task-checklist.md`。
 
 ## 全局规则
 
@@ -41,3 +41,4 @@
 - [ ] 领域规则设置合适的 `globs` 和 `alwaysApply: false`。
 - [ ] 规则内容不与现有规则冲突。
 - [ ] 如规则影响公开协作方式，同步更新 `docs/ai-coding-rules.md` 或 `docs/README.md`。
+- [ ] 如规则改变关联文件检查方式，同步更新 `docs/module-map.md` 和 `AGENTS.md`。

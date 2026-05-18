@@ -20,6 +20,10 @@
 | [README.md](README.md) | 项目首页、能力概览、启动方式 |
 | [docs/README.md](docs/README.md) | 文档中心 |
 | [docs/ai-coding-rules.md](docs/ai-coding-rules.md) | AI 编程规则与文档同步要求 |
+| [docs/module-map.md](docs/module-map.md) | 模块关联索引，说明改动一个模块时必须检查哪些关联文件 |
+| [docs/task-checklist.md](docs/task-checklist.md) | 任务完成前按类型自查的检查清单 |
+| [docs/env.md](docs/env.md) | 环境变量、Docker 配置和敏感配置说明 |
+| [docs/api.md](docs/api.md) | API 公共契约、统一返回、鉴权和前后端同步要求 |
 | [docs/branching.md](docs/branching.md) | 分支策略与 PR 规则 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | 当前进度、已完成事项、遗留问题 |
@@ -53,7 +57,7 @@
 - Docker 也需要该变量：更新 `.env.docker.example` 和 `docker-compose.full.yml`。
 - 修改启动命令：更新 `README.md`、`README.en.md`、`docs/development.md`。
 - 修改 Docker 部署：更新 `docs/docker-deployment.md`。
-- 新增 API / Provider / 队列 / 页面 / 数据表：更新对应 `docs/`。
+- 新增 API / Provider / 队列 / 页面 / 数据表：先查 `docs/module-map.md`，再更新 `docs/api.md`、`docs/provider.md` 或对应模块文档。
 - 较大模块或阶段性变更：更新 `docs/PROGRESS.md`。
 - 分支、CI、PR 流程变更：更新 `docs/branching.md`、`CONTRIBUTING.md`、PR 模板。
 
@@ -90,5 +94,6 @@ go test ./...
 2. 明确影响范围，再编辑文件。
 3. 保持修改小而聚焦。
 4. 不回滚用户已有修改，除非用户明确要求。
-5. 修改代码后检查文档、配置、CI 是否需要同步。
-6. 最终说明改了什么、验证了什么、还有什么风险。
+5. 用 `docs/module-map.md` 检查关联内容，避免漏改配置、前端、Docker、CI 或文档。
+6. 用 `docs/task-checklist.md` 做收尾自查。
+7. 最终说明改了什么、验证了什么、还有什么风险。
