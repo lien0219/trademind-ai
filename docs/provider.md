@@ -106,3 +106,5 @@ Collector Provider
 4. 不在日志中输出密钥。
 5. 对错误进行可读归因，便于前端展示和任务重试。
 6. 必要时同步更新 README、本文档和相关设置页面。
+
+新增 Provider 前请复制或参考 [provider-template.md](provider-template.md)，并按 [module-map.md](module-map.md) 检查 settings、环境变量、API、前端页面、任务队列和文档联动。

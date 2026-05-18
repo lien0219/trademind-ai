@@ -46,6 +46,8 @@ POSTGRES_PUBLISH_PORT=5432
 REDIS_PUBLISH_PORT=6379
 ```
 
+完整环境变量说明见 [env.md](env.md)。修改 Docker 变量时必须同步 `.env.docker.example`、`docker-compose.full.yml`、本文档和 `docs/env.md`。
+
 ## 安全配置
 
 生产环境或公网部署前必须修改：
@@ -114,3 +116,13 @@ ADMIN_BOOTSTRAP_PASSWORD=admin123456
 - `docker-compose.full.yml`：用于完整 Docker 部署，包含 PostgreSQL + Redis + backend + admin + collector。
 
 两套 Compose 的服务、端口和数据卷应分开理解。
+
+## 配置校验
+
+CI 会执行轻量 Docker 配置检查：
+
+```bash
+docker compose -f docker-compose.full.yml config
+```
+
+本地修改 Dockerfile、Compose 或 `.env.docker.example` 后，建议先执行同样命令确认语法和变量引用正确。

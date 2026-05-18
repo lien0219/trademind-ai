@@ -1,0 +1,76 @@
+"area: backend":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "backend/**"
+
+"area: admin":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "admin/**"
+
+"area: collector":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "collector/**"
+
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "README.en.md"
+          - "docs/**"
+          - "AGENTS.md"
+          - "CONTRIBUTING.md"
+          - "CODE_OF_CONDUCT.md"
+          - "SECURITY.md"
+          - "NOTICE"
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+          - ".github/labeler.yml"
+          - ".github/dependabot.yml"
+
+"area: docker":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Dockerfile"
+          - "**/Dockerfile"
+          - ".dockerignore"
+          - "**/.dockerignore"
+          - "docker-compose*.yml"
+          - ".env.docker.example"
+
+"area: config":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".env.example"
+          - ".env.docker.example"
+          - "package.json"
+          - "pnpm-workspace.yaml"
+          - "pnpm-lock.yaml"
+          - ".cursor/rules/**"
+
+"needs: env-doc-sync":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".env.example"
+          - ".env.docker.example"
+          - "docker-compose.yml"
+          - "docker-compose.full.yml"
+
+"needs: api-doc-sync":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "backend/internal/api/**"
+          - "backend/internal/modules/**/handler*.go"
+          - "backend/internal/modules/**/dto*.go"
+          - "admin/src/services/**"
+          - "admin/src/types/**"
+
+"needs: provider-doc-sync":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "backend/internal/providers/**"
+          - "backend/internal/modules/**/provider*.go"

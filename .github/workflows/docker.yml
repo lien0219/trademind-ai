@@ -1,0 +1,46 @@
+name: Docker Config CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+      - dev
+    paths:
+      - "docker-compose*.yml"
+      - ".env.docker.example"
+      - "**/Dockerfile"
+      - "**/.dockerignore"
+      - ".github/workflows/docker.yml"
+  push:
+    branches:
+      - main
+      - dev
+      - "feat/**"
+      - "fix/**"
+      - "release/**"
+    paths:
+      - "docker-compose*.yml"
+      - ".env.docker.example"
+      - "**/Dockerfile"
+      - "**/.dockerignore"
+      - ".github/workflows/docker.yml"
+
+jobs:
+  compose-config:
+    name: docker compose config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare env file
+        run: cp .env.docker.example .env
+
+      - name: Validate full compose file
+        run: docker compose -f docker-compose.full.yml config

@@ -83,6 +83,8 @@ Copy-Item .env.example .env
 - `COLLECTOR_HTTP_ADDR=:3100`
 - `COLLECTOR_BASE_URL=http://127.0.0.1:3100`
 
+完整变量说明见 [env.md](env.md)。新增或修改变量时，还要按 [module-map.md](module-map.md) 检查 Docker、README、部署文档和代码默认值。
+
 不要提交 `.env` 或任何真实密钥。
 
 ## 分服务调试

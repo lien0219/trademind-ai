@@ -1,0 +1,67 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Shanghai
+    labels:
+      - dependencies
+      - "area: ci"
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:15"
+      timezone: Asia/Shanghai
+    labels:
+      - dependencies
+      - "area: node"
+
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: Asia/Shanghai
+    labels:
+      - dependencies
+      - "area: backend"
+
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:45"
+      timezone: Asia/Shanghai
+    labels:
+      - dependencies
+      - "area: docker"
+
+  - package-ecosystem: docker
+    directory: /admin
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Shanghai
+    labels:
+      - dependencies
+      - "area: docker"
+
+  - package-ecosystem: docker
+    directory: /collector
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:15"
+      timezone: Asia/Shanghai
+    labels:
+      - dependencies
+      - "area: docker"

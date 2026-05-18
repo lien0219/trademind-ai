@@ -1,0 +1,95 @@
+name: Node CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+      - "feat/**"
+      - "fix/**"
+      - "release/**"
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+      - dev
+
+jobs:
+  admin:
+    name: admin build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify admin package
+        run: |
+          if [ ! -d admin ]; then
+            echo "::error::CI requires an admin/ directory at the repository root, but it was not found."
+            exit 1
+          fi
+          if [ ! -f admin/package.json ]; then
+            echo "::error::CI requires admin/package.json to run admin checks, but it was not found."
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build admin
+        run: pnpm build:admin
+
+  collector:
+    name: collector build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify collector package
+        run: |
+          if [ ! -d collector ]; then
+            echo "::error::CI requires a collector/ directory at the repository root, but it was not found."
+            exit 1
+          fi
+          if [ ! -f collector/package.json ]; then
+            echo "::error::CI requires collector/package.json to run collector checks, but it was not found."
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build collector
+        run: pnpm build:collector

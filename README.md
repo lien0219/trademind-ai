@@ -274,16 +274,21 @@ pnpm install:collector:browsers
 
 ```text
 trademind-ai/
+├── .github/                 # GitHub 配置：CI、Issue / PR 模板、CODEOWNERS、Dependabot、Labeler
+├── .cursor/rules/           # Cursor / AI Agent 持久规则
 ├── backend/                 # Go + Gin + GORM 主业务服务
 ├── admin/                   # React + TypeScript + Ant Design Pro 管理后台
 ├── collector/               # Node.js + TypeScript + Playwright 采集服务
-├── docs/                    # 项目文档
+├── docs/                    # 项目文档、API 契约、环境变量、Provider 模板、AI 协作规则
 ├── scripts/                 # 本地开发编排脚本
 ├── data/uploads/            # 本地上传目录
 ├── docker-compose.yml       # 本地开发基础设施：PostgreSQL + Redis
 ├── docker-compose.full.yml  # 完整 Docker 部署编排
 ├── .env.example             # 本地开发环境变量模板
 ├── .env.docker.example      # Docker 部署环境变量模板
+├── AGENTS.md                # 通用 AI Agent 协作入口
+├── CHANGELOG.md             # 版本与重要变更记录
+├── README.md                # 中文 README
 ├── README.en.md             # 英文 README
 ├── CONTRIBUTING.md          # 贡献指南
 └── LICENSE                  # Apache-2.0 License
@@ -357,19 +362,15 @@ Go Gin API
 
 ## 文档导航
 
-| 文档 | 说明 |
+完整文档入口见 [docs/README.md](docs/README.md)。
+
+| 分类 | 文档 |
 | --- | --- |
-| [README.en.md](README.en.md) | English README |
-| [docs/development.md](docs/development.md) | 本地开发说明 |
-| [docs/docker-deployment.md](docs/docker-deployment.md) | Docker 部署说明 |
-| [docs/architecture.md](docs/architecture.md) | 架构设计 |
-| [docs/provider.md](docs/provider.md) | Provider 扩展机制 |
-| [docs/roadmap.md](docs/roadmap.md) | 路线图 |
-| [docs/sponsor.md](docs/sponsor.md) | 赞助支持 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
-| [SECURITY.md](SECURITY.md) | 安全策略 |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | 社区行为准则 |
-| [NOTICE](NOTICE) | 第三方声明与致谢 |
+| 快速开始 | [本地开发](docs/development.md) · [Docker 部署](docs/docker-deployment.md) · [环境变量](docs/env.md) |
+| 架构扩展 | [架构设计](docs/architecture.md) · [API 契约](docs/api.md) · [Provider 扩展](docs/provider.md) · [路线图](docs/roadmap.md) |
+| 协作规范 | [贡献指南](CONTRIBUTING.md) · [AI Agent 规则](AGENTS.md) · [分支规则](docs/branching.md) · [AI 编程规则](docs/ai-coding-rules.md) · [模块关联索引](docs/module-map.md) |
+| 社区治理 | [安全策略](SECURITY.md) · [行为准则](CODE_OF_CONDUCT.md) · [赞助支持](docs/sponsor.md) · [NOTICE](NOTICE) |
+| 多语言 | [English README](README.en.md) |
 
 ## 合作商展示
 
