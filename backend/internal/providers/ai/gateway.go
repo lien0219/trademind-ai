@@ -30,16 +30,8 @@ type ConnectionTestResult struct {
 }
 
 func (g *Gateway) httpTimeout(ctx context.Context, plain map[string]string) time.Duration {
-	timeout := 120 * time.Second
-	if plain == nil {
-		return timeout
-	}
-	if sec := strings.TrimSpace(plain["timeout_sec"]); sec != "" {
-		if n, err := parseTimeoutSec(sec); err == nil {
-			timeout = n
-		}
-	}
-	return timeout
+	_ = ctx
+	return chatCompletionTimeout(plain, 0)
 }
 
 func parseTimeoutSec(sec string) (time.Duration, error) {
@@ -88,7 +80,7 @@ func (g *Gateway) chatWithPlain(ctx context.Context, plain map[string]string, re
 		ResponseFormat: req.ResponseFormat,
 	}
 
-	timeout := g.httpTimeout(ctx, plain)
+	timeout := chatCompletionTimeout(plain, maxTok)
 	callCtx := ctx
 	var cancel context.CancelFunc
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {

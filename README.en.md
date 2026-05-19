@@ -27,11 +27,19 @@
 
 ## Screenshots / Demo
 
-> Demo and screenshots are reserved. PRs are welcome to improve the project showcase.
+Screenshots from the admin console (local dev), illustrating the main flow: **collect → draft → AI content optimization**.
 
-| Admin Console | Product Drafts | AI Product Optimization |
-| --- | --- | --- |
-| Coming soon | Coming soon | Coming soon |
+| Collection Center | Collection Tasks |
+| --- | --- |
+| Collector hub (1688, etc.), quick & batch collect | Submit URLs, task status, linked product drafts |
+| ![Collection Center](docs/assets/img/2.png) | ![Collection Tasks](docs/assets/img/3.png) |
+
+| Collection Monitor | AI Description (Product Draft) |
+| --- | --- |
+| Worker health, task/batch status | Generated description, highlights, specs; apply to draft |
+| ![Collection Monitor](docs/assets/img/4.png) | ![AI Description](docs/assets/img/1.png) |
+
+> The same stack also covers **AI title optimization**, image tasks, store authorization, order sync, and more—see [Core Features](#core-features) and [Documentation](#documentation). PRs with additional screenshots are welcome.
 
 ## Table of Contents
 

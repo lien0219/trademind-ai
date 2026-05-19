@@ -91,7 +91,7 @@ export default function AISettingsPage() {
         api_key: g.api_key || '',
         temperature: g.temperature !== undefined && g.temperature !== '' ? Number(g.temperature) : 0.7,
         max_tokens: g.max_tokens !== undefined && g.max_tokens !== '' ? Number(g.max_tokens) : 512,
-        timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
+        timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 120,
         ai_batch_enabled: g.ai_batch_enabled !== 'false',
         ai_batch_max_size: g.ai_batch_max_size ? Number(g.ai_batch_max_size) : 100,
         ai_batch_concurrency: g.ai_batch_concurrency ? Number(g.ai_batch_concurrency) : 2,
@@ -185,7 +185,12 @@ export default function AISettingsPage() {
           <Form.Item label="Max tokens" name="max_tokens" extra="默认 512">
             <InputNumber min={1} max={32000} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item label="超时（秒）" name="timeout_sec" rules={[{ required: true }]}>
+          <Form.Item
+            label="超时（秒）"
+            name="timeout_sec"
+            rules={[{ required: true }]}
+            extra="连接测试可用 60；商品标题/描述等大输出时建议 ≥120，deepseek-v4 建议 180。未达下限时代码会自动抬高。"
+          >
             <InputNumber min={5} max={600} style={{ width: '100%' }} />
           </Form.Item>
           <Typography.Title level={5}>批量 AI（商品运营）</Typography.Title>

@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -50,7 +51,7 @@ func productSKUSummary(p *Product) string {
 }
 
 func parseDescriptionGenerateJSON(content string) (descriptionGenerateOutput, error) {
-	content = stripCodeFences(content)
+	content = aimodelparse.NormalizeJSONContent(content)
 	var out descriptionGenerateOutput
 	if err := json.Unmarshal([]byte(content), &out); err != nil {
 		return descriptionGenerateOutput{}, err

@@ -27,12 +27,14 @@ func (p *compatProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRespon
 	if p == nil || p.inner == nil {
 		return nil, errmapNil("AI Provider")
 	}
+	rf := responseFormatType(req)
 	creq := compatclient.Request{
-		Model:          req.Model,
-		Messages:       toCompatMessages(req.Messages),
-		Temperature:    req.Temperature,
-		MaxTokens:      req.MaxTokens,
-		ResponseFormat: responseFormatType(req),
+		Model:           req.Model,
+		Messages:        toCompatMessages(req.Messages),
+		Temperature:     req.Temperature,
+		MaxTokens:       req.MaxTokens,
+		ResponseFormat:  rf,
+		DisableThinking: rf == "json_object",
 	}
 	res, err := p.inner.Chat(ctx, creq)
 	if err != nil {

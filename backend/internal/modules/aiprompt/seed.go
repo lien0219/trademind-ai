@@ -27,7 +27,20 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 	if err := ensureCustomerReplyGenerate(ctx, db); err != nil {
 		return err
 	}
+	if err := migrateProductTitleOptimizeMaxTokens(ctx, db); err != nil {
+		return err
+	}
 	return migrateCustomerReplyGenerateOrderContext(ctx, db)
+}
+
+func migrateProductTitleOptimizeMaxTokens(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	const minTokens = 1024
+	return db.WithContext(ctx).Model(&AIPrompt{}).
+		Where("code = ? AND max_tokens > 0 AND max_tokens > ?", CodeProductTitleOptimize, minTokens).
+		Update("max_tokens", minTokens).Error
 }
 
 func ensureProductTitleOptimize(ctx context.Context, db *gorm.DB) error {
@@ -75,7 +88,7 @@ Reply with JSON only.`)
 		UserPrompt:   defaultUser,
 		OutputSchema: datatypes.JSON(schema),
 		Temperature:  0.4,
-		MaxTokens:    800,
+		MaxTokens:    1024,
 		Enabled:      true,
 	}
 	return db.WithContext(ctx).Create(row).Error

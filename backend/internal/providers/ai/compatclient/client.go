@@ -49,6 +49,10 @@ func (c *Client) Chat(ctx context.Context, req Request) (*Result, error) {
 	if strings.TrimSpace(req.ResponseFormat) != "" {
 		payload["response_format"] = map[string]string{"type": req.ResponseFormat}
 	}
+	// DeepSeek v4: thinking must be a top-level field (not OpenAI SDK extra_body).
+	if req.DisableThinking {
+		payload["thinking"] = map[string]string{"type": "disabled"}
+	}
 
 	rawBody, err := json.Marshal(payload)
 	if err != nil {
@@ -81,12 +85,8 @@ func (c *Client) Chat(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	var envelope struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage struct {
+		Choices []json.RawMessage `json:"choices"`
+		Usage   struct {
 			PromptTokens     int `json:"prompt_tokens"`
 			CompletionTokens int `json:"completion_tokens"`
 		} `json:"usage"`
@@ -97,7 +97,7 @@ func (c *Client) Chat(ctx context.Context, req Request) (*Result, error) {
 	}
 	content := ""
 	if len(envelope.Choices) > 0 {
-		content = strings.TrimSpace(envelope.Choices[0].Message.Content)
+		content = strings.TrimSpace(extractChoiceContent(envelope.Choices[0]))
 	}
 	return &Result{
 		Content:      content,

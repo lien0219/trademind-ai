@@ -58,15 +58,33 @@ func (s *Service) MarkSuccess(ctx context.Context, id uuid.UUID, output json.Raw
 
 // MarkFailed records failure.
 func (s *Service) MarkFailed(ctx context.Context, id uuid.UUID, msg string) error {
+	return s.MarkFailedWithMeta(ctx, id, msg, nil, 0, 0, "")
+}
+
+// MarkFailedWithMeta records failure and optionally persists raw response / token usage for debugging.
+func (s *Service) MarkFailedWithMeta(ctx context.Context, id uuid.UUID, msg string, raw json.RawMessage, inTok, outTok int, model string) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("aitask: no db")
 	}
 	now := time.Now().UTC()
-	return s.DB.WithContext(ctx).Model(&AITask{}).Where("id = ?", id).Updates(map[string]any{
+	updates := map[string]any{
 		"status":        StatusFailed,
 		"error_message": msg,
 		"finished_at":   &now,
-	}).Error
+	}
+	if len(raw) > 0 {
+		updates["raw_response"] = datatypes.JSON(raw)
+	}
+	if inTok > 0 {
+		updates["token_input"] = inTok
+	}
+	if outTok > 0 {
+		updates["token_output"] = outTok
+	}
+	if strings.TrimSpace(model) != "" {
+		updates["model"] = strings.TrimSpace(model)
+	}
+	return s.DB.WithContext(ctx).Model(&AITask{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // GetByID loads one task.

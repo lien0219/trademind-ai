@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -93,32 +94,16 @@ func truncateRunes(s string, max int) string {
 	return string(runes[:max]) + "…"
 }
 
-func stripCodeFences(s string) string {
-	s = strings.TrimSpace(s)
-	if !strings.HasPrefix(s, "```") {
-		return s
-	}
-	s = strings.TrimPrefix(s, "```")
-	s = strings.TrimLeft(s, "\n")
-	s = strings.TrimPrefix(s, "json")
-	s = strings.TrimLeft(s, "\n")
-	if idx := strings.LastIndex(s, "```"); idx >= 0 {
-		s = s[:idx]
-	}
-	return strings.TrimSpace(s)
-}
-
 func parseTitleOptimizeJSON(content string) (titleOptimizeOutput, error) {
-	content = stripCodeFences(content)
-	var out titleOptimizeOutput
-	if err := json.Unmarshal([]byte(content), &out); err != nil {
+	parsed, err := aimodelparse.ParseTitleOptimize(content)
+	if err != nil {
 		return titleOptimizeOutput{}, err
 	}
-	out.OptimizedTitle = strings.TrimSpace(out.OptimizedTitle)
-	for i := range out.Keywords {
-		out.Keywords[i] = strings.TrimSpace(out.Keywords[i])
-	}
-	return out, nil
+	return titleOptimizeOutput{
+		OptimizedTitle: parsed.OptimizedTitle,
+		Keywords:       parsed.Keywords,
+		Reason:         parsed.Reason,
+	}, nil
 }
 
 // OptimizeTitle runs the product_title_optimize prompt via AI gateway.
@@ -151,6 +136,8 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	if maxLen <= 0 {
 		maxLen = 120
 	}
+	// JSON title output does not need a large budget once DeepSeek thinking is disabled.
+	const minTitleMaxTokens = 1024
 	tone := strings.TrimSpace(body.Tone)
 	if tone == "" {
 		tone = "professional"
@@ -193,6 +180,9 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	model := strings.TrimSpace(promptRow.Model)
 	temp := promptRow.Temperature
 	maxTok := promptRow.MaxTokens
+	if maxTok < minTitleMaxTokens {
+		maxTok = minTitleMaxTokens
+	}
 	req := aigate.ChatRequest{
 		Model:       model,
 		Messages:    msgs,
@@ -249,10 +239,35 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 		return nil, err
 	}
 
+	usedModel := strings.TrimSpace(resp.Model)
+	if usedModel == "" {
+		usedModel = strings.TrimSpace(model)
+	}
+	raw := resp.Raw
+	if raw == nil {
+		raw = []byte("{}")
+	}
+
+	if strings.TrimSpace(resp.Content) == "" {
+		msg := "model returned empty content (thinking may have consumed max_tokens; ensure thinking is disabled for JSON tasks)"
+		_ = s.AITasks.MarkFailedWithMeta(c.Request.Context(), taskID, msg, raw, resp.InputTokens, resp.OutputTokens, usedModel)
+		if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminID,
+				Action:      "ai.title_optimize.failed",
+				Resource:    "product",
+				ResourceID:  p.ID.String(),
+				Status:      "failed",
+				Message:     fmt.Sprintf("taskId=%s err=empty_model_content", taskID.String()),
+			})
+		}
+		return nil, fmt.Errorf("model returned empty content")
+	}
+
 	parsed, perr := parseTitleOptimizeJSON(resp.Content)
 	if perr != nil {
 		msg := fmt.Sprintf("parse ai json: %v", perr)
-		_ = s.AITasks.MarkFailed(c.Request.Context(), taskID, msg)
+		_ = s.AITasks.MarkFailedWithMeta(c.Request.Context(), taskID, msg, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 		if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
@@ -267,14 +282,6 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	}
 
 	outJSON, _ := json.Marshal(parsed)
-	raw := resp.Raw
-	if raw == nil {
-		raw = []byte("{}")
-	}
-	usedModel := strings.TrimSpace(resp.Model)
-	if usedModel == "" {
-		usedModel = strings.TrimSpace(model)
-	}
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, outJSON, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 
 	if extra != nil && extra.SaveAIField && strings.TrimSpace(parsed.OptimizedTitle) != "" {
