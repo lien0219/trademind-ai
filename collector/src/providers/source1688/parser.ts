@@ -1,5 +1,7 @@
 import type { Page } from 'playwright';
 
+import { evaluateInPage } from '../../browser/evaluate-in-page.js';
+
 import type { ProductSku } from '../../types/product.js';
 import type { BrowserExtractPayload, Parse1688Result } from './types.js';
 import {
@@ -402,7 +404,8 @@ export async function extractBrowserPayload(
   const detailSel = DETAIL_SELECTORS;
   const attrSel = ATTRIBUTE_ROW_SELECTORS;
 
-  return page.evaluate(
+  return evaluateInPage(
+    page,
     ({
       titleSelectors,
       mainSel,
@@ -420,7 +423,7 @@ export async function extractBrowserPayload(
     }) => {
       const baseHref = window.location.href;
 
-      function pickImgUrl(el: Element): string | null {
+      const pickImgUrl = (el: Element): string | null => {
         const img = el as HTMLImageElement;
         const order = ['data-lazy-src', 'data-src', 'data-original', 'data-img', 'data-zoom', 'src'];
         for (const attr of order) {
@@ -434,9 +437,9 @@ export async function extractBrowserPayload(
           return v.trim();
         }
         return null;
-      }
+      };
 
-      function collectFrom(selectors: string[]): string[] {
+      const collectFrom = (selectors: string[]): string[] => {
         const urls: string[] = [];
         for (const sel of selectors) {
           document.querySelectorAll(sel).forEach((node) => {
@@ -445,7 +448,7 @@ export async function extractBrowserPayload(
           });
         }
         return urls;
-      }
+      };
 
       let headingText = '';
       for (const sel of titleSelectors) {

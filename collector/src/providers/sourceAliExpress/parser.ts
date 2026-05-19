@@ -1,5 +1,7 @@
 import type { Page } from 'playwright';
 
+import { evaluateInPage } from '../../browser/evaluate-in-page.js';
+
 import type { ProductSku } from '../../types/product.js';
 import type { AeBrowserPayload, AeAssembleOutput } from './types.js';
 import {
@@ -454,7 +456,8 @@ export async function extractBrowserPayload(page: Page): Promise<AeBrowserPayloa
   const detailSel = AE_DETAIL_AREA_SELECTORS;
   const attrSel = AE_ATTRIBUTE_CONTAINER_SELECTORS;
 
-  return page.evaluate(
+  return evaluateInPage(
+    page,
     ({
       titleSelectors,
       mainSel,
@@ -472,7 +475,7 @@ export async function extractBrowserPayload(page: Page): Promise<AeBrowserPayloa
     }) => {
       const baseHref = window.location.href;
 
-      function pickImgUrl(el: Element): string | null {
+      const pickImgUrl = (el: Element): string | null => {
         const img = el as HTMLImageElement;
         const order = ['data-lazy-src', 'data-src', 'data-original', 'srcset', 'src'];
         for (const attr of order) {
@@ -487,9 +490,9 @@ export async function extractBrowserPayload(page: Page): Promise<AeBrowserPayloa
         }
         const cur = img.currentSrc;
         return cur?.trim() ? cur.trim() : null;
-      }
+      };
 
-      function collectFrom(selectors: string[]): string[] {
+      const collectFrom = (selectors: string[]): string[] => {
         const urls: string[] = [];
         for (const sel of selectors) {
           try {
@@ -502,7 +505,7 @@ export async function extractBrowserPayload(page: Page): Promise<AeBrowserPayloa
           }
         }
         return urls;
-      }
+      };
 
       let headingText = '';
       for (const sel of titleSelectors) {
