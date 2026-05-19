@@ -1,5 +1,6 @@
 import {
   PageContainer,
+  ProCard,
   ProTable,
   type ActionType,
   type ProColumns,
@@ -9,6 +10,7 @@ import {
   Badge,
   Button,
   Drawer,
+  Divider,
   Dropdown,
   Input,
   Modal,
@@ -16,6 +18,7 @@ import {
   Col,
   Space,
   Statistic,
+  Switch,
   Tag,
   Typography,
   message,
@@ -38,48 +41,30 @@ import {
   type UnifiedTaskDTO,
   type FailuresSummary,
 } from '@/services/taskCenter';
-
-const TASK_TYPE_LABEL: Record<string, string> = {
-  collect: '采集',
-  image: 'AI 图片',
-  order_sync: '订单同步',
-  customer_message_sync: '客服消息同步',
-  product_publish: '商品刊登',
-  inventory_sync: '库存同步',
-};
-
-const NORM_META: Record<string, { text: string; color: string }> = {
-  failed: { text: '失败', color: 'error' },
-  retrying: { text: '重试中', color: 'processing' },
-  stale: { text: '停滞', color: 'warning' },
-  lease_expired: { text: '租约过期', color: 'warning' },
-  running: { text: '执行中', color: 'processing' },
-  pending: { text: '排队', color: 'default' },
-  success: { text: '成功', color: 'success' },
-  cancelled: { text: '取消', color: 'default' },
-};
+import {
+  TASK_CENTER_TASK_TYPE_LABEL,
+  TASK_FAILURE_CATEGORY_LABEL,
+  TASK_FAILURE_SEVERITY,
+  TASK_FAILURE_SEVERITY_OPTIONS,
+  TASK_NORMALIZED_STATUS,
+  failureCategoryLabel,
+} from '@/constants/taskCenter';
 
 function normTag(norm: string) {
-  const m = NORM_META[norm];
+  const m = TASK_NORMALIZED_STATUS[norm];
   if (!m) return <Tag>{norm}</Tag>;
   return <Tag color={m.color}>{m.text}</Tag>;
 }
 
-const SEV_META: Record<string, { color: string }> = {
-  low: { color: 'default' },
-  medium: { color: 'blue' },
-  high: { color: 'orange' },
-  critical: { color: 'red' },
-};
-
 function severityCell(sev?: string) {
   if (!sev) return '—';
-  const m = SEV_META[sev];
+  const key = sev.trim().toLowerCase();
+  const m = TASK_FAILURE_SEVERITY[key];
   if (!m) return <Tag>{sev}</Tag>;
-  const strong = sev === 'critical' || sev === 'high';
+  const strong = key === 'critical' || key === 'high';
   return (
     <Tag color={m.color} style={{ fontWeight: strong ? 700 : undefined }}>
-      {sev.toUpperCase()}
+      {m.text}
     </Tag>
   );
 }
@@ -108,6 +93,9 @@ function relatedHref(row: UnifiedTaskDTO): string | undefined {
 export default function TaskCenterFailuresPage() {
   const location = useLocation();
   const actionRef = useRef<ActionType>();
+  const listFilterRef = useRef({ includeResolved: false, includeMarked: false });
+  const [includeResolved, setIncludeResolved] = useState(false);
+  const [includeMarked, setIncludeMarked] = useState(false);
   const [failureCatOpts, setFailureCatOpts] = useState<{ label: string; value: string }[]>([]);
   const [summary, setSummary] = useState<FailuresSummary | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -120,7 +108,10 @@ export default function TaskCenterFailuresPage() {
       try {
         const c = await queryTaskFailureCategories();
         setFailureCatOpts(
-          (c.categories || []).map((x) => ({ label: x, value: x })),
+          (c.categories || []).map((x) => ({
+            label: TASK_FAILURE_CATEGORY_LABEL[x] || x,
+            value: x,
+          })),
         );
       } catch {
         setFailureCatOpts([]);
@@ -170,10 +161,14 @@ export default function TaskCenterFailuresPage() {
         width: 120,
         valueType: 'select',
         fieldProps: {
-          options: Object.keys(TASK_TYPE_LABEL).map((k) => ({ label: TASK_TYPE_LABEL[k], value: k })),
+          options: Object.keys(TASK_CENTER_TASK_TYPE_LABEL).map((k) => ({
+            label: TASK_CENTER_TASK_TYPE_LABEL[k],
+            value: k,
+          })),
           allowClear: true,
+          placeholder: '请选择',
         },
-        render: (_, r) => TASK_TYPE_LABEL[r.taskType] || r.taskType,
+        render: (_, r) => TASK_CENTER_TASK_TYPE_LABEL[r.taskType] || r.taskType,
       },
       {
         title: '状态(归一)',
@@ -181,8 +176,12 @@ export default function TaskCenterFailuresPage() {
         width: 110,
         valueType: 'select',
         fieldProps: {
-          options: Object.keys(NORM_META).map((k) => ({ label: NORM_META[k].text, value: k })),
+          options: Object.keys(TASK_NORMALIZED_STATUS).map((k) => ({
+            label: TASK_NORMALIZED_STATUS[k].text,
+            value: k,
+          })),
           allowClear: true,
+          placeholder: '请选择',
         },
         render: (_, r) => normTag(r.normalizedStatus),
       },
@@ -195,23 +194,24 @@ export default function TaskCenterFailuresPage() {
           options: failureCatOpts,
           allowClear: true,
           showSearch: true,
+          placeholder: '请选择',
         },
+        render: (_, r) => failureCategoryLabel(r.failureCategory),
       },
       {
         title: '严重等级',
         dataIndex: 'severity',
         width: 106,
         valueType: 'select',
-        valueEnum: {
-          low: { text: 'LOW' },
-          medium: { text: 'MEDIUM' },
-          high: { text: 'HIGH' },
-          critical: { text: 'CRITICAL' },
+        fieldProps: {
+          options: TASK_FAILURE_SEVERITY_OPTIONS,
+          allowClear: true,
+          placeholder: '请选择',
         },
         render: (_, r) => severityCell(r.severity),
       },
       {
-        title: 'platform',
+        title: '平台',
         dataIndex: 'platform',
         width: 90,
       },
@@ -232,26 +232,6 @@ export default function TaskCenterFailuresPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
-      },
-      {
-        title: '含已恢复',
-        dataIndex: 'includeResolved',
-        hideInTable: true,
-        valueType: 'select',
-        valueEnum: {
-          '0': { text: '否' },
-          '1': { text: '是' },
-        },
-      },
-      {
-        title: '含已标记忽略/处理',
-        dataIndex: 'includeMarked',
-        hideInTable: true,
-        valueType: 'select',
-        valueEnum: {
-          '0': { text: '否' },
-          '1': { text: '是' },
-        },
       },
       {
         title: '创建时间',
@@ -417,7 +397,7 @@ export default function TaskCenterFailuresPage() {
   function confirmRetry(row: UnifiedTaskDTO) {
     Modal.confirm({
       title: '确认重试此任务？',
-      content: `${TASK_TYPE_LABEL[row.taskType] || row.taskType} · ${row.id}`,
+      content: `${TASK_CENTER_TASK_TYPE_LABEL[row.taskType] || row.taskType} · ${row.id}`,
       okText: '重试',
       onOk: async () => {
         try {
@@ -470,118 +450,194 @@ export default function TaskCenterFailuresPage() {
     }
   }
 
-  function batchMenus() {
-    const rows = sel.slice(0, 50);
-    return (
-      <Space wrap>
-        <Button
-          disabled={!rows.length}
-          onClick={() => {
-            Modal.confirm({
-              title: `批量重试(${rows.length} 条，最多 50)？`,
-              onOk: async () => {
-                try {
-                  const res = await batchRetryTaskFailures(
-                    rows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                  );
-                  message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
-                  actionRef.current?.reload?.();
-                } catch (e) {
-                  message.error((e as Error).message);
-                }
-              },
-            });
-          }}
-        >
-          批量重试
-        </Button>
-        <Button
-          disabled={!rows.length}
-          onClick={() =>
-            Modal.confirm({
-              title: `批量忽略 ${rows.length} 条任务？`,
-              onOk: async () => {
-                try {
-                  const res = await batchIgnoreTaskFailures(
-                    rows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                  );
-                  message.info(`忽略成功 ${res.successCount}，失败 ${res.failedCount}`);
-                  actionRef.current?.reload?.();
-                } catch (e) {
-                  message.error((e as Error).message);
-                }
-              },
-            })
-          }
-        >
-          批量忽略
-        </Button>
-        <Button
-          disabled={!rows.length}
-          type="primary"
-          ghost
-          onClick={() =>
-            Modal.confirm({
-              title: `批量标记已处理 (${rows.length} 条)？`,
-              onOk: async () => {
-                try {
-                  const res = await batchHandleTaskFailures(
-                    rows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                  );
-                  message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
-                  actionRef.current?.reload?.();
-                } catch (e) {
-                  message.error((e as Error).message);
-                }
-              },
-            })
-          }
-        >
-          批量已处理
-        </Button>
-      </Space>
-    );
-  }
+  const batchRows = sel.slice(0, 50);
+
+  const latestFailedText = useMemo(() => {
+    if (!summary?.latestFailedAt) return '';
+    const d = dayjs(summary.latestFailedAt);
+    return d.isValid() ? d.format('YYYY-MM-DD HH:mm') : String(summary.latestFailedAt);
+  }, [summary?.latestFailedAt]);
 
   return (
-    <PageContainer header={{ title: '失败任务中心', subTitle: '聚合展示各模块失败态任务（统一重试入口）' }}>
+    <PageContainer
+      header={{
+        title: '失败任务中心',
+        subTitle: '聚合各模块失败态任务，支持统一筛选、重试与标记处理',
+      }}
+    >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        {summary ? (
-          <Space wrap size={24}>
-            <Statistic title="失败(归一 Failed)" value={summary.totalFailed} />
-            <Statistic title="可重试" value={summary.retryableCount} />
-            <Statistic title="重试中 / 停滞 / 租约过期" value={`${summary.retryingTotal}/${summary.staleTotal}/${summary.leaseExpiredTotal}`} />
-            {summary.latestFailedAt ? (
-              <Statistic title="最近失败时间" value={summary.latestFailedAt} />
-            ) : null}
-            <Statistic title="忽略标记总数" value={summary.ignoredCount} />
-            <Statistic title="已处理标记总数" value={summary.handledCount} />
-            <Typography.Link onClick={() => history.push('/ops/workers/monitor')} strong>
-              Worker 监控 →
-            </Typography.Link>
-          </Space>
-        ) : (
-          <Badge status="processing" text="载入统计..." />
-        )}
+        <ProCard bordered size="small">
+          {summary ? (
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              <Row gutter={[16, 16]}>
+                <Col xs={12} sm={8} md={6} lg={4}>
+                  <Statistic title="归一失败" value={summary.totalFailed ?? 0} />
+                </Col>
+                <Col xs={12} sm={8} md={6} lg={4}>
+                  <Statistic title="可重试" value={summary.retryableCount ?? 0} />
+                </Col>
+                <Col xs={24} sm={16} md={12} lg={6}>
+                  <Statistic
+                    title="重试中 / 停滞 / 租约过期"
+                    value={`${summary.retryingTotal ?? 0} / ${summary.staleTotal ?? 0} / ${summary.leaseExpiredTotal ?? 0}`}
+                  />
+                </Col>
+                <Col xs={12} sm={8} md={6} lg={4}>
+                  <Statistic title="忽略标记" value={summary.ignoredCount ?? 0} />
+                </Col>
+                <Col xs={12} sm={8} md={6} lg={4}>
+                  <Statistic title="已处理标记" value={summary.handledCount ?? 0} />
+                </Col>
+                {latestFailedText ? (
+                  <Col xs={24} sm={24} md={12} lg={6}>
+                    <Statistic title="最近失败" value={latestFailedText} valueStyle={{ fontSize: 16 }} />
+                  </Col>
+                ) : null}
+              </Row>
 
-        {batchMenus()}
+              {Object.keys(summary.byType || {}).length ? (
+                <div>
+                  <Typography.Text type="secondary" style={{ marginRight: 8 }}>
+                    按类型：
+                  </Typography.Text>
+                  <Space size={[8, 8]} wrap>
+                    {Object.entries(summary.byType || {}).map(([k, v]) => (
+                      <Tag key={k} color="processing">
+                        {(TASK_CENTER_TASK_TYPE_LABEL[k] || k) + ` ${v}`}
+                      </Tag>
+                    ))}
+                  </Space>
+                </div>
+              ) : null}
 
-        {summary && Object.keys(summary.byType || {}).length ? (
-          <Row gutter={[8, 8]}>
-            {Object.entries(summary.byType || {}).map(([k, v]) => (
-              <Col key={k}>
-                <Tag>
-                  {(TASK_TYPE_LABEL[k] || k) + `: ${v}`}
-                </Tag>
-              </Col>
-            ))}
-          </Row>
-        ) : null}
+              <Divider style={{ margin: 0 }} />
+
+              <Row gutter={[16, 12]} align="middle" justify="space-between">
+                <Col xs={24} lg={14}>
+                  <Space wrap align="center">
+                    <Typography.Text type="secondary">批量操作</Typography.Text>
+                    <Button
+                      disabled={!batchRows.length}
+                      type="primary"
+                      onClick={() => {
+                        Modal.confirm({
+                          title: `批量重试（${batchRows.length} 条，最多 50）？`,
+                          onOk: async () => {
+                            try {
+                              const res = await batchRetryTaskFailures(
+                                batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                              );
+                              message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                              actionRef.current?.reload?.();
+                            } catch (e) {
+                              message.error((e as Error).message);
+                            }
+                          },
+                        });
+                      }}
+                    >
+                      批量重试
+                    </Button>
+                    <Button
+                      disabled={!batchRows.length}
+                      onClick={() =>
+                        Modal.confirm({
+                          title: `批量忽略 ${batchRows.length} 条任务？`,
+                          onOk: async () => {
+                            try {
+                              const res = await batchIgnoreTaskFailures(
+                                batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                              );
+                              message.info(`忽略成功 ${res.successCount}，失败 ${res.failedCount}`);
+                              actionRef.current?.reload?.();
+                            } catch (e) {
+                              message.error((e as Error).message);
+                            }
+                          },
+                        })
+                      }
+                    >
+                      批量忽略
+                    </Button>
+                    <Button
+                      disabled={!batchRows.length}
+                      onClick={() =>
+                        Modal.confirm({
+                          title: `批量标记已处理（${batchRows.length} 条）？`,
+                          onOk: async () => {
+                            try {
+                              const res = await batchHandleTaskFailures(
+                                batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                              );
+                              message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                              actionRef.current?.reload?.();
+                            } catch (e) {
+                              message.error((e as Error).message);
+                            }
+                          },
+                        })
+                      }
+                    >
+                      批量已处理
+                    </Button>
+                    <Typography.Text type="secondary">
+                      已选 {sel.length} 条{sel.length > 50 ? '（批量操作仅前 50 条）' : ''}
+                    </Typography.Text>
+                  </Space>
+                </Col>
+                <Col xs={24} lg={10}>
+                  <Space wrap align="center" style={{ justifyContent: 'flex-end', width: '100%' }}>
+                    <Typography.Text type="secondary">列表范围</Typography.Text>
+                    <Space size={6}>
+                      <Typography.Text>含已恢复</Typography.Text>
+                      <Switch
+                        checked={includeResolved}
+                        checkedChildren="是"
+                        unCheckedChildren="否"
+                        onChange={(checked) => {
+                          listFilterRef.current.includeResolved = checked;
+                          setIncludeResolved(checked);
+                          actionRef.current?.reload?.();
+                        }}
+                      />
+                    </Space>
+                    <Space size={6}>
+                      <Typography.Text>含已标记</Typography.Text>
+                      <Switch
+                        checked={includeMarked}
+                        checkedChildren="是"
+                        unCheckedChildren="否"
+                        onChange={(checked) => {
+                          listFilterRef.current.includeMarked = checked;
+                          setIncludeMarked(checked);
+                          actionRef.current?.reload?.();
+                        }}
+                      />
+                    </Space>
+                    <Typography.Link onClick={() => history.push('/ops/workers/monitor')}>
+                      Worker 监控
+                    </Typography.Link>
+                  </Space>
+                </Col>
+              </Row>
+            </Space>
+          ) : (
+            <Badge status="processing" text="载入统计..." />
+          )}
+        </ProCard>
 
         <ProTable<UnifiedTaskDTO>
           rowKey={(r) => `${r.taskType}:${r.id}`}
           columns={columns}
           actionRef={actionRef}
+          search={{
+            labelWidth: 'auto',
+            onReset: () => {
+              listFilterRef.current = { includeResolved: false, includeMarked: false };
+              setIncludeResolved(false);
+              setIncludeMarked(false);
+            },
+          }}
           rowSelection={{
             selections: true,
             onChange: (_, rows) => setSel(rows),
@@ -603,8 +659,12 @@ export default function TaskCenterFailuresPage() {
                 failureCategory: (params.failureCategory as string | undefined)?.trim(),
                 severity: (params.severity as string | undefined)?.trim(),
               };
-              if (params.includeResolved === '1') qp.includeResolved = 'true';
-              if (params.includeMarked === '1') qp.includeMarked = 'true';
+              if (listFilterRef.current.includeResolved) {
+                qp.includeResolved = 'true';
+              }
+              if (listFilterRef.current.includeMarked) {
+                qp.includeMarked = 'true';
+              }
               if (typeof params.start === 'string' && params.start) qp.start = params.start;
               if (typeof params.end === 'string' && params.end) qp.end = params.end;
               const data = await queryTaskFailures(qp);
@@ -630,7 +690,7 @@ export default function TaskCenterFailuresPage() {
             <Typography.Title level={5}>{detail.title}</Typography.Title>
             <div>{normTag(detail.normalizedStatus)}</div>
             <div>
-              <Typography.Text strong>失败类别：</Typography.Text> {detail.failureCategory || '—'}{' '}
+              <Typography.Text strong>失败类别：</Typography.Text> {failureCategoryLabel(detail.failureCategory)}{' '}
               {severityCell(detail.severity)}
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>

@@ -1,16 +1,40 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Col, Row, Statistic, Tag, Typography, Button, Space } from 'antd';
+import { Button, Col, Row, Space, Statistic, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  queryTaskCenterSummary,
-  type FailuresSummary,
-} from '@/services/taskCenter';
-import { type WorkerMonitorData, type WorkerMonitorInstance, getWorkersMonitor } from '@/services/workers';
+  TASK_CENTER_TASK_TYPE_LABEL,
+  WORKER_EFFECTIVE_STATUS,
+  WORKER_MONITOR_TYPE_KEYS,
+  WORKER_STATUS_METRIC,
+  workerTypeLabel,
+} from '@/constants/taskCenter';
+import { queryTaskCenterSummary, type FailuresSummary } from '@/services/taskCenter';
+import {
+  type LeasedTaskRow,
+  type WorkerMonitorData,
+  type WorkerMonitorInstance,
+  type WorkerMonitorSummary,
+  getWorkersMonitor,
+} from '@/services/workers';
 
 const POLL_MS = 5000;
+
+const EMPTY_SUMMARY: WorkerMonitorSummary = { running: 0, stale: 0, stopped: 0 };
+
+const LEASE_SECTIONS: {
+  title: string;
+  dataKey: keyof WorkerMonitorData['leasedTasks'];
+}[] = [
+  { title: '采集', dataKey: 'collect' },
+  { title: 'AI 图片', dataKey: 'image' },
+  { title: '订单同步', dataKey: 'orderSync' },
+  { title: '客服消息同步', dataKey: 'customerMessageSync' },
+  { title: '商品刊登', dataKey: 'productPublish' },
+  { title: '库存同步', dataKey: 'inventorySync' },
+];
 
 function formatTs(s?: string) {
   if (!s) return '—';
@@ -19,11 +43,29 @@ function formatTs(s?: string) {
 }
 
 function statusTag(eff: string | undefined, raw: string) {
-  const v = (eff || raw || '').toLowerCase();
-  if (v === 'running') return <Tag color="success">running</Tag>;
-  if (v === 'stale') return <Tag color="warning">stale</Tag>;
-  if (v === 'stopped') return <Tag>stopped</Tag>;
-  return <Tag>{raw}</Tag>;
+  const v = (eff || raw || '').trim().toLowerCase();
+  const m = WORKER_EFFECTIVE_STATUS[v];
+  if (!m) return <Tag>{raw || '—'}</Tag>;
+  return <Tag color={m.color}>{m.text}</Tag>;
+}
+
+function WorkerStatusMetrics({ summary }: { summary: WorkerMonitorSummary }) {
+  return (
+    <Row gutter={[8, 8]}>
+      {(['running', 'stale', 'stopped'] as const).map((key) => {
+        const meta = WORKER_STATUS_METRIC[key];
+        return (
+          <Col xs={8} key={key}>
+            <Statistic
+              title={meta.text}
+              value={summary[key] ?? 0}
+              valueStyle={{ fontSize: 22, fontWeight: 600, color: meta.valueStyle }}
+            />
+          </Col>
+        );
+      })}
+    </Row>
+  );
 }
 
 export default function WorkersMonitorPage() {
@@ -80,10 +122,11 @@ export default function WorkersMonitorPage() {
       {
         title: '类型',
         dataIndex: 'workerType',
-        width: 100,
+        width: 120,
+        render: (_, row) => workerTypeLabel(row.workerType),
       },
       {
-        title: 'workerId',
+        title: 'Worker ID',
         dataIndex: 'workerId',
         ellipsis: true,
         copyable: true,
@@ -121,81 +164,100 @@ export default function WorkersMonitorPage() {
     [],
   );
 
-  const leaseCols = (): ProColumns<WorkerMonitorData['leasedTasks']['collect'][number]>[] => [
+  const leaseCols = (): ProColumns<LeasedTaskRow>[] => [
     { title: '任务 ID', dataIndex: 'id', copyable: true, ellipsis: true },
     { title: '状态', dataIndex: 'status', width: 90 },
-    { title: 'lockedBy', dataIndex: 'lockedBy', ellipsis: true },
-    { title: 'lockedUntil', dataIndex: 'lockedUntil', width: 172, render: (_, r) => formatTs(r.lockedUntil || undefined) },
-    { title: 'updatedAt', dataIndex: 'updatedAt', width: 172, render: (_, r) => formatTs(r.updatedAt) },
+    { title: '锁定者', dataIndex: 'lockedBy', ellipsis: true },
+    {
+      title: '租约截止',
+      dataIndex: 'lockedUntil',
+      width: 172,
+      render: (_, r) => formatTs(r.lockedUntil || undefined),
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'updatedAt',
+      width: 172,
+      render: (_, r) => formatTs(r.updatedAt),
+    },
   ];
 
   const bt = data?.byType ?? {};
+  const summary = data?.summary ?? EMPTY_SUMMARY;
 
   return (
     <PageContainer header={{ title: 'Worker 监控' }}>
-      <Typography.Paragraph type="secondary">
-        展示队列 Worker 进程注册与任务租约（轮询 {POLL_MS / 1000}s；页面隐藏时暂停）。
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+        展示队列 Worker 进程注册与任务租约（每 {POLL_MS / 1000} 秒刷新；页面隐藏时暂停）。
       </Typography.Paragraph>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col xs={24} md={14}>
-          <ProCard bordered size="small" title="失败任务中心快照">
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} xl={14}>
+          <ProCard bordered title="失败任务中心快照" size="small">
             {failSum ? (
-              <Space wrap>
-                <Statistic title="失败(归一)" value={failSum.totalFailed} />
-                <Statistic title="可重试" value={failSum.retryableCount} />
-                <Statistic
-                  title="忽略 / 已处理标记"
-                  value={`${failSum.ignoredCount} / ${failSum.handledCount}`}
-                />
-                <Button type="primary" onClick={() => history.push('/ops/task-center/failures')}>
-                  打开失败任务中心
-                </Button>
+              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <Row gutter={[16, 8]}>
+                  <Col xs={12} sm={8}>
+                    <Statistic title="失败(归一)" value={failSum.totalFailed ?? 0} />
+                  </Col>
+                  <Col xs={12} sm={8}>
+                    <Statistic title="可重试" value={failSum.retryableCount ?? 0} />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Statistic
+                      title="重试中 / 停滞 / 租约过期"
+                      value={`${failSum.retryingTotal ?? 0}/${failSum.staleTotal ?? 0}/${failSum.leaseExpiredTotal ?? 0}`}
+                    />
+                  </Col>
+                </Row>
+                <Row gutter={[16, 8]}>
+                  <Col xs={12} sm={8}>
+                    <Statistic title="忽略标记" value={failSum.ignoredCount ?? 0} />
+                  </Col>
+                  <Col xs={12} sm={8}>
+                    <Statistic title="已处理标记" value={failSum.handledCount ?? 0} />
+                  </Col>
+                  <Col xs={24} sm={8} style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <Button type="primary" block onClick={() => history.push('/ops/task-center/failures')}>
+                      打开失败任务中心
+                    </Button>
+                  </Col>
+                </Row>
               </Space>
             ) : (
               <Typography.Text type="secondary">载入中...</Typography.Text>
             )}
           </ProCard>
         </Col>
-      </Row>
-
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={8} md={6}>
-          <ProCard bordered>
-            <Statistic title="running" value={data?.summary.running ?? 0} />
-          </ProCard>
-        </Col>
-        <Col xs={24} sm={8} md={6}>
-          <ProCard bordered>
-            <Statistic title="stale" value={data?.summary.stale ?? 0} />
-          </ProCard>
-        </Col>
-        <Col xs={24} sm={8} md={6}>
-          <ProCard bordered>
-            <Statistic title="stopped" value={data?.summary.stopped ?? 0} />
+        <Col xs={24} xl={10}>
+          <ProCard bordered title="实例状态汇总" size="small">
+            <WorkerStatusMetrics summary={summary} />
           </ProCard>
         </Col>
       </Row>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        {(
-          [
-            'collect',
-            'image',
-            'order_sync',
-            'customer_message_sync',
-            'product_publish',
-            'inventory_sync',
-          ] as const
-        ).map((k) => (
-          <Col xs={24} sm={8} lg={6} key={k}>
-            <ProCard title={`${k} · 实例`} bordered size="small">
-              <Statistic title="running" value={bt[k]?.running ?? 0} />
-              <Statistic title="stale" value={bt[k]?.stale ?? 0} />
-              <Statistic title="stopped" value={bt[k]?.stopped ?? 0} />
-            </ProCard>
-          </Col>
-        ))}
+      <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
+        按 Worker 类型
+      </Typography.Title>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        {WORKER_MONITOR_TYPE_KEYS.map((k) => {
+          const typeSummary = bt[k] ?? EMPTY_SUMMARY;
+          const total = (typeSummary.running ?? 0) + (typeSummary.stale ?? 0) + (typeSummary.stopped ?? 0);
+          return (
+            <Col xs={24} sm={12} lg={8} key={k}>
+              <ProCard
+                bordered
+                size="small"
+                title={TASK_CENTER_TASK_TYPE_LABEL[k] || k}
+                extra={
+                  <Tag color={total > 0 ? 'processing' : 'default'}>{total} 个实例</Tag>
+                }
+              >
+                <WorkerStatusMetrics summary={typeSummary} />
+              </ProCard>
+            </Col>
+          );
+        })}
       </Row>
 
       <ProCard title="Worker 实例" bordered style={{ marginBottom: 16 }}>
@@ -209,66 +271,24 @@ export default function WorkersMonitorPage() {
         />
       </ProCard>
 
-      <ProCard title="租约中的任务（collect）" bordered style={{ marginBottom: 16 }}>
-        <ProTable
-          rowKey="id"
-          columns={leaseCols()}
-          dataSource={data?.leasedTasks.collect ?? []}
-          search={false}
-          options={false}
-          pagination={{ pageSize: 10 }}
-        />
-      </ProCard>
-      <ProCard title="租约中的任务（image）" bordered style={{ marginBottom: 16 }}>
-        <ProTable
-          rowKey="id"
-          columns={leaseCols()}
-          dataSource={data?.leasedTasks.image ?? []}
-          search={false}
-          options={false}
-          pagination={{ pageSize: 10 }}
-        />
-      </ProCard>
-      <ProCard title="租约中的任务（order sync）" bordered style={{ marginBottom: 16 }}>
-        <ProTable
-          rowKey="id"
-          columns={leaseCols()}
-          dataSource={data?.leasedTasks.orderSync ?? []}
-          search={false}
-          options={false}
-          pagination={{ pageSize: 10 }}
-        />
-      </ProCard>
-      <ProCard title="租约中的任务（customer message sync）" bordered style={{ marginBottom: 16 }}>
-        <ProTable
-          rowKey="id"
-          columns={leaseCols()}
-          dataSource={data?.leasedTasks.customerMessageSync ?? []}
-          search={false}
-          options={false}
-          pagination={{ pageSize: 10 }}
-        />
-      </ProCard>
-      <ProCard title="租约中的任务（product publish）" bordered style={{ marginBottom: 16 }}>
-        <ProTable
-          rowKey="id"
-          columns={leaseCols()}
-          dataSource={data?.leasedTasks.productPublish ?? []}
-          search={false}
-          options={false}
-          pagination={{ pageSize: 10 }}
-        />
-      </ProCard>
-      <ProCard title="租约中的任务（inventory sync）" bordered>
-        <ProTable
-          rowKey="id"
-          columns={leaseCols()}
-          dataSource={data?.leasedTasks.inventorySync ?? []}
-          search={false}
-          options={false}
-          pagination={{ pageSize: 10 }}
-        />
-      </ProCard>
+      {LEASE_SECTIONS.map(({ title, dataKey }) => (
+        <ProCard
+          key={dataKey}
+          title={`租约中的任务 · ${title}`}
+          bordered
+          style={{ marginBottom: 16 }}
+          size="small"
+        >
+          <ProTable<LeasedTaskRow>
+            rowKey="id"
+            columns={leaseCols()}
+            dataSource={data?.leasedTasks[dataKey] ?? []}
+            search={false}
+            options={false}
+            pagination={{ pageSize: 10 }}
+          />
+        </ProCard>
+      ))}
     </PageContainer>
   );
 }
