@@ -8,9 +8,36 @@ const JUNK_SUBSTR = [
   'qr',
   'ewm',
   'loading.gif',
+  'imgextra',
+  '/tfs/',
+  'tps-',
+  'promise',
+  'guarantee',
+  'credit',
+  'badge',
+  'service-icon',
+  'wangwang',
+  'iconfont',
+  'security',
+  'verify',
+  'alipay',
+  'tmall',
+  'taobao.com/images',
+  '/cms/upload/',
+  '-tps-',
+  '.search.jpg',
+  '.220x220.',
+  '.summ.',
 ];
 
 const TINY_SIZE_RE = /[_-](?:16|20|24|30|32|40|48|50|60|64)x(?:16|20|24|30|32|40|48|50|60|64)[x_-]/i;
+
+/** 1688 服务承诺等小图标常见尺寸段 */
+const SERVICE_BADGE_SIZE_RE =
+  /[_-](?:48|50|60|64|72|80|96|100|120|140)x(?:48|50|60|64|72|80|96|100|120|140)(?:\.|[_-]|$)/i;
+
+/** 商品主图 CDN 路径特征（优先保留） */
+const PRODUCT_IBANK_RE = /\/img\/ibank\//i;
 
 export function trimStr(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
@@ -36,7 +63,21 @@ export function isLikelyJunkImage(url: string): boolean {
     if (lower.includes(j)) return true;
   }
   if (TINY_SIZE_RE.test(lower)) return true;
+  if (SERVICE_BADGE_SIZE_RE.test(lower)) return true;
   if (/_sum\.(jpg|png|webp)/i.test(lower)) return true;
+  /** 非 ibank 且带极小尺寸 query（常见于角标） */
+  if (!PRODUCT_IBANK_RE.test(lower) && /(?:\?|&)(?:width|height|w|h)=\d{1,2}(?:&|$)/i.test(lower)) {
+    return true;
+  }
+  return false;
+}
+
+/** 更像商品主图/详情图的 URL（用于 JSON 补全排序） */
+export function isLikelyProductImage(url: string): boolean {
+  if (isLikelyJunkImage(url)) return false;
+  const lower = url.toLowerCase();
+  if (PRODUCT_IBANK_RE.test(lower)) return true;
+  if (/\/offer\//i.test(lower) || /cbu\d+\.alicdn\.com/i.test(lower)) return true;
   return false;
 }
 

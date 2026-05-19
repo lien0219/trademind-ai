@@ -395,6 +395,8 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-19 | **1688 采集增强（二）**：解析 **`window.context.result.data`**（gallery/skuMap/属性/默认价）；修正 SKU 键 **`颜色值>尺码值`** → `颜色`+`尺码` 维度；从 **`specAttrs`/`canBookCount`** 与 DOM 尺码表补 **价/库存**；详情图仅保留 **ibank** 商品图；过滤 **imgextra/cms/tps** 图标。 |
+| 2026-05-19 | **1688 采集增强**：Collector 主图 **DOM 优先**、过滤服务承诺图标（`isLikelyJunkImage` / 祖先区域跳过）、JSON 仅取 offer 图字段；SKU 增加 **DOM 规格表 + `window.__INIT_DATA` 等全局 JSON** 兜底；管理端草稿 **「采集属性」** 表展示 `raw_data.attributes`。 |
 | 2026-05-19 | **开源治理与 AI 关联配置补齐**：新增 **`.github/CODEOWNERS`**、**`.github/dependabot.yml`**、**`.github/labeler.yml`**、**`.github/workflows/labeler.yml`**、**`.github/workflows/docker.yml`**、**`CHANGELOG.md`**；Go / Node CI 增加 **`workflow_dispatch`**；新增 **`docs/module-map.md`**、**`docs/env.md`**、**`docs/api.md`**、**`docs/provider-template.md`**、**`docs/task-checklist.md`**，并同步 **AGENTS / Cursor rule / docs index / README / CONTRIBUTING / PR 模板**，用于约束环境变量、API、Provider、Docker、CI 与文档联动。 |
 | 2026-05-19 | **通用 AI Agent 入口**：新增根目录 **`AGENTS.md`**，作为 Cursor 以外 AI 编辑器 / Agent 的通用协作入口，集中说明必读文档、技术栈、开发规则、文档同步要求、检查命令与禁止事项；README / README.en / docs index 增加入口。 |
 | 2026-05-19 | **Cursor rules 轻整理**：新增 **`.cursor/rules/README.md`**，按全局规则与领域规则列出每个 `.mdc` 的用途、适用范围和新增规则 checklist；`docs/README.md` 增加 Cursor rules 索引入口。 |

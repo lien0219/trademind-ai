@@ -96,6 +96,34 @@ function inventorySyncRunnable(cap?: string): boolean {
 
 const SKU_BATCH_STOCK_MAX_HINT = 500;
 
+/** 从采集归一化 JSON（products.raw_data）读取 attributes / attributeCandidates */
+function collectedAttributesFromRaw(rawData: unknown): Record<string, string> {
+  if (!rawData || typeof rawData !== 'object') return {};
+  const root = rawData as Record<string, unknown>;
+  const pick = (obj: unknown): Record<string, string> => {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      const key = String(k).trim();
+      if (!key) continue;
+      if (typeof v === 'string') {
+        const val = v.trim();
+        if (val) out[key] = val;
+      } else if (v != null && (typeof v === 'number' || typeof v === 'boolean')) {
+        out[key] = String(v);
+      }
+    }
+    return out;
+  };
+  const fromTop = pick(root.attributes);
+  if (Object.keys(fromTop).length) return fromTop;
+  const nested = root.raw;
+  if (nested && typeof nested === 'object') {
+    return pick((nested as Record<string, unknown>).attributeCandidates);
+  }
+  return {};
+}
+
 function formatInventorySyncTaskCreateError(e: unknown): string {
   const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
   const hints: string[] = [];
@@ -308,6 +336,11 @@ export default function ProductDraftDetailPage() {
   const [skuBatchMatched, setSkuBatchMatched] = useState<number | null>(null);
   const [skuBatchPreviewLoading, setSkuBatchPreviewLoading] = useState(false);
   const [skuBatchStockForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
+
+  const collectedAttrs = useMemo(
+    () => collectedAttributesFromRaw(data?.rawData),
+    [data?.rawData],
+  );
 
   const aiImgAllowNoSourceImage = useMemo(() => {
     const prov = aiImgProvider.trim().toLowerCase();
@@ -748,6 +781,21 @@ export default function ProductDraftDetailPage() {
                       </Typography.Link>
                     </Descriptions.Item>
                   </Descriptions>
+
+                  {Object.keys(collectedAttrs).length > 0 ? (
+                    <Card title="采集属性" size="small" style={{ marginBottom: 16 }}>
+                      <Table
+                        size="small"
+                        pagination={false}
+                        rowKey="key"
+                        dataSource={Object.entries(collectedAttrs).map(([key, value]) => ({ key, value }))}
+                        columns={[
+                          { title: '属性', dataIndex: 'key', width: 180 },
+                          { title: '值', dataIndex: 'value', ellipsis: true },
+                        ]}
+                      />
+                    </Card>
+                  ) : null}
 
                   <ProForm
                     key={`basic-${data.id}-${data.updatedAt}`}
