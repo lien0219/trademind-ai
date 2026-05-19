@@ -188,7 +188,7 @@ export default function TaskCenterAlertsPage() {
               type="link"
               onClick={() =>
                 history.push(
-                  `/task-center/failures?taskType=${encodeURIComponent(r.taskType)}&jumpId=${encodeURIComponent(r.sourceId)}`,
+                  `/ops/task-center/failures?taskType=${encodeURIComponent(r.taskType)}&jumpId=${encodeURIComponent(r.sourceId)}`,
                 )
               }
             >

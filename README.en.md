@@ -129,7 +129,7 @@ pnpm dev
 
 `pnpm dev` starts the root development script and runs:
 
-- PostgreSQL / Redis infrastructure from `docker-compose.yml`
+- PostgreSQL / Redis infrastructure (Docker Compose by default; skips Compose when Docker is unavailable but local PostgreSQL / Redis are reachable)
 - backend Go service
 - admin console
 - collector service

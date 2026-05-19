@@ -7,8 +7,10 @@ import { execa } from 'execa';
 import pc from 'picocolors';
 
 import { runDevEnvChecks } from './check-dev-env.js';
-import { addrToHttpUrl, readEnvKey } from './utils/env-file.js';
+import type { InfraMode } from './utils/infra.js';
+import { addrToHttpUrl, readEnvKey, resolveEffectiveEnvPath } from './utils/env-file.js';
 import { banner, tagLine } from './utils/log.js';
+import { freeDevPorts, resolveDevServicePorts, sleep } from './utils/port-cleanup.js';
 import { repoRoot } from './utils/paths.js';
 
 type ManagedProc = {
@@ -44,8 +46,13 @@ function attachPrefixedLines(stream: NodeJS.ReadableStream | null, tag: string, 
   });
 }
 
-async function startInfra(): Promise<void> {
-  tagLine('infra', 'Starting PostgreSQL + Redis...', pc.magenta);
+async function startInfra(mode: InfraMode): Promise<void> {
+  if (mode === 'local') {
+    tagLine('infra', 'Using local PostgreSQL / Redis (skipping Docker Compose)', pc.green);
+    return;
+  }
+
+  tagLine('infra', 'Starting PostgreSQL + Redis via Docker Compose...', pc.magenta);
   try {
     await execa('docker', ['compose', 'up', '-d', '--wait', 'postgres', 'redis'], {
       cwd: repoRoot,
@@ -80,17 +87,38 @@ function printServiceHints(): void {
   );
 }
 
+async function cleanupPreviousDevProcesses(): Promise<void> {
+  const envPath = resolveEffectiveEnvPath(repoRoot);
+  const ports = resolveDevServicePorts(envPath);
+  tagLine('dev', 'Checking for previous local dev processes…', pc.yellow);
+  const freed = await freeDevPorts(ports);
+  if (freed.length === 0) {
+    tagLine('dev', 'No previous dev listeners found on backend / admin / collector ports', pc.green);
+    return;
+  }
+  for (const item of freed) {
+    tagLine(
+      'dev',
+      `Freed port ${item.port} (stopped PID ${item.killed.join(', ')})`,
+      pc.yellow,
+    );
+  }
+  await sleep(process.platform === 'win32' ? 800 : 300);
+}
+
 async function main(): Promise<void> {
   banner('TradeMind Dev Launcher');
 
   ensureRootEnvFromExample();
 
-  const ok = await runDevEnvChecks({ quietBanner: true, skipContainerStatus: true });
-  if (!ok) {
+  const check = await runDevEnvChecks({ quietBanner: true, skipContainerStatus: true });
+  if (!check.ok || !check.infraMode) {
     process.exit(1);
   }
 
-  await startInfra();
+  await startInfra(check.infraMode);
+
+  await cleanupPreviousDevProcesses();
 
   tagLine('backend', 'starting...', pc.blue);
   tagLine('admin', 'starting...', pc.blue);

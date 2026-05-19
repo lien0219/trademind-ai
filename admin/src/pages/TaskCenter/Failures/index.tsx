@@ -334,7 +334,7 @@ export default function TaskCenterFailuresPage() {
               size="small"
               type="link"
               disabled={!r.relatedAlertId}
-              onClick={() => history.push('/task-center/alerts')}
+              onClick={() => history.push('/ops/task-center/alerts')}
             >
               告警列表
             </Button>
@@ -556,7 +556,7 @@ export default function TaskCenterFailuresPage() {
             ) : null}
             <Statistic title="忽略标记总数" value={summary.ignoredCount} />
             <Statistic title="已处理标记总数" value={summary.handledCount} />
-            <Typography.Link onClick={() => history.push('/workers/monitor')} strong>
+            <Typography.Link onClick={() => history.push('/ops/workers/monitor')} strong>
               Worker 监控 →
             </Typography.Link>
           </Space>
@@ -649,7 +649,7 @@ export default function TaskCenterFailuresPage() {
             <div>
               <Typography.Text strong>告警状态：</Typography.Text> {alertStatusUi(detail.alertStatus)}{' '}
               {detail.relatedAlertId ? (
-                <Typography.Link onClick={() => history.push('/task-center/alerts')}>
+                <Typography.Link onClick={() => history.push('/ops/task-center/alerts')}>
                   （打开告警中心）
                 </Typography.Link>
               ) : null}

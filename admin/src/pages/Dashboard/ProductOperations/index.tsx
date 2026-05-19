@@ -158,7 +158,7 @@ export default function ProductOperationsDashboardPage() {
               value={summary.failedTaskTotal}
               icon={<WarningOutlined />}
               tone="#b91c1c"
-              onClick={() => history.push('/task-center/failures')}
+              onClick={() => history.push('/ops/task-center/failures')}
             />
           </Col>
           <Col xs={24} sm={12} md={8} lg={6} xl={4}>

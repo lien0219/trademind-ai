@@ -43,19 +43,19 @@ export default [
     component: '@/layouts/OpsGroupLayout',
     routes: [
       {
-        path: '/workers/monitor',
+        path: '/ops/workers/monitor',
         name: 'Worker 监控',
         icon: 'CloudServerOutlined',
         component: './Workers/Monitor',
       },
       {
-        path: '/task-center/failures',
+        path: '/ops/task-center/failures',
         name: '失败任务中心',
         icon: 'WarningOutlined',
         component: './TaskCenter/Failures',
       },
       {
-        path: '/task-center/alerts',
+        path: '/ops/task-center/alerts',
         name: '告警中心',
         icon: 'BellOutlined',
         component: './TaskCenter/Alerts',

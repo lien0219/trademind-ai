@@ -129,7 +129,7 @@ pnpm dev
 
 `pnpm dev` 会使用根目录脚本并行启动：
 
-- PostgreSQL / Redis 基础设施（来自 `docker-compose.yml`）
+- PostgreSQL / Redis 基础设施（默认 Docker Compose；无 Docker 时若本机已运行 PostgreSQL / Redis 则自动跳过 Compose）
 - backend Go 服务
 - admin 管理端
 - collector 采集服务

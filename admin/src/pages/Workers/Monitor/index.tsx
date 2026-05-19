@@ -148,7 +148,7 @@ export default function WorkersMonitorPage() {
                   title="忽略 / 已处理标记"
                   value={`${failSum.ignoredCount} / ${failSum.handledCount}`}
                 />
-                <Button type="primary" onClick={() => history.push('/task-center/failures')}>
+                <Button type="primary" onClick={() => history.push('/ops/task-center/failures')}>
                   打开失败任务中心
                 </Button>
               </Space>
