@@ -270,6 +270,19 @@ Key variables:
 
 Do not commit sensitive information. AI keys, storage secrets, platform app secrets, and store tokens should be configured in the admin console and stored encrypted by the backend.
 
+### AI text providers (`settings.ai`)
+
+Configure under **Settings → AI** in the admin console. All text AI flows (title/description optimization, customer reply suggestions, batch AI) go through the backend **AI Gateway**; the browser never calls model vendors directly. `api_key` is stored with **AES-GCM** and masked as `****` in the UI.
+
+| `provider` | Notes | Example `base_url` | Example `model` |
+| --- | --- | --- | --- |
+| `openai` | Official OpenAI Chat Completions | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| `openai_compatible` | Any OpenAI-compatible endpoint (e.g. Ollama) | Per vendor docs | Per vendor docs |
+| `deepseek` | DeepSeek (v1: Chat Completions only) | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| `qwen` | Alibaba Qwen via DashScope compatible mode | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
+
+Use the API root for `base_url` (no `/chat/completions` suffix). Confirm URLs and model IDs in the vendor console. Run **Test connection** (`POST /api/v1/settings/test-ai`) after saving in production.
+
 ## Project Structure
 
 ```text
@@ -312,7 +325,8 @@ Provider architecture:
 Go Gin API
 ├── AI Provider
 │   ├── OpenAI-compatible
-│   ├── DeepSeek / Qwen / Doubao / Gemini / Claude / Ollama reserved
+│   ├── DeepSeek / Qwen (Chat Completions via compatclient)
+│   ├── Doubao / Gemini / Claude / Ollama (also via openai_compatible)
 │   └── prompt templates and call records
 ├── Storage Provider
 │   ├── local

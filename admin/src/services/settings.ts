@@ -40,9 +40,17 @@ export async function testPlatformTikTokConfig() {
   return postJSON<{ ok: boolean }>('/api/v1/settings/test-platform-tiktok', {});
 }
 
+export type TestAIConnectionResult = {
+  ok: boolean;
+  message?: string;
+  provider?: string;
+  model?: string;
+  latencyMs?: number;
+};
+
 /** POST /api/v1/settings/test-ai */
 export async function testAIConnection() {
-  return postJSON<{ ok: boolean }>('/api/v1/settings/test-ai');
+  return postJSON<TestAIConnectionResult>('/api/v1/settings/test-ai');
 }
 
 /** POST /api/v1/settings/test-storage */

@@ -18,21 +18,18 @@ Collector Provider
 
 当前重点：
 
-- OpenAI-compatible API
-- Prompt 模板
-- AI 调用记录
-- 标题优化
-- 描述生成
-- 客服建议回复
+- **OpenAI**（`openai`）
+- **OpenAI-compatible**（`openai_compatible`）
+- **DeepSeek**（`deepseek`，Chat Completions）
+- **通义千问 / Qwen**（`qwen`，DashScope OpenAI 兼容模式）
+- 共享 **`compatclient`** HTTP 实现，各 Provider 负责默认地址、错误码中文化与后续扩展入口
+- Prompt 模板、AI 调用记录、标题优化、描述生成、客服建议回复
 
 后续可扩展：
 
-- DeepSeek
-- Qwen
-- Doubao
-- Gemini
-- Claude
-- Ollama
+- DeepSeek / Qwen 专属错误码、多模态、Embedding、Rerank、用量统计
+- 多 Provider 配置表（`settings.ai_providers`）
+- Doubao、Gemini、Claude、Ollama（亦可经 `openai_compatible` 接入）
 
 ## Storage Provider
 

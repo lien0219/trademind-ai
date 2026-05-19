@@ -1,16 +1,12 @@
 package settings
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email"
@@ -209,61 +205,6 @@ func (s *Service) ValidateTikTokPlatformConfig(ctx context.Context) error {
 	}
 	_, err = platformtiktok.RuntimeFromMergedMap(mm)
 	return err
-}
-
-// TestAIConnection calls the configured OpenAI-compatible chat/completions endpoint once.
-func (s *Service) TestAIConnection(ctx context.Context) error {
-	m, err := s.PlainByGroup(ctx, 0, "ai")
-	if err != nil {
-		return err
-	}
-	base := strings.TrimSpace(m["base_url"])
-	if base == "" {
-		return fmt.Errorf("ai base_url not configured")
-	}
-	base = strings.TrimRight(base, "/")
-	apiKey := strings.TrimSpace(m["api_key"])
-	if apiKey == "" {
-		return fmt.Errorf("ai api_key not configured")
-	}
-	model := strings.TrimSpace(m["model"])
-	if model == "" {
-		model = "gpt-4o-mini"
-	}
-	timeout := 20 * time.Second
-	if sec := strings.TrimSpace(m["timeout_sec"]); sec != "" {
-		if n, err := strconv.Atoi(sec); err == nil && n > 0 && n <= 120 {
-			timeout = time.Duration(n) * time.Second
-		}
-	}
-	body := map[string]any{
-		"model":       model,
-		"max_tokens":  1,
-		"temperature": 0,
-		"messages": []map[string]string{
-			{"role": "user", "content": "ping"},
-		},
-	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("ai request: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("ai provider returned HTTP %d", resp.StatusCode)
-	}
-	return nil
 }
 
 // TestStorageConnection verifies local writability or S3-compat bucket HeadBucket access.

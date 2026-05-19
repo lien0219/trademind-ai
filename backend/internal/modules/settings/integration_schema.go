@@ -36,11 +36,14 @@ func IntegrationConfigDefinitions() []IntegrationConfigSchema {
 			Key:         "ai",
 			Title:       "AI 大模型（文本）",
 			Category:    "ai",
-			Description: "用于标题优化、描述生成、客服建议回复等。请自行在 OpenAI / DeepSeek / Qwen / Ollama（OpenAI 兼容）等平台申请 API Key；贸灵不在仓库内置密钥，前端不直连模型，仅后端通过 AI Gateway 调用。",
+			Description: "用于标题优化、描述生成、客服建议回复等。支持 OpenAI、OpenAI Compatible、DeepSeek、通义千问（Qwen）；请自行申请 API Key；贸灵不在仓库内置密钥，前端不直连模型，仅后端通过 AI Gateway 调用。",
 			GroupKey:    "ai",
 			Fields: []IntegrationFieldSchema{
 				{Name: "provider", Label: "Provider 类型", Type: "select", Required: true, Options: []IntegrationSelectOption{
-					{Label: "OpenAI 兼容", Value: "openai_compatible"},
+					{Label: "OpenAI", Value: "openai"},
+					{Label: "OpenAI Compatible", Value: "openai_compatible"},
+					{Label: "DeepSeek", Value: "deepseek"},
+					{Label: "通义千问 / Qwen", Value: "qwen"},
 				}},
 				{Name: "base_url", Label: "Base URL", Type: "text", Required: true, Placeholder: "https://api.openai.com/v1", Help: "不含 /chat/completions"},
 				{Name: "api_key", Label: "API Key", Type: "password", Required: true, Sensitive: true},

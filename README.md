@@ -270,6 +270,35 @@ pnpm install:collector:browsers
 
 敏感信息不要提交到仓库。AI Key、存储 Secret、平台 App Secret、店铺 Token 等应通过后台配置并加密存储。
 
+### AI 文本 Provider（`settings.ai`）
+
+在管理端 **系统设置 → AI 设置** 配置（或写入 `settings` 表）。所有文本 AI（标题优化、描述生成、客服建议、批量 AI）均经后端 **AI Gateway** 调用，**前端不直连**模型服务商。`api_key` 使用 **AES-GCM** 加密存储，界面脱敏为 `****`。
+
+| `provider` | 说明 | `base_url` 示例 | `model` 示例 |
+| --- | --- | --- | --- |
+| `openai` | OpenAI 官方 Chat Completions | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| `openai_compatible` | 任意 OpenAI 兼容接口（Ollama 等） | 按服务商文档填写 | 按服务商文档填写 |
+| `deepseek` | DeepSeek（第一版：Chat Completions） | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| `qwen` | 通义千问 DashScope OpenAI 兼容模式 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
+
+示例（勿将真实 Key 提交到仓库）：
+
+```yaml
+# DeepSeek
+provider: deepseek
+base_url: https://api.deepseek.com/v1
+model: deepseek-chat
+api_key: <你的 DeepSeek API Key>
+
+# 通义千问 / Qwen
+provider: qwen
+base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+model: qwen-plus
+api_key: <你的 DashScope API Key>
+```
+
+`base_url` 为接口根路径，**不含** `/chat/completions`。具体地址与模型名以服务商官方控制台为准。生产环境建议保存配置后执行 **测试连接**（`POST /api/v1/settings/test-ai`）。
+
 ## 项目结构
 
 ```text
@@ -311,8 +340,9 @@ Provider 扩展架构：
 ```text
 Go Gin API
 ├── AI Provider
-│   ├── OpenAI-compatible
-│   ├── DeepSeek / Qwen / Doubao / Gemini / Claude / Ollama 预留
+│   ├── OpenAI / OpenAI-compatible
+│   ├── DeepSeek / Qwen（Chat Completions，共享 compatclient）
+│   ├── Doubao / Gemini / Claude / Ollama 等（可经 openai_compatible 接入）
 │   └── Prompt 模板与调用记录
 ├── Storage Provider
 │   ├── local

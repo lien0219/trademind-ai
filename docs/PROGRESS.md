@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-19 — **当前产品路线**（双主线）不变；补齐开源治理与 AI 关联配置：新增 **CODEOWNERS / Dependabot / Labeler / Docker Config CI / CHANGELOG**，以及 **`docs/module-map.md`、`docs/env.md`、`docs/api.md`、`docs/provider-template.md`、`docs/task-checklist.md`**；同步 `AGENTS.md`、Cursor rule、PR 模板与文档中心，强化“改 A 必查 B/C/D”的关联同步。
+**最后更新**：2026-05-19 — **AI Provider**：新增独立 **DeepSeek**（`deepseek`）与 **通义千问 / Qwen**（`qwen`）Provider（第一版 **Chat Completions**，复用 **`compatclient`**）；**`settings.ai.provider`** 支持 **`openai` / `openai_compatible` / `deepseek` / `qwen`**；**`test-ai`** 经 **AI Gateway** 返回 **provider / model / latencyMs** 与中文错误；管理端 **AI 设置** 下拉与示例地址；**README** 配置说明同步。
 
 ---
 
@@ -290,7 +290,7 @@ trademind-ai/
 | 架构 | 平台/采集/AI/存储 **走 Provider 抽象**；TikTok 专有 HTTP **仅在 `providers/platform/tiktok`** |
 | 主数据库 | **PostgreSQL** 为开发与 `docker-compose` 默认；仍支持 **`DB_DRIVER=mysql`** |
 | 文件存储（MVP） | **上传到后端**；**object_key / public_url**；**factory**：**`local` / `s3` / `r2` / `minio`**（AWS SDK **S3 兼容**）+ **`cos`（COS SDK）+ `oss`（OSS SDK）**；**非公网可读 Bucket** 依赖 **`*_public_base`（CDN/静态站）或后续按需签名 URL** |
-| AI 文本（扩展） | **标题/描述/客服建议** 均走 **`AI Gateway`** 与 **`ai_tasks`**；**`customer_reply_generate`** **不写入/不返回第三方 API Key**；**采纳建议**仅写入 **`customer_messages`（`role=agent`, `source=manual`）**，**不调用任何平台外发 API** |
+| AI 文本（扩展） | **标题/描述/客服建议** 均走 **`AI Gateway`** 与 **`ai_tasks`**；**`settings.ai.provider`**：**`openai` / `openai_compatible` / `deepseek` / `qwen`**（**`compatclient`** Chat Completions）；**`test-ai`** 经 Gateway；**`customer_reply_generate`** **不写入/不返回第三方 API Key**；**采纳建议**仅写入 **`customer_messages`（`role=agent`, `source=manual`）**，**不调用任何平台外发 API** |
 | AI 图片 | **`internal/providers/image`**：**`noop`** + **`removebg`**（**`image_file` / `image_url`**）+ **`openaiimage`**（**`/images/generations` + `/images/edits` multipart `image[]`**）+ **`comfyui`**（HTTP REST，**结果统一 PNG**）；**factory**：**`noop` \| `removebg` \| `openai_image` \| `comfyui`**；**异步队列 + 自动退避重试**（**`IMAGE_AUTO_RETRY_*`**）；**源解析**：**`imagetask/source_resolver`** + **Storage `Get`**（**`local` / `s3` / `r2` / `minio` / `cos` / `oss`**，`NewFromPlainForStoredKind`）+ **`httppublic.IsPublicHTTPURL`**；**OpenAI Image** 密钥 **`settings.image.openai_image_*`（不回退 `settings.ai.api_key`）**；**ComfyUI `replace_background`**：**可配置 workflow 基础链路** |
 
 ## 7. 当前遗留问题 / 风险
@@ -310,11 +310,11 @@ trademind-ai/
 13. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。
 14. **Collector** 首次需 `pnpm install:collector:browsers`（Chromium）。
 15. **MySQL 可选驱动**：当前 JSON 字段迁移以 **PostgreSQL `JSONB`** 为主路径；若使用 **MySQL**，需自行核对 GORM 对 `JSON`/`JSONB` 标签的兼容性（默认开发仍为 Postgres）。
-16. **`settings.ai.provider`**：后端 Gateway 首版仅接受 **`openai_compatible` / `openai`**（兼容接口统一走 `openai_compatible` HTTP 实现；**DeepSeek / Qwen / Ollama** 等后续可增独立适配或扩展 accepted 名称）。
+16. ~~**`settings.ai.provider` 仅 openai_compatible**~~ → **（2026-05-19）** 已支持 **`openai` / `openai_compatible` / `deepseek` / `qwen`**；DeepSeek / Qwen 第一版为 **Chat Completions**（共享 **`internal/providers/ai/compatclient`**）；**多模态 / Embedding / Rerank / 多 Provider 配置表** 仍后置。
 17. **AI 图片（边界）**：**ComfyUI `replace_background`** 依赖用户 **API 工作流**（**非通用 guarantee**）；**OpenAI `images/edits`** 受 **模型/额度/合规** 与 **源图格式** 约束。
 18. **公网 URL 启发式**：**`httppublic.IsPublicHTTPURL`** 按 **scheme/host 字面** 排除 **loopback / RFC1918 / 链路本地** 等；**普通域名默认视为公网**（**不做 DNS**）。若 **`public_base` / 签名 URL 主机名为内网域名但字面非上述范围**，可能被误判为「公网」而走 **`image_url`**（remove.bg 仍不可拉取）；此时应依赖 **`source_image_id` + `Get`** 路径。
 19. **AI 客服与内部订单上下文**：工作台已支持 **绑定内部订单**（含 **同步入库的 `orders`**）。**已落地** **平台客服消息同步**（**`customersync`**、**人工外发**、**mock** 全链路可测）；**TikTok**、**Shopee**、**Lazada** **`PullMessages`/`SendMessage` 已真实接入（`beta`**；**TikTok** 依赖 **`api_version`** 与 Customer Service 路径；**Shopee** 依赖 **`api/v2/sellerchat/*`**；**Lazada** 依赖 **`/im/session/list`** / **`/im/message/list`** / **`/im/message/send`**（IM **`template_id`** / **`content` JSON** 映射见 **`lazada/customer_message_mapping.go`**，需随文档校准）；**Amazon**：**SP-API Messaging API** **`PullMessages`/`SendMessage`**（**`beta`**；**不提供买家会话正文**，见 **`amazon/customer_messages.go`**）。**`GET /platform/providers`**：**TikTok / Shopee / Lazada / Amazon `customer_message`** 为 **`beta`**。仍无各平台 **实时消息 WebSocket 推送**。
-20. **多 AI Provider**：**`settings.ai.provider`** 与 Gateway 实际仍以 **openai_compatible** 为主路径；其它厂商后续可加适配。
+20. **多 AI Provider 并存（未完成）**：当前仍为 **单一 `settings.ai` 默认配置**；**DeepSeek / Qwen 已独立 Provider 名**，但尚无 **`settings.ai_providers` 多配置表** 与按任务选模。
 21. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。
 22. **AliExpress（Collector `beta`）边界**：受 **人机验证 / 风控 / 多语言 PDP / 区域价与币种格式**影响，**SKU 映射对部分模板仍不完整**；详情若 **异步 / iframe**，**`descriptionImages` 可为空**，**候选见 `raw.detailImageCandidates`**。**批量链路未开放**（`batchSupported=false`）。
 23. **多采集源仍占位**：**拼多多 / 淘宝·天猫 / SHEIN·Temu** Collector **`planned`**，**不真实解析**。**自定义链接**：Collector **`custom` 已为 `beta`**（**声明式 rule + JSON-LD / OG / Meta**）；**高级可视化规则编辑器**、**自定义批量采集**、**更强 SSRF（内网等）** 仍未完成。
@@ -457,6 +457,7 @@ trademind-ai/
 | 2026-05-16 | **remove.bg**：**`providers/image/removebg` Client** + **`factory.NewForTask`**（noop/removebg）；**`settings.image`** **`removebg_base_url`** 种子；**`files.SaveProcessed`**；**imagetask** 持久化 **`result_file_id`/`result_url`/output**；admin **`/settings/image`**、**`/ai/image-tasks`**、商品详情 **Provider 可选 removebg**；**PROGRESS** §1/§3/§6/§7/§8 同步 |
 | 2026-05-16 | **云存储 S3-compatible**：后端 **`internal/providers/storage/s3store`**（**AWS SDK v2**）、**factory**（`local`/`s3`/`r2`/`minio`，**COS/OSS 当时未接独立 SDK**，见本条记录之后续「COS/OSS」行）、**`files/upload|delete`** 与 **`test-storage` HeadBucket**；删除按 **`storage_kind`**；admin **存储设置 `s3_*`**；**`.env.example` / README** 存储说明；**go.mod** 引入 AWS SDK；**PROGRESS** 全篇对齐 |
 | 2026-05-16 | **GitHub Actions Go CI**：`.github/workflows/go.yml`（`main` 上 **push / pull_request**；`backend/` 内 **`gofmt -l` / `go vet` / `go test` / `go build`**；缺失 **`backend/`** 或 **`backend/go.mod`** 时显式失败；**`go-version-file: backend/go.mod`**）；**`go fmt`** 整理部分后端源文件以满足格式检查；**README** 增加「**CI / 自动检查**」 |
+| 2026-05-19 | **AI Provider（DeepSeek / Qwen）**：**`internal/providers/ai/compatclient`** 抽取 Chat Completions；**`deepseek` / `qwen` / `openai`** 独立包 + **`factory`/`gateway`**；**`test-ai`** 返回 **provider/model/latencyMs** 与中文错误；管理端 **AI 设置** 四档 Provider 与示例 **base_url/model**；**README** / **`docs/provider.md`** 配置说明 |
 | 2026-05-16 | **AI 图片任务预留**：**`image_tasks`**、**`internal/providers/image` + `noop`**、**`POST|GET /api/v1/image/tasks`、详情、`retry`**、**`settings.EnsureImageDefaults`（`image` 分组）**、操作日志 **`image.task.*`**、管理端 **`/ai/image-tasks`**、**`/settings/image`**、商品详情 **图片 Tab 入口**；**PROGRESS** §1/§3/§6/§7/§8 同步 |
 | 2026-05-16 | **`collect_task_events` + Timeline API + Admin Drawer**：新增表（**§3.2**）、节点写入、`GET /api/v1/collect/tasks/:id/events`（**JWT**、**ASC**、默认 **pageSize=50**）；**`CollectTaskEventDrawer`**（任务/批次/监控）；rollback 连带删事件；**§7 遗留（heartbeat/AI图/多云/Collector）§8 下一步** 重排 |
 | 2026-05-16 | **采集队列可观测性**：**`GET /api/v1/collect/monitor`**（JWT；**`LLEN`**、任务/批次 **`GROUP BY status`**、**`recentFailures`**、**`oldestPendingSeconds`**、**Worker**、**Collector `/health` 短超时**）；**`/health` / `/api/v1/health`** **`collectQueue`**（无 Collector 探测）；**`ConfigureWorkerMonitor` + `SetCollectWorkersRunning`**；管理端 **`/collect/monitor`**（**5s**、**visibility** 暂停、失败任务 **Drawer**）；**`/collect/batches?batchId=`**、**`/collect/tasks?batchId=`** 深链；**§7 遗留 / §8 下一步** 按监控收尾后重排 |
