@@ -438,7 +438,7 @@ export default function ShopsPage() {
       <ModalForm
         title="新建店铺"
         open={createOpen}
-        modalProps={{ destroyOnClose: true, onCancel: () => setCreateOpen(false) }}
+        modalProps={{ destroyOnHidden: true, onCancel: () => setCreateOpen(false) }}
         onFinish={async (vals) => {
           const plat = vals.platform as string;
           const meta = providers.find((x) => x.platform === plat);
@@ -509,7 +509,7 @@ export default function ShopsPage() {
             : undefined
         }
         key={detail?.id ?? 'edit'}
-        modalProps={{ destroyOnClose: true, onCancel: () => setEditOpen(false) }}
+        modalProps={{ destroyOnHidden: true, onCancel: () => setEditOpen(false) }}
         onFinish={async (vals) => {
           if (!detail) return false;
           await updateShop(detail.id, {
@@ -551,7 +551,7 @@ export default function ShopsPage() {
         title="同步店铺订单"
         open={syncOpen}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
           onCancel: () => {
             setSyncOpen(false);
             setSyncTarget(null);
@@ -597,7 +597,7 @@ export default function ShopsPage() {
         title="拉取平台客服消息"
         open={cmSyncOpen}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
           onCancel: () => {
             setCmSyncOpen(false);
             setCmSyncTarget(null);
@@ -648,7 +648,7 @@ export default function ShopsPage() {
           setDetailOpen(false);
           setDetail(null);
         }}
-        destroyOnClose
+        destroyOnHidden
         extra={
           detail ? (
             <Space>
@@ -771,7 +771,7 @@ export default function ShopsPage() {
         width={640}
         open={authOpen}
         onClose={() => setAuthOpen(false)}
-        destroyOnClose
+        destroyOnHidden
         extra={
           detail ? (
             <Button

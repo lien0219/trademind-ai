@@ -21,10 +21,63 @@ const FIELDS: Record<string, FieldSpec> = {
   ai_batch_auto_save_ai_field: {},
 };
 
+const PROVIDER_OPTIONS = [
+  { label: 'OpenAI', value: 'openai' },
+  { label: 'OpenAI Compatible', value: 'openai_compatible' },
+  { label: 'DeepSeek', value: 'deepseek' },
+  { label: '通义千问 / Qwen', value: 'qwen' },
+] as const;
+
+type ProviderValue = (typeof PROVIDER_OPTIONS)[number]['value'];
+
+const PROVIDER_PRESETS: Record<
+  ProviderValue,
+  { baseUrl: string; model: string; baseUrlHelp: string }
+> = {
+  openai: {
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    baseUrlHelp: 'OpenAI 官方 API 根路径，不含 /chat/completions',
+  },
+  openai_compatible: {
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    baseUrlHelp: 'OpenAI 兼容接口根路径，不含 /chat/completions',
+  },
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    baseUrlHelp: 'DeepSeek OpenAI 兼容根路径；生产环境请以官方文档为准',
+  },
+  qwen: {
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen-plus',
+    baseUrlHelp: '通义千问 DashScope OpenAI 兼容根路径；生产环境请以控制台为准',
+  },
+};
+
+function applyProviderPreset(
+  provider: ProviderValue,
+  current: { base_url?: string; model?: string },
+  forceFill: boolean,
+) {
+  const preset = PROVIDER_PRESETS[provider];
+  const next: { base_url?: string; model?: string } = {};
+  if (forceFill || !String(current.base_url || '').trim()) {
+    next.base_url = preset.baseUrl;
+  }
+  if (forceFill || !String(current.model || '').trim()) {
+    next.model = preset.model;
+  }
+  return next;
+}
+
 export default function AISettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const provider = Form.useWatch('provider', form) as ProviderValue | undefined;
+  const preset = provider ? PROVIDER_PRESETS[provider] : PROVIDER_PRESETS.openai_compatible;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,13 +85,13 @@ export default function AISettingsPage() {
       const { items } = await fetchSettingsList();
       const g = pickGroup(items, GROUP);
       form.setFieldsValue({
-        provider: g.provider || 'openai_compatible',
+        provider: (g.provider as ProviderValue) || 'openai_compatible',
         base_url: g.base_url || '',
         model: g.model || '',
         api_key: g.api_key || '',
         temperature: g.temperature !== undefined && g.temperature !== '' ? Number(g.temperature) : 0.7,
         max_tokens: g.max_tokens !== undefined && g.max_tokens !== '' ? Number(g.max_tokens) : 512,
-        timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
+        timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 120,
         ai_batch_enabled: g.ai_batch_enabled !== 'false',
         ai_batch_max_size: g.ai_batch_max_size ? Number(g.ai_batch_max_size) : 100,
         ai_batch_concurrency: g.ai_batch_concurrency ? Number(g.ai_batch_concurrency) : 2,
@@ -64,7 +117,8 @@ export default function AISettingsPage() {
           message="自备大模型 API"
           description={
             <>
-              请在 OpenAI / DeepSeek / 通义 / Ollama（OpenAI 兼容）等渠道自行申请 Key 与 Base URL。贸灵前端不会请求模型接口，仅后端通过 AI Gateway 调用。摘要见{' '}
+              请在 OpenAI / DeepSeek / 通义千问 / Ollama（OpenAI 兼容）等渠道自行申请 Key 与 Base URL。贸灵前端不会请求模型接口，仅后端通过
+              AI Gateway 调用。DeepSeek / 通义千问第一版仅支持 Chat Completions（标题、描述、客服建议、批量 AI 等文本能力）。摘要见{' '}
               <Link to="/settings/integrations">第三方集成总览</Link>。
             </>
           }
@@ -104,23 +158,23 @@ export default function AISettingsPage() {
         >
           <Form.Item label="Provider 类型" name="provider" rules={[{ required: true }]}>
             <Select
-              options={[
-                { label: 'OpenAI 兼容', value: 'openai_compatible' },
-                { label: 'DeepSeek（预留）', value: 'deepseek', disabled: true },
-                { label: '通义（预留）', value: 'qwen', disabled: true },
-              ]}
+              options={[...PROVIDER_OPTIONS]}
+              onChange={(value: ProviderValue) => {
+                const current = form.getFieldsValue(['base_url', 'model']);
+                form.setFieldsValue(applyProviderPreset(value, current, true));
+              }}
             />
           </Form.Item>
           <Form.Item
             label="Base URL"
             name="base_url"
             rules={[{ required: true, message: '请输入 Base URL' }]}
-            extra="OpenAI 兼容接口根路径，不含 /chat/completions"
+            extra={preset.baseUrlHelp}
           >
-            <Input placeholder="https://api.openai.com/v1" />
+            <Input placeholder={preset.baseUrl} />
           </Form.Item>
           <Form.Item label="模型" name="model" rules={[{ required: true, message: '请输入模型名' }]}>
-            <Input placeholder="gpt-4o-mini" />
+            <Input placeholder={preset.model} />
           </Form.Item>
           <Form.Item label="API Key" name="api_key" rules={[{ required: true, message: '请输入 API Key' }]}>
             <Input.Password placeholder="敏感；保存后显示为 ****，留空不覆盖则需在列表里保留原占位" autoComplete="new-password" />
@@ -131,7 +185,12 @@ export default function AISettingsPage() {
           <Form.Item label="Max tokens" name="max_tokens" extra="默认 512">
             <InputNumber min={1} max={32000} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item label="超时（秒）" name="timeout_sec" rules={[{ required: true }]}>
+          <Form.Item
+            label="超时（秒）"
+            name="timeout_sec"
+            rules={[{ required: true }]}
+            extra="连接测试可用 60；商品标题/描述等大输出时建议 ≥120，deepseek-v4 建议 180。未达下限时代码会自动抬高。"
+          >
             <InputNumber min={5} max={600} style={{ width: '100%' }} />
           </Form.Item>
           <Typography.Title level={5}>批量 AI（商品运营）</Typography.Title>
@@ -168,8 +227,28 @@ export default function AISettingsPage() {
                 onClick={async () => {
                   setTesting(true);
                   try {
-                    await testAIConnection();
-                    message.success('连接成功');
+                    const values = await form.validateFields([
+                      'provider',
+                      'base_url',
+                      'model',
+                      'api_key',
+                      'timeout_sec',
+                    ]);
+                    const apiKey = String(values.api_key ?? '').trim();
+                    const res = await testAIConnection({
+                      provider: values.provider,
+                      base_url: values.base_url,
+                      model: values.model,
+                      timeout_sec: String(values.timeout_sec ?? ''),
+                      ...(apiKey && !apiKey.includes('****') ? { api_key: apiKey } : {}),
+                    });
+                    const latency =
+                      res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
+                    const detail =
+                      res.provider || res.model
+                        ? ` [${[res.provider, res.model].filter(Boolean).join(' / ')}]`
+                        : '';
+                    message.success(`${res.message || '连接成功'}${detail}${latency}`);
                   } catch (e: unknown) {
                     message.error((e as Error)?.message || '连接失败');
                   } finally {

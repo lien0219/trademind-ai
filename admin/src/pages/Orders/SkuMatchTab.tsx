@@ -396,7 +396,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
       <Modal
         title="人工绑定 SKU"
         open={bindOpen}
-        destroyOnClose
+        destroyOnHidden
         width={720}
         footer={
           <Space>

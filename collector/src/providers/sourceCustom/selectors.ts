@@ -1,5 +1,7 @@
 import type { Page } from 'playwright';
 
+import { evaluateInPage } from '../../browser/evaluate-in-page.js';
+
 export async function extractSelectorStrings(
   page: Page,
   selectors: string[],
@@ -8,7 +10,8 @@ export async function extractSelectorStrings(
 ): Promise<string[]> {
   const selectorsSafe = selectors.filter((s) => typeof s === 'string' && s.length <= 512).slice(0, 40);
   const attr = (attrRaw && attrRaw.trim()) || 'text';
-  return page.evaluate(
+  return evaluateInPage(
+    page,
     ({ selectors: sels, attr: a, multiple: mul }) => {
       const pickAttr = (el: Element, name: string): string => {
         const tag = el.tagName.toLowerCase();

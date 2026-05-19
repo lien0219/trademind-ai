@@ -86,8 +86,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		opLogSvc = &operationlog.Service{DB: dep.DB}
 	}
 
+	aiGateway := &aigate.Gateway{Settings: settingsSvc}
+
 	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc}
-	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc}
+	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc, AIGateway: aiGateway}
 	opLogH := &operationlog.Handler{Svc: opLogSvc}
 
 	maxUp := int64(10 << 20)
@@ -116,7 +118,6 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 
 	promptSvc := &aiprompt.Service{DB: dep.DB}
-	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 	aiTaskSvc := &aitask.Service{DB: dep.DB}
 	imageTaskSvc := &imagetask.Service{
 		DB:       dep.DB,
@@ -346,6 +347,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
 	authed.GET("/settings/integrations/overview", setH.IntegrationOverview)
 	authed.POST("/settings/test-ai", setH.TestAI)
+	authed.POST("/settings/test-image", imageTaskH.TestImage)
 	authed.POST("/settings/test-storage", setH.TestStorage)
 	authed.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
 	authed.POST("/settings/test-email", setH.TestEmail)

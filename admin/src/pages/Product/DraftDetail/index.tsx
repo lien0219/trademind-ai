@@ -68,6 +68,8 @@ import {
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
+import { isProviderSelectable, providersForTask } from '@/constants/imageProviders';
+import { useImageProviders } from '@/hooks/useImageProviders';
 import { createImageTask } from '@/services/imageTasks';
 import { Link } from '@umijs/renderer-react';
 import {
@@ -95,6 +97,34 @@ function inventorySyncRunnable(cap?: string): boolean {
 }
 
 const SKU_BATCH_STOCK_MAX_HINT = 500;
+
+/** 从采集归一化 JSON（products.raw_data）读取 attributes / attributeCandidates */
+function collectedAttributesFromRaw(rawData: unknown): Record<string, string> {
+  if (!rawData || typeof rawData !== 'object') return {};
+  const root = rawData as Record<string, unknown>;
+  const pick = (obj: unknown): Record<string, string> => {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      const key = String(k).trim();
+      if (!key) continue;
+      if (typeof v === 'string') {
+        const val = v.trim();
+        if (val) out[key] = val;
+      } else if (v != null && (typeof v === 'number' || typeof v === 'boolean')) {
+        out[key] = String(v);
+      }
+    }
+    return out;
+  };
+  const fromTop = pick(root.attributes);
+  if (Object.keys(fromTop).length) return fromTop;
+  const nested = root.raw;
+  if (nested && typeof nested === 'object') {
+    return pick((nested as Record<string, unknown>).attributeCandidates);
+  }
+  return {};
+}
 
 function formatInventorySyncTaskCreateError(e: unknown): string {
   const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
@@ -309,13 +339,28 @@ export default function ProductDraftDetailPage() {
   const [skuBatchPreviewLoading, setSkuBatchPreviewLoading] = useState(false);
   const [skuBatchStockForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
 
+  const collectedAttrs = useMemo(
+    () => collectedAttributesFromRaw(data?.rawData),
+    [data?.rawData],
+  );
+
+  const { caps, optionsForTask } = useImageProviders();
+
   const aiImgAllowNoSourceImage = useMemo(() => {
+    if (aiImgTaskType !== 'generate_scene') return false;
     const prov = aiImgProvider.trim().toLowerCase();
-    return (
-      aiImgTaskType === 'generate_scene' &&
-      (prov === '' || prov === 'openai_image' || prov === 'comfyui')
-    );
-  }, [aiImgTaskType, aiImgProvider]);
+    if (prov === '') {
+      return caps.some(
+        (c) =>
+          isProviderSelectable(c) &&
+          c.supportedTasks.includes('generate_scene') &&
+          ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(
+            c.provider,
+          ),
+      );
+    }
+    return ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(prov);
+  }, [aiImgTaskType, aiImgProvider, caps]);
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -749,6 +794,21 @@ export default function ProductDraftDetailPage() {
                     </Descriptions.Item>
                   </Descriptions>
 
+                  {Object.keys(collectedAttrs).length > 0 ? (
+                    <Card title="采集属性" size="small" style={{ marginBottom: 16 }}>
+                      <Table
+                        size="small"
+                        pagination={false}
+                        rowKey="key"
+                        dataSource={Object.entries(collectedAttrs).map(([key, value]) => ({ key, value }))}
+                        columns={[
+                          { title: '属性', dataIndex: 'key', width: 180 },
+                          { title: '值', dataIndex: 'value', ellipsis: true },
+                        ]}
+                      />
+                    </Card>
+                  ) : null}
+
                   <ProForm
                     key={`basic-${data.id}-${data.updatedAt}`}
                     submitter={{
@@ -879,17 +939,9 @@ export default function ProductDraftDetailPage() {
                   <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
-                        可选择商品图作为源图（场景图在 OpenAI / ComfyUI 下可无图），任务由后端入队；结果在{' '}
-                        <Link to="/ai/image-tasks">AI 图片任务</Link>{' '}
-                        查看。<Typography.Text code>remove_background</Typography.Text> 使用 <Typography.Text code>removebg</Typography.Text>
-                        ；本地/存储中的商品图由后端读取并以 multipart 上传 remove.bg（公网 URL 仍可走 image_url）。<Typography.Text code>
-                          generate_scene
-                        </Typography.Text>{' '}
-                        支持 <Typography.Text code>openai_image</Typography.Text> / <Typography.Text code>comfyui</Typography.Text>；<Typography.Text code>
-                          replace_background
-                        </Typography.Text>{' '}
-                        可选 <Typography.Text code>comfyui</Typography.Text>（工作流）或 <Typography.Text code>openai_image</Typography.Text>（后端读源图并以
-                        multipart 调用 OpenAI，无需前端直连）。
+                        可选择商品图作为源图；场景图在通义万相 / OpenAI / 火山方舟等 Provider 下可无源图。任务由后端入队，结果在{' '}
+                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看。去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI
+                        Image；替换背景推荐 OpenAI Image 或 ComfyUI；高级自定义推荐 ComfyUI。
                       </Typography.Text>
                       <Input.TextArea
                         value={aiImgPrompt}
@@ -936,21 +988,29 @@ export default function ProductDraftDetailPage() {
                           value={aiImgTaskType}
                           onChange={(v) => {
                             setAiImgTaskType(v);
+                            const matched = providersForTask(caps, v);
+                            const first = matched.find((c) => isProviderSelectable(c));
                             if (v === 'remove_background') {
                               setAiImgProvider('removebg');
-                            }
-                            if (v === 'generate_scene') {
-                              setAiImgProvider('openai_image');
-                            }
-                            if (v === 'replace_background') {
-                              setAiImgProvider('');
+                            } else if (v === 'generate_scene') {
+                              setAiImgProvider(
+                                first?.provider === 'removebg' ? 'dashscope_image' : first?.provider ?? 'dashscope_image',
+                              );
+                            } else {
+                              setAiImgProvider(first?.provider ?? '');
                             }
                           }}
                           options={[
-                            { label: '去背景 remove_background', value: 'remove_background' },
-                            { label: '换背景 replace_background', value: 'replace_background' },
-                            { label: '场景图 generate_scene', value: 'generate_scene' },
-                            { label: '缩放 resize', value: 'resize' },
+                            { label: '去背景', value: 'remove_background' },
+                            { label: '换背景', value: 'replace_background' },
+                            { label: '场景图', value: 'generate_scene' },
+                            {
+                              label: '缩放',
+                              value: 'resize',
+                              disabled: !caps.some(
+                                (c) => isProviderSelectable(c) && c.supportedTasks.includes('resize'),
+                              ),
+                            },
                           ]}
                         />
                         <Select
@@ -958,13 +1018,7 @@ export default function ProductDraftDetailPage() {
                           style={{ minWidth: 220 }}
                           value={aiImgProvider}
                           onChange={(v) => setAiImgProvider(v)}
-                          options={[
-                            { label: '默认（跟随「图片 AI」设置）', value: '' },
-                            { label: 'noop', value: 'noop' },
-                            { label: 'remove.bg', value: 'removebg' },
-                            { label: 'OpenAI Image', value: 'openai_image' },
-                            { label: 'ComfyUI', value: 'comfyui' },
-                          ]}
+                          options={optionsForTask(aiImgTaskType)}
                         />
                         <Button
                           type="primary"
@@ -1865,7 +1919,7 @@ export default function ProductDraftDetailPage() {
           }
         }}
         key={imgEdit ? `img-${imgEdit.id}` : imgModalOpen ? 'img-add' : 'img-closed'}
-        modalProps={{ destroyOnClose: true, width: 560 }}
+        modalProps={{ destroyOnHidden: true, width: 560 }}
         initialValues={{
           imageType: imgEdit ? (imgEdit.imageType === 'description' ? 'detail' : imgEdit.imageType) : 'main',
           sortOrder: imgEdit?.sortOrder ?? sortedImages.length,
@@ -1955,7 +2009,7 @@ export default function ProductDraftDetailPage() {
         open={aiOpen}
         onCancel={() => setAiOpen(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={640}
       >
         <Form
@@ -2045,7 +2099,7 @@ export default function ProductDraftDetailPage() {
         open={descOpen}
         onCancel={() => setDescOpen(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={720}
       >
         <Form
@@ -2143,7 +2197,7 @@ export default function ProductDraftDetailPage() {
         title={logsSku ? `库存变更 · ${logsSku.skuCode || logsSku.id}` : '库存变更'}
         open={logsOpen}
         width={560}
-        destroyOnClose
+        destroyOnHidden
         onClose={() => {
           setLogsOpen(false);
           setLogsSku(null);
@@ -2181,7 +2235,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={adjustTarget ? `调整库存 · ${adjustTarget.skuCode}` : '调整库存'}
         open={adjustOpen && !!adjustTarget}
-        destroyOnClose
+        destroyOnHidden
         okText="保存"
         confirmLoading={invAdjustSubmitting}
         onCancel={() => {
@@ -2230,7 +2284,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title="同步刊登 SKU 库存"
         open={syncOpen && !!syncRow}
-        destroyOnClose
+        destroyOnHidden
         okText="提交任务"
         confirmLoading={syncSubmitting}
         onCancel={() => {
@@ -2303,7 +2357,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={stockSettingsTarget ? `预警线 · ${stockSettingsTarget.skuCode}` : '预警线'}
         open={stockSettingsOpen && !!stockSettingsTarget}
-        destroyOnClose
+        destroyOnHidden
         okText="保存"
         confirmLoading={stockSettingsSubmitting}
         onCancel={() => {

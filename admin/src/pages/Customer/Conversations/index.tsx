@@ -172,7 +172,7 @@ export default function CustomerConversationsPage() {
       <ModalForm
         title="拉取平台客服消息"
         open={pullOpen}
-        modalProps={{ destroyOnClose: true, onCancel: () => setPullOpen(false) }}
+        modalProps={{ destroyOnHidden: true, onCancel: () => setPullOpen(false) }}
         initialValues={{ mode: 'incremental', limit: 50, cursor: '', start: '', end: '' }}
         onFinish={async (vals) => {
           const sid = vals.shopId as string | undefined;
@@ -224,7 +224,7 @@ export default function CustomerConversationsPage() {
       <ModalForm
         title="新建客服会话"
         open={createOpen}
-        modalProps={{ destroyOnClose: true, onCancel: () => setCreateOpen(false) }}
+        modalProps={{ destroyOnHidden: true, onCancel: () => setCreateOpen(false) }}
         onFinish={async (vals) => {
           await createConversation({
             platform: (vals.platform as string) || 'manual',

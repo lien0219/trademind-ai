@@ -272,7 +272,7 @@ export default function InventorySyncTasksPage() {
         width={560}
         title={detail ? `库存同步 ${detail.id}` : '详情'}
         open={detailOpen}
-        destroyOnClose
+        destroyOnHidden
         onClose={() => {
           setDetailOpen(false);
           setDetail(null);

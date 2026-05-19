@@ -1,9 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 import { commandPrintableVersion, runCapture } from './utils/command.js';
 import { resolveEffectiveEnvPath } from './utils/env-file.js';
+import {
+  formatHostPort,
+  infraUsable,
+  isDockerCliAvailable,
+  isDockerComposeAvailable,
+  isDockerDaemonRunning,
+  type InfraMode,
+  type InfraResolution,
+  resolveInfra,
+} from './utils/infra.js';
 import { banner, checkFail, checkOk, checkWarn } from './utils/log.js';
 import { backendDir, repoRoot } from './utils/paths.js';
 
@@ -14,30 +25,66 @@ function fail(msg: string): void {
   checkFail(msg);
 }
 
-async function verifyDockerDaemon(): Promise<boolean> {
-  const r = await runCapture('docker', ['info']);
-  if (r.ok) return true;
-  fail(
-    'Docker 引擎未运行或未就绪：请先启动 Docker Desktop（Windows/macOS）或本机 docker 服务（Linux），并在终端执行 `docker ps` 确认无报错。',
-  );
-  return false;
-}
-
-async function verifyCompose(): Promise<boolean> {
-  const r = await runCapture('docker', ['compose', 'version']);
-  if (r.ok) return true;
-  fail('未检测到 `docker compose`（Compose V2）。请升级 Docker Desktop / Docker Engine，或安装 Compose 插件。');
-  return false;
-}
-
 async function containerRunning(name: string): Promise<boolean> {
   const r = await runCapture('docker', ['inspect', '-f', '{{.State.Running}}', name]);
   return r.ok && r.out.trim() === 'true';
 }
 
+function checkInfraResolution(infra: InfraResolution): InfraMode | null {
+  if (infra.dockerAvailable) {
+    return 'docker';
+  }
+
+  checkWarn('未检测到可用的 Docker（CLI / Compose / 引擎），将尝试使用本机 PostgreSQL / Redis');
+
+  const pgTarget = formatHostPort(infra.postgres.host, infra.postgres.port);
+  const redisTarget = formatHostPort(infra.redis.host, infra.redis.port);
+
+  if (infra.postgres.reachable) {
+    checkOk(`本机 PostgreSQL 可连接（${pgTarget}）`);
+  } else {
+    fail(
+      `本机 PostgreSQL 不可连接（${pgTarget}）。请启动 PostgreSQL，或安装并启动 Docker Desktop 后重试。`,
+    );
+  }
+
+  if (infra.redis.reachable) {
+    checkOk(`本机 Redis 可连接（${redisTarget}）`);
+  } else {
+    fail(`本机 Redis 不可连接（${redisTarget}）。请启动 Redis，或安装并启动 Docker Desktop 后重试。`);
+  }
+
+  if (hadFailure) {
+    return null;
+  }
+  return 'local';
+}
+
+async function checkDockerDetails(infra: InfraResolution): Promise<void> {
+  if (!infra.dockerAvailable) return;
+
+  const dockerV = await commandPrintableVersion('docker', ['version']);
+  if (dockerV) {
+    checkOk(`Docker CLI OK (${dockerV.split(/\s+/).slice(0, 2).join(' ')})`);
+  }
+
+  if (await isDockerComposeAvailable()) {
+    checkOk('Docker Compose OK');
+  }
+
+  if (await isDockerDaemonRunning()) {
+    checkOk('Docker 引擎可访问');
+  }
+}
+
+export type DevEnvCheckResult = {
+  ok: boolean;
+  infraMode: InfraMode | null;
+};
+
 export async function runDevEnvChecks(
   options: { quietBanner?: boolean; skipContainerStatus?: boolean } = {},
-): Promise<boolean> {
+): Promise<DevEnvCheckResult> {
   hadFailure = false;
   if (!options.quietBanner) {
     banner('TradeMind Dev — 环境检查');
@@ -59,27 +106,18 @@ export async function runDevEnvChecks(
     checkOk(`Go OK (${goV})`);
   }
 
-  const dockerV = await commandPrintableVersion('docker', ['version']);
-  if (!dockerV) {
-    fail('未检测到 Docker CLI。请安装 Docker Desktop 或 Docker Engine，并确保 `docker version` 可用。');
-  } else {
-    checkOk(`Docker CLI OK (${dockerV.split(/\s+/).slice(0, 2).join(' ')})`);
+  const effective = resolveEffectiveEnvPath(repoRoot);
+  const infra = await resolveInfra(effective);
+
+  if (!(await isDockerCliAvailable()) && !infra.dockerAvailable) {
+    checkWarn('未检测到 Docker CLI');
   }
 
-  await verifyCompose();
-
-  if (!hadFailure) {
-    const daemonOk = await verifyDockerDaemon();
-    if (!daemonOk) {
-      // verifyDockerDaemon already printed failure
-    } else {
-      checkOk('Docker 引擎可访问');
-    }
-  }
+  await checkDockerDetails(infra);
+  const infraMode = checkInfraResolution(infra);
 
   const rootEnv = path.join(repoRoot, '.env');
   const beEnv = path.join(backendDir, '.env');
-  const effective = resolveEffectiveEnvPath(repoRoot);
 
   if (fs.existsSync(rootEnv)) {
     checkOk('根目录 .env 已存在（不会打印内容）');
@@ -90,36 +128,47 @@ export async function runDevEnvChecks(
   }
 
   if (!hadFailure && effective) {
-    // touch-only check; never print values
     checkOk(`有效配置文件：${path.relative(repoRoot, effective) || '.env'}`);
   }
 
-  if (!hadFailure && !options.skipContainerStatus) {
-    const pg = await containerRunning('trademind-postgres');
-    const rd = await containerRunning('trademind-redis');
-    if (pg && rd) {
-      checkOk('PostgreSQL / Redis 容器已在运行（trademind-postgres、trademind-redis）');
-    } else {
-      checkWarn(
-        `基础容器未全部运行（PostgreSQL: ${pg ? '运行中' : '未运行'}，Redis: ${rd ? '运行中' : '未运行'}）。可执行 \`pnpm dev:infra\` 或 \`pnpm dev\` 拉起。`,
-      );
+  if (!hadFailure && !options.skipContainerStatus && infraMode) {
+    if (infraMode === 'docker') {
+      const pg = await containerRunning('trademind-postgres');
+      const rd = await containerRunning('trademind-redis');
+      if (pg && rd) {
+        checkOk('PostgreSQL / Redis 容器已在运行（trademind-postgres、trademind-redis）');
+      } else {
+        checkWarn(
+          `基础容器未全部运行（PostgreSQL: ${pg ? '运行中' : '未运行'}，Redis: ${rd ? '运行中' : '未运行'}）。可执行 \`pnpm dev:infra\` 或 \`pnpm dev\` 拉起。`,
+        );
+      }
+    } else if (infraUsable(infra)) {
+      checkOk('本机 PostgreSQL / Redis 已在运行');
     }
   }
 
   if (hadFailure) {
     checkFail('环境检查未通过，请先处理上述问题后再运行 `pnpm dev`。');
-    return false;
+    return { ok: false, infraMode: null };
   }
   checkOk('环境检查完成');
-  return true;
+  return { ok: true, infraMode };
+}
+
+function isDirectRun(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  return path.resolve(fileURLToPath(import.meta.url)) === path.resolve(entry);
 }
 
 async function main(): Promise<void> {
-  const ok = await runDevEnvChecks();
-  process.exit(ok ? 0 : 1);
+  const result = await runDevEnvChecks();
+  process.exit(result.ok ? 0 : 1);
 }
 
-main().catch((e: unknown) => {
-  console.error(e);
-  process.exit(1);
-});
+if (isDirectRun()) {
+  main().catch((e: unknown) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

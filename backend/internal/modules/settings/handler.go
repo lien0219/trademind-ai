@@ -6,12 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
 // Handler serves settings HTTP API.
 type Handler struct {
-	Svc   *Service
-	OpLog *operationlog.Service
+	Svc       *Service
+	OpLog     *operationlog.Service
+	AIGateway *aigate.Gateway
 }
 
 type putBody struct {
@@ -125,22 +127,54 @@ func (h *Handler) TestPlatformTikTok(c *gin.Context) {
 	response.OK(c, gin.H{"ok": true})
 }
 
+type testAIBody struct {
+	Provider   string `json:"provider"`
+	BaseURL    string `json:"base_url"`
+	Model      string `json:"model"`
+	APIKey     string `json:"api_key"`
+	TimeoutSec string `json:"timeout_sec"`
+}
+
 // TestAI POST /api/v1/settings/test-ai
+// Optional JSON body lets the admin test unsaved form values; empty body uses saved settings.ai only.
 func (h *Handler) TestAI(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
 		return
 	}
-	if err := h.Svc.TestAIConnection(c.Request.Context()); err != nil {
+	if h.AIGateway == nil {
+		response.Fail(c, 500, response.CodeInternalError, "ai gateway unavailable")
+		return
+	}
+	plain, err := h.Svc.PlainByGroup(c.Request.Context(), 0, "ai")
+	if err != nil {
+		response.Fail(c, 500, response.CodeInternalError, err.Error())
+		return
+	}
+	var body testAIBody
+	_ = c.ShouldBindJSON(&body)
+	plain = MergeAIPlain(plain, &TestAIOverrides{
+		Provider:   body.Provider,
+		BaseURL:    body.BaseURL,
+		Model:      body.Model,
+		APIKey:     body.APIKey,
+		TimeoutSec: body.TimeoutSec,
+	})
+	res, err := h.AIGateway.TestConnectionWithPlain(c.Request.Context(), plain)
+	if err != nil {
+		msg := err.Error()
+		if res != nil && strings.TrimSpace(res.Message) != "" {
+			msg = res.Message
+		}
 		if h.OpLog != nil {
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
 				Action:   "test_ai",
 				Resource: "settings",
 				Status:   "failed",
-				Message:  err.Error(),
+				Message:  msg,
 			})
 		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, 400, response.CodeBadRequest, msg)
 		return
 	}
 	if h.OpLog != nil {
@@ -150,7 +184,16 @@ func (h *Handler) TestAI(c *gin.Context) {
 			Status:   "success",
 		})
 	}
-	response.OK(c, gin.H{"ok": true})
+	out := gin.H{"ok": true, "message": "连接成功"}
+	if res != nil {
+		out["provider"] = res.Provider
+		out["model"] = res.Model
+		out["latencyMs"] = res.LatencyMs
+		if res.Message != "" {
+			out["message"] = res.Message
+		}
+	}
+	response.OK(c, out)
 }
 
 // TestStorage POST /api/v1/settings/test-storage

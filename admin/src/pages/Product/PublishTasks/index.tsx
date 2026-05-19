@@ -173,7 +173,7 @@ export default function ProductPublishTasksPage() {
         width={560}
         title={detail ? `刊登任务 ${detail.id}` : '详情'}
         open={detailOpen}
-        destroyOnClose
+        destroyOnHidden
         onClose={() => {
           setDetailOpen(false);
           setDetail(null);

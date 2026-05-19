@@ -98,10 +98,9 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
   return (
     <Drawer
       title={task ? `任务事件 · ${task.id.slice(0, 8)}…` : '任务事件'}
-      width={620}
       open={open && !!taskId}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       {loading ? (
         <div style={{ textAlign: 'center', padding: 48 }}>

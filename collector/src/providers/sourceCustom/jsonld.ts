@@ -1,6 +1,8 @@
 /**
  * Extract JSON-LD Product hints (trimmed; no huge blobs).
  */
+import { evaluateInPageVoid } from '../../browser/evaluate-in-page.js';
+
 export type JsonLdHints = {
   title?: string;
   currency?: string;
@@ -115,7 +117,7 @@ function walkJsonLdObjects(parsed: unknown, found: Partial<JsonLdHints>[]): void
 }
 
 export async function extractJsonLdHints(page: import('playwright').Page): Promise<JsonLdHints | null> {
-  const snippets = await page.evaluate(() => {
+  const snippets = await evaluateInPageVoid(page, () => {
     const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
     const texts: string[] = [];
     for (const s of scripts) {

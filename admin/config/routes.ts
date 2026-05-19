@@ -43,19 +43,19 @@ export default [
     component: '@/layouts/OpsGroupLayout',
     routes: [
       {
-        path: '/workers/monitor',
+        path: '/ops/workers/monitor',
         name: 'Worker 监控',
         icon: 'CloudServerOutlined',
         component: './Workers/Monitor',
       },
       {
-        path: '/task-center/failures',
+        path: '/ops/task-center/failures',
         name: '失败任务中心',
         icon: 'WarningOutlined',
         component: './TaskCenter/Failures',
       },
       {
-        path: '/task-center/alerts',
+        path: '/ops/task-center/alerts',
         name: '告警中心',
         icon: 'BellOutlined',
         component: './TaskCenter/Alerts',
@@ -128,8 +128,17 @@ export default [
     routes: [
       {
         path: '/collect',
+        redirect: '/collect/hub',
+      },
+      {
+        path: '/collect/hub',
         name: '采集中心',
         component: './Collect/Hub',
+      },
+      {
+        path: '/collect/tasks',
+        name: '采集任务',
+        component: './Collect/Tasks',
       },
       {
         path: '/collect/rules',
@@ -156,6 +165,10 @@ export default [
     routes: [
       {
         path: '/shops',
+        redirect: '/shops/manage',
+      },
+      {
+        path: '/shops/manage',
         name: '店铺管理',
         component: './Shops',
       },
@@ -169,6 +182,10 @@ export default [
     routes: [
       {
         path: '/orders',
+        redirect: '/orders/list',
+      },
+      {
+        path: '/orders/list',
         name: '订单列表',
         component: './Orders/index',
       },

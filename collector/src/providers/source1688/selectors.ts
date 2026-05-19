@@ -10,14 +10,16 @@ export const TITLE_SELECTORS = [
   'h1[class*="title"]',
 ];
 
-/** 主图预览区（非详情正文） */
+/** 主图预览区（非详情正文）；避免过宽的 [class*="gallery"] 以免扫到服务图标 */
 export const MAIN_GALLERY_SELECTORS = [
   '.vertical-img img',
   '.dot-img-footer-list img',
   '.tab-content-wrapper img',
+  '.detail-gallery-preview img',
+  '.detail-gallery-turn img',
   '.detail-gallery img',
   '[class*="offer-gallery"] img',
-  '[class*="gallery"] img',
+  '[class*="main-image"] img',
   '.swiper-slide img',
   '.obj-sku-img-item img',
   '.obj-header-image img',
@@ -42,4 +44,25 @@ export const ATTRIBUTE_ROW_SELECTORS = [
   '[class*="param-table"] tr',
   '.obj-content-table tr',
   '.offer-params tr',
+  '#productAttributes .obj-content-table tr',
+  '[module-title="商品属性"] tr',
+];
+
+/** SKU 规格区（颜色/尺码等） */
+export const SKU_SECTION_SELECTORS = [
+  '[class*="sku-item-wrapper"]',
+  '[class*="sku-selector"]',
+  '[class*="obj-sku"]',
+  '[class*="sale-prop"]',
+  '[class*="spec-item"]',
+  '[class*="prop-item"]',
+  '.module-od-sku-selection',
+];
+
+/** SKU 尺码/库存表格行 */
+export const SKU_TABLE_ROW_SELECTORS = [
+  '[class*="sku-table"] tr',
+  '[class*="sku-item-list"] [class*="item"]',
+  '[class*="table-sku"] tr',
+  '.obj-sku .table tr',
 ];

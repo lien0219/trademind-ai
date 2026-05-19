@@ -1,37 +1,94 @@
-import { Link } from '@umijs/renderer-react';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, InputNumber, Select, message } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+  Space,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ALL_IMAGE_FIELD_SPECS,
+  IMAGE_SCENARIOS,
+  type ImageProviderCapability,
+  type ImageScenarioId,
+  PROVIDER_FIELD_KEYS,
+  isProviderSelectable,
+  providerDifficultyLabel,
+  providerRegionLabel,
+  providerStatusLabel,
+} from '@/constants/imageProviders';
+import { fetchImageProviders, testImageProvider } from '@/services/imageProviders';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
 const GROUP = 'image';
 
-const FIELDS: Record<string, FieldSpec> = {
-  provider: {},
-  removebg_api_key: { encrypted: true },
-  removebg_base_url: {},
-  openai_image_base_url: {},
-  openai_image_api_key: { encrypted: true },
-  openai_image_model: {},
-  openai_image_size: {},
-  openai_image_quality: {},
-  openai_image_background: {},
-  comfyui_base_url: {},
-  comfyui_api_key: { encrypted: true },
-  comfyui_workflow_json: { valueType: 'json' },
-  comfyui_prompt_node_id: {},
-  comfyui_image_node_id: {},
-  comfyui_output_node_id: {},
-  comfyui_timeout_sec: {},
-  comfyui_poll_interval_seconds: {},
-  comfyui_max_poll_seconds: {},
-  timeout_sec: {},
-};
+const ENCRYPTED_KEYS = new Set([
+  'removebg_api_key',
+  'openai_image_api_key',
+  'comfyui_api_key',
+  'dashscope_image_api_key',
+  'volcengine_image_api_key',
+  'siliconflow_image_api_key',
+  'hunyuan_image_api_key',
+]);
+
+function buildFieldsSpec(): Record<string, FieldSpec> {
+  const out: Record<string, FieldSpec> = { provider: {} };
+  for (const key of Object.keys(ALL_IMAGE_FIELD_SPECS)) {
+    if (key === 'provider') continue;
+    out[key] = {
+      encrypted: ENCRYPTED_KEYS.has(key),
+      valueType: ALL_IMAGE_FIELD_SPECS[key].valueType === 'json' ? 'json' : undefined,
+    };
+  }
+  return out;
+}
+
+const FIELDS = buildFieldsSpec();
+
+function ProviderMetaTags({ cap }: { cap: ImageProviderCapability }) {
+  return (
+    <Space size={4} wrap style={{ marginTop: 4 }}>
+      <Tag>{providerDifficultyLabel(cap.difficulty)}</Tag>
+      <Tag color="blue">{providerRegionLabel(cap.regionFriendly)}</Tag>
+      {cap.requiresApiKey ? <Tag>需 API Key</Tag> : null}
+      {cap.requiresSelfHosted ? <Tag color="orange">需自部署</Tag> : null}
+      {cap.status !== 'available' ? <Tag color="default">{providerStatusLabel(cap.status)}</Tag> : null}
+      {cap.supportedTasks.map((t) => (
+        <Tag key={t} color="geekblue">
+          {t}
+        </Tag>
+      ))}
+    </Space>
+  );
+}
 
 export default function ImageSettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [caps, setCaps] = useState<ImageProviderCapability[]>([]);
+  const [scenario, setScenario] = useState<ImageScenarioId | ''>('');
+  const provider = Form.useWatch('provider', form) as string | undefined;
+
+  const loadCaps = useCallback(async () => {
+    try {
+      const list = await fetchImageProviders();
+      setCaps(list);
+    } catch {
+      setCaps([]);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,6 +97,9 @@ export default function ImageSettingsPage() {
       const g = pickGroup(items, GROUP);
       form.setFieldsValue({
         provider: g.provider || 'noop',
+        provider_preset: g.provider_preset || '',
+        image_task_default_size: g.image_task_default_size || '1024x1024',
+        image_task_default_quality: g.image_task_default_quality || 'standard',
         removebg_api_key: g.removebg_api_key || '',
         removebg_base_url: g.removebg_base_url || 'https://api.remove.bg/v1.0',
         openai_image_base_url: g.openai_image_base_url || '',
@@ -59,6 +119,22 @@ export default function ImageSettingsPage() {
           ? Number(g.comfyui_poll_interval_seconds)
           : 2,
         comfyui_max_poll_seconds: g.comfyui_max_poll_seconds ? Number(g.comfyui_max_poll_seconds) : 180,
+        dashscope_image_api_key: g.dashscope_image_api_key || '',
+        dashscope_image_base_url: g.dashscope_image_base_url || '',
+        dashscope_image_model: g.dashscope_image_model || 'wanx2.1-t2i-turbo',
+        dashscope_image_size: g.dashscope_image_size || '1024*1024',
+        dashscope_image_quality: g.dashscope_image_quality || '',
+        volcengine_image_api_key: g.volcengine_image_api_key || '',
+        volcengine_image_base_url: g.volcengine_image_base_url || '',
+        volcengine_image_model: g.volcengine_image_model || '',
+        volcengine_image_size: g.volcengine_image_size || '1024x1024',
+        siliconflow_image_api_key: g.siliconflow_image_api_key || '',
+        siliconflow_image_base_url: g.siliconflow_image_base_url || '',
+        siliconflow_image_model: g.siliconflow_image_model || '',
+        siliconflow_image_size: g.siliconflow_image_size || '1024x1024',
+        hunyuan_image_api_key: g.hunyuan_image_api_key || '',
+        hunyuan_image_base_url: g.hunyuan_image_base_url || '',
+        hunyuan_image_model: g.hunyuan_image_model || '',
         timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
       });
     } catch (e: unknown) {
@@ -69,8 +145,78 @@ export default function ImageSettingsPage() {
   }, [form]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    void loadCaps();
+    void load();
+  }, [load, loadCaps]);
+
+  const currentCap = useMemo(
+    () => caps.find((c) => c.provider === (provider || '').trim()),
+    [caps, provider],
+  );
+
+  const providerOptions = useMemo(() => {
+    const rec = scenario ? IMAGE_SCENARIOS.find((s) => s.id === scenario)?.recommendedProviders : null;
+    return caps.map((c) => {
+      const recommended = rec?.includes(c.provider);
+      const disabled = !isProviderSelectable(c);
+      const suffix =
+        c.status === 'planned' ? '（后续支持）' : recommended ? '（推荐）' : '';
+      return {
+        value: c.provider,
+        disabled,
+        label: `${c.displayName}${suffix}`,
+      };
+    });
+  }, [caps, scenario]);
+
+  const visibleFieldKeys = PROVIDER_FIELD_KEYS[provider || 'noop'] ?? ['timeout_sec'];
+
+  const onScenarioPick = (id: ImageScenarioId) => {
+    setScenario(id);
+    const sc = IMAGE_SCENARIOS.find((s) => s.id === id);
+    const first = sc?.recommendedProviders.find((p) => {
+      const c = caps.find((x) => x.provider === p);
+      return c && isProviderSelectable(c);
+    });
+    if (first) {
+      form.setFieldsValue({ provider: first, provider_preset: id });
+    }
+  };
+
+  const renderField = (key: string) => {
+    const spec = ALL_IMAGE_FIELD_SPECS[key];
+    if (!spec) return null;
+    const isJson = spec.valueType === 'json';
+    const isEnc = ENCRYPTED_KEYS.has(key);
+    const isNum = key.includes('_sec') || key === 'timeout_sec' || key.includes('poll') || key.includes('interval');
+
+    if (isNum) {
+      return (
+        <Form.Item key={key} label={spec.label} name={key} extra={spec.extra}>
+          <InputNumber min={key === 'timeout_sec' ? 5 : 1} max={key.includes('max_poll') ? 7200 : 3600} style={{ width: '100%' }} />
+        </Form.Item>
+      );
+    }
+    if (isJson) {
+      return (
+        <Form.Item key={key} label={spec.label} name={key} extra={spec.extra}>
+          <Input.TextArea rows={12} placeholder="{}" style={{ fontFamily: 'monospace', fontSize: 12 }} />
+        </Form.Item>
+      );
+    }
+    if (isEnc) {
+      return (
+        <Form.Item key={key} label={spec.label} name={key} extra={spec.extra}>
+          <Input.Password placeholder="留空不修改；填写新 Key 保存" autoComplete="new-password" />
+        </Form.Item>
+      );
+    }
+    return (
+      <Form.Item key={key} label={spec.label} name={key} extra={spec.extra}>
+        <Input placeholder={spec.placeholder} />
+      </Form.Item>
+    );
+  };
 
   return (
     <PageContainer title="图片 AI 设置">
@@ -78,18 +224,101 @@ export default function ImageSettingsPage() {
         <Alert
           type="info"
           showIcon
-          message="自备图片 AI 服务"
-          description="remove.bg / OpenAI Image 需自行申请 API Key（本页 openai_image_*，不用 settings.ai）；ComfyUI 需自行部署并粘贴工作流。请求仅由后端发起，前端不直连第三方。"
+          message="图片 AI 用于商品图去背景、生成场景图、替换背景"
+          description="你可以选择云端服务，也可以选择本地 ComfyUI。所有请求仅由后端发起，前端不直连图像服务商；API Key 需自行到对应控制台申请，平台不会内置任何密钥。测试与生成可能产生费用。"
         />
       </ProCard>
+
+      <ProCard title="1. 选择使用场景" bordered style={{ marginBottom: 16 }}>
+        <Row gutter={[16, 16]}>
+          {IMAGE_SCENARIOS.map((sc) => (
+            <Col xs={24} sm={12} key={sc.id}>
+              <Card
+                hoverable
+                size="small"
+                type={scenario === sc.id ? 'inner' : undefined}
+                style={{
+                  borderColor: scenario === sc.id ? 'var(--ant-color-primary)' : undefined,
+                  cursor: 'pointer',
+                }}
+                onClick={() => onScenarioPick(sc.id)}
+              >
+                <Typography.Text strong>{sc.title}</Typography.Text>
+                <div style={{ marginTop: 8, color: 'var(--ant-color-text-secondary)', fontSize: 13 }}>
+                  {sc.description}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    推荐：
+                  </Typography.Text>
+                  {sc.recommendedProviders.map((p) => {
+                    const c = caps.find((x) => x.provider === p);
+                    return (
+                      <Tag key={p} style={{ marginTop: 4 }}>
+                        {c?.displayName ?? p}
+                      </Tag>
+                    );
+                  })}
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </ProCard>
+
       <ProCard
+        title="2. 选择 Provider"
         bordered
+        style={{ marginBottom: 16 }}
         extra={
           <Button type="link" onClick={load} disabled={loading}>
             重新加载
           </Button>
         }
       >
+        <Form form={form} layout="vertical" style={{ maxWidth: 800 }}>
+          <Form.Item
+            label="默认 Provider"
+            name="provider"
+            rules={[
+              { required: true },
+              {
+                validator: async (_, v) => {
+                  const c = caps.find((x) => x.provider === v);
+                  if (c?.status === 'planned') {
+                    throw new Error('该 Provider 尚未开放，不能设为默认');
+                  }
+                },
+              },
+            ]}
+            extra="请到对应服务商控制台申请 API Key；提交时脱敏占位 **** 不会覆盖已保存的密钥"
+          >
+            <Select options={providerOptions} />
+          </Form.Item>
+          <Form.Item name="provider_preset" hidden>
+            <Input />
+          </Form.Item>
+          {currentCap ? (
+            <Alert
+              type={currentCap.status === 'planned' ? 'warning' : 'info'}
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={currentCap.displayName}
+              description={
+                <>
+                  <div>{currentCap.description}</div>
+                  {currentCap.recommendedFor?.length ? (
+                    <div style={{ marginTop: 4 }}>适合：{currentCap.recommendedFor.join('、')}</div>
+                  ) : null}
+                  <ProviderMetaTags cap={currentCap} />
+                </>
+              }
+            />
+          ) : null}
+        </Form>
+      </ProCard>
+
+      <ProCard title="3. 填写当前 Provider 配置" bordered>
         <Form
           form={form}
           layout="vertical"
@@ -112,124 +341,50 @@ export default function ImageSettingsPage() {
             }
           }}
         >
-          <Form.Item label="默认 Provider" name="provider" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: 'noop（占位 / 演示）', value: 'noop' },
-                { label: 'remove.bg 去背景', value: 'removebg' },
-                { label: 'OpenAI Image', value: 'openai_image' },
-                { label: 'ComfyUI', value: 'comfyui' },
-              ]}
+          {currentCap?.status === 'planned' ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="该 Provider 为预留项"
+              description="可保存配置项，但无法创建真实图片任务，请等待后续版本。"
             />
-          </Form.Item>
-          <Form.Item
-            label="remove.bg Base URL"
-            name="removebg_base_url"
-            extra="默认 https://api.remove.bg/v1.0；一般无需修改"
-          >
-            <Input placeholder="https://api.remove.bg/v1.0" />
-          </Form.Item>
-          <Form.Item
-            label="remove.bg API Key"
-            name="removebg_api_key"
-            extra="密文存储；列表与表单中使用脱敏展示"
-          >
-            <Input.Password placeholder="可选，真实接入时填写" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item
-            label="OpenAI Images Base URL"
-            name="openai_image_base_url"
-            extra="留空时后端默认 https://api.openai.com/v1；兼容自建代理"
-          >
-            <Input placeholder="https://api.openai.com/v1" />
-          </Form.Item>
-          <Form.Item
-            label="OpenAI Image API Key"
-            name="openai_image_api_key"
-            extra="密文存储并脱敏；首版不推荐复用全局 AI api_key（后端侧亦未默认回退）"
-          >
-            <Input.Password placeholder="sk-…" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item label="OpenAI Image 模型" name="openai_image_model">
-            <Input placeholder="gpt-image-1 或 dall-e-3 等" />
-          </Form.Item>
-          <Form.Item label="OpenAI Image 尺寸" name="openai_image_size">
-            <Input placeholder="例如 1024x1024" />
-          </Form.Item>
-          <Form.Item
-            label="OpenAI Image 质量档位"
-            name="openai_image_quality"
-            extra="gpt-image：low/medium/high；legacy 仍可填 standard→映射为中等"
-          >
-            <Input placeholder="standard / hd / medium…" />
-          </Form.Item>
-          <Form.Item
-            label="OpenAI Image 背景（可选）"
-            name="openai_image_background"
-            extra="部分模型接受 transparent | opaque | auto"
-          >
-            <Input placeholder="留空则由模型默认" />
-          </Form.Item>
-
-          <Form.Item
-            label="ComfyUI Base URL"
-            name="comfyui_base_url"
-            extra="例如 http://127.0.0.1:8188；由后端转发请求，前端不直连"
-          >
-            <Input placeholder="http://127.0.0.1:8188" />
-          </Form.Item>
-          <Form.Item
-            label="ComfyUI API Key（可选）"
-            name="comfyui_api_key"
-            extra="若 ComfyUI 前加了鉴权可填；密文存储与脱敏，勿写入日志"
-          >
-            <Input.Password placeholder="可选" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item
-            label="ComfyUI Workflow JSON"
-            name="comfyui_workflow_json"
-            extra="API 格式工作流。支持占位符：{{prompt}}、{{negativePrompt}}、{{sourceImageUrl}}、{{productTitle}}、{{scene}}、{{style}}、{{background}}、{{platform}}"
-          >
-            <Input.TextArea rows={14} placeholder="{}" style={{ fontFamily: 'monospace', fontSize: 12 }} />
-          </Form.Item>
-          <Form.Item
-            label="ComfyUI Prompt 节点 ID"
-            name="comfyui_prompt_node_id"
-            extra="在工作流 JSON 中的节点 key（如 6）；将写入该节点 inputs.text"
-          >
-            <Input placeholder="例如 6" />
-          </Form.Item>
-          <Form.Item
-            label="ComfyUI 载入图片节点 ID"
-            name="comfyui_image_node_id"
-            extra="LoadImage 等节点 key；有源图时会先上传到 ComfyUI 再写入 inputs.image"
-          >
-            <Input placeholder="例如 10" />
-          </Form.Item>
-          <Form.Item
-            label="ComfyUI 输出节点 ID"
-            name="comfyui_output_node_id"
-            extra="保存图像节点（如 SaveImage）的 key，用于读取 history 中的 images"
-          >
-            <Input placeholder="例如 9" />
-          </Form.Item>
-          <Form.Item label="ComfyUI HTTP 超时（秒）" name="comfyui_timeout_sec">
-            <InputNumber min={5} max={3600} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="ComfyUI 轮询间隔（秒）" name="comfyui_poll_interval_seconds">
-            <InputNumber min={1} max={60} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="ComfyUI 最长等待（秒）" name="comfyui_max_poll_seconds">
-            <InputNumber min={5} max={7200} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="通用图片任务超时（秒）" name="timeout_sec" rules={[{ required: true }]}>
-            <InputNumber min={5} max={600} style={{ width: '100%' }} />
-          </Form.Item>
+          ) : null}
+          {visibleFieldKeys.map((k) => renderField(k))}
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
-              保存
-            </Button>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={loading}>
+                保存
+              </Button>
+              <Button
+                loading={testing}
+                disabled={!provider || currentCap?.status === 'planned'}
+                onClick={async () => {
+                  setTesting(true);
+                  try {
+                    const res = await testImageProvider({
+                      provider: provider || undefined,
+                      testMode: 'config_only',
+                    });
+                    if (res.ok) {
+                      message.success(res.message || '配置检查通过');
+                    } else {
+                      message.warning(res.message || '配置不完整');
+                    }
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '测试失败');
+                  } finally {
+                    setTesting(false);
+                  }
+                }}
+              >
+                测试配置
+              </Button>
+            </Space>
           </Form.Item>
+          <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+            live 测试与真实图片生成可能产生费用；ComfyUI 需自行部署可访问实例。
+          </Typography.Paragraph>
         </Form>
       </ProCard>
     </PageContainer>

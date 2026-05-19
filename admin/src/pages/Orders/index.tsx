@@ -510,7 +510,7 @@ export default function OrdersPage() {
           setDetail(null);
           setInvEffectRows([]);
         }}
-        destroyOnClose
+        destroyOnHidden
       >
         {detail && (
           <>
@@ -791,7 +791,7 @@ export default function OrdersPage() {
         title={itemModal.row ? '编辑明细' : '新增明细'}
         open={itemModal.open}
         onCancel={() => setItemModal({ open: false })}
-        destroyOnClose
+        destroyOnHidden
         onOk={async () => {
           const v = await itemForm.validateFields();
           if (!detail) return;
@@ -828,7 +828,7 @@ export default function OrdersPage() {
         title={shipModal.row ? '编辑物流' : '新增物流'}
         open={shipModal.open}
         onCancel={() => setShipModal({ open: false })}
-        destroyOnClose
+        destroyOnHidden
         onOk={async () => {
           const v = await shipForm.validateFields();
           if (!detail) return;

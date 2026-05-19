@@ -81,6 +81,18 @@ class Alibaba1688Provider implements CollectorProvider {
         /** 兜底：不因选择器超时失败 */
       }
 
+      try {
+        await page
+          .waitForSelector(
+            '[class*="sku"], [class*="obj-sku"], [class*="sale-prop"], [class*="sku-item"]',
+            { timeout: 6000 },
+          )
+          .catch(() => undefined);
+        await page.getByText(/库存\s*\d+/).first().waitFor({ timeout: 5000 }).catch(() => undefined);
+      } catch {
+        /** SKU 区异步渲染时仍走 DOM/JSON 兜底 */
+      }
+
       const finalHref = page.url();
       /** 跳转后仍需是 1688 商品语义 URL */
       if (!isLikelyOfferPath(finalHref)) {

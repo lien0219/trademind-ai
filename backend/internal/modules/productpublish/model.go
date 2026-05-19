@@ -56,8 +56,8 @@ func (ProductPublication) TableName() string { return "product_publications" }
 type ProductPublicationSKU struct {
 	model.HardDeleteBase
 	PublicationID uuid.UUID      `gorm:"type:char(36);index;not null" json:"publicationId"`
-	ProductSKUID  *uuid.UUID     `gorm:"type:char(36);index" json:"productSkuId,omitempty"`
-	ExternalSKUID string         `gorm:"size:256" json:"externalSkuId,omitempty"`
+	ProductSKUID  *uuid.UUID     `gorm:"column:product_sku_id;type:char(36);index" json:"productSkuId,omitempty"`
+	ExternalSKUID string         `gorm:"column:external_sku_id;size:256" json:"externalSkuId,omitempty"`
 	SKUCode       string         `gorm:"size:128" json:"skuCode,omitempty"`
 	Price         *float64       `json:"price,omitempty"`
 	Stock         *int           `json:"stock,omitempty"`

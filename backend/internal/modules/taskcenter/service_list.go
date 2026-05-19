@@ -44,7 +44,7 @@ func likePat(kw string) string {
 
 func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&collect.CollectTask{})
-	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved)
+	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, true)
 	q = s.applyMarkFilters(q, TaskTypeCollect, "collect_tasks.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(source_url ILIKE ? OR COALESCE(error_message,'') ILIKE ? OR CAST(id AS TEXT) ILIKE ?)", lk, lk, lk)
@@ -78,7 +78,7 @@ func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time
 
 func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{})
-	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved)
+	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, true)
 	q = s.applyMarkFilters(q, TaskTypeImage, "image_tasks.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(COALESCE(error_message,'') ILIKE ? OR task_type ILIKE ? OR provider ILIKE ? OR CAST(id AS TEXT) ILIKE ?)", lk, lk, lk, lk)
@@ -112,7 +112,7 @@ func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.T
 
 func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&ordersync.OrderSyncTask{})
-	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved)
+	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeOrderSync, "order_sync_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
 		if u, err := uuid.Parse(sid); err == nil {
@@ -152,7 +152,7 @@ func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now ti
 
 func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&customersync.CustomerMessageSyncTask{})
-	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved)
+	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeCustomerMessageSync, "customer_message_sync_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
 		if u, err := uuid.Parse(sid); err == nil {
@@ -192,7 +192,7 @@ func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now
 
 func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&productpublish.ProductPublishTask{})
-	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved)
+	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeProductPublish, "product_publish_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
 		if u, err := uuid.Parse(sid); err == nil {
@@ -235,7 +235,7 @@ func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, n
 
 func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{})
-	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved)
+	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeInventorySync, "inventory_sync_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
 		if u, err := uuid.Parse(sid); err == nil {

@@ -7,52 +7,39 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
-	openaicompat "github.com/trademind-ai/trademind/backend/internal/providers/ai/openai_compatible"
 )
 
-func toOpenAIReq(req ChatRequest) openaicompat.Request {
-	msgs := make([]openaicompat.Message, 0, len(req.Messages))
-	for _, m := range req.Messages {
-		msgs = append(msgs, openaicompat.Message{Role: m.Role, Content: m.Content})
-	}
-	rf := ""
-	if req.ResponseFormat != nil {
-		rf = strings.TrimSpace(req.ResponseFormat.Type)
-	}
-	return openaicompat.Request{
-		Model:          req.Model,
-		Messages:       msgs,
-		Temperature:    req.Temperature,
-		MaxTokens:      req.MaxTokens,
-		ResponseFormat: rf,
-	}
+// SettingsReader loads decrypted settings groups (implemented by settings.Service).
+type SettingsReader interface {
+	PlainByGroup(ctx context.Context, tenantID int64, groupKey string) (map[string]string, error)
 }
 
 // Gateway resolves settings.ai and dispatches to a concrete Provider.
 // Business code must call the gateway only, never a Provider directly.
 type Gateway struct {
-	Settings *settings.Service
+	Settings SettingsReader
 }
 
-func normalizeProviderName(v string) string {
-	v = strings.ToLower(strings.TrimSpace(v))
-	v = strings.ReplaceAll(v, "-", "_")
-	return v
+// ConnectionTestResult is returned by TestConnection.
+type ConnectionTestResult struct {
+	Provider  string `json:"provider"`
+	Model     string `json:"model"`
+	LatencyMs int64  `json:"latencyMs"`
+	OK        bool   `json:"ok"`
+	Message   string `json:"message"`
 }
 
 func (g *Gateway) httpTimeout(ctx context.Context, plain map[string]string) time.Duration {
-	timeout := 120 * time.Second
-	if plain == nil {
-		return timeout
+	_ = ctx
+	return chatCompletionTimeout(plain, 0)
+}
+
+func parseTimeoutSec(sec string) (time.Duration, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(sec))
+	if err != nil || n <= 0 || n > 600 {
+		return 0, fmt.Errorf("invalid timeout")
 	}
-	if sec := strings.TrimSpace(plain["timeout_sec"]); sec != "" {
-		if n, err := strconv.Atoi(sec); err == nil && n > 0 && n <= 600 {
-			timeout = time.Duration(n) * time.Second
-		}
-	}
-	return timeout
+	return time.Duration(n) * time.Second, nil
 }
 
 // Chat merges settings defaults with req, picks a Provider, and runs Chat with a bounded context timeout.
@@ -64,47 +51,26 @@ func (g *Gateway) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 	if err != nil {
 		return nil, err
 	}
+	return g.chatWithPlain(ctx, plain, req)
+}
+
+func (g *Gateway) chatWithPlain(ctx context.Context, plain map[string]string, req ChatRequest) (*ChatResponse, error) {
 	pname := normalizeProviderName(plain["provider"])
 	if pname == "" {
 		pname = "openai_compatible"
 	}
 
-	base := strings.TrimRight(strings.TrimSpace(plain["base_url"]), "/")
-	apiKey := strings.TrimSpace(plain["api_key"])
+	base := resolveBaseURL(pname, plain["base_url"])
 	if base == "" {
-		return nil, fmt.Errorf("ai: base_url not configured")
+		return nil, fmt.Errorf("请配置 base_url")
 	}
+	apiKey := strings.TrimSpace(plain["api_key"])
 	if apiKey == "" {
-		return nil, fmt.Errorf("ai: api_key not configured")
+		return nil, fmt.Errorf("请配置 API Key")
 	}
 
-	model := strings.TrimSpace(req.Model)
-	if model == "" {
-		model = strings.TrimSpace(plain["model"])
-	}
-	if model == "" {
-		model = "gpt-4o-mini"
-	}
-
-	temp := req.Temperature
-	if temp == 0 && plain["temperature"] != "" {
-		if f, err := strconv.ParseFloat(strings.TrimSpace(plain["temperature"]), 64); err == nil {
-			temp = f
-		}
-	}
-	if temp == 0 {
-		temp = 0.7
-	}
-
-	maxTok := req.MaxTokens
-	if maxTok == 0 && plain["max_tokens"] != "" {
-		if n, err := strconv.Atoi(strings.TrimSpace(plain["max_tokens"])); err == nil && n > 0 {
-			maxTok = n
-		}
-	}
-	if maxTok == 0 {
-		maxTok = 512
-	}
+	model := resolveModel(pname, req.Model, plain["model"])
+	temp, maxTok := mergeChatParams(plain, req)
 
 	merged := ChatRequest{
 		Model:          model,
@@ -114,7 +80,7 @@ func (g *Gateway) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 		ResponseFormat: req.ResponseFormat,
 	}
 
-	timeout := g.httpTimeout(ctx, plain)
+	timeout := chatCompletionTimeout(plain, maxTok)
 	callCtx := ctx
 	var cancel context.CancelFunc
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
@@ -128,30 +94,56 @@ func (g *Gateway) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 	}
 	httpClient := &http.Client{Timeout: httpTimeout}
 
-	cli := &openaicompat.Client{
-		BaseURL:    base,
-		APIKey:     apiKey,
-		HTTPClient: httpClient,
-	}
-	switch pname {
-	case "openai_compatible", "openai":
-	default:
-		return nil, fmt.Errorf("ai: unsupported provider %q (use openai_compatible)", strings.TrimSpace(plain["provider"]))
-	}
-
-	oreq := toOpenAIReq(merged)
-	res, err := cli.Chat(callCtx, oreq)
+	prov, err := NewProvider(pname, base, apiKey, httpClient)
 	if err != nil {
 		return nil, err
 	}
-	if res.Model == "" {
-		res.Model = merged.Model
+	return prov.Chat(callCtx, merged)
+}
+
+// TestConnection sends a minimal chat request using saved settings.ai.
+func (g *Gateway) TestConnection(ctx context.Context) (*ConnectionTestResult, error) {
+	if g == nil || g.Settings == nil {
+		return nil, fmt.Errorf("ai gateway: not configured")
 	}
-	return &ChatResponse{
-		Content:      res.Content,
-		Model:        res.Model,
-		Raw:          res.Raw,
-		InputTokens:  res.InputTokens,
-		OutputTokens: res.OutputTokens,
-	}, nil
+	plain, err := g.Settings.PlainByGroup(ctx, 0, "ai")
+	if err != nil {
+		return nil, err
+	}
+	return g.TestConnectionWithPlain(ctx, plain)
+}
+
+// TestConnectionWithPlain tests AI connectivity with the given plaintext ai settings map.
+func (g *Gateway) TestConnectionWithPlain(ctx context.Context, plain map[string]string) (*ConnectionTestResult, error) {
+	if g == nil {
+		return nil, fmt.Errorf("ai gateway: not configured")
+	}
+	pname := normalizeProviderName(plain["provider"])
+	if pname == "" {
+		pname = "openai_compatible"
+	}
+	model := resolveModel(pname, "", plain["model"])
+
+	start := time.Now()
+	_, err := g.chatWithPlain(ctx, plain, ChatRequest{
+		Messages:    []Message{{Role: "user", Content: "ping"}},
+		MaxTokens:   1,
+		Temperature: 0,
+		Model:       model,
+	})
+	latency := time.Since(start).Milliseconds()
+
+	res := &ConnectionTestResult{
+		Provider:  pname,
+		Model:     model,
+		LatencyMs: latency,
+	}
+	if err != nil {
+		res.OK = false
+		res.Message = err.Error()
+		return res, err
+	}
+	res.OK = true
+	res.Message = "连接成功"
+	return res, nil
 }

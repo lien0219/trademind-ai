@@ -46,9 +46,9 @@ type UnifiedTaskDTO struct {
 // FailuresSummary is returned with list and summary-only endpoints.
 type FailuresSummary struct {
 	TotalFailed       int64            `json:"totalFailed"`
-	RetryingTotal     int64            `json:"retryingTotal,omitempty"`
-	StaleTotal        int64            `json:"staleTotal,omitempty"`
-	LeaseExpiredTotal int64            `json:"leaseExpiredTotal,omitempty"`
+	RetryingTotal     int64            `json:"retryingTotal"`
+	StaleTotal        int64            `json:"staleTotal"`
+	LeaseExpiredTotal int64            `json:"leaseExpiredTotal"`
 	ByType            map[string]int64 `json:"byType"`
 	ByPlatform        map[string]int64 `json:"byPlatform"`
 	RetryableCount    int64            `json:"retryableCount"`

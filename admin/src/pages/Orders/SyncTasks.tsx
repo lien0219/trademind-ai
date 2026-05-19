@@ -182,7 +182,7 @@ export default function OrderSyncTasksPage() {
         width={560}
         title={detail ? `同步任务 ${detail.id}` : '详情'}
         open={detailOpen}
-        destroyOnClose
+        destroyOnHidden
         onClose={() => {
           setDetailOpen(false);
           setDetail(null);

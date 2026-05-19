@@ -5,6 +5,8 @@ import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message, A
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageTaskDetail, ImageTaskListRow } from '@/services/imageTasks';
+import { displayNameForProvider, isProviderSelectable } from '@/constants/imageProviders';
+import { useImageProviders } from '@/hooks/useImageProviders';
 import { createImageTask, getImageTask, queryImageTasks, retryImageTask } from '@/services/imageTasks';
 import { createProductImage } from '@/services/products';
 
@@ -70,6 +72,7 @@ const TASK_TYPES = [
 ];
 
 export default function ImageTasksPage() {
+  const { caps, optionsForTask } = useImageProviders();
   const [createForm] = Form.useForm();
   const actionRef = useRef<ActionType>();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -150,8 +153,9 @@ export default function ImageTasksPage() {
     {
       title: 'Provider',
       dataIndex: 'provider',
-      width: 100,
+      width: 120,
       ellipsis: true,
+      render: (_, row) => displayNameForProvider(caps, row.provider ?? ''),
     },
     {
       title: '重试',
@@ -325,7 +329,7 @@ export default function ImageTasksPage() {
           rbSize: '1024x1024',
           inputJson: '{}',
         }}
-        modalProps={{ destroyOnClose: true }}
+        modalProps={{ destroyOnHidden: true }}
         onFinish={async (values) => {
           let extra: Record<string, unknown> = {};
           const raw = (values.inputJson ?? '').trim();
@@ -391,34 +395,41 @@ export default function ImageTasksPage() {
         <ProFormSelect
           name="taskType"
           label="任务类型"
-          options={TASK_TYPES}
+          options={TASK_TYPES.map((t) => ({
+            ...t,
+            disabled: !caps.some(
+              (c) => isProviderSelectable(c) && c.supportedTasks.includes(t.value),
+            ),
+          }))}
           rules={[{ required: true }]}
           fieldProps={{
             onChange: (v: string) => {
+              const opts = optionsForTask(v);
+              const first = opts.find((o) => o.value && !o.disabled);
               if (v === 'remove_background') {
                 createForm.setFieldsValue({ provider: 'removebg' });
-              }
-              if (v === 'generate_scene') {
-                createForm.setFieldsValue({ provider: 'openai_image' });
-              }
-              if (v === 'replace_background') {
-                createForm.setFieldsValue({ provider: '' });
+              } else if (v === 'generate_scene') {
+                createForm.setFieldsValue({
+                  provider: first?.value === 'removebg' ? 'dashscope_image' : first?.value ?? 'dashscope_image',
+                });
+              } else if (v === 'replace_background') {
+                createForm.setFieldsValue({ provider: first?.value ?? '' });
+              } else {
+                createForm.setFieldsValue({ provider: first?.value ?? '' });
               }
             },
           }}
         />
-        <ProFormSelect
-          name="provider"
-          label="Provider"
-          options={[
-            { label: '默认（跟随系统「图片 AI」设置里的 provider）', value: '' },
-            { label: 'noop', value: 'noop' },
-            { label: 'remove.bg', value: 'removebg' },
-            { label: 'OpenAI Image', value: 'openai_image' },
-            { label: 'ComfyUI', value: 'comfyui' },
-          ]}
-          extra="remove_background 使用 remove.bg；本地/对象存储源图由后端读取并以 multipart 直传；generate_scene 支持 OpenAI Image 或 ComfyUI；replace_background 支持 ComfyUI（工作流）或 OpenAI Image（后端读源图并以 multipart 调用 /images/edits，无需前端直连）"
-        />
+        <ProFormDependency name={['taskType']}>
+          {({ taskType }: { taskType?: string }) => (
+            <ProFormSelect
+              name="provider"
+              label="Provider"
+              options={optionsForTask(taskType ?? '')}
+              extra="仅显示支持当前任务类型的 Provider；去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI / 火山方舟；高级自定义推荐 ComfyUI"
+            />
+          )}
+        </ProFormDependency>
         <ProFormDependency name={['taskType', 'provider']}>
           {(dep: { taskType?: string; provider?: string }) =>
             dep.taskType === 'replace_background' &&
@@ -531,7 +542,7 @@ export default function ImageTasksPage() {
           setDrawerOpen(false);
           setDetail(null);
         }}
-        destroyOnClose
+        destroyOnHidden
         extra={
           <Space wrap>
             {detail?.status === 'failed' ? (

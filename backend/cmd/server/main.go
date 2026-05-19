@@ -101,6 +101,14 @@ func main() {
 	}
 	aiBatchSeedCancel()
 
+	stSeedCtx, stSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureStorageDefaults(stSeedCtx, db); err != nil {
+		stSeedCancel()
+		log.Error("storage_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	stSeedCancel()
+
 	invSeedCtx, invSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	if err := settings.EnsureInventoryDefaults(invSeedCtx, db); err != nil {
 		invSeedCancel()

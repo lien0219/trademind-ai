@@ -10,6 +10,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/comfyui"
+	"github.com/trademind-ai/trademind/backend/internal/providers/image/dashscopeimage"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/openaiimage"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image/removebg"
 )
@@ -150,6 +151,71 @@ func NewForTask(ctx context.Context, providerName string, settingsSvc *settings.
 			return nil, err
 		}
 		return comfyuiProvider{client: cli}, nil
+	case "dashscope_image":
+		if settingsSvc == nil {
+			return nil, fmt.Errorf("dashscope_image provider requires settings service")
+		}
+		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		if err != nil {
+			return nil, err
+		}
+		opts, err := dashscopeOpts(im)
+		if err != nil {
+			return nil, err
+		}
+		cli, err := dashscopeimage.NewClient(opts)
+		if err != nil {
+			return nil, err
+		}
+		return dashscopeImageProvider{client: cli}, nil
+	case "volcengine_image":
+		if settingsSvc == nil {
+			return nil, fmt.Errorf("volcengine_image provider requires settings service")
+		}
+		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		if err != nil {
+			return nil, err
+		}
+		opts, err := compatImageKeys("volcengine_image", im)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Model == "" {
+			opts.Model = "doubao-seedream-3-0-t2i"
+		}
+		if opts.BaseURL == "" {
+			opts.BaseURL = "https://ark.cn-beijing.volces.com/api/v3"
+		}
+		cli, err := openaiimage.NewClient(opts)
+		if err != nil {
+			return nil, err
+		}
+		return compatGenerationsProvider{name: "volcengine_image", client: cli}, nil
+	case "siliconflow_image":
+		if settingsSvc == nil {
+			return nil, fmt.Errorf("siliconflow_image provider requires settings service")
+		}
+		im, err := settingsSvc.PlainByGroup(ctx, 0, "image")
+		if err != nil {
+			return nil, err
+		}
+		opts, err := compatImageKeys("siliconflow_image", im)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Model == "" {
+			opts.Model = "black-forest-labs/FLUX.1-schnell"
+		}
+		if opts.BaseURL == "" {
+			opts.BaseURL = "https://api.siliconflow.cn/v1"
+		}
+		cli, err := openaiimage.NewClient(opts)
+		if err != nil {
+			return nil, err
+		}
+		return compatGenerationsProvider{name: "siliconflow_image", client: cli}, nil
+	case "hunyuan_image":
+		return plannedProvider{name: "hunyuan_image"}, nil
 	default:
 		return nil, fmt.Errorf("unsupported image provider %q", name)
 	}
@@ -377,4 +443,170 @@ func (p comfyuiProvider) TranslateImage(ctx context.Context, req TranslateImageR
 func (p comfyuiProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
 	_, _ = ctx, req
 	return nil, fmt.Errorf("comfyui: poster_generate not implemented")
+}
+
+type dashscopeImageProvider struct {
+	client *dashscopeimage.Client
+}
+
+func (p dashscopeImageProvider) Name() string { return "dashscope_image" }
+
+func (p dashscopeImageProvider) RemoveBackground(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p dashscopeImageProvider) ReplaceBackground(ctx context.Context, req ReplaceBackgroundRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p dashscopeImageProvider) GenerateScene(ctx context.Context, req GenerateSceneRequest) (*ImageResult, error) {
+	prompt := assembledScenePrompt(req.Input)
+	if prompt == "" {
+		return nil, fmt.Errorf("assembled prompt required for generate_scene")
+	}
+	img, ct, err := p.client.GenerateScene(ctx, prompt)
+	if err != nil {
+		return nil, WrapProviderError(err)
+	}
+	return &ImageResult{
+		RawPayload:         img,
+		PayloadContentType: ct,
+		Meta: map[string]any{
+			"model":       p.client.ResolvedModel(),
+			"contentType": ct,
+		},
+	}, nil
+}
+
+func (p dashscopeImageProvider) Resize(ctx context.Context, req ResizeRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p dashscopeImageProvider) Enhance(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p dashscopeImageProvider) TranslateImage(ctx context.Context, req TranslateImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p dashscopeImageProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+type compatGenerationsProvider struct {
+	name   string
+	client openaiimage.Client
+}
+
+func (p compatGenerationsProvider) Name() string { return p.name }
+
+func (p compatGenerationsProvider) RemoveBackground(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p compatGenerationsProvider) ReplaceBackground(ctx context.Context, req ReplaceBackgroundRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p compatGenerationsProvider) GenerateScene(ctx context.Context, req GenerateSceneRequest) (*ImageResult, error) {
+	prompt := assembledScenePrompt(req.Input)
+	if prompt == "" {
+		return nil, fmt.Errorf("assembled prompt required for generate_scene")
+	}
+	img, ct, err := p.client.GenerateScene(ctx, prompt)
+	if err != nil {
+		return nil, WrapProviderError(err)
+	}
+	return &ImageResult{
+		RawPayload:         img,
+		PayloadContentType: ct,
+		Meta: map[string]any{
+			"model":       p.client.ResolvedModel(),
+			"contentType": ct,
+		},
+	}, nil
+}
+
+func (p compatGenerationsProvider) Resize(ctx context.Context, req ResizeRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p compatGenerationsProvider) Enhance(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p compatGenerationsProvider) TranslateImage(ctx context.Context, req TranslateImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+func (p compatGenerationsProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, ErrTaskNotSupported
+}
+
+type plannedProvider struct {
+	name string
+}
+
+func (p plannedProvider) Name() string { return p.name }
+
+func (p plannedProvider) notReady() error {
+	return fmt.Errorf("「%s」尚未开放，请更换其他图片 AI 服务", p.name)
+}
+
+func (p plannedProvider) RemoveBackground(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, p.notReady()
+}
+
+func (p plannedProvider) ReplaceBackground(ctx context.Context, req ReplaceBackgroundRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, p.notReady()
+}
+
+func (p plannedProvider) GenerateScene(ctx context.Context, req GenerateSceneRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, p.notReady()
+}
+
+func (p plannedProvider) Resize(ctx context.Context, req ResizeRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, p.notReady()
+}
+
+func (p plannedProvider) Enhance(ctx context.Context, req ImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, p.notReady()
+}
+
+func (p plannedProvider) TranslateImage(ctx context.Context, req TranslateImageRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, p.notReady()
+}
+
+func (p plannedProvider) PosterGenerate(ctx context.Context, req PosterGenerateRequest) (*ImageResult, error) {
+	_, _ = ctx, req
+	return nil, p.notReady()
+}
+
+// ProviderSupportsGenerateSceneNoSource reports providers that can run text-only scene generation.
+func ProviderSupportsGenerateSceneNoSource(name string) bool {
+	switch strings.TrimSpace(strings.ToLower(name)) {
+	case "openai_image", "comfyui", "dashscope_image", "volcengine_image", "siliconflow_image":
+		return true
+	default:
+		return false
+	}
 }

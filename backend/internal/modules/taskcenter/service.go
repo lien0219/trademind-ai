@@ -183,12 +183,11 @@ func (s *Service) applyTimeRange(db *gorm.DB, p ListFailureParams) *gorm.DB {
 	return db
 }
 
-func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool) *gorm.DB {
+func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool, trackRetryStale bool) *gorm.DB {
 	if includeResolved {
 		return db
 	}
-	staleCut := now.Add(-staleRetryAfterDrift * time.Minute)
-	return db.Where(`
+	q := `
 		status IN ?
 		OR (
 			status = 'running'
@@ -196,12 +195,19 @@ func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool) *gorm.DB
 			AND locked_by IS NOT NULL
 			AND TRIM(locked_by) <> ''
 			AND locked_until < ?
-		)
+		)`
+	args := []any{[]string{"failed", "retrying"}, now}
+	if trackRetryStale {
+		staleCut := now.Add(-staleRetryAfterDrift * time.Minute)
+		q += `
 		OR (
 			status = 'retrying'
 			AND next_retry_at IS NOT NULL
 			AND next_retry_at < ?
-		)`, []string{"failed", "retrying"}, now, staleCut)
+		)`
+		args = append(args, staleCut)
+	}
+	return db.Where(q, args...)
 }
 
 func (s *Service) fetchMarks(ctx context.Context, taskType string, ids []string) (markSet, error) {

@@ -3,6 +3,7 @@ import process from 'node:process';
 import { execa } from 'execa';
 
 import { addrToHttpUrl, readEnvKey, resolveEffectiveEnvPath } from './utils/env-file.js';
+import { freeDevPorts, parsePortFromAddr, sleep } from './utils/port-cleanup.js';
 import { backendDir, repoRoot } from './utils/paths.js';
 
 async function main(): Promise<void> {
@@ -13,11 +14,21 @@ async function main(): Promise<void> {
     console.log(`[backend] ${url}`);
   }
 
+  const port = parsePortFromAddr(httpAddr, 8080);
+  const freed = await freeDevPorts([port]);
+  if (freed.length > 0) {
+    console.log(`[backend] Freed port ${port} (stopped PID ${freed[0]?.killed.join(', ')})`);
+    await sleep(process.platform === 'win32' ? 800 : 300);
+  }
+
   const r = await execa('go', ['run', './cmd/server'], {
     cwd: backendDir,
     stdio: 'inherit',
     reject: false,
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      TRADEMIND_REPO_ROOT: repoRoot,
+    },
   });
 
   if (r.exitCode !== 0) {

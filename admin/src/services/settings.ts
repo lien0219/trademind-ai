@@ -40,9 +40,28 @@ export async function testPlatformTikTokConfig() {
   return postJSON<{ ok: boolean }>('/api/v1/settings/test-platform-tiktok', {});
 }
 
-/** POST /api/v1/settings/test-ai */
-export async function testAIConnection() {
-  return postJSON<{ ok: boolean }>('/api/v1/settings/test-ai');
+export type TestAIConnectionResult = {
+  ok: boolean;
+  message?: string;
+  provider?: string;
+  model?: string;
+  latencyMs?: number;
+};
+
+export type TestAIConnectionPayload = {
+  provider?: string;
+  base_url?: string;
+  model?: string;
+  api_key?: string;
+  timeout_sec?: string;
+};
+
+/** POST /api/v1/settings/test-ai — optional body tests current form without saving */
+export async function testAIConnection(payload?: TestAIConnectionPayload) {
+  return postJSON<TestAIConnectionResult, TestAIConnectionPayload | Record<string, never>>(
+    '/api/v1/settings/test-ai',
+    payload ?? {},
+  );
 }
 
 /** POST /api/v1/settings/test-storage */

@@ -1,5 +1,7 @@
 import type { Page } from 'playwright';
 
+import { evaluateInPageVoid } from '../../browser/evaluate-in-page.js';
+
 export type OgHints = {
   title?: string;
   description?: string;
@@ -9,7 +11,7 @@ export type OgHints = {
 };
 
 export async function extractOpenGraphHints(page: Page): Promise<OgHints> {
-  return page.evaluate(() => {
+  return evaluateInPageVoid(page, () => {
     const metaContent = (sel: string): string | undefined => {
       const el = document.querySelector(sel);
       const c = el?.getAttribute('content');

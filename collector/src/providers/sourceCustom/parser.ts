@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { evaluateInPage, evaluateInPageVoid } from '../../browser/evaluate-in-page.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import type { CustomAttributesRule, CustomFieldRule, CustomRuleDecl } from './types.js';
 import { extractJsonLdHints } from './jsonld.js';
@@ -77,7 +78,8 @@ async function extractPairsAttributes(page: Page, ar: CustomAttributesRule): Pro
   const valSel = typeof ar.valueSelector === 'string' ? ar.valueSelector : '';
   if (!rowSel || !keySel || !valSel) return {};
 
-  const pairs = await page.evaluate(
+  const pairs = await evaluateInPage(
+    page,
     ({ rowSelector, keySelector, valueSelector }) => {
       const rec: Record<string, string> = {};
       try {
@@ -108,7 +110,7 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
   const og = useOg ? await extractOpenGraphHints(page) : { images: [] as string[] };
 
   const docTitle =
-    (await page.evaluate(() => document.title?.trim() || ''))?.trim() ?? '';
+    (await evaluateInPageVoid(page, () => document.title?.trim() || ''))?.trim() ?? '';
 
   const titleSel = await extractFieldText(page, pageUrl, rule.title);
   const currencySel = await extractFieldText(page, pageUrl, rule.currency);

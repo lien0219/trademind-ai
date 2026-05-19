@@ -147,7 +147,7 @@ export default function AIPromptsPage() {
         title="新建 Prompt"
         open={createOpen}
         onOpenChange={setCreateOpen}
-        modalProps={{ destroyOnClose: true }}
+        modalProps={{ destroyOnHidden: true }}
         onFinish={async (values) => {
           try {
             const outputSchema = parseSchemaField(values.outputSchemaStr as string | undefined);
@@ -210,7 +210,7 @@ export default function AIPromptsPage() {
               }
             : undefined
         }
-        modalProps={{ destroyOnClose: true }}
+        modalProps={{ destroyOnHidden: true }}
         onFinish={async (values) => {
           if (!editRow) return false;
           try {

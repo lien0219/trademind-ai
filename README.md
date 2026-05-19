@@ -27,11 +27,19 @@
 
 ## 项目截图 / Demo
 
-> Demo 与截图素材预留中，欢迎提交 PR 完善首页展示。
+以下为管理后台实际界面（本地开发环境），展示 **商品采集 → 草稿 → AI 内容优化** 的主线能力。
 
-| 管理后台 | 商品草稿 | AI 商品优化 |
-| --- | --- | --- |
-| Coming soon | Coming soon | Coming soon |
+| 采集中心 | 采集任务 |
+| --- | --- |
+| 1688 等采集器入口、立即/批量采集 | 提交链接、任务状态与商品草稿关联 |
+| ![采集中心](docs/assets/img/2.png) | ![采集任务](docs/assets/img/3.png) |
+
+| 采集监控 | AI 描述生成（商品草稿） |
+| --- | --- |
+| Worker 与任务/批次状态分布 | Prompt 生成描述、卖点与规格，可应用至草稿 |
+| ![采集监控](docs/assets/img/4.png) | ![AI 描述生成](docs/assets/img/1.png) |
+
+> 同款能力亦支持 **AI 标题优化**、图片任务、店铺授权与订单同步等模块，详见 [核心功能](#核心功能) 与 [文档导航](#文档导航)。欢迎提交 PR 补充更多截图。
 
 ## 目录
 
@@ -129,7 +137,7 @@ pnpm dev
 
 `pnpm dev` 会使用根目录脚本并行启动：
 
-- PostgreSQL / Redis 基础设施（来自 `docker-compose.yml`）
+- PostgreSQL / Redis 基础设施（默认 Docker Compose；无 Docker 时若本机已运行 PostgreSQL / Redis 则自动跳过 Compose）
 - backend Go 服务
 - admin 管理端
 - collector 采集服务
@@ -270,6 +278,54 @@ pnpm install:collector:browsers
 
 敏感信息不要提交到仓库。AI Key、存储 Secret、平台 App Secret、店铺 Token 等应通过后台配置并加密存储。
 
+### AI 文本 Provider（`settings.ai`）
+
+在管理端 **系统设置 → AI 设置** 配置（或写入 `settings` 表）。所有文本 AI（标题优化、描述生成、客服建议、批量 AI）均经后端 **AI Gateway** 调用，**前端不直连**模型服务商。`api_key` 使用 **AES-GCM** 加密存储，界面脱敏为 `****`。
+
+| `provider` | 说明 | `base_url` 示例 | `model` 示例 |
+| --- | --- | --- | --- |
+| `openai` | OpenAI 官方 Chat Completions | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| `openai_compatible` | 任意 OpenAI 兼容接口（Ollama 等） | 按服务商文档填写 | 按服务商文档填写 |
+| `deepseek` | DeepSeek（第一版：Chat Completions） | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| `qwen` | 通义千问 DashScope OpenAI 兼容模式 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
+
+示例（勿将真实 Key 提交到仓库）：
+
+```yaml
+# DeepSeek
+provider: deepseek
+base_url: https://api.deepseek.com/v1
+model: deepseek-chat
+api_key: <你的 DeepSeek API Key>
+
+# 通义千问 / Qwen
+provider: qwen
+base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+model: qwen-plus
+api_key: <你的 DashScope API Key>
+```
+
+`base_url` 为接口根路径，**不含** `/chat/completions`。具体地址与模型名以服务商官方控制台为准。生产环境建议保存配置后执行 **测试连接**（`POST /api/v1/settings/test-ai`）。
+
+### 图片 AI 配置（`settings.image`）
+
+在管理端 **系统设置 → 图片 AI 设置** 配置。所有图片任务经后端 **`image_tasks` + Image Worker** 执行，**前端不直连**任何图像服务商。`api_key` 等敏感项 **AES-GCM** 加密存储，界面脱敏为 `****`；平台**不会内置**任何第三方密钥，需自行到服务商控制台申请。
+
+| Provider | 说明 | 典型能力 |
+| --- | --- | --- |
+| `noop` | 占位 / 演示 | 联调 |
+| `removebg` | remove.bg 去背景 | 商品白底图 |
+| `openai_image` | OpenAI Images | 场景图、替换背景 |
+| `comfyui` | 本地 ComfyUI 工作流（需自部署） | 场景图、替换背景 |
+| `dashscope_image` | 通义万相（DashScope） | 场景图 |
+| `volcengine_image` | 火山方舟 Ark 图像 | 场景图 |
+| `siliconflow_image` | 硅基流动图像（beta） | 场景图 |
+| `hunyuan_image` | 腾讯混元（**预留**，暂不可真实调用） | 后续版本 |
+
+- 能力矩阵：`GET /api/v1/image/providers`（不含密钥）
+- 配置测试：`POST /api/v1/settings/test-image`（默认 `config_only`，不产生图片费用）
+- **live** 测试与真实图片生成可能产生费用；ComfyUI 需自行部署可访问实例
+
 ## 项目结构
 
 ```text
@@ -311,8 +367,9 @@ Provider 扩展架构：
 ```text
 Go Gin API
 ├── AI Provider
-│   ├── OpenAI-compatible
-│   ├── DeepSeek / Qwen / Doubao / Gemini / Claude / Ollama 预留
+│   ├── OpenAI / OpenAI-compatible
+│   ├── DeepSeek / Qwen（Chat Completions，共享 compatclient）
+│   ├── Doubao / Gemini / Claude / Ollama 等（可经 openai_compatible 接入）
 │   └── Prompt 模板与调用记录
 ├── Storage Provider
 │   ├── local

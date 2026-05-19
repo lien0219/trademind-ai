@@ -1,23 +1,19 @@
 package settings
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email"
 	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	cosstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/cos"
+	"github.com/trademind-ai/trademind/backend/internal/providers/storage/localroot"
 	ossstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/oss"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 	"gorm.io/gorm"
@@ -128,7 +124,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 
 	if it.IsEncrypted {
 		if s.Encrypter == nil {
-			return fmt.Errorf("settings: APP_MASTER_KEY required for encrypted item %s/%s", gk, ik)
+			return fmt.Errorf("请在后端 .env 配置 APP_MASTER_KEY 并重启服务后再保存敏感项（如 API Key）；详见 docs/env.md")
 		}
 		enc, err := s.Encrypter.Encrypt([]byte(val))
 		if err != nil {
@@ -211,61 +207,6 @@ func (s *Service) ValidateTikTokPlatformConfig(ctx context.Context) error {
 	return err
 }
 
-// TestAIConnection calls the configured OpenAI-compatible chat/completions endpoint once.
-func (s *Service) TestAIConnection(ctx context.Context) error {
-	m, err := s.PlainByGroup(ctx, 0, "ai")
-	if err != nil {
-		return err
-	}
-	base := strings.TrimSpace(m["base_url"])
-	if base == "" {
-		return fmt.Errorf("ai base_url not configured")
-	}
-	base = strings.TrimRight(base, "/")
-	apiKey := strings.TrimSpace(m["api_key"])
-	if apiKey == "" {
-		return fmt.Errorf("ai api_key not configured")
-	}
-	model := strings.TrimSpace(m["model"])
-	if model == "" {
-		model = "gpt-4o-mini"
-	}
-	timeout := 20 * time.Second
-	if sec := strings.TrimSpace(m["timeout_sec"]); sec != "" {
-		if n, err := strconv.Atoi(sec); err == nil && n > 0 && n <= 120 {
-			timeout = time.Duration(n) * time.Second
-		}
-	}
-	body := map[string]any{
-		"model":       model,
-		"max_tokens":  1,
-		"temperature": 0,
-		"messages": []map[string]string{
-			{"role": "user", "content": "ping"},
-		},
-	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("ai request: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("ai provider returned HTTP %d", resp.StatusCode)
-	}
-	return nil
-}
-
 // TestStorageConnection verifies local writability or S3-compat bucket HeadBucket access.
 func (s *Service) TestStorageConnection(ctx context.Context) error {
 	m, err := s.PlainByGroup(ctx, 0, "storage")
@@ -278,11 +219,7 @@ func (s *Service) TestStorageConnection(ctx context.Context) error {
 	}
 	switch kind {
 	case "local":
-		root := strings.TrimSpace(m["local_root"])
-		if root == "" {
-			root = "data/uploads"
-		}
-		abs, err := filepath.Abs(root)
+		abs, err := localroot.Resolve(m["local_root"])
 		if err != nil {
 			return fmt.Errorf("storage local_root: %w", err)
 		}

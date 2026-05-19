@@ -585,7 +585,7 @@ export default function CustomerConversationDetailPage() {
           onCancel={() => setOrderPickOpen(false)}
           footer={null}
           width={680}
-          destroyOnClose
+          destroyOnHidden
         >
           <Space wrap style={{ marginBottom: 12 }}>
             <Input
@@ -643,7 +643,7 @@ export default function CustomerConversationDetailPage() {
           onOk={() => void linkShop()}
           okText="关联"
           cancelText="取消"
-          destroyOnClose
+          destroyOnHidden
         >
           <Select
             showSearch
