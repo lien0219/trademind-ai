@@ -37,6 +37,17 @@
 | `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。可选 JSON：`provider`、`base_url`、`model`、`api_key`（`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
+| `POST` | `/api/v1/settings/test-image` | 测试 `settings.image` 图片 Provider 配置。可选 JSON：`provider`、`testMode`（`config_only` \| `live`，默认 `config_only`）。成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`supportedTasks`、`configStatus`。不返回 API Key。 |
+
+## 图片 AI
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/image/providers` | 图片 Provider 能力矩阵（`status` / `supportedTasks` / 难度等，不含密钥）。 |
+| `POST` | `/api/v1/image/tasks` | 创建图片任务；创建时校验 Provider 与 `taskType` 组合。 |
+| `GET` | `/api/v1/image/tasks` | 图片任务列表。 |
+| `GET` | `/api/v1/image/tasks/:id` | 图片任务详情。 |
+| `POST` | `/api/v1/image/tasks/:id/retry` | 重试失败任务。 |
 
 ## 文件
 

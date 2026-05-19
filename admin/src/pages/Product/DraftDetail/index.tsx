@@ -68,6 +68,8 @@ import {
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
+import { isProviderSelectable, providersForTask } from '@/constants/imageProviders';
+import { useImageProviders } from '@/hooks/useImageProviders';
 import { createImageTask } from '@/services/imageTasks';
 import { Link } from '@umijs/renderer-react';
 import {
@@ -342,13 +344,23 @@ export default function ProductDraftDetailPage() {
     [data?.rawData],
   );
 
+  const { caps, optionsForTask } = useImageProviders();
+
   const aiImgAllowNoSourceImage = useMemo(() => {
+    if (aiImgTaskType !== 'generate_scene') return false;
     const prov = aiImgProvider.trim().toLowerCase();
-    return (
-      aiImgTaskType === 'generate_scene' &&
-      (prov === '' || prov === 'openai_image' || prov === 'comfyui')
-    );
-  }, [aiImgTaskType, aiImgProvider]);
+    if (prov === '') {
+      return caps.some(
+        (c) =>
+          isProviderSelectable(c) &&
+          c.supportedTasks.includes('generate_scene') &&
+          ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(
+            c.provider,
+          ),
+      );
+    }
+    return ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(prov);
+  }, [aiImgTaskType, aiImgProvider, caps]);
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -927,17 +939,9 @@ export default function ProductDraftDetailPage() {
                   <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
-                        可选择商品图作为源图（场景图在 OpenAI / ComfyUI 下可无图），任务由后端入队；结果在{' '}
-                        <Link to="/ai/image-tasks">AI 图片任务</Link>{' '}
-                        查看。<Typography.Text code>remove_background</Typography.Text> 使用 <Typography.Text code>removebg</Typography.Text>
-                        ；本地/存储中的商品图由后端读取并以 multipart 上传 remove.bg（公网 URL 仍可走 image_url）。<Typography.Text code>
-                          generate_scene
-                        </Typography.Text>{' '}
-                        支持 <Typography.Text code>openai_image</Typography.Text> / <Typography.Text code>comfyui</Typography.Text>；<Typography.Text code>
-                          replace_background
-                        </Typography.Text>{' '}
-                        可选 <Typography.Text code>comfyui</Typography.Text>（工作流）或 <Typography.Text code>openai_image</Typography.Text>（后端读源图并以
-                        multipart 调用 OpenAI，无需前端直连）。
+                        可选择商品图作为源图；场景图在通义万相 / OpenAI / 火山方舟等 Provider 下可无源图。任务由后端入队，结果在{' '}
+                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看。去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI
+                        Image；替换背景推荐 OpenAI Image 或 ComfyUI；高级自定义推荐 ComfyUI。
                       </Typography.Text>
                       <Input.TextArea
                         value={aiImgPrompt}
@@ -984,21 +988,29 @@ export default function ProductDraftDetailPage() {
                           value={aiImgTaskType}
                           onChange={(v) => {
                             setAiImgTaskType(v);
+                            const matched = providersForTask(caps, v);
+                            const first = matched.find((c) => isProviderSelectable(c));
                             if (v === 'remove_background') {
                               setAiImgProvider('removebg');
-                            }
-                            if (v === 'generate_scene') {
-                              setAiImgProvider('openai_image');
-                            }
-                            if (v === 'replace_background') {
-                              setAiImgProvider('');
+                            } else if (v === 'generate_scene') {
+                              setAiImgProvider(
+                                first?.provider === 'removebg' ? 'dashscope_image' : first?.provider ?? 'dashscope_image',
+                              );
+                            } else {
+                              setAiImgProvider(first?.provider ?? '');
                             }
                           }}
                           options={[
-                            { label: '去背景 remove_background', value: 'remove_background' },
-                            { label: '换背景 replace_background', value: 'replace_background' },
-                            { label: '场景图 generate_scene', value: 'generate_scene' },
-                            { label: '缩放 resize', value: 'resize' },
+                            { label: '去背景', value: 'remove_background' },
+                            { label: '换背景', value: 'replace_background' },
+                            { label: '场景图', value: 'generate_scene' },
+                            {
+                              label: '缩放',
+                              value: 'resize',
+                              disabled: !caps.some(
+                                (c) => isProviderSelectable(c) && c.supportedTasks.includes('resize'),
+                              ),
+                            },
                           ]}
                         />
                         <Select
@@ -1006,13 +1018,7 @@ export default function ProductDraftDetailPage() {
                           style={{ minWidth: 220 }}
                           value={aiImgProvider}
                           onChange={(v) => setAiImgProvider(v)}
-                          options={[
-                            { label: '默认（跟随「图片 AI」设置）', value: '' },
-                            { label: 'noop', value: 'noop' },
-                            { label: 'remove.bg', value: 'removebg' },
-                            { label: 'OpenAI Image', value: 'openai_image' },
-                            { label: 'ComfyUI', value: 'comfyui' },
-                          ]}
+                          options={optionsForTask(aiImgTaskType)}
                         />
                         <Button
                           type="primary"

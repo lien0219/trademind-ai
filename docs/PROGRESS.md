@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-19 — **AI Provider**：新增独立 **DeepSeek**（`deepseek`）与 **通义千问 / Qwen**（`qwen`）Provider（第一版 **Chat Completions**，复用 **`compatclient`**）；**`settings.ai.provider`** 支持 **`openai` / `openai_compatible` / `deepseek` / `qwen`**；**`test-ai`** 经 **AI Gateway** 返回 **provider / model / latencyMs** 与中文错误；管理端 **AI 设置** 下拉与示例地址；**README** 配置说明同步。
+**最后更新**：2026-05-19 — **图片 AI 增强**：管理端 **图片 AI 设置** 三段式小白向导；**`GET /api/v1/image/providers`** 能力矩阵；**`POST /api/v1/settings/test-image`**；新增 **`dashscope_image` / `volcengine_image` / `siliconflow_image`**（`generate_scene`），**`hunyuan_image` 预留**；任务创建校验 Provider×任务类型；**README** 图片 AI 配置说明。
 
 ---
 
@@ -395,6 +395,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-19 | **图片 AI 小白友好配置 + 国内 Provider**：**`/settings/image`** 场景卡片 → Provider 选择 → 按 Provider 动态字段；**`GET /api/v1/image/providers`**；**`POST /api/v1/settings/test-image`**（`config_only`/`live`）；**`settings.image`** 扩展通义万相/火山方舟/硅基流动/混元预留密钥字段；后端 **`dashscope_image`**（万相文生图）、**`volcengine_image`/`siliconflow_image`**（OpenAI 兼容 generations）、**`hunyuan_image` planned**；**`image_tasks` 创建**校验能力矩阵；商品详情/图片任务页按任务过滤 Provider；仍经 **Worker**，前端不直连；**README** 同步。 |
 | 2026-05-19 | **1688 采集增强（二）**：解析 **`window.context.result.data`**（gallery/skuMap/属性/默认价）；修正 SKU 键 **`颜色值>尺码值`** → `颜色`+`尺码` 维度；从 **`specAttrs`/`canBookCount`** 与 DOM 尺码表补 **价/库存**；详情图仅保留 **ibank** 商品图；过滤 **imgextra/cms/tps** 图标。 |
 | 2026-05-19 | **1688 采集增强**：Collector 主图 **DOM 优先**、过滤服务承诺图标（`isLikelyJunkImage` / 祖先区域跳过）、JSON 仅取 offer 图字段；SKU 增加 **DOM 规格表 + `window.__INIT_DATA` 等全局 JSON** 兜底；管理端草稿 **「采集属性」** 表展示 `raw_data.attributes`。 |
 | 2026-05-19 | **开源治理与 AI 关联配置补齐**：新增 **`.github/CODEOWNERS`**、**`.github/dependabot.yml`**、**`.github/labeler.yml`**、**`.github/workflows/labeler.yml`**、**`.github/workflows/docker.yml`**、**`CHANGELOG.md`**；Go / Node CI 增加 **`workflow_dispatch`**；新增 **`docs/module-map.md`**、**`docs/env.md`**、**`docs/api.md`**、**`docs/provider-template.md`**、**`docs/task-checklist.md`**，并同步 **AGENTS / Cursor rule / docs index / README / CONTRIBUTING / PR 模板**，用于约束环境变量、API、Provider、Docker、CI 与文档联动。 |

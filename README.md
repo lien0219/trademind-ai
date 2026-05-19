@@ -307,6 +307,25 @@ api_key: <你的 DashScope API Key>
 
 `base_url` 为接口根路径，**不含** `/chat/completions`。具体地址与模型名以服务商官方控制台为准。生产环境建议保存配置后执行 **测试连接**（`POST /api/v1/settings/test-ai`）。
 
+### 图片 AI 配置（`settings.image`）
+
+在管理端 **系统设置 → 图片 AI 设置** 配置。所有图片任务经后端 **`image_tasks` + Image Worker** 执行，**前端不直连**任何图像服务商。`api_key` 等敏感项 **AES-GCM** 加密存储，界面脱敏为 `****`；平台**不会内置**任何第三方密钥，需自行到服务商控制台申请。
+
+| Provider | 说明 | 典型能力 |
+| --- | --- | --- |
+| `noop` | 占位 / 演示 | 联调 |
+| `removebg` | remove.bg 去背景 | 商品白底图 |
+| `openai_image` | OpenAI Images | 场景图、替换背景 |
+| `comfyui` | 本地 ComfyUI 工作流（需自部署） | 场景图、替换背景 |
+| `dashscope_image` | 通义万相（DashScope） | 场景图 |
+| `volcengine_image` | 火山方舟 Ark 图像 | 场景图 |
+| `siliconflow_image` | 硅基流动图像（beta） | 场景图 |
+| `hunyuan_image` | 腾讯混元（**预留**，暂不可真实调用） | 后续版本 |
+
+- 能力矩阵：`GET /api/v1/image/providers`（不含密钥）
+- 配置测试：`POST /api/v1/settings/test-image`（默认 `config_only`，不产生图片费用）
+- **live** 测试与真实图片生成可能产生费用；ComfyUI 需自行部署可访问实例
+
 ## 项目结构
 
 ```text

@@ -61,10 +61,10 @@ func IntegrationConfigDefinitions() []IntegrationConfigSchema {
 			Key:         "image",
 			Title:       "图片 AI",
 			Category:    "image",
-			Description: "remove.bg、OpenAI Image、ComfyUI 等。remove.bg / OpenAI Image 需自行申请 Key；ComfyUI 需自行部署可访问服务并配置工作流。OpenAI Image 使用本分组 openai_image_*，不回退 settings.ai.api_key。",
+			Description: "remove.bg、OpenAI Image、ComfyUI、通义万相、火山方舟、硅基流动等。密钥加密存储；前端不直连。详见 GET /api/v1/image/providers。",
 			GroupKey:    "image",
 			Fields: []IntegrationFieldSchema{
-				{Name: "provider", Label: "默认 Provider", Type: "text", Required: false, Help: "noop / removebg / openai_image / comfyui"},
+				{Name: "provider", Label: "默认 Provider", Type: "text", Required: false, Help: "noop / removebg / openai_image / comfyui / dashscope_image / volcengine_image / siliconflow_image / hunyuan_image（预留）"},
 				{Name: "removebg_api_key", Label: "remove.bg API Key", Type: "password", Required: false, Sensitive: true},
 				{Name: "removebg_base_url", Label: "remove.bg Base URL", Type: "text", Required: false},
 				{Name: "openai_image_api_key", Label: "OpenAI Image API Key", Type: "password", Required: false, Sensitive: true},

@@ -20,6 +20,10 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 	}
 	defs := []def{
 		{"provider", "noop", false},
+		{"provider_preset", "", false},
+		{"image_task_default_provider", "", false},
+		{"image_task_default_size", "1024x1024", false},
+		{"image_task_default_quality", "standard", false},
 		{"removebg_api_key", "", true},
 		{"removebg_base_url", "", false},
 		{"openai_image_base_url", "", false},
@@ -37,6 +41,22 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 		{"comfyui_timeout_sec", "180", false},
 		{"comfyui_poll_interval_seconds", "2", false},
 		{"comfyui_max_poll_seconds", "180", false},
+		{"dashscope_image_api_key", "", true},
+		{"dashscope_image_base_url", "", false},
+		{"dashscope_image_model", "wanx2.1-t2i-turbo", false},
+		{"dashscope_image_size", "1024*1024", false},
+		{"dashscope_image_quality", "", false},
+		{"volcengine_image_api_key", "", true},
+		{"volcengine_image_base_url", "", false},
+		{"volcengine_image_model", "", false},
+		{"volcengine_image_size", "1024x1024", false},
+		{"siliconflow_image_api_key", "", true},
+		{"siliconflow_image_base_url", "", false},
+		{"siliconflow_image_model", "", false},
+		{"siliconflow_image_size", "1024x1024", false},
+		{"hunyuan_image_api_key", "", true},
+		{"hunyuan_image_base_url", "", false},
+		{"hunyuan_image_model", "", false},
 		{"timeout_sec", "60", false},
 	}
 	for _, d := range defs {

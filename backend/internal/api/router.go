@@ -347,6 +347,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
 	authed.GET("/settings/integrations/overview", setH.IntegrationOverview)
 	authed.POST("/settings/test-ai", setH.TestAI)
+	authed.POST("/settings/test-image", imageTaskH.TestImage)
 	authed.POST("/settings/test-storage", setH.TestStorage)
 	authed.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
 	authed.POST("/settings/test-email", setH.TestEmail)

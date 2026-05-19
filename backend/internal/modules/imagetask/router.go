@@ -7,6 +7,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	if g == nil || h == nil {
 		return
 	}
+	g.GET("/image/providers", h.ListProviders)
+
 	rg := g.Group("/image/tasks")
 	rg.POST("", h.Create)
 	rg.GET("", h.List)

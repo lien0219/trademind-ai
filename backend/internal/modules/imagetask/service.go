@@ -153,11 +153,11 @@ func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (st
 	return v, nil
 }
 
-// AllowsGenerateSceneNoSource gates text-only ecommerce scene generation (OpenAI Image or ComfyUI).
+// AllowsGenerateSceneNoSource gates text-only ecommerce scene generation.
 func (s *Service) AllowsGenerateSceneNoSource(ctx context.Context, explicitProvider string) bool {
 	ex := strings.TrimSpace(strings.ToLower(explicitProvider))
-	if ex == "openai_image" || ex == "comfyui" {
-		return true
+	if ex != "" {
+		return imgprov.ProviderSupportsGenerateSceneNoSource(ex)
 	}
 	if s == nil || s.Settings == nil {
 		return false
@@ -167,7 +167,7 @@ func (s *Service) AllowsGenerateSceneNoSource(ctx context.Context, explicitProvi
 		return false
 	}
 	p := strings.TrimSpace(strings.ToLower(m["provider"]))
-	return p == "openai_image" || p == "comfyui"
+	return imgprov.ProviderSupportsGenerateSceneNoSource(p)
 }
 
 func inputHints(raw datatypes.JSON) map[string]any {
@@ -228,10 +228,20 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	if p.TaskType == TaskTypeRemoveBackground {
 		effectiveProv = "removebg"
 	}
-	switch effectiveProv {
-	case "noop", "removebg", "openai_image", "comfyui":
-	default:
-		return nil, fmt.Errorf("unsupported image provider %q", effectiveProv)
+	if !imgprov.IsRunnableProvider(effectiveProv) {
+		return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
+	}
+	if !imgprov.SupportsTask(effectiveProv, p.TaskType) {
+		return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
+	}
+	if s.Settings != nil {
+		m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+		if err != nil {
+			return nil, err
+		}
+		if err := imgprov.ValidateSettingsForProvider(effectiveProv, m); err != nil {
+			return nil, err
+		}
 	}
 
 	hasSource := (p.SourceImageID != nil && *p.SourceImageID != uuid.Nil) || strings.TrimSpace(p.SourceImageURL) != ""
@@ -244,7 +254,7 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		if rsErr != nil {
 			return nil, rsErr
 		}
-	} else if p.TaskType == TaskTypeGenerateScene && (effectiveProv == "openai_image" || effectiveProv == "comfyui") {
+	} else if p.TaskType == TaskTypeGenerateScene && imgprov.ProviderSupportsGenerateSceneNoSource(effectiveProv) {
 		imgID, srcURL = nil, ""
 	} else {
 		return nil, fmt.Errorf("sourceImageId or sourceImageUrl required")

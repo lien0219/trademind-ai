@@ -291,6 +291,12 @@ Configure under **Settings → AI** in the admin console. All text AI flows (tit
 
 Use the API root for `base_url` (no `/chat/completions` suffix). Confirm URLs and model IDs in the vendor console. Run **Test connection** (`POST /api/v1/settings/test-ai`) after saving in production.
 
+### Image AI (`settings.image`)
+
+Configure under **Settings → Image AI**. All image jobs run through backend **`image_tasks` + Image Worker**; the admin UI never calls image vendors directly. API keys are encrypted (AES-GCM) and masked as `****` in the UI—bring your own keys from each vendor console.
+
+Supported providers include **remove.bg**, **OpenAI Image**, **ComfyUI** (self-hosted), **DashScope Wan** (`dashscope_image`), **Volcengine Ark** (`volcengine_image`), **SiliconFlow** (`siliconflow_image`, beta), and **Hunyuan** (`hunyuan_image`, planned). Capability matrix: `GET /api/v1/image/providers`. Test config: `POST /api/v1/settings/test-image` (default `config_only`). Live runs and real generation may incur fees.
+
 ## Project Structure
 
 ```text
