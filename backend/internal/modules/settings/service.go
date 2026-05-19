@@ -124,7 +124,7 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 
 	if it.IsEncrypted {
 		if s.Encrypter == nil {
-			return fmt.Errorf("settings: APP_MASTER_KEY required for encrypted item %s/%s", gk, ik)
+			return fmt.Errorf("请在后端 .env 配置 APP_MASTER_KEY 并重启服务后再保存敏感项（如 API Key）；详见 docs/env.md")
 		}
 		enc, err := s.Encrypter.Encrypt([]byte(val))
 		if err != nil {

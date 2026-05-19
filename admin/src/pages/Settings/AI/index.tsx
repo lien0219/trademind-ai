@@ -222,7 +222,21 @@ export default function AISettingsPage() {
                 onClick={async () => {
                   setTesting(true);
                   try {
-                    const res = await testAIConnection();
+                    const values = await form.validateFields([
+                      'provider',
+                      'base_url',
+                      'model',
+                      'api_key',
+                      'timeout_sec',
+                    ]);
+                    const apiKey = String(values.api_key ?? '').trim();
+                    const res = await testAIConnection({
+                      provider: values.provider,
+                      base_url: values.base_url,
+                      model: values.model,
+                      timeout_sec: String(values.timeout_sec ?? ''),
+                      ...(apiKey && !apiKey.includes('****') ? { api_key: apiKey } : {}),
+                    });
                     const latency =
                       res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
                     const detail =

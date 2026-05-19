@@ -48,9 +48,20 @@ export type TestAIConnectionResult = {
   latencyMs?: number;
 };
 
-/** POST /api/v1/settings/test-ai */
-export async function testAIConnection() {
-  return postJSON<TestAIConnectionResult>('/api/v1/settings/test-ai');
+export type TestAIConnectionPayload = {
+  provider?: string;
+  base_url?: string;
+  model?: string;
+  api_key?: string;
+  timeout_sec?: string;
+};
+
+/** POST /api/v1/settings/test-ai — optional body tests current form without saving */
+export async function testAIConnection(payload?: TestAIConnectionPayload) {
+  return postJSON<TestAIConnectionResult, TestAIConnectionPayload | Record<string, never>>(
+    '/api/v1/settings/test-ai',
+    payload ?? {},
+  );
 }
 
 /** POST /api/v1/settings/test-storage */

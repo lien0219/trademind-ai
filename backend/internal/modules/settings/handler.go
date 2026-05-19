@@ -127,7 +127,16 @@ func (h *Handler) TestPlatformTikTok(c *gin.Context) {
 	response.OK(c, gin.H{"ok": true})
 }
 
+type testAIBody struct {
+	Provider   string `json:"provider"`
+	BaseURL    string `json:"base_url"`
+	Model      string `json:"model"`
+	APIKey     string `json:"api_key"`
+	TimeoutSec string `json:"timeout_sec"`
+}
+
 // TestAI POST /api/v1/settings/test-ai
+// Optional JSON body lets the admin test unsaved form values; empty body uses saved settings.ai only.
 func (h *Handler) TestAI(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
@@ -137,7 +146,21 @@ func (h *Handler) TestAI(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "ai gateway unavailable")
 		return
 	}
-	res, err := h.AIGateway.TestConnection(c.Request.Context())
+	plain, err := h.Svc.PlainByGroup(c.Request.Context(), 0, "ai")
+	if err != nil {
+		response.Fail(c, 500, response.CodeInternalError, err.Error())
+		return
+	}
+	var body testAIBody
+	_ = c.ShouldBindJSON(&body)
+	plain = MergeAIPlain(plain, &TestAIOverrides{
+		Provider:   body.Provider,
+		BaseURL:    body.BaseURL,
+		Model:      body.Model,
+		APIKey:     body.APIKey,
+		TimeoutSec: body.TimeoutSec,
+	})
+	res, err := h.AIGateway.TestConnectionWithPlain(c.Request.Context(), plain)
 	if err != nil {
 		msg := err.Error()
 		if res != nil && strings.TrimSpace(res.Message) != "" {

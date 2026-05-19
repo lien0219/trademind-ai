@@ -35,7 +35,7 @@
 | --- | --- | --- |
 | `GET` | `/api/v1/settings` | 读取系统设置。 |
 | `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。 |
-| `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试当前 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`；失败返回中文可读 `message`（不落 `api_key` / 完整 prompt）。 |
+| `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。可选 JSON：`provider`、`base_url`、`model`、`api_key`（`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
 
 ## 文件

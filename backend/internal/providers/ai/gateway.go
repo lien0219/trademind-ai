@@ -59,6 +59,10 @@ func (g *Gateway) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 	if err != nil {
 		return nil, err
 	}
+	return g.chatWithPlain(ctx, plain, req)
+}
+
+func (g *Gateway) chatWithPlain(ctx context.Context, plain map[string]string, req ChatRequest) (*ChatResponse, error) {
 	pname := normalizeProviderName(plain["provider"])
 	if pname == "" {
 		pname = "openai_compatible"
@@ -105,7 +109,7 @@ func (g *Gateway) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 	return prov.Chat(callCtx, merged)
 }
 
-// TestConnection sends a minimal chat request through the gateway.
+// TestConnection sends a minimal chat request using saved settings.ai.
 func (g *Gateway) TestConnection(ctx context.Context) (*ConnectionTestResult, error) {
 	if g == nil || g.Settings == nil {
 		return nil, fmt.Errorf("ai gateway: not configured")
@@ -114,6 +118,14 @@ func (g *Gateway) TestConnection(ctx context.Context) (*ConnectionTestResult, er
 	if err != nil {
 		return nil, err
 	}
+	return g.TestConnectionWithPlain(ctx, plain)
+}
+
+// TestConnectionWithPlain tests AI connectivity with the given plaintext ai settings map.
+func (g *Gateway) TestConnectionWithPlain(ctx context.Context, plain map[string]string) (*ConnectionTestResult, error) {
+	if g == nil {
+		return nil, fmt.Errorf("ai gateway: not configured")
+	}
 	pname := normalizeProviderName(plain["provider"])
 	if pname == "" {
 		pname = "openai_compatible"
@@ -121,7 +133,7 @@ func (g *Gateway) TestConnection(ctx context.Context) (*ConnectionTestResult, er
 	model := resolveModel(pname, "", plain["model"])
 
 	start := time.Now()
-	_, err = g.Chat(ctx, ChatRequest{
+	_, err := g.chatWithPlain(ctx, plain, ChatRequest{
 		Messages:    []Message{{Role: "user", Content: "ping"}},
 		MaxTokens:   1,
 		Temperature: 0,
