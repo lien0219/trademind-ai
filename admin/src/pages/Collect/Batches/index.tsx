@@ -485,7 +485,7 @@ export default function CollectBatchesPage() {
         width={960}
         open={drawerOpen}
         onClose={closeDrawer}
-        destroyOnClose
+        destroyOnHidden
       >
         {activeBatch && (
           <>

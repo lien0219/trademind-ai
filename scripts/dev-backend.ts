@@ -25,7 +25,10 @@ async function main(): Promise<void> {
     cwd: backendDir,
     stdio: 'inherit',
     reject: false,
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      TRADEMIND_REPO_ROOT: repoRoot,
+    },
   });
 
   if (r.exitCode !== 0) {

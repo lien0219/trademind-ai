@@ -208,7 +208,7 @@ export default function CollectRulesPage() {
         title={editingId ? '编辑采集规则' : '新建采集规则'}
         open={editorOpen}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
           width: 720,
           onCancel: () => {
             setEditorOpen(false);
@@ -331,7 +331,7 @@ export default function CollectRulesPage() {
         title="测试规则"
         open={testOpen}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
           width: 720,
           onCancel: () => {
             setTestOpen(false);

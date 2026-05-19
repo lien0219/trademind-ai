@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/providers/storage/localroot"
 )
 
 // StaticHandler serves uploaded local files from configured storage.local_root.
@@ -30,11 +31,7 @@ func (h *StaticHandler) Serve(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	root := strings.TrimSpace(m["local_root"])
-	if root == "" {
-		root = "data/uploads"
-	}
-	absRoot, err := filepath.Abs(root)
+	absRoot, err := localroot.Resolve(m["local_root"])
 	if err != nil {
 		c.Status(http.StatusNotFound)
 		return

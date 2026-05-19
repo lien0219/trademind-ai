@@ -23,9 +23,10 @@ import {
   Upload,
   message,
 } from 'antd';
+import type { UploadFile } from 'antd';
 import type { ComponentType, CSSProperties } from 'react';
-import { useCallback, useEffect, useState } from 'react';
-import { uploadFile } from '@/services/files';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { deleteFile, uploadFile, type UploadedFileInfo } from '@/services/files';
 import { fetchSettingsList, saveSettingsItems, testStorageConnection, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 
@@ -383,7 +384,18 @@ export default function StorageSettingsPage() {
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  const [uploadTestFile, setUploadTestFile] = useState<UploadedFileInfo | null>(null);
+  const uploadTestList: UploadFile[] = useMemo(() => {
+    if (!uploadTestFile) return [];
+    return [
+      {
+        uid: uploadTestFile.id,
+        name: uploadTestFile.filename,
+        status: 'done',
+        url: uploadTestFile.url,
+      },
+    ];
+  }, [uploadTestFile]);
   const kind = Form.useWatch('kind', form);
   const presignOn = Form.useWatch('s3_presign_enabled', form);
 
@@ -524,7 +536,12 @@ export default function StorageSettingsPage() {
               >
                 <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
               </Form.Item>
-              <Form.Item label="本地根目录" name="local_root" rules={[{ required: true }]}>
+              <Form.Item
+                label="本地根目录"
+                name="local_root"
+                rules={[{ required: true }]}
+                extra="相对路径以仓库根目录为准（如 data/uploads → 项目根/data/uploads），与从 backend 或根目录启动无关"
+              >
                 <Input placeholder="data/uploads" />
               </Form.Item>
             </>
@@ -736,13 +753,29 @@ export default function StorageSettingsPage() {
             maxCount={1}
             accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
             showUploadList
+            fileList={uploadTestList}
+            onRemove={async () => {
+              if (!uploadTestFile?.id) {
+                setUploadTestFile(null);
+                return true;
+              }
+              try {
+                await deleteFile(uploadTestFile.id);
+                message.success('已删除文件记录与磁盘对象');
+                setUploadTestFile(null);
+                return true;
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '删除失败');
+                return false;
+              }
+            }}
             beforeUpload={(file) => {
               void (async () => {
                 setUploading(true);
-                setUploadPreviewUrl(null);
+                setUploadTestFile(null);
                 try {
                   const r = await uploadFile(file);
-                  setUploadPreviewUrl(r.url);
+                  setUploadTestFile(r);
                   message.success('上传成功');
                 } catch (e: unknown) {
                   message.error((e as Error)?.message || '上传失败');
@@ -755,13 +788,17 @@ export default function StorageSettingsPage() {
           >
             <Button loading={uploading}>选择图片并上传（走 /api/v1/files/upload）</Button>
           </Upload>
-          {uploadPreviewUrl ? (
+          {uploadTestFile ? (
             <Space direction="vertical" size="small">
+              <Typography.Text type="secondary">文件 ID（删除时使用）</Typography.Text>
+              <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
+                {uploadTestFile.id}
+              </Typography.Paragraph>
               <Typography.Text type="secondary">返回 URL</Typography.Text>
               <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
-                {uploadPreviewUrl}
+                {uploadTestFile.url}
               </Typography.Paragraph>
-              <Image src={uploadPreviewUrl} alt="upload" width={200} style={{ objectFit: 'contain' }} />
+              <Image src={uploadTestFile.url} alt="upload" width={200} style={{ objectFit: 'contain' }} />
             </Space>
           ) : null}
         </Space>

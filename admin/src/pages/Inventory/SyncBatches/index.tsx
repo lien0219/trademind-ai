@@ -289,7 +289,7 @@ export default function InventorySyncBatchesPage() {
         width={720}
         title={drawerBatch ? `批次 ${drawerBatch.batchNo}` : '批次详情'}
         open={drawerOpen}
-        destroyOnClose
+        destroyOnHidden
         onClose={() => {
           setDrawerOpen(false);
           setDrawerBatch(null);

@@ -5,6 +5,7 @@ export default defineConfig({
   title: '贸灵 TradeMind',
   npmClient: 'npm',
   antd: {
+    appConfig: {},
     configProvider: {
       theme: {
         cssVar: true,

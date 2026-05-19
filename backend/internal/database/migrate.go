@@ -27,10 +27,33 @@ import (
 	"gorm.io/gorm"
 )
 
+// migrateLegacyPublicationSKUColumns renames GORM-default product_sk_uid / external_sk_uid
+// to product_sku_id / external_sku_id so raw SQL and API field names stay consistent.
+func migrateLegacyPublicationSKUColumns(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable("product_publication_skus") {
+		return nil
+	}
+	dst := &productpublish.ProductPublicationSKU{}
+	if db.Migrator().HasColumn(dst, "product_sk_uid") && !db.Migrator().HasColumn(dst, "product_sku_id") {
+		if err := db.Migrator().RenameColumn(dst, "product_sk_uid", "product_sku_id"); err != nil {
+			return fmt.Errorf("rename product_publication_skus.product_sk_uid: %w", err)
+		}
+	}
+	if db.Migrator().HasColumn(dst, "external_sk_uid") && !db.Migrator().HasColumn(dst, "external_sku_id") {
+		if err := db.Migrator().RenameColumn(dst, "external_sk_uid", "external_sku_id"); err != nil {
+			return fmt.Errorf("rename product_publication_skus.external_sk_uid: %w", err)
+		}
+	}
+	return nil
+}
+
 // AutoMigrate applies schema for core foundation tables.
 func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("auto migrate: db is nil")
+	}
+	if err := migrateLegacyPublicationSKUColumns(db); err != nil {
+		return err
 	}
 	return db.AutoMigrate(
 		&admin.AdminUser{},

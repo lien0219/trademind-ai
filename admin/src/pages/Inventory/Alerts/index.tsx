@@ -99,6 +99,9 @@ export default function InventoryAlertsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [active, setActive] = useState<InventoryAlertRow | null>(null);
   const [adjustSubmitting, setAdjustSubmitting] = useState(false);
+  const [settingsSubmitting, setSettingsSubmitting] = useState(false);
+  const [adjustForm] = Form.useForm<{ stock: number }>();
+  const [settingsForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
   const [batchStockOpen, setBatchStockOpen] = useState(false);
   const [batchStockScope, setBatchStockScope] = useState<'selected' | 'filter'>('selected');
   const [batchMatched, setBatchMatched] = useState<number | null>(null);

@@ -1865,7 +1865,7 @@ export default function ProductDraftDetailPage() {
           }
         }}
         key={imgEdit ? `img-${imgEdit.id}` : imgModalOpen ? 'img-add' : 'img-closed'}
-        modalProps={{ destroyOnClose: true, width: 560 }}
+        modalProps={{ destroyOnHidden: true, width: 560 }}
         initialValues={{
           imageType: imgEdit ? (imgEdit.imageType === 'description' ? 'detail' : imgEdit.imageType) : 'main',
           sortOrder: imgEdit?.sortOrder ?? sortedImages.length,
@@ -1955,7 +1955,7 @@ export default function ProductDraftDetailPage() {
         open={aiOpen}
         onCancel={() => setAiOpen(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={640}
       >
         <Form
@@ -2045,7 +2045,7 @@ export default function ProductDraftDetailPage() {
         open={descOpen}
         onCancel={() => setDescOpen(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={720}
       >
         <Form
@@ -2143,7 +2143,7 @@ export default function ProductDraftDetailPage() {
         title={logsSku ? `库存变更 · ${logsSku.skuCode || logsSku.id}` : '库存变更'}
         open={logsOpen}
         width={560}
-        destroyOnClose
+        destroyOnHidden
         onClose={() => {
           setLogsOpen(false);
           setLogsSku(null);
@@ -2181,7 +2181,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={adjustTarget ? `调整库存 · ${adjustTarget.skuCode}` : '调整库存'}
         open={adjustOpen && !!adjustTarget}
-        destroyOnClose
+        destroyOnHidden
         okText="保存"
         confirmLoading={invAdjustSubmitting}
         onCancel={() => {
@@ -2230,7 +2230,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title="同步刊登 SKU 库存"
         open={syncOpen && !!syncRow}
-        destroyOnClose
+        destroyOnHidden
         okText="提交任务"
         confirmLoading={syncSubmitting}
         onCancel={() => {
@@ -2303,7 +2303,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={stockSettingsTarget ? `预警线 · ${stockSettingsTarget.skuCode}` : '预警线'}
         open={stockSettingsOpen && !!stockSettingsTarget}
-        destroyOnClose
+        destroyOnHidden
         okText="保存"
         confirmLoading={stockSettingsSubmitting}
         onCancel={() => {

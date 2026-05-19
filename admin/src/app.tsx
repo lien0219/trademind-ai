@@ -1,7 +1,8 @@
-import type { CSSProperties, KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactElement } from 'react';
 import { LogoutOutlined } from '@ant-design/icons';
 import { Avatar, Dropdown, Space } from 'antd';
 import { history, useModel, type RequestConfig, type RunTimeLayoutConfig } from '@umijs/max';
+import AppMessageBridge from '@/components/AppMessageBridge';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { postJSON } from '@/services/request';
@@ -13,6 +14,19 @@ async function loadProfileFromToken(token: string): Promise<API.CurrentUser | un
   const json = (await res.json()) as { code: number; data?: API.CurrentUser };
   if (!res.ok || json.code !== 0 || !json.data) return undefined;
   return json.data;
+}
+
+/**
+ * Runs inside umi antd innerProvider `<App>` (under ConfigProvider).
+ * Do not add another `<App>` in rootContainer — that wraps outside ConfigProvider and breaks static message.
+ */
+export function innerProvider(container: ReactElement) {
+  return (
+    <>
+      <AppMessageBridge />
+      {container}
+    </>
+  );
 }
 
 export async function getInitialState(): Promise<{ currentUser?: API.CurrentUser }> {

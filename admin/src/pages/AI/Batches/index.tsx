@@ -183,7 +183,7 @@ export default function AiBatchesPage() {
         width={620}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         {loadingDetail ? (
           <Typography.Text type="secondary">加载中…</Typography.Text>
@@ -272,7 +272,7 @@ export default function AiBatchesPage() {
         width={720}
         open={tasksOpen}
         onClose={() => setTasksOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <ProTable
           rowKey="id"

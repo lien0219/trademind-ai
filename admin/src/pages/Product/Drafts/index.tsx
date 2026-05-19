@@ -322,7 +322,7 @@ export default function ProductDraftsPage() {
       <ModalForm
         title="新建商品草稿"
         open={createOpen}
-        modalProps={{ destroyOnClose: true, onCancel: () => setCreateOpen(false) }}
+        modalProps={{ destroyOnHidden: true, onCancel: () => setCreateOpen(false) }}
         onFinish={async (vals) => {
           await createProduct({
             title: vals.title,
@@ -346,7 +346,7 @@ export default function ProductDraftsPage() {
         width={720}
         open={batchOpen}
         onClose={() => setBatchOpen(false)}
-        destroyOnClose
+        destroyOnHidden
         extra={
           <Button type="primary" loading={batchLoading} onClick={() => void runBatchReadiness()}>
             开始检查
@@ -418,7 +418,7 @@ export default function ProductDraftsPage() {
         width={560}
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
-        destroyOnClose
+        destroyOnHidden
         extra={
           <Button
             type="primary"

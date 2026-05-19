@@ -221,7 +221,7 @@ export default function AiTasksPage() {
           setDrawerOpen(false);
           setDetail(null);
         }}
-        destroyOnClose
+        destroyOnHidden
       >
         {detailLoading ? (
           <div style={{ textAlign: 'center', padding: 48 }}>

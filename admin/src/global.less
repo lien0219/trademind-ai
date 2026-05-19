@@ -5,6 +5,12 @@ body,
   margin: 0;
 }
 
+/* 全局抽屉宽度：50% 视口（覆盖各页 width={数字}） */
+.ant-drawer .ant-drawer-content-wrapper {
+  width: 50% !important;
+  max-width: 100vw;
+}
+
 /* SaaS layout polish — subtle separation, calmer chrome */
 .ant-layout.ant-layout-has-sider > .ant-layout {
   background: transparent;

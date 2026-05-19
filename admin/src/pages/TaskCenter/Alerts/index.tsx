@@ -384,7 +384,7 @@ export default function TaskCenterAlertsPage() {
         width={560}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <Table<TaskAlertNotificationDTO>
           loading={notifLoading}

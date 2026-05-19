@@ -6,9 +6,13 @@ import (
 
 	cosstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/cos"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/local"
+	"github.com/trademind-ai/trademind/backend/internal/providers/storage/localroot"
 	ossstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/oss"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 )
+
+// defaultLocalPublicBase matches settings seed and dev proxy (/static → backend).
+const defaultLocalPublicBase = "/static"
 
 // NewFromPlain builds a storage Provider from decrypted settings.storage map (snake_case keys).
 // The operational kind follows settings.kind (used for uploads and current-policy operations).
@@ -37,11 +41,14 @@ func normalizedKindFromSettings(m map[string]string) string {
 func providerForOperationalKind(m map[string]string, kind string) (Provider, string, error) {
 	switch kind {
 	case "local":
-		root := strings.TrimSpace(m["local_root"])
-		if root == "" {
-			root = "data/uploads"
+		root, err := localroot.Resolve(m["local_root"])
+		if err != nil {
+			return nil, kind, err
 		}
 		pub := strings.TrimSpace(m["public_base"])
+		if pub == "" {
+			pub = defaultLocalPublicBase
+		}
 		p, err := local.New(root, pub)
 		if err != nil {
 			return nil, kind, err

@@ -545,7 +545,7 @@ export default function OrderExceptionsPage() {
         width={640}
         open={bindOpen}
         onClose={() => setBindOpen(false)}
-        destroyOnClose
+        destroyOnHidden
         footer={
           <Space>
             <Button onClick={() => setBindOpen(false)}>取消</Button>
@@ -720,7 +720,7 @@ export default function OrderExceptionsPage() {
         open={candModalOpen}
         footer={null}
         onCancel={() => setCandModalOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <Typography.Paragraph type="secondary">
           仅浏览：不修改数据。需绑定时请点「绑定 SKU（候选）」进入抽屉操作。

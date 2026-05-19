@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	cosstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/cos"
+	"github.com/trademind-ai/trademind/backend/internal/providers/storage/localroot"
 	ossstorage "github.com/trademind-ai/trademind/backend/internal/providers/storage/oss"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/s3store"
 	"gorm.io/gorm"
@@ -278,11 +278,7 @@ func (s *Service) TestStorageConnection(ctx context.Context) error {
 	}
 	switch kind {
 	case "local":
-		root := strings.TrimSpace(m["local_root"])
-		if root == "" {
-			root = "data/uploads"
-		}
-		abs, err := filepath.Abs(root)
+		abs, err := localroot.Resolve(m["local_root"])
 		if err != nil {
 			return fmt.Errorf("storage local_root: %w", err)
 		}

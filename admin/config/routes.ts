@@ -128,8 +128,17 @@ export default [
     routes: [
       {
         path: '/collect',
+        redirect: '/collect/hub',
+      },
+      {
+        path: '/collect/hub',
         name: '采集中心',
         component: './Collect/Hub',
+      },
+      {
+        path: '/collect/tasks',
+        name: '采集任务',
+        component: './Collect/Tasks',
       },
       {
         path: '/collect/rules',
@@ -156,6 +165,10 @@ export default [
     routes: [
       {
         path: '/shops',
+        redirect: '/shops/manage',
+      },
+      {
+        path: '/shops/manage',
         name: '店铺管理',
         component: './Shops',
       },
@@ -169,6 +182,10 @@ export default [
     routes: [
       {
         path: '/orders',
+        redirect: '/orders/list',
+      },
+      {
+        path: '/orders/list',
         name: '订单列表',
         component: './Orders/index',
       },

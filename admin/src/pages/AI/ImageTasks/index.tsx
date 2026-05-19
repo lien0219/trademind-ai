@@ -325,7 +325,7 @@ export default function ImageTasksPage() {
           rbSize: '1024x1024',
           inputJson: '{}',
         }}
-        modalProps={{ destroyOnClose: true }}
+        modalProps={{ destroyOnHidden: true }}
         onFinish={async (values) => {
           let extra: Record<string, unknown> = {};
           const raw = (values.inputJson ?? '').trim();
@@ -531,7 +531,7 @@ export default function ImageTasksPage() {
           setDrawerOpen(false);
           setDetail(null);
         }}
-        destroyOnClose
+        destroyOnHidden
         extra={
           <Space wrap>
             {detail?.status === 'failed' ? (
