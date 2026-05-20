@@ -371,6 +371,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	product.Register(authed, productH)
 	collect.Register(authed, collectH)
 	collectrule.Register(authed, collectRuleH)
+
+	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
+	collectorAlias := r.Group("/api/collector")
+	collectorAlias.Use(middleware.BearerAuth(dep.Config))
+	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
+	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}

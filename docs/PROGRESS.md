@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-20 — **1688 批量采集稳定性**：保守 **Redis 并发门闸 + 随机间隔**；**settings.collector / `COLLECT_BATCH_*_1688`** 可配置；批量 **可重试错误码** 与 **更长退避**；批次 **错误码聚合**；Collector **风控识别 / `TIMEOUT`/`PARSE_FAILED`**；管理端批次/任务 **失败提示**。
+**最后更新**：2026-05-20 — **1688 采集防复发文档**：`page.evaluate` 注入、`unitWeight` 误价、SKU 维度/mm 价表；详见 **`docs/collector-1688-pitfalls.md`**。
 
 ---
 
@@ -193,6 +193,7 @@
 - **HTTP**：`GET /health`（契约不变）；**`GET /v1/providers`**（注册表 **`listProviderPublicMetas()`**）；`POST /v1/collect`（body：**`source`** + **`url`** + 可选 **`options`**；**custom** 必填后端下发的 **`options.rule`** / **`domain`** 等）。
 - **浏览器**：`BrowserManager` 单例 Chromium，`withPage` 保证关闭 page/context。
 - **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；**NormalizedProduct JSON 契约未变**，`BuildImportSKU` 仍只吃 **`properties`**；采集解析仅在 Collector。
+- **1688 已知坑与防复发**：**[`docs/collector-1688-pitfalls.md`](collector-1688-pitfalls.md)**（`page.evaluate` / `unitWeight` 误价 / SKU 维度噪声 / mm 价表 / 回归命令）。
 - **本地调试**：**`pnpm collect:test -- --url "https://detail.1688.com/offer/..."`**（仍为默认 **`source=1688`**）；或 **`pnpm collect:test -- --source aliexpress --url "https://www.aliexpress.com/item/100500....html"`**；环境变量 **`COLLECT_TEST_URL` / `COLLECT_TEST_SOURCE`**；根 **`pnpm collect:test`** **透传到** **`@trademind/collector`**。
 ### 3.5 文档
 
@@ -315,7 +316,7 @@ trademind-ai/
 18. **公网 URL 启发式**：**`httppublic.IsPublicHTTPURL`** 按 **scheme/host 字面** 排除 **loopback / RFC1918 / 链路本地** 等；**普通域名默认视为公网**（**不做 DNS**）。若 **`public_base` / 签名 URL 主机名为内网域名但字面非上述范围**，可能被误判为「公网」而走 **`image_url`**（remove.bg 仍不可拉取）；此时应依赖 **`source_image_id` + `Get`** 路径。
 19. **AI 客服与内部订单上下文**：工作台已支持 **绑定内部订单**（含 **同步入库的 `orders`**）。**已落地** **平台客服消息同步**（**`customersync`**、**人工外发**、**mock** 全链路可测）；**TikTok**、**Shopee**、**Lazada** **`PullMessages`/`SendMessage` 已真实接入（`beta`**；**TikTok** 依赖 **`api_version`** 与 Customer Service 路径；**Shopee** 依赖 **`api/v2/sellerchat/*`**；**Lazada** 依赖 **`/im/session/list`** / **`/im/message/list`** / **`/im/message/send`**（IM **`template_id`** / **`content` JSON** 映射见 **`lazada/customer_message_mapping.go`**，需随文档校准）；**Amazon**：**SP-API Messaging API** **`PullMessages`/`SendMessage`**（**`beta`**；**不提供买家会话正文**，见 **`amazon/customer_messages.go`**）。**`GET /platform/providers`**：**TikTok / Shopee / Lazada / Amazon `customer_message`** 为 **`beta`**。仍无各平台 **实时消息 WebSocket 推送**。
 20. **多 AI Provider 并存（未完成）**：当前仍为 **单一 `settings.ai` 默认配置**；**DeepSeek / Qwen 已独立 Provider 名**，但尚无 **`settings.ai_providers` 多配置表** 与按任务选模。
-21. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。
+21. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。**已踩坑清单**见 **`docs/collector-1688-pitfalls.md`**（`page.evaluate` 注入、`unitWeight` 误价、SKU 维度/mm 价表）。
 22. **AliExpress（Collector `beta`）边界**：受 **人机验证 / 风控 / 多语言 PDP / 区域价与币种格式**影响，**SKU 映射对部分模板仍不完整**；详情若 **异步 / iframe**，**`descriptionImages` 可为空**，**候选见 `raw.detailImageCandidates`**。**批量链路未开放**（`batchSupported=false`）。
 23. **多采集源仍占位**：**拼多多 / 淘宝·天猫 / SHEIN·Temu** Collector **`planned`**，**不真实解析**。**自定义链接**：Collector **`custom` 已为 `beta`**（**声明式 rule + JSON-LD / OG / Meta**）；**高级可视化规则编辑器**、**自定义批量采集**、**更强 SSRF（内网等）** 仍未完成。
 24. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
@@ -395,6 +396,9 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-20 | **1688 采集防复发文档**：新增 **`docs/collector-1688-pitfalls.md`**；修复 **`page.evaluate` `__name`**（禁止 toString 注入）、**`unitWeight` 误作价格**、**SKU 维度噪声**与 **`1.2mm` 价表**未解析；失败中心 **`collector_evaluate_script`** |
+| 2026-05-20 | **1688 解析增强**：多路主图/价格 JSON+DOM 提取、页面滚动懒加载、mainImages 兜底、partial_success + completeness/extractDebug、失败 HTML/截图快照、失败中心 **missing_images/missing_price** 分类 |
+| 2026-05-20 | **1688 采集浏览器登录态**：Collector **`launchPersistentContext`**（`collector/data/browser-profiles/1688`）；**`GET/POST /api/collector/providers/1688/*`**；管理端采集设置 **登录态卡片**；失败中心 **`collector_platform_login`**；Docker **Profile volume** |
 | 2026-05-20 | **1688 批量采集稳定性**：Go **`batch_policy`/`batch_throttle`/`batch_stats`**；**`COLLECT_BATCH_*_1688`** + **settings.collector**；批量随机 delay + Redis 并发门闸；批量可重试风控/超时/导航失败；批次 **errorSummary**；Collector **风控增强 + `TIMEOUT`/`PARSE_FAILED`**；admin **批次/任务失败提示** |
 | 2026-05-19 | **图片 AI 小白友好配置 + 国内 Provider**：**`/settings/image`** 场景卡片 → Provider 选择 → 按 Provider 动态字段；**`GET /api/v1/image/providers`**；**`POST /api/v1/settings/test-image`**（`config_only`/`live`）；**`settings.image`** 扩展通义万相/火山方舟/硅基流动/混元预留密钥字段；后端 **`dashscope_image`**（万相文生图）、**`volcengine_image`/`siliconflow_image`**（OpenAI 兼容 generations）、**`hunyuan_image` planned**；**`image_tasks` 创建**校验能力矩阵；商品详情/图片任务页按任务过滤 Provider；仍经 **Worker**，前端不直连；**README** 同步。 |
 | 2026-05-19 | **1688 采集增强（二）**：解析 **`window.context.result.data`**（gallery/skuMap/属性/默认价）；修正 SKU 键 **`颜色值>尺码值`** → `颜色`+`尺码` 维度；从 **`specAttrs`/`canBookCount`** 与 DOM 尺码表补 **价/库存**；详情图仅保留 **ibank** 商品图；过滤 **imgextra/cms/tps** 图标。 |

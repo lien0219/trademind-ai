@@ -87,6 +87,24 @@
 | `GET` | `/api/v1/collect/tasks` | 采集任务列表。 |
 | `GET` | `/api/v1/collect/tasks/:id` | 采集任务详情。 |
 | `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务。 |
+| `GET` | `/api/collector/providers/1688/auth-status` | 1688 采集浏览器登录态检测（同 `/api/v1/collector/...`）。 |
+| `POST` | `/api/collector/providers/1688/open-login-browser` | 打开持久化 Playwright 浏览器供 1688 手动登录。 |
+
+`GET /api/collector/providers/1688/auth-status` 返回示例：
+
+```json
+{
+  "provider": "1688",
+  "status": "ok",
+  "loggedIn": true,
+  "needVerification": false,
+  "message": "1688 登录态正常",
+  "lastCheckedAt": "2026-05-20T12:00:00.000Z",
+  "profilePath": "/path/to/collector/data/browser-profiles/1688"
+}
+```
+
+`status` 取值：`ok`（已登录）、`not_logged_in`（未登录）、`verification_required`（需安全验证）、`unknown`（检测页异常）。
 
 ## 店铺与平台
 

@@ -52,9 +52,14 @@ services:
     environment:
       # 编排约定：容器内固定监听 3001，宿主机端口见 COLLECTOR_PUBLISH_PORT
       COLLECTOR_HTTP_ADDR: ":3001"
+      COLLECTOR_BROWSER_PROFILE_DIR: /workspace/data/browser-profiles
+      COLLECTOR_STORAGE_STATE_DIR: /workspace/data/storage-states
       NODE_ENV: production
     ports:
       - "${COLLECTOR_PUBLISH_PORT:-3001}:3001"
+    volumes:
+      - ./data/browser-profiles:/workspace/data/browser-profiles
+      - ./data/storage-states:/workspace/data/storage-states
     healthcheck:
       test:
         [

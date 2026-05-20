@@ -18,6 +18,10 @@ const (
 	CategoryPlatformConfigIncomplete = "platform_config_incomplete"
 	CategoryNetworkTimeout           = "network_timeout"
 	CategoryCollectorBlocked         = "collector_blocked"
+	CategoryCollectorPlatformLogin   = "collector_platform_login"
+	CategoryCollectorMissingImages   = "collector_missing_images"
+	CategoryCollectorMissingPrice    = "collector_missing_price"
+	CategoryCollectorEvaluateScript  = "collector_evaluate_script"
 	CategoryCollectorInvalidURL      = "collector_invalid_url"
 	CategoryAIProviderError          = "ai_provider_error"
 	CategoryAIConfigIncomplete       = "ai_config_incomplete"
@@ -76,6 +80,7 @@ func defaultSeverity(cat string) string {
 		CategoryInventoryMappingMissing, CategorySKUMappingMissing, CategoryStorageError:
 		return SeverityHigh
 	case CategoryPlatformRateLimit, CategoryNetworkTimeout, CategoryCollectorBlocked,
+		CategoryCollectorPlatformLogin,
 		CategoryAIProviderError, CategoryImageProviderError, CategoryPlatformAPIError,
 		CategoryWorkerLeaseExpired:
 		return SeverityMedium
@@ -144,6 +149,47 @@ var rules = []rule{
 		category: CategoryNetworkTimeout, severity: SeverityMedium,
 		reason:  "网络超时或连接异常。",
 		suggest: "请检查本机与平台网络，稍后重试；持续出现需排查代理与防火墙。",
+	},
+	// Collector — page.evaluate 脚本注入失败
+	{
+		id: "sub:evaluate_script", substrs: []string{"__name is not defined", "evaluate_script_error"},
+		category: CategoryCollectorEvaluateScript, severity: SeverityHigh,
+		reason:    "采集脚本执行错误。",
+		suggest:   "页面解析脚本注入失败，请检查 page.evaluate 中是否引用了构建工具 helper 或外部函数。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// Collector — 1688 字段缺失（优先于 unknown）
+	{
+		id:       "sub:missing_main_images",
+		substrs:  []string{"missing_main_images"},
+		category: CategoryCollectorMissingImages, severity: SeverityMedium,
+		reason:    "商品页已打开，但未提取到主图字段。",
+		suggest:   "页面已打开，但未提取到主图。请打开原始快照确认页面是否正常显示主图；如果快照正常，请检查 1688 图片选择器或 JSON 提取逻辑。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	{
+		id:       "sub:missing_price",
+		substrs:  []string{"missing_price", "missing_core_fields"},
+		category: CategoryCollectorMissingPrice, severity: SeverityMedium,
+		reason:    "商品页已解析，但价格字段缺失。",
+		suggest:   "价格可能需要登录、权限或异步接口加载。请检查 1688 登录态和价格提取规则。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// Collector — 1688 登录/验证失效（优先于通用风控规则）
+	{
+		id: "sub:1688_login_verify",
+		substrs: []string{
+			"verification_or_login_page_detected",
+			"verification_challenge_or_offer_unreadable",
+			"verification_or_login",
+			"offer_path_lost_with_no_product_data",
+			"captcha_redirect_url",
+		},
+		category:  CategoryCollectorPlatformLogin,
+		severity:  SeverityHigh,
+		reason:    "1688 采集浏览器未登录或登录态/安全验证已失效。",
+		suggest:   "请在采集设置中打开 1688 采集浏览器，重新登录或完成安全验证后再重试。",
+		taskTypes: []string{taskTypeCollect},
 	},
 	// Collector
 	{

@@ -7,8 +7,8 @@ export interface DimRow {
   values: string[];
 }
 
-const COLOR_VALUE_RE = /颜色|蓝|粉|黄|绿|米白|红|黑|白|灰|卡其|藏青/;
-const SIZE_VALUE_RE = /内长|尺码|尺寸|cm|码|鞋底标/;
+const COLOR_VALUE_RE = /颜色|蓝|粉|黄|绿|米白|红|黑|白|灰|卡其|藏青|不锈钢|更衣柜|玻璃|移门|消毒/;
+const SIZE_VALUE_RE = /内长|尺码|尺寸|cm|码|鞋底标|mm|厚度/;
 
 export function inferTwoDimNames(dimHints: DimRow[], v1: string, v2: string): [string, string] {
   if (dimHints.length >= 2) return [dimHints[0].name, dimHints[1].name];
@@ -76,6 +76,20 @@ export function normalizeSkuPropertyKeys(
 export function skuNameFromProps(props: Record<string, string>): string {
   const keys = Object.keys(props).sort();
   return keys.map((k) => `${props[k]}`).join(' / ');
+}
+
+/** 过滤 DOM 维度值中的标签/价格/库存拼接噪声 */
+export function isValidSkuDimensionValue(value: string, dimName: string): boolean {
+  const v = trimStr(value);
+  if (!v || v.length < 2 || v.length > 100) return false;
+  if (v === dimName) return false;
+  if (/^(颜色|尺寸|尺码|规格|库存|价格|数量|厚度)$/.test(v)) return false;
+  if (/¥|￥/.test(v)) return false;
+  if (/库存\s*\d+/.test(v)) return false;
+  if (/^库存\d+/.test(v)) return false;
+  if (/\d+(?:\.\d+)?\s*mm\s*¥|\d+mm.*¥.*库存/i.test(v)) return false;
+  if (/^尺寸[\d.]+\s*mm/i.test(v)) return false;
+  return true;
 }
 
 export function extractSkuBucketPrice(bucket: Record<string, unknown>): number | undefined {
@@ -173,6 +187,9 @@ export function enrichSkusFromDomTable(skus: ProductSku[], rows: DomSkuTableRow[
     const sizePart = vals.find((v) => SIZE_VALUE_RE.test(v)) ?? vals[vals.length - 1] ?? '';
     const row = rows.find((r) => {
       if (!sizePart) return false;
+      const normSize = sizePart.replace(/\s+/g, '').toLowerCase();
+      const normLabel = r.label.replace(/\s+/g, '').toLowerCase();
+      if (normLabel.includes(normSize) || normSize.includes(normLabel)) return true;
       const needle = sizePart.slice(0, Math.min(8, sizePart.length));
       return r.label.includes(needle);
     });

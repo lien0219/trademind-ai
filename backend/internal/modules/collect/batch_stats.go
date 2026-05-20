@@ -100,7 +100,9 @@ func collectFailureHint(code string, sameURLSucceeded bool) string {
 	}
 	switch code {
 	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA":
-		return "目标站点触发验证或风控，请稍后重试，或降低批量采集并发。"
+		return "目标站点触发验证或风控；若为 1688，请先在「设置 → 采集服务」打开采集浏览器完成登录或安全验证。"
+	case "PARSE_FAILED":
+		return "页面解析不完整，请查看任务详情中的 missingFields / extractDebug。"
 	case "TIMEOUT", "PAGE_TIMEOUT", "PAGE_LOAD_TIMEOUT", "NAVIGATION_FAILED":
 		return "页面加载超时或导航失败，建议重试或检查网络。"
 	default:

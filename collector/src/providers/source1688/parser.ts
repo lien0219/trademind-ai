@@ -1,17 +1,7 @@
 import type { Page } from 'playwright';
 
-import { evaluateInPage } from '../../browser/evaluate-in-page.js';
-
-import type { ProductSku } from '../../types/product.js';
+import { extract1688BrowserPayload } from './browser-extract-1688.js';
 import type { BrowserExtractPayload, Parse1688Result } from './types.js';
-import {
-  ATTRIBUTE_ROW_SELECTORS,
-  DETAIL_SELECTORS,
-  MAIN_GALLERY_SELECTORS,
-  SKU_SECTION_SELECTORS,
-  SKU_TABLE_ROW_SELECTORS,
-  TITLE_SELECTORS,
-} from './selectors.js';
 import {
   extractAttributesFrom1688Data,
   extractDefaultOfferPrice,
@@ -27,11 +17,24 @@ import {
   extractSkuBucketPrice,
   extractSkuBucketStock,
   inferTwoDimNames,
+  isValidSkuDimensionValue,
   normalizeSkuPropertyKeys,
   parseComboKey,
   skuNameFromProps,
 } from './sku-helpers.js';
-import type { DomSkuDimension, DomSkuTableRow } from './types.js';
+import type { ProductSku } from '../../types/product.js';
+import {
+  applyMainImageFallbacks,
+  extractImagesFromJsonRoots,
+  mergeDomMetaImages,
+  mergeImageBuckets,
+} from './image-extract.js';
+import {
+  applyProductPriceToSkus,
+  extractPriceFromDomText,
+  extractPriceFromJsonRoots,
+  hasAnySkuPrice,
+} from './price-extract.js';
 import {
   coerceInt,
   coerceNumber,
@@ -44,9 +47,6 @@ import {
   truncate,
   trimStr,
 } from './utils.js';
-
-const SCRIPT_SNIPPET_MAX = 120_000;
-const MAX_SCRIPT_FRAGMENTS = 14;
 
 function normalizeAndFilterImg(raw: string, baseUrl: string, out: string[]): void {
   const abs = normalizeImageUrl(raw, baseUrl);
@@ -439,16 +439,36 @@ function parseJsonFragmentsFromScripts(snips: string[]): unknown[] {
 }
 
 function skusFromDomPayload(payload: BrowserExtractPayload): ProductSku[] {
-  const dims = payload.domSkuDimensions ?? [];
+  const dims = (payload.domSkuDimensions ?? [])
+    .map((d) => ({
+      name: d.name,
+      values: d.values.filter((v) => isValidSkuDimensionValue(v, d.name)),
+    }))
+    .filter((d) => d.values.length > 0);
   const rows = payload.domSkuTableRows ?? [];
 
+  const sizeDim = dims.find((d) => /尺寸|尺码|规格|厚度|内长/i.test(d.name));
+  const colorDim = dims.find((d) => /颜色|花色|款式|型号/i.test(d.name));
+
   if (rows.length > 0) {
-    const sizeDim = dims.find((d) => /尺寸|尺码|规格|内长/i.test(d.name));
-    const colorDim = dims.find((d) => /颜色|花色|款式/i.test(d.name));
+    const sizeName = sizeDim?.name ?? '尺寸';
+    if (colorDim && colorDim.values.length > 0) {
+      const out: ProductSku[] = [];
+      for (const color of colorDim.values.slice(0, 40)) {
+        for (const row of rows.slice(0, 20)) {
+          out.push({
+            skuCode: '',
+            properties: { [colorDim.name]: color, [sizeName]: row.label },
+            price: row.priceText ? coerceNumber(row.priceText) : undefined,
+            stock: row.stockText ? coerceInt(row.stockText) : undefined,
+            raw: { source: 'dom-sku-table-color-matrix' },
+          });
+        }
+      }
+      return out.slice(0, 60);
+    }
     return rows.slice(0, 60).map((row) => {
-      const props: Record<string, string> = {};
-      if (sizeDim) props[sizeDim.name] = row.label;
-      else props['规格'] = row.label;
+      const props: Record<string, string> = { [sizeName]: row.label };
       if (colorDim && colorDim.values.length === 1) props[colorDim.name] = colorDim.values[0];
       return {
         skuCode: '',
@@ -475,297 +495,20 @@ function skusFromDomPayload(payload: BrowserExtractPayload): ProductSku[] {
 }
 
 function mergeSkuLists(primary: ProductSku[], secondary: ProductSku[]): ProductSku[] {
-  if (primary.length > 0 && primary.some((s) => s.price != null || s.stock != null)) return primary;
-  if (secondary.length > 0) return secondary;
-  return primary.length > 0 ? primary : secondary;
+  const primaryHasPrice = primary.some((s) => typeof s.price === 'number' && s.price > 0);
+  const secondaryHasPrice = secondary.some((s) => typeof s.price === 'number' && s.price > 0);
+  if (primaryHasPrice) return primary;
+  if (secondaryHasPrice) return secondary;
+  if (primary.length > 0 && secondary.length === 0) return primary;
+  if (secondary.length > 0 && primary.length === 0) return secondary;
+  if (primary.length > 0 && !secondaryHasPrice) return primary;
+  return secondary.length > 0 ? secondary : primary;
 }
 
 export async function extractBrowserPayload(
   page: Page,
 ): Promise<BrowserExtractPayload & { __blocked__?: number }> {
-  const titleSelectors = TITLE_SELECTORS;
-  const mainSel = MAIN_GALLERY_SELECTORS;
-  const detailSel = DETAIL_SELECTORS;
-  const attrSel = ATTRIBUTE_ROW_SELECTORS;
-  const skuSectionSel = SKU_SECTION_SELECTORS;
-  const skuTableSel = SKU_TABLE_ROW_SELECTORS;
-
-  return evaluateInPage(
-    page,
-    ({
-      titleSelectors,
-      mainSel,
-      detailSel,
-      attrSel,
-      skuSectionSel,
-      skuTableSel,
-      snippetMax,
-      maxFragments,
-    }: {
-      titleSelectors: string[];
-      mainSel: string[];
-      detailSel: string[];
-      attrSel: string[];
-      skuSectionSel: string[];
-      skuTableSel: string[];
-      snippetMax: number;
-      maxFragments: number;
-    }) => {
-      const baseHref = window.location.href;
-
-      const pickImgUrl = (el: Element): string | null => {
-        const img = el as HTMLImageElement;
-        const order = ['data-lazy-src', 'data-src', 'data-original', 'data-img', 'data-zoom', 'src'];
-        for (const attr of order) {
-          let v =
-            img.getAttribute(attr) ||
-            (attr === 'src' && img.currentSrc ? img.currentSrc : null) ||
-            (attr === 'src' ? img.src : null);
-          if (!v?.trim()) continue;
-          /** 排除 data: svg */
-          if (v.startsWith('data:')) continue;
-          return v.trim();
-        }
-        return null;
-      };
-
-      const skipImgAncestor = (el: Element): boolean => {
-        let p: Element | null = el.parentElement;
-        while (p) {
-          const blob = `${p.className?.toString() ?? ''} ${p.id ?? ''}`.toLowerCase();
-          if (/promise|guarantee|service|credit|banner|toolbar|icon|wangwang|footer|header-nav|trust|badge/.test(blob)) {
-            return true;
-          }
-          p = p.parentElement;
-        }
-        return false;
-      };
-
-      const collectFrom = (selectors: string[]): string[] => {
-        const urls: string[] = [];
-        for (const sel of selectors) {
-          document.querySelectorAll(sel).forEach((node) => {
-            if (skipImgAncestor(node)) return;
-            const img = node as HTMLImageElement;
-            if (img.naturalWidth > 0 && img.naturalHeight > 0 && img.naturalWidth < 72 && img.naturalHeight < 72) {
-              return;
-            }
-            const raw = pickImgUrl(node);
-            if (raw) urls.push(raw);
-          });
-        }
-        return urls;
-      };
-
-      const domSkuDimensions: DomSkuDimension[] = [];
-      const domSkuTableRows: DomSkuTableRow[] = [];
-      const dimLabelRe = /^(颜色|尺码|尺寸|规格|型号|款式|容量|套餐|版本|内长)/;
-
-      const pushDim = (name: string, values: string[]) => {
-        const n = name.replace(/[:：\s]+$/u, '').trim();
-        const vs = [...new Set(values.map((v) => v.trim()).filter((v) => v && v.length < 120))];
-        if (!n || vs.length === 0) return;
-        const existing = domSkuDimensions.find((d) => d.name === n);
-        if (existing) {
-          for (const v of vs) if (!existing.values.includes(v)) existing.values.push(v);
-        } else {
-          domSkuDimensions.push({ name: n, values: vs });
-        }
-      };
-
-      for (const sel of skuSectionSel) {
-        document.querySelectorAll(sel).forEach((wrap) => {
-          let label = '';
-          const labelNode = wrap.querySelector(
-            '[class*="label"], [class*="title"], dt, .name, [class*="prop-name"]',
-          );
-          if (labelNode) label = (labelNode.textContent ?? '').replace(/[:：\s]+$/u, '').trim();
-          if (!label || (!dimLabelRe.test(label) && label.length > 16)) return;
-
-          const values: string[] = [];
-          wrap.querySelectorAll(
-            '[class*="item"], [class*="value"], [class*="select-item"], button, li, a, [role="button"]',
-          ).forEach((el) => {
-            const t = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-            if (!t || t.length > 100 || /^¥/.test(t)) return;
-            if (/^(库存|价格|数量)$/.test(t)) return;
-            values.push(t);
-          });
-          if (label && values.length) pushDim(label, values);
-        });
-      }
-
-      const seenTableLabels = new Set<string>();
-      const pushTableRow = (text: string) => {
-        const blob = text.replace(/\s+/g, ' ').trim();
-        if (blob.length < 4 || blob.length > 400) return;
-        if (!/内长\d+/.test(blob)) return;
-        const hasPrice = /¥\s*[\d.]+/.test(blob);
-        const hasStock = /库存\s*\d+/.test(blob);
-        if (!hasPrice && !hasStock) return;
-        const labelM = /(内长\d+[^¥\n]*?(?:【[^】]+】)?)/.exec(blob);
-        const label = (labelM?.[1] ?? blob.split(/¥|库存/)[0] ?? '').trim().slice(0, 80);
-        if (!label || seenTableLabels.has(label)) return;
-        seenTableLabels.add(label);
-        const priceM = /¥\s*([\d.]+)/.exec(blob);
-        const stockM = /库存\s*(\d+)/.exec(blob);
-        domSkuTableRows.push({
-          label,
-          priceText: priceM?.[1],
-          stockText: stockM?.[1],
-        });
-      };
-
-      for (const sel of skuTableSel) {
-        document.querySelectorAll(sel).forEach((row) => pushTableRow(row.textContent ?? ''));
-      }
-      /** 新版 1688 尺码展开列表：按行文本匹配「内长 + ¥ + 库存」 */
-      document.querySelectorAll('motion.div, div, tr, li, span').forEach((row) => {
-        const text = row.textContent ?? '';
-        if (text.length > 200 || text.length < 6) return;
-        if (!/内长\d+/.test(text) || !/¥/.test(text) || !/库存/.test(text)) return;
-        pushTableRow(text);
-      });
-
-      let headingText = '';
-      for (const sel of titleSelectors) {
-        const txt = document.querySelector(sel)?.textContent?.trim();
-        if (txt && txt.length > 2 && txt.length < 400) {
-          headingText = txt;
-          break;
-        }
-      }
-
-      const meta: BrowserExtractPayload['meta'] = {};
-      document.querySelectorAll('meta').forEach((m) => {
-        const prop = m.getAttribute('property') ?? m.getAttribute('name');
-        const content = m.getAttribute('content')?.trim();
-        if (!content) return;
-        if (prop === 'og:title' || prop === 'ogTitle') meta.ogTitle = content;
-        if (prop === 'og:image') meta.ogImage = content;
-        if (prop === 'keywords' || m.getAttribute('name') === 'keywords') meta.keywords = content;
-        if (prop === 'description' || m.getAttribute('name') === 'description') meta.description = content;
-      });
-
-      const paramPairs: Array<{ key: string; value: string }> = [];
-
-      /** 简易属性行抽取 */
-      for (const sel of attrSel) {
-        document.querySelectorAll(sel).forEach((node) => {
-          /** 单列「名：值」 */
-          let textBlob = '';
-          node.querySelectorAll('span, dd, td').forEach((c) => {
-            textBlob += ` ${c.textContent ?? ''} `;
-          });
-          const kv = /\b([\u4e00-\u9fa5a-zA-Z0-9·（）()]{2,30})\s*[:：]\s*([^\n\r:：]{1,120})/.exec(textBlob.trim());
-          if (kv && kv[1] && kv[2]) paramPairs.push({ key: kv[1].trim(), value: kv[2].trim() });
-
-          /** 相邻 dt/dd */
-          if (node.querySelector('dt') && node.querySelector('dd')) {
-            Array.from(node.querySelectorAll('dt')).forEach((dt) => {
-              const dd = dt.nextElementSibling;
-              const k = dt.textContent?.replace(/[:：\s]+$/, '').trim();
-              const v = dd?.textContent?.trim();
-              if (k && v && v.length <= 260) paramPairs.push({ key: k, value: v });
-            });
-          }
-        });
-      }
-
-      const snippets: string[] = [];
-      const pushSnippet = (text: string) => {
-        const t = text.trim();
-        if (t.length < 100) return;
-        snippets.push(t.length > snippetMax ? t.slice(0, snippetMax) : t);
-      };
-
-      for (const scriptEl of Array.from(document.scripts)) {
-        const t = scriptEl.text ?? '';
-        if (t.length < 100) continue;
-        const suspicious =
-          /skuMap|skuProps|saleProp|saleProps|sku_props|offerImageList|offerImage|imageList|subject|gallery|skuInfoMap|skuModel|tradeModel|amountOnSale|canBookCount/i.test(
-            t,
-          );
-        if (!suspicious) continue;
-        pushSnippet(t);
-        if (snippets.length >= maxFragments) break;
-      }
-
-      const win = window as unknown as Record<string, unknown>;
-      /** 优先完整序列化 window.context（含 skuMap / gallery / 库存） */
-      const ctx = win.context;
-      if (ctx && typeof ctx === 'object') {
-        try {
-          const s = JSON.stringify(ctx);
-          if (s.length > 200) pushSnippet(s);
-        } catch {
-          /* circular */
-        }
-      }
-      for (const gKey of [
-        '__INIT_DATA',
-        '__INITIAL_STATE__',
-        'detailData',
-        'offerDetailData',
-        'iDetailConfig',
-        'OFFER_DETAIL',
-      ]) {
-        if (snippets.length >= maxFragments) break;
-        const v = win[gKey];
-        if (!v || typeof v !== 'object') continue;
-        try {
-          const s = JSON.stringify(v);
-          if (s.length < 200) continue;
-          if (!/skuMap|skuProps|skuInfoMap|saleProp|subject|offerImage|amountOnSale/i.test(s)) continue;
-          pushSnippet(s);
-        } catch {
-          /* ignore circular */
-        }
-      }
-
-      /** 类型为 json 的内联 script（体积通常较小） */
-      document.querySelectorAll('script[type="application/ld+json"]').forEach((s) => {
-        const txt = s.textContent?.trim();
-        if (txt && txt.length < 60000 && txt.length > 20) snippets.push(txt);
-      });
-
-      /** 粗略风控页（不抛出，由外层决定是否降级） */
-      const bodyPeek = document.body?.innerText?.slice(0, 3500) ?? '';
-      const htmlPeek = document.documentElement?.innerHTML?.slice(0, 4000) ?? '';
-      const blocked =
-        /安全验证|请完成验证|访问过于频繁|captcha|滑块验证|人机验证|nc-container|punish-page/i.test(bodyPeek) ||
-        /punish|x5secdata|captcha/i.test(htmlPeek) ||
-        (/验证/.test(bodyPeek) && headingText.length < 2) ||
-        (/请登录|账号登录/.test(bodyPeek) && headingText.length < 2);
-
-      let docTitle = typeof document.title === 'string' ? document.title.trim() : '';
-      /** 若为拦截页 Title 常为「淘宝网」或无意义 — 仍可返回由外层判断 */
-
-      return {
-        finalUrl: baseHref,
-        docTitle,
-        meta,
-        headingText,
-        galleryUrls: collectFrom(mainSel),
-        detailUrls: collectFrom(detailSel),
-        paramPairs,
-        domSkuDimensions,
-        domSkuTableRows,
-        scriptSnippets: snippets,
-        __blocked__: blocked ? 1 : 0,
-      } as BrowserExtractPayload & { __blocked__?: number };
-    },
-    {
-      titleSelectors,
-      mainSel,
-      detailSel,
-      attrSel,
-      skuSectionSel,
-      skuTableSel,
-      snippetMax: SCRIPT_SNIPPET_MAX,
-      maxFragments: MAX_SCRIPT_FRAGMENTS,
-    },
-  );
+  return extract1688BrowserPayload(page);
 }
 
 /** 外层去掉 evaluate 加的临时字段 */
@@ -802,33 +545,69 @@ export function assembleParsedProduct(
   if (blocked && title.length < 8) title = '';
 
   const contextData = find1688ResultData(jsonRoots);
-  const defaultPrice = contextData ? extractDefaultOfferPrice(contextData) : undefined;
+  let productPrice =
+    (contextData ? extractDefaultOfferPrice(contextData) : undefined) ??
+    extractPriceFromJsonRoots(jsonRoots) ??
+    extractPriceFromDomText(payload.domPriceTexts ?? []);
 
-  /** 结构化图片：主图 DOM + window.context.gallery；详情仅 ibank */
-  const fromOfferJsonImages = new Set<string>();
-  for (const r of jsonRoots) walkCollectOfferImages(r, fromOfferJsonImages);
-  if (contextData) {
-    for (const u of extractMainImagesFrom1688Data(contextData, baseUrl)) fromOfferJsonImages.add(u);
-  }
-
-  let mainBuckets = mergeMainImageBuckets(
-    payload.galleryUrls,
-    [...fromOfferJsonImages],
-    payload.meta.ogImage,
+  const jsonImages = extractImagesFromJsonRoots(jsonRoots, baseUrl);
+  const domImages = mergeDomMetaImages({
+    domGallery: payload.galleryUrls,
+    domDetail: payload.detailUrls,
+    ogImage: payload.meta.ogImage,
+    twitterImage: payload.meta.twitterImage,
     baseUrl,
-  );
+  });
+
+  let imageBuckets = mergeImageBuckets(jsonImages, {
+    mainImages: domImages.main,
+    detailImages: domImages.detail,
+    skuImages: [],
+    imageCandidateCount: domImages.main.length + domImages.detail.length,
+    usedFallback: false,
+    warnings: domImages.main.length ? ['dom-gallery'] : [],
+    extractorHints: domImages.main.length ? ['dom-main'] : [],
+  });
+
+  /** 结构化 gallery 优先 */
   if (contextData) {
     const ctxMain = extractMainImagesFrom1688Data(contextData, baseUrl);
-    if (ctxMain.length >= 2) mainBuckets = dedupeStrings(ctxMain, 10);
+    if (ctxMain.length > 0) {
+      imageBuckets = mergeImageBuckets(imageBuckets, {
+        mainImages: ctxMain,
+        detailImages: [],
+        skuImages: [],
+        imageCandidateCount: ctxMain.length,
+        usedFallback: false,
+        warnings: [],
+        extractorHints: ['context-gallery'],
+      });
+    }
   }
+
+  /** legacy offer JSON walk 补全 */
+  const fromOfferJsonImages = new Set<string>();
+  for (const r of jsonRoots) walkCollectOfferImages(r, fromOfferJsonImages);
+  if (fromOfferJsonImages.size > 0) {
+    imageBuckets = mergeImageBuckets(imageBuckets, extractImagesFromJsonRoots(
+      [[...fromOfferJsonImages].reduce((acc, u) => ({ ...acc, img: u }), {})],
+      baseUrl,
+    ));
+  }
+
+  imageBuckets = applyMainImageFallbacks(imageBuckets);
 
   const detailDom = mergeUrlLists(payload.detailUrls, [], baseUrl, 40).filter((u) => isLikelyProductImage(u));
   let detailFromContext: string[] = [];
   if (contextData) detailFromContext = extractDetailImagesFrom1688Data(contextData, baseUrl);
   const descriptionImages = dedupeStrings(
-    [...detailDom, ...detailFromContext].filter((u) => isLikelyProductImage(u)),
+    [...detailDom, ...detailFromContext, ...imageBuckets.detailImages].filter((u) => isLikelyProductImage(u)),
     30,
   );
+
+  const mainImages = imageBuckets.mainImages.length > 0
+    ? imageBuckets.mainImages
+    : mergeMainImageBuckets(payload.galleryUrls, [...fromOfferJsonImages], payload.meta.ogImage, baseUrl);
 
   const attributes: Record<string, string> = {};
   if (contextData) Object.assign(attributes, extractAttributesFrom1688Data(contextData));
@@ -877,14 +656,14 @@ export function assembleParsedProduct(
   let skus: ProductSku[] = [];
   if (contextData) {
     try {
-      skus = mineSkusFrom1688Data(contextData, dimRowsFromPayload, defaultPrice);
+      skus = mineSkusFrom1688Data(contextData, dimRowsFromPayload, productPrice);
     } catch {
       skus = [];
     }
   }
   if (skus.length === 0) {
     try {
-      skus = mineSkuStructures(jsonRoots, defaultPrice);
+      skus = mineSkuStructures(jsonRoots, productPrice);
     } catch {
       skus = [];
     }
@@ -898,13 +677,56 @@ export function assembleParsedProduct(
   const domSkus = skusFromDomPayload(payload);
   skus = mergeSkuLists(skus, domSkus);
   skus = enrichSkusFromDomTable(skus, payload.domSkuTableRows ?? []);
+  skus = applyProductPriceToSkus(skus, productPrice);
 
-  const mainImages = mainBuckets;
+  if (!hasAnySkuPrice(skus) && productPrice !== undefined) {
+    skus = [{ skuCode: '', properties: {}, price: productPrice, raw: { source: 'product-level-price' } }, ...skus];
+  }
+
+  const fieldFlags = {
+    title: !(title?.trim() && title.trim().length >= 4 && !isPlaceholderParseTitle(title)),
+    price: !hasAnySkuPrice(skus) && productPrice === undefined,
+    images: mainImages.length === 0,
+    sku: skus.length === 0,
+  };
+  const missingFields = Object.entries(fieldFlags)
+    .filter(([, miss]) => miss)
+    .map(([k]) => (k === 'images' ? 'mainImages' : k));
+  const completeness =
+    (4 - missingFields.length) / 4;
+  const warnings: string[] = [...imageBuckets.warnings];
+  if (fieldFlags.price && !fieldFlags.title && (!fieldFlags.images || !fieldFlags.sku)) {
+    warnings.push('价格字段缺失，可能需要登录、接口权限或页面异步加载');
+  }
+
+  const extractDebug = {
+    titleFound: !fieldFlags.title,
+    priceFound: !fieldFlags.price,
+    mainImagesFound: !fieldFlags.images,
+    skuFound: !fieldFlags.sku,
+    imageCandidateCount: imageBuckets.imageCandidateCount,
+    usedFallback: imageBuckets.usedFallback,
+    extractors: imageBuckets.extractorHints,
+    productPrice,
+  };
+
+  let collectStatus: 'success' | 'partial_success' = 'success';
+  if (missingFields.length > 0) {
+    if (!fieldFlags.title) collectStatus = 'partial_success';
+    else collectStatus = 'partial_success';
+  }
+  if (missingFields.length === 0) collectStatus = 'success';
 
   const raw: Record<string, unknown> = {
     title: title || payload.docTitle,
     url: baseUrl,
-    mainImageCandidates: dedupeStrings(mainBuckets, 15),
+    productPrice,
+    collectStatus,
+    completeness,
+    missingFields,
+    warnings,
+    extractDebug,
+    mainImageCandidates: dedupeStrings(mainImages, 15),
     detailImageCandidates: dedupeStrings([...descriptionImages, ...detailDom], 35),
     attributeCandidates: safeAttrs,
     skuCandidates: skus.map((s) => ({
@@ -940,5 +762,15 @@ export function assembleParsedProduct(
     skus,
     raw,
     blocked,
+    collectStatus,
+    completeness,
+    missingFields,
+    warnings,
+    extractDebug,
   };
+}
+
+function isPlaceholderParseTitle(title: string): boolean {
+  const t = title.trim();
+  return t === '' || t === '（解析：未命名商品）' || t.length < 4;
 }

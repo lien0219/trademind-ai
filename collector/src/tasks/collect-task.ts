@@ -85,6 +85,15 @@ export async function runCollectTask(
     return { status: 'success', product };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (/__name is not defined|evaluate_script_error/i.test(msg)) {
+      return {
+        status: 'failed',
+        error: {
+          code: 'PARSE_FAILED',
+          message: `evaluate_script_error:${msg}`,
+        },
+      };
+    }
     const mapped = mapPrefixedError(msg);
     if (mapped) {
       return { status: 'failed', error: mapped };

@@ -189,6 +189,8 @@ docker compose -f docker-compose.full.yml up -d --build
 docker compose -f docker-compose.full.yml down
 ```
 
+> **登录态目录**：Compose 会挂载 `./data/browser-profiles` 持久化 1688 采集浏览器 Cookie；该目录含敏感运行时数据，已在 `.gitignore` 中忽略，请勿提交到 Git。
+
 查看日志：
 
 ```bash
@@ -218,6 +220,8 @@ Docker 完整编排包含：
 | `REDIS_PUBLISH_PORT` | `6379` | Redis 宿主机端口 |
 
 生产或公网部署前，请务必修改 `.env` 中的 `JWT_SECRET`、`APP_MASTER_KEY`、`ADMIN_BOOTSTRAP_PASSWORD`、数据库密码等敏感配置。
+
+**1688 采集浏览器登录态目录**：`docker-compose.full.yml` 将 `./data/browser-profiles` 与 `./data/storage-states` 挂载到 collector 容器，用于持久化 Playwright 登录 Cookie（含 Login Data、Cookies、History、Local Storage、Session Storage 等 Chromium 用户数据）。这些目录仅应存在于宿主机或数据卷中，**不得提交到 Git**；本地开发时 `collector/data/browser-profiles/` 同理已被 `.gitignore` 忽略。
 
 更多说明见 [docs/docker-deployment.md](docs/docker-deployment.md)。
 

@@ -115,6 +115,8 @@ ADMIN_BOOTSTRAP_PASSWORD=admin123456
 - `docker-compose.yml`：仅用于本地开发基础设施，包含 PostgreSQL + Redis。
 - `docker-compose.full.yml`：用于完整 Docker 部署，包含 PostgreSQL + Redis + backend + admin + collector。
 
+**1688 采集浏览器 Profile**：`docker-compose.full.yml` 为 collector 挂载 `./data/browser-profiles` 与 `./data/storage-states`，用于持久化 1688 登录 Cookie（含 Login Data、Cookies、History、Local Storage、Session Storage 等 Chromium 用户数据）。这些目录**必须持久化挂载、禁止提交 Git**（已在 `.gitignore` 忽略；本地 `collector/data/browser-profiles/` 同理）。容器内默认无图形界面，**首次登录建议在宿主机本地运行 collector（`COLLECTOR_HEADLESS=0`）完成 1688 登录**，Profile 目录可被 Docker 复用；或在已配置远程桌面的 Linux 服务器上打开登录浏览器。
+
 两套 Compose 的服务、端口和数据卷应分开理解。
 
 ## 配置校验

@@ -12,6 +12,7 @@
 | [api.md](api.md) | API 公共约定、主要路由与前后端契约同步要求 | 前后端开发者 |
 | [architecture.md](architecture.md) | 总体架构、分层、数据与队列、安全原则 | 开发者 / 架构维护者 |
 | [provider.md](provider.md) | AI / Storage / Image / Platform / Collector Provider 扩展机制 | Provider 贡献者 |
+| [collector-1688-pitfalls.md](collector-1688-pitfalls.md) | 1688 采集已知 bug、防复发约束与回归命令 | Collector / AI Agent |
 | [module-map.md](module-map.md) | 模块关联索引，说明改 A 时要检查哪些 B / C / D | 开发者 / AI Agent |
 | [roadmap.md](roadmap.md) | 版本路线图与阶段目标 | 所有人 |
 
@@ -31,6 +32,7 @@
 | [api.md](api.md) | `/api/v1` API 契约、统一返回、鉴权与前后端同步要求 |
 | [provider.md](provider.md) | Provider 抽象、扩展建议、安全要求 |
 | [provider-template.md](provider-template.md) | 新增 Provider 时的接口、配置、错误处理、安全与文档模板 |
+| [collector-1688-pitfalls.md](collector-1688-pitfalls.md) | 1688 采集已知问题、禁止做法与回归检查 |
 | [roadmap.md](roadmap.md) | AI 商品运营工具、多平台 ERP MVP、完整 ERP 增强的推进顺序 |
 
 ## 协作与工程规则

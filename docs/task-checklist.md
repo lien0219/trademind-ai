@@ -29,6 +29,7 @@
 - [ ] 执行或说明 `pnpm build:collector`。
 - [ ] Playwright 行为变化时检查超时、UA、headless 和错误归因。
 - [ ] 采集结果结构变化时同步后端 DTO、商品草稿映射和 `docs/api.md`。
+- [ ] **1688 解析 / `page.evaluate` / 价格 / SKU** 改动时对照 [`docs/collector-1688-pitfalls.md`](collector-1688-pitfalls.md) 回归清单（禁止 toString 注入、`unitWeight` 误价、mm 价表）。
 
 ## 环境变量 / 配置
 

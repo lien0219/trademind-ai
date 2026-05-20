@@ -203,3 +203,31 @@ func (h *Handler) Retry(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+// Get1688AuthStatus GET /api/v1/collector/providers/1688/auth-status
+func (h *Handler) Get1688AuthStatus(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	out, err := h.Svc.Client.Get1688AuthStatus(c.Request.Context())
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// Open1688LoginBrowser POST /api/v1/collector/providers/1688/open-login-browser
+func (h *Handler) Open1688LoginBrowser(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	out, err := h.Svc.Client.Open1688LoginBrowser(c.Request.Context())
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, out)
+}

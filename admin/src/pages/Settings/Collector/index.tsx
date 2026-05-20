@@ -1,6 +1,12 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Button, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Alert, Badge, Button, Form, Input, InputNumber, message, Space, Switch, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  fetch1688AuthStatus,
+  open1688LoginBrowser,
+  type Provider1688AuthStatus,
+  type Provider1688AuthStatusValue,
+} from '@/services/collectAuth';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
@@ -19,9 +25,54 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_batch_max_retries_1688: {},
 };
 
+type AuthDisplayStatus = 'checking' | Provider1688AuthStatusValue;
+
+function resolveDisplayStatus(
+  status: Provider1688AuthStatus | null,
+  checking: boolean,
+): AuthDisplayStatus {
+  if (checking) return 'checking';
+  if (!status) return 'unknown';
+  if (status.status) return status.status;
+  if (status.needVerification) return 'verification_required';
+  if (status.loggedIn) return 'ok';
+  if (status.message?.includes('异常')) return 'unknown';
+  return 'not_logged_in';
+}
+
+const AUTH_STATUS_LABEL: Record<AuthDisplayStatus, { text: string; badge: 'processing' | 'success' | 'error' | 'warning' | 'default' }> = {
+  checking: { text: '检测中…', badge: 'processing' },
+  ok: { text: '已登录', badge: 'success' },
+  not_logged_in: { text: '未登录', badge: 'error' },
+  verification_required: { text: '需要安全验证', badge: 'warning' },
+  unknown: { text: '检测异常', badge: 'default' },
+};
+
+function authStatusBadge(status: Provider1688AuthStatus | null, checking: boolean) {
+  const key = resolveDisplayStatus(status, checking);
+  const meta = AUTH_STATUS_LABEL[key];
+  return <Badge status={meta.badge} text={meta.text} />;
+}
+
 export default function CollectorSettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [authStatus, setAuthStatus] = useState<Provider1688AuthStatus | null>(null);
+  const [authChecking, setAuthChecking] = useState(false);
+  const [loginOpening, setLoginOpening] = useState(false);
+
+  const loadAuthStatus = useCallback(async () => {
+    setAuthChecking(true);
+    try {
+      const data = await fetch1688AuthStatus();
+      setAuthStatus(data);
+    } catch (e: unknown) {
+      setAuthStatus(null);
+      message.error((e as Error)?.message || '1688 登录态检测失败');
+    } finally {
+      setAuthChecking(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,10 +116,62 @@ export default function CollectorSettingsPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadAuthStatus();
+  }, [load, loadAuthStatus]);
+
+  const handleOpenLoginBrowser = async () => {
+    setLoginOpening(true);
+    try {
+      const result = await open1688LoginBrowser();
+      message.success(result.message || '已打开采集浏览器');
+      await loadAuthStatus();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '打开采集浏览器失败');
+    } finally {
+      setLoginOpening(false);
+    }
+  };
 
   return (
     <PageContainer title="采集服务">
+      <ProCard
+        title="1688 采集浏览器登录态"
+        bordered
+        style={{ marginBottom: 16 }}
+        extra={
+          <Space>
+            <Button onClick={loadAuthStatus} loading={authChecking}>
+              重新检测
+            </Button>
+            <Button type="primary" onClick={handleOpenLoginBrowser} loading={loginOpening}>
+              打开采集浏览器登录 1688
+            </Button>
+          </Space>
+        }
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert
+            type="info"
+            showIcon
+            message="请注意：在普通 Chrome/Edge 中登录 1688 不会被采集器识别。请使用这里打开的采集浏览器完成登录。"
+          />
+          <div>
+            <Typography.Text type="secondary">当前状态：</Typography.Text>{' '}
+            {authStatusBadge(authStatus, authChecking)}
+            {authChecking ? (
+              <Typography.Text style={{ marginLeft: 12 }}>正在检测登录态…</Typography.Text>
+            ) : authStatus?.message ? (
+              <Typography.Text style={{ marginLeft: 12 }}>{authStatus.message}</Typography.Text>
+            ) : null}
+          </div>
+          {authStatus?.lastCheckedAt ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              上次检测：{authStatus.lastCheckedAt}
+            </Typography.Text>
+          ) : null}
+        </Space>
+      </ProCard>
+
       <ProCard
         bordered
         extra={

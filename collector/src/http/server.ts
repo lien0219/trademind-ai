@@ -49,6 +49,18 @@ export function createCollectorServer(browser: BrowserManager) {
         return;
       }
 
+      if (req.method === 'GET' && req.url === '/v1/providers/1688/auth-status') {
+        const status = await browser.sessions.check1688AuthStatus();
+        json(res, 200, { ok: true, data: status });
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/v1/providers/1688/open-login-browser') {
+        const result = await browser.sessions.openLoginBrowser('1688');
+        json(res, 200, { ok: true, data: result });
+        return;
+      }
+
       if (req.method === 'POST' && req.url === '/v1/collect') {
         let body: unknown;
         try {
@@ -88,7 +100,9 @@ export function listenCollectorHttp(browser: BrowserManager): ReturnType<typeof 
   const server = createCollectorServer(browser);
   const port = getHttpPort();
   server.listen(port, () => {
-    console.info(`[collector] listening on :${port} (POST /v1/collect, GET /v1/providers, GET /health)`);
+    console.info(
+      `[collector] listening on :${port} (POST /v1/collect, GET /v1/providers, GET /v1/providers/1688/auth-status, POST /v1/providers/1688/open-login-browser, GET /health)`,
+    );
   });
   return server;
 }
