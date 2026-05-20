@@ -35,13 +35,13 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
   sourceId: 'custom',
   meta: {
     name: '自定义链接采集器',
-    description: '通过用户配置的选择器规则采集通用商品页',
+    description:
+      '用于采集没有专用采集器的网站商品页。请优先使用平台专属采集器，字段识别更稳定。',
     status: 'beta',
     batchSupported: false,
     urlPatterns: ['https://example.com/product/...'],
     features: ['title', 'mainImages', 'descriptionImages', 'attributes'] satisfies CollectFeature[],
-    notes:
-      '批量采集暂未开放。含通用访问状态检测（非 1688 专属登录检测）。1688 域名复用登录 Profile。',
+    notes: '适用于暂未提供专用采集器的网站。已支持的平台请使用对应采集器，批量采集暂未开放。',
   },
 
   canHandle(urlStr: string): boolean {

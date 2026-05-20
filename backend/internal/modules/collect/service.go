@@ -453,6 +453,11 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	if err := s.ValidateSourceForCollect(c.Request.Context(), source, false); err != nil {
 		return zero, err
 	}
+	if strings.EqualFold(strings.TrimSpace(source), "custom") {
+		if err := s.checkCustomCollectURLConflict(c.Request.Context(), url); err != nil {
+			return zero, err
+		}
+	}
 
 	var reqOpts datatypes.JSON
 	if strings.EqualFold(strings.TrimSpace(source), "custom") {

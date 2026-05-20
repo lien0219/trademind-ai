@@ -84,12 +84,12 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 		{
 			Source:         "custom",
 			Name:           "自定义链接采集器",
-			Description:    "通过用户配置的选择器规则采集通用商品页（CSS Selector / JSON-LD / OpenGraph / Meta）。",
+			Description:    "用于采集没有专用采集器的网站商品页。请优先使用平台专属采集器，字段识别更稳定。",
 			Status:         "beta",
 			BatchSupported: false,
 			URLPatterns:    []string{"https://example.com/product/..."},
 			Features:       []string{"title", "mainImages", "descriptionImages", "attributes"},
-			Notes:          "",
+			Notes:          "适用于暂未提供专用采集器的网站。已支持的平台请使用对应采集器，批量采集暂未开放。",
 		},
 	}
 }

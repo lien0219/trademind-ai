@@ -13,6 +13,11 @@ import {
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
 import { RuleTestResultPanel } from '@/pages/Collect/components/RuleTestResultPanel';
+import {
+  CUSTOM_COLLECT_USAGE_LINES,
+  detectCustomCollectPlatform,
+  type CustomCollectPlatformHint,
+} from '@/utils/customCollectPlatform';
 
 type Props = {
   open: boolean;
@@ -49,6 +54,38 @@ function resolveRuleId(
   return { ok: true, id: best.id };
 }
 
+function PlatformConflictAlert({
+  hint,
+  onDismissPlanned,
+  onUseDedicated,
+}: {
+  hint: CustomCollectPlatformHint;
+  onDismissPlanned: () => void;
+  onUseDedicated: (source: string) => void;
+}) {
+  const isBlocked = hint.kind === 'blocked';
+  return (
+    <Alert
+      type={isBlocked ? 'warning' : 'info'}
+      showIcon
+      style={{ marginBottom: 16 }}
+      message={isBlocked ? '请使用专用采集器' : hint.platformLabel}
+      description={hint.message}
+      action={
+        isBlocked ? (
+          <Button type="primary" size="small" onClick={() => onUseDedicated(hint.source)}>
+            {hint.actionLabel}
+          </Button>
+        ) : (
+          <Button size="small" onClick={onDismissPlanned}>
+            {hint.actionLabel}
+          </Button>
+        )
+      }
+    />
+  );
+}
+
 export function CustomCollectModal({ open, onClose }: Props) {
   const [rules, setRules] = useState<CollectRuleRow[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
@@ -58,6 +95,15 @@ export function CustomCollectModal({ open, onClose }: Props) {
   const [formRuleId, setFormRuleId] = useState<string | undefined>();
   const [profileId, setProfileId] = useState<string | undefined>();
   const [useBrowserProfile, setUseBrowserProfile] = useState(false);
+  const [plannedDismissed, setPlannedDismissed] = useState(false);
+
+  const platformHint = useMemo(() => {
+    const url = formUrl.trim();
+    if (!url) return null;
+    return detectCustomCollectPlatform(url);
+  }, [formUrl]);
+
+  const submitBlocked = platformHint?.kind === 'blocked';
 
   const ruleOptions = useMemo(
     () =>
@@ -75,6 +121,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
     setFormRuleId(undefined);
     setProfileId(undefined);
     setUseBrowserProfile(false);
+    setPlannedDismissed(false);
     setLoadingRules(true);
     void queryCollectRules({ page: 1, pageSize: 500, status: 'enabled' })
       .then((res) => setRules(res.list ?? []))
@@ -82,7 +129,18 @@ export function CustomCollectModal({ open, onClose }: Props) {
       .finally(() => setLoadingRules(false));
   }, [open]);
 
+  useEffect(() => {
+    setPlannedDismissed(false);
+    setTestResult(null);
+  }, [formUrl]);
+
+  const goToDedicatedCollector = (source: string) => {
+    onClose();
+    history.push(`/collect/tasks?source=${encodeURIComponent(source)}`);
+  };
+
   const runAccessTest = async () => {
+    if (submitBlocked) return;
     const url = formUrl.trim();
     if (!url) {
       message.warning('请先填写商品链接');
@@ -120,6 +178,9 @@ export function CustomCollectModal({ open, onClose }: Props) {
     }
   };
 
+  const showPlannedHint =
+    platformHint?.kind === 'planned' && !plannedDismissed;
+
   return (
     <ModalForm<{ url: string; ruleId?: string }>
       title="自定义链接采集"
@@ -134,6 +195,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
       }}
       submitter={{
         searchConfig: { submitText: '提交采集任务' },
+        submitButtonProps: { disabled: submitBlocked },
         render: (_, dom) => (
           <>
             <Button type="link" onClick={() => history.push('/collect/rules')}>
@@ -144,6 +206,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
         ),
       }}
       onFinish={async (vals) => {
+        if (submitBlocked) return false;
         const url = vals.url?.trim();
         if (!url) {
           message.warning('请填写商品链接');
@@ -180,9 +243,22 @@ export function CustomCollectModal({ open, onClose }: Props) {
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        message="自定义采集通过 CSS 选择器解析页面，不执行用户脚本。批量采集暂未开放。"
-        description="1688 域名仍使用专属登录态检测；其他站点使用通用访问状态检测（不自动登录、不破解验证码）。"
+        message="使用说明"
+        description={
+          <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+            {CUSTOM_COLLECT_USAGE_LINES.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        }
       />
+      {platformHint && (platformHint.kind === 'blocked' || showPlannedHint) ? (
+        <PlatformConflictAlert
+          hint={platformHint}
+          onDismissPlanned={() => setPlannedDismissed(true)}
+          onUseDedicated={goToDedicatedCollector}
+        />
+      ) : null}
       {loadingRules ? null : rules.length === 0 ? (
         <Alert
           type="warning"
@@ -217,6 +293,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
         placeholder="留空则按域名与优先级自动匹配"
         options={ruleOptions}
         fieldProps={{
+          disabled: submitBlocked,
           onChange: (v) => {
             setFormRuleId(typeof v === 'string' ? v : undefined);
             setTestResult(null);
@@ -224,7 +301,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
         }}
       />
       <Space style={{ marginBottom: testResult ? 8 : 16 }}>
-        <Button loading={testing} onClick={() => void runAccessTest()}>
+        <Button loading={testing} disabled={submitBlocked} onClick={() => void runAccessTest()}>
           测试访问与规则
         </Button>
         <span style={{ color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>

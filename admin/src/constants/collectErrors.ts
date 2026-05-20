@@ -34,6 +34,13 @@ export function mapCollectErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? '');
   const upper = raw.toUpperCase();
 
+  if (
+    upper.includes('CUSTOM_COLLECT_PROVIDER_CONFLICT') ||
+    raw.includes('请使用「1688 采集器」') ||
+    raw.includes('请使用「速卖通采集器」')
+  ) {
+    return raw.includes('请使用') ? raw : '该链接已有专用采集器，请使用对应专用采集器。';
+  }
   if (raw.includes('custom collect rule not found')) {
     return '未找到匹配的自定义采集规则，请先在「采集规则」创建并启用规则。';
   }

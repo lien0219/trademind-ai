@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
+import {
+  CUSTOM_BATCH_DISABLED_TOOLTIP,
+  CUSTOM_COLLECT_CARD_DESCRIPTION,
+  CUSTOM_COLLECT_CARD_NOTES,
+} from '@/utils/customCollectPlatform';
 
 const { Paragraph, Title, Text } = Typography;
 
@@ -27,10 +32,20 @@ function batchRowDisabledForProvider(p: CollectProviderRow): boolean {
 function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefined {
   if (!providerRunnableForSingleTask(p.status)) return '当前版本暂未开放';
   if (!p.batchSupported) {
-    if (p.source === 'custom') return '自定义采集器暂不支持批量';
+    if (p.source === 'custom') return CUSTOM_BATCH_DISABLED_TOOLTIP;
     return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
   }
   return undefined;
+}
+
+function providerCardCopy(p: CollectProviderRow): { description: string; notes: string } {
+  if (p.source === 'custom') {
+    return {
+      description: CUSTOM_COLLECT_CARD_DESCRIPTION,
+      notes: CUSTOM_COLLECT_CARD_NOTES,
+    };
+  }
+  return { description: p.description, notes: p.notes ?? '' };
 }
 
 function providerStatusPresentation(status: CollectProviderStatus) {
@@ -89,6 +104,7 @@ export default function CollectHubPage() {
           {sorted.map((p) => {
             const tag = providerStatusPresentation(p.status);
             const runnableSingle = providerRunnableForSingleTask(p.status);
+            const cardCopy = providerCardCopy(p);
             return (
               <Col xs={24} sm={24} md={12} lg={12} xl={8} key={p.source}>
                 <div
@@ -110,7 +126,7 @@ export default function CollectHubPage() {
                   </Space>
 
                   <Paragraph type="secondary" style={{ flex: 1, marginBottom: 12 }}>
-                    {p.description}
+                    {cardCopy.description}
                   </Paragraph>
 
                   <div style={{ marginBottom: 8 }}>
@@ -160,9 +176,9 @@ export default function CollectHubPage() {
                       采集服务配置
                     </Button>
                   </Space>
-                  {p.notes ? (
+                  {cardCopy.notes ? (
                     <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 12 }}>
-                      {p.notes}
+                      {cardCopy.notes}
                     </Text>
                   ) : null}
                 </div>

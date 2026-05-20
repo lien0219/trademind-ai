@@ -69,6 +69,15 @@ func (h *Handler) Create(c *gin.Context) {
 			response.Fail(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable, err.Error())
 			return
 		}
+		var conflict *CustomCollectProviderConflict
+		if errors.As(err, &conflict) && conflict != nil {
+			response.JSON(c, http.StatusBadRequest, response.CodeCustomCollectProviderConflict, conflict.Message, gin.H{
+				"errorCode":           "CUSTOM_COLLECT_PROVIDER_CONFLICT",
+				"recommendedProvider": conflict.RecommendedProvider,
+				"message":             conflict.Message,
+			})
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

@@ -88,7 +88,7 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/collect/tasks` | 创建采集任务。 |
+| `POST` | `/api/v1/collect/tasks` | 创建采集任务。`source=custom` 时若 URL 属于已有 **available/beta** 专用采集器域名，返回业务码 **40002**，`data.errorCode=CUSTOM_COLLECT_PROVIDER_CONFLICT`，含 `recommendedProvider` 与 `message`。 |
 | `GET` | `/api/v1/collect/tasks` | 采集任务列表。 |
 | `GET` | `/api/v1/collect/tasks/:id` | 采集任务详情。 |
 | `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务。 |

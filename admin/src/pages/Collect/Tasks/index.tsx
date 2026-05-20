@@ -311,11 +311,7 @@ export default function CollectTasksPage() {
             showIcon
             style={{ marginBottom: 12 }}
             message="未选择规则时，系统会尝试按域名匹配启用规则。"
-            description={
-              formUrl?.includes('1688.com') ?
-                '1688 商品链接建议优先使用「1688采集器」；自定义采集器需配置正确选择器，且须在「设置 → 采集服务」完成 1688 登录，否则会命中验证码页。'
-              : undefined
-            }
+            description="已支持专用采集器的平台链接无法通过自定义采集提交，请在采集中心使用对应采集器。"
           />
         ) : null}
         <Form
