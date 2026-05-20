@@ -438,6 +438,7 @@ func (s *Service) importDraftCore(ctx context.Context, adminID *uuid.UUID, p Imp
 			SourceURL:     strings.TrimSpace(p.SourceURL),
 			OriginalTitle: title,
 			Title:         title,
+			Description:   strings.TrimSpace(p.Description),
 			Currency:      curr,
 			Status:        StatusDraft,
 			RawData:       raw,
@@ -587,7 +588,20 @@ func BuildImportSKU(raw json.RawMessage) (ImportSKUParams, error) {
 			line.Stock = &n
 		}
 	}
-	if v, ok := m["properties"]; ok {
+	if v, ok := m["name"]; ok {
+		var s string
+		_ = json.Unmarshal(v, &s)
+		if strings.TrimSpace(s) != "" {
+			line.SKUName = strings.TrimSpace(s)
+		}
+	}
+	propsKey := "properties"
+	if _, hasProps := m[propsKey]; !hasProps {
+		if _, hasAttrs := m["attrs"]; hasAttrs {
+			propsKey = "attrs"
+		}
+	}
+	if v, ok := m[propsKey]; ok {
 		var props map[string]string
 		if err := json.Unmarshal(v, &props); err == nil && len(props) > 0 {
 			a, err := skuPropsJSON(props)
@@ -595,7 +609,9 @@ func BuildImportSKU(raw json.RawMessage) (ImportSKUParams, error) {
 				return ImportSKUParams{}, err
 			}
 			line.Attrs = a
-			line.SKUName = SKUNameFromProps(props)
+			if line.SKUName == "" {
+				line.SKUName = SKUNameFromProps(props)
+			}
 		}
 	}
 	if line.SKUName == "" && line.SKUCode != "" {

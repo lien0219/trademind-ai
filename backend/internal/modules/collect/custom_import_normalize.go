@@ -17,8 +17,13 @@ var (
 type rawProductEnvelope struct {
 	Raw struct {
 		ProductPrice     *float64      `json:"productPrice"`
+		PriceMin         *float64      `json:"priceMin"`
+		PriceMax         *float64      `json:"priceMax"`
 		PriceText        string        `json:"priceText"`
+		PriceRange       string        `json:"priceRange"`
+		MainDescription  string        `json:"mainDescription"`
 		QualityWarnings  []string      `json:"qualityWarnings"`
+		Warnings         []string      `json:"warnings"`
 		TitleDiagnostics *titleDiagRaw `json:"titleDiagnostics"`
 	} `json:"raw"`
 }

@@ -8,6 +8,8 @@ import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
 import { PAGE_EVALUATE_POLYFILL } from '../../browser/evaluate-in-page.js';
 import { detectPinduoduoAccessStatus, throwAccessError } from './access-detect.js';
 import { extractAndAssemblePinduoduo } from './parser.js';
+import { isPlatformTitle } from './wholesale-detail-shared.js';
+import { validateWholesaleCollectQuality } from './wholesale-detail.js';
 import { normalizePinduoduoNavUrl, validatePinduoduoUrl } from './validate-url.js';
 import {
   classifyPinduoduoUrl,
@@ -84,30 +86,50 @@ class PinduoduoCollectorProvider implements CollectorProvider {
         if (access.errorCode) throwAccessError(access, sourceUrl);
       }
 
-      const assembled = await extractAndAssemblePinduoduo(page, sourceUrl);
+      const assembled = await extractAndAssemblePinduoduo(page, sourceUrl, urlType);
       const title = assembled.title.trim();
 
-      if (!title) {
-        if (access.status === 'verify_required' || access.status === 'app_guide') {
-          throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_or_app_guide');
+      let wholesaleQualityPartial = false;
+      if (urlType === 'wholesale_detail') {
+        const quality = validateWholesaleCollectQuality(assembled);
+        wholesaleQualityPartial = quality.partial;
+        if (!quality.ok && quality.error) {
+          if (access.status === 'verify_required' || access.status === 'app_guide') {
+            throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_or_app_guide');
+          }
+          throw new Error(quality.error);
         }
-        throw new Error('PARSE_FAILED_TITLE_MISSING:no_product_title');
+      } else {
+        if (!title || isPlatformTitle(title)) {
+          if (access.status === 'verify_required' || access.status === 'app_guide') {
+            throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_or_app_guide');
+          }
+          throw new Error('PARSE_FAILED_TITLE_MISSING:no_product_title');
+        }
+        if (assembled.mainImages.length === 0) {
+          throw new Error('PARSE_FAILED_IMAGE_MISSING:no_main_images');
+        }
       }
 
-      if (assembled.mainImages.length === 0) {
-        throw new Error('PARSE_FAILED_IMAGE_MISSING:no_main_images');
-      }
+      const qualityWarnings = [...new Set(assembled.warnings)];
+
+      const partial =
+        wholesaleQualityPartial ||
+        qualityWarnings.length > 0 ||
+        isPlatformTitle(title) ||
+        !assembled.price ||
+        assembled.price <= 0;
 
       const raw: Record<string, unknown> = {
         ...assembled.raw,
         productPrice: assembled.price,
         priceText: assembled.priceText,
-        qualityWarnings: assembled.warnings,
+        qualityWarnings,
         accessStatus: access.status,
         urlType,
         finalUrl: page.url(),
         navUrl,
-        collectStatus: assembled.warnings.length ? 'partial_success' : 'success',
+        collectStatus: partial ? 'partial_success' : 'success',
       };
 
       return {
@@ -115,6 +137,7 @@ class PinduoduoCollectorProvider implements CollectorProvider {
         sourceUrl,
         title,
         currency: assembled.currency,
+        mainDescription: assembled.mainDescription,
         mainImages: assembled.mainImages,
         descriptionImages: assembled.descriptionImages,
         attributes: assembled.attributes,
@@ -128,12 +151,16 @@ class PinduoduoCollectorProvider implements CollectorProvider {
     }
 
     const browserInstance = await browser.ensureBrowser();
+    const useDesktopForPifa = urlType === 'wholesale_detail';
     const context = await browserInstance.newContext({
-      userAgent: MOBILE_UA,
+      userAgent: useDesktopForPifa
+        ? (process.env.COLLECTOR_USER_AGENT ??
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        : MOBILE_UA,
       locale: 'zh-CN',
-      viewport: { width: 390, height: 844 },
-      isMobile: true,
-      hasTouch: true,
+      viewport: useDesktopForPifa ? { width: 1280, height: 900 } : { width: 390, height: 844 },
+      isMobile: !useDesktopForPifa,
+      hasTouch: !useDesktopForPifa,
     });
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     const page = await context.newPage();

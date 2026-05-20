@@ -3,7 +3,15 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-20 — **拼多多「重新检测」登录态修复**：新增 **`POST …/pinduoduo/check-login`**；检测优先级为传入 URL → 最近失败任务 → 设置项 **`collect_pinduoduo_auth_check_url`** → 仅 pifa 首页；首页可访问返回 **`homepage_only`**（不判已登录）；商品详情页需识别标题/价格/主图才返回 **`ok`**；返回 `profileKey`/`checkedUrl`/`finalUrl`/`urlType`/`evidence` 安全摘要；设置页增加检测用商品链接输入框；open-login 与 check-login 统一 **`pinduoduo` Profile**。
+**最后更新**：2026-05-21 — **拼多多主图兜底与采集容错（beta）**：修复图片分类过严导致 **`no_main_images` 采集失败**；放宽主图区/尺寸过滤（未知尺寸保留、主图区不因 URL 软关键词误杀）；**五级主图兜底**（画廊 → 缩略图 → SKU 图 → 详情首图 → 页面商品图池）；**`raw.imageDebug`** 记录各阶段候选数量；**采集阶段**主图缺失不再失败，生成草稿并 **`no_main_images` / 兜底 warning**，**`partial_success`**；**发布前检查**仍要求主图；失败任务中心 **图片缺失** 归类与拼多多提示文案；商品草稿页补图/兜底提示。**仍为 beta**；**批量仍关闭**；**1688 / custom 不变**。
+
+**此前**：2026-05-21 — **拼多多采集器图片分类精细化（beta）**：按 **DOM 区域** 分轨提取（左侧轮播 → **mainImages**、商品介绍区 → **descriptionImages**、规格行 → **sku.imageUrl**）；**SKU 图不再入主图**；增强 **srcset / data-* / background-image** 与高清去重；过滤店铺/客服/二维码等；**`raw.imageSummary`**；图片管理页 **主图/详情图/规格图** 分组排序与 beta 提示。**仍为 beta**；**批量仍关闭**；**1688 / custom 不变**。
+
+**此前**：2026-05-21 — **拼多多 pifa 详情页解析精细化（beta）**：修复标题误拼 **「分享商品」** 等按钮文案（`cleanProductTitle` / `title_maybe_contaminated`）；**`mainDescription`** 从商品介绍/参数区提取（缺失 **`description_missing`**，入库 **`products.description`**）；**主图 / 详情图** 按 **`imageSource`** 分类并过滤店铺图/图标（**`imageFilterSummary`**）；SKU 名称剥离 **「仅剩 N 件」**；**`raw.quality`** 统计；商品草稿页 **字段级 beta 提示**。**仍为 beta**；**批量采集仍关闭**；**1688 / custom 不变**。
+
+**此前**：2026-05-21 — **拼多多 pifa 批发详情页解析增强（beta）**：**`pifa.pinduoduo.com/goods/detail`** 专用 DOM 解析（`wholesale_detail`）；修复商品标题误抓 **`document.title` / 平台标题**；支持 **价格区间**（`priceMin` / `priceMax` / `priceRange`，`currency=CNY`）；解析 **SKU 行**（名称、行价、**仅剩 N 件** 库存）；**主图 / 详情图** 分区（左侧画廊 vs 商品介绍懒加载）；**商品参数** 尽力解析；采集质量校验与 **`partial_success`**；商品草稿页 beta / SKU 识别提示；后端 **有 SKU 不再生成默认规格**；**`BuildImportSKU`** 支持 `name` / `attrs`。**拼多多采集器仍为 beta**；**批量采集仍暂未开放**；**1688 / custom 不变**。
+
+**此前**：2026-05-20 — **拼多多「重新检测」登录态修复**：新增 **`POST …/pinduoduo/check-login`**；检测优先级为传入 URL → 最近失败任务 → 设置项 **`collect_pinduoduo_auth_check_url`** → 仅 pifa 首页；首页可访问返回 **`homepage_only`**（不判已登录）；商品详情页需识别标题/价格/主图才返回 **`ok`**；返回 `profileKey`/`checkedUrl`/`finalUrl`/`urlType`/`evidence` 安全摘要；设置页增加检测用商品链接输入框；open-login 与 check-login 统一 **`pinduoduo` Profile**。
 
 **此前**：2026-05-20 — **拼多多登录打开页策略**：不再默认打开 `mobile.yangkeduo.com` App 首页；优先使用失败任务/采集弹窗**原始商品或 pifa 链接**；新增 **`app_redirect`**；无上下文时回退 **pifa.pinduoduo.com**。
 
@@ -205,11 +213,11 @@
 ### 3.4 采集服务（`collector/`）
 
 - **Playwright + TypeScript**，独立进程，**不直连主业务库**。
-- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**。**1688**：`available`，**结构化解析不变**；**batchMode** 时进程内 **`with1688BatchGate`** 串行兜底；**风控页** → **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**；**`TIMEOUT`/`PARSE_FAILED`/`fieldMissing`** 摘要。**AliExpress**：**`beta`**，**真实解析**，**`batchSupported=false`**。**拼多多**：**`pinduoduo`** **`beta`**，**`collector/src/providers/sourcePinduoduo`**（**URL 类型** `goods_detail` / **`wholesale_detail`（pifa）**；移动端 UA + DOM/脚本 JSON；**`LOGIN_REQUIRED`/`UNSUPPORTED_PINDUODUO_URL`**；可选 **Profile**；**`batchSupported=false`**；失败中心 **`login_required`**）。**自定义**：**`custom`** **`beta`**，**`collector/src/providers/sourceCustom`**（后端 **`options.rule`** + **域名校验**；CSS Selector；**JSON-LD / OG / Meta** fallback；**`raw.stateDigest`**；无 JS 注入）；**`batchSupported=false`**。**占位**：**`taobao` / `shein_temu`**，`collect` **`PROVIDER_NOT_IMPLEMENTED`**。**统一错误码**： **`COLLECT_FAILED`、`PAGE_BLOCKED_OR_VERIFY_REQUIRED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
+- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**。**1688**：`available`，**结构化解析不变**；**batchMode** 时进程内 **`with1688BatchGate`** 串行兜底；**风控页** → **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**；**`TIMEOUT`/`PARSE_FAILED`/`fieldMissing`** 摘要。**AliExpress**：**`beta`**，**真实解析**，**`batchSupported=false`**。**拼多多**：**`pinduoduo`** **`beta`**，**`collector/src/providers/sourcePinduoduo`**（**URL 类型** `goods_detail` / **`wholesale_detail`（pifa 专用 DOM）**；**pifa** 解析标题/价格区间/SKU 行/主图详情图/参数；过滤平台 **`document.title`**；**`LOGIN_REQUIRED`/`UNSUPPORTED_PINDUODUO_URL`**；可选 **Profile**（1280 桌面）；**`batchSupported=false`**；失败中心 **`login_required`**）。**自定义**：**`custom`** **`beta`**，**`collector/src/providers/sourceCustom`**（后端 **`options.rule`** + **域名校验**；CSS Selector；**JSON-LD / OG / Meta** fallback；**`raw.stateDigest`**；无 JS 注入）；**`batchSupported=false`**。**占位**：**`taobao` / `shein_temu`**，`collect` **`PROVIDER_NOT_IMPLEMENTED`**。**统一错误码**： **`COLLECT_FAILED`、`PAGE_BLOCKED_OR_VERIFY_REQUIRED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
 - **任务编排**：`runCollectTask`（唯一 HTTP 编排入口）。
 - **HTTP**：`GET /health`（契约不变）；**`GET /v1/providers`**（注册表 **`listProviderPublicMetas()`**）；`POST /v1/collect`（body：**`source`** + **`url`** + 可选 **`options`**；**custom** 必填后端下发的 **`options.rule`** / **`domain`** 等）。
 - **浏览器**：`BrowserManager` 单例 Chromium，`withPage` 保证关闭 page/context。
-- **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；**NormalizedProduct JSON 契约未变**，`BuildImportSKU` 仍只吃 **`properties`**；采集解析仅在 Collector。
+- **与 Go 对接**：主 API **HTTP 同步调用**上述 **`POST /v1/collect`**；**NormalizedProduct JSON 契约未变**，`BuildImportSKU` 支持 **`properties` / `name` / `attrs`**；**pinduoduo** 有 SKU 时不合成默认规格；采集解析仅在 Collector。
 - **1688 已知坑与防复发**：**[`docs/collector-1688-pitfalls.md`](collector-1688-pitfalls.md)**（`page.evaluate` / `unitWeight` 误价 / SKU 维度噪声 / mm 价表 / 回归命令）。
 - **本地调试**：**`pnpm collect:test -- --url "https://detail.1688.com/offer/..."`**（仍为默认 **`source=1688`**）；或 **`pnpm collect:test -- --source aliexpress --url "https://www.aliexpress.com/item/100500....html"`**；环境变量 **`COLLECT_TEST_URL` / `COLLECT_TEST_SOURCE`**；根 **`pnpm collect:test`** **透传到** **`@trademind/collector`**。
 ### 3.5 文档
@@ -413,6 +421,9 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-21 | **拼多多图片分类精细化**：区域分轨主图/详情图；SKU 图仅 **sku.imageUrl**；修复详情图误入主图；**imageSummary**；管理端图片类型排序与提示 |
+| 2026-05-21 | **拼多多 pifa 解析精细化**：标题清洗（去「分享商品」等）；**mainDescription** 提取与入库；图片 **source** 分类与 **imageFilterSummary**；SKU 名/库存拆分；草稿页字段级提示 |
+| 2026-05-21 | **拼多多 pifa 批发详情页解析增强**：**`wholesale-detail*.ts`** 专用解析；标题/价格区间/SKU 行价库存/主图详情图/商品参数；平台标题过滤与质量 **`partial_success`**；草稿页 beta/SKU 提示；**`normalizePinduoduoImport`** **`priceMin/Max`**；**1688/custom 不变**；**批量仍关闭** |
 | 2026-05-20 | **拼多多采集器 URL 类型与登录态**：**pifa.pinduoduo.com** → **`wholesale_detail`**；**`login_required`** 失败归类（非 unknown）；**`PinduoduoCollectModal`** + 任务页链接提示；**Profile** 可选；失败详情 **链接类型/访问状态**；Collector **`url-type.ts`**；不影响 **1688 / custom** |
 | 2026-05-20 | **拼多多专用采集器 beta**：Collector **`sourcePinduoduo`**（**`source=pinduoduo`**，**`beta`**，**单链接**；**`batchSupported=false`**）；字段 **标题/价格/主图/详情图/参数/规格尽力**；**`LOGIN_REQUIRED`/`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/`PARSE_FAILED_*`/`PRODUCT_NOT_FOUND`**；Go **`normalizePinduoduoImport`** + **`raw.extractProvider=pinduoduo`**；管理端采集中心 **测试中**、**`/settings/collector?provider=pinduoduo`**、草稿 **beta 提示**；自定义链接 **拼多多 URL 引导专用采集器**；不影响 **1688 / AliExpress / custom** |
 | 2026-05-20 | **自定义链接采集器状态为基础可用（beta）**：采集中心 / 采集设置 **「基础可用」**（`status=beta`）；卡片文案与能力标签；无规则引导；Modal 说明；**PROGRESS** 边界与建议 |

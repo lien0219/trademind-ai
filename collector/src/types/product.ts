@@ -6,6 +6,8 @@ export type NormalizedProduct = {
   sourceUrl: string;
   title: string;
   currency: string;
+  /** 页面真实文本描述（非 AI 生成） */
+  mainDescription?: string;
   mainImages: string[];
   descriptionImages: string[];
   attributes: Record<string, string | number | boolean>;

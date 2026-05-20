@@ -22,7 +22,7 @@ export const TASK_FAILURE_CATEGORY_LABEL: Record<string, string> = {
   collector_blocked: '采集被拦截',
   collector_platform_login: '平台登录/验证失效',
   login_required: '需要登录',
-  collector_missing_images: '商品图片字段缺失',
+  collector_missing_images: '图片缺失',
   collector_missing_price: '价格字段缺失',
   collector_evaluate_script: '采集脚本执行错误',
   collector_invalid_url: '采集链接无效',

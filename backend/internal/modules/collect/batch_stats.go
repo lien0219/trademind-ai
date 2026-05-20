@@ -125,6 +125,9 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 	case "PARSE_FAILED_TITLE_MISSING":
 		return "没有识别到商品标题，请检查规则或重新使用 AI 生成规则。"
 	case "PARSE_FAILED_IMAGE_MISSING":
+		if isPdd {
+			return "系统未识别到商品主图。请重试采集，或进入商品草稿后手动添加主图。"
+		}
 		return "没有识别到商品图片，请检查主图规则后重新测试。"
 	case "PARSE_FAILED":
 		return "页面内容识别不完整，请在采集规则页测试采集效果后调整规则。"

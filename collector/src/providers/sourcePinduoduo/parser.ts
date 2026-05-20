@@ -1,8 +1,12 @@
 import type { Page } from 'playwright';
 import { evaluateInPageVoid } from '../../browser/evaluate-in-page.js';
 import type { ProductSku } from '../../types/product.js';
-import { normalizeImageList, type ImageFilters } from '../sourceCustom/image-utils.js';
+import type { ImageFilters } from '../sourceCustom/image-utils.js';
 import { normalizePriceText } from '../sourceCustom/price-normalize.js';
+import { cleanProductTitle, isPlatformTitle } from './wholesale-detail-shared.js';
+import { normalizePddImageList } from './wholesale-detail-images.js';
+import { extractAndAssemblePifaWholesale } from './wholesale-detail.js';
+import type { PinduoduoUrlType } from './url-type.js';
 
 const PDD_IMAGE_FILTERS: ImageFilters = {
   dedupeByImageKey: true,
@@ -30,6 +34,7 @@ export type PinduoduoParseResult = {
   price?: number;
   currency: string;
   priceText?: string;
+  mainDescription?: string;
   mainImages: string[];
   descriptionImages: string[];
   attributes: Record<string, string | number | boolean>;
@@ -245,10 +250,6 @@ export async function extractPinduoduoPayload(page: Page): Promise<Record<string
       if (t.length >= 4) titleCandidates.push(t);
     };
 
-    pushTitle(document.title ?? '');
-    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
-    if (ogTitle) pushTitle(ogTitle);
-
     const titleSelectors = [
       '.goods-title',
       '.enable-select',
@@ -258,10 +259,15 @@ export async function extractPinduoduoPayload(page: Page): Promise<Record<string
       '[data-testid="goods-title"]',
     ];
     for (const sel of titleSelectors) {
-      const el = document.querySelector(sel);
-      const text = el?.textContent?.trim();
-      if (text) pushTitle(text);
+      document.querySelectorAll(sel).forEach((el) => {
+        const text = el?.textContent?.trim();
+        if (text) pushTitle(text);
+      });
     }
+
+    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    if (ogTitle) pushTitle(ogTitle);
+    pushTitle(document.title ?? '');
 
     const priceTexts: string[] = [];
     const priceSelectors = ['[class*="price"]', '[class*="Price"]', '.goods-price', '[data-testid="price"]'];
@@ -362,8 +368,30 @@ export function assemblePinduoduoProduct(
   const titleCandidates = [
     ...(payload.titleCandidates as string[]).map(sanitizeTitle),
     ...titleFromJson.map(sanitizeTitle),
-  ].filter(Boolean);
-  const title = titleCandidates.sort((a, b) => b.length - a.length)[0] ?? '';
+  ]
+    .filter(Boolean)
+    .filter((t) => !isPlatformTitle(t));
+  const ranked = titleCandidates
+    .map((raw) => cleanProductTitle(raw))
+    .filter((x) => x.title && !isPlatformTitle(x.title))
+    .sort((a, b) => {
+      const score = (s: string, contaminated: boolean) => {
+        let n = s.length + (/【|】/.test(s) ? 20 : 0);
+        if (contaminated) n -= 100;
+        if (/分享商品/.test(s)) n -= 500;
+        return n;
+      };
+      return score(b.title, b.contaminated) - score(a.title, a.contaminated);
+    });
+
+  const best = ranked[0];
+  const title = best?.title ?? '';
+  if (best?.contaminated) {
+    warnings.push('标题可能混入了分享、购买等按钮文字，请人工核对。');
+  }
+  if (!title || isPlatformTitle(title)) {
+    warnings.push('当前标题可能为平台页标题而非商品标题，请人工核对。');
+  }
 
   let priceText: string | undefined;
   let price: number | undefined = priceFromJson;
@@ -376,14 +404,14 @@ export function assemblePinduoduoProduct(
     }
   }
 
-  const mainImages = normalizeImageList(
+  const mainImages = normalizePddImageList(
     pageUrl,
     [...((payload.imageUrls as string[]) ?? []), ...imageFromJson],
     10,
     PDD_IMAGE_FILTERS,
   );
 
-  const descriptionImages = normalizeImageList(
+  const descriptionImages = normalizePddImageList(
     pageUrl,
     [...((payload.detailImageUrls as string[]) ?? []), ...imageFromJson],
     30,
@@ -422,7 +450,14 @@ export function assemblePinduoduoProduct(
   };
 }
 
-export async function extractAndAssemblePinduoduo(page: Page, sourceUrl: string): Promise<PinduoduoParseResult> {
+export async function extractAndAssemblePinduoduo(
+  page: Page,
+  sourceUrl: string,
+  urlType?: PinduoduoUrlType,
+): Promise<PinduoduoParseResult> {
+  if (urlType === 'wholesale_detail') {
+    return extractAndAssemblePifaWholesale(page, sourceUrl);
+  }
   await scrollForDetailImages(page);
   const payload = await extractPinduoduoPayload(page);
   return assemblePinduoduoProduct(sourceUrl, payload);

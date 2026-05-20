@@ -35,6 +35,19 @@ func normalizePinduoduoImport(source string, n *normalizedProduct, fullJSON json
 		params.Currency = "CNY"
 	}
 
+	if strings.TrimSpace(params.Description) == "" {
+		var top struct {
+			MainDescription string `json:"mainDescription"`
+		}
+		_ = json.Unmarshal(fullJSON, &top)
+		if s := strings.TrimSpace(top.MainDescription); s != "" {
+			params.Description = s
+		} else if s := strings.TrimSpace(raw.Raw.MainDescription); s != "" {
+			params.Description = s
+		}
+	}
+
+	// Only synthesize default SKU when collector returned no SKU lines.
 	if len(params.SKUs) == 0 && raw.Raw.ProductPrice != nil && *raw.Raw.ProductPrice > 0 {
 		price := *raw.Raw.ProductPrice
 		params.SKUs = []product.ImportSKUParams{{
@@ -43,7 +56,16 @@ func normalizePinduoduoImport(source string, n *normalizedProduct, fullJSON json
 		}}
 	}
 
-	fullJSON = mergeRawExtractProvider(fullJSON, "pinduoduo", raw.Raw.QualityWarnings, raw.Raw.ProductPrice, raw.Raw.PriceText)
+	fullJSON = mergeRawExtractProvider(
+		fullJSON,
+		"pinduoduo",
+		raw.Raw.QualityWarnings,
+		raw.Raw.ProductPrice,
+		raw.Raw.PriceText,
+		raw.Raw.PriceMin,
+		raw.Raw.PriceMax,
+		raw.Raw.PriceRange,
+	)
 
 	return params, fullJSON
 }
@@ -54,6 +76,9 @@ func mergeRawExtractProvider(
 	warnings []string,
 	price *float64,
 	priceText string,
+	priceMin *float64,
+	priceMax *float64,
+	priceRange string,
 ) json.RawMessage {
 	var m map[string]any
 	if err := json.Unmarshal(full, &m); err != nil {
@@ -69,6 +94,15 @@ func mergeRawExtractProvider(
 	}
 	if price != nil {
 		rawObj["productPrice"] = *price
+	}
+	if priceMin != nil {
+		rawObj["priceMin"] = *priceMin
+	}
+	if priceMax != nil {
+		rawObj["priceMax"] = *priceMax
+	}
+	if priceRange != "" {
+		rawObj["priceRange"] = priceRange
 	}
 	if priceText != "" {
 		rawObj["priceText"] = priceText

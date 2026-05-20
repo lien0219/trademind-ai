@@ -84,6 +84,7 @@ type normalizedProduct struct {
 	SourceURL         string            `json:"sourceUrl"`
 	Title             string            `json:"title"`
 	Currency          string            `json:"currency"`
+	MainDescription   string            `json:"mainDescription"`
 	MainImages        []string          `json:"mainImages"`
 	DescriptionImages []string          `json:"descriptionImages"`
 	Attributes        json.RawMessage   `json:"attributes"`
@@ -116,6 +117,7 @@ func (n *normalizedProduct) importParams(fullJSON json.RawMessage) product.Impor
 		SourceURL:          strings.TrimSpace(n.SourceURL),
 		Title:              strings.TrimSpace(n.Title),
 		Currency:           strings.TrimSpace(n.Currency),
+		Description:        strings.TrimSpace(n.MainDescription),
 		MainImages:         n.MainImages,
 		DescriptionImages:  n.DescriptionImages,
 		SKUs:               skus,

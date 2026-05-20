@@ -169,6 +169,18 @@ var rules = []rule{
 		taskTypes: []string{taskTypeCollect},
 	},
 	{
+		id: "sub:no_main_images",
+		substrs: []string{
+			"no_main_images",
+			"PARSE_FAILED_IMAGE_MISSING:no_main_images",
+			"NO_MAIN_IMAGES_WARNING",
+		},
+		category: CategoryCollectorMissingImages, severity: SeverityMedium,
+		reason:    "系统未识别到商品主图。",
+		suggest:   "系统未识别到商品主图。请重试采集，或进入商品草稿后手动添加主图。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	{
 		id:       "sub:missing_price",
 		substrs:  []string{"missing_price", "missing_core_fields"},
 		category: CategoryCollectorMissingPrice, severity: SeverityMedium,

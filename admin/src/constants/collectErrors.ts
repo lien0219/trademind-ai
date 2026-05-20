@@ -35,7 +35,7 @@ export function mapCollectorErrorCodeLabel(code?: string | null): string {
     case 'PARSE_FAILED_TITLE_MISSING':
       return '没有识别到商品标题';
     case 'PARSE_FAILED_IMAGE_MISSING':
-      return '没有识别到商品图片';
+      return '图片缺失';
     case 'PARSE_FAILED':
       return '页面内容识别不完整';
     case 'NAVIGATION_FAILED':
@@ -93,7 +93,7 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
         : '请检查商品标题对应的页面位置，或重新使用 AI 生成规则。';
     case 'PARSE_FAILED_IMAGE_MISSING':
       return isPdd
-        ? '页面已打开，但没有识别到商品图片。'
+        ? '系统未识别到商品主图。请重试采集，或进入商品草稿后手动添加主图。'
         : '请检查主图规则，或开启图片过滤后重新测试。';
     case 'PARSE_FAILED':
       return isPdd
@@ -173,7 +173,10 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
   if (upper.includes('PARSE_FAILED_TITLE_MISSING')) {
     return mapCollectorErrorCodeDetail('PARSE_FAILED_TITLE_MISSING', source);
   }
-  if (upper.includes('PARSE_FAILED_IMAGE_MISSING')) {
+  if (upper.includes('NO_MAIN_IMAGES') || upper.includes('NO_MAIN_IMAGES_WARNING')) {
+    return '未识别到商品主图，请在图片管理中手动添加主图后再发布。';
+  }
+  if (upper.includes('PARSE_FAILED_IMAGE_MISSING') || raw.includes('no_main_images')) {
     return mapCollectorErrorCodeDetail('PARSE_FAILED_IMAGE_MISSING', source);
   }
   if (upper.includes('PARSE_FAILED')) {

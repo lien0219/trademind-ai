@@ -188,6 +188,7 @@ type ImportDraftParams struct {
 	SourceURL          string
 	Title              string
 	Currency           string
+	Description        string
 	MainImages         []string
 	DescriptionImages  []string
 	SKUs               []ImportSKUParams
