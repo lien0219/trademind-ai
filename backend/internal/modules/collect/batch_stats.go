@@ -102,7 +102,9 @@ func collectFailureHint(code string, sameURLSucceeded bool) string {
 	}
 	switch code {
 	case "LOGIN_REQUIRED":
-		return "当前商品页跳转到了登录页面，请先使用采集浏览器登录后再测试或采集。"
+		return "该商品页需要登录后才能访问，请稍后重试或使用登录状态采集。"
+	case "PRODUCT_NOT_FOUND":
+		return "商品不存在、已下架或链接无效。"
 	case "PROFILE_NOT_FOUND":
 		return "登录状态不存在或已停用，请重新选择或新建。"
 	case "PROFILE_LOGIN_REQUIRED":

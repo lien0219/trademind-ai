@@ -28,6 +28,7 @@ const { Paragraph, Title, Text } = Typography;
 
 const DEDICATED_FEATURE_LABEL: Record<string, string> = {
   title: '商品标题',
+  price: '商品价格',
   mainImages: '商品主图',
   descriptionImages: '详情图片',
   attributes: '商品参数',
@@ -46,6 +47,9 @@ function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefine
   if (!providerRunnableForSingleTask(p.status)) return '当前版本暂未开放';
   if (!p.batchSupported) {
     if (p.source === 'custom') return CUSTOM_BATCH_DISABLED_TOOLTIP;
+    if (p.source === 'pinduoduo' || p.source === 'pdd') {
+      return '拼多多批量采集暂未开放，请先使用单链接采集验证稳定性。';
+    }
     return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
   }
   return undefined;
@@ -56,6 +60,11 @@ function providerCardFeatures(p: CollectProviderRow): string[] {
     const fromApi = (p.features ?? []).filter((f) => f !== 'skus');
     if (fromApi.length > 0) return fromApi;
     return [...CUSTOM_COLLECT_DISPLAY_FEATURES];
+  }
+  if (p.source === 'pinduoduo' || p.source === 'pdd') {
+    const fromApi = (p.features ?? []).filter((f) => f !== 'skus');
+    if (fromApi.length > 0) return fromApi;
+    return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes'];
   }
   return p.features ?? [];
 }
@@ -123,7 +132,7 @@ export default function CollectHubPage() {
   }, []);
 
   const sorted = useMemo(() => {
-    const order = ['1688', 'pdd', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
+    const order = ['1688', 'pinduoduo', 'pdd', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
     return [...providers].sort(
       (a, b) => order.indexOf(a.source) - order.indexOf(b.source) || a.name.localeCompare(b.name),
     );

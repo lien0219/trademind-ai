@@ -20,7 +20,7 @@ export type CollectSettingsProviderOption = {
 export const COLLECT_SETTINGS_PROVIDER_OPTIONS: CollectSettingsProviderOption[] = [
   { key: '1688', label: '1688 采集器', source: '1688' },
   { key: 'aliexpress', label: '速卖通采集器', source: 'aliexpress' },
-  { key: 'pinduoduo', label: '拼多多采集器', source: 'pdd', planned: true },
+  { key: 'pinduoduo', label: '拼多多采集器', source: 'pinduoduo' },
   { key: 'taobao', label: '淘宝/天猫采集器', source: 'taobao', planned: true },
   { key: 'shein_temu', label: 'SHEIN/Temu 采集器', source: 'shein_temu', planned: true },
   { key: 'custom', label: '自定义链接采集器', source: 'custom' },

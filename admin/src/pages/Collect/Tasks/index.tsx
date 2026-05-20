@@ -233,8 +233,8 @@ export default function CollectTasksPage() {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         const hint =
           row.failureHint ||
-          mapCollectorErrorCodeDetail(row.collectorErrorCode) ||
-          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage) : '');
+          mapCollectorErrorCodeDetail(row.collectorErrorCode, row.source) ||
+          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '');
         return hint || '—';
       },
     },
@@ -371,7 +371,7 @@ export default function CollectTasksPage() {
               message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
             } catch (e) {
-              message.error(mapCollectErrorMessage(e));
+              message.error(mapCollectErrorMessage(e, vals.source));
             } finally {
               setSubmitting(false);
             }

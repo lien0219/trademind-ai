@@ -12,7 +12,7 @@ const (
 	Platform1688        PlatformID = "1688"
 	PlatformAliExpress  PlatformID = "aliexpress"
 	PlatformTaobaoTmall PlatformID = "taobao"
-	PlatformPdd         PlatformID = "pdd"
+	PlatformPdd         PlatformID = "pinduoduo"
 	PlatformSheinTemu   PlatformID = "shein_temu"
 )
 

@@ -57,12 +57,16 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_aliexpress_timeout_ms: {},
   collect_aliexpress_retry_on_timeout: {},
   collect_aliexpress_batch_enabled: {},
+  collect_pinduoduo_timeout_ms: {},
+  collect_pinduoduo_access_check_enabled: {},
+  collect_pinduoduo_retry_on_timeout: {},
+  collect_pinduoduo_batch_enabled: {},
 };
 
 const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
   '1688': '登录态检测与批量采集节流',
   aliexpress: 'Beta 单条采集与重试策略',
-  pinduoduo: '暂未开放，预留配置入口',
+  pinduoduo: 'Beta 单链接采集与访问检测',
   taobao: '暂未开放，预留配置入口',
   shein_temu: '暂未开放，预留配置入口',
   custom: '登录状态、采集规则与页面访问检测',
@@ -428,6 +432,81 @@ function CollectorAliExpressSection({ providerRow }: { providerRow?: CollectProv
   );
 }
 
+function CollectorPinduoduoSection({ providerRow }: { providerRow?: CollectProviderRow }) {
+  const isBeta = providerRow?.status === 'beta';
+
+  return (
+    <ProCard title="拼多多专属配置" bordered className="tm-collector-settings__panel">
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <div className="tm-collector-auth-panel">
+          <Space wrap>
+            <Typography.Text strong>拼多多采集器状态</Typography.Text>
+            <Badge
+              status={providerRow?.status === 'available' ? 'success' : 'processing'}
+              text={
+                providerRow?.status === 'available'
+                  ? '已可用'
+                  : providerRow?.status === 'beta'
+                    ? '测试中（beta）'
+                    : '状态未知'
+              }
+            />
+          </Space>
+        </div>
+
+        {isBeta ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="拼多多采集器当前为测试中，适合单链接采集商品基础信息。商品规格、库存和动态价格可能不完整，请采集后人工检查。"
+          />
+        ) : null}
+
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="页面打开超时覆盖（毫秒）"
+              name="collect_pinduoduo_timeout_ms"
+              tooltip="留空或 0 时使用通用「页面打开超时」。"
+            >
+              <InputNumber min={0} max={300000} style={{ width: '100%' }} placeholder="使用通用超时" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="启用访问状态检测"
+              name="collect_pinduoduo_access_check_enabled"
+              valuePropName="checked"
+              tooltip="检测登录页、验证页、App 引导页等访问状态。"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="超时 / 导航失败自动重试"
+              name="collect_pinduoduo_retry_on_timeout"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Alert type="warning" showIcon message="拼多多批量采集：暂未开放" />
+        <Form.Item
+          label="启用拼多多批量采集（预留）"
+          name="collect_pinduoduo_batch_enabled"
+          valuePropName="checked"
+          hidden
+        >
+          <Switch disabled />
+        </Form.Item>
+      </Space>
+    </ProCard>
+  );
+}
+
 function CollectorPlannedSection({ providerLabel }: { providerLabel: string }) {
   return (
     <ProCard bordered className="tm-collector-settings__panel">
@@ -520,6 +599,13 @@ export default function CollectorSettingsPage() {
         collect_aliexpress_retry_on_timeout: parseBoolSetting(g.collect_aliexpress_retry_on_timeout),
         collect_aliexpress_batch_enabled:
           g.collect_aliexpress_batch_enabled === '1' || g.collect_aliexpress_batch_enabled === 'true',
+        collect_pinduoduo_timeout_ms: g.collect_pinduoduo_timeout_ms
+          ? Number(g.collect_pinduoduo_timeout_ms)
+          : undefined,
+        collect_pinduoduo_access_check_enabled: parseBoolSetting(g.collect_pinduoduo_access_check_enabled),
+        collect_pinduoduo_retry_on_timeout: parseBoolSetting(g.collect_pinduoduo_retry_on_timeout),
+        collect_pinduoduo_batch_enabled:
+          g.collect_pinduoduo_batch_enabled === '1' || g.collect_pinduoduo_batch_enabled === 'true',
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -580,6 +666,13 @@ export default function CollectorSettingsPage() {
             : '',
         collect_aliexpress_retry_on_timeout: values.collect_aliexpress_retry_on_timeout ? '1' : '0',
         collect_aliexpress_batch_enabled: values.collect_aliexpress_batch_enabled ? '1' : '0',
+        collect_pinduoduo_timeout_ms:
+          values.collect_pinduoduo_timeout_ms != null && values.collect_pinduoduo_timeout_ms !== ''
+            ? String(values.collect_pinduoduo_timeout_ms)
+            : '',
+        collect_pinduoduo_access_check_enabled: values.collect_pinduoduo_access_check_enabled ? '1' : '0',
+        collect_pinduoduo_retry_on_timeout: values.collect_pinduoduo_retry_on_timeout ? '1' : '0',
+        collect_pinduoduo_batch_enabled: values.collect_pinduoduo_batch_enabled ? '1' : '0',
       };
       await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
       message.success('已保存');
@@ -603,6 +696,8 @@ export default function CollectorSettingsPage() {
     <CollectorCustomSection providerRow={providerRow} />
   ) : providerKey === 'aliexpress' ? (
     <CollectorAliExpressSection providerRow={providerRow} />
+  ) : providerKey === 'pinduoduo' ? (
+    <CollectorPinduoduoSection providerRow={providerRow} />
   ) : null;
 
   return (

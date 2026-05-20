@@ -127,7 +127,7 @@ function collectedAttributesFromRaw(rawData: unknown): Record<string, string> {
   return {};
 }
 
-function customQualityWarningsFromRaw(rawData: unknown): string[] {
+function collectQualityWarningsFromRaw(rawData: unknown): string[] {
   if (!rawData || typeof rawData !== 'object') return [];
   const root = rawData as Record<string, unknown>;
   const raw = root.raw;
@@ -135,6 +135,11 @@ function customQualityWarningsFromRaw(rawData: unknown): string[] {
   const w = (raw as Record<string, unknown>).qualityWarnings;
   if (!Array.isArray(w)) return [];
   return w.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+}
+
+/** @deprecated use collectQualityWarningsFromRaw */
+function customQualityWarningsFromRaw(rawData: unknown): string[] {
+  return collectQualityWarningsFromRaw(rawData);
 }
 
 function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
@@ -146,6 +151,12 @@ function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
   const inner = raw?.raw as Record<string, unknown> | undefined;
   const hasPrice = inner?.productPrice != null;
   return !hasPrice || mainCount <= 1 || skuCount === 0 || attrCount === 0;
+}
+
+function isPinduoduoCollectBeta(data: ProductDetail | null): boolean {
+  if (!data) return false;
+  const src = data.source?.trim().toLowerCase();
+  return src === 'pinduoduo' || src === 'pdd';
 }
 
 function formatInventorySyncTaskCreateError(e: unknown): string {
@@ -367,12 +378,13 @@ export default function ProductDraftDetailPage() {
     [data?.rawData],
   );
 
-  const customQualityWarnings = useMemo(
-    () => customQualityWarningsFromRaw(data?.rawData),
+  const collectQualityWarnings = useMemo(
+    () => collectQualityWarningsFromRaw(data?.rawData),
     [data?.rawData],
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
+  const showPinduoduoBetaHint = useMemo(() => isPinduoduoCollectBeta(data), [data]);
 
   const { caps, optionsForTask } = useImageProviders();
 
@@ -822,6 +834,14 @@ export default function ProductDraftDetailPage() {
               label: '基础信息',
               children: (
                 <Card variant="borderless">
+                  {showPinduoduoBetaHint ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      message="该商品来自拼多多采集器测试版，部分字段可能需要人工补充。请检查价格、图片、商品规格后再发布。"
+                    />
+                  ) : null}
                   {showCustomIncompleteHint ? (
                     <Alert
                       type="info"
@@ -830,7 +850,7 @@ export default function ProductDraftDetailPage() {
                       message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和 SKU 后再发布。"
                     />
                   ) : null}
-                  {customQualityWarnings.length > 0 ? (
+                  {collectQualityWarnings.length > 0 ? (
                     <Alert
                       type="warning"
                       showIcon
@@ -838,7 +858,7 @@ export default function ProductDraftDetailPage() {
                       message="采集质量提示"
                       description={
                         <ul style={{ margin: 0, paddingLeft: 20 }}>
-                          {customQualityWarnings.map((w) => (
+                          {collectQualityWarnings.map((w) => (
                             <li key={w}>{w}</li>
                           ))}
                         </ul>
@@ -1197,13 +1217,17 @@ export default function ProductDraftDetailPage() {
               label: '商品规格',
               children: (
                 <Card variant="borderless">
-                  {data.source === 'custom' &&
+                  {(data.source === 'custom' || isPinduoduoCollectBeta(data)) &&
                   (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
                     <Alert
                       type="info"
                       showIcon
                       style={{ marginBottom: 12 }}
-                      message="当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增 SKU。"
+                      message={
+                        isPinduoduoCollectBeta(data)
+                          ? '当前采集结果没有完整商品规格。你可以手动新增 SKU，或等待后续版本增强拼多多规格采集。'
+                          : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增 SKU。'
+                      }
                     />
                   ) : null}
                   <Space style={{ marginBottom: 12 }}>

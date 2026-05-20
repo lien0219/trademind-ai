@@ -195,7 +195,7 @@
 ### 3.4 采集服务（`collector/`）
 
 - **Playwright + TypeScript**，独立进程，**不直连主业务库**。
-- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**。**1688**：`available`，**结构化解析不变**；**batchMode** 时进程内 **`with1688BatchGate`** 串行兜底；**风控页** → **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**；**`TIMEOUT`/`PARSE_FAILED`/`fieldMissing`** 摘要。**AliExpress**：**`beta`**，**真实解析**，**`batchSupported=false`**。**自定义**：**`custom`** **`beta`**，**`collector/src/providers/sourceCustom`**（后端 **`options.rule`** + **域名校验**；CSS Selector；**JSON-LD / OG / Meta** fallback；**`raw.stateDigest`**；无 JS 注入）；**`batchSupported=false`**。**占位**：**`pdd` / `taobao` / `shein_temu`**，`collect` **`PROVIDER_NOT_IMPLEMENTED`**。**统一错误码**： **`COLLECT_FAILED`、`PAGE_BLOCKED_OR_VERIFY_REQUIRED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
+- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**。**1688**：`available`，**结构化解析不变**；**batchMode** 时进程内 **`with1688BatchGate`** 串行兜底；**风控页** → **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**；**`TIMEOUT`/`PARSE_FAILED`/`fieldMissing`** 摘要。**AliExpress**：**`beta`**，**真实解析**，**`batchSupported=false`**。**拼多多**：**`pinduoduo`** **`beta`**，**`collector/src/providers/sourcePinduoduo`**（移动端 UA + DOM/脚本 JSON；标题/价格/主图/详情图/参数/规格尽力；**`batchSupported=false`**；Go **仅任务编排与入库**，**`raw.extractProvider=pinduoduo`**）。**自定义**：**`custom`** **`beta`**，**`collector/src/providers/sourceCustom`**（后端 **`options.rule`** + **域名校验**；CSS Selector；**JSON-LD / OG / Meta** fallback；**`raw.stateDigest`**；无 JS 注入）；**`batchSupported=false`**。**占位**：**`taobao` / `shein_temu`**，`collect` **`PROVIDER_NOT_IMPLEMENTED`**。**统一错误码**： **`COLLECT_FAILED`、`PAGE_BLOCKED_OR_VERIFY_REQUIRED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
 - **任务编排**：`runCollectTask`（唯一 HTTP 编排入口）。
 - **HTTP**：`GET /health`（契约不变）；**`GET /v1/providers`**（注册表 **`listProviderPublicMetas()`**）；`POST /v1/collect`（body：**`source`** + **`url`** + 可选 **`options`**；**custom** 必填后端下发的 **`options.rule`** / **`domain`** 等）。
 - **浏览器**：`BrowserManager` 单例 Chromium，`withPage` 保证关闭 page/context。
@@ -271,7 +271,7 @@ trademind-ai/
 ├── collector/               # Node 采集（Playwright）
 │   └── src/
 │       ├── browser/         # BrowserManager
-│       ├── providers/       # `registry` + **source1688** + **sourceAliExpress** + **sourceCustom** + **stub/placeholders**（**meta**、`/v1/providers`）
+│       ├── providers/       # `registry` + **source1688** + **sourcePinduoduo** + **sourceAliExpress** + **sourceCustom** + **stub/placeholders**（**meta**、`/v1/providers`）
 │       ├── tasks/           # runCollectTask
 │       ├── http/            # HTTP 服务
 │       └── types/           # NormalizedProduct
@@ -325,7 +325,7 @@ trademind-ai/
 20. **多 AI Provider 并存（未完成）**：当前仍为 **单一 `settings.ai` 默认配置**；**DeepSeek / Qwen 已独立 Provider 名**，但尚无 **`settings.ai_providers` 多配置表** 与按任务选模。
 21. **1688 采集边界 / 反爬稳定性**：虽已 **DOM + script JSON 解析**，仍存在 **SKU 组合不全**、详情图异步、**`/offer` URL 误判**、**人机验证 / 风控**等边界；需在真实流量下持续补强选择与稳定性。**已踩坑清单**见 **`docs/collector-1688-pitfalls.md`**（`page.evaluate` 注入、`unitWeight` 误价、SKU 维度/mm 价表）。
 22. **AliExpress（Collector `beta`）边界**：受 **人机验证 / 风控 / 多语言 PDP / 区域价与币种格式**影响，**SKU 映射对部分模板仍不完整**；详情若 **异步 / iframe**，**`descriptionImages` 可为空**，**候选见 `raw.detailImageCandidates`**。**批量链路未开放**（`batchSupported=false`）。
-23. **多采集源仍占位**：**拼多多 / 淘宝·天猫 / SHEIN·Temu** Collector **`planned`**，**不真实解析**。**自定义链接**：Collector **`custom` 为 `beta`**，管理端展示 **「基础可用」**（**非**与 1688 同级的「已可用」）；**单链接采集**、**采集规则**、**AI 生成规则**、**规则测试**、**通用访问状态检测**、**登录 Profile**、**商品草稿**已支持；**边界**：**SKU / 库存 / 动态价格 / 图片质量**不保证完整；**批量采集暂未开放**；**建议**已支持平台优先专用采集器。**高级可视化规则编辑器**、**更强 SSRF（内网等）** 仍未完成。
+23. **拼多多（Collector `pinduoduo` `beta`）边界**：**单链接采集**已开放；**批量暂未开放**（`batchSupported=false`）。支持 **标题 / 价格 / 主图 / 详情图（尽力）/ 参数（尽力）/ 规格（尽力）**；**SKU / 库存 / 动态价格不保证完整**；**登录 / 风控 / App 引导页**可能导致失败；建议 **先单链接验证稳定性**。**淘宝·天猫 / SHEIN·Temu** 仍为 **`planned`**。**自定义链接**：Collector **`custom` 为 `beta`**，管理端展示 **「基础可用」**；**单链接采集**、**采集规则**、**AI 生成规则**、**规则测试**、**通用访问状态检测**、**登录 Profile**、**商品草稿**已支持；**边界**：**SKU / 库存 / 动态价格 / 图片质量**不保证完整；**批量采集暂未开放**；**建议**已支持平台优先专用采集器。**高级可视化规则编辑器**、**更强 SSRF（内网等）** 仍未完成。
 24. **`ai_tasks` / AI 描述**：标题与描述生成均 **`running → success|failed`**；描述任务依赖模型输出 **合法 JSON**；失败写入 **`ai_tasks`** 与操作日志。
 25. **TikTok Shop、Shopee、Lazada、Amazon（beta）订单同步**：均已接 **`providers/platform/*/SyncOrders`** → **`order.UpsertSyncedOrders`** / **`order_sync_tasks`**；**Lazada** 依赖正确的 **`api_base_url`**（各站点 **`/rest`**）与时间窗；**Amazon** 依赖 **LWA**、**IAM SigV4**（运行时凭证）与 **Orders v0** 分页（**NextToken**）；**429** 等限流错误需 **人工 retry**；生产需持续压测与策略调优。
 26. **Amazon 商品刊登（beta）边界**：已接 **`providers/platform/amazon.PublishProduct`**（SP-API **Listings Items** `PUT /listings/2021-08-01/items/{sellerId}/{sku}`），复用 **`settings.platform_amazon`**、**`settings.platform_publish_amazon`**、**`shop_auth_tokens`**、**`product_publish_tasks`** 与 **product_publish Worker**，刊登结果写入 **`product_publications` / `product_publication_skus`**。**Product Type Definitions / Listings Items attributes** 仍需生产实测；首版依赖用户在 **`platform_publish_amazon.amazon_attributes`** 或任务 **options** 手工补齐平台必填字段，不伪造 Brand / Manufacturer / Browse Node / ASIN。
@@ -403,6 +403,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-20 | **拼多多专用采集器 beta**：Collector **`sourcePinduoduo`**（**`source=pinduoduo`**，**`beta`**，**单链接**；**`batchSupported=false`**）；字段 **标题/价格/主图/详情图/参数/规格尽力**；**`LOGIN_REQUIRED`/`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/`PARSE_FAILED_*`/`PRODUCT_NOT_FOUND`**；Go **`normalizePinduoduoImport`** + **`raw.extractProvider=pinduoduo`**；管理端采集中心 **测试中**、**`/settings/collector?provider=pinduoduo`**、草稿 **beta 提示**；自定义链接 **拼多多 URL 引导专用采集器**；不影响 **1688 / AliExpress / custom** |
 | 2026-05-20 | **自定义链接采集器状态为基础可用（beta）**：采集中心 / 采集设置 **「基础可用」**（`status=beta`）；卡片文案与能力标签；无规则引导；Modal 说明；**PROGRESS** 边界与建议 |
 | 2026-05-20 | **管理端全站文案小白化（二期）**：设置（AI/图片/库存/平台/采集）、AI 任务与技能模板、图片任务、订单规格匹配与异常、店铺授权、后台任务监控、商品详情/定价等；侧栏菜单与 `userFriendly`/`taskCenter` 文案；技术 JSON 默认折叠 |
 | 2026-05-20 | **管理端采集文案小白化**：采集规则页顶栏说明、AI 弹窗/自定义采集/采集设置/登录状态页统一中文表述；错误码改用户可读说明并默认折叠「技术信息」；`collectErrors`/`collectAccess` 映射；Collector 测试建议与后端 `failureHint` 去技术词；README 采集章节术语说明 |
