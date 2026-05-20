@@ -310,6 +310,11 @@ export default [
         component: './Settings/Inventory',
       },
       {
+        path: '/settings/pricing',
+        name: '商品定价',
+        component: './Settings/Pricing',
+      },
+      {
         path: '/settings/platforms',
         name: '平台开放配置',
         component: './Settings/Platforms',

@@ -62,6 +62,9 @@ export type ProductSKURow = {
   skuName: string;
   attrs?: Record<string, unknown>;
   price?: number;
+  costPrice?: number;
+  compareAtPrice?: number;
+  minPublishPrice?: number;
   stock?: number;
   warningStock?: number;
   safetyStock?: number;

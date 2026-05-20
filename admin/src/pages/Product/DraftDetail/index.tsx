@@ -78,6 +78,7 @@ import {
   type ProductPublicationRow,
 } from '@/services/productPublish';
 import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
+import PricingApplyModal from '@/components/PricingApplyModal';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
   adjustSkuStock,
@@ -330,6 +331,7 @@ export default function ProductDraftDetailPage() {
   const [syncSubmitting, setSyncSubmitting] = useState(false);
   const [stockSettingsOpen, setStockSettingsOpen] = useState(false);
   const [stockSettingsTarget, setStockSettingsTarget] = useState<ProductSKURow | null>(null);
+  const [pricingOpen, setPricingOpen] = useState(false);
   const [stockSettingsForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
   const [stockSettingsSubmitting, setStockSettingsSubmitting] = useState(false);
   const [skuBatchStockOpen, setSkuBatchStockOpen] = useState(false);
@@ -648,7 +650,15 @@ export default function ProductDraftDetailPage() {
       { title: '编码', dataIndex: 'skuCode', width: 140, ellipsis: true, formItemProps: { rules: [] } },
       { title: '名称', dataIndex: 'skuName', width: 180, ellipsis: true, formItemProps: { rules: [{ required: true }] } },
       {
-        title: '价格',
+        title: '成本价',
+        dataIndex: 'costPrice',
+        width: 100,
+        valueType: 'digit' as const,
+        fieldProps: { min: 0, precision: 2 },
+        readonly: true,
+      },
+      {
+        title: '销售价',
         dataIndex: 'price',
         width: 100,
         valueType: 'digit' as const,
@@ -1136,6 +1146,14 @@ export default function ProductDraftDetailPage() {
               label: 'SKU 管理',
               children: (
                 <Card variant="borderless">
+                  <Space style={{ marginBottom: 12 }}>
+                    <Button type="primary" onClick={() => setPricingOpen(true)}>
+                      应用定价规则
+                    </Button>
+                    <Typography.Text type="secondary">
+                      按成本价/当前价加价并更新本地销售价，不会自动刊登
+                    </Typography.Text>
+                  </Space>
                   <EditableProTable<SKUEditable>
                     rowKey="id"
                     headerTitle={false}
@@ -2399,6 +2417,14 @@ export default function ProductDraftDetailPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <PricingApplyModal
+        open={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        mode="product"
+        productId={id}
+        onApplied={() => void reloadDetail()}
+      />
     </PageContainer>
   );
 }

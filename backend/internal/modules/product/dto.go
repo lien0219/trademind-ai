@@ -69,22 +69,28 @@ func (b *UpdateBody) UnmarshalJSON(data []byte) error {
 
 // SKUBody binds POST /products/:id/skus.
 type SKUBody struct {
-	SKUCode  string          `json:"skuCode"`
-	SKUName  string          `json:"skuName"`
-	Attrs    json.RawMessage `json:"attrs"`
-	Price    *float64        `json:"price"`
-	Stock    *int            `json:"stock"`
-	ImageURL string          `json:"imageUrl"`
+	SKUCode         string          `json:"skuCode"`
+	SKUName         string          `json:"skuName"`
+	Attrs           json.RawMessage `json:"attrs"`
+	Price           *float64        `json:"price"`
+	CostPrice       *float64        `json:"costPrice"`
+	CompareAtPrice  *float64        `json:"compareAtPrice"`
+	MinPublishPrice *float64        `json:"minPublishPrice"`
+	Stock           *int            `json:"stock"`
+	ImageURL        string          `json:"imageUrl"`
 }
 
 // SKUUpdateBody binds PUT /products/:id/skus/:skuId (partial).
 type SKUUpdateBody struct {
-	SKUCode  *string          `json:"skuCode"`
-	SKUName  *string          `json:"skuName"`
-	Attrs    *json.RawMessage `json:"attrs"`
-	Price    *float64         `json:"price"`
-	Stock    *int             `json:"stock"`
-	ImageURL *string          `json:"imageUrl"`
+	SKUCode         *string          `json:"skuCode"`
+	SKUName         *string          `json:"skuName"`
+	Attrs           *json.RawMessage `json:"attrs"`
+	Price           *float64         `json:"price"`
+	CostPrice       *float64         `json:"costPrice"`
+	CompareAtPrice  *float64         `json:"compareAtPrice"`
+	MinPublishPrice *float64         `json:"minPublishPrice"`
+	Stock           *int             `json:"stock"`
+	ImageURL        *string          `json:"imageUrl"`
 }
 
 // SKUStockSettingsBody binds PUT /products/:id/skus/:skuId/stock-settings.
@@ -190,13 +196,14 @@ type ImportDraftParams struct {
 
 // ImportSKUParams is one SKU line from a normalized product.
 type ImportSKUParams struct {
-	SKUCode  string
-	SKUName  string
-	Attrs    json.RawMessage
-	Price    *float64
-	Stock    *int
-	ImageURL string
-	RawSKU   json.RawMessage
+	SKUCode   string
+	SKUName   string
+	Attrs     json.RawMessage
+	Price     *float64
+	CostPrice *float64
+	Stock     *int
+	ImageURL  string
+	RawSKU    json.RawMessage
 }
 
 // OptimizeTitleBody binds POST /products/:id/ai/optimize-title.

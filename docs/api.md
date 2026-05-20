@@ -68,6 +68,11 @@
 | `DELETE` | `/api/v1/products/:id` | 删除或归档商品。 |
 | `POST` | `/api/v1/products/:id/apply-ai-title` | 应用 AI 标题。 |
 | `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述。 |
+| `POST` | `/api/v1/pricing/calculate` | 单 SKU 发布价试算（不写入数据库）。 |
+| `POST` | `/api/v1/products/:id/pricing/apply` | 对商品 SKU 应用定价规则；`confirm=false` 仅预览，`confirm=true` 更新 `product_skus.price`。 |
+| `POST` | `/api/v1/products/pricing/batch-apply` | 批量应用定价规则；需 `productIds` 或 `filters`，空条件须 `confirmAll=true`。 |
+
+`settings` 分组 **`pricing`**：默认加价方式/比例、尾数、平台覆盖、`batch_max_size`（默认 500）。**不**创建刊登任务、**不**调用平台 API。
 
 ## AI
 

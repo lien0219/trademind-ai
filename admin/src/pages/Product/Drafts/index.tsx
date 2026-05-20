@@ -13,6 +13,7 @@ import { createProductImagesBatch, createProductTextBatch } from '@/services/aiB
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
+import PricingApplyModal from '@/components/PricingApplyModal';
 
 export default function ProductDraftsPage() {
   const location = useLocation();
@@ -41,6 +42,7 @@ export default function ProductDraftsPage() {
   const [bulkForm] = Form.useForm();
   const [bulkOp, setBulkOp] = useState<string>('title_optimize');
   const [bulkConfirmFiltered, setBulkConfirmFiltered] = useState(false);
+  const [pricingBatchOpen, setPricingBatchOpen] = useState(false);
 
   useEffect(() => {
     actionRef.current?.reload();
@@ -290,6 +292,9 @@ export default function ProductDraftsPage() {
           >
             批量发布检查
           </Button>,
+          <Button key="pricing" onClick={() => setPricingBatchOpen(true)}>
+            批量设置发布价
+          </Button>,
           <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
             新建草稿
           </Button>,
@@ -503,6 +508,15 @@ export default function ProductDraftsPage() {
           )}
         </Form>
       </Drawer>
+
+      <PricingApplyModal
+        open={pricingBatchOpen}
+        onClose={() => setPricingBatchOpen(false)}
+        mode="batch"
+        productIds={selectedRowKeys.length > 0 ? selectedRowKeys : undefined}
+        listFilters={selectedRowKeys.length === 0 ? listFilters : undefined}
+        onApplied={() => actionRef.current?.reload()}
+      />
     </PageContainer>
   );
 }
