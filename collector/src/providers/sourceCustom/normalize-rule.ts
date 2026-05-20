@@ -32,6 +32,8 @@ export function normalizeFieldRule(field: unknown): CustomFieldRule | undefined 
       multiple: !!o.multiple,
       limit: typeof o.limit === 'number' ? o.limit : undefined,
       fallback: typeof o.fallback === 'string' ? o.fallback : undefined,
+      filters: o.filters as CustomFieldRule['filters'],
+      scrollIntoView: o.scrollIntoView === true ? true : undefined,
     };
   }
 
@@ -65,6 +67,7 @@ export function normalizeCustomRuleDecl(raw: unknown): CustomRuleDecl {
 
   const out: CustomRuleDecl = {
     title: normalizeFieldRule(r.title),
+    price: normalizeFieldRule(r.price),
     currency: normalizeFieldRule(r.currency),
     mainImages: normalizeFieldRule(mainImages),
     descriptionImages: normalizeFieldRule(descriptionImages),
@@ -75,9 +78,6 @@ export function normalizeCustomRuleDecl(raw: unknown): CustomRuleDecl {
 
   if (!out.descriptionImages && descHtml) {
     out.descriptionImages = normalizeFieldRule(descHtml);
-  }
-  if (!out.currency && r.price) {
-    out.currency = normalizeFieldRule(r.price);
   }
 
   return out;

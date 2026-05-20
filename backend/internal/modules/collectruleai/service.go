@@ -420,6 +420,13 @@ func (s *Service) GenerateCollectRuleWithAI(c *gin.Context, body GenerateBody, a
 	warnings := append([]string(nil), aiOut.Warnings...)
 	if testErr != nil {
 		warnings = append(warnings, "rule_test_failed:"+truncateRunes(testErr.Error(), 120))
+	} else if testResult != nil {
+		warnings = appendQualityTestWarnings(warnings, testResult)
+		if testResult.QualityScore != nil {
+			if score, ok := testResult.QualityScore["score"].(float64); ok && score < 50 {
+				warnings = append(warnings, "规则测试质量偏低，请根据测试结果调整 selector 或重新生成。")
+			}
+		}
 	}
 
 	nameHint := strings.TrimSpace(body.RuleName)
@@ -551,4 +558,38 @@ func IsPlatformBlock(err error) (*platformBlockError, bool) {
 		return pe, true
 	}
 	return nil, false
+}
+
+func appendQualityTestWarnings(warnings []string, tr *collectrule.RuleTestResultDTO) []string {
+	if tr == nil {
+		return warnings
+	}
+	if ef := tr.ExtractedFields; ef != nil {
+		if suspect, ok := ef["titleSuspectWrong"].(bool); ok && suspect {
+			warnings = append(warnings, "当前标题可能不是商品标题，请调整商品标题对应的页面位置，或重新使用 AI 生成规则。")
+		}
+	}
+	if qs := tr.QualityScore; qs != nil {
+		if hints, ok := qs["hints"].([]interface{}); ok {
+			for _, h := range hints {
+				if s, ok := h.(string); ok && strings.TrimSpace(s) != "" {
+					warnings = append(warnings, s)
+				}
+			}
+		}
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(warnings))
+	for _, w := range warnings {
+		w = strings.TrimSpace(w)
+		if w == "" {
+			continue
+		}
+		if _, dup := seen[w]; dup {
+			continue
+		}
+		seen[w] = struct{}{}
+		out = append(out, w)
+	}
+	return out
 }

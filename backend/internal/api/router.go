@@ -99,6 +99,10 @@ func (a collectRunnerAdapter) CustomRuleTest(ctx context.Context, rawURL string,
 	if len(raw.ExtractedFields) > 0 {
 		_ = json.Unmarshal(raw.ExtractedFields, &extracted)
 	}
+	var qualityScore map[string]interface{}
+	if len(raw.QualityScore) > 0 {
+		_ = json.Unmarshal(raw.QualityScore, &qualityScore)
+	}
 	return &collectrule.RuleTestResultDTO{
 		AccessStatus:    raw.AccessStatus,
 		FinalURL:        raw.FinalURL,
@@ -106,6 +110,7 @@ func (a collectRunnerAdapter) CustomRuleTest(ctx context.Context, rawURL string,
 		ExtractedFields: extracted,
 		MissingFields:   raw.MissingFields,
 		Warnings:        raw.Warnings,
+		QualityScore:    qualityScore,
 		ErrorCode:       raw.ErrorCode,
 		Suggestion:      raw.Suggestion,
 		Product:         raw.Product,

@@ -148,7 +148,7 @@ func validateAttributes(raw json.RawMessage) error {
 	}
 	mode := strings.TrimSpace(strings.ToLower(m.Mode))
 	switch mode {
-	case "", "pairs":
+	case "", "pairs", "row":
 		if err := checkSelectorLen(m.RowSelector); err != nil {
 			return err
 		}
@@ -158,6 +158,8 @@ func validateAttributes(raw json.RawMessage) error {
 		if err := checkSelectorLen(m.ValueSelector); err != nil {
 			return err
 		}
+	case "text_all":
+		// textSelector optional; validated at runtime
 	case "disabled":
 		return nil
 	default:

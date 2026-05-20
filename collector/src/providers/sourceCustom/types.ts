@@ -10,19 +10,31 @@ export type CustomAttrKind =
   | 'data-src'
   | 'data-original';
 
+export type CustomImageFilters = {
+  minWidth?: number;
+  minHeight?: number;
+  excludeKeywords?: string[];
+  dedupeByImageKey?: boolean;
+};
+
 export type CustomFieldRule = {
   selectors?: string[];
   attr?: CustomAttrKind | string;
   multiple?: boolean;
   limit?: number;
   fallback?: string;
+  filters?: CustomImageFilters;
+  /** Scroll to first selector before extracting (detail images). */
+  scrollIntoView?: boolean;
 };
 
 export type CustomAttributesRule = {
-  mode?: 'pairs' | 'disabled';
+  mode?: 'pairs' | 'row' | 'text_all' | 'disabled';
   rowSelector?: string;
   keySelector?: string;
   valueSelector?: string;
+  /** For text_all: selector whose text is parsed as "key：value" pairs */
+  textSelector?: string;
 };
 
 export type CustomSkusRule = {
@@ -37,6 +49,7 @@ export type CustomFallbacksRule = {
 
 export type CustomRuleDecl = {
   title?: CustomFieldRule;
+  price?: CustomFieldRule;
   currency?: CustomFieldRule;
   mainImages?: CustomFieldRule;
   descriptionImages?: CustomFieldRule;
@@ -61,4 +74,6 @@ export type CustomCollectOptions = {
   customUseBrowserProfile?: boolean;
   customBrowserProfileName?: string;
   customCookieProfileId?: string;
+  /** Optional page scroll before detail image extraction */
+  scrollForDetailImages?: boolean;
 };

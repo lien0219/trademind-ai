@@ -34,7 +34,10 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 	if err := migrateProductTitleOptimizeMaxTokens(ctx, db); err != nil {
 		return err
 	}
-	return migrateCustomerReplyGenerateOrderContext(ctx, db)
+	if err := migrateCustomerReplyGenerateOrderContext(ctx, db); err != nil {
+		return err
+	}
+	return migrateCollectRuleGenerateQualityHints(ctx, db)
 }
 
 func migrateProductTitleOptimizeMaxTokens(ctx context.Context, db *gorm.DB) error {
@@ -263,7 +266,7 @@ func migrateCustomerReplyGenerateOrderContext(ctx context.Context, db *gorm.DB) 
 	return db.WithContext(ctx).Save(&row).Error
 }
 
-func ensureCollectRuleGenerate(ctx context.Context, db *gorm.DB) error {
+func builtinCollectRuleGenerate() (string, string, datatypes.JSON) {
 	schema, _ := json.Marshal(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -282,15 +285,21 @@ Return ONLY valid JSON (no markdown, no prose outside JSON) with keys: rule (obj
 
 Hard constraints for rule:
 - ONLY use keys: title, price, currency, mainImages, descriptionImages, attributes, skus, fallbacks.
-- title is REQUIRED with selectors (string array) and attr (text|html|src|href|content|data-src|data-original).
+- title is REQUIRED. Prefer product title area on the right/detail panel; NEVER use global h1, nav, calculator, login, cart widgets.
+- title selectors must be narrow (product name / sku-name / item title), not document title or site-wide headings.
 - NEVER include script, eval, function, javascript: or any executable code.
 - selectors MUST come from pageDigest candidates or be simple CSS selectors combining those hints.
-- mainImages MUST include multiple:true, attr src, limit 8, and filters: { minWidth:300, minHeight:300, excludeKeywords:[], dedupeByImageKey:true } when generating mainImages.
+- price and currency are separate fields. price holds numeric price text; currency holds ISO code (CNY/USD) only when clearly available.
+- Do NOT put full price text into currency. If price is dynamic/API-loaded with no stable selector, omit price and warn.
+- mainImages MUST target product gallery / left thumbnail list / current large image area only — NEVER global img.
+- mainImages MUST include multiple:true, attr src, limit 8, and filters: { minWidth:300, minHeight:300, excludeKeywords:["logo","icon","favicon"], dedupeByImageKey:true }.
+- descriptionImages should target detail/description section; set scrollIntoView:true when helpful.
 - Do NOT generate skus unless pageDigest has stable sku candidates with confidence >= 0.5.
-- Do NOT invent stock fields.
-- attributes mode pairs requires rowSelector, keySelector, valueSelector when mode is pairs.
-- Include fallbacks: { jsonLd:true, openGraph:true, meta:true } when helpful.
-- If a target field has no reliable candidate in pageDigest, omit that field and add a warning instead of guessing.`)
+- Do NOT invent stock or inventory fields.
+- attributes mode pairs requires rowSelector, keySelector, valueSelector; mode text_all requires textSelector.
+- Include fallbacks: { jsonLd:true, openGraph:true, meta:true } when helpful; og:image may be mainImages fallback only.
+- If a target field has no reliable candidate in pageDigest, omit that field and add a warning instead of guessing.
+- After generating, assume rules will be auto-tested: if title looks like login/calculator/cart or mainImages would match site icons, lower confidence and add warnings.`)
 	defaultUser := strings.TrimSpace(`Generate a custom collect_rule JSON for domain {{domain}}.
 
 Target fields to try: {{targetFields}}
@@ -299,6 +308,29 @@ Page structure digest (truncated, no full HTML):
 {{pageDigest}}
 
 Reply with JSON only.`)
+	return defaultSys, defaultUser, datatypes.JSON(schema)
+}
+
+func migrateCollectRuleGenerateQualityHints(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	var row AIPrompt
+	if err := db.WithContext(ctx).Where("code = ?", CodeCollectRuleGenerate).First(&row).Error; err != nil {
+		return nil
+	}
+	if strings.Contains(row.SystemPrompt, "NEVER use global h1") {
+		return nil
+	}
+	sys, usr, schema := builtinCollectRuleGenerate()
+	row.SystemPrompt = sys
+	row.UserPrompt = usr
+	row.OutputSchema = schema
+	return db.WithContext(ctx).Save(&row).Error
+}
+
+func ensureCollectRuleGenerate(ctx context.Context, db *gorm.DB) error {
+	defaultSys, defaultUser, schema := builtinCollectRuleGenerate()
 
 	var count int64
 	if err := db.WithContext(ctx).Model(&AIPrompt{}).Where("code = ?", CodeCollectRuleGenerate).Count(&count).Error; err != nil {

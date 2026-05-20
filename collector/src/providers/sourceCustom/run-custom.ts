@@ -1,6 +1,6 @@
-import type { Page, Response } from 'playwright';
+import type { Page } from 'playwright';
 import type { BrowserManager } from '../../browser/manager.js';
-import type { CustomAccessReport, ExtractedFieldsSummary } from '../../types/access-status.js';
+import type { CustomAccessReport, ExtractedFieldsSummary, QualityScoreSummary } from '../../types/access-status.js';
 import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
 import { prepare1688OfferPage } from '../source1688/page-prep.js';
 import { assert1688PageCollectible, is1688CollectHost } from '../shared/page-guard.js';
@@ -15,6 +15,8 @@ import { normalizeCustomRuleDecl } from './normalize-rule.js';
 import { parseCustomProduct } from './parser.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import { CustomCollectError, throwCustomError } from './errors.js';
+import { buildQualityScore, SKU_LIMITATION_HINT } from './quality-score.js';
+import type { TitleCandidate } from './title-quality.js';
 
 export type CustomRunMode = 'task' | 'rule_test';
 
@@ -23,44 +25,109 @@ export type CustomRunResult = {
   report: CustomAccessReport;
 };
 
-function fieldSummary(product: NormalizedProduct | undefined, rule: CustomRuleDecl): {
+function fieldSummary(
+  product: NormalizedProduct | undefined,
+  rule: CustomRuleDecl,
+  titleDiag?: TitleCandidate,
+): {
   extracted: ExtractedFieldsSummary;
   missing: string[];
   warnings: string[];
+  qualityScore: QualityScoreSummary;
 } {
   const extracted: ExtractedFieldsSummary = {
     title: false,
     price: false,
     mainImage: false,
+    mainImagesCount: 0,
     detailImagesCount: 0,
     attributesCount: 0,
+    titleText: '',
+    titleSelector: '',
+    titleConfidence: '',
+    titleSuspectWrong: false,
   };
   const missing: string[] = [];
   const warnings: string[] = [];
 
   const title = product?.title?.trim() ?? '';
-  if (title) extracted.title = true;
-  else missing.push('title');
+  if (title) {
+    extracted.title = true;
+    extracted.titleText = title;
+    extracted.titleSelector = titleDiag?.selector ?? '';
+    extracted.titleConfidence = titleDiag?.confidence ?? '';
+    extracted.titleSuspectWrong = titleDiag?.suspectWrongTitle ?? false;
+  } else {
+    missing.push('title');
+  }
 
   const priceVal = product?.raw?.productPrice;
   if (typeof priceVal === 'number' && priceVal > 0) extracted.price = true;
-  else if ((rule as { price?: { selectors?: string[] } }).price?.selectors?.length) {
+  else if (rule.price?.selectors?.length) {
     missing.push('price');
   }
 
   const mainN = product?.mainImages?.length ?? 0;
+  extracted.mainImagesCount = mainN;
   extracted.mainImage = mainN > 0;
   if (!extracted.mainImage) missing.push('mainImage');
+
   extracted.detailImagesCount = product?.descriptionImages?.length ?? 0;
 
   const attrN = product?.attributes ? Object.keys(product.attributes).length : 0;
   extracted.attributesCount = attrN;
 
+  const rawWarnings = product?.raw?.qualityWarnings;
+  if (Array.isArray(rawWarnings)) {
+    for (const w of rawWarnings) {
+      if (typeof w === 'string' && w.trim()) warnings.push(w.trim());
+    }
+  }
+
   if (extracted.title && !extracted.mainImage) {
     warnings.push('title_extracted_but_no_main_image');
   }
 
-  return { extracted, missing, warnings };
+  if (titleDiag?.suspectWrongTitle) {
+    warnings.push('title_suspect_wrong');
+  }
+
+  if (mainN === 1) {
+    warnings.push('main_images_single_only');
+  }
+
+  if (extracted.detailImagesCount === 0 && rule.descriptionImages?.selectors?.length) {
+    warnings.push('description_images_empty');
+  }
+
+  if (attrN === 0 && rule.attributes?.mode && rule.attributes.mode !== 'disabled') {
+    warnings.push('attributes_empty');
+  }
+
+  warnings.push(SKU_LIMITATION_HINT);
+
+  const qs = buildQualityScore(product, titleDiag);
+  const qualityScore: QualityScoreSummary = {
+    titleOk: qs.titleOk,
+    priceOk: qs.priceOk,
+    mainImagesOk: qs.mainImagesOk,
+    descriptionImagesOk: qs.descriptionImagesOk,
+    attributesOk: qs.attributesOk,
+    skuSupported: qs.skuSupported,
+    score: qs.score,
+    hints: qs.hints,
+  };
+
+  for (const h of qs.hints) {
+    if (!warnings.includes(h)) warnings.push(h);
+  }
+
+  const attrSamples = product?.raw?.attributeSamples;
+  if (Array.isArray(attrSamples)) {
+    extracted.attributeSamples = attrSamples.slice(0, 5) as { key: string; value: string }[];
+  }
+
+  return { extracted, missing, warnings: [...new Set(warnings)], qualityScore };
 }
 
 function attachReportToProduct(
@@ -73,6 +140,7 @@ function attachReportToProduct(
     raw: {
       ...(product.raw ?? {}),
       accessReport: report,
+      qualityScore: report.qualityScore,
       customUseBrowserProfile: Boolean(opts.useBrowserProfile && opts.profileKey),
       customBrowserProfileName: opts.profileKey ?? '',
       customCookieProfileId: opts.profileId ?? '',
@@ -85,6 +153,7 @@ function buildReport(
   extracted: ExtractedFieldsSummary,
   missing: string[],
   warnings: string[],
+  qualityScore: QualityScoreSummary,
   overrideStatus?: import('../../types/access-status.js').AccessStatus,
 ): CustomAccessReport {
   let accessStatus = overrideStatus ?? resolveAccessStatusFromSignals(signals);
@@ -96,6 +165,9 @@ function buildReport(
   if (accessStatus === 'public' && missing.length > 0) {
     suggestion = buildAccessSuggestion('unknown', missing);
   }
+  if (qualityScore.score < 50 && qualityScore.hints.length) {
+    suggestion = `${qualityScore.hints[0]} ${suggestion}`.trim();
+  }
   return {
     accessStatus,
     finalUrl: signals.finalUrl,
@@ -103,6 +175,7 @@ function buildReport(
     extractedFields: extracted,
     missingFields: missing,
     warnings,
+    qualityScore,
     errorCode:
       errorCode ??
       (missing.includes('title') ? 'PARSE_FAILED_TITLE_MISSING' : undefined),
@@ -117,7 +190,7 @@ async function navigatePage(page: Page, urlStr: string): Promise<{ httpStatus?: 
   const gotoTimeout = getDefaultNavigationTimeoutMs();
   let httpStatus: number | undefined;
   try {
-    const resp: Response | null = await page.goto(urlStr, {
+    const resp = await page.goto(urlStr, {
       waitUntil: 'domcontentloaded',
       timeout: gotoTimeout,
     });
@@ -164,11 +237,22 @@ export async function runCustomCollect(
           title: false,
           price: false,
           mainImage: false,
+          mainImagesCount: 0,
           detailImagesCount: 0,
           attributesCount: 0,
         },
         missingFields: ['title', 'mainImage'],
         warnings: [],
+        qualityScore: {
+          titleOk: false,
+          priceOk: false,
+          mainImagesOk: false,
+          descriptionImagesOk: false,
+          attributesOk: false,
+          skuSupported: false,
+          score: 0,
+          hints: [],
+        },
         errorCode: isTimeout ? 'TIMEOUT' : 'NAVIGATION_FAILED',
         suggestion: buildAccessSuggestion(isTimeout ? 'timeout' : 'navigation_failed', [
           'title',
@@ -206,14 +290,19 @@ export async function runCustomCollect(
     }
 
     let product: NormalizedProduct | undefined;
+    let titleDiag: TitleCandidate | undefined;
     try {
-      product = await parseCustomProduct(page, urlStr, rule);
+      const parsed = await parseCustomProduct(page, urlStr, rule, {
+        scrollForDetailImages: opts.scrollForDetailImages ?? mode === 'rule_test',
+      });
+      product = parsed.product;
+      titleDiag = parsed.titleDiagnostics;
     } catch {
       product = undefined;
     }
 
-    const { extracted, missing, warnings } = fieldSummary(product, rule);
-    const report = buildReport(signals, extracted, missing, warnings, accessStatus);
+    const { extracted, missing, warnings, qualityScore } = fieldSummary(product, rule, titleDiag);
+    const report = buildReport(signals, extracted, missing, warnings, qualityScore, accessStatus);
 
     if (mode === 'rule_test') {
       if (product?.title?.trim()) {

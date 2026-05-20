@@ -74,6 +74,7 @@ type CustomRuleTestResult struct {
 	ExtractedFields json.RawMessage `json:"extractedFields"`
 	MissingFields   []string        `json:"missingFields"`
 	Warnings        []string        `json:"warnings"`
+	QualityScore    json.RawMessage `json:"qualityScore,omitempty"`
 	ErrorCode       string          `json:"errorCode,omitempty"`
 	Suggestion      string          `json:"suggestion"`
 	Product         json.RawMessage `json:"product,omitempty"`

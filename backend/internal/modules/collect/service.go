@@ -351,6 +351,9 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	}
 
 	params := norm.importParams(outcome.ProductJSON)
+	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
+		params, outcome.ProductJSON = normalizeCustomImport(task.Source, norm, outcome.ProductJSON)
+	}
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
 		s.handleCollectJobError(ctx, task, err)

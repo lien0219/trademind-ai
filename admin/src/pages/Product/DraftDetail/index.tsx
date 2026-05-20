@@ -127,6 +127,27 @@ function collectedAttributesFromRaw(rawData: unknown): Record<string, string> {
   return {};
 }
 
+function customQualityWarningsFromRaw(rawData: unknown): string[] {
+  if (!rawData || typeof rawData !== 'object') return [];
+  const root = rawData as Record<string, unknown>;
+  const raw = root.raw;
+  if (!raw || typeof raw !== 'object') return [];
+  const w = (raw as Record<string, unknown>).qualityWarnings;
+  if (!Array.isArray(w)) return [];
+  return w.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+}
+
+function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
+  if (!data || data.source !== 'custom') return false;
+  const mainCount = (data.images ?? []).filter((i) => i.imageType === 'main').length;
+  const skuCount = (data.skus ?? []).length;
+  const attrCount = Object.keys(collectedAttributesFromRaw(data.rawData)).length;
+  const raw = data.rawData as Record<string, unknown> | undefined;
+  const inner = raw?.raw as Record<string, unknown> | undefined;
+  const hasPrice = inner?.productPrice != null;
+  return !hasPrice || mainCount <= 1 || skuCount === 0 || attrCount === 0;
+}
+
 function formatInventorySyncTaskCreateError(e: unknown): string {
   const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
   const hints: string[] = [];
@@ -345,6 +366,13 @@ export default function ProductDraftDetailPage() {
     () => collectedAttributesFromRaw(data?.rawData),
     [data?.rawData],
   );
+
+  const customQualityWarnings = useMemo(
+    () => customQualityWarningsFromRaw(data?.rawData),
+    [data?.rawData],
+  );
+
+  const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
 
   const { caps, optionsForTask } = useImageProviders();
 
@@ -794,6 +822,29 @@ export default function ProductDraftDetailPage() {
               label: '基础信息',
               children: (
                 <Card variant="borderless">
+                  {showCustomIncompleteHint ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和 SKU 后再发布。"
+                    />
+                  ) : null}
+                  {customQualityWarnings.length > 0 ? (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      message="采集质量提示"
+                      description={
+                        <ul style={{ margin: 0, paddingLeft: 20 }}>
+                          {customQualityWarnings.map((w) => (
+                            <li key={w}>{w}</li>
+                          ))}
+                        </ul>
+                      }
+                    />
+                  ) : null}
                   <Descriptions column={2} bordered size="small" style={{ marginBottom: 16 }}>
                     <Descriptions.Item label="来源">{data.source}</Descriptions.Item>
                     <Descriptions.Item label="币种（展示）">{data.currency}</Descriptions.Item>
@@ -1146,6 +1197,15 @@ export default function ProductDraftDetailPage() {
               label: '商品规格',
               children: (
                 <Card variant="borderless">
+                  {data.source === 'custom' &&
+                  (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 12 }}
+                      message="当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增 SKU。"
+                    />
+                  ) : null}
                   <Space style={{ marginBottom: 12 }}>
                     <Button type="primary" onClick={() => setPricingOpen(true)}>
                       应用定价规则

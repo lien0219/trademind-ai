@@ -91,8 +91,24 @@ export type CollectRuleTestResult = {
     title?: boolean;
     price?: boolean;
     mainImage?: boolean;
+    mainImagesCount?: number;
     detailImagesCount?: number;
     attributesCount?: number;
+    titleText?: string;
+    titleSelector?: string;
+    titleConfidence?: string;
+    titleSuspectWrong?: boolean;
+    attributeSamples?: { key: string; value: string }[];
+  };
+  qualityScore?: {
+    titleOk?: boolean;
+    priceOk?: boolean;
+    mainImagesOk?: boolean;
+    descriptionImagesOk?: boolean;
+    attributesOk?: boolean;
+    skuSupported?: boolean;
+    score?: number;
+    hints?: string[];
   };
   missingFields?: string[];
   warnings?: string[];

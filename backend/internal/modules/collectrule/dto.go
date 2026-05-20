@@ -75,6 +75,7 @@ type RuleTestResultDTO struct {
 	ExtractedFields map[string]interface{} `json:"extractedFields"`
 	MissingFields   []string               `json:"missingFields"`
 	Warnings        []string               `json:"warnings"`
+	QualityScore    map[string]interface{} `json:"qualityScore,omitempty"`
 	ErrorCode       string                 `json:"errorCode,omitempty"`
 	Suggestion      string                 `json:"suggestion"`
 	Product         json.RawMessage        `json:"product,omitempty"`

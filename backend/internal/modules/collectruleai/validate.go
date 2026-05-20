@@ -97,7 +97,7 @@ func validateAIAttributes(raw json.RawMessage) error {
 		return fmt.Errorf("%w: invalid attributes", ErrAIRuleInvalid)
 	}
 	mode := strings.TrimSpace(strings.ToLower(m.Mode))
-	if mode != "" && mode != "pairs" && mode != "disabled" {
+	if mode != "" && mode != "pairs" && mode != "row" && mode != "text_all" && mode != "disabled" {
 		return fmt.Errorf("%w: unsupported attributes.mode", ErrAIRuleInvalid)
 	}
 	return nil

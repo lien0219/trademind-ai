@@ -187,6 +187,7 @@ export function createCollectorServer(browser: BrowserManager) {
               extractedFields: result.report.extractedFields,
               missingFields: result.report.missingFields,
               warnings: result.report.warnings,
+              qualityScore: result.report.qualityScore,
               errorCode: result.report.errorCode,
               suggestion: result.report.suggestion,
               product: result.product ?? null,

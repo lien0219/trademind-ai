@@ -3,9 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-20 — **管理端全站文案小白化（二期）**：AI/图片/订单规格匹配/库存设置/店铺授权/后台监控/商品详情等页面统一中文表述；菜单「AI 技能模板」「规格匹配」「后台任务监控」；技术 JSON/错误码默认折叠或移至高级区。
+**最后更新**：2026-05-20 — **自定义链接采集器采集质量增强**：Collector 增加标题可信度检测、价格/币种归一化、懒加载主图/详情图提取与图片过滤；规则测试返回 **qualityScore** 与字段缺失提示；AI 生成规则 Prompt 强化（禁止全局 img/过宽标题 selector）；入库前纠正 currency 误写价格；管理端规则测试与商品草稿页增加自定义采集质量提示。**自定义采集器适合基础字段**；**SKU / 库存 / 动态价格不保证完整**；京东等复杂平台后续建议专用 Provider。
 
-**此前**：2026-05-20 — **管理端采集文案小白化**：采集规则页、AI 生成规则弹窗、自定义链接采集、采集设置与任务失败提示统一为中文通俗表述；错误码默认折叠为「技术信息」；README 采集相关章节同步友好说明。
+**此前**：2026-05-20 — **管理端全站文案小白化（二期）**：AI/图片/订单规格匹配/库存设置/店铺授权/后台监控/商品详情等页面统一中文表述；菜单「AI 技能模板」「规格匹配」「后台任务监控」；技术 JSON/错误码默认折叠或移至高级区。
 
 ---
 
@@ -492,6 +492,7 @@ trademind-ai/
 | 2026-05-15 | **默认数据库改为 PostgreSQL**（compose、`.env.example`、`DB_DRIVER` 默认）；MySQL 仍可选 |
 | 2026-05-15 | **管理端**：登录页（`/user/login`）、JWT 存储与 **Bearer** 拦截、**401** 回登录、**access**；系统/AI/存储/采集/安全设置接 **`GET/PUT /api/v1/settings`**；**test-ai / test-storage** 按钮；**后端**新增两测试接口与 **PlainByGroup** 解密探测（OpenAI 兼容最小 chat 请求；本地目录读写校验） |
 | 2026-05-15 | **操作日志**：`operation_logs` + **`GET /api/v1/operation-logs`**；登录/失败、logout、改 settings、test-ai、test-storage 落库；**JWT** 写入 **username** 上下文；管理端 **操作日志 ProTable** |
+| 2026-05-20 | **自定义链接采集器质量增强**：标题可信度检测与疑似错抓提示；价格/币种归一化（`price`/`currency` 分离，`raw.priceText`）；主图懒加载多属性/srcset/JD 大图归一与过滤；详情图滚动加载；attributes **pairs/row/text_all**；规则测试 **qualityScore**；AI Prompt 迁移强化；入库纠正 currency 误写并合成默认 SKU 价格；管理端规则测试与草稿页提示；**SKU/库存/动态价格不保证**；京东等建议专用 Provider |
 | 2026-05-15 | **存储与文件**：**Storage Put/GetURL/Delete**、**local Provider**、**`files` 表**、**`/api/v1/files/upload|list|delete`**、**`GET /static/*`**；**`UPLOAD_MAX_MB`**；管理端 **文件管理**、**存储页上传测试**；admin 代理 **`/static`**；**`.env.example`** 补充上传配置 |
 | 2026-05-15 | **商品草稿 + 采集闭环**：`products` / `product_images` / `product_skus`、`collect_tasks`（JSONB）；商品 CRUD 与采集 API；**Go Collector HTTP 客户端**（`COLLECTOR_BASE_URL`、`COLLECTOR_TIMEOUT_SECONDS`）；归一化结果入库与操作日志；管理端 **商品列表/详情**、**采集表单 + 任务表 + 重试**；`.env.example` 补充 Collector 编排变量 |
 | 2026-05-15 | **AI 文本（第 3 阶段主线）**：`providers/ai` Gateway + **openai_compatible**；**`ai_prompts`/`ai_tasks`**、默认 **product_title_optimize**；商品 **optimize-title / apply-ai-title / ai/tasks** API；管理端 **`/ai/prompts`** 与详情页 **AI 标题**；操作日志 **ai.title_*** |
