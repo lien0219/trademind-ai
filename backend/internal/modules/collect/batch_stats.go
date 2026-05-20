@@ -102,23 +102,23 @@ func collectFailureHint(code string, sameURLSucceeded bool) string {
 	}
 	switch code {
 	case "LOGIN_REQUIRED":
-		return "页面跳转到登录页。请创建采集浏览器 Profile，打开采集浏览器手动登录后，勾选 Profile 再测试规则或提交采集任务。"
+		return "当前商品页跳转到了登录页面，请先使用采集浏览器登录后再测试或采集。"
 	case "PROFILE_NOT_FOUND":
-		return "采集浏览器 Profile 不存在或已停用，请重新选择或新建。"
+		return "登录状态不存在或已停用，请重新选择或新建。"
 	case "PROFILE_LOGIN_REQUIRED":
-		return "所选 Profile 仍未通过登录检测，请打开采集浏览器登录后点击「重新检测登录态」。"
+		return "尚未完成登录，请打开采集浏览器登录后点击「重新检测登录状态」。"
 	case "CUSTOM_RULE_MISSING":
-		return "未找到匹配的自定义采集规则，请先在「采集规则」创建并启用规则。"
+		return "没有找到可用采集规则，请先创建采集规则，或使用「AI 帮我生成规则」。"
 	case "CUSTOM_RULE_INVALID":
-		return "采集规则 JSON 无效，请检查 selector 与 type。"
+		return "采集规则内容有误，建议使用「AI 帮我生成规则」重新生成。"
 	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA":
-		return "目标站点触发验证或风控；1688 链接请先在「设置 → 采集服务」完成登录；自定义采集请稍后重试或降低频率。"
+		return "目标网站可能出现验证码或安全验证，请稍后重试，或在采集浏览器中手动完成验证。"
 	case "PARSE_FAILED_TITLE_MISSING":
-		return "页面已打开但未提取到标题，请在采集规则中检查 title 选择器，或先用规则「测试」验证。"
+		return "没有识别到商品标题，请检查规则或重新使用 AI 生成规则。"
 	case "PARSE_FAILED_IMAGE_MISSING":
-		return "页面已打开但未提取到图片，请检查 mainImage / detailImages 选择器，或启用 JSON-LD / OpenGraph fallback。"
+		return "没有识别到商品图片，请检查主图规则后重新测试。"
 	case "PARSE_FAILED":
-		return "页面解析不完整，请查看任务详情中的 missingFields / extractDebug。"
+		return "页面内容识别不完整，请在采集规则页测试采集效果后调整规则。"
 	case "TIMEOUT", "PAGE_TIMEOUT", "PAGE_LOAD_TIMEOUT", "NAVIGATION_FAILED":
 		return "页面加载超时或导航失败，建议重试或检查网络。"
 	default:

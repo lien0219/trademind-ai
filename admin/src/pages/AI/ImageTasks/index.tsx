@@ -151,7 +151,7 @@ export default function ImageTasksPage() {
       render: (_, row) => statusTag(row.status),
     },
     {
-      title: 'Provider',
+      title: '图片服务',
       dataIndex: 'provider',
       width: 120,
       ellipsis: true,
@@ -337,7 +337,7 @@ export default function ImageTasksPage() {
             try {
               extra = JSON.parse(raw) as Record<string, unknown>;
             } catch {
-              message.error('input 需为合法 JSON');
+              message.error('附加参数需为合法 JSON');
               return false;
             }
           }
@@ -424,9 +424,9 @@ export default function ImageTasksPage() {
           {({ taskType }: { taskType?: string }) => (
             <ProFormSelect
               name="provider"
-              label="Provider"
+              label="图片处理服务"
               options={optionsForTask(taskType ?? '')}
-              extra="仅显示支持当前任务类型的 Provider；去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI / 火山方舟；高级自定义推荐 ComfyUI"
+              extra="去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI / 火山方舟；高级自定义可选 ComfyUI"
             />
           )}
         </ProFormDependency>
@@ -501,8 +501,8 @@ export default function ImageTasksPage() {
           {(dep: { taskType?: string }) =>
             dep.taskType === 'generate_scene' ? (
               <>
-                <ProFormTextArea name="prompt" label="Prompt（可选）" fieldProps={{ rows: 4 }} />
-                <ProFormText name="negativePrompt" label="Negative prompt（可选）" />
+                <ProFormTextArea name="prompt" label="画面描述（可选）" fieldProps={{ rows: 4 }} />
+                <ProFormText name="negativePrompt" label="排除内容（可选）" />
                 <ProFormText name="scene" label="Scene（可选）" placeholder="minimal studio" />
                 <ProFormText name="style" label="Style（可选）" placeholder="clean ecommerce" />
                 <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
@@ -516,8 +516,8 @@ export default function ImageTasksPage() {
           {(dep: { taskType?: string }) =>
             dep.taskType === 'replace_background' ? (
               <>
-                <ProFormTextArea name="rbPrompt" label="Prompt（可选）" fieldProps={{ rows: 3 }} />
-                <ProFormText name="rbNegativePrompt" label="Negative prompt（可选）" />
+                <ProFormTextArea name="rbPrompt" label="画面描述（可选）" fieldProps={{ rows: 3 }} />
+                <ProFormText name="rbNegativePrompt" label="排除内容（可选）" />
                 <ProFormText name="rbBackground" label="目标背景" placeholder="white studio background" />
                 <ProFormText name="rbStyle" label="风格（可选）" placeholder="clean ecommerce" />
                 <ProFormText name="rbPlatform" label="平台（可选）" placeholder="TikTok Shop" />
@@ -528,7 +528,7 @@ export default function ImageTasksPage() {
         </ProFormDependency>
         <ProFormTextArea
           name="inputJson"
-          label="追加 Input（JSON，可选）"
+          label="追加参数（高级，JSON，可选）"
           fieldProps={{ rows: 4, style: { fontFamily: 'monospace' } }}
           extra="将与上方字段合并后提交；结构化字段可被此处同名键覆盖"
         />
@@ -608,7 +608,7 @@ export default function ImageTasksPage() {
               <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
               <Descriptions.Item label="任务类型">{detail.taskType}</Descriptions.Item>
               <Descriptions.Item label="状态">{statusTag(detail.status)}</Descriptions.Item>
-              <Descriptions.Item label="Provider">{detail.provider || '—'}</Descriptions.Item>
+              <Descriptions.Item label="图片服务">{detail.provider || '—'}</Descriptions.Item>
               <Descriptions.Item label="商品 ID">{detail.productId || '—'}</Descriptions.Item>
               <Descriptions.Item label="源图 ID">{detail.sourceImageId || '—'}</Descriptions.Item>
               <Descriptions.Item label="创建者">{detail.createdBy || '—'}</Descriptions.Item>
@@ -645,8 +645,8 @@ export default function ImageTasksPage() {
                 ) : null}
               </Space>
             )}
-            <JsonBlock title="Input（JSON）" value={detail.input} />
-            <JsonBlock title="Output（JSON）" value={detail.output} />
+            <JsonBlock title="任务输入" value={detail.input} />
+            <JsonBlock title="任务输出" value={detail.output} />
           </>
         ) : (
           <div style={{ color: 'var(--ant-color-text-secondary)' }}>暂无数据</div>

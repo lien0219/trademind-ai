@@ -770,7 +770,7 @@ export default function OrdersPage() {
                 },
                 {
                   key: 'sku',
-                  label: 'SKU 匹配',
+                  label: '规格匹配',
                   children: (
                     <OrderSkuMatchTab
                       orderId={detail.id}

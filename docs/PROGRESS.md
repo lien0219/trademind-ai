@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-20 — **AI 一键生成自定义采集规则**：Collector `POST /v1/custom/analyze-page` 页面结构摘要；后端 `POST /api/v1/collect/rules/ai-generate`；采集规则页与自定义采集弹窗 AI 入口；生成后自动规则测试；安全边界（不发完整 HTML、不执行 AI 生成 JS、专用平台拦截）。
+**最后更新**：2026-05-20 — **管理端全站文案小白化（二期）**：AI/图片/订单规格匹配/库存设置/店铺授权/后台监控/商品详情等页面统一中文表述；菜单「AI 技能模板」「规格匹配」「后台任务监控」；技术 JSON/错误码默认折叠或移至高级区。
+
+**此前**：2026-05-20 — **管理端采集文案小白化**：采集规则页、AI 生成规则弹窗、自定义链接采集、采集设置与任务失败提示统一为中文通俗表述；错误码默认折叠为「技术信息」；README 采集相关章节同步友好说明。
 
 ---
 
@@ -397,6 +399,8 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-20 | **管理端全站文案小白化（二期）**：设置（AI/图片/库存/平台/采集）、AI 任务与技能模板、图片任务、订单规格匹配与异常、店铺授权、后台任务监控、商品详情/定价等；侧栏菜单与 `userFriendly`/`taskCenter` 文案；技术 JSON 默认折叠 |
+| 2026-05-20 | **管理端采集文案小白化**：采集规则页顶栏说明、AI 弹窗/自定义采集/采集设置/登录状态页统一中文表述；错误码改用户可读说明并默认折叠「技术信息」；`collectErrors`/`collectAccess` 映射；Collector 测试建议与后端 `failureHint` 去技术词；README 采集章节术语说明 |
 | 2026-05-20 | **AI 一键生成自定义采集规则**：新增 Collector **`POST /v1/custom/analyze-page`**（`PageStructureDigest`，每类候选 ≤20，不含完整 HTML）；后端模块 **`collectruleai`** + **`POST /api/v1/collect/rules/ai-generate`**（可选 **`ai-generate-and-save`**）；Prompt **`collect_rule_generate`**；采集规则页 **AI 生成规则** Modal；自定义链接采集器无规则 / 无匹配规则时引导 AI 生成；生成后自动 **`custom-rule-test`**；**1688 / AliExpress available/beta** 拦截提示专用采集器；**planned** 平台允许但提示 SKU/库存不保证；settings.collector **`collect_rule_ai_*`**；操作日志 **`collect.rule.ai_generate`** / **`ai_generate_failed`** / **`ai_save`**（不记完整 URL 参数 / 摘要 / Prompt）；安全：前端不直连 AI/目标站、AI 不访问 URL、规则 JSON 后端校验禁 script/eval、不保存账号密码、不绕过验证码。当前路线不变：**AI 商品运营工具** 优先 → **多平台跨境 ERP MVP** → 完整 ERP 增强暂不做 |
 | 2026-05-20 | **采集服务设置页 Provider 维度**：**`/settings/collector?provider=1688|aliexpress|pinduoduo|taobao|shein_temu|custom`**；采集中心卡片 **「采集服务配置」** 带 provider 跳转（planned 显示 **「查看配置」**）；页面 **通用采集服务配置**（影响所有采集器）与 **Provider 专属配置** 分离；**1688** 保留登录态与 **`collect_batch_*_1688`**；**custom** 展示 Profile / 规则测试入口与 **`collect_custom_*`**（不展示 1688 登录）；**aliexpress beta** 说明与 **`collect_aliexpress_*` 预留**；**planned** 空状态；**settings.collector 保存逻辑不变**；不影响 1688 单条/批量与自定义链接采集 |
 | 2026-05-20 | **自定义链接采集器用户文案与平台冲突校验**：采集中心卡片改为用户友好说明，移除 Profile/登录检测等技术描述；自定义 Modal 增加使用说明；输入 **1688 / 速卖通** 等已支持平台链接时前端禁用提交并引导专用采集器；**`POST /api/v1/collect/tasks`（`source=custom`）** 后端域名冲突校验 **`CUSTOM_COLLECT_PROVIDER_CONFLICT`（`recommendedProvider` + `message`）**；批量采集仍禁用且提示改为「先单链接验证规则」；通用访问状态检测仍保留在规则测试与任务详情 |

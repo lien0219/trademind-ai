@@ -489,12 +489,12 @@ export default function ProductDraftsPage() {
             <>
               <Form.Item
                 name="provider"
-                label="图片 Provider"
+                label="图片处理服务"
                 tooltip={bulkOp === 'image_remove_background' ? '后端会强制 removebg' : '如 openai_image / comfyui'}
               >
                 <Input placeholder={bulkOp === 'image_remove_background' ? 'removebg' : 'openai_image'} />
               </Form.Item>
-              <Form.Item name="prompt" label="Prompt（摘要入任务，可选）">
+              <Form.Item name="prompt" label="画面描述（可选，写入任务摘要）">
                 <Input.TextArea rows={3} placeholder="场景/风格提示；勿在公开场合粘贴完整商业秘密" />
               </Form.Item>
             </>

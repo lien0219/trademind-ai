@@ -138,12 +138,12 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
             showIcon
             type="warning"
             message="该平台能力暂未接入，可先保存开放平台配置。"
-            description="OAuth、TestConnection、订单同步等仍可能返回「未实现」；应用级参数可先保存在贸灵供后续对接使用。"
+            description="店铺授权、连接测试、订单同步等能力可能尚未完全开放；可先在此保存开放平台应用参数，供后续对接使用。"
           />
         )}
         {schema.description && <Typography.Paragraph type="secondary">{schema.description}</Typography.Paragraph>}
         <Typography.Paragraph type="secondary">
-          运行时：<Tag color={st.color}>{st.label}</Tag>；Settings 分组 <Typography.Text code>{meta.settingsGroupKey}</Typography.Text>
+          接入状态：<Tag color={st.color}>{st.label}</Tag>
         </Typography.Paragraph>
         <Form
           layout="vertical"
@@ -243,12 +243,8 @@ export default function PlatformSettingsPage() {
           message="由您在各平台开放平台自建应用并把参数填回贸灵"
           description={
             <>
-              贸灵不写死任何三方 App Key / Secret。敏感项服务端 AES-GCM 加密存入 <Typography.Text code>settings</Typography.Text>{' '}
-              并按 schema 分组（如 <Typography.Text code>platform_tiktok</Typography.Text>）。
-              OAuth 后的 <Typography.Text strong>access_token / refresh_token</Typography.Text> 仅保存在店铺的{' '}
-              <Typography.Text code>shop_auth_tokens</Typography.Text>，
-              <Typography.Text strong>不要</Typography.Text>
-              写进通用 settings。
+              请在各平台开放平台创建应用，将 App Key、Secret 等参数填回贸灵。敏感信息会加密保存在服务端。
+              店铺授权后的访问令牌仅保存在对应店铺记录中，不会写入通用系统设置。
               <br />
               授权店铺请前往{' '}
               <Link to="/shops">店铺管理</Link>

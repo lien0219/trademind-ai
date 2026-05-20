@@ -192,7 +192,7 @@ export default function AISettingsPage() {
   return (
     <PageContainer
       title="AI 设置"
-      subTitle="配置大模型 Provider，供标题优化、描述生成、客服建议、AI 采集规则等文本能力使用"
+      subTitle="配置大模型服务商，用于标题优化、描述生成、客服建议、AI 生成采集规则等"
     >
       <div className="tm-ai-settings">
         <ProCard bordered className="tm-ai-settings__hero">
@@ -205,15 +205,14 @@ export default function AISettingsPage() {
                 自备大模型 API
               </Typography.Title>
               <Typography.Paragraph type="secondary" className="tm-ai-settings__hero-desc">
-                在 OpenAI / DeepSeek / 通义千问 / Ollama（OpenAI 兼容）等渠道申请 Key。管理端不直连模型，统一经后端
-                AI Gateway 调用；支持 Chat Completions 文本能力（标题、描述、客服建议、批量 AI、采集规则生成等）。
+                在 OpenAI、DeepSeek、通义千问、Ollama 等渠道申请 API 密钥。管理端不直连模型，统一经后端安全调用；支持标题优化、描述生成、客服建议、批量 AI、采集规则生成等。
               </Typography.Paragraph>
               <Space wrap size={[8, 8]}>
-                <Tag color="blue">AI Gateway</Tag>
+                <Tag color="blue">统一后端调用</Tag>
                 <Tag>标题优化</Tag>
                 <Tag>描述生成</Tag>
                 <Tag>批量 AI</Tag>
-                <Tag>采集规则 AI</Tag>
+                <Tag>AI 生成采集规则</Tag>
                 <Link to="/settings/integrations">第三方集成总览 →</Link>
               </Space>
             </div>
@@ -245,7 +244,7 @@ export default function AISettingsPage() {
         >
           <ProCard
             bordered
-            title="Provider 类型"
+            title="模型服务商"
             className="tm-ai-settings__panel"
             extra={
               <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
@@ -290,9 +289,9 @@ export default function AISettingsPage() {
             <Col xs={24} lg={14}>
               <ProCard bordered title="连接配置" className="tm-ai-settings__panel tm-ai-settings__panel--fill">
                 <Form.Item
-                  label="Base URL"
+                  label="接口地址"
                   name="base_url"
-                  rules={[{ required: true, message: '请输入 Base URL' }]}
+                  rules={[{ required: true, message: '请输入接口地址' }]}
                   extra={preset.baseUrlHelp}
                 >
                   <Input placeholder={preset.baseUrl} />
@@ -301,9 +300,9 @@ export default function AISettingsPage() {
                   <Input placeholder={preset.model} />
                 </Form.Item>
                 <Form.Item
-                  label="API Key"
+                  label="API 密钥"
                   name="api_key"
-                  rules={[{ required: true, message: '请输入 API Key' }]}
+                  rules={[{ required: true, message: '请输入 API 密钥' }]}
                   extra="敏感字段；保存后列表显示为 ****。测试连接时若留空占位则不覆盖已存密钥。"
                 >
                   <Input.Password placeholder="sk-..." autoComplete="new-password" />
@@ -314,12 +313,12 @@ export default function AISettingsPage() {
               <ProCard bordered title="生成参数" className="tm-ai-settings__panel tm-ai-settings__panel--fill">
                 <Row gutter={12}>
                   <Col span={12}>
-                    <Form.Item label="Temperature" name="temperature" extra="默认 0.7">
+                    <Form.Item label="随机度（Temperature）" name="temperature" extra="默认 0.7，越低越稳定">
                       <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item label="Max tokens" name="max_tokens" extra="默认 512">
+                    <Form.Item label="最大输出长度（tokens）" name="max_tokens" extra="默认 512">
                       <InputNumber min={1} max={32000} style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>

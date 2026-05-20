@@ -32,7 +32,7 @@ export const TASK_FAILURE_CATEGORY_LABEL: Record<string, string> = {
   validation_error: '校验失败',
   inventory_mapping_missing: '库存映射缺失',
   sku_mapping_missing: 'SKU 映射缺失',
-  worker_lease_expired: 'Worker 租约过期',
+  worker_lease_expired: '后台任务执行超时',
   system_error: '系统错误',
   unknown: '未知',
 };
@@ -98,7 +98,7 @@ export const TASK_NORMALIZED_STATUS: Record<string, { text: string; color: strin
   failed: { text: '失败', color: 'error' },
   retrying: { text: '重试中', color: 'processing' },
   stale: { text: '停滞', color: 'warning' },
-  lease_expired: { text: '租约过期', color: 'warning' },
+  lease_expired: { text: '执行超时', color: 'warning' },
   running: { text: '执行中', color: 'processing' },
   pending: { text: '排队', color: 'default' },
   success: { text: '成功', color: 'success' },

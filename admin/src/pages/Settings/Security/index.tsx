@@ -77,7 +77,7 @@ export default function SecuritySettingsPage() {
             <Switch />
           </Form.Item>
           <Form.Item
-            label="运维 Webhook Secret"
+            label="运维通知密钥（Webhook）"
             name="ops_webhook_secret"
           >
             <Input.Password autoComplete="new-password" placeholder="无需回调可留空" />

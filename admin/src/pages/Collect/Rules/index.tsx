@@ -8,7 +8,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Button, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CollectRuleRow, CollectRuleTestResult } from '@/services/collectRules';
@@ -107,7 +107,7 @@ export default function CollectRulesPage() {
 
   const columns: ProColumns<CollectRuleRow>[] = [
     { title: '名称', dataIndex: 'name', ellipsis: true, width: 180 },
-    { title: '域名', dataIndex: 'domain', ellipsis: true, width: 200, copyable: true },
+    { title: '适用网站', dataIndex: 'domain', ellipsis: true, width: 200, copyable: true },
     {
       title: '状态',
       dataIndex: 'status',
@@ -148,7 +148,7 @@ export default function CollectRulesPage() {
               setTestOpen(true);
             }}
           >
-            测试
+            测试采集效果
           </a>
           {row.status === 'enabled' ? (
             <Popconfirm key="dis" title="停用该规则？" onConfirm={() => void toggle(row.id, false)}>
@@ -191,22 +191,28 @@ export default function CollectRulesPage() {
   return (
     <PageContainer
       title="采集规则"
-      subTitle="适用于自定义链接采集器"
+      subTitle="用于告诉系统从网页的哪个位置读取商品标题、价格、图片等信息。"
       extra={
         <Space>
-          <Button onClick={() => setAiModalOpen(true)}>AI 生成规则</Button>
+          <Button onClick={() => setAiModalOpen(true)}>AI 帮我生成规则</Button>
           <Button
-            type="primary"
             onClick={() => {
               setEditingId(null);
               setEditorOpen(true);
             }}
           >
-            新建规则
+            手动新建规则
           </Button>
         </Space>
       }
     >
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="不会写规则？"
+        description="点击「AI 帮我生成规则」，输入一个商品链接，系统会自动尝试生成采集规则。生成后请先测试，确认标题、价格、图片识别正确后再保存。"
+      />
       <ProTable<CollectRuleRow>
         rowKey="id"
         actionRef={actionRef}
@@ -242,7 +248,7 @@ export default function CollectRulesPage() {
         ruleJson: string;
       }>
         key={editingId ?? 'new'}
-        title={editingId ? '编辑采集规则' : '新建采集规则'}
+        title={editingId ? '编辑采集规则' : '手动新建采集规则'}
         open={editorOpen}
         modalProps={{
           destroyOnHidden: true,
@@ -268,7 +274,7 @@ export default function CollectRulesPage() {
           try {
             parsed = JSON.parse(vals.ruleJson || '{}');
           } catch {
-            message.error('rule 必须是合法 JSON');
+            message.error('采集规则内容格式不正确，请检查是否为合法 JSON');
             return false;
           }
           try {
@@ -326,10 +332,10 @@ export default function CollectRulesPage() {
         <ProFormText name="name" label="名称" rules={[{ required: true }]} />
         <ProFormText
           name="domain"
-          label="域名"
+          label="适用网站"
           placeholder="jd.com"
           rules={[{ required: true }]}
-          extra="仅填主机名，不要带 https://。填 jd.com 可匹配 item.jd.com；填 1688.com 可匹配 detail.1688.com。勿只填 www.jd.com / www.1688.com（无法匹配 item / detail 子域）。"
+          extra="仅填网站主域名（不要带 https://）。例如填 jd.com 可匹配该站各子页面。"
           transform={(v) => {
             const s = typeof v === 'string' ? v : '';
             if (!s.trim()) return s;
@@ -343,8 +349,9 @@ export default function CollectRulesPage() {
         />
         <ProFormText
           name="matchPattern"
-          label="URL 正则（可选）"
-          placeholder="留空则仅按域名匹配；1688 详情可填 ^https://detail\\.1688\\.com/offer/"
+          label="匹配网址（可选）"
+          placeholder="留空则按适用网站匹配；需要更精确时可填网址规则"
+          tooltip="高级选项：用于限制只匹配某一类商品页链接。"
         />
         <ProFormDigit name="priority" label="优先级" fieldProps={{ min: 0, max: 1_000_000 }} />
         <ProFormSelect
@@ -363,39 +370,45 @@ export default function CollectRulesPage() {
               size="small"
               onClick={() => {
                 void navigator.clipboard.writeText(SIMPLE_CUSTOM_RULE_TEMPLATE).then(
-                  () => message.success('已复制简写模板（selector + type）'),
+                  () => message.success('已复制简单模板'),
                   () => message.warning('复制失败'),
                 );
               }}
             >
-              复制简写模板
+              复制简单模板
             </Button>
             <Button
               size="small"
               onClick={() => {
                 void navigator.clipboard.writeText(DEFAULT_CUSTOM_RULE_TEMPLATE).then(
-                  () => message.success('已复制完整模板（selectors + attr）'),
+                  () => message.success('已复制高级模板'),
                   () => message.warning('复制失败'),
                 );
               }}
             >
-              复制完整模板
+              复制高级模板
             </Button>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              规则格式见仓库 docs/custom-collect-rules.md
-            </Typography.Text>
           </Space>
+          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+            普通用户建议使用「AI 帮我生成规则」。只有需要精细调整时，才需要修改下方采集规则内容。
+          </Typography.Paragraph>
         </div>
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 8 }}
+          message="这里是系统识别页面内容的规则，格式不正确会导致采集失败。不会写的话，建议使用「AI 帮我生成规则」。"
+        />
         <ProFormTextArea
           name="ruleJson"
-          label="rule（JSON）"
+          label="采集规则内容（高级）"
           rules={[{ required: true }]}
           fieldProps={{ rows: 14, style: { fontFamily: 'monospace', fontSize: 12 } }}
         />
       </ModalForm>
 
       <ModalForm<{ url: string }>
-        title="测试规则"
+        title="测试采集效果"
         open={testOpen}
         modalProps={{
           destroyOnHidden: true,
@@ -432,11 +445,11 @@ export default function CollectRulesPage() {
             return false;
           }
         }}
-        submitter={{ searchConfig: { submitText: '运行测试' } }}
+        submitter={{ searchConfig: { submitText: '测试识别效果' } }}
       >
         <ProFormText
           name="url"
-          label="商品页 URL"
+          label="商品链接"
           rules={[{ required: true }]}
           fieldProps={{
             onChange: (e) => setTestUrl(e.target.value),

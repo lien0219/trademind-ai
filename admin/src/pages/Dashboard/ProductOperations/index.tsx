@@ -94,7 +94,7 @@ export default function ProductOperationsDashboardPage() {
       }
     >
       <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-        聚焦 AI 商品运营 MVP：草稿、AI、发布检查、刊登、库存、客服与失败任务。点击卡片跳转到对应列表处理。
+        聚焦商品运营主线：草稿、AI 优化、发布检查、刊登、库存、客服与失败任务。点击卡片跳转到对应页面处理。
       </Typography.Paragraph>
 
       {summary ? (
@@ -136,7 +136,7 @@ export default function ProductOperationsDashboardPage() {
           </Col>
           <Col xs={24} sm={12} md={8} lg={6} xl={4}>
             <SummaryCard
-              title="库存预警 SKU"
+              title="库存预警规格"
               value={summary.lowStockSkus + summary.outOfStockSkus}
               icon={<InboxOutlined />}
               tone="#0891b2"

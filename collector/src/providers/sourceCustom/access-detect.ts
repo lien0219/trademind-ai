@@ -99,35 +99,35 @@ export function buildAccessSuggestion(
   switch (status) {
     case 'login_required':
       parts.push(
-        '页面疑似需要登录，请确认该商品页是否公开可访问；自定义采集器使用未登录浏览器，带登录态 Profile 能力预留后续扩展。',
+        '当前商品页跳转到了登录页面，请先使用采集浏览器登录后再测试。',
       );
       break;
     case 'verify_required':
-      parts.push('页面疑似触发验证码或风控，请稍后重试或降低采集频率。');
+      parts.push('目标网站可能出现验证码或安全验证，请稍后重试，或在采集浏览器中手动完成验证。');
       break;
     case 'blocked':
-      parts.push('页面返回访问受限（401/403 或 Access denied），请确认链接权限。');
+      parts.push('页面访问受限，请确认商品链接是否有效、是否有权限查看。');
       break;
     case 'timeout':
       parts.push('页面加载超时，请检查网络或稍后重试。');
       break;
     case 'navigation_failed':
-      parts.push('页面无法打开，请检查链接是否有效。');
+      parts.push('页面无法打开，请检查商品链接是否有效。');
       break;
     default:
       break;
   }
   if (missingFields.includes('title')) {
-    parts.push('标题未提取到，请检查 title selector。');
+    parts.push('没有识别到商品标题，请检查规则或重新使用 AI 生成规则。');
   }
   if (missingFields.includes('mainImage')) {
-    parts.push('主图未提取到，请检查 mainImage / mainImages selector。');
+    parts.push('没有识别到商品主图，请检查主图规则后重新测试。');
   }
   if (missingFields.includes('price')) {
-    parts.push('价格未提取到，请检查 price selector（可选）。');
+    parts.push('没有识别到商品价格（可选字段）。');
   }
   if (status === 'public' && parts.length === 0 && missingFields.length === 0) {
-    parts.push('页面可访问，核心字段已提取。');
+    parts.push('页面可正常访问，核心商品信息已识别。');
   }
-  return parts.join(' ') || '请根据 missingFields 调整采集规则选择器。';
+  return parts.join(' ') || '请调整采集规则后重新测试采集效果。';
 }

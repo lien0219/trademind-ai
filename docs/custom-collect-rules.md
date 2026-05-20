@@ -1,6 +1,12 @@
 # 自定义链接采集规则（collect_rules）
 
-> **解析在 Node Collector**（`collector/src/providers/sourceCustom`）。Go 后端只做规则 CRUD、域名匹配、`request_options` 快照与任务编排，**不写 DOM 解析**。
+## 面向用户的说明
+
+- **采集规则**：告诉系统从网页哪里读取商品标题、图片、价格等内容。管理端推荐用「AI 帮我生成规则」，不必手写。
+- **页面位置（selector）**：开发者术语，表示标题/价格等在页面上的位置；保存为 JSON 时字段名为 `selector` / `selectors`。
+- **登录状态（浏览器 Profile）**：商品页需登录时，在采集浏览器中手动登录；系统不保存账号密码。
+
+> **实现说明**：解析在 Node Collector（`collector/src/providers/sourceCustom`）。Go 后端只做规则 CRUD、域名匹配、`request_options` 快照与任务编排，**不写 DOM 解析**。
 
 ## API
 

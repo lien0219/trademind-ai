@@ -64,7 +64,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
       setRows(r.items ?? []);
       setCandCache({});
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载 SKU 匹配失败');
+      message.error((e as Error)?.message || '加载规格匹配失败');
     } finally {
       setLoading(false);
     }
@@ -211,7 +211,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message="部分明细需要人工处理 SKU 匹配"
+          message="部分明细需要人工处理规格匹配"
           description={
             <span>
               未匹配或多候选行可点击下方行展开<strong>查看候选</strong>，或到异常工作台筛选。{' '}
@@ -305,7 +305,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
           { title: '类型', dataIndex: 'matchType', key: 'matchType', width: 130 },
           { title: '置信度', dataIndex: 'confidence', key: 'confidence', width: 72 },
           {
-            title: '本地 SKU',
+            title: '本地商品规格',
             key: 'local',
             width: 120,
             render: (_, r) => r.localSkuCode || r.productSkuId || '—',
@@ -337,10 +337,10 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
                       绑定 SKU
                     </Button>
                     <Popconfirm
-                      title="使用当前行已绑定的本地 SKU 仅扣减本地库存（幂等）？"
+                      title="使用当前行已绑定的本地商品规格扣减库存？"
                       onConfirm={async () => {
                         if (!r.productSkuId) {
-                          message.warning('请先自动匹配或人工绑定本地 SKU');
+                          message.warning('请先自动匹配或人工绑定本地商品规格');
                           return;
                         }
                         try {
@@ -362,10 +362,10 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
                       </Button>
                     </Popconfirm>
                     <Popconfirm
-                      title="使用当前行已绑定的本地 SKU：扣减库存并入队平台库存同步（幂等）？"
+                      title="使用当前行已绑定的本地商品规格：扣减库存并入队平台库存同步（幂等）？"
                       onConfirm={async () => {
                         if (!r.productSkuId) {
-                          message.warning('请先自动匹配或人工绑定本地 SKU');
+                          message.warning('请先自动匹配或人工绑定本地商品规格');
                           return;
                         }
                         try {
@@ -439,7 +439,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
         onCancel={() => setBindOpen(false)}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Typography.Title level={5}>SKU 候选</Typography.Title>
+          <Typography.Title level={5}>规格匹配候选</Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
             只读推荐；请选择一行或用手动搜索。「二次确认绑定」前请核对扣库与平台同步开关。
           </Typography.Paragraph>
@@ -501,7 +501,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
           />
           <Select
             showSearch
-            placeholder="选择本地 SKU"
+            placeholder="选择本地商品规格"
             style={{ width: '100%' }}
             options={skuOpts}
             value={pickedSku}

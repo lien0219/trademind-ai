@@ -304,7 +304,7 @@ func (s *Service) GenerateCollectRuleWithAI(c *gin.Context, body GenerateBody, a
 
 	enabled, digestMax, maxCand, defaultFields := s.readConfig(ctx)
 	if !enabled {
-		return nil, fmt.Errorf("AI 生成采集规则已关闭，请在采集设置中启用 collect_rule_ai_enabled")
+		return nil, fmt.Errorf("AI 生成采集规则已关闭，请在「采集设置 → 自定义链接」中开启")
 	}
 	if !s.isAIConfigured(ctx) {
 		return nil, fmt.Errorf("请先到「设置 → AI 设置」配置并测试 AI 后，再使用 AI 生成采集规则")

@@ -130,7 +130,7 @@ export default function TaskCenterAlertsPage() {
         width: 120,
       },
       {
-        title: 'platform',
+        title: '平台',
         dataIndex: 'platform',
         width: 90,
       },
@@ -224,7 +224,7 @@ export default function TaskCenterAlertsPage() {
               onClick={() => {
                 const chans = configuredNotifyChannels;
                 if (!chans.length) {
-                  message.warning('请先在「设置 → 告警通知配置」中填写 notification_channels（JSON 数组）');
+                  message.warning('请先在「设置 → 告警通知配置」中配置通知渠道');
                   return;
                 }
                 Modal.confirm({

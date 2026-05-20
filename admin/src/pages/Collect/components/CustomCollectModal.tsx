@@ -48,7 +48,7 @@ function resolveRuleId(
         message: `未找到匹配的启用规则。链接主机名为 ${host}，请创建域名为 ${suggested} 的规则，或手动选择规则。`,
       };
     } catch {
-      return { ok: false, message: '未找到匹配的自定义采集规则，请先创建规则或手动选择' };
+      return { ok: false, message: '没有找到可用采集规则，请先创建规则或手动选择' };
     }
   }
   const best = [...matched].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))[0];
@@ -157,7 +157,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
       return;
     }
     if (rules.length === 0) {
-      message.error('请先到「采集规则」创建并启用一条自定义采集规则');
+      message.error('请先到「采集规则」创建并启用一条采集规则');
       return;
     }
     const picked = resolveRuleId(rules, url, formRuleId);
@@ -223,7 +223,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
           return false;
         }
         if (rules.length === 0) {
-          message.error('请先到「采集规则」创建并启用一条自定义采集规则');
+          message.error('请先到「采集规则」创建并启用一条采集规则');
           return false;
         }
         const picked = resolveRuleId(rules, url, vals.ruleId);
@@ -280,7 +280,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
               <span>可使用 AI 根据商品页面自动生成规则，或手动创建。</span>
               <Space wrap>
                 <Button type="primary" size="small" onClick={() => setAiModalOpen(true)}>
-                  AI 生成采集规则
+                  AI 帮我生成规则
                 </Button>
                 <Button size="small" onClick={() => history.push('/collect/rules')}>
                   去采集规则页面手动创建
@@ -300,7 +300,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
             <Space direction="vertical" size="small">
               <span>是否使用 AI 根据该页面生成规则？</span>
               <Button type="primary" size="small" onClick={() => setAiModalOpen(true)}>
-                AI 生成规则
+                AI 帮我生成规则
               </Button>
             </Space>
           }
@@ -334,10 +334,10 @@ export function CustomCollectModal({ open, onClose }: Props) {
       />
       <Space style={{ marginBottom: testResult ? 8 : 16 }}>
         <Button loading={testing} disabled={submitBlocked} onClick={() => void runAccessTest()}>
-          测试访问与规则
+          测试采集效果
         </Button>
         <span style={{ color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>
-          不创建采集任务，仅检测页面可访问性与选择器提取效果
+          不提交采集任务，仅检测页面能否打开、商品信息能否识别
         </span>
       </Space>
       {testing ? (
@@ -360,8 +360,8 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="info"
           showIcon
           style={{ marginTop: 12 }}
-          message="已启用登录态 Profile"
-          description="提交采集任务时将使用所选 Profile 的浏览器登录态。"
+          message="已启用登录状态"
+          description="提交采集任务时将使用所选登录状态（采集浏览器中的登录信息）。"
         />
       ) : null}
       <AIGenerateRuleModal

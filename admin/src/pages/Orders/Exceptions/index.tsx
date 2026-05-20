@@ -36,8 +36,8 @@ import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products
 import { queryShops } from '@/services/shops';
 
 const EX_TYPES: Record<string, { text: string }> = {
-  sku_unmatched: { text: '未匹配 SKU' },
-  sku_ambiguous: { text: 'SKU 多候选' },
+  sku_unmatched: { text: '规格未匹配' },
+  sku_ambiguous: { text: '规格多候选' },
   insufficient_stock: { text: '库存不足' },
   inventory_deduct_failed: { text: '扣库存失败' },
   inventory_restore_failed: { text: '恢复库存失败' },
@@ -144,7 +144,7 @@ export default function OrderExceptionsPage() {
 
   const openCandModalOnly = useCallback(async (row: OrderExceptionRow) => {
     if (!row.orderItemId) {
-      message.warning('缺少明细行 ID，可到订单 SKU 匹配页查看候选');
+      message.warning('缺少明细行 ID，可到订单「规格匹配」页查看候选');
       return;
     }
     setCandModalTitle(row.orderNo || row.orderItemId || '候选');
@@ -275,7 +275,7 @@ export default function OrderExceptionsPage() {
         ellipsis: true,
       },
       {
-        title: '外部 SKU',
+        title: '平台规格编码',
         key: 'skuCol',
         search: false,
         width: 120,
@@ -283,7 +283,7 @@ export default function OrderExceptionsPage() {
         render: (_, r) => r.skuCode || r.externalSkuId || '—',
       },
       {
-        title: '本地商品/SKU',
+        title: '本地商品/规格',
         key: 'localSku',
         search: false,
         width: 160,
@@ -470,7 +470,7 @@ export default function OrderExceptionsPage() {
   return (
     <PageContainer title="订单异常工作台">
       <Typography.Paragraph type="secondary">
-        聚合未匹配 SKU、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。
+        聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。
       </Typography.Paragraph>
       {summary ? (
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -481,12 +481,12 @@ export default function OrderExceptionsPage() {
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="未匹配 SKU" value={summary.skuUnmatched} />
+              <Statistic title="规格未匹配" value={summary.skuUnmatched} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="SKU 多候选" value={summary.skuAmbiguous} />
+              <Statistic title="规格多候选" value={summary.skuAmbiguous} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
@@ -541,7 +541,7 @@ export default function OrderExceptionsPage() {
       />
 
       <Drawer
-        title="绑定本地 SKU"
+        title="绑定本地商品规格"
         width={640}
         open={bindOpen}
         onClose={() => setBindOpen(false)}
@@ -550,13 +550,13 @@ export default function OrderExceptionsPage() {
           <Space>
             <Button onClick={() => setBindOpen(false)}>取消</Button>
             <Popconfirm
-              title={`确认所选本地 SKU${pickedCandMeta ? `（候选分 ${pickedCandMeta.confidence} · ${pickedCandMeta.source}）` : ''}
+              title={`确认所选本地商品规格${pickedCandMeta ? `（候选分 ${pickedCandMeta.confidence} · ${pickedCandMeta.source}）` : ''}
 并执行所选库存动作？`}
               okText="确认"
               cancelText="返回"
               onConfirm={async () => {
                 if (!bindRow || !pickedSku) {
-                  message.warning('请选择本地 SKU');
+                  message.warning('请选择本地商品规格');
                   return;
                 }
                 try {
@@ -594,7 +594,7 @@ export default function OrderExceptionsPage() {
               style={{ marginBottom: 12 }}
               message={
                 <span>
-                  订单 {bindRow.orderNo || bindRow.orderId || '—'} · 平台 {bindRow.platform || '—'} · 外部 SKU{' '}
+                  订单 {bindRow.orderNo || bindRow.orderId || '—'} · 平台 {bindRow.platform || '—'} · 平台规格{' '}
                   {bindRow.skuCode || bindRow.externalSkuId || '—'}
                 </span>
               }
@@ -633,8 +633,8 @@ export default function OrderExceptionsPage() {
                 },
                 { title: '原因 / 信号', key: 'rs', ellipsis: true, render: (_, r) => `${r.reason || '—'} ${(r.matchSignals || []).join(',')}` },
                 { title: '商品标题', dataIndex: 'productTitle', width: 140, ellipsis: true },
-                { title: 'SKU Code', dataIndex: 'skuCode', width: 112, ellipsis: true },
-                { title: 'SKU 名称', dataIndex: 'skuName', width: 112, ellipsis: true },
+                { title: '规格编码', dataIndex: 'skuCode', width: 112, ellipsis: true },
+                { title: '规格名称', dataIndex: 'skuName', width: 112, ellipsis: true },
                 { title: '库存', dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
                 {
                   title: '操作',
@@ -661,7 +661,7 @@ export default function OrderExceptionsPage() {
             <Typography.Title level={5}>手动搜索</Typography.Title>
             <Space wrap style={{ marginBottom: 8 }}>
               <Input.Search
-                placeholder="搜索本地 SKU / 商品"
+                placeholder="搜索本地商品规格 / 商品"
                 style={{ width: 280 }}
                 value={skuKw}
                 onChange={(e) => setSkuKw(e.target.value)}
@@ -673,7 +673,7 @@ export default function OrderExceptionsPage() {
             </Space>
             <Select
               style={{ width: '100%', marginBottom: 16 }}
-              placeholder="选择 SKU"
+              placeholder="选择商品规格"
               value={pickedSku}
               onChange={(v) => {
                 setPickedSku(v);
@@ -745,8 +745,8 @@ export default function OrderExceptionsPage() {
             { title: '原因', dataIndex: 'reason', ellipsis: true },
             { title: '来源', dataIndex: 'source', width: 160, ellipsis: true },
             { title: '商品标题', dataIndex: 'productTitle', width: 160, ellipsis: true },
-            { title: 'SKU Code', dataIndex: 'skuCode', width: 120 },
-            { title: 'SKU 名称', dataIndex: 'skuName', width: 120, ellipsis: true },
+            { title: '规格编码', dataIndex: 'skuCode', width: 120 },
+            { title: '规格名称', dataIndex: 'skuName', width: 120, ellipsis: true },
             { title: '库存', dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
             {
               title: '信号',

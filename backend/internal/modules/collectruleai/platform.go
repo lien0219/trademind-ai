@@ -23,13 +23,13 @@ func (e *platformBlockError) Error() string {
 func plannedPlatformHint(platform collectdomain.PlatformID) string {
 	switch platform {
 	case collectdomain.PlatformTaobaoTmall:
-		return "该平台没有专用采集器，自定义规则不保证 SKU / 库存完整。"
+		return "该平台没有专用采集器，商品规格、库存等信息不一定能完整识别。"
 	case collectdomain.PlatformPdd:
-		return "拼多多专用采集器尚未开放，AI 生成的规则可能无法提取 SKU / 库存。"
+		return "拼多多专用采集器尚未开放，商品规格、库存等信息不一定能完整识别。"
 	case collectdomain.PlatformSheinTemu:
-		return "该平台专用采集器尚未开放，自定义规则不保证 SKU / 库存完整。"
+		return "该平台专用采集器尚未开放，商品规格、库存等信息不一定能完整识别。"
 	default:
-		return "该平台没有专用采集器，自定义规则不保证 SKU / 库存完整。"
+		return "该平台没有专用采集器，商品规格、库存等信息不一定能完整识别。"
 	}
 }
 
@@ -66,7 +66,7 @@ func customCollectConflictMessage(platform collectdomain.PlatformID, providerNam
 	name := strings.TrimSpace(providerName)
 	switch platform {
 	case collectdomain.Platform1688:
-		return "该链接属于 1688 平台，请使用「1688 采集器」。1688 采集器已针对商品标题、主图、详情图、属性、SKU 做专门适配，采集结果更稳定。"
+		return "该链接属于 1688 平台，请使用「1688 采集器」。1688 采集器已针对商品标题、主图、详情图、商品参数、商品规格做专门适配，识别更稳定。"
 	case collectdomain.PlatformAliExpress:
 		return "该链接属于 AliExpress 平台，请使用「速卖通采集器」。专用采集器字段识别更稳定。"
 	default:

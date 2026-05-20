@@ -527,7 +527,7 @@ export default function CollectBatchesPage() {
                 showIcon
                 style={{ marginBottom: 16 }}
                 message="本批次部分链接失败"
-                description="若同一链接单独采集成功，批量失败通常与并发、访问频率或目标站点风控有关。可在「设置 → 采集服务」降低 1688 批量并发，或稍后重试失败任务。"
+                description="若同一链接单独采集成功，批量失败通常与并发、访问频率或目标站点风控有关。可在「采集设置」降低 1688 批量并发，或稍后重试失败任务。"
               />
             ) : null}
             <ProCard bordered size="small" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>

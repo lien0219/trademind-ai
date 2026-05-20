@@ -13,7 +13,10 @@ import {
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
-import { mapCollectorErrorCodeLabel } from '@/constants/collectErrors';
+import {
+  mapCollectorErrorCodeDetail,
+  mapCollectorErrorCodeLabel,
+} from '@/constants/collectErrors';
 import {
   fetchCollectTask,
   queryCollectTaskEvents,
@@ -144,13 +147,31 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
               )}
             </Descriptions.Item>
             {task.collectorErrorCode ? (
-              <Descriptions.Item label="错误码">
-                <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
-                {mapCollectorErrorCodeLabel(task.collectorErrorCode) ? (
-                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-                    {mapCollectorErrorCodeLabel(task.collectorErrorCode)}
-                  </Typography.Paragraph>
-                ) : null}
+              <Descriptions.Item label="失败原因">
+                <div>
+                  <Typography.Text strong>
+                    {mapCollectorErrorCodeLabel(task.collectorErrorCode) || task.collectorErrorCode}
+                  </Typography.Text>
+                  {mapCollectorErrorCodeDetail(task.collectorErrorCode) ? (
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
+                      {mapCollectorErrorCodeDetail(task.collectorErrorCode)}
+                    </Typography.Paragraph>
+                  ) : null}
+                  <Collapse
+                    ghost
+                    size="small"
+                    style={{ marginTop: 8 }}
+                    items={[
+                      {
+                        key: 'tech',
+                        label: '展开查看技术信息',
+                        children: (
+                          <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
               </Descriptions.Item>
             ) : null}
             {task.retryable !== undefined ? (

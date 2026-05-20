@@ -60,7 +60,7 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
       source: '1688',
       platformLabel: '1688',
       message:
-        '该链接属于 1688 平台，请使用「1688 采集器」。1688 采集器已针对商品标题、主图、详情图、属性、SKU 做专门适配，采集结果更稳定。',
+        '该链接属于 1688 平台，请使用「1688 采集器」。1688 采集器已针对商品标题、主图、详情图、商品参数、商品规格做专门适配，识别更稳定。',
       actionLabel: '去使用 1688 采集器',
     };
   }
@@ -90,7 +90,7 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
       kind: 'planned',
       platformLabel: '拼多多',
       message:
-        '该链接属于暂未开放专用采集器的平台。当前自定义链接采集器不保证采集成功，如需采集请先创建规则并进行测试。',
+        '该链接属于暂未开放专用采集器的平台。请先创建采集规则并测试采集效果，再开始采集。',
       actionLabel: '我知道了',
     };
   }
@@ -100,7 +100,7 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
       kind: 'planned',
       platformLabel: 'SHEIN / Temu',
       message:
-        '该链接属于暂未开放专用采集器的平台。当前自定义链接采集器不保证采集成功，如需采集请先创建规则并进行测试。',
+        '该链接属于暂未开放专用采集器的平台。请先创建采集规则并测试采集效果，再开始采集。',
       actionLabel: '我知道了',
     };
   }
@@ -109,16 +109,16 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
 }
 
 export const CUSTOM_COLLECT_USAGE_LINES = [
-  '自定义链接采集适合没有专用采集器的网站商品页。',
-  '如果平台已有专用采集器，请优先使用专用采集器。',
-  '自定义采集需要先配置采集规则，并通过测试后再正式采集。',
+  '用于采集没有专用采集器的网站商品页。请先创建采集规则，再开始采集。',
+  '如果是 1688、速卖通等已支持的平台，请优先使用对应的专用采集器，识别更稳定。',
+  '建议先测试采集效果，确认标题、价格、图片识别正确后再提交采集任务。',
 ] as const;
 
 export const CUSTOM_COLLECT_CARD_DESCRIPTION =
-  '用于采集没有专用采集器的网站商品页。请优先使用平台专属采集器，字段识别更稳定。';
+  '用于采集没有专用采集器的网站商品页。请先创建采集规则，再开始采集。';
 
 export const CUSTOM_COLLECT_CARD_NOTES =
-  '适用于暂未提供专用采集器的网站。已支持的平台请使用对应采集器，批量采集暂未开放。';
+  '已支持 1688、速卖通等平台请使用专用采集器；自定义链接批量采集暂未开放。';
 
 export const CUSTOM_BATCH_DISABLED_TOOLTIP =
-  '自定义链接批量采集暂未开放。请先使用单链接采集验证规则稳定性。';
+  '自定义链接批量采集暂未开放。请先使用单条采集验证规则是否稳定。';

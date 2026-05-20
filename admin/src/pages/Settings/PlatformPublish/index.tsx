@@ -234,12 +234,8 @@ export default function PlatformPublishSettingsPage() {
           message="刊登侧默认参数随 settings 入库，单次刊登可在商品详情 Tab 中选择店铺并提交。"
           description={
             <>
-              与「开放平台应用配置」拆分：此处分组键由各平台 Provider 的{' '}
-              <Typography.Text code>PublishConfigSchema</Typography.Text>
-              （如 <Typography.Text code>settings.platform_publish_*</Typography.Text>
-              ，非仓库硬编码）。
-              TikTok/Shopee 等真实上架未落地前，服务端仍会拒绝刊登；可先创建{' '}
-              <Link to="/shops">mock 平台店铺</Link> 跑通链路。
+              与「平台开放配置」分开：此处保存各平台刊登时的默认参数。
+              部分平台真实上架能力尚未完全开放时，提交刊登可能被拒绝；可先用测试店铺熟悉流程。
               <br />
               任务列表：<Link to="/product/publish-tasks">商品 · 刊登任务</Link>
               。
@@ -249,7 +245,7 @@ export default function PlatformPublishSettingsPage() {
         <Spin spinning={loadingProviders}>
           {items.length === 0 ? (
             <Typography.Paragraph type="secondary">
-              暂无带刊登 Schema 的平台（请确认后端注册了 publishConfigSchema）。
+              暂无可配置刊登参数的平台。
             </Typography.Paragraph>
           ) : (
             <Tabs activeKey={tab} onChange={setTab} items={items} />

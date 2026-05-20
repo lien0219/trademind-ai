@@ -1,6 +1,6 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Descriptions, Drawer, Spin, Tag } from 'antd';
+import { Button, Collapse, Descriptions, Drawer, Spin, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useRef, useState } from 'react';
 import type { AiTaskDetail, AiTaskListRow } from '@/services/aiTasks';
@@ -15,13 +15,18 @@ function formatJsonPretty(v: unknown): string {
   }
 }
 
+const AI_TASK_STATUS_LABEL: Record<string, { text: string; color?: string }> = {
+  pending: { text: '排队中' },
+  running: { text: '执行中', color: 'processing' },
+  success: { text: '成功', color: 'success' },
+  failed: { text: '失败', color: 'error' },
+};
+
 function statusTag(status: string) {
   const s = status?.trim() || '';
-  if (s === 'success') return <Tag color="success">success</Tag>;
-  if (s === 'failed') return <Tag color="error">failed</Tag>;
-  if (s === 'running') return <Tag color="processing">running</Tag>;
-  if (s === 'pending') return <Tag>pending</Tag>;
-  return <Tag>{s || '-'}</Tag>;
+  const m = AI_TASK_STATUS_LABEL[s];
+  if (m) return <Tag color={m.color}>{m.text}</Tag>;
+  return <Tag>{s || '—'}</Tag>;
 }
 
 function JsonBlock({ title, value }: { title: string; value: unknown }) {
@@ -94,27 +99,27 @@ export default function AiTasksPage() {
       width: 100,
       valueType: 'select',
       valueEnum: {
-        pending: { text: 'pending' },
-        running: { text: 'running' },
-        success: { text: 'success' },
-        failed: { text: 'failed' },
+        pending: { text: '排队中' },
+        running: { text: '执行中' },
+        success: { text: '成功' },
+        failed: { text: '失败' },
       },
       render: (_, row) => statusTag(row.status),
     },
     {
-      title: 'Provider',
+      title: 'AI 服务商',
       dataIndex: 'provider',
       width: 140,
       ellipsis: true,
     },
     {
-      title: 'Model',
+      title: '模型',
       dataIndex: 'model',
       width: 160,
       ellipsis: true,
     },
     {
-      title: 'Prompt',
+      title: '技能模板',
       dataIndex: 'promptCode',
       width: 200,
       ellipsis: true,
@@ -134,13 +139,13 @@ export default function AiTasksPage() {
       copyable: true,
     },
     {
-      title: 'Token in',
+      title: '输入量',
       dataIndex: 'tokenInput',
       width: 88,
       search: false,
     },
     {
-      title: 'Token out',
+      title: '输出量',
       dataIndex: 'tokenOutput',
       width: 92,
       search: false,
@@ -180,7 +185,7 @@ export default function AiTasksPage() {
   ];
 
   return (
-    <PageContainer title="AI 任务记录">
+    <PageContainer title="AI 任务记录" subTitle="查看标题优化、描述生成等 AI 调用记录与失败原因">
       <ProTable<AiTaskListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -233,13 +238,13 @@ export default function AiTasksPage() {
               <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
               <Descriptions.Item label="任务类型">{detail.taskType}</Descriptions.Item>
               <Descriptions.Item label="状态">{statusTag(detail.status)}</Descriptions.Item>
-              <Descriptions.Item label="Provider">{detail.provider || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Model">{detail.model || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Prompt code">{detail.promptCode || '—'}</Descriptions.Item>
+              <Descriptions.Item label="AI 服务商">{detail.provider || '—'}</Descriptions.Item>
+              <Descriptions.Item label="模型">{detail.model || '—'}</Descriptions.Item>
+              <Descriptions.Item label="技能模板">{detail.promptCode || '—'}</Descriptions.Item>
               <Descriptions.Item label="商品 ID">{detail.productId || '—'}</Descriptions.Item>
               <Descriptions.Item label="创建者">{detail.createdBy || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Token in">{detail.tokenInput ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="Token out">{detail.tokenOutput ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="输入 tokens">{detail.tokenInput ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="输出 tokens">{detail.tokenOutput ?? 0}</Descriptions.Item>
               <Descriptions.Item label="费用">{detail.costAmount ?? 0}</Descriptions.Item>
               <Descriptions.Item label="开始时间">
                 {detail.startedAt ? dayjs(detail.startedAt).format('YYYY-MM-DD HH:mm:ss') : '—'}
@@ -252,9 +257,22 @@ export default function AiTasksPage() {
               </Descriptions.Item>
               <Descriptions.Item label="错误信息">{detail.errorMessage || '—'}</Descriptions.Item>
             </Descriptions>
-            <JsonBlock title="Input（JSON）" value={detail.input} />
-            <JsonBlock title="Output（JSON）" value={detail.output} />
-            <JsonBlock title="Raw response（JSON）" value={detail.rawResponse} />
+            <Collapse
+              ghost
+              items={[
+                {
+                  key: 'tech',
+                  label: '展开查看技术详情（输入/输出原始数据）',
+                  children: (
+                    <>
+                      <JsonBlock title="请求内容" value={detail.input} />
+                      <JsonBlock title="返回内容" value={detail.output} />
+                      <JsonBlock title="模型原始响应" value={detail.rawResponse} />
+                    </>
+                  ),
+                },
+              ]}
+            />
           </>
         ) : (
           <div style={{ color: 'var(--ant-color-text-secondary)' }}>暂无数据</div>

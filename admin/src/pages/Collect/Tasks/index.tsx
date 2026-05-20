@@ -17,7 +17,11 @@ import {
 } from '@/services/collectTasks';
 import type { CollectRuleRow } from '@/services/collectRules';
 import { queryCollectRules } from '@/services/collectRules';
-import { mapCollectErrorMessage } from '@/constants/collectErrors';
+import {
+  mapCollectErrorMessage,
+  mapCollectorErrorCodeDetail,
+  mapCollectorErrorCodeLabel,
+} from '@/constants/collectErrors';
 import {
   formatRuleDomainMismatchMessage,
   ruleMatchesURL,
@@ -207,27 +211,32 @@ export default function CollectTasksPage() {
         ),
     },
     {
-      title: '错误码',
+      title: '失败原因',
       dataIndex: 'collectorErrorCode',
-      width: 168,
+      width: 140,
       search: false,
-      render: (_, row) => row.collectorErrorCode || '—',
+      render: (_, row) => {
+        if (row.status !== 'failed' && row.status !== 'retrying') return '—';
+        return (
+          mapCollectorErrorCodeLabel(row.collectorErrorCode) ||
+          row.failureHint ||
+          '—'
+        );
+      },
     },
     {
-      title: '错误信息',
-      dataIndex: 'errorMessage',
+      title: '处理建议',
+      dataIndex: 'failureHint',
       ellipsis: true,
       search: false,
-      render: (_, row) => (
-        <span>
-          {row.errorMessage || '—'}
-          {row.failureHint ? (
-            <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
-              {row.failureHint}
-            </Typography.Text>
-          ) : null}
-        </span>
-      ),
+      render: (_, row) => {
+        if (row.status !== 'failed' && row.status !== 'retrying') return '—';
+        const hint =
+          row.failureHint ||
+          mapCollectorErrorCodeDetail(row.collectorErrorCode) ||
+          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage) : '');
+        return hint || '—';
+      },
     },
     {
       title: '开始时间',

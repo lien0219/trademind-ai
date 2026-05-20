@@ -64,7 +64,7 @@ const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
   pinduoduo: '暂未开放，预留配置入口',
   taobao: '暂未开放，预留配置入口',
   shein_temu: '暂未开放，预留配置入口',
-  custom: 'Profile、采集规则与访问检测',
+  custom: '登录状态、采集规则与页面访问检测',
 };
 
 type AuthDisplayStatus = 'checking' | Provider1688AuthStatusValue;
@@ -291,32 +291,33 @@ function CollectorCustomSection() {
         <Alert
           type="info"
           showIcon
-          message="适用于没有专用采集器的网站商品页"
-          description="需要登录的网站，请创建采集浏览器 Profile，自行登录后再测试规则与采集。"
+          message="用于采集没有专用采集器的网站商品页"
+          description="请先创建采集规则，再开始采集。需要登录的网站，可管理登录状态并在采集浏览器中自行登录后再测试与采集。"
         />
         <Space wrap className="tm-action-space">
           <Button type="primary" onClick={() => history.push('/collect/browser-profiles')}>
-            管理 Profile
+            管理登录状态
           </Button>
           <Button onClick={() => history.push('/collect/rules')}>采集规则</Button>
-          <Button onClick={() => history.push('/collect/rules')}>测试规则</Button>
+          <Button onClick={() => history.push('/collect/rules')}>测试采集效果</Button>
         </Space>
         <Row gutter={16}>
           <Col xs={24} sm={12}>
             <Form.Item
-              label="启用访问状态检测"
+              label="启用页面访问检测"
               name="collect_custom_access_check_enabled"
               valuePropName="checked"
-              tooltip="提交前检测页面是否公开可访问、是否疑似需登录或触发风控。"
+              tooltip="提交前检测商品页能否打开、是否需要登录或验证。"
             >
               <Switch />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
             <Form.Item
-              label="允许使用登录态 Profile"
+              label="允许使用已登录的采集浏览器"
               name="collect_custom_profile_enabled"
               valuePropName="checked"
+              tooltip="开启后，采集与规则测试可使用你在采集浏览器中保存的登录状态。"
             >
               <Switch />
             </Form.Item>
@@ -324,16 +325,15 @@ function CollectorCustomSection() {
         </Row>
         <Alert type="warning" showIcon message="自定义链接批量采集：暂未开放" />
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          在「采集规则」页创建并启用规则后，使用「测试规则」验证 selector 能否正确抽取字段，再提交正式采集任务。
-          也可使用「AI 生成规则」根据商品页结构自动生成 JSON 规则。
+          在「采集规则」页创建并启用规则后，先「测试采集效果」确认标题、价格、图片能识别，再提交采集任务。不会写规则时可使用「AI 帮我生成规则」。
         </Typography.Paragraph>
         <Row gutter={16}>
           <Col xs={24} sm={12}>
             <Form.Item
-              label="启用 AI 生成采集规则"
+              label="启用 AI 帮我生成规则"
               name="collect_rule_ai_enabled"
               valuePropName="checked"
-              tooltip="关闭后管理端隐藏 AI 生成入口（需已配置 AI Provider）。"
+              tooltip="关闭后管理端隐藏 AI 生成入口（需已在 AI 设置中配置大模型）。"
             >
               <Switch />
             </Form.Item>
@@ -377,8 +377,8 @@ function CollectorAliExpressSection({ providerRow }: { providerRow?: CollectProv
         <Alert
           type="info"
           showIcon
-          message="SKU / 属性提取"
-          description="内置 Provider 会尝试提取标题、主图、详情图、属性与 SKU 变体。请先单条采集验证字段完整性。"
+          message="商品信息提取"
+          description="专用采集器会尝试提取标题、主图、详情图、商品参数与商品规格。请先单条采集验证是否完整。"
         />
 
         <Row gutter={16}>
@@ -602,7 +602,7 @@ export default function CollectorSettingsPage() {
   ) : null;
 
   return (
-    <PageContainer title="采集服务" subTitle={`当前：${providerOption.label}`}>
+    <PageContainer title="采集设置" subTitle={`当前：${providerOption.label}`}>
       <div className="tm-collector-settings">
         <ProCard bordered className="tm-collector-settings__selector" title="采集器类型">
           <CollectorProviderSelector
@@ -619,7 +619,7 @@ export default function CollectorSettingsPage() {
             <Row gutter={[16, 16]} align="stretch">
               <Col xs={24} xl={10}>
                 <ProCard
-                  title="通用采集服务配置"
+                  title="通用采集设置"
                   bordered
                   className="tm-collector-settings__panel"
                   extra={

@@ -95,7 +95,7 @@ export default function PricingApplyModal({
       setPreview(res.preview ?? []);
       setStep('preview');
       if ((res.skuCount ?? 0) === 0) {
-        message.warning('没有可计算的 SKU');
+        message.warning('没有可计算的商品规格');
       }
     } catch (e: unknown) {
       message.error((e as Error)?.message || '试算失败');
@@ -135,7 +135,7 @@ export default function PricingApplyModal({
       }
       setSummary(res);
       setStep('done');
-      message.success(`已更新 ${res.updated ?? 0} 个 SKU 销售价`);
+      message.success(`已更新 ${res.updated ?? 0} 个商品规格的销售价`);
       onApplied?.();
     } catch (e: unknown) {
       message.error((e as Error)?.message || '应用失败');
@@ -179,7 +179,7 @@ export default function PricingApplyModal({
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message="仅更新本地 SKU 销售价，不会自动刊登到平台"
+            message="仅更新本地商品规格销售价，不会自动刊登到平台"
           />
           <Form form={form} layout="vertical" initialValues={defaultRule()}>
             <Form.Item name="platform" label="目标平台（用于读取平台默认加价）" rules={[{ required: true }]}>

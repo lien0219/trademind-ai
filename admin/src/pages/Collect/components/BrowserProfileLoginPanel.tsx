@@ -10,6 +10,7 @@ import {
 } from '@/services/collectBrowserProfiles';
 import { suggestRuleDomainForHost } from '@/utils/collectRuleMatch';
 import { accessStatusLabel } from '@/constants/collectAccess';
+import { mapCollectorErrorCodeDetail } from '@/constants/collectErrors';
 
 type Props = {
   url: string;
@@ -19,7 +20,7 @@ type Props = {
   onUseProfileChange?: (use: boolean) => void;
   useBrowserProfile?: boolean;
   onRecheckDone?: (result: ProfileCheckResult) => void;
-  /** login_required = 规则测试命中登录页；optional = 用户主动启用 Profile */
+  /** login_required = 规则测试命中登录页；optional = 用户主动启用登录态 */
   tone?: 'login_required' | 'optional';
 };
 
@@ -84,7 +85,7 @@ export function BrowserProfileLoginPanel({
   const handleCreate = async () => {
     const vals = await createForm.validateFields();
     if (!domain) {
-      message.warning('无法识别域名，请填写有效商品链接');
+      message.warning('无法识别适用网站，请填写有效商品链接');
       return;
     }
     try {
@@ -93,7 +94,7 @@ export function BrowserProfileLoginPanel({
         domain,
         provider: 'custom',
       });
-      message.success('Profile 已创建');
+      message.success('登录状态已创建');
       setCreateOpen(false);
       createForm.resetFields();
       await loadProfiles();
@@ -119,13 +120,11 @@ export function BrowserProfileLoginPanel({
     setBusy('open');
     try {
       const res = await openBrowserProfileLogin(profileId, { url: u });
-      message.success(res.message || '已打开采集浏览器');
+      message.success(res.message || '已打开采集浏览器，请在窗口中完成登录');
     } catch (e) {
       const msg = e instanceof Error ? e.message : '打开失败';
       if (msg.includes('HEADED_BROWSER_REQUIRED')) {
-        message.error(
-          '当前 Collector 为无头模式，无法弹出登录窗口。请设置 COLLECTOR_HEADLESS=0 后重启采集服务。',
-        );
+        message.error(mapCollectorErrorCodeDetail('HEADED_BROWSER_REQUIRED'));
       } else {
         message.error(msg);
       }
@@ -144,7 +143,7 @@ export function BrowserProfileLoginPanel({
       setCheckResult(res);
       onRecheckDone?.(res);
       if (res.accessStatus === 'public') {
-        message.success('登录态检测通过，可重新测试规则');
+        message.success('登录状态检测通过，可重新测试采集效果');
       } else {
         message.warning(res.message || '仍未通过登录检测');
       }
@@ -160,19 +159,19 @@ export function BrowserProfileLoginPanel({
       type={tone === 'optional' ? 'info' : 'warning'}
       showIcon
       style={{ marginTop: tone === 'optional' ? 0 : 12 }}
-      message={tone === 'optional' ? '登录态 Profile（可选）' : '该页面需要登录'}
+      message={tone === 'optional' ? '使用已登录的采集浏览器（可选）' : '页面需要登录'}
       description={
         <div>
           <Typography.Paragraph style={{ marginBottom: 8 }}>
             {tone === 'optional'
-              ? '若商品页需登录才可查看，请选择或新建 Profile，在可视化浏览器中手动登录后再生成规则（系统不保存账号密码）。'
-              : '当前链接疑似跳转到登录页。可创建或选择「采集浏览器 Profile」，在可视化浏览器中手动登录后再重新测试（系统不保存账号密码）。'}
+              ? '若商品页需登录才可查看，请选择或新建一条登录状态，在采集浏览器中手动登录后再生成或测试规则（系统不保存账号密码）。'
+              : '当前商品页跳转到了登录页面。请创建或选择登录状态，打开采集浏览器手动登录后再重新测试（系统不保存账号密码）。'}
           </Typography.Paragraph>
           <Space direction="vertical" style={{ width: '100%' }} size="small">
             <Space wrap>
               <Select
                 style={{ minWidth: 260 }}
-                placeholder={domain ? `选择 ${domain} 的 Profile` : '选择 Profile'}
+                placeholder={domain ? `选择 ${domain} 的登录状态` : '选择登录状态'}
                 loading={loading}
                 allowClear
                 value={profileId}
@@ -183,7 +182,7 @@ export function BrowserProfileLoginPanel({
                   setCheckResult(null);
                 }}
               />
-              <Button onClick={() => setCreateOpen(true)}>新建 Profile</Button>
+              <Button onClick={() => setCreateOpen(true)}>新建登录状态</Button>
             </Space>
             <Space wrap>
               <Button
@@ -191,40 +190,41 @@ export function BrowserProfileLoginPanel({
                 loading={busy === 'open'}
                 onClick={() => void handleOpenLogin()}
               >
-                打开采集浏览器登录
+                打开浏览器去登录
               </Button>
               <Button
                 disabled={!profileId}
                 loading={busy === 'check'}
                 onClick={() => void handleCheck()}
               >
-                重新检测登录态
+                重新检测登录状态
               </Button>
               {useBrowserProfile ? (
-                <Typography.Text type="success">将使用该 Profile 测试/采集</Typography.Text>
+                <Typography.Text type="success">将使用所选登录状态进行测试或采集</Typography.Text>
               ) : null}
             </Space>
             {checkResult ? (
               <Typography.Text type="secondary">
-                检测结果：{accessStatusLabel(checkResult.accessStatus).text} — {checkResult.message}
+                检测结果：{accessStatusLabel(checkResult.accessStatus).text}
+                {checkResult.message ? ` — ${checkResult.message}` : ''}
               </Typography.Text>
             ) : null}
           </Space>
           <Modal
-            title="新建采集浏览器 Profile"
+            title="新建采集浏览器登录状态"
             open={createOpen}
             onCancel={() => setCreateOpen(false)}
             onOk={() => void handleCreate()}
             destroyOnHidden
           >
             <Form form={createForm} layout="vertical">
-              <Form.Item label="域名">{domain || '—'}</Form.Item>
+              <Form.Item label="适用网站">{domain || '—'}</Form.Item>
               <Form.Item
                 name="name"
                 label="名称"
                 rules={[{ required: true, message: '必填' }]}
               >
-                <Input placeholder="例如：京东采集登录态" />
+                <Input placeholder="例如：京东-采集登录" />
               </Form.Item>
             </Form>
           </Modal>

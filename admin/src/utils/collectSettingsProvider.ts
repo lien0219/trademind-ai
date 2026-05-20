@@ -85,5 +85,5 @@ export function isPlannedCollectProvider(
 }
 
 export function collectSettingsConfigButtonLabel(status?: CollectProviderStatus): string {
-  return status === 'planned' ? '查看配置' : '采集服务配置';
+  return status === 'planned' ? '查看配置' : '采集设置';
 }

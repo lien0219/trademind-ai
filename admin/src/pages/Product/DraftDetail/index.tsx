@@ -181,7 +181,7 @@ const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) =
 const IMAGE_TYPE_OPTIONS = [
   { label: '主图 (main)', value: 'main' },
   { label: '详情图 (detail)', value: 'detail' },
-  { label: 'SKU 图 (sku)', value: 'sku' },
+  { label: '规格图', value: 'sku' },
 ];
 
 function attrsToText(attrs?: Record<string, unknown>): string {
@@ -196,7 +196,7 @@ function attrsToText(attrs?: Record<string, unknown>): string {
 function imageTypeLabel(t: string): string {
   if (t === 'main') return '主图';
   if (t === 'detail' || t === 'description') return '详情图';
-  if (t === 'sku') return 'SKU';
+  if (t === 'sku') return '规格图';
   return t;
 }
 
@@ -227,7 +227,7 @@ function effectiveStockStatus(r: ProductSKURow): string {
 
 const READINESS_GROUP_LABEL: Record<string, string> = {
   product: '商品信息',
-  sku: 'SKU',
+  sku: '商品规格',
   image: '图片',
   inventory: '库存',
   platform: '平台配置',
@@ -253,7 +253,7 @@ function fixLinkForReadinessCode(code: string): { tab?: string; href?: string; l
     return { tab: 'ai', label: '去 AI 描述' };
   }
   if (c.startsWith('sku.')) {
-    return { tab: 'skus', label: '去 SKU' };
+    return { tab: 'skus', label: '去商品规格' };
   }
   if (c.startsWith('image.')) {
     return { tab: 'images', label: '去图片' };
@@ -678,7 +678,7 @@ export default function ProductDraftDetailPage() {
         ellipsis: true,
       },
       {
-        title: 'attrs (JSON)',
+        title: '规格属性（高级）',
         dataIndex: 'attrsText',
         valueType: 'textarea' as const,
         ellipsis: true,
@@ -690,7 +690,7 @@ export default function ProductDraftDetailPage() {
         width: 140,
         render: (_: unknown, record: SKUEditable) => (
           <Popconfirm
-            title="删除该 SKU？"
+            title="删除该商品规格？"
             onConfirm={async () => {
               if (!record?.id?.startsWith('new_')) {
                 try {
@@ -921,7 +921,7 @@ export default function ProductDraftDetailPage() {
                           width: 100,
                           render: (_: unknown, row: AITaskRow) => `${row.tokenInput ?? 0}/${row.tokenOutput ?? 0}`,
                         },
-                        { title: 'Prompt', dataIndex: 'promptCode', width: 160, ellipsis: true },
+                        { title: '技能模板', dataIndex: 'promptCode', width: 160, ellipsis: true },
                         {
                           title: '时间',
                           dataIndex: 'createdAt',
@@ -934,7 +934,7 @@ export default function ProductDraftDetailPage() {
                   </Card>
 
                   {data.rawData != null ? (
-                    <Card title="Raw JSON" variant="borderless">
+                    <Card title="原始数据（高级）" variant="borderless">
                       <pre style={{ maxHeight: 360, overflow: 'auto', fontSize: 12 }}>{JSON.stringify(data.rawData, null, 2)}</pre>
                     </Card>
                   ) : null}
@@ -949,7 +949,7 @@ export default function ProductDraftDetailPage() {
                   <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
-                        可选择商品图作为源图；场景图在通义万相 / OpenAI / 火山方舟等 Provider 下可无源图。任务由后端入队，结果在{' '}
+                        可选择商品图作为源图；场景图在通义万相 / OpenAI / 火山方舟等服务下可无源图。任务由系统排队处理，结果在{' '}
                         <Link to="/ai/image-tasks">AI 图片任务</Link> 查看。去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI
                         Image；替换背景推荐 OpenAI Image 或 ComfyUI；高级自定义推荐 ComfyUI。
                       </Typography.Text>
@@ -1143,7 +1143,7 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'skus',
-              label: 'SKU 管理',
+              label: '商品规格',
               children: (
                 <Card variant="borderless">
                   <Space style={{ marginBottom: 12 }}>
@@ -1190,7 +1190,7 @@ export default function ProductDraftDetailPage() {
                             stock: row.stock,
                             imageUrl: row.imageUrl,
                           });
-                          message.success('SKU 已创建');
+                          message.success('商品规格已创建');
                         } else {
                           await updateProductSku(id, row.id, {
                             skuCode: row.skuCode,
@@ -1200,7 +1200,7 @@ export default function ProductDraftDetailPage() {
                             stock: row.stock,
                             imageUrl: row.imageUrl,
                           });
-                          message.success('SKU 已更新');
+                          message.success('商品规格已更新');
                         }
                         await reloadDetail();
                       },
@@ -1219,11 +1219,11 @@ export default function ProductDraftDetailPage() {
                   <Alert
                     type="info"
                     showIcon
-                    message="手动库存与同步（MVP）"
+                    message="手动库存与同步"
                     description={
                       <>
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          本地 SKU 库存由后台 <Typography.Text code>product_skus</Typography.Text> 管理；平台侧上次记录在{' '}
+                          本地商品规格库存由系统管理；各平台店铺侧上次同步记录在{' '}
                           <Typography.Text code>product_publication_skus.stock</Typography.Text>。
                           当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 为{' '}
                           <Typography.Text code>available</Typography.Text>/
@@ -1247,7 +1247,7 @@ export default function ProductDraftDetailPage() {
 
                   <Space align="center" style={{ marginBottom: 8 }} wrap>
                     <Typography.Title level={5} style={{ margin: 0 }}>
-                      本地 SKU
+                      本地规格
                     </Typography.Title>
                     <Button
                       size="small"
@@ -1520,7 +1520,7 @@ export default function ProductDraftDetailPage() {
                         },
                         { title: '平台', dataIndex: 'platform', width: 108 },
                         {
-                          title: '本地 SKU',
+                          title: '本地商品规格',
                           ellipsis: true,
                           render: (_, r) => r.skuCode || r.productSkuId || '—',
                         },
@@ -1531,7 +1531,7 @@ export default function ProductDraftDetailPage() {
                           render: (t: string | undefined) => t || '—',
                         },
                         {
-                          title: '外部 SKU ID',
+                          title: '平台规格编码',
                           dataIndex: 'externalSkuId',
                           ellipsis: true,
                           render: (t: string | undefined) => t || '—',
@@ -1596,7 +1596,7 @@ export default function ProductDraftDetailPage() {
                               </Button>
                             );
                             return ok ? btn : (
-                              <Tooltip title="当前平台未开放库存同步（planned/disabled）、店铺未授权，或该映射行不可用">
+                              <Tooltip title="当前平台未开放库存同步、店铺未授权，或该映射行不可用">
                                 <span>{btn}</span>
                               </Tooltip>
                             );
@@ -1721,7 +1721,7 @@ export default function ProductDraftDetailPage() {
                       <Alert
                         type="info"
                         showIcon
-                        message="多平台刊登基座（MVP）"
+                        message="多平台刊登"
                         description={
                           <>
                             <Typography.Text code>product_publish</Typography.Text>{' '}

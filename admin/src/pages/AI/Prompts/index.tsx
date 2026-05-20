@@ -37,7 +37,7 @@ function parseSchemaField(raw: string | undefined): unknown | undefined {
   try {
     return JSON.parse(s) as unknown;
   } catch {
-    throw new Error('outputSchema 需为合法 JSON');
+    throw new Error('输出格式说明需为合法 JSON');
   }
 }
 
@@ -47,11 +47,11 @@ export default function AIPromptsPage() {
   const [editRow, setEditRow] = useState<AIPromptRow | null>(null);
 
   const columns: ProColumns<AIPromptRow>[] = [
-    { title: 'Code', dataIndex: 'code', width: 180, ellipsis: true },
+    { title: '模板编号', dataIndex: 'code', width: 180, ellipsis: true },
     { title: '名称', dataIndex: 'name', width: 160, ellipsis: true },
-    { title: '场景', dataIndex: 'scene', width: 120, search: false },
-    { title: 'Provider', dataIndex: 'provider', width: 140, search: false },
-    { title: 'Model', dataIndex: 'model', width: 140, ellipsis: true, search: false },
+    { title: '使用场景', dataIndex: 'scene', width: 120, search: false },
+    { title: 'AI 服务商', dataIndex: 'provider', width: 140, search: false },
+    { title: '模型', dataIndex: 'model', width: 140, ellipsis: true, search: false },
     {
       title: '启用',
       dataIndex: 'enabled',
@@ -75,7 +75,7 @@ export default function AIPromptsPage() {
           编辑
         </Button>,
         row.enabled ? (
-          <Popconfirm key="dis" title="禁用该 Prompt？" onConfirm={async () => {
+          <Popconfirm key="dis" title="禁用该技能模板？" onConfirm={async () => {
             try {
               await disableAIPrompt(row.id);
               message.success('已禁用');
@@ -125,7 +125,10 @@ export default function AIPromptsPage() {
   ];
 
   return (
-    <PageContainer title="Prompt 模板">
+    <PageContainer
+      title="AI 技能模板"
+      subTitle="配置标题优化、描述生成、客服建议等场景的提示词；一般使用系统内置模板即可。"
+    >
       <ProTable<AIPromptRow>
         headerTitle={false}
         rowKey="id"
@@ -144,7 +147,7 @@ export default function AIPromptsPage() {
       />
 
       <ModalForm
-        title="新建 Prompt"
+        title="新建技能模板"
         open={createOpen}
         onOpenChange={setCreateOpen}
         modalProps={{ destroyOnHidden: true }}
@@ -173,21 +176,26 @@ export default function AIPromptsPage() {
           }
         }}
       >
-        <ProFormText name="code" label="Code" rules={[{ required: true }]} />
+        <ProFormText name="code" label="模板编号" rules={[{ required: true }]} extra="英文标识，如 product_title_optimize" />
         <ProFormText name="name" label="名称" rules={[{ required: true }]} />
-        <ProFormText name="scene" label="场景" />
-        <ProFormText name="provider" label="Provider" />
-        <ProFormText name="model" label="Model" />
-        <ProFormDigit name="temperature" label="Temperature" fieldProps={{ step: 0.1 }} initialValue={0.7} />
-        <ProFormDigit name="maxTokens" label="Max tokens" initialValue={512} />
+        <ProFormText name="scene" label="使用场景" />
+        <ProFormText name="provider" label="指定 AI 服务商（可选）" />
+        <ProFormText name="model" label="指定模型（可选）" />
+        <ProFormDigit name="temperature" label="随机度" fieldProps={{ step: 0.1 }} initialValue={0.7} />
+        <ProFormDigit name="maxTokens" label="最大输出长度" initialValue={512} />
         <ProFormSwitch name="enabled" label="启用" initialValue={true} />
-        <ProFormTextArea name="systemPrompt" label="System prompt" fieldProps={{ rows: 6 }} />
-        <ProFormTextArea name="userPrompt" label="User prompt" fieldProps={{ rows: 6 }} rules={[{ required: true }]} />
-        <ProFormTextArea name="outputSchemaStr" label="Output schema（JSON）" fieldProps={{ rows: 4 }} />
+        <ProFormTextArea name="systemPrompt" label="系统提示词" fieldProps={{ rows: 6 }} />
+        <ProFormTextArea name="userPrompt" label="用户提示词" fieldProps={{ rows: 6 }} rules={[{ required: true }]} />
+        <ProFormTextArea
+          name="outputSchemaStr"
+          label="输出格式说明（高级，JSON）"
+          fieldProps={{ rows: 4 }}
+          extra="仅高级用户需要填写，用于约束 AI 返回结构"
+        />
       </ModalForm>
 
       <ModalForm<Record<string, unknown>>
-        title={`编辑 Prompt — ${editRow?.code ?? ''}`}
+        title={`编辑技能模板 — ${editRow?.code ?? ''}`}
         open={!!editRow}
         onOpenChange={(v) => {
           if (!v) setEditRow(null);
@@ -239,17 +247,17 @@ export default function AIPromptsPage() {
           }
         }}
       >
-        <ProFormText name="code" label="Code" disabled />
+        <ProFormText name="code" label="模板编号" disabled />
         <ProFormText name="name" label="名称" rules={[{ required: true }]} />
-        <ProFormText name="scene" label="场景" />
-        <ProFormText name="provider" label="Provider" />
-        <ProFormText name="model" label="Model" />
-        <ProFormDigit name="temperature" label="Temperature" fieldProps={{ step: 0.1 }} />
-        <ProFormDigit name="maxTokens" label="Max tokens" />
+        <ProFormText name="scene" label="使用场景" />
+        <ProFormText name="provider" label="指定 AI 服务商（可选）" />
+        <ProFormText name="model" label="指定模型（可选）" />
+        <ProFormDigit name="temperature" label="随机度" fieldProps={{ step: 0.1 }} />
+        <ProFormDigit name="maxTokens" label="最大输出长度" />
         <ProFormSwitch name="enabled" label="启用" />
-        <ProFormTextArea name="systemPrompt" label="System prompt" fieldProps={{ rows: 6 }} />
-        <ProFormTextArea name="userPrompt" label="User prompt" fieldProps={{ rows: 6 }} rules={[{ required: true }]} />
-        <ProFormTextArea name="outputSchemaStr" label="Output schema（JSON）" fieldProps={{ rows: 4 }} />
+        <ProFormTextArea name="systemPrompt" label="系统提示词" fieldProps={{ rows: 6 }} />
+        <ProFormTextArea name="userPrompt" label="用户提示词" fieldProps={{ rows: 6 }} rules={[{ required: true }]} />
+        <ProFormTextArea name="outputSchemaStr" label="输出格式说明（高级，JSON）" fieldProps={{ rows: 4 }} />
       </ModalForm>
     </PageContainer>
   );

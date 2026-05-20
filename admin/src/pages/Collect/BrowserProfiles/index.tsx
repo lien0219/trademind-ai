@@ -34,8 +34,8 @@ export default function CollectBrowserProfilesPage() {
 
   const columns: ProColumns<BrowserProfileRow>[] = [
     { title: '名称', dataIndex: 'name', ellipsis: true },
-    { title: '域名', dataIndex: 'domain', copyable: true, width: 140 },
-    { title: 'Provider', dataIndex: 'provider', width: 100, search: false },
+    { title: '适用网站', dataIndex: 'domain', copyable: true, width: 140 },
+    { title: '类型', dataIndex: 'provider', width: 100, search: false, render: () => '自定义采集' },
     {
       title: '状态',
       dataIndex: 'status',
@@ -74,7 +74,7 @@ export default function CollectBrowserProfilesPage() {
                 .catch((e) => {
                   const msg = e instanceof Error ? e.message : '打开失败';
                   if (msg.includes('HEADED_BROWSER_REQUIRED')) {
-                    message.error('Collector 需 headed 模式（COLLECTOR_HEADLESS=0）');
+                    message.error('无法打开登录窗口，请联系管理员开启采集浏览器的可视化模式');
                   } else {
                     message.error(msg);
                   }
@@ -87,7 +87,7 @@ export default function CollectBrowserProfilesPage() {
             onClick={() => {
               const u = checkUrl.trim() || row.lastCheckUrl;
               if (!u) {
-                message.warning('请在页顶填写检测 URL');
+                message.warning('请在页顶填写用于检测的商品链接');
                 return;
               }
               void checkBrowserProfile(row.id, { url: u })
@@ -101,7 +101,7 @@ export default function CollectBrowserProfilesPage() {
             检测状态
           </a>
           <Popconfirm
-            title="停用该 Profile？"
+            title="停用该登录状态？"
             onConfirm={() =>
               void disableBrowserProfile(row.id)
                 .then(() => {
@@ -119,19 +119,22 @@ export default function CollectBrowserProfilesPage() {
   ];
 
   return (
-    <PageContainer title="采集浏览器 Profile" subTitle="适用于自定义链接采集器">
+    <PageContainer
+      title="采集浏览器登录状态"
+      subTitle="用于需要登录才能查看的商品页；系统不保存账号密码。"
+    >
       <Typography.Paragraph type="secondary">
-        Profile 目录由采集服务管理，请勿在公共电脑保存敏感登录态。验证码需用户自行完成，系统不提供破解能力。
+        登录信息保存在本机采集浏览器中，请勿在公共电脑保留。验证码需自行完成，系统不会自动破解。
       </Typography.Paragraph>
       <Space style={{ marginBottom: 16 }}>
         <Input
           style={{ width: 420 }}
-          placeholder="检测 / 打开登录用的商品页 URL"
+          placeholder="用于检测或打开登录的商品链接"
           value={checkUrl}
           onChange={(e) => setCheckUrl(e.target.value)}
         />
         <Button type="primary" onClick={() => setCreateOpen(true)}>
-          新建 Profile
+          新建登录状态
         </Button>
       </Space>
       <ProTable<BrowserProfileRow>
@@ -150,7 +153,7 @@ export default function CollectBrowserProfilesPage() {
         }}
       />
       <ModalForm<{ name: string; domain: string }>
-        title="新建采集浏览器 Profile"
+        title="新建采集浏览器登录状态"
         open={createOpen}
         onOpenChange={setCreateOpen}
         onFinish={async (vals) => {

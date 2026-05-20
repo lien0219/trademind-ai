@@ -18,11 +18,11 @@ import {
 const { Paragraph, Title, Text } = Typography;
 
 const FEATURE_LABEL: Record<string, string> = {
-  title: '标题',
-  mainImages: '主图',
-  descriptionImages: '详情图',
-  attributes: '属性',
-  skus: 'SKU',
+  title: '商品标题',
+  mainImages: '商品主图',
+  descriptionImages: '详情图片',
+  attributes: '商品参数',
+  skus: '商品规格',
 };
 
 function providerRunnableForSingleTask(status: CollectProviderStatus) {
@@ -102,7 +102,7 @@ export default function CollectHubPage() {
       {loading ? (
         <Spin style={{ display: 'block', marginTop: 48 }} />
       ) : sorted.length === 0 ? (
-        <Empty description="暂未获取到采集器配置，请检查采集服务或与管理员确认。" />
+        <Empty description="暂未获取到采集器列表，请检查采集服务是否启动，或联系管理员。" />
       ) : (
         <Row gutter={[16, 16]}>
           {sorted.map((p) => {
@@ -168,7 +168,7 @@ export default function CollectHubPage() {
                           }
                         }}
                       >
-                        立即采集
+                        开始采集
                       </Button>
                     </Tooltip>
                     <Tooltip title={batchButtonTooltipForProvider(p)}>

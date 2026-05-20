@@ -89,9 +89,7 @@ export default function PricingSettingsPage() {
         message="采集价通常是成本价，不建议直接作为发布价"
         description={
           <Typography.Paragraph style={{ marginBottom: 0 }}>
-            在此配置默认加价与尾数规则。在商品详情或列表「应用定价规则」后，仅更新本地 SKU 销售价（
-            <Typography.Text code>product_skus.price</Typography.Text>
-            ），不会自动发布到平台，也不会调用平台 API。
+            在此配置默认加价与尾数规则。在商品详情或列表「应用定价规则」后，仅更新本地商品规格的销售价，不会自动发布到平台店铺。
           </Typography.Paragraph>
         }
       />
@@ -159,7 +157,7 @@ export default function PricingSettingsPage() {
           <Form.Item name="amazon_markup_percent" label="Amazon">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="batch_max_size" label="单次批量定价最多 SKU 数">
+          <Form.Item name="batch_max_size" label="单次批量定价最多规格数">
             <InputNumber min={1} max={5000} style={{ width: '100%' }} />
           </Form.Item>
           <Button type="primary" htmlType="submit">
