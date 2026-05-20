@@ -233,6 +233,20 @@ Docker 完整编排包含：
 
 更多说明见 [docs/docker-deployment.md](docs/docker-deployment.md)、[docs/custom-collect-rules.md](docs/custom-collect-rules.md)。
 
+### AI 生成采集规则
+
+适合不会手写 JSON 规则的新用户：
+
+1. 先在 **设置 → AI 设置** 配置 Provider 并通过 **测试 AI**。
+2. 打开 **采集 → 采集规则**，点击 **AI 生成规则**（或在自定义链接采集弹窗中触发）。
+3. 输入商品 URL，选择目标字段（标题 / 价格 / 主图 / 详情图 / 属性；SKU 为高级可选项）。
+4. 系统由 Collector 分析页面结构摘要（**不含完整 HTML**），后端经 AI Gateway 生成 `collect_rule` JSON。
+5. 生成后**自动执行规则测试**；用户可编辑 JSON 并确认保存。
+6. **SKU / 库存 / 动态价格**不一定能靠通用规则稳定采集。
+7. 已有 **1688 / AliExpress** 等专用采集器的链接会提示使用专用采集器，不会继续 AI 生成 custom rule。
+
+settings.collector 可选键：`collect_rule_ai_enabled`（默认开启）、`collect_rule_ai_max_html_digest_size`、`collect_rule_ai_max_candidates`、`collect_rule_ai_default_target_fields`。
+
 ## 本地开发启动
 
 本地开发需要：

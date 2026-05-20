@@ -12,6 +12,7 @@ import {
 } from '@/utils/collectRuleMatch';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
+import { AIGenerateRuleModal } from '@/pages/Collect/components/AIGenerateRuleModal';
 import { RuleTestResultPanel } from '@/pages/Collect/components/RuleTestResultPanel';
 import {
   CUSTOM_COLLECT_USAGE_LINES,
@@ -96,6 +97,15 @@ export function CustomCollectModal({ open, onClose }: Props) {
   const [profileId, setProfileId] = useState<string | undefined>();
   const [useBrowserProfile, setUseBrowserProfile] = useState(false);
   const [plannedDismissed, setPlannedDismissed] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+
+  const matchedRules = useMemo(() => {
+    const url = formUrl.trim();
+    if (!url) return [];
+    return rules.filter((r) => ruleMatchesURL(r, url));
+  }, [formUrl, rules]);
+
+  const noRuleForUrl = formUrl.trim().length > 0 && matchedRules.length === 0 && rules.length > 0;
 
   const platformHint = useMemo(() => {
     const url = formUrl.trim();
@@ -264,13 +274,35 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="暂无启用的采集规则"
+          message="还没有适用于该网站的采集规则"
           description={
-            <span>
-              请先到
-              <a onClick={() => history.push('/collect/rules')}> 采集规则 </a>
-              创建规则（填写域名与 selector JSON）后再采集。
-            </span>
+            <Space direction="vertical" size="small">
+              <span>可使用 AI 根据商品页面自动生成规则，或手动创建。</span>
+              <Space wrap>
+                <Button type="primary" size="small" onClick={() => setAiModalOpen(true)}>
+                  AI 生成采集规则
+                </Button>
+                <Button size="small" onClick={() => history.push('/collect/rules')}>
+                  去采集规则页面手动创建
+                </Button>
+              </Space>
+            </Space>
+          }
+        />
+      ) : null}
+      {noRuleForUrl && !submitBlocked ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="未找到匹配规则"
+          description={
+            <Space direction="vertical" size="small">
+              <span>是否使用 AI 根据该页面生成规则？</span>
+              <Button type="primary" size="small" onClick={() => setAiModalOpen(true)}>
+                AI 生成规则
+              </Button>
+            </Space>
           }
         />
       ) : null}
@@ -332,6 +364,18 @@ export function CustomCollectModal({ open, onClose }: Props) {
           description="提交采集任务时将使用所选 Profile 的浏览器登录态。"
         />
       ) : null}
+      <AIGenerateRuleModal
+        open={aiModalOpen}
+        initialUrl={formUrl.trim() || undefined}
+        onClose={() => setAiModalOpen(false)}
+        onSaved={() => {
+          setLoadingRules(true);
+          void queryCollectRules({ page: 1, pageSize: 500, status: 'enabled' })
+            .then((res) => setRules(res.list ?? []))
+            .catch(() => setRules([]))
+            .finally(() => setLoadingRules(false));
+        }}
+      />
     </ModalForm>
   );
 }

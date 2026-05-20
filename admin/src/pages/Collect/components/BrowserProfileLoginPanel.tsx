@@ -19,6 +19,8 @@ type Props = {
   onUseProfileChange?: (use: boolean) => void;
   useBrowserProfile?: boolean;
   onRecheckDone?: (result: ProfileCheckResult) => void;
+  /** login_required = 规则测试命中登录页；optional = 用户主动启用 Profile */
+  tone?: 'login_required' | 'optional';
 };
 
 function hostDomain(url: string): string {
@@ -38,6 +40,7 @@ export function BrowserProfileLoginPanel({
   onUseProfileChange,
   useBrowserProfile = false,
   onRecheckDone,
+  tone = 'login_required',
 }: Props) {
   const domain = domainProp?.trim() || hostDomain(url);
   const [profiles, setProfiles] = useState<BrowserProfileRow[]>([]);
@@ -154,14 +157,16 @@ export function BrowserProfileLoginPanel({
 
   return (
     <Alert
-      type="warning"
+      type={tone === 'optional' ? 'info' : 'warning'}
       showIcon
-      style={{ marginTop: 12 }}
-      message="该页面需要登录"
+      style={{ marginTop: tone === 'optional' ? 0 : 12 }}
+      message={tone === 'optional' ? '登录态 Profile（可选）' : '该页面需要登录'}
       description={
         <div>
           <Typography.Paragraph style={{ marginBottom: 8 }}>
-            当前链接疑似跳转到登录页。可创建或选择「采集浏览器 Profile」，在可视化浏览器中手动登录后再重新测试（系统不保存账号密码）。
+            {tone === 'optional'
+              ? '若商品页需登录才可查看，请选择或新建 Profile，在可视化浏览器中手动登录后再生成规则（系统不保存账号密码）。'
+              : '当前链接疑似跳转到登录页。可创建或选择「采集浏览器 Profile」，在可视化浏览器中手动登录后再重新测试（系统不保存账号密码）。'}
           </Typography.Paragraph>
           <Space direction="vertical" style={{ width: '100%' }} size="small">
             <Space wrap>

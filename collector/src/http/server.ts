@@ -3,6 +3,7 @@ import { BrowserManager } from '../browser/manager.js';
 import { getHttpPort } from '../config/env.js';
 import { listRegisteredSources, listProviderPublicMetas } from '../providers/registry.js';
 import { runCustomRuleTest } from '../providers/sourceCustom/index.js';
+import { analyzeCustomPage } from '../providers/sourceCustom/analyze-page.js';
 import type { CustomCollectOptions } from '../providers/sourceCustom/types.js';
 import { runCollectTask } from '../tasks/collect-task.js';
 
@@ -115,6 +116,45 @@ export function createCollectorServer(browser: BrowserManager) {
         return;
       }
 
+      if (req.method === 'POST' && req.url === '/v1/custom/analyze-page') {
+        let body: unknown;
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'body must be valid JSON' },
+          });
+          return;
+        }
+        const b = body as {
+          url?: string;
+          profileKey?: string;
+          useBrowserProfile?: boolean;
+          maxCandidates?: number;
+        };
+        const url = b.url?.trim() ?? '';
+        if (!url) {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'url is required' },
+          });
+          return;
+        }
+        try {
+          const digest = await analyzeCustomPage(browser, url, {
+            profileKey: b.profileKey,
+            useBrowserProfile: b.useBrowserProfile,
+            maxCandidates: b.maxCandidates,
+          });
+          json(res, 200, { ok: true, data: digest });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          json(res, 500, { ok: false, error: { code: 'INTERNAL', message } });
+        }
+        return;
+      }
+
       if (req.method === 'POST' && req.url === '/v1/collect/custom-rule-test') {
         let body: unknown;
         try {
@@ -203,7 +243,7 @@ export function listenCollectorHttp(browser: BrowserManager): ReturnType<typeof 
   const port = getHttpPort();
   server.listen(port, () => {
     console.info(
-      `[collector] listening on :${port} (POST /v1/collect, GET /v1/providers, GET /v1/providers/1688/auth-status, POST /v1/providers/1688/open-login-browser, GET /health)`,
+      `[collector] listening on :${port} (POST /v1/collect, POST /v1/custom/analyze-page, GET /v1/providers, GET /v1/providers/1688/auth-status, POST /v1/providers/1688/open-login-browser, GET /health)`,
     );
   });
   return server;

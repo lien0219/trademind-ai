@@ -13,6 +13,7 @@ import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CollectRuleRow, CollectRuleTestResult } from '@/services/collectRules';
 import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
+import { AIGenerateRuleModal } from '@/pages/Collect/components/AIGenerateRuleModal';
 import { RuleTestResultPanel } from '@/pages/Collect/components/RuleTestResultPanel';
 import {
   createCollectRule,
@@ -86,6 +87,7 @@ export default function CollectRulesPage() {
   const [testProfileId, setTestProfileId] = useState<string | undefined>();
   const [testUseProfile, setTestUseProfile] = useState(false);
   const [rulesCache, setRulesCache] = useState<CollectRuleRow[]>([]);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
 
   const reload = useCallback(() => actionRef.current?.reload(), []);
 
@@ -191,15 +193,18 @@ export default function CollectRulesPage() {
       title="采集规则"
       subTitle="适用于自定义链接采集器"
       extra={
-        <Button
-          type="primary"
-          onClick={() => {
-            setEditingId(null);
-            setEditorOpen(true);
-          }}
-        >
-          新建规则
-        </Button>
+        <Space>
+          <Button onClick={() => setAiModalOpen(true)}>AI 生成规则</Button>
+          <Button
+            type="primary"
+            onClick={() => {
+              setEditingId(null);
+              setEditorOpen(true);
+            }}
+          >
+            新建规则
+          </Button>
+        </Space>
       }
     >
       <ProTable<CollectRuleRow>
@@ -449,6 +454,12 @@ export default function CollectRulesPage() {
           />
         ) : null}
       </ModalForm>
+
+      <AIGenerateRuleModal
+        open={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        onSaved={() => reload()}
+      />
     </PageContainer>
   );
 }

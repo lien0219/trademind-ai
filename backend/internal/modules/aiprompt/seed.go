@@ -12,6 +12,7 @@ import (
 const CodeProductTitleOptimize = "product_title_optimize"
 const CodeProductDescriptionGenerate = "product_description_generate"
 const CodeCustomerReplyGenerate = "customer_reply_generate"
+const CodeCollectRuleGenerate = "collect_rule_generate"
 
 // EnsureDefaults creates built-in prompts when missing.
 func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
@@ -25,6 +26,9 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 		return err
 	}
 	if err := ensureCustomerReplyGenerate(ctx, db); err != nil {
+		return err
+	}
+	if err := ensureCollectRuleGenerate(ctx, db); err != nil {
 		return err
 	}
 	if err := migrateProductTitleOptimizeMaxTokens(ctx, db); err != nil {
@@ -257,4 +261,62 @@ func migrateCustomerReplyGenerateOrderContext(ctx context.Context, db *gorm.DB) 
 	row.UserPrompt = usr
 	row.OutputSchema = schema
 	return db.WithContext(ctx).Save(&row).Error
+}
+
+func ensureCollectRuleGenerate(ctx context.Context, db *gorm.DB) error {
+	schema, _ := json.Marshal(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"rule":        map[string]string{"type": "object"},
+			"confidence":  map[string]string{"type": "number"},
+			"explanation": map[string]string{"type": "string"},
+			"warnings": map[string]any{
+				"type":  "array",
+				"items": map[string]string{"type": "string"},
+			},
+		},
+		"required": []string{"rule", "confidence", "explanation", "warnings"},
+	})
+	defaultSys := strings.TrimSpace(`You are an expert web scraping rule author for declarative CSS-selector collect rules.
+Return ONLY valid JSON (no markdown, no prose outside JSON) with keys: rule (object), confidence (0-1 number), explanation (short string in Chinese), warnings (string array).
+
+Hard constraints for rule:
+- ONLY use keys: title, price, currency, mainImages, descriptionImages, attributes, skus, fallbacks.
+- title is REQUIRED with selectors (string array) and attr (text|html|src|href|content|data-src|data-original).
+- NEVER include script, eval, function, javascript: or any executable code.
+- selectors MUST come from pageDigest candidates or be simple CSS selectors combining those hints.
+- mainImages MUST include multiple:true, attr src, limit 8, and filters: { minWidth:300, minHeight:300, excludeKeywords:[], dedupeByImageKey:true } when generating mainImages.
+- Do NOT generate skus unless pageDigest has stable sku candidates with confidence >= 0.5.
+- Do NOT invent stock fields.
+- attributes mode pairs requires rowSelector, keySelector, valueSelector when mode is pairs.
+- Include fallbacks: { jsonLd:true, openGraph:true, meta:true } when helpful.
+- If a target field has no reliable candidate in pageDigest, omit that field and add a warning instead of guessing.`)
+	defaultUser := strings.TrimSpace(`Generate a custom collect_rule JSON for domain {{domain}}.
+
+Target fields to try: {{targetFields}}
+
+Page structure digest (truncated, no full HTML):
+{{pageDigest}}
+
+Reply with JSON only.`)
+
+	var count int64
+	if err := db.WithContext(ctx).Model(&AIPrompt{}).Where("code = ?", CodeCollectRuleGenerate).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	row := &AIPrompt{
+		Code:         CodeCollectRuleGenerate,
+		Name:         "AI 生成自定义采集规则",
+		Scene:        "collect",
+		SystemPrompt: defaultSys,
+		UserPrompt:   defaultUser,
+		OutputSchema: schema,
+		Temperature:  0.2,
+		MaxTokens:    4096,
+		Enabled:      true,
+	}
+	return db.WithContext(ctx).Create(row).Error
 }

@@ -5,6 +5,7 @@ const (
 	CodeOK                            = 0
 	CodeBadRequest                    = 40001
 	CodeCustomCollectProviderConflict = 40002
+	CodeAIRuleInvalid                 = 40003
 	CodeUnauthorized                  = 40101
 	CodeForbidden                     = 40301
 	CodeNotFound                      = 40401

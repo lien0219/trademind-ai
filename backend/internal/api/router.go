@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
@@ -19,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectruleai"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
@@ -108,6 +110,17 @@ func (a collectRunnerAdapter) CustomRuleTest(ctx context.Context, rawURL string,
 		Suggestion:      raw.Suggestion,
 		Product:         raw.Product,
 	}, nil
+}
+
+type collectRuleCreatorAdapter struct {
+	svc *collectrule.Service
+}
+
+func (a collectRuleCreatorAdapter) CreateFromAI(c *gin.Context, body collectrule.CreateRuleBody, adminID *uuid.UUID) (*collectrule.RuleDetailDTO, error) {
+	if a.svc == nil {
+		return nil, fmt.Errorf("collect rules unavailable")
+	}
+	return a.svc.Create(c, body, adminID)
 }
 
 // Deps holds process-wide dependencies for HTTP handlers.
@@ -435,6 +448,20 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	pricingH := &pricing.Handler{Svc: pricingSvc}
 	pricing.Register(authed, pricingH)
 	collect.Register(authed, collectH)
+	collectRuleAISvc := &collectruleai.Service{
+		Settings:    settingsSvc,
+		Prompts:     promptSvc,
+		AIGateway:   aiGateway,
+		Analyzer:    collectruleai.NewPageAnalyzer(collectorClient),
+		Runner:      collectRunnerAdapter{c: collectorClient},
+		Profiles:    profileSvc,
+		Providers:   collectruleai.NewProviderResolver(collectSvc),
+		Rules:       collectRuleCreatorAdapter{svc: collectRuleSvc},
+		OpLog:       opLogSvc,
+		TestTimeout: collectorTimeout,
+	}
+	collectRuleAIH := &collectruleai.Handler{Svc: collectRuleAISvc}
+	collectruleai.Register(authed, collectRuleAIH)
 	collectrule.Register(authed, collectRuleH)
 	collectbrowserprofile.Register(authed, profileH)
 

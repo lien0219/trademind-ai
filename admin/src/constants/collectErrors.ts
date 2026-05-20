@@ -47,8 +47,11 @@ export function mapCollectErrorMessage(err: unknown): string {
   if (upper.includes('CUSTOM_RULE_MISSING') || raw.includes('missing rule')) {
     return '未找到采集规则配置（CUSTOM_RULE_MISSING），请重新选择规则后提交。';
   }
-  if (upper.includes('CUSTOM_RULE_INVALID')) {
-    return '采集规则格式错误（CUSTOM_RULE_INVALID），请检查 selector 与 type。';
+  if (upper.includes('AI_RULE_INVALID') || raw.includes('AI_RULE_INVALID')) {
+    return 'AI 生成的规则未通过校验，请调整目标字段后重新生成。';
+  }
+  if (raw.includes('请先到「设置 → AI 设置」')) {
+    return raw;
   }
   if (upper.includes('LOGIN_REQUIRED')) {
     return mapCollectorErrorCodeLabel('LOGIN_REQUIRED');

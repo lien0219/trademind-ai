@@ -52,6 +52,7 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_custom_access_check_enabled: {},
   collect_custom_profile_enabled: {},
   collect_custom_batch_enabled: {},
+  collect_rule_ai_enabled: {},
   collect_aliexpress_timeout_ms: {},
   collect_aliexpress_retry_on_timeout: {},
   collect_aliexpress_batch_enabled: {},
@@ -324,7 +325,20 @@ function CollectorCustomSection() {
         <Alert type="warning" showIcon message="自定义链接批量采集：暂未开放" />
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
           在「采集规则」页创建并启用规则后，使用「测试规则」验证 selector 能否正确抽取字段，再提交正式采集任务。
+          也可使用「AI 生成规则」根据商品页结构自动生成 JSON 规则。
         </Typography.Paragraph>
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="启用 AI 生成采集规则"
+              name="collect_rule_ai_enabled"
+              valuePropName="checked"
+              tooltip="关闭后管理端隐藏 AI 生成入口（需已配置 AI Provider）。"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+        </Row>
       </Space>
     </ProCard>
   );
@@ -495,6 +509,7 @@ export default function CollectorSettingsPage() {
         collect_custom_access_check_enabled: parseBoolSetting(g.collect_custom_access_check_enabled),
         collect_custom_profile_enabled: parseBoolSetting(g.collect_custom_profile_enabled),
         collect_custom_batch_enabled: g.collect_custom_batch_enabled === '1' || g.collect_custom_batch_enabled === 'true',
+        collect_rule_ai_enabled: g.collect_rule_ai_enabled !== '0' && g.collect_rule_ai_enabled !== 'false',
         collect_aliexpress_timeout_ms: g.collect_aliexpress_timeout_ms
           ? Number(g.collect_aliexpress_timeout_ms)
           : undefined,
@@ -554,6 +569,7 @@ export default function CollectorSettingsPage() {
         collect_custom_access_check_enabled: values.collect_custom_access_check_enabled ? '1' : '0',
         collect_custom_profile_enabled: values.collect_custom_profile_enabled ? '1' : '0',
         collect_custom_batch_enabled: values.collect_custom_batch_enabled ? '1' : '0',
+        collect_rule_ai_enabled: values.collect_rule_ai_enabled ? '1' : '0',
         collect_aliexpress_timeout_ms:
           values.collect_aliexpress_timeout_ms != null && values.collect_aliexpress_timeout_ms !== ''
             ? String(values.collect_aliexpress_timeout_ms)

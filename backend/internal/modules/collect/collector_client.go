@@ -79,6 +79,71 @@ type CustomRuleTestResult struct {
 	Product         json.RawMessage `json:"product,omitempty"`
 }
 
+// AnalyzePageDigest is a safe page structure summary from POST /v1/custom/analyze-page.
+type AnalyzePageDigest struct {
+	URL          string          `json:"url"`
+	FinalURL     string          `json:"finalUrl"`
+	AccessStatus string          `json:"accessStatus"`
+	Title        string          `json:"title"`
+	Meta         json.RawMessage `json:"meta"`
+	Candidates   json.RawMessage `json:"candidates"`
+	DomHints     []string        `json:"domHints"`
+}
+
+// AnalyzePage invokes POST /v1/custom/analyze-page (no full HTML).
+func (c *CollectorClient) AnalyzePage(ctx context.Context, rawURL string, options map[string]any) (*AnalyzePageDigest, error) {
+	if c == nil || c.Client == nil {
+		return nil, fmt.Errorf("collector client unavailable")
+	}
+	if c.BaseURL == "" {
+		return nil, fmt.Errorf("collector base url is empty")
+	}
+	body := map[string]any{"url": strings.TrimSpace(rawURL)}
+	for k, v := range options {
+		body[k] = v
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/v1/custom/analyze-page", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("collector request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	var env collectEnvelope
+	if err := json.Unmarshal(respBody, &env); err != nil {
+		return nil, fmt.Errorf("collector invalid json: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK || !env.OK {
+		msg := "analyze page failed"
+		code := "UNKNOWN"
+		if env.Error != nil {
+			if env.Error.Message != "" {
+				msg = env.Error.Message
+			}
+			if env.Error.Code != "" {
+				code = env.Error.Code
+			}
+		}
+		return nil, &CollectorRejectedError{Code: code, Message: msg}
+	}
+	var out AnalyzePageDigest
+	if err := json.Unmarshal(env.Data, &out); err != nil {
+		return nil, fmt.Errorf("parse analyze page: %w", err)
+	}
+	return &out, nil
+}
+
 // CustomRuleTest invokes POST /v1/collect/custom-rule-test (no collect_tasks / products).
 func (c *CollectorClient) CustomRuleTest(ctx context.Context, rawURL string, options map[string]any) (*CustomRuleTestResult, error) {
 	if c == nil || c.Client == nil {

@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-20 — **采集服务设置页 Provider 维度**：**`/settings/collector?provider=*`**；采集中心各卡片配置入口跳转对应 Provider 区；1688 / 自定义 / 速卖通 / planned 分区展示；通用与专属 settings.collector 键分离；不影响 1688 与自定义采集。
+**最后更新**：2026-05-20 — **AI 一键生成自定义采集规则**：Collector `POST /v1/custom/analyze-page` 页面结构摘要；后端 `POST /api/v1/collect/rules/ai-generate`；采集规则页与自定义采集弹窗 AI 入口；生成后自动规则测试；安全边界（不发完整 HTML、不执行 AI 生成 JS、专用平台拦截）。
 
 ---
 
@@ -397,6 +397,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-20 | **AI 一键生成自定义采集规则**：新增 Collector **`POST /v1/custom/analyze-page`**（`PageStructureDigest`，每类候选 ≤20，不含完整 HTML）；后端模块 **`collectruleai`** + **`POST /api/v1/collect/rules/ai-generate`**（可选 **`ai-generate-and-save`**）；Prompt **`collect_rule_generate`**；采集规则页 **AI 生成规则** Modal；自定义链接采集器无规则 / 无匹配规则时引导 AI 生成；生成后自动 **`custom-rule-test`**；**1688 / AliExpress available/beta** 拦截提示专用采集器；**planned** 平台允许但提示 SKU/库存不保证；settings.collector **`collect_rule_ai_*`**；操作日志 **`collect.rule.ai_generate`** / **`ai_generate_failed`** / **`ai_save`**（不记完整 URL 参数 / 摘要 / Prompt）；安全：前端不直连 AI/目标站、AI 不访问 URL、规则 JSON 后端校验禁 script/eval、不保存账号密码、不绕过验证码。当前路线不变：**AI 商品运营工具** 优先 → **多平台跨境 ERP MVP** → 完整 ERP 增强暂不做 |
 | 2026-05-20 | **采集服务设置页 Provider 维度**：**`/settings/collector?provider=1688|aliexpress|pinduoduo|taobao|shein_temu|custom`**；采集中心卡片 **「采集服务配置」** 带 provider 跳转（planned 显示 **「查看配置」**）；页面 **通用采集服务配置**（影响所有采集器）与 **Provider 专属配置** 分离；**1688** 保留登录态与 **`collect_batch_*_1688`**；**custom** 展示 Profile / 规则测试入口与 **`collect_custom_*`**（不展示 1688 登录）；**aliexpress beta** 说明与 **`collect_aliexpress_*` 预留**；**planned** 空状态；**settings.collector 保存逻辑不变**；不影响 1688 单条/批量与自定义链接采集 |
 | 2026-05-20 | **自定义链接采集器用户文案与平台冲突校验**：采集中心卡片改为用户友好说明，移除 Profile/登录检测等技术描述；自定义 Modal 增加使用说明；输入 **1688 / 速卖通** 等已支持平台链接时前端禁用提交并引导专用采集器；**`POST /api/v1/collect/tasks`（`source=custom`）** 后端域名冲突校验 **`CUSTOM_COLLECT_PROVIDER_CONFLICT`（`recommendedProvider` + `message`）**；批量采集仍禁用且提示改为「先单链接验证规则」；通用访问状态检测仍保留在规则测试与任务详情 |
 | 2026-05-20 | **自定义链接采集浏览器 Profile**：**`collect_browser_profiles`**；API **`/api/v1/collect/browser-profiles*`**；Collector **`POST /v1/browser-profiles/:key/open-login|check`**；**`useBrowserProfile`+`profileKey`** 贯穿规则测试与 **`collect_tasks.request_options`**；管理端 **Profile 列表/登录引导**；安全：不存密码、Cookie 仅 Collector 本地、不前端直连 |
