@@ -192,3 +192,42 @@ body,
   line-height: 1.5;
   color: var(--ant-color-text-secondary);
 }
+
+/* 模态框 / 抽屉 / ProForm 底栏：操作按钮间距略加大（默认约 8px → 12px） */
+@tm-action-btn-gap: 12px;
+
+.ant-modal-footer,
+.ant-drawer-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: @tm-action-btn-gap;
+
+  .ant-btn + .ant-btn:not(.ant-dropdown-trigger),
+  .ant-btn-link + .ant-btn:not(.ant-dropdown-trigger),
+  .ant-btn + .ant-btn-link:not(.ant-dropdown-trigger) {
+    margin-inline-start: 0 !important;
+  }
+
+  .ant-space {
+    gap: @tm-action-btn-gap !important;
+  }
+}
+
+.ant-pro-form-submitter {
+  .ant-space {
+    gap: @tm-action-btn-gap !important;
+  }
+
+  .ant-btn + .ant-btn:not(.ant-dropdown-trigger),
+  .ant-btn-link + .ant-btn:not(.ant-dropdown-trigger),
+  .ant-btn + .ant-btn-link:not(.ant-dropdown-trigger) {
+    margin-inline-start: @tm-action-btn-gap !important;
+  }
+}
+
+/* 卡片 / 页面内横向按钮组（Space 默认 small 8px） */
+.tm-action-space.ant-space {
+  gap: @tm-action-btn-gap !important;
+}

@@ -197,12 +197,12 @@ export function CustomCollectModal({ open, onClose }: Props) {
         searchConfig: { submitText: '提交采集任务' },
         submitButtonProps: { disabled: submitBlocked },
         render: (_, dom) => (
-          <>
+          <Space size="middle" wrap className="tm-action-space" style={{ justifyContent: 'flex-end', width: '100%' }}>
             <Button type="link" onClick={() => history.push('/collect/rules')}>
               管理采集规则
             </Button>
             {dom}
-          </>
+          </Space>
         ),
       }}
       onFinish={async (vals) => {

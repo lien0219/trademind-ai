@@ -153,14 +153,14 @@ export default function PricingApplyModal({
       destroyOnHidden
       footer={
         step === 'form' ? (
-          <Space>
+          <Space size="middle" className="tm-action-space">
             <Button onClick={onClose}>取消</Button>
             <Button type="primary" loading={loading} onClick={() => void runPreview()}>
               预览试算
             </Button>
           </Space>
         ) : step === 'preview' ? (
-          <Space>
+          <Space size="middle" className="tm-action-space">
             <Button onClick={() => setStep('form')}>返回修改</Button>
             <Button type="primary" loading={loading} disabled={!confirmApply} onClick={() => void runApply()}>
               确认应用

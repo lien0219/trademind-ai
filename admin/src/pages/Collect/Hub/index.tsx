@@ -151,7 +151,7 @@ export default function CollectHubPage() {
                     )}
                   </div>
 
-                  <Space wrap>
+                  <Space wrap size="middle" className="tm-action-space">
                     <Tooltip title={runnableSingle ? undefined : '当前版本暂未开放'}>
                       <Button
                         type="primary"
