@@ -12,7 +12,6 @@ import {
   CUSTOM_BATCH_DISABLED_TOOLTIP,
   CUSTOM_COLLECT_CARD_DESCRIPTION,
   CUSTOM_COLLECT_CARD_NOTES,
-  DEDICATED_COLLECT_CARD_NOTES,
 } from '@/utils/customCollectPlatform';
 import {
   collectProviderStatusPresentation,
@@ -34,6 +33,7 @@ const DEDICATED_FEATURE_LABEL: Record<string, string> = {
   descriptionImages: '详情图片',
   attributes: '商品参数',
   skus: '商品规格',
+  stock: '库存（尽力识别）',
 };
 
 function providerRunnableForSingleTask(status: CollectProviderStatus) {
@@ -49,7 +49,7 @@ function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefine
   if (!p.batchSupported) {
     if (p.source === 'custom') return CUSTOM_BATCH_DISABLED_TOOLTIP;
     if (p.source === 'pinduoduo' || p.source === 'pdd') {
-      return '拼多多批量采集暂未开放，请先使用单链接采集验证稳定性。';
+      return '拼多多批量采集会自动限速，建议先少量测试。部分页面可能需要登录或触发验证。';
     }
     return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
   }
@@ -63,9 +63,9 @@ function providerCardFeatures(p: CollectProviderRow): string[] {
     return [...CUSTOM_COLLECT_DISPLAY_FEATURES];
   }
   if (p.source === 'pinduoduo' || p.source === 'pdd') {
-    const fromApi = (p.features ?? []).filter((f) => f !== 'skus');
+    const fromApi = p.features ?? [];
     if (fromApi.length > 0) return fromApi;
-    return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes'];
+    return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes', 'skus'];
   }
   return p.features ?? [];
 }
@@ -77,6 +77,13 @@ function featureLabelForProvider(p: CollectProviderRow, feature: string): string
   return DEDICATED_FEATURE_LABEL[feature] ?? feature;
 }
 
+const DEDICATED_HUB_DESCRIPTION: Record<string, string> = {
+  '1688': '采集 1688 商品详情，支持标题、主图、详情图、属性与 SKU。',
+  pinduoduo: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
+  pdd: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
+  aliexpress: '采集速卖通商品详情，支持标题、图片、属性与 SKU（测试中）。',
+};
+
 function providerCardCopy(p: CollectProviderRow): { description: string; notes: string; typeLabel: string; typeHint: string } {
   if (p.source === 'custom') {
     return {
@@ -86,12 +93,14 @@ function providerCardCopy(p: CollectProviderRow): { description: string; notes: 
       typeHint: COLLECT_HUB_TYPE_HINT.custom.summary,
     };
   }
-  const notes = [DEDICATED_COLLECT_CARD_NOTES, p.notes?.trim()].filter(Boolean).join(' ');
+  const key = p.source.toLowerCase();
+  const description = DEDICATED_HUB_DESCRIPTION[key] ?? p.description?.trim() ?? '';
+  const notes = p.notes?.trim() ?? '';
   return {
-    description: p.description,
+    description,
     notes,
     typeLabel: COLLECT_HUB_TYPE_HINT.dedicated.title,
-    typeHint: COLLECT_HUB_TYPE_HINT.dedicated.summary,
+    typeHint: '',
   };
 }
 
@@ -194,9 +203,11 @@ export default function CollectHubPage() {
                     <Tag color={tag.color}>{tag.text}</Tag>
                   </Space>
 
-                  <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
-                    {cardCopy.typeHint}
-                  </Paragraph>
+                  {cardCopy.typeHint ? (
+                    <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
+                      {cardCopy.typeHint}
+                    </Paragraph>
+                  ) : null}
 
                   <Paragraph type="secondary" style={{ flex: 1, marginBottom: 12 }}>
                     {cardCopy.description}

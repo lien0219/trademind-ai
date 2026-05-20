@@ -176,7 +176,7 @@ function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
   return !hasPrice || mainCount <= 1 || skuCount === 0 || attrCount === 0;
 }
 
-function isPinduoduoCollectBeta(data: ProductDetail | null): boolean {
+function isPinduoduoProduct(data: ProductDetail | null): boolean {
   if (!data) return false;
   const src = data.source?.trim().toLowerCase();
   return src === 'pinduoduo' || src === 'pdd';
@@ -203,39 +203,46 @@ function hasOnlyDefaultPinduoduoSku(skus: ProductSKURow[] | undefined): boolean 
 }
 
 const PINDUODUO_WARNING_HINTS: Record<string, string> = {
-  no_main_images: '未识别到商品主图，请在图片管理中手动添加主图后再发布。',
-  main_images_missing: '未识别到商品主图，请在图片管理中手动添加主图后再发布。',
-  main_image_fallback_from_sku: '主图由系统根据规格图自动兜底生成，请发布前确认是否正确。',
-  main_image_fallback_from_detail: '主图由系统根据详情图自动兜底生成，请发布前确认是否正确。',
-  main_image_fallback_from_page: '主图由系统根据页面商品图自动兜底生成，请发布前确认是否正确。',
+  no_main_images: '未识别到商品主图，请手动添加主图。',
+  main_images_missing: '未识别到商品主图，请手动添加主图。',
+  main_image_fallback_from_sku: '主图由规格图自动兜底生成，请发布前确认是否正确。',
+  main_image_fallback_from_detail: '主图由详情图自动兜底生成，请发布前确认是否正确。',
+  main_image_fallback_from_page: '主图由页面商品图自动兜底生成，请发布前确认是否正确。',
+  description_images_missing: '未识别到详情图，可后续补充。',
+  description_missing: '未识别到文字描述，可使用 AI 生成描述。',
+  sku_parse_failed: '商品规格来自页面自动识别，请发布前核对价格和库存。',
+  sku_stock_unknown: '库存未完整识别，请人工确认。',
+  attributes_missing: '未识别到商品参数，可后续手动补充。',
+  title_maybe_platform_title: '标题可能为平台页标题，请人工核对。',
+  title_maybe_contaminated: '标题可能混入按钮文案，请人工核对。',
 };
 
 function pinduoduoFieldHints(data: ProductDetail | null): string[] {
-  if (!data || !isPinduoduoCollectBeta(data)) return [];
-  const hints: string[] = [];
+  if (!data || !isPinduoduoProduct(data)) return [];
+  const hints: string[] = [
+    '该商品来自拼多多采集器，请发布前检查标题、价格、图片、商品规格和库存。',
+  ];
   const warnCodes = pinduoduoWarningCodesFromRaw(data.rawData);
   for (const code of warnCodes) {
     const line = PINDUODUO_WARNING_HINTS[code];
     if (line && !hints.includes(line)) hints.push(line);
-  }
-  if (data.title?.trim()) {
-    hints.push('标题已采集，但请确认是否包含无关文字（如「分享商品」、购买按钮文案）。');
-  }
-  if (!data.description?.trim()) {
-    hints.push('描述未采集到，可后续用 AI 生成。');
   }
   const mainCount = (data.images ?? []).filter((i) => i.imageType === 'main').length;
   const detailCount = (data.images ?? []).filter(
     (i) => i.imageType === 'detail' || i.imageType === 'description',
   ).length;
   if (mainCount === 0 && !warnCodes.includes('no_main_images') && !warnCodes.includes('main_images_missing')) {
-    hints.push('未识别到商品主图，请在图片管理中手动添加主图后再发布。');
-  } else if (mainCount + detailCount > 0) {
-    hints.push('商品图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。');
+    hints.push('未识别到商品主图，请手动添加主图。');
+  }
+  if (detailCount === 0 && !warnCodes.includes('description_images_missing')) {
+    hints.push('未识别到详情图，可后续补充。');
+  }
+  if (!data.description?.trim() && !warnCodes.includes('description_missing')) {
+    hints.push('未识别到文字描述，可使用 AI 生成描述。');
   }
   const skuCount = (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length;
-  if (skuCount > 0) {
-    hints.push('商品规格和库存来自页面识别结果，请发布前核对。');
+  if (skuCount > 0 && !warnCodes.includes('sku_parse_failed')) {
+    hints.push('商品规格来自页面自动识别，请发布前核对价格和库存。');
   }
   return hints;
 }
@@ -465,11 +472,11 @@ export default function ProductDraftDetailPage() {
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
-  const showPinduoduoBetaHint = useMemo(() => isPinduoduoCollectBeta(data), [data]);
+  const showPinduoduoBetaHint = useMemo(() => isPinduoduoProduct(data), [data]);
   const pinduoduoFieldHintLines = useMemo(() => pinduoduoFieldHints(data), [data]);
   const showPinduoduoSkuParseHint = useMemo(
     () =>
-      isPinduoduoCollectBeta(data) &&
+      isPinduoduoProduct(data) &&
       hasOnlyDefaultPinduoduoSku(data?.skus) &&
       hasPinduoduoSkuParseFailed(data?.rawData),
     [data],
@@ -938,7 +945,7 @@ export default function ProductDraftDetailPage() {
                       type="info"
                       showIcon
                       style={{ marginBottom: 16 }}
-                      message="该商品来自拼多多采集器测试版，部分字段可能需要人工检查。请发布前核对标题、价格、图片、商品规格和库存。"
+                      message="该商品来自拼多多采集器，请发布前检查标题、价格、图片、商品规格和库存。"
                       description={
                         pinduoduoFieldHintLines.length > 0 ? (
                           <ul style={{ margin: 0, paddingLeft: 20 }}>
@@ -1341,14 +1348,14 @@ export default function ProductDraftDetailPage() {
                       message="页面可能存在多个规格，但当前未能完整识别，请人工检查或重新采集。"
                     />
                   ) : null}
-                  {(data.source === 'custom' || isPinduoduoCollectBeta(data)) &&
+                  {(data.source === 'custom' || isPinduoduoProduct(data)) &&
                   (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
                     <Alert
                       type="info"
                       showIcon
                       style={{ marginBottom: 12 }}
                       message={
-                        isPinduoduoCollectBeta(data)
+                        isPinduoduoProduct(data)
                           ? '当前采集结果没有完整商品规格。你可以手动新增 SKU，或等待后续版本增强拼多多规格采集。'
                           : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增 SKU。'
                       }

@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -276,6 +277,23 @@ func (h *Handler) CheckPinduoduoLogin(c *gin.Context) {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
 	}
+	if h.Svc.OpLog != nil {
+		msg := "source=pinduoduo"
+		if out != nil {
+			msg += " status=" + strings.TrimSpace(out.Status)
+			if out.URLType != "" {
+				msg += " urlType=" + strings.TrimSpace(out.URLType)
+			}
+		}
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: collectAdminUUID(c),
+			Action:      "collect.pinduoduo.login_check",
+			Resource:    "collector_provider",
+			ResourceID:  "pinduoduo",
+			Status:      "success",
+			Message:     msg,
+		})
+	}
 	response.OK(c, out)
 }
 
@@ -292,6 +310,16 @@ func (h *Handler) OpenPinduoduoLoginBrowser(c *gin.Context) {
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: collectAdminUUID(c),
+			Action:      "collect.pinduoduo.open_login",
+			Resource:    "collector_provider",
+			ResourceID:  "pinduoduo",
+			Status:      "success",
+			Message:     "source=pinduoduo opened login browser",
+		})
 	}
 	response.OK(c, out)
 }

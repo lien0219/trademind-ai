@@ -258,25 +258,33 @@ export async function extractAndAssemblePifaWholesale(
 export function validateWholesaleCollectQuality(
   result: PinduoduoParseResult,
 ): { ok: boolean; partial: boolean; error?: string } {
-  if (!result.title.trim() || isPlatformTitle(result.title)) {
-    return { ok: false, partial: false, error: 'PARSE_FAILED_TITLE_MISSING:platform_or_empty_title' };
-  }
-  if (/分享商品/.test(result.title)) {
-    return { ok: false, partial: false, error: 'PARSE_FAILED_TITLE_MISSING:title_contaminated' };
-  }
-  if (!result.price || result.price <= 0) {
-    return { ok: false, partial: false, error: 'PARSE_FAILED_PRICE_MISSING:invalid_price' };
-  }
-
+  const titleBad =
+    !result.title.trim() || isPlatformTitle(result.title) || /分享商品/.test(result.title);
+  const hasPrice = result.price !== undefined && result.price > 0;
   const hasSkus = result.skus.length > 0;
   const hasAnyImages =
     result.mainImages.length > 0 ||
     result.descriptionImages.length > 0 ||
     hasSkus;
-  if (!hasAnyImages) {
+
+  if (!hasPrice && !hasAnyImages && !hasSkus) {
+    if (titleBad) {
+      return { ok: false, partial: false, error: 'PARSE_FAILED_TITLE_MISSING:no_core_fields' };
+    }
     return { ok: false, partial: false, error: 'PARSE_FAILED:missing_core_fields' };
   }
 
-  const partial = result.warnings.length > 0 || result.mainImages.length === 0;
+  if (titleBad && !hasPrice && !hasAnyImages) {
+    return { ok: false, partial: false, error: 'PARSE_FAILED_TITLE_MISSING:platform_or_empty_title' };
+  }
+
+  if (!hasPrice) {
+    return { ok: false, partial: false, error: 'PARSE_FAILED_PRICE_MISSING:invalid_price' };
+  }
+
+  const partial =
+    result.warnings.length > 0 ||
+    result.mainImages.length === 0 ||
+    titleBad;
   return { ok: true, partial };
 }

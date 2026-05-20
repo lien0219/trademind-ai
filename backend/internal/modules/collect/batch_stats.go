@@ -75,7 +75,8 @@ func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolic
 	switch code {
 	case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
 		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "UNSUPPORTED_URL", "UNSUPPORTED_PINDUODUO_URL",
-		"LOGIN_REQUIRED", "CUSTOM_RULE_MISSING", "CUSTOM_RULE_INVALID",
+		"LOGIN_REQUIRED", "WECHAT_AUTH_REQUIRED", "APP_REDIRECT",
+		"CUSTOM_RULE_MISSING", "CUSTOM_RULE_INVALID",
 		"PARSE_FAILED_TITLE_MISSING", "PARSE_FAILED_IMAGE_MISSING":
 		return false
 	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA":
@@ -109,7 +110,14 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 		}
 		return "该商品页需要登录后才能访问，请稍后重试或使用登录状态采集。"
 	case "UNSUPPORTED_PINDUODUO_URL":
-		return "当前链接类型暂未支持。第一版优先支持普通商品详情页，拼多多批发页可能需要登录后采集。"
+		if isPdd {
+			return "当前链接不是拼多多批发商品详情页。请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；移动端商品页暂未完整支持。"
+		}
+		return "当前链接类型暂未支持。"
+	case "WECHAT_AUTH_REQUIRED":
+		return "拼多多登录需要微信扫码授权，请在采集浏览器中完成扫码后再重试。"
+	case "APP_REDIRECT":
+		return "当前为 App 引导页，请换用拼多多批发商品详情链接。"
 	case "PRODUCT_NOT_FOUND":
 		return "商品不存在、已下架或链接无效。"
 	case "PROFILE_NOT_FOUND":

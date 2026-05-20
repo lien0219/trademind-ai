@@ -14,6 +14,7 @@ import { normalizePinduoduoNavUrl, validatePinduoduoUrl } from './validate-url.j
 import {
   classifyPinduoduoUrl,
   invalidPinduoduoUrlHint,
+  unsupportedPinduoduoUrlMessage,
   type PinduoduoUrlType,
 } from './url-type.js';
 
@@ -21,20 +22,51 @@ const MOBILE_UA =
   process.env.COLLECTOR_PDD_USER_AGENT ??
   'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.38(0x18002633) NetType/WIFI Language/zh_CN';
 
+function resolveGotoTimeoutMs(options?: Record<string, unknown>): number {
+  const raw = options?.gotoTimeoutMs ?? options?.timeoutMs;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (Number.isFinite(n) && n > 0) return Math.min(n, 300_000);
+  return getDefaultNavigationTimeoutMs();
+}
+
+function accessCheckEnabled(options?: Record<string, unknown>): boolean {
+  if (options?.accessCheckEnabled === false) return false;
+  if (options?.accessCheckEnabled === '0' || options?.accessCheckEnabled === 'false') {
+    return false;
+  }
+  return true;
+}
+
+function rejectUrlTypeBeforeNav(urlType: PinduoduoUrlType): void {
+  switch (urlType) {
+    case 'wholesale_homepage':
+      throw new Error('UNSUPPORTED_PINDUODUO_URL:wholesale_homepage');
+    case 'goods_detail':
+      throw new Error('UNSUPPORTED_PINDUODUO_URL:goods_detail');
+    case 'wechat_auth':
+      throw new Error('WECHAT_AUTH_REQUIRED:wechat_auth_url');
+    case 'login_page':
+      throw new Error('LOGIN_REQUIRED:login_page');
+    case 'app_redirect':
+      throw new Error('APP_REDIRECT:app_redirect');
+    case 'unknown':
+      throw new Error(`UNSUPPORTED_PINDUODUO_URL:${urlType}`);
+    default:
+      break;
+  }
+}
+
 class PinduoduoCollectorProvider implements CollectorProvider {
   readonly sourceId = 'pinduoduo';
   readonly meta = {
     name: '拼多多采集器',
-    description:
-      '采集拼多多商品详情页，适合提取商品标题、价格、图片、参数等基础信息。商品规格、库存、动态价格可能受页面结构和风控影响，第一版不保证完整。',
-    status: 'beta' as const,
-    batchSupported: false,
+    description: '采集拼多多批发商品详情，支持标题、价格、主图、规格等基础字段。',
+    status: 'available' as const,
+    batchSupported: true,
     urlPatterns: [
+      'https://pifa.pinduoduo.com/goods/detail/?gid=*',
       'https://mobile.yangkeduo.com/goods.html?goods_id=*',
       'https://yangkeduo.com/goods.html?goods_id=*',
-      'https://mobile.pinduoduo.com/goods.html?goods_id=*',
-      'https://pinduoduo.com/goods.html?goods_id=*',
-      'https://pifa.pinduoduo.com/goods/detail/?gid=*',
     ],
     features: [
       'title',
@@ -44,7 +76,7 @@ class PinduoduoCollectorProvider implements CollectorProvider {
       'attributes',
       'skus',
     ] satisfies CollectFeature[],
-    notes: '拼多多批量采集暂未开放，请先使用单链接采集验证稳定性。',
+    notes: '批量采集默认限速，建议先少量测试。',
   };
 
   canHandle(url: string): boolean {
@@ -55,21 +87,21 @@ class PinduoduoCollectorProvider implements CollectorProvider {
     const sourceUrl = input.url.trim();
     const urlType = classifyPinduoduoUrl(sourceUrl);
 
-    if (urlType === 'unknown' || urlType === 'login_page' || urlType === 'app_redirect') {
-      if (!this.canHandle(sourceUrl)) {
-        throw new Error(`INVALID_URL:${invalidPinduoduoUrlHint()}`);
-      }
-      throw new Error(`UNSUPPORTED_PINDUODUO_URL:${urlType}`);
+    if (!this.canHandle(sourceUrl)) {
+      throw new Error(`INVALID_URL:${invalidPinduoduoUrlHint()}`);
     }
+
+    rejectUrlTypeBeforeNav(urlType);
 
     const navUrl = normalizePinduoduoNavUrl(sourceUrl);
     const profileKey = String(input.options?.profileKey ?? '').trim();
     const useDedicatedProfile =
       input.options?.useBrowserProfile === true &&
       profileKey === PINDUODUO_PROFILE_KEY;
+    const gotoTimeout = resolveGotoTimeoutMs(input.options);
+    const runAccessCheck = accessCheckEnabled(input.options);
 
     const run = async (page: Page) => {
-      const gotoTimeout = getDefaultNavigationTimeoutMs();
       try {
         await page.goto(navUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
       } catch (e) {
@@ -81,41 +113,42 @@ class PinduoduoCollectorProvider implements CollectorProvider {
       await page.waitForLoadState('networkidle', { timeout: Math.min(gotoTimeout, 12_000) }).catch(() => undefined);
       await page.waitForTimeout(800);
 
-      const access = await detectPinduoduoAccessStatus(page, sourceUrl);
-      if (access.status !== 'public') {
-        if (access.errorCode) throwAccessError(access, sourceUrl);
+      const postNavType = classifyPinduoduoUrl(page.url());
+      if (postNavType === 'wechat_auth') {
+        throw new Error('WECHAT_AUTH_REQUIRED:wechat_redirect');
+      }
+      if (postNavType === 'login_page') {
+        throw new Error('LOGIN_REQUIRED:login_redirect');
+      }
+      if (postNavType === 'app_redirect') {
+        throw new Error('APP_REDIRECT:app_redirect');
+      }
+      if (postNavType === 'goods_detail') {
+        throw new Error('UNSUPPORTED_PINDUODUO_URL:goods_detail');
+      }
+
+      if (runAccessCheck) {
+        const access = await detectPinduoduoAccessStatus(page, sourceUrl);
+        if (access.status !== 'public') {
+          if (access.errorCode) throwAccessError(access, sourceUrl);
+        }
       }
 
       const assembled = await extractAndAssemblePinduoduo(page, sourceUrl, urlType);
       const title = assembled.title.trim();
 
-      let wholesaleQualityPartial = false;
-      if (urlType === 'wholesale_detail') {
-        const quality = validateWholesaleCollectQuality(assembled);
-        wholesaleQualityPartial = quality.partial;
-        if (!quality.ok && quality.error) {
-          if (access.status === 'verify_required' || access.status === 'app_guide') {
-            throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_or_app_guide');
-          }
-          throw new Error(quality.error);
-        }
-      } else {
-        if (!title || isPlatformTitle(title)) {
-          if (access.status === 'verify_required' || access.status === 'app_guide') {
-            throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_or_app_guide');
-          }
-          throw new Error('PARSE_FAILED_TITLE_MISSING:no_product_title');
-        }
-        if (assembled.mainImages.length === 0) {
-          throw new Error('PARSE_FAILED_IMAGE_MISSING:no_main_images');
-        }
+      const quality = validateWholesaleCollectQuality(assembled);
+      if (!quality.ok && quality.error) {
+        throw new Error(quality.error);
       }
 
       const qualityWarnings = [...new Set(assembled.warnings)];
+      const rawWarnings = (assembled.raw.warnings as string[] | undefined) ?? [];
 
       const partial =
-        wholesaleQualityPartial ||
+        quality.partial ||
         qualityWarnings.length > 0 ||
+        rawWarnings.length > 0 ||
         isPlatformTitle(title) ||
         !assembled.price ||
         assembled.price <= 0;
@@ -125,7 +158,6 @@ class PinduoduoCollectorProvider implements CollectorProvider {
         productPrice: assembled.price,
         priceText: assembled.priceText,
         qualityWarnings,
-        accessStatus: access.status,
         urlType,
         finalUrl: page.url(),
         navUrl,
@@ -151,21 +183,19 @@ class PinduoduoCollectorProvider implements CollectorProvider {
     }
 
     const browserInstance = await browser.ensureBrowser();
-    const useDesktopForPifa = urlType === 'wholesale_detail';
     const context = await browserInstance.newContext({
-      userAgent: useDesktopForPifa
-        ? (process.env.COLLECTOR_USER_AGENT ??
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        : MOBILE_UA,
+      userAgent:
+        process.env.COLLECTOR_USER_AGENT ??
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       locale: 'zh-CN',
-      viewport: useDesktopForPifa ? { width: 1280, height: 900 } : { width: 390, height: 844 },
-      isMobile: !useDesktopForPifa,
-      hasTouch: !useDesktopForPifa,
+      viewport: { width: 1280, height: 900 },
+      isMobile: false,
+      hasTouch: false,
     });
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     const page = await context.newPage();
-    page.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());
-    page.setDefaultTimeout(getDefaultNavigationTimeoutMs());
+    page.setDefaultNavigationTimeout(gotoTimeout);
+    page.setDefaultTimeout(gotoTimeout);
     try {
       return await run(page);
     } finally {
@@ -176,4 +206,8 @@ class PinduoduoCollectorProvider implements CollectorProvider {
 }
 
 export const pinduoduoCollectorProvider = new PinduoduoCollectorProvider();
-export { classifyPinduoduoUrl, type PinduoduoUrlType };
+export {
+  classifyPinduoduoUrl,
+  unsupportedPinduoduoUrlMessage,
+  type PinduoduoUrlType,
+};

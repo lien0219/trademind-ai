@@ -58,6 +58,10 @@ export function mapCollectorErrorCodeLabel(code?: string | null): string {
       return '链接无效';
     case 'UNSUPPORTED_PINDUODUO_URL':
       return '链接类型暂未支持';
+    case 'WECHAT_AUTH_REQUIRED':
+      return '需要微信授权';
+    case 'APP_REDIRECT':
+      return 'App 引导页';
     default:
       return '';
   }
@@ -110,7 +114,11 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
     case 'INVALID_URL':
       return isPdd ? '请输入拼多多商品详情页链接。' : '请输入有效的商品详情页链接。';
     case 'UNSUPPORTED_PINDUODUO_URL':
-      return '当前链接类型暂未支持。第一版优先支持普通商品详情页，拼多多批发页可能需要登录后采集。';
+      return isPdd
+        ? '请使用拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。移动端商品页、批发首页等链接暂不支持直接采集。'
+        : '当前链接类型暂未支持。';
+    case 'APP_REDIRECT':
+      return '当前为 App 引导页，请换用拼多多批发商品详情链接。';
     case 'PROFILE_NOT_FOUND':
       return '请重新选择登录状态，或新建一条适用于该网站的登录状态。';
     case 'PROFILE_LOGIN_REQUIRED':

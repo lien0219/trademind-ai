@@ -66,13 +66,18 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_pinduoduo_auth_check_url: {},
   collect_pinduoduo_access_check_enabled: {},
   collect_pinduoduo_retry_on_timeout: {},
+  collect_pinduoduo_retry_on_blocked: {},
   collect_pinduoduo_batch_enabled: {},
+  collect_pinduoduo_batch_concurrency: {},
+  collect_pinduoduo_batch_delay_min_ms: {},
+  collect_pinduoduo_batch_delay_max_ms: {},
+  collect_pinduoduo_batch_max_retries: {},
 };
 
 const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
   '1688': '登录态检测与批量采集节流',
   aliexpress: 'Beta 单条采集与重试策略',
-  pinduoduo: 'Beta 单链接采集与访问检测',
+  pinduoduo: '拼多多登录态、访问检测与批量限速',
   taobao: '暂未开放，预留配置入口',
   shein_temu: '暂未开放，预留配置入口',
   custom: '登录状态、采集规则与页面访问检测',
@@ -587,11 +592,19 @@ function CollectorPinduoduoSection({
           </Space>
         </div>
 
-        {isBeta ? (
+        {providerRow?.status === 'available' ? (
+          <Alert
+            type="info"
+            showIcon
+            message="拼多多采集器已可用"
+            description="页面可能因登录、风控或结构变化导致部分字段不完整，请发布前检查标题、价格、主图、规格与库存。"
+          />
+        ) : isBeta ? (
           <Alert
             type="warning"
             showIcon
-            message="拼多多采集器当前为测试中，适合单链接采集商品基础信息。商品规格、库存和动态价格可能不完整，请采集后人工检查。"
+            message="拼多多采集器当前为测试中"
+            description="适合单链接验证；批量采集与发布前检查请在稳定后使用。"
           />
         ) : null}
 
@@ -632,16 +645,51 @@ function CollectorPinduoduoSection({
               <Switch />
             </Form.Item>
           </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="风控 / 验证页自动重试"
+              name="collect_pinduoduo_retry_on_blocked"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
         </Row>
 
-        <Alert type="warning" showIcon message="拼多多批量采集：暂未开放" />
+        <Alert
+          type="warning"
+          showIcon
+          message="拼多多批量采集会自动限速"
+          description="默认并发 1、每条任务间隔 4–9 秒随机。建议先少量测试；登录或验证类失败不会无限重试。"
+        />
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item label="批量并发上限" name="collect_pinduoduo_batch_concurrency">
+              <InputNumber min={1} max={3} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item label="批量最大重试次数" name="collect_pinduoduo_batch_max_retries">
+              <InputNumber min={0} max={5} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item label="批量随机间隔最小值（毫秒）" name="collect_pinduoduo_batch_delay_min_ms">
+              <InputNumber min={0} max={120000} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item label="批量随机间隔最大值（毫秒）" name="collect_pinduoduo_batch_delay_max_ms">
+              <InputNumber min={0} max={120000} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+        </Row>
         <Form.Item
-          label="启用拼多多批量采集（预留）"
+          label="启用拼多多批量采集"
           name="collect_pinduoduo_batch_enabled"
           valuePropName="checked"
-          hidden
         >
-          <Switch disabled />
+          <Switch disabled={!providerRow?.batchSupported} />
         </Form.Item>
       </Space>
     </ProCard>
@@ -773,8 +821,21 @@ export default function CollectorSettingsPage() {
         collect_pinduoduo_auth_check_url: g.collect_pinduoduo_auth_check_url || '',
         collect_pinduoduo_access_check_enabled: parseBoolSetting(g.collect_pinduoduo_access_check_enabled),
         collect_pinduoduo_retry_on_timeout: parseBoolSetting(g.collect_pinduoduo_retry_on_timeout),
+        collect_pinduoduo_retry_on_blocked: parseBoolSetting(g.collect_pinduoduo_retry_on_blocked),
         collect_pinduoduo_batch_enabled:
-          g.collect_pinduoduo_batch_enabled === '1' || g.collect_pinduoduo_batch_enabled === 'true',
+          g.collect_pinduoduo_batch_enabled !== '0' && g.collect_pinduoduo_batch_enabled !== 'false',
+        collect_pinduoduo_batch_concurrency: g.collect_pinduoduo_batch_concurrency
+          ? Number(g.collect_pinduoduo_batch_concurrency)
+          : 1,
+        collect_pinduoduo_batch_delay_min_ms: g.collect_pinduoduo_batch_delay_min_ms
+          ? Number(g.collect_pinduoduo_batch_delay_min_ms)
+          : 4000,
+        collect_pinduoduo_batch_delay_max_ms: g.collect_pinduoduo_batch_delay_max_ms
+          ? Number(g.collect_pinduoduo_batch_delay_max_ms)
+          : 9000,
+        collect_pinduoduo_batch_max_retries: g.collect_pinduoduo_batch_max_retries
+          ? Number(g.collect_pinduoduo_batch_max_retries)
+          : 2,
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -860,7 +921,12 @@ export default function CollectorSettingsPage() {
         collect_pinduoduo_auth_check_url: String(values.collect_pinduoduo_auth_check_url ?? '').trim(),
         collect_pinduoduo_access_check_enabled: values.collect_pinduoduo_access_check_enabled ? '1' : '0',
         collect_pinduoduo_retry_on_timeout: values.collect_pinduoduo_retry_on_timeout ? '1' : '0',
+        collect_pinduoduo_retry_on_blocked: values.collect_pinduoduo_retry_on_blocked ? '1' : '0',
         collect_pinduoduo_batch_enabled: values.collect_pinduoduo_batch_enabled ? '1' : '0',
+        collect_pinduoduo_batch_concurrency: String(values.collect_pinduoduo_batch_concurrency ?? 1),
+        collect_pinduoduo_batch_delay_min_ms: String(values.collect_pinduoduo_batch_delay_min_ms ?? 4000),
+        collect_pinduoduo_batch_delay_max_ms: String(values.collect_pinduoduo_batch_delay_max_ms ?? 9000),
+        collect_pinduoduo_batch_max_retries: String(values.collect_pinduoduo_batch_max_retries ?? 2),
       };
       await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
       message.success('已保存');

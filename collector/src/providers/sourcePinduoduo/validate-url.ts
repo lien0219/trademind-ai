@@ -14,10 +14,10 @@ export function isPinduoduoHost(hostname: string): boolean {
   return h.endsWith('.yangkeduo.com') || h.endsWith('.pinduoduo.com');
 }
 
-/** 语义校验：http(s) + 拼多多域名 + 可识别的商品/批发详情路径 */
+/** 语义校验：http(s) + 拼多多域名 + 可识别的批发详情路径（移动端详情链接受理后返回明确不支持） */
 export function validatePinduoduoUrl(urlStr: string): boolean {
   const urlType = classifyPinduoduoUrl(urlStr);
-  return urlType === 'goods_detail' || urlType === 'wholesale_detail';
+  return urlType === 'wholesale_detail';
 }
 
 export function normalizePinduoduoNavUrl(raw: string): string {

@@ -188,6 +188,42 @@ var rules = []rule{
 		suggest:   "价格可能需要登录、权限或异步接口加载。请检查 1688 登录态和价格提取规则。",
 		taskTypes: []string{taskTypeCollect},
 	},
+	{
+		id: "sub:wechat_auth_pinduoduo",
+		substrs: []string{
+			"wechat_auth_required",
+			"open.weixin.qq.com",
+		},
+		category:  CategoryLoginRequired,
+		severity:  SeverityMedium,
+		reason:    "拼多多登录需要微信扫码授权。",
+		suggest:   "请打开拼多多采集浏览器，在弹出的微信授权页面完成扫码登录后，再重试采集任务。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	{
+		id: "sub:app_redirect_pinduoduo",
+		substrs: []string{
+			"app_redirect",
+		},
+		category:  CategoryCollectorInvalidURL,
+		severity:  SeverityMedium,
+		reason:    "当前为 App 引导页，不是商品详情页。",
+		suggest:   "请换用拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	{
+		id: "sub:unsupported_pinduoduo_url",
+		substrs: []string{
+			"unsupported_pinduoduo_url",
+			"wholesale_homepage",
+			"goods_detail",
+		},
+		category:  CategoryCollectorInvalidURL,
+		severity:  SeverityMedium,
+		reason:    "链接不是拼多多批发商品详情页，或当前版本暂未支持该链接类型。",
+		suggest:   "请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；移动端商品页暂未完整支持。",
+		taskTypes: []string{taskTypeCollect},
+	},
 	// 采集任务 — 需要登录（全平台；优先于 unknown）
 	{
 		id: "sub:login_required_collect",

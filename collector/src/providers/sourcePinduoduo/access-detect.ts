@@ -108,7 +108,7 @@ export async function detectPinduoduoAccessStatus(
     return {
       ...base,
       status: 'login_required',
-      errorCode: 'LOGIN_REQUIRED',
+      errorCode: 'WECHAT_AUTH_REQUIRED',
     };
   }
 

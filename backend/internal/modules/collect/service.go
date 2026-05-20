@@ -287,28 +287,20 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	}
 
 	var collectorOpts map[string]any
-	if strings.EqualFold(strings.TrimSpace(task.Source), "pinduoduo") || strings.EqualFold(strings.TrimSpace(task.Source), "pdd") {
+	if isPinduoduoCollectSource(task.Source) {
+		useProfile := isPifaPinduoduoURL(task.SourceURL)
 		if len(task.RequestOptions) > 0 {
 			var snap struct {
 				ProfileKey        string `json:"profileKey,omitempty"`
 				UseBrowserProfile bool   `json:"useBrowserProfile"`
 			}
-			if err := json.Unmarshal(task.RequestOptions, &snap); err == nil && snap.UseBrowserProfile {
-				key := strings.TrimSpace(snap.ProfileKey)
-				if key == "" {
-					key = PinduoduoProfileKey
+			if err := json.Unmarshal(task.RequestOptions, &snap); err == nil {
+				if snap.UseBrowserProfile {
+					useProfile = true
 				}
-				collectorOpts = map[string]any{
-					"useBrowserProfile": true,
-					"profileKey":        key,
-				}
-			}
-		} else if isPifaPinduoduoURL(task.SourceURL) {
-			collectorOpts = map[string]any{
-				"useBrowserProfile": true,
-				"profileKey":        PinduoduoProfileKey,
 			}
 		}
+		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildPinduoduoRequestOptions(ctx, task.SourceURL, useProfile))
 	}
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
@@ -426,13 +418,37 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	})
 
 	if s.OpLog != nil {
+		action := "collect.task.success"
+		msg := fmt.Sprintf("product_id=%s", pid.String())
+		if isPinduoduoCollectSource(refreshed.Source) {
+			action = "collect.pinduoduo.single"
+			warnN := 0
+			var wrap struct {
+				Raw struct {
+					Warnings []string `json:"warnings"`
+				} `json:"raw"`
+			}
+			_ = json.Unmarshal(outcome.ProductJSON, &wrap)
+			warnN = len(wrap.Raw.Warnings)
+			if warnN > 0 {
+				_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+					AdminUserID: refreshed.CreatedBy,
+					Action:      "collect.pinduoduo.parse_warning",
+					Resource:    "collect_task",
+					ResourceID:  taskID.String(),
+					Status:      "success",
+					Message:     fmt.Sprintf("source=pinduoduo warningCount=%d productId=%s", warnN, pid.String()),
+				})
+			}
+			msg = fmt.Sprintf("source=pinduoduo success productId=%s warningCount=%d", pid.String(), warnN)
+		}
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: refreshed.CreatedBy,
-			Action:      "collect.task.success",
+			Action:      action,
 			Resource:    "collect_task",
 			ResourceID:  taskID.String(),
 			Status:      "success",
-			Message:     fmt.Sprintf("product_id=%s", pid.String()),
+			Message:     msg,
 		})
 	}
 }
@@ -518,10 +534,8 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 			}
 		}
 		reqOpts = blob
-	} else if strings.EqualFold(source, "pinduoduo") || strings.EqualFold(source, "pdd") {
-		if blob := buildPinduoduoRequestOptions(url, body.UseBrowserProfile); len(blob) > 0 {
-			reqOpts = blob
-		}
+	} else if isPinduoduoCollectSource(source) {
+		reqOpts = s.buildPinduoduoRequestOptions(c.Request.Context(), url, body.UseBrowserProfile)
 	}
 
 	task := &CollectTask{
@@ -564,12 +578,18 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	})
 
 	if s.OpLog != nil {
+		action := "collect.task.create"
+		msg := "task submitted to queue"
+		if isPinduoduoCollectSource(source) {
+			action = "collect.pinduoduo.single"
+			msg = "source=pinduoduo taskId=" + task.ID.String()
+		}
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "collect.task.create",
+			Action:     action,
 			Resource:   "collect_task",
 			ResourceID: task.ID.String(),
 			Status:     "success",
-			Message:    "task submitted to queue",
+			Message:    msg,
 		})
 	}
 	return s.GetDTO(c, task.ID)

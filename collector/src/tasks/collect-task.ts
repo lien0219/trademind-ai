@@ -36,6 +36,8 @@ const PREFIX_CODES: { p: string; code: CollectTaskErrorCode }[] = [
   { p: 'INVALID_URL:', code: 'INVALID_URL' },
   { p: 'UNSUPPORTED_URL:', code: 'UNSUPPORTED_URL' },
   { p: 'UNSUPPORTED_PINDUODUO_URL:', code: 'UNSUPPORTED_PINDUODUO_URL' },
+  { p: 'WECHAT_AUTH_REQUIRED:', code: 'WECHAT_AUTH_REQUIRED' },
+  { p: 'APP_REDIRECT:', code: 'APP_REDIRECT' },
   { p: 'PRODUCT_NOT_FOUND:', code: 'PRODUCT_NOT_FOUND' },
   { p: 'NAVIGATION_FAILED:', code: 'NAVIGATION_FAILED' },
   { p: 'TIMEOUT:', code: 'TIMEOUT' },

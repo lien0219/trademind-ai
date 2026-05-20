@@ -41,17 +41,15 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 		{
 			Source:         "pinduoduo",
 			Name:           "拼多多采集器",
-			Description:    "采集拼多多商品详情页，适合提取商品标题、价格、图片、参数等基础信息。商品规格、库存、动态价格可能受页面结构和风控影响，第一版不保证完整。",
-			Status:         "beta",
-			BatchSupported: false,
+			Description:    "采集拼多多批发商品详情，支持标题、价格、主图、规格等基础字段。",
+			Status:         "available",
+			BatchSupported: true,
 			URLPatterns: []string{
-				"https://mobile.yangkeduo.com/goods.html?goods_id=*",
-				"https://yangkeduo.com/goods.html?goods_id=*",
-				"https://mobile.pinduoduo.com/goods.html?goods_id=*",
 				"https://pifa.pinduoduo.com/goods/detail/?gid=*",
+				"https://mobile.yangkeduo.com/goods.html?goods_id=*",
 			},
 			Features: []string{"title", "price", "mainImages", "descriptionImages", "attributes", "skus"},
-			Notes:    "拼多多批量采集暂未开放，请先使用单链接采集验证稳定性。",
+			Notes:    "批量采集默认限速，建议先少量测试。",
 		},
 		{
 			Source:         "taobao",

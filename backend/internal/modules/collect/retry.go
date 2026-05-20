@@ -17,10 +17,13 @@ func (s *Service) effectiveMaxRetries(task *CollectTask) int {
 	if task != nil && task.MaxRetries > 0 {
 		return task.MaxRetries
 	}
-	if task != nil && task.BatchID != nil && strings.EqualFold(strings.TrimSpace(task.Source), "1688") {
-		p := s.batchPolicyForSource(context.Background(), task.Source)
-		if p.MaxRetries > 0 {
-			return p.MaxRetries
+	if task != nil && task.BatchID != nil {
+		src := strings.TrimSpace(task.Source)
+		if strings.EqualFold(src, "1688") || isPinduoduoCollectSource(src) {
+			p := s.batchPolicyForSource(context.Background(), task.Source)
+			if p.MaxRetries > 0 {
+				return p.MaxRetries
+			}
 		}
 	}
 	if s != nil && s.MaxAutoRetries > 0 {
