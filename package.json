@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "tsx scripts/dev-all.ts",
     "check:dev": "tsx scripts/check-dev-env.ts",
+    "postinstall": "node scripts/patch-pro-field-antd-select.mjs",
     "dev:infra": "docker compose up -d postgres redis",
     "dev:backend": "tsx scripts/dev-backend.ts",
     "dev:stop": "docker compose stop",

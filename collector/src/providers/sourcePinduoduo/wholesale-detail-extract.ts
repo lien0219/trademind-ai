@@ -203,7 +203,7 @@ export function extractPifaWholesaleDetailInPage(): PifaWholesaleDomPayload {
     const leftMax = vw * (opts?.leftMaxRatio ?? (sink === 'main' ? 0.44 : 0));
     root.querySelectorAll('img').forEach((img) => {
       const rect = img.getBoundingClientRect();
-      if (rect.width < 20 || rect.height < 20) return;
+      if (rect.width < 12 || rect.height < 12) return;
       const hint = ancestorHint(img);
       if (isIrrelevantHint(hint)) return;
       if (sink === 'main' && rect.left > leftMax) return;
@@ -212,7 +212,7 @@ export function extractPifaWholesaleDetailInPage(): PifaWholesaleDomPayload {
       if (!url) return;
       if (sink === 'main') {
         const source: 'main_gallery' | 'thumbnail_gallery' =
-          rect.width >= 90 || rect.height >= 90 ? 'main_gallery' : 'thumbnail_gallery';
+          rect.width >= 120 || rect.height >= 120 ? 'main_gallery' : 'thumbnail_gallery';
         pushMainImage(url, img, rect, source);
       } else {
         pushDetailImage(url, img, rect);
@@ -286,12 +286,12 @@ export function extractPifaWholesaleDetailInPage(): PifaWholesaleDomPayload {
     document.querySelectorAll('img').forEach((img) => {
       const rect = img.getBoundingClientRect();
       if (rect.left > vw * 0.48 || rect.top > vh * 0.85) return;
-      if (rect.width < 20 || rect.height < 20) return;
+      if (rect.width < 12 || rect.height < 12) return;
       if (isIrrelevantHint(ancestorHint(img))) return;
       const url = pickImgUrl(img);
       if (!url) return;
       const source: 'main_gallery' | 'thumbnail_gallery' =
-        rect.width >= 80 || rect.height >= 80 ? 'main_gallery' : 'thumbnail_gallery';
+        rect.width >= 100 || rect.height >= 100 ? 'main_gallery' : 'thumbnail_gallery';
       pushMainImage(url, img, rect, source);
     });
   }

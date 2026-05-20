@@ -7,6 +7,11 @@ import {
   extractPifaWholesaleDetailInPage,
   type PifaWholesaleDomPayload,
 } from './wholesale-detail-extract.js';
+import {
+  collectInteractiveGalleryImages,
+  scrollAndCollectDetailImages,
+  waitForMainGalleryReady,
+} from './wholesale-detail-gallery.js';
 import { classifyRegionImages, toImageSummary } from './wholesale-detail-images.js';
 import {
   appendWarning,
@@ -19,26 +24,45 @@ import {
   wholesaleRowsToSkus,
 } from './wholesale-detail-shared.js';
 
-async function scrollForIntroAndDetails(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const markers = ['商品介绍', '商品参数', '产品参数'];
-    for (const marker of markers) {
-      const el = [...document.querySelectorAll('div, section, h2, h3, span, a')].find((node) => {
-        const t = node.textContent?.trim() ?? '';
-        return t === marker || (t.length <= 12 && t.startsWith(marker));
-      });
-      if (el) {
-        el.scrollIntoView({ block: 'start' });
-        break;
-      }
+function mergePayloadImages(
+  payload: PifaWholesaleDomPayload,
+  interactive: Awaited<ReturnType<typeof collectInteractiveGalleryImages>>,
+  scrolledDetails: Awaited<ReturnType<typeof scrollAndCollectDetailImages>>,
+): PifaWholesaleDomPayload {
+  const mainKeys = new Set(payload.mainImageCandidates.map((c) => c.url.split('?')[0]));
+  const detailKeys = new Set(payload.detailImageCandidates.map((c) => c.url.split('?')[0]));
+  let orderSeq = Math.max(
+    0,
+    ...[
+      ...payload.mainImageCandidates,
+      ...payload.detailImageCandidates,
+      ...payload.unknownImageCandidates,
+    ].map((c) => c.order),
+  );
+
+  const pushMain = (items: typeof payload.mainImageCandidates) => {
+    for (const item of items) {
+      const key = item.url.split('?')[0] ?? item.url;
+      if (mainKeys.has(key)) continue;
+      mainKeys.add(key);
+      payload.mainImageCandidates.push({ ...item, order: ++orderSeq });
     }
-  });
-  await page.waitForTimeout(700);
-  for (let i = 0; i < 5; i++) {
-    await page.evaluate(() => window.scrollBy(0, Math.max(window.innerHeight, 500))).catch(() => undefined);
-    await page.waitForTimeout(400);
-  }
-  await page.waitForTimeout(500);
+  };
+
+  const pushDetail = (items: typeof payload.detailImageCandidates) => {
+    for (const item of items) {
+      const key = item.url.split('?')[0] ?? item.url;
+      if (detailKeys.has(key) || mainKeys.has(key)) continue;
+      detailKeys.add(key);
+      payload.detailImageCandidates.push({ ...item, order: ++orderSeq });
+    }
+  };
+
+  pushMain(interactive.thumbnailCandidates);
+  pushMain(interactive.clickedMainImages);
+  pushDetail(scrolledDetails);
+
+  return payload;
 }
 
 function pickTitle(
@@ -115,6 +139,10 @@ function skuRowsFromPayload(
 export function assemblePifaWholesaleProduct(
   sourceUrl: string,
   payload: PifaWholesaleDomPayload,
+  galleryMeta?: {
+    thumbnailClickedImages?: PifaWholesaleDomPayload['mainImageCandidates'];
+    scriptGalleryUrls?: string[];
+  },
 ): PinduoduoParseResult {
   const warningCodes: WholesaleWarningCode[] = [];
   const warnings: string[] = [];
@@ -149,6 +177,8 @@ export function assemblePifaWholesaleProduct(
       ogImageFallback: payload.ogImageUrl,
       skuImageUrls,
       unknownCandidates: payload.unknownImageCandidates,
+      thumbnailClickedImages: galleryMeta?.thumbnailClickedImages,
+      scriptGalleryUrls: galleryMeta?.scriptGalleryUrls,
     },
   );
   const { mainImages, descriptionImages, summary, imageDebug, fallbackUsed, fallbackReason } =
@@ -161,6 +191,7 @@ export function assemblePifaWholesaleProduct(
   if (mainImages.length === 0) {
     appendWarning(warningCodes, warnings, 'no_main_images');
   } else if (fallbackUsed) {
+    appendWarning(warningCodes, warnings, 'main_images_fallback_used');
     if (fallbackReason === 'sku_images' || fallbackReason.startsWith('sku')) {
       appendWarning(warningCodes, warnings, 'main_image_fallback_from_sku');
     } else if (
@@ -168,9 +199,12 @@ export function assemblePifaWholesaleProduct(
       fallbackReason.includes('detail')
     ) {
       appendWarning(warningCodes, warnings, 'main_image_fallback_from_detail');
-    } else {
+    } else if (fallbackReason !== 'main_images_supplement') {
       appendWarning(warningCodes, warnings, 'main_image_fallback_from_page');
     }
+  }
+  if (mainImages.length > 0 && mainImages.length < 3) {
+    appendWarning(warningCodes, warnings, 'main_images_maybe_incomplete');
   }
   const mainRegionCandidateCount = payload.mainImageCandidates.length;
   if (mainRegionCandidateCount > 12) {
@@ -250,9 +284,17 @@ export async function extractAndAssemblePifaWholesale(
   page: Page,
   sourceUrl: string,
 ): Promise<PinduoduoParseResult> {
-  await scrollForIntroAndDetails(page);
+  await waitForMainGalleryReady(page);
+  const interactive = await collectInteractiveGalleryImages(page);
+  const scrolledDetails = await scrollAndCollectDetailImages(page);
+
   const payload = await evaluateInPageVoid(page, extractPifaWholesaleDetailInPage);
-  return assemblePifaWholesaleProduct(sourceUrl, payload);
+  const merged = mergePayloadImages(payload, interactive, scrolledDetails);
+
+  return assemblePifaWholesaleProduct(sourceUrl, merged, {
+    thumbnailClickedImages: interactive.clickedMainImages,
+    scriptGalleryUrls: interactive.scriptGalleryUrls,
+  });
 }
 
 export function validateWholesaleCollectQuality(

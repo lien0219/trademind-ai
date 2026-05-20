@@ -38,16 +38,17 @@ export type ImageSummary = {
 
 /** Debug counts only — no HTML/Cookie. */
 export type ImageDebugSummary = {
-  galleryCandidates: number;
+  mainAreaCandidates: number;
   thumbnailCandidates: number;
-  detailCandidates: number;
+  thumbnailClickedImages: number;
   skuImageCandidates: number;
+  detailCandidates: number;
   unknownCandidates: number;
   filteredCandidates: number;
-  mainImagesAfterFilter: number;
-  descriptionImagesAfterFilter: number;
+  mainImagesAfterDedupe: number;
+  descriptionImagesAfterDedupe: number;
   fallbackUsed: boolean;
-  fallbackReason: string;
+  warnings: string[];
 };
 
 const PDD_PRODUCT_HOST_RE = /pddpic\.com|img-pddpic|commimg\.pddpic|yangkeduo\.com\/goods/i;
@@ -104,6 +105,12 @@ export function upgradePddImageSize(url: string): string {
     .replace(/\/w\/\d+\/h\/\d+/gi, '');
 }
 
+function pddImageDedupeKey(url: string): string {
+  const normalized = upgradePddImageSize(url);
+  const base = imageDedupeKey(normalized);
+  return base.replace(/_\d+x\d+(?=\.[a-z]+$)/gi, '');
+}
+
 function urlQualityScore(url: string, width: number, height: number): number {
   let score = url.length;
   if (isPddProductImageUrl(url)) score += 80;
@@ -133,8 +140,7 @@ function passesMainSizeGate(width: number, height: number): boolean {
   if (!hasKnownDimensions(width, height)) return true;
   const maxSide = Math.max(width, height);
   const minSide = Math.min(width, height);
-  if (maxSide < 24 || minSide < 16) return false;
-  if (maxSide < 80 && minSide < 40) return false;
+  if (maxSide < 16 || minSide < 10) return false;
   return true;
 }
 
@@ -142,7 +148,7 @@ function passesDetailSizeGate(width: number, height: number): boolean {
   if (!hasKnownDimensions(width, height)) return true;
   const maxSide = Math.max(width, height);
   const minSide = Math.min(width, height);
-  if (maxSide < 40 || minSide < 24) return false;
+  if (maxSide < 32 || minSide < 20) return false;
   return true;
 }
 
@@ -202,9 +208,9 @@ function normalizeUrl(
 
 function countBySource(items: ClassifiedImage[]): Pick<
   ImageDebugSummary,
-  'galleryCandidates' | 'thumbnailCandidates' | 'detailCandidates' | 'skuImageCandidates' | 'unknownCandidates'
+  'mainAreaCandidates' | 'thumbnailCandidates' | 'detailCandidates' | 'skuImageCandidates' | 'unknownCandidates'
 > {
-  let galleryCandidates = 0;
+  let mainAreaCandidates = 0;
   let thumbnailCandidates = 0;
   let detailCandidates = 0;
   let skuImageCandidates = 0;
@@ -212,7 +218,7 @@ function countBySource(items: ClassifiedImage[]): Pick<
   for (const c of items) {
     switch (c.source) {
       case 'main_gallery':
-        galleryCandidates++;
+        mainAreaCandidates++;
         break;
       case 'thumbnail_gallery':
         thumbnailCandidates++;
@@ -229,7 +235,7 @@ function countBySource(items: ClassifiedImage[]): Pick<
     }
   }
   return {
-    galleryCandidates,
+    mainAreaCandidates,
     thumbnailCandidates,
     detailCandidates,
     skuImageCandidates,
@@ -260,7 +266,7 @@ function mergeMainFromBucket(
     }
     const url = normalizeUrl(pageUrl, c, summary);
     if (!url) continue;
-    const key = imageDedupeKey(url);
+    const key = pddImageDedupeKey(url);
     const prev = map.get(key);
     if (!prev) {
       map.set(key, { ...c, url });
@@ -292,7 +298,7 @@ function mergeDetailFromBucket(
     }
     const url = normalizeUrl(pageUrl, c, summary);
     if (!url) continue;
-    const key = imageDedupeKey(url);
+    const key = pddImageDedupeKey(url);
     if (mainKeys.has(key)) {
       recordFilter(summary, c.source, 'duplicate_of_main');
       continue;
@@ -315,7 +321,7 @@ function dedupeUrlList(pageUrl: string, urls: string[], limit: number): string[]
   for (const raw of urls) {
     let u = upgradePddImageSize(resolveImageUrl(pageUrl, raw));
     if (!u.startsWith('http') || isStrictJunkUrl(u)) continue;
-    const key = imageDedupeKey(u);
+    const key = pddImageDedupeKey(u);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(u);
@@ -338,18 +344,39 @@ function pickFromCandidates(
       return {
         url,
         score: urlQualityScore(url, c.width, c.height) + (isPddProductImageUrl(url) ? 50 : 0),
+        order: c.order,
       };
     })
-    .filter((x): x is { url: string; score: number } => x !== null)
-    .sort((a, b) => b.score - a.score);
+    .filter((x): x is { url: string; score: number; order: number } => x !== null)
+    .sort((a, b) => b.score - a.score || a.order - b.order);
   const seen = new Set<string>();
   const out: string[] = [];
   for (const s of scored) {
-    const key = imageDedupeKey(s.url);
+    const key = pddImageDedupeKey(s.url);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(s.url);
     if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function mergeUrlsIntoMain(
+  pageUrl: string,
+  mainImages: string[],
+  urls: string[],
+  mainLimit: number,
+): string[] {
+  const seen = new Set(mainImages.map((u) => pddImageDedupeKey(u)));
+  const out = [...mainImages];
+  for (const raw of urls) {
+    const u = upgradePddImageSize(resolveImageUrl(pageUrl, raw));
+    if (!u.startsWith('http') || isStrictJunkUrl(u)) continue;
+    const key = pddImageDedupeKey(u);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(u);
+    if (out.length >= mainLimit) break;
   }
   return out;
 }
@@ -360,6 +387,8 @@ export type ClassifyRegionOptions = {
   ogImageFallback?: string;
   skuImageUrls?: string[];
   unknownCandidates?: ClassifiedImage[];
+  thumbnailClickedImages?: ClassifiedImage[];
+  scriptGalleryUrls?: string[];
 };
 
 export type ClassifyRegionResult = {
@@ -378,8 +407,22 @@ export function classifyRegionImages(
 ): ClassifyRegionResult {
   const mainLimit = opts?.mainLimit ?? 10;
   const detailLimit = opts?.detailLimit ?? 40;
-  const allForCount = [
+  const clickedCount = opts?.thumbnailClickedImages?.length ?? 0;
+
+  const mainBucket = [
     ...buckets.main,
+    ...(opts?.thumbnailClickedImages ?? []),
+    ...(opts?.scriptGalleryUrls ?? []).map((url, i) => ({
+      url,
+      source: 'main_gallery' as ImageSource,
+      order: 10_000 + i,
+      width: 0,
+      height: 0,
+    })),
+  ];
+
+  const allForCount = [
+    ...mainBucket,
     ...buckets.detail,
     ...(opts?.unknownCandidates ?? []),
   ];
@@ -387,7 +430,7 @@ export function classifyRegionImages(
   const skuUrlCount = (opts?.skuImageUrls ?? []).filter((u) => u.trim()).length;
 
   const summary: ImageFilterSummary = {
-    scanned: buckets.main.length + buckets.detail.length + (opts?.unknownCandidates?.length ?? 0),
+    scanned: mainBucket.length + buckets.detail.length + (opts?.unknownCandidates?.length ?? 0),
     keptMain: 0,
     keptDetail: 0,
     skuImagesBound: skuUrlCount,
@@ -396,16 +439,21 @@ export function classifyRegionImages(
     filteredByReason: {},
   };
 
-  const mergedMain = mergeMainFromBucket(pageUrl, buckets.main, summary);
+  const mergedMain = mergeMainFromBucket(pageUrl, mainBucket, summary);
   let mainImages = mergedMain.slice(0, mainLimit).map((x) => x.url);
   let fallbackUsed = false;
   let fallbackReason = '';
+  const debugWarnings: string[] = [];
 
-  const tryFallback = (urls: string[], reason: string) => {
-    if (mainImages.length > 0) return;
+  const tryFallback = (urls: string[], reason: string, onlyIfEmpty = true) => {
+    if (onlyIfEmpty && mainImages.length > 0) return;
     const next = dedupeUrlList(pageUrl, urls, mainLimit);
     if (next.length > 0) {
-      mainImages = next;
+      if (onlyIfEmpty) {
+        mainImages = next;
+      } else {
+        mainImages = mergeUrlsIntoMain(pageUrl, mainImages, next, mainLimit);
+      }
       fallbackUsed = true;
       fallbackReason = reason;
     }
@@ -420,7 +468,7 @@ export function classifyRegionImages(
   }
 
   let descriptionImages: string[] = [];
-  const mainKeys = new Set(mainImages.map((u) => imageDedupeKey(u)));
+  const mainKeys = new Set(mainImages.map((u) => pddImageDedupeKey(u)));
   const mergedDetail = mergeDetailFromBucket(pageUrl, buckets.detail, mainKeys, summary);
   descriptionImages = mergedDetail.slice(0, detailLimit).map((x) => x.url);
 
@@ -440,7 +488,7 @@ export function classifyRegionImages(
   if (mainImages.length === 0) {
     const pool = pickFromCandidates(
       pageUrl,
-      [...buckets.main, ...buckets.detail, ...(opts?.unknownCandidates ?? [])],
+      [...mainBucket, ...buckets.detail, ...(opts?.unknownCandidates ?? [])],
       mainLimit,
       true,
     );
@@ -451,20 +499,61 @@ export function classifyRegionImages(
     }
   }
 
+  // Supplement main images when fewer than 3 (ordered fallback chain)
+  if (mainImages.length < 3) {
+    const before = mainImages.length;
+    const thumbUrls = mainBucket
+      .filter((c) => c.source === 'thumbnail_gallery')
+      .sort((a, b) => a.order - b.order)
+      .map((c) => c.url);
+    mainImages = mergeUrlsIntoMain(pageUrl, mainImages, thumbUrls, mainLimit);
+
+    if (mainImages.length < 3 && (opts?.thumbnailClickedImages?.length ?? 0) > 0) {
+      const clicked = pickFromCandidates(pageUrl, opts!.thumbnailClickedImages!, mainLimit, true);
+      mainImages = mergeUrlsIntoMain(pageUrl, mainImages, clicked, mainLimit);
+    }
+
+    if (mainImages.length < 3 && (opts?.skuImageUrls?.length ?? 0) > 0) {
+      mainImages = mergeUrlsIntoMain(pageUrl, mainImages, opts!.skuImageUrls!, mainLimit);
+    }
+
+    if (mainImages.length < 3 && (opts?.unknownCandidates?.length ?? 0) > 0) {
+      const fromUnknown = pickFromCandidates(pageUrl, opts!.unknownCandidates!, mainLimit, true);
+      mainImages = mergeUrlsIntoMain(pageUrl, mainImages, fromUnknown, mainLimit);
+    }
+
+    if (mainImages.length < 3 && descriptionImages.length > 0) {
+      mainImages = mergeUrlsIntoMain(pageUrl, mainImages, [descriptionImages[0]], mainLimit);
+    }
+
+    if (mainImages.length > before) {
+      fallbackUsed = true;
+      if (!fallbackReason) fallbackReason = 'main_images_supplement';
+    }
+  }
+
+  if (mainImages.length < 3) {
+    debugWarnings.push('main_images_maybe_incomplete');
+  }
+  if (fallbackUsed) {
+    debugWarnings.push('main_images_fallback_used');
+  }
+
   summary.keptMain = mainImages.length;
   summary.keptDetail = descriptionImages.length;
 
   const imageDebug: ImageDebugSummary = {
-    galleryCandidates: countSeed.galleryCandidates,
+    mainAreaCandidates: countSeed.mainAreaCandidates,
     thumbnailCandidates: countSeed.thumbnailCandidates,
-    detailCandidates: countSeed.detailCandidates,
+    thumbnailClickedImages: clickedCount,
     skuImageCandidates: countSeed.skuImageCandidates + skuUrlCount,
+    detailCandidates: countSeed.detailCandidates,
     unknownCandidates: countSeed.unknownCandidates,
     filteredCandidates: summary.filtered,
-    mainImagesAfterFilter: mainImages.length,
-    descriptionImagesAfterFilter: descriptionImages.length,
+    mainImagesAfterDedupe: mainImages.length,
+    descriptionImagesAfterDedupe: descriptionImages.length,
     fallbackUsed,
-    fallbackReason,
+    warnings: debugWarnings,
   };
 
   return {
@@ -503,7 +592,7 @@ export function normalizePddImageList(
     abs = upgradePddImageSize(abs);
     if (isStrictJunkUrl(abs)) continue;
     if (!isPddProductImageUrl(abs) && isJunkImageUrl(abs, extra)) continue;
-    const key = imageDedupeKey(abs);
+    const key = pddImageDedupeKey(abs);
     const prev = byKey.get(key);
     byKey.set(key, prev ? preferHigherResUrl(prev, abs) : abs);
   }

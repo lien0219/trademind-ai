@@ -205,10 +205,14 @@ function hasOnlyDefaultPinduoduoSku(skus: ProductSKURow[] | undefined): boolean 
 const PINDUODUO_WARNING_HINTS: Record<string, string> = {
   no_main_images: '未识别到商品主图，请手动添加主图。',
   main_images_missing: '未识别到商品主图，请手动添加主图。',
+  main_images_maybe_incomplete: '主图数量较少，可能未采集完整，请发布前检查图片。',
+  main_images_fallback_used: '部分图片由系统自动兜底识别，请发布前确认是否正确。',
   main_image_fallback_from_sku: '主图由规格图自动兜底生成，请发布前确认是否正确。',
   main_image_fallback_from_detail: '主图由详情图自动兜底生成，请发布前确认是否正确。',
   main_image_fallback_from_page: '主图由页面商品图自动兜底生成，请发布前确认是否正确。',
-  description_images_missing: '未识别到详情图，可后续补充。',
+  description_images_missing: '未识别到详情图，可手动补充或重新采集。',
+  detail_images_lazy_load: '详情图可能未完全加载，请核对商品介绍区域图片。',
+  images_filtered: '已过滤部分店铺图、服务图或无关图片，请核对主图与详情图。',
   description_missing: '未识别到文字描述，可使用 AI 生成描述。',
   sku_parse_failed: '商品规格来自页面自动识别，请发布前核对价格和库存。',
   sku_stock_unknown: '库存未完整识别，请人工确认。',
@@ -234,8 +238,11 @@ function pinduoduoFieldHints(data: ProductDetail | null): string[] {
   if (mainCount === 0 && !warnCodes.includes('no_main_images') && !warnCodes.includes('main_images_missing')) {
     hints.push('未识别到商品主图，请手动添加主图。');
   }
+  if (mainCount > 0 && mainCount < 3 && !warnCodes.includes('main_images_maybe_incomplete')) {
+    hints.push('主图数量较少，可能未采集完整，请发布前检查图片。');
+  }
   if (detailCount === 0 && !warnCodes.includes('description_images_missing')) {
-    hints.push('未识别到详情图，可后续补充。');
+    hints.push('未识别到详情图，可手动补充或重新采集。');
   }
   if (!data.description?.trim() && !warnCodes.includes('description_missing')) {
     hints.push('未识别到文字描述，可使用 AI 生成描述。');
@@ -1049,7 +1056,7 @@ export default function ProductDraftDetailPage() {
                     <ProFormTextArea name="aiTitle" label="AI 标题" fieldProps={{ rows: 2 }} />
                     <ProFormTextArea name="description" label="主描述" fieldProps={{ rows: 5 }} />
                     <ProFormTextArea name="aiDescription" label="AI 描述" fieldProps={{ rows: 5 }} />
-                    <ProFormText name="currency" label="币种" initialValue="CNY" />
+                    <ProFormText name="currency" label="币种" />
                     <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} />
                   </ProForm>
                 </Card>

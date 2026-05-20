@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-21 — **拼多多采集器生产化（available）**：Provider **`status=available`**、**`batchSupported=true`**；优先 **`pifa.pinduoduo.com/goods/detail`**；移动端商品页 / 批发首页 / 登录 / 微信 / App 引导返回明确错误码（**`UNSUPPORTED_PINDUODUO_URL` / `WECHAT_AUTH_REQUIRED` / `APP_REDIRECT` / `LOGIN_REQUIRED`**）；采集阶段 **部分成功**（缺主图/标题等 warning + 草稿），**发布前检查** 拦截无主图/无效价/SKU；**批量采集** 默认并发 1、间隔 4–9s、可配置重试；设置页 **`collect_pinduoduo_*`** 接入超时/访问检测/批量节流；失败任务中心与 **操作日志**（`collect.pinduoduo.*`）；README 小白教程。**边界**：不保存密码、不破解验证码、不绕过风控、不前端直连拼多多。**1688 / 速卖通 / custom 不变**。
+**最后更新**：2026-05-21 — **拼多多图片采集完整性优化**：pifa 详情页新增 **缩略图轮播读取**（右箭头最多 5 次）、**点击缩略图获取大图**（最多 12 张）、**详情图分段滚动懒加载**（10 段 + 商品介绍 Tab）；主图来源含当前大图 / 缩略图 / 点击切换大图 / 页面脚本 gallery / SKU 兜底；**主图少于 3 张自动补充兜底**（`main_images_fallback_used` / `main_images_maybe_incomplete` warning，不阻断草稿）；**`raw.imageDebug`** 增加 `mainAreaCandidates` / `thumbnailClickedImages` 等摘要；单个与批量采集 **共用 `wholesale-detail` 解析链**；商品草稿页补 **主图不完整 / 详情图缺失 / 兜底提示**。**1688 / custom 不变**。
+
+**此前**：2026-05-21 — **拼多多采集器生产化（available）**：Provider **`status=available`**、**`batchSupported=true`**；优先 **`pifa.pinduoduo.com/goods/detail`**；移动端商品页 / 批发首页 / 登录 / 微信 / App 引导返回明确错误码（**`UNSUPPORTED_PINDUODUO_URL` / `WECHAT_AUTH_REQUIRED` / `APP_REDIRECT` / `LOGIN_REQUIRED`**）；采集阶段 **部分成功**（缺主图/标题等 warning + 草稿），**发布前检查** 拦截无主图/无效价/SKU；**批量采集** 默认并发 1、间隔 4–9s、可配置重试；设置页 **`collect_pinduoduo_*`** 接入超时/访问检测/批量节流；失败任务中心与 **操作日志**（`collect.pinduoduo.*`）；README 小白教程。**边界**：不保存密码、不破解验证码、不绕过风控、不前端直连拼多多。**1688 / 速卖通 / custom 不变**。
 
 **此前**：2026-05-21 — **拼多多主图兜底与采集容错（beta）**：修复图片分类过严导致 **`no_main_images` 采集失败**；放宽主图区/尺寸过滤（未知尺寸保留、主图区不因 URL 软关键词误杀）；**五级主图兜底**（画廊 → 缩略图 → SKU 图 → 详情首图 → 页面商品图池）；**`raw.imageDebug`** 记录各阶段候选数量；**采集阶段**主图缺失不再失败，生成草稿并 **`no_main_images` / 兜底 warning**，**`partial_success`**；**发布前检查**仍要求主图；失败任务中心 **图片缺失** 归类与拼多多提示文案；商品草稿页补图/兜底提示。
 

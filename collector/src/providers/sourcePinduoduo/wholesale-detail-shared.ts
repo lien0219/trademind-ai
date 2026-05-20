@@ -50,6 +50,8 @@ export type WholesaleWarningCode =
   | 'main_image_fallback_from_sku'
   | 'main_image_fallback_from_detail'
   | 'main_image_fallback_from_page'
+  | 'main_images_fallback_used'
+  | 'main_images_maybe_incomplete'
   | 'sku_rows_detected_but_empty'
   | 'images_filtered';
 
@@ -62,13 +64,15 @@ export const WARNING_MESSAGES: Record<WholesaleWarningCode, string> = {
   attributes_missing: '未能识别商品参数，请人工补充。',
   sku_parse_failed: '页面可能存在多个规格，但当前未能完整识别，请人工检查或重新采集。',
   detail_images_lazy_load: '详情图可能未完全加载，请核对商品介绍区域图片。',
-  description_images_missing: '未识别到详情图，可能页面未加载完成或结构有变化。',
+  description_images_missing: '未识别到详情图，可手动补充或重新采集。',
   main_images_missing: '未识别到商品主图，请人工补充。',
   no_main_images: '未识别到商品主图，请在图片管理中手动添加后再发布。',
   main_images_too_many: '主图数量偏多，可能混入了详情图，请人工核对。',
   main_image_fallback_from_sku: '主图由规格图自动兜底生成，请发布前确认是否正确。',
   main_image_fallback_from_detail: '主图由详情图自动兜底生成，请发布前确认是否正确。',
   main_image_fallback_from_page: '主图由页面商品图池自动兜底生成，请发布前确认是否正确。',
+  main_images_fallback_used: '部分图片由系统自动兜底识别，请发布前确认是否正确。',
+  main_images_maybe_incomplete: '主图数量较少，可能未采集完整，请发布前检查图片。',
   sku_rows_detected_but_empty: '页面疑似存在规格行但未解析出 SKU，请人工检查。',
   images_filtered: '已过滤部分店铺图、服务图或无关图片，请核对主图与详情图。',
 };
