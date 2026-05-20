@@ -1,0 +1,69 @@
+package taskcenter
+
+import (
+	"net/url"
+	"strings"
+)
+
+func pinduoduoURLTypeLabel(sourceURL string) string {
+	u, err := url.Parse(strings.TrimSpace(sourceURL))
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	path := strings.ToLower(u.Path)
+	if host == "pifa.pinduoduo.com" || strings.HasSuffix(host, ".pifa.pinduoduo.com") {
+		if strings.Contains(path, "goods") {
+			return "拼多多批发页"
+		}
+	}
+	if strings.Contains(host, "pinduoduo.com") || strings.Contains(host, "yangkeduo.com") {
+		if strings.Contains(path, "goods") || strings.Contains(u.RawQuery, "goods_id=") {
+			return "普通商品页"
+		}
+		if strings.Contains(path, "login") || strings.Contains(path, "passport") {
+			return "登录页"
+		}
+		if strings.Contains(path, "app") || strings.Contains(path, "download") {
+			return "App 引导页"
+		}
+	}
+	return ""
+}
+
+func accessStatusLabelFromFailure(category, errMsg string) string {
+	msg := strings.ToLower(strings.TrimSpace(errMsg))
+	cat := strings.TrimSpace(strings.ToLower(category))
+	if cat == "login_required" || strings.Contains(msg, "login_required") {
+		return "需要登录"
+	}
+	if strings.Contains(msg, "verify") || strings.Contains(msg, "blocked") || strings.Contains(msg, "captcha") {
+		return "需要验证"
+	}
+	if strings.Contains(msg, "public") {
+		return "公开可访问"
+	}
+	return ""
+}
+
+func collectFailureContextExtras(sourceURL, errMsg, failureCategory, classifierSuggest string) (urlType, accessStatus, suggested string) {
+	src := strings.TrimSpace(strings.ToLower(sourceURL))
+	if strings.Contains(src, "pinduoduo") || strings.Contains(src, "yangkeduo") {
+		urlType = pinduoduoURLTypeLabel(sourceURL)
+		if urlType == "" {
+			urlType = "未识别"
+		}
+	}
+	accessStatus = accessStatusLabelFromFailure(failureCategory, errMsg)
+	if accessStatus == "" && strings.Contains(strings.ToLower(errMsg), "login") {
+		accessStatus = "需要登录"
+	}
+	if accessStatus == "" {
+		accessStatus = "—"
+	}
+	suggested = strings.TrimSpace(classifierSuggest)
+	if urlType == "拼多多批发页" && accessStatus == "需要登录" {
+		suggested = "请打开采集浏览器登录拼多多后重试，或换用普通商品详情页链接。"
+	}
+	return urlType, accessStatus, suggested
+}

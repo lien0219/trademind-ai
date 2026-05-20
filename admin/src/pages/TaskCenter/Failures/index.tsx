@@ -751,6 +751,24 @@ export default function TaskCenterFailuresPage() {
                 </Button>
               ) : null}
             </Space>
+            {detail.extra?.urlTypeLabel ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>链接类型：</Typography.Text>{' '}
+                {String(detail.extra.urlTypeLabel)}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.extra?.accessStatusLabel ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>页面访问状态：</Typography.Text>{' '}
+                {String(detail.extra.accessStatusLabel)}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.extra?.suggestedActionDetail ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>建议操作：</Typography.Text>{' '}
+                {String(detail.extra.suggestedActionDetail)}
+              </Typography.Paragraph>
+            ) : null}
             {detail.extra && Object.keys(detail.extra).length > 0 ? (
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, margin: 0 }}>
                 {JSON.stringify(detail.extra, null, 2)}

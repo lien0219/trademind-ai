@@ -2,7 +2,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
-import { Alert, Button, Form, Input, Select, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Select, Space, Switch, Tag, Typography, message } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
@@ -27,6 +27,8 @@ import {
   ruleMatchesURL,
   suggestRuleDomainForHost,
 } from '@/utils/collectRuleMatch';
+import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
+import { classifyPinduoduoUrl, pinduoduoProfileDomain, pinduoduoUrlHint } from '@/utils/pinduoduoUrl';
 
 function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
@@ -56,6 +58,18 @@ export default function CollectTasksPage() {
   const [enabledRules, setEnabledRules] = useState<CollectRuleRow[]>([]);
   const formSource = Form.useWatch('source', form);
   const formUrl = Form.useWatch('url', form);
+  const [pddProfileId, setPddProfileId] = useState<string | undefined>();
+  const [pddUseBrowserProfile, setPddUseBrowserProfile] = useState(false);
+  const isPddSource = formSource === 'pinduoduo' || formSource === 'pdd';
+  const pddUrlHint = useMemo(() => {
+    const u = formUrl?.trim();
+    if (!u || !isPddSource) return null;
+    return pinduoduoUrlHint(u);
+  }, [formUrl, isPddSource]);
+  const pddUrlType = useMemo(
+    () => (isPddSource ? classifyPinduoduoUrl(formUrl?.trim() ?? '') : 'unknown'),
+    [formUrl, isPddSource],
+  );
 
   useEffect(() => {
     const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : 4000);
@@ -367,6 +381,12 @@ export default function CollectTasksPage() {
                 source: src,
                 url,
                 ...(src === 'custom' ? { ruleId: rid || undefined } : {}),
+                ...(isPddSource
+                  ? {
+                      profileId: pddUseBrowserProfile ? pddProfileId : undefined,
+                      useBrowserProfile: pddUseBrowserProfile && Boolean(pddProfileId),
+                    }
+                  : {}),
               });
               message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
@@ -406,6 +426,40 @@ export default function CollectTasksPage() {
           <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
             <Input style={{ width: 480, maxWidth: '100%' }} placeholder={placeholderUrl} />
           </Form.Item>
+          {isPddSource && pddUrlHint ? (
+            <Alert
+              type={
+                pddUrlType === 'goods_detail'
+                  ? 'success'
+                  : pddUrlType === 'wholesale_detail'
+                    ? 'warning'
+                    : 'info'
+              }
+              showIcon
+              message={pddUrlHint}
+              style={{ marginBottom: 12, width: '100%' }}
+            />
+          ) : null}
+          {isPddSource ? (
+            <div style={{ width: '100%', marginBottom: 12 }}>
+              <Space style={{ marginBottom: 8 }}>
+                <Switch checked={pddUseBrowserProfile} onChange={setPddUseBrowserProfile} />
+                <Typography.Text>使用已登录的采集浏览器</Typography.Text>
+              </Space>
+              {pddUseBrowserProfile ? (
+                <BrowserProfileLoginPanel
+                  url={formUrl?.trim() ?? ''}
+                  domain={pinduoduoProfileDomain()}
+                  profileProvider="pinduoduo"
+                  profileId={pddProfileId}
+                  useBrowserProfile={pddUseBrowserProfile}
+                  tone="optional"
+                  onProfileIdChange={setPddProfileId}
+                  onUseProfileChange={setPddUseBrowserProfile}
+                />
+              ) : null}
+            </div>
+          ) : null}
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={submitting}>
               提交

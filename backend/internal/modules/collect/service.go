@@ -285,6 +285,25 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	}
 
 	var collectorOpts map[string]any
+	if strings.EqualFold(strings.TrimSpace(task.Source), "pinduoduo") || strings.EqualFold(strings.TrimSpace(task.Source), "pdd") {
+		if len(task.RequestOptions) > 0 {
+			var snap struct {
+				ProfileID         string `json:"profileId,omitempty"`
+				ProfileKey        string `json:"profileKey,omitempty"`
+				UseBrowserProfile bool   `json:"useBrowserProfile"`
+			}
+			if err := json.Unmarshal(task.RequestOptions, &snap); err == nil &&
+				snap.UseBrowserProfile && strings.TrimSpace(snap.ProfileKey) != "" {
+				collectorOpts = map[string]any{
+					"useBrowserProfile": true,
+					"profileKey":        strings.TrimSpace(snap.ProfileKey),
+				}
+				if strings.TrimSpace(snap.ProfileID) != "" {
+					collectorOpts["profileId"] = strings.TrimSpace(snap.ProfileID)
+				}
+			}
+		}
+	}
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
 			RuleID            string          `json:"ruleId"`
@@ -493,6 +512,18 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 			}
 		}
 		reqOpts = blob
+	} else if strings.EqualFold(source, "pinduoduo") || strings.EqualFold(source, "pdd") {
+		if s.Profiles != nil && body.UseBrowserProfile && body.ProfileID != nil {
+			pid, err := uuid.Parse(strings.TrimSpace(*body.ProfileID))
+			if err != nil {
+				return zero, fmt.Errorf("invalid profileId")
+			}
+			blob, err := s.Profiles.MergeIntoRequestOptions(c.Request.Context(), nil, &pid, true, url)
+			if err != nil {
+				return zero, err
+			}
+			reqOpts = blob
+		}
 	}
 
 	task := &CollectTask{

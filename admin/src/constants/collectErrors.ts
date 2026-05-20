@@ -56,6 +56,8 @@ export function mapCollectorErrorCodeLabel(code?: string | null): string {
       return '商品不存在或已下架';
     case 'INVALID_URL':
       return '链接无效';
+    case 'UNSUPPORTED_PINDUODUO_URL':
+      return '链接类型暂未支持';
     default:
       return '';
   }
@@ -70,14 +72,14 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
   switch (c) {
     case 'LOGIN_REQUIRED':
       return isPdd
-        ? '该商品页需要登录后才能访问，请稍后重试或使用登录状态采集。'
+        ? '该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用公开商品详情页链接。'
         : '当前商品页跳转到了登录页面，请先使用采集浏览器登录后再测试。';
     case 'PAGE_BLOCKED_OR_VERIFY_REQUIRED':
     case 'PAGE_BLOCKED':
     case 'VERIFY_REQUIRED':
     case 'CAPTCHA':
       return isPdd
-        ? '目标页面可能触发验证或风控，请稍后重试。'
+        ? '拼多多页面可能触发验证或风控，请稍后重试，或在采集浏览器中手动完成验证。'
         : '目标网站可能出现验证码或安全验证，请稍后重试，或在采集浏览器中手动完成验证。';
     case 'CUSTOM_RULE_MISSING':
       return '请先创建采集规则，或使用「AI 帮我生成规则」。';
@@ -85,7 +87,7 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
       return '采集规则内容格式不正确，建议使用「AI 帮我生成规则」重新生成，或由熟悉网站结构的人员调整。';
     case 'PARSE_FAILED_TITLE_MISSING':
       return isPdd
-        ? '页面已打开，但没有识别到商品标题。'
+        ? '页面已打开，但没有识别到商品标题，可能是页面结构变化或登录态不足。'
         : '请检查商品标题对应的页面位置，或重新使用 AI 生成规则。';
     case 'PARSE_FAILED_IMAGE_MISSING':
       return isPdd
@@ -105,6 +107,8 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
       return '商品不存在、已下架或链接无效。';
     case 'INVALID_URL':
       return isPdd ? '请输入拼多多商品详情页链接。' : '请输入有效的商品详情页链接。';
+    case 'UNSUPPORTED_PINDUODUO_URL':
+      return '当前链接类型暂未支持。第一版优先支持普通商品详情页，拼多多批发页可能需要登录后采集。';
     case 'PROFILE_NOT_FOUND':
       return '请重新选择登录状态，或新建一条适用于该网站的登录状态。';
     case 'PROFILE_LOGIN_REQUIRED':
@@ -157,6 +161,9 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
   }
   if (upper.includes('LOGIN_REQUIRED')) {
     return mapCollectorErrorCodeDetail('LOGIN_REQUIRED', source);
+  }
+  if (upper.includes('UNSUPPORTED_PINDUODUO_URL')) {
+    return mapCollectorErrorCodeDetail('UNSUPPORTED_PINDUODUO_URL', source);
   }
   if (upper.includes('PARSE_FAILED_TITLE_MISSING')) {
     return mapCollectorErrorCodeDetail('PARSE_FAILED_TITLE_MISSING', source);

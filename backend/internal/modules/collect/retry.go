@@ -2,6 +2,7 @@ package collect
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -105,8 +106,30 @@ func collectorRejectExtras(err error) map[string]any {
 	var rej *CollectorRejectedError
 	if errors.As(err, &rej) && rej != nil {
 		code := strings.TrimSpace(rej.Code)
+		extras := map[string]any{}
 		if code != "" {
-			return map[string]any{"collectorCode": code}
+			extras["collectorCode"] = code
+			extras["errorType"] = strings.ToLower(code)
+		}
+		if len(rej.AccessReport) > 0 {
+			var wrap struct {
+				AccessReport struct {
+					AccessStatus string `json:"accessStatus"`
+				} `json:"accessReport"`
+			}
+			if json.Unmarshal(rej.AccessReport, &wrap) == nil && strings.TrimSpace(wrap.AccessReport.AccessStatus) != "" {
+				extras["accessStatus"] = wrap.AccessReport.AccessStatus
+			} else {
+				var direct struct {
+					AccessStatus string `json:"accessStatus"`
+				}
+				if json.Unmarshal(rej.AccessReport, &direct) == nil && strings.TrimSpace(direct.AccessStatus) != "" {
+					extras["accessStatus"] = direct.AccessStatus
+				}
+			}
+		}
+		if len(extras) > 0 {
+			return extras
 		}
 	}
 	return nil

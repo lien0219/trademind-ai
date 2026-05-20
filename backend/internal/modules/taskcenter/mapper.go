@@ -93,6 +93,7 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		NormalizedStatus: norm,
 		Retryable:        norm == NormFailed,
 		ErrorMessage:     truncateRunes(row.ErrorMessage, maxErrorMessageLen),
+		ErrorCode:        collect.InferErrorCodeFromMessage(row.ErrorMessage),
 		RetryCount:       row.RetryCount,
 		MaxRetries:       row.MaxRetries,
 		CreatedAt:        row.CreatedAt,

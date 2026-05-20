@@ -48,6 +48,7 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 				"https://mobile.yangkeduo.com/goods.html?goods_id=*",
 				"https://yangkeduo.com/goods.html?goods_id=*",
 				"https://mobile.pinduoduo.com/goods.html?goods_id=*",
+				"https://pifa.pinduoduo.com/goods/detail/?gid=*",
 			},
 			Features: []string{"title", "price", "mainImages", "descriptionImages", "attributes", "skus"},
 			Notes:    "拼多多批量采集暂未开放，请先使用单链接采集验证稳定性。",

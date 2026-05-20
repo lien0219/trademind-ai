@@ -38,10 +38,19 @@ function hostMatchesTaobaoTmall(host: string): boolean {
 }
 
 function hostMatchesPdd(host: string): boolean {
-  if (host === 'pinduoduo.com' || host === 'yangkeduo.com' || host === 'mobile.yangkeduo.com') {
+  if (
+    host === 'pinduoduo.com' ||
+    host === 'yangkeduo.com' ||
+    host === 'mobile.yangkeduo.com' ||
+    host === 'pifa.pinduoduo.com'
+  ) {
     return true;
   }
-  return host.endsWith('.pinduoduo.com') || host.endsWith('.yangkeduo.com');
+  return (
+    host.endsWith('.pinduoduo.com') ||
+    host.endsWith('.yangkeduo.com') ||
+    host.endsWith('.pifa.pinduoduo.com')
+  );
 }
 
 function hostMatchesSheinTemu(host: string): boolean {

@@ -3,6 +3,7 @@ import { history } from '@umijs/max';
 import { Alert, Button, Col, Empty, message, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
+import { PinduoduoCollectModal } from '@/pages/Collect/components/PinduoduoCollectModal';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { queryCollectRules } from '@/services/collectRules';
@@ -112,6 +113,7 @@ export default function CollectHubPage() {
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [customModalOpen, setCustomModalOpen] = useState(false);
+  const [pddModalOpen, setPddModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -230,6 +232,8 @@ export default function CollectHubPage() {
                         onClick={() => {
                           if (p.source === 'custom') {
                             void openCustomCollectModal(setCustomModalOpen);
+                          } else if (p.source === 'pinduoduo' || p.source === 'pdd') {
+                            setPddModalOpen(true);
                           } else {
                             history.push(`/collect/tasks?source=${encodeURIComponent(p.source)}`);
                           }
@@ -263,6 +267,7 @@ export default function CollectHubPage() {
         </Row>
       )}
       <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} />
+      <PinduoduoCollectModal open={pddModalOpen} onClose={() => setPddModalOpen(false)} />
     </PageContainer>
   );
 }

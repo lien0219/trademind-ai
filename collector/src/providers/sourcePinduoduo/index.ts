@@ -8,6 +8,11 @@ import { PAGE_EVALUATE_POLYFILL } from '../../browser/evaluate-in-page.js';
 import { detectPinduoduoAccessStatus, throwAccessError } from './access-detect.js';
 import { extractAndAssemblePinduoduo } from './parser.js';
 import { normalizePinduoduoNavUrl, validatePinduoduoUrl } from './validate-url.js';
+import {
+  classifyPinduoduoUrl,
+  invalidPinduoduoUrlHint,
+  type PinduoduoUrlType,
+} from './url-type.js';
 
 const MOBILE_UA =
   process.env.COLLECTOR_PDD_USER_AGENT ??
@@ -26,6 +31,7 @@ class PinduoduoCollectorProvider implements CollectorProvider {
       'https://yangkeduo.com/goods.html?goods_id=*',
       'https://mobile.pinduoduo.com/goods.html?goods_id=*',
       'https://pinduoduo.com/goods.html?goods_id=*',
+      'https://pifa.pinduoduo.com/goods/detail/?gid=*',
     ],
     features: [
       'title',
@@ -43,11 +49,16 @@ class PinduoduoCollectorProvider implements CollectorProvider {
   }
 
   async collect(browser: BrowserManager, input: CollectInput): Promise<NormalizedProduct> {
-    if (!this.canHandle(input.url)) {
-      throw new Error('INVALID_URL:not_a_pinduoduo_product_url');
+    const sourceUrl = input.url.trim();
+    const urlType = classifyPinduoduoUrl(sourceUrl);
+
+    if (urlType === 'unknown' || urlType === 'login_page' || urlType === 'app_redirect') {
+      if (!this.canHandle(sourceUrl)) {
+        throw new Error(`INVALID_URL:${invalidPinduoduoUrlHint()}`);
+      }
+      throw new Error(`UNSUPPORTED_PINDUODUO_URL:${urlType}`);
     }
 
-    const sourceUrl = input.url.trim();
     const navUrl = normalizePinduoduoNavUrl(sourceUrl);
     const useProfile =
       input.options?.useBrowserProfile === true &&
@@ -67,9 +78,9 @@ class PinduoduoCollectorProvider implements CollectorProvider {
       await page.waitForLoadState('networkidle', { timeout: Math.min(gotoTimeout, 12_000) }).catch(() => undefined);
       await page.waitForTimeout(800);
 
-      const access = await detectPinduoduoAccessStatus(page);
+      const access = await detectPinduoduoAccessStatus(page, sourceUrl);
       if (access.status !== 'public') {
-        if (access.errorCode) throwAccessError(access);
+        if (access.errorCode) throwAccessError(access, sourceUrl);
       }
 
       const assembled = await extractAndAssemblePinduoduo(page, sourceUrl);
@@ -92,6 +103,7 @@ class PinduoduoCollectorProvider implements CollectorProvider {
         priceText: assembled.priceText,
         qualityWarnings: assembled.warnings,
         accessStatus: access.status,
+        urlType,
         finalUrl: page.url(),
         navUrl,
         collectStatus: assembled.warnings.length ? 'partial_success' : 'success',
@@ -136,3 +148,4 @@ class PinduoduoCollectorProvider implements CollectorProvider {
 }
 
 export const pinduoduoCollectorProvider = new PinduoduoCollectorProvider();
+export { classifyPinduoduoUrl, type PinduoduoUrlType };

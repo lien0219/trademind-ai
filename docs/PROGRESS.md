@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-20 — **自定义链接采集器状态调整为基础可用（beta）**：采集中心卡片状态由「测试中」改为「基础可用」；更新卡片说明、能力标签（含商品价格，不含 SKU/库存）与批量采集提示；无规则时「开始采集」引导创建规则或 AI 生成；Modal 增加基础信息采集说明。**当前支持**：单链接采集、采集规则、AI 生成规则、规则测试、通用访问状态检测、登录 Profile、生成商品草稿。**边界**：SKU / 库存 / 动态价格 / 图片质量不保证完整；批量采集暂未开放。**建议**：已支持平台优先专用采集器，其他网站使用自定义链接采集器。
+**最后更新**：2026-05-20 — **拼多多采集器 URL 类型与登录态优化**：**`pifa.pinduoduo.com`** 识别为 **批发页**（`wholesale_detail`）；需登录时 **`LOGIN_REQUIRED`**；失败任务中心归类 **`login_required`（需要登录）** 不再显示「未知」；采集弹窗/任务页 **实时链接提示**；可选 **采集浏览器 Profile**（`profileId` + `useBrowserProfile`）；失败详情展示 **链接类型 / 页面访问状态 / 建议操作**。**第一版优先普通商品详情页**；**批量采集仍暂未开放**。**安全边界**：不保存账号密码、不破解验证码、不绕过风控、不前端直连拼多多。
+
+**此前**：2026-05-20 — **自定义链接采集器状态调整为基础可用（beta）**：采集中心卡片状态由「测试中」改为「基础可用」；更新卡片说明、能力标签（含商品价格，不含 SKU/库存）与批量采集提示；无规则时「开始采集」引导创建规则或 AI 生成；Modal 增加基础信息采集说明。**当前支持**：单链接采集、采集规则、AI 生成规则、规则测试、通用访问状态检测、登录 Profile、生成商品草稿。**边界**：SKU / 库存 / 动态价格 / 图片质量不保证完整；批量采集暂未开放。**建议**：已支持平台优先专用采集器，其他网站使用自定义链接采集器。
 
 **此前**：2026-05-20 — **AI 生成采集规则质量增强**：Prompt 要求覆盖用户勾选字段（含 missingGeneratedFields / warnings）；禁止过宽 selector（h1/img 等）；生成后自动测试并返回 **qualityGate**（评分≥60 才允许保存启用）；前端展示识别评分、字段命中与「保存为草稿 / 保存并启用」分流；后端启用规则校验 mainImages；采集规则编辑页对仅 title 规则提示补充。
 
@@ -195,7 +197,7 @@
 ### 3.4 采集服务（`collector/`）
 
 - **Playwright + TypeScript**，独立进程，**不直连主业务库**。
-- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**。**1688**：`available`，**结构化解析不变**；**batchMode** 时进程内 **`with1688BatchGate`** 串行兜底；**风控页** → **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**；**`TIMEOUT`/`PARSE_FAILED`/`fieldMissing`** 摘要。**AliExpress**：**`beta`**，**真实解析**，**`batchSupported=false`**。**拼多多**：**`pinduoduo`** **`beta`**，**`collector/src/providers/sourcePinduoduo`**（移动端 UA + DOM/脚本 JSON；标题/价格/主图/详情图/参数/规格尽力；**`batchSupported=false`**；Go **仅任务编排与入库**，**`raw.extractProvider=pinduoduo`**）。**自定义**：**`custom`** **`beta`**，**`collector/src/providers/sourceCustom`**（后端 **`options.rule`** + **域名校验**；CSS Selector；**JSON-LD / OG / Meta** fallback；**`raw.stateDigest`**；无 JS 注入）；**`batchSupported=false`**。**占位**：**`taobao` / `shein_temu`**，`collect` **`PROVIDER_NOT_IMPLEMENTED`**。**统一错误码**： **`COLLECT_FAILED`、`PAGE_BLOCKED_OR_VERIFY_REQUIRED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
+- **`CollectorProvider` 接口**（含 **`meta`**：名称、**`status`**、**`batchSupported`**、**`urlPatterns`**、**`features`**）+ **有序注册表**。**1688**：`available`，**结构化解析不变**；**batchMode** 时进程内 **`with1688BatchGate`** 串行兜底；**风控页** → **`PAGE_BLOCKED_OR_VERIFY_REQUIRED`**；**`TIMEOUT`/`PARSE_FAILED`/`fieldMissing`** 摘要。**AliExpress**：**`beta`**，**真实解析**，**`batchSupported=false`**。**拼多多**：**`pinduoduo`** **`beta`**，**`collector/src/providers/sourcePinduoduo`**（**URL 类型** `goods_detail` / **`wholesale_detail`（pifa）**；移动端 UA + DOM/脚本 JSON；**`LOGIN_REQUIRED`/`UNSUPPORTED_PINDUODUO_URL`**；可选 **Profile**；**`batchSupported=false`**；失败中心 **`login_required`**）。**自定义**：**`custom`** **`beta`**，**`collector/src/providers/sourceCustom`**（后端 **`options.rule`** + **域名校验**；CSS Selector；**JSON-LD / OG / Meta** fallback；**`raw.stateDigest`**；无 JS 注入）；**`batchSupported=false`**。**占位**：**`taobao` / `shein_temu`**，`collect` **`PROVIDER_NOT_IMPLEMENTED`**。**统一错误码**： **`COLLECT_FAILED`、`PAGE_BLOCKED_OR_VERIFY_REQUIRED`、`PROVIDER_*`、`INVALID_*` 等**，`runCollectTask` **前缀映射**。
 - **任务编排**：`runCollectTask`（唯一 HTTP 编排入口）。
 - **HTTP**：`GET /health`（契约不变）；**`GET /v1/providers`**（注册表 **`listProviderPublicMetas()`**）；`POST /v1/collect`（body：**`source`** + **`url`** + 可选 **`options`**；**custom** 必填后端下发的 **`options.rule`** / **`domain`** 等）。
 - **浏览器**：`BrowserManager` 单例 Chromium，`withPage` 保证关闭 page/context。
@@ -403,6 +405,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-20 | **拼多多采集器 URL 类型与登录态**：**pifa.pinduoduo.com** → **`wholesale_detail`**；**`login_required`** 失败归类（非 unknown）；**`PinduoduoCollectModal`** + 任务页链接提示；**Profile** 可选；失败详情 **链接类型/访问状态**；Collector **`url-type.ts`**；不影响 **1688 / custom** |
 | 2026-05-20 | **拼多多专用采集器 beta**：Collector **`sourcePinduoduo`**（**`source=pinduoduo`**，**`beta`**，**单链接**；**`batchSupported=false`**）；字段 **标题/价格/主图/详情图/参数/规格尽力**；**`LOGIN_REQUIRED`/`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/`PARSE_FAILED_*`/`PRODUCT_NOT_FOUND`**；Go **`normalizePinduoduoImport`** + **`raw.extractProvider=pinduoduo`**；管理端采集中心 **测试中**、**`/settings/collector?provider=pinduoduo`**、草稿 **beta 提示**；自定义链接 **拼多多 URL 引导专用采集器**；不影响 **1688 / AliExpress / custom** |
 | 2026-05-20 | **自定义链接采集器状态为基础可用（beta）**：采集中心 / 采集设置 **「基础可用」**（`status=beta`）；卡片文案与能力标签；无规则引导；Modal 说明；**PROGRESS** 边界与建议 |
 | 2026-05-20 | **管理端全站文案小白化（二期）**：设置（AI/图片/库存/平台/采集）、AI 任务与技能模板、图片任务、订单规格匹配与异常、店铺授权、后台任务监控、商品详情/定价等；侧栏菜单与 `userFriendly`/`taskCenter` 文案；技术 JSON 默认折叠 |

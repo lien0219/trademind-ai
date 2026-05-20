@@ -15,6 +15,8 @@ import { mapCollectorErrorCodeDetail } from '@/constants/collectErrors';
 type Props = {
   url: string;
   domain?: string;
+  /** 新建 Profile 时的 provider，默认 custom */
+  profileProvider?: string;
   profileId?: string;
   onProfileIdChange?: (id: string | undefined) => void;
   onUseProfileChange?: (use: boolean) => void;
@@ -36,6 +38,7 @@ function hostDomain(url: string): string {
 export function BrowserProfileLoginPanel({
   url,
   domain: domainProp,
+  profileProvider = 'custom',
   profileId,
   onProfileIdChange,
   onUseProfileChange,
@@ -92,7 +95,7 @@ export function BrowserProfileLoginPanel({
       const res = await createBrowserProfile({
         name: vals.name.trim(),
         domain,
-        provider: 'custom',
+        provider: profileProvider,
       });
       message.success('登录状态已创建');
       setCreateOpen(false);

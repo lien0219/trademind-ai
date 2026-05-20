@@ -35,6 +35,7 @@ const PREFIX_CODES: { p: string; code: CollectTaskErrorCode }[] = [
   { p: 'CAPTCHA:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
   { p: 'INVALID_URL:', code: 'INVALID_URL' },
   { p: 'UNSUPPORTED_URL:', code: 'UNSUPPORTED_URL' },
+  { p: 'UNSUPPORTED_PINDUODUO_URL:', code: 'UNSUPPORTED_PINDUODUO_URL' },
   { p: 'PRODUCT_NOT_FOUND:', code: 'PRODUCT_NOT_FOUND' },
   { p: 'NAVIGATION_FAILED:', code: 'NAVIGATION_FAILED' },
   { p: 'TIMEOUT:', code: 'TIMEOUT' },

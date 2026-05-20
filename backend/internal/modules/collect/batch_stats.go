@@ -74,7 +74,7 @@ func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolic
 	code = strings.ToUpper(strings.TrimSpace(code))
 	switch code {
 	case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
-		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "UNSUPPORTED_URL",
+		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "UNSUPPORTED_URL", "UNSUPPORTED_PINDUODUO_URL",
 		"LOGIN_REQUIRED", "CUSTOM_RULE_MISSING", "CUSTOM_RULE_INVALID",
 		"PARSE_FAILED_TITLE_MISSING", "PARSE_FAILED_IMAGE_MISSING":
 		return false
@@ -95,14 +95,21 @@ func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolic
 	}
 }
 
-func collectFailureHint(code string, sameURLSucceeded bool) string {
+func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 	code = strings.ToUpper(strings.TrimSpace(code))
+	src := strings.TrimSpace(strings.ToLower(source))
+	isPdd := src == "pinduoduo" || src == "pdd"
 	if sameURLSucceeded {
 		return "该链接单独采集成功，批量失败可能由并发、访问频率或目标站点风控导致。建议降低批量并发或稍后重试。"
 	}
 	switch code {
 	case "LOGIN_REQUIRED":
+		if isPdd {
+			return "该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用公开商品详情页链接。"
+		}
 		return "该商品页需要登录后才能访问，请稍后重试或使用登录状态采集。"
+	case "UNSUPPORTED_PINDUODUO_URL":
+		return "当前链接类型暂未支持。第一版优先支持普通商品详情页，拼多多批发页可能需要登录后采集。"
 	case "PRODUCT_NOT_FOUND":
 		return "商品不存在、已下架或链接无效。"
 	case "PROFILE_NOT_FOUND":
@@ -204,6 +211,11 @@ func (s *Service) lastCollectorErrorCode(ctx context.Context, taskID uuid.UUID) 
 	return inferCodeFromMessage(ev.ErrorMessage)
 }
 
+// InferErrorCodeFromMessage extracts a collector error code from a failure message (exported for task center).
+func InferErrorCodeFromMessage(msg string) string {
+	return inferCodeFromMessage(msg)
+}
+
 func inferCodeFromMessage(msg string) string {
 	msg = strings.TrimSpace(msg)
 	if msg == "" {
@@ -211,6 +223,9 @@ func inferCodeFromMessage(msg string) string {
 	}
 	upper := strings.ToUpper(msg)
 	for _, code := range []string{
+		"LOGIN_REQUIRED",
+		"PROFILE_LOGIN_REQUIRED",
+		"UNSUPPORTED_PINDUODUO_URL",
 		"PARSE_FAILED_TITLE_MISSING",
 		"PARSE_FAILED_IMAGE_MISSING",
 		"CUSTOM_RULE_MISSING",
@@ -283,7 +298,7 @@ func (s *Service) enrichTaskDTO(ctx context.Context, t *CollectTask) TaskDTO {
 	if t.Status == StatusFailed || t.Status == StatusRetrying {
 		sameOK := s.sameURLCollectSucceeded(ctx, t.Source, t.SourceURL, t.ID)
 		dto.SameUrlSucceededElsewhere = sameOK
-		dto.FailureHint = collectFailureHint(code, sameOK)
+		dto.FailureHint = collectFailureHint(code, t.Source, sameOK)
 	}
 	return dto
 }
