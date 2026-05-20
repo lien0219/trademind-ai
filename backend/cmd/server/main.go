@@ -133,6 +133,14 @@ func main() {
 	}
 	anSeedCancel()
 
+	pricingSeedCtx, pricingSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsurePricingDefaults(pricingSeedCtx, db); err != nil {
+		pricingSeedCancel()
+		log.Error("pricing_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	pricingSeedCancel()
+
 	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {
 		cancel()

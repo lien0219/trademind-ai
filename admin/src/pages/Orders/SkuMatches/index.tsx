@@ -68,14 +68,14 @@ export default function OrderSkuMatchesPage() {
       initialValue: presetOrderId || undefined,
     },
     {
-      title: '外部 SKU',
+      title: '平台规格编码',
       dataIndex: 'externalSkuId',
       width: 110,
       hideInSearch: true,
       ellipsis: true,
     },
     {
-      title: 'SKU Code',
+      title: '规格编码',
       dataIndex: 'skuCode',
       width: 96,
       hideInSearch: true,
@@ -113,13 +113,13 @@ export default function OrderSkuMatchesPage() {
       hideInSearch: true,
     },
     {
-      title: '本地 SKU',
+      title: '本地商品规格',
       dataIndex: 'localSkuCode',
       width: 96,
       hideInSearch: true,
     },
     {
-      title: '本地 SKU ID',
+      title: '本地规格 ID',
       dataIndex: 'productSkuId',
       hideInTable: true,
       valueType: 'text',
@@ -146,7 +146,7 @@ export default function OrderSkuMatchesPage() {
   ];
 
   return (
-    <PageContainer title="SKU 匹配">
+    <PageContainer title="规格匹配" subTitle="将平台订单中的规格编码与本地商品规格建立对应关系">
       <ProTable<OrderSkuMatchListRow>
         rowKey="id"
         search={{ labelWidth: 100 }}

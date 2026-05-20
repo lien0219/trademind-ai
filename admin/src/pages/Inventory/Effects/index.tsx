@@ -46,7 +46,7 @@ export default function InventoryEffectsPage() {
       { title: '影响类型', dataIndex: 'effectType', width: 120 },
       { title: '状态', dataIndex: 'status', width: 100 },
       { title: '数量', dataIndex: 'quantity', width: 72, search: false },
-      { title: 'SKU ID', dataIndex: 'productSkuId', width: 120, ellipsis: true, copyable: true },
+      { title: '商品规格 ID', dataIndex: 'productSkuId', width: 120, ellipsis: true, copyable: true },
       {
         title: '错误',
         dataIndex: 'errorMessage',

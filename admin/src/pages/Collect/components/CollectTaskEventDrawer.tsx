@@ -14,6 +14,10 @@ import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
+  mapCollectorErrorCodeDetail,
+  mapCollectorErrorCodeLabel,
+} from '@/constants/collectErrors';
+import {
   fetchCollectTask,
   queryCollectTaskEvents,
   type CollectTaskEventRow,
@@ -44,6 +48,7 @@ function eventTagColor(ev: string): string | undefined {
     case 'task.auto_retry_scheduled':
     case 'task.auto_retry_enqueued':
     case 'task.manual_retry':
+    case 'batch.delay.applied':
       return 'warning';
     default:
       return undefined;
@@ -141,6 +146,40 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                 '—'
               )}
             </Descriptions.Item>
+            {task.collectorErrorCode ? (
+              <Descriptions.Item label="失败原因">
+                <div>
+                  <Typography.Text strong>
+                    {mapCollectorErrorCodeLabel(task.collectorErrorCode) || task.collectorErrorCode}
+                  </Typography.Text>
+                  {mapCollectorErrorCodeDetail(task.collectorErrorCode) ? (
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
+                      {mapCollectorErrorCodeDetail(task.collectorErrorCode)}
+                    </Typography.Paragraph>
+                  ) : null}
+                  <Collapse
+                    ghost
+                    size="small"
+                    style={{ marginTop: 8 }}
+                    items={[
+                      {
+                        key: 'tech',
+                        label: '展开查看技术信息',
+                        children: (
+                          <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
+              </Descriptions.Item>
+            ) : null}
+            {task.retryable !== undefined ? (
+              <Descriptions.Item label="可自动重试">{task.retryable ? '是' : '否'}</Descriptions.Item>
+            ) : null}
+            {task.failureHint ? (
+              <Descriptions.Item label="排查提示">{task.failureHint}</Descriptions.Item>
+            ) : null}
           </Descriptions>
 
           <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 0 }}>

@@ -84,10 +84,14 @@ func (h *Handler) Put(c *gin.Context) {
 		return
 	}
 	alertNotifyTouch := false
+	pricingTouch := false
 	for _, it := range items {
-		if strings.TrimSpace(it.GroupKey) == "alert_notify" {
+		gk := strings.TrimSpace(it.GroupKey)
+		if gk == "alert_notify" {
 			alertNotifyTouch = true
-			break
+		}
+		if gk == "pricing" {
+			pricingTouch = true
 		}
 	}
 	if alertNotifyTouch && h.OpLog != nil {
@@ -96,6 +100,14 @@ func (h *Handler) Put(c *gin.Context) {
 			Resource: "settings",
 			Status:   "success",
 			Message:  "alert_notify bulk upsert",
+		})
+	}
+	if pricingTouch && h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			Action:   "settings.pricing.update",
+			Resource: "settings",
+			Status:   "success",
+			Message:  "pricing bulk upsert",
 		})
 	}
 	if h.OpLog != nil {

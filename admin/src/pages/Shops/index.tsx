@@ -708,7 +708,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="平台暂未接入"
-                description="可先创建店铺占位；真实 OAuth / 订单同步需后续实现对应 Platform Provider。"
+                description="可先创建店铺占位；店铺授权与订单同步能力将陆续开放。"
               />
             )}
             {detail.platform === 'tiktok' && provForShop.status === 'beta' && (
@@ -717,7 +717,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="TikTok Shop（Beta）"
-                description="支持 OAuth、测试连接与订单同步。请先在「授权配置」保存 App Key / App Secret 与 Redirect URI，再生成授权链接并完成授权。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置」填写应用参数，再在此生成授权链接并完成授权。"
               />
             )}
             {detail.platform === 'shopee' && provForShop.status === 'beta' && (
@@ -726,7 +726,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="Shopee（Beta）"
-                description="支持 OAuth、测试连接与订单同步。请先在「设置 → 平台开放配置 → Shopee」填写 Partner ID、Partner Key 与 Redirect URI，再在「授权配置」完成授权。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置 → Shopee」填写应用参数，再完成授权。"
               />
             )}
             {detail.platform === 'lazada' && provForShop.status === 'beta' && (
@@ -735,7 +735,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="Lazada（测试中）"
-                description="支持 OAuth、测试连接与订单同步。请先在「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret、Auth/API Base URL 与 Redirect URI，再在「授权配置」完成授权。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置 → Lazada」填写应用参数，再完成授权。"
               />
             )}
             {detail.platform === 'amazon' && provForShop.status === 'beta' && (
@@ -744,12 +744,12 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="Amazon SP-API（测试中）"
-                description="支持 LWA OAuth、SigV4 调用 SP-API、测试连接与订单同步。请先在「设置 → 平台开放配置 → Amazon SP-API」填写完整应用参数；服务器需具备 AWS IAM 凭证以对 SP-API 请求做 SigV4 签名（环境/实例/Task 角色或 role_arn）。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置 → Amazon」填写完整应用参数；服务器需按文档配置亚马逊访问凭证。"
               />
             )}
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="平台">{providerLabel(providers, detail.platform)}</Descriptions.Item>
-              <Descriptions.Item label="platform id">{detail.platform}</Descriptions.Item>
+              <Descriptions.Item label="平台标识">{detail.platform}</Descriptions.Item>
               <Descriptions.Item label="状态">{tagFromMap(detail.status, SHOP_STATUS)}</Descriptions.Item>
               <Descriptions.Item label="授权">{tagFromMap(detail.authStatus, SHOP_AUTH_STATUS)}</Descriptions.Item>
               <Descriptions.Item label="店铺编码">{detail.shopCode || '—'}</Descriptions.Item>
@@ -823,14 +823,11 @@ export default function ShopsPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message="TikTok OAuth 提示"
+                message="TikTok 授权提示"
                 description={
                   <>
-                    Partner 应用在{' '}
-                    <Link to="/settings/platforms">平台开放配置（platform_tiktok）</Link>{' '}
-                    填写；OAuth <code style={{ padding: '0 4px' }}>state</code> 存 Redis，
-                    请确保本地已启动 Redis。生成链接默认使用该配置；仅在展开「可选覆盖」时才会使用本页的 App Key /
-                    Secret。
+                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 TikTok 应用参数，再生成授权链接。
+                    本地开发需启动任务队列服务。仅在展开「可选覆盖」时才使用本页单独填写的密钥。
                   </>
                 }
               />
@@ -840,14 +837,11 @@ export default function ShopsPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message="Shopee OAuth 提示"
+                message="Shopee 授权提示"
                 description={
                   <>
-                    Partner 参数在{' '}
-                    <Link to="/settings/platforms">平台开放配置（platform_shopee）</Link>{' '}
-                    填写；<code style={{ padding: '0 4px' }}>state</code> 存 Redis；
-                    Shopee 跳转回调一般会带 <code style={{ padding: '0 4px' }}>shop_id</code>
-                    ，请一并粘贴到提交表单。
+                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 Shopee 应用参数。
+                    授权回调中如有店铺编号，请一并填写到提交表单。
                   </>
                 }
               />
@@ -857,13 +851,11 @@ export default function ShopsPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message="Lazada OAuth 提示"
+                message="Lazada 授权提示"
                 description={
                   <>
-                    应用在{' '}
-                    <Link to="/settings/platforms">平台开放配置（platform_lazada）</Link>{' '}
-                    填写；<code style={{ padding: '0 4px' }}>state</code> 存 Redis；
-                    授权完成后从回调 URL 复制 <code style={{ padding: '0 4px' }}>code</code> 与签发的 state 提交即可。
+                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 Lazada 应用参数。
+                    授权完成后从回调页面复制授权码并提交即可。
                   </>
                 }
               />
@@ -873,14 +865,11 @@ export default function ShopsPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message="Amazon OAuth 提示"
+                message="Amazon 授权提示"
                 description={
                   <>
-                    LWA 应用在{' '}
-                    <Link to="/settings/platforms">平台开放配置（platform_amazon）</Link>{' '}
-                    填写；<code style={{ padding: '0 4px' }}>state</code> 存 Redis。
-                    授权完成后从回调拷贝 <code style={{ padding: '0 4px' }}>spapi_oauth_code</code>（作为 code）以及{' '}
-                    <code style={{ padding: '0 4px' }}>selling_partner_id</code> 等参数提交。前端不直连 Amazon API。
+                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 Amazon 应用参数。
+                    授权完成后按页面提示填写卖家编号与授权码。管理端不会直接访问亚马逊接口。
                   </>
                 }
               />

@@ -615,7 +615,7 @@ export default function TaskCenterFailuresPage() {
                       />
                     </Space>
                     <Typography.Link onClick={() => history.push('/ops/workers/monitor')}>
-                      Worker 监控
+                      后台任务监控
                     </Typography.Link>
                   </Space>
                 </Col>

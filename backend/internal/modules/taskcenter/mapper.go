@@ -87,6 +87,7 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		TaskType:         TaskTypeCollect,
 		SourceTable:      SourceTableCollectTasks,
 		SourceID:         row.ID.String(),
+		Platform:         strings.TrimSpace(row.Source),
 		Title:            collectTitle(row.SourceURL),
 		Status:           row.Status,
 		NormalizedStatus: norm,
@@ -100,7 +101,7 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		FinishedAt:       row.FinishedAt,
 		DetailURL:        detailURL(TaskTypeCollect, row.ID.String()),
 		RetryAction:      retryActionFor(TaskTypeCollect),
-		RawSummary:       truncateRunes("source="+row.Source, maxRawSummaryLen),
+		RawSummary:       truncateRunes("source="+row.Source+" "+row.SourceURL, maxRawSummaryLen),
 		SortKey:          row.UpdatedAt,
 	}
 	if row.LockedBy != nil {

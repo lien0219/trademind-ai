@@ -505,6 +505,7 @@ func (s *Service) importDraftCore(ctx context.Context, adminID *uuid.UUID, p Imp
 				SKUName:      strings.TrimSpace(line.SKUName),
 				Attrs:        attrs,
 				Price:        line.Price,
+				CostPrice:    line.CostPrice,
 				Stock:        line.Stock,
 				ImageURL:     strings.TrimSpace(line.ImageURL),
 				RawData:      rawSKU,
@@ -574,8 +575,9 @@ func BuildImportSKU(raw json.RawMessage) (ImportSKUParams, error) {
 	}
 	if v, ok := m["price"]; ok && string(v) != "null" {
 		var f float64
-		if err := json.Unmarshal(v, &f); err == nil {
+		if err := json.Unmarshal(v, &f); err == nil && f > 0 {
 			line.Price = &f
+			line.CostPrice = &f
 		}
 	}
 	if v, ok := m["stock"]; ok && string(v) != "null" {

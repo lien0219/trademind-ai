@@ -3,10 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
@@ -16,7 +18,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectruleai"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
@@ -27,6 +31,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/pricing"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -56,6 +61,71 @@ func (a collectRunnerAdapter) RunCollect(ctx context.Context, source, rawURL str
 		return nil, err
 	}
 	return out.ProductJSON, nil
+}
+
+type browserProfileCollectorGW struct {
+	c *collect.CollectorClient
+}
+
+func (g browserProfileCollectorGW) OpenProfileLogin(ctx context.Context, profileKey, rawURL string) (string, error) {
+	if g.c == nil {
+		return "", fmt.Errorf("collector client unavailable")
+	}
+	return g.c.OpenBrowserProfileLogin(ctx, profileKey, rawURL)
+}
+
+func (g browserProfileCollectorGW) CheckProfileAccess(ctx context.Context, profileKey, rawURL string) (*collectbrowserprofile.CheckResultDTO, error) {
+	if g.c == nil {
+		return nil, fmt.Errorf("collector client unavailable")
+	}
+	out, err := g.c.CheckBrowserProfileAccess(ctx, profileKey, rawURL)
+	if err != nil {
+		return nil, err
+	}
+	return &collectbrowserprofile.CheckResultDTO{
+		AccessStatus: out.AccessStatus,
+		FinalURL:     out.FinalURL,
+		ErrorCode:    out.ErrorCode,
+		Message:      out.Message,
+	}, nil
+}
+
+func (a collectRunnerAdapter) CustomRuleTest(ctx context.Context, rawURL string, options map[string]any) (*collectrule.RuleTestResultDTO, error) {
+	raw, err := a.c.CustomRuleTest(ctx, rawURL, options)
+	if err != nil {
+		return nil, err
+	}
+	var extracted map[string]interface{}
+	if len(raw.ExtractedFields) > 0 {
+		_ = json.Unmarshal(raw.ExtractedFields, &extracted)
+	}
+	var qualityScore map[string]interface{}
+	if len(raw.QualityScore) > 0 {
+		_ = json.Unmarshal(raw.QualityScore, &qualityScore)
+	}
+	return &collectrule.RuleTestResultDTO{
+		AccessStatus:    raw.AccessStatus,
+		FinalURL:        raw.FinalURL,
+		HTTPStatus:      raw.HTTPStatus,
+		ExtractedFields: extracted,
+		MissingFields:   raw.MissingFields,
+		Warnings:        raw.Warnings,
+		QualityScore:    qualityScore,
+		ErrorCode:       raw.ErrorCode,
+		Suggestion:      raw.Suggestion,
+		Product:         raw.Product,
+	}, nil
+}
+
+type collectRuleCreatorAdapter struct {
+	svc *collectrule.Service
+}
+
+func (a collectRuleCreatorAdapter) CreateFromAI(c *gin.Context, body collectrule.CreateRuleBody, adminID *uuid.UUID) (*collectrule.RuleDetailDTO, error) {
+	if a.svc == nil {
+		return nil, fmt.Errorf("collect rules unavailable")
+	}
+	return a.svc.Create(c, body, adminID)
 }
 
 // Deps holds process-wide dependencies for HTTP handlers.
@@ -110,10 +180,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout)
 
+	profileSvc := &collectbrowserprofile.Service{
+		DB:        dep.DB,
+		Collector: browserProfileCollectorGW{c: collectorClient},
+		OpLog:     opLogSvc,
+		Timeout:   collectorTimeout,
+	}
+	profileH := &collectbrowserprofile.Handler{Svc: profileSvc}
+
 	collectRuleSvc := &collectrule.Service{
 		DB:          dep.DB,
 		OpLog:       opLogSvc,
 		Runner:      collectRunnerAdapter{c: collectorClient},
+		Profiles:    profileSvc,
 		TestTimeout: collectorTimeout,
 	}
 
@@ -169,6 +248,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		DB:       dep.DB,
 		Products: productSvc,
 		Rules:    collectRuleSvc,
+		Profiles: profileSvc,
 		OpLog:    opLogSvc,
 		Client:   collectorClient,
 		Redis:    dep.Redis,
@@ -183,6 +263,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		collectSvc.RetryBaseDelaySec = dep.Config.CollectRetryBaseDelaySeconds
 		collectSvc.RetryMaxDelaySec = dep.Config.CollectRetryMaxDelaySeconds
 		collectSvc.TaskLeaseTimeoutSeconds = dep.Config.CollectTaskTimeoutSeconds
+		collectSvc.Batch1688Concurrency = dep.Config.CollectBatchConcurrency1688
+		collectSvc.Batch1688DelayMinMs = dep.Config.CollectBatchDelayMinMs1688
+		collectSvc.Batch1688DelayMaxMs = dep.Config.CollectBatchDelayMaxMs1688
+		collectSvc.BatchRetryOnBlocked = dep.Config.CollectBatchRetryOnBlocked
+		collectSvc.BatchRetryOnTimeout = dep.Config.CollectBatchRetryOnTimeout
+		collectSvc.Batch1688MaxRetries = dep.Config.CollectBatchMaxRetries1688
+		collectSvc.Settings = settingsSvc
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 	collectRuleH := &collectrule.Handler{Svc: collectRuleSvc}
@@ -362,8 +449,32 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	aitask.Register(authed, aiTaskH)
 	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)
+	pricingSvc := &pricing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc}
+	pricingH := &pricing.Handler{Svc: pricingSvc}
+	pricing.Register(authed, pricingH)
 	collect.Register(authed, collectH)
+	collectRuleAISvc := &collectruleai.Service{
+		Settings:    settingsSvc,
+		Prompts:     promptSvc,
+		AIGateway:   aiGateway,
+		Analyzer:    collectruleai.NewPageAnalyzer(collectorClient),
+		Runner:      collectRunnerAdapter{c: collectorClient},
+		Profiles:    profileSvc,
+		Providers:   collectruleai.NewProviderResolver(collectSvc),
+		Rules:       collectRuleCreatorAdapter{svc: collectRuleSvc},
+		OpLog:       opLogSvc,
+		TestTimeout: collectorTimeout,
+	}
+	collectRuleAIH := &collectruleai.Handler{Svc: collectRuleAISvc}
+	collectruleai.Register(authed, collectRuleAIH)
 	collectrule.Register(authed, collectRuleH)
+	collectbrowserprofile.Register(authed, profileH)
+
+	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
+	collectorAlias := r.Group("/api/collector")
+	collectorAlias.Use(middleware.BearerAuth(dep.Config))
+	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
+	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}

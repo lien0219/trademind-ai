@@ -201,7 +201,7 @@ func (h *Handler) Test(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	raw, err := h.Svc.TestPreview(c, id, body, adminUUID(c))
+	out, err := h.Svc.TestPreview(c, id, body, adminUUID(c))
 	if err != nil {
 		reason := err.Error()
 		if strings.Contains(strings.ToLower(reason), "collector rejected") {
@@ -211,5 +211,5 @@ func (h *Handler) Test(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, reason)
 		return
 	}
-	response.OK(c, gin.H{"product": raw})
+	response.OK(c, out)
 }

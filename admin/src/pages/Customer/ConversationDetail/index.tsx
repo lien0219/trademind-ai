@@ -407,7 +407,7 @@ export default function CustomerConversationDetailPage() {
                     ) : null}
                   </Descriptions>
                 ) : (
-                  <Typography.Text type="secondary">未关联手工订单；生成建议时将缺少订单、SKU、物流等结构化上下文。</Typography.Text>
+                  <Typography.Text type="secondary">未关联手工订单；生成建议时将缺少订单、商品规格、物流等上下文。</Typography.Text>
                 )}
               </Space>
             </Card>

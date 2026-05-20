@@ -225,7 +225,7 @@ export default function ImageSettingsPage() {
           type="info"
           showIcon
           message="图片 AI 用于商品图去背景、生成场景图、替换背景"
-          description="你可以选择云端服务，也可以选择本地 ComfyUI。所有请求仅由后端发起，前端不直连图像服务商；API Key 需自行到对应控制台申请，平台不会内置任何密钥。测试与生成可能产生费用。"
+          description="你可以选择云端服务，也可以选择本地 ComfyUI。所有请求由系统后端发起；API 密钥需自行到对应控制台申请。测试与生成可能产生费用。"
         />
       </ProCard>
 
@@ -267,7 +267,7 @@ export default function ImageSettingsPage() {
       </ProCard>
 
       <ProCard
-        title="2. 选择 Provider"
+        title="2. 选择图片处理服务"
         bordered
         style={{ marginBottom: 16 }}
         extra={
@@ -278,7 +278,7 @@ export default function ImageSettingsPage() {
       >
         <Form form={form} layout="vertical" style={{ maxWidth: 800 }}>
           <Form.Item
-            label="默认 Provider"
+            label="默认图片服务"
             name="provider"
             rules={[
               { required: true },
@@ -286,12 +286,12 @@ export default function ImageSettingsPage() {
                 validator: async (_, v) => {
                   const c = caps.find((x) => x.provider === v);
                   if (c?.status === 'planned') {
-                    throw new Error('该 Provider 尚未开放，不能设为默认');
+                    throw new Error('该图片服务尚未开放，不能设为默认');
                   }
                 },
               },
             ]}
-            extra="请到对应服务商控制台申请 API Key；提交时脱敏占位 **** 不会覆盖已保存的密钥"
+            extra="请到对应服务商控制台申请 API 密钥；留空占位 **** 不会覆盖已保存的密钥"
           >
             <Select options={providerOptions} />
           </Form.Item>
@@ -318,7 +318,7 @@ export default function ImageSettingsPage() {
         </Form>
       </ProCard>
 
-      <ProCard title="3. 填写当前 Provider 配置" bordered>
+      <ProCard title="3. 填写当前图片服务配置" bordered>
         <Form
           form={form}
           layout="vertical"
@@ -346,7 +346,7 @@ export default function ImageSettingsPage() {
               type="warning"
               showIcon
               style={{ marginBottom: 16 }}
-              message="该 Provider 为预留项"
+              message="该图片服务为预留项"
               description="可保存配置项，但无法创建真实图片任务，请等待后续版本。"
             />
           ) : null}

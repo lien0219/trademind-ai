@@ -219,6 +219,8 @@ Default host ports can be overridden in `.env`:
 
 Before production or public deployment, update `JWT_SECRET`, `APP_MASTER_KEY`, `ADMIN_BOOTSTRAP_PASSWORD`, database passwords, and all other sensitive values in `.env`.
 
+**1688 collector browser profile directories**: `docker-compose.full.yml` mounts `./data/browser-profiles` and `./data/storage-states` into the collector container to persist Playwright login cookies (Login Data, Cookies, History, Local Storage, Session Storage, etc.). These paths must stay on the host or in volumes only — **never commit them to Git**. Local dev under `collector/data/browser-profiles/` is ignored the same way.
+
 See [docs/docker-deployment.md](docs/docker-deployment.md) for more details.
 
 ## Local Development

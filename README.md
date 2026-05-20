@@ -189,6 +189,8 @@ docker compose -f docker-compose.full.yml up -d --build
 docker compose -f docker-compose.full.yml down
 ```
 
+> **登录态目录**：Compose 会挂载 `./data/browser-profiles` 持久化 1688 采集浏览器 Cookie；该目录含敏感运行时数据，已在 `.gitignore` 中忽略，请勿提交到 Git。
+
 查看日志：
 
 ```bash
@@ -219,7 +221,37 @@ Docker 完整编排包含：
 
 生产或公网部署前，请务必修改 `.env` 中的 `JWT_SECRET`、`APP_MASTER_KEY`、`ADMIN_BOOTSTRAP_PASSWORD`、数据库密码等敏感配置。
 
-更多说明见 [docs/docker-deployment.md](docs/docker-deployment.md)。
+**1688 采集浏览器登录态目录**：`docker-compose.full.yml` 将 `./data/browser-profiles` 与 `./data/storage-states` 挂载到 collector 容器，用于持久化 Playwright 登录 Cookie（含 Login Data、Cookies、History、 Local Storage、Session Storage 等 Chromium 用户数据）。这些目录仅应存在于宿主机或数据卷中，**不得提交到 Git**；本地开发时 `collector/data/browser-profiles/` 同理已被 `.gitignore` 忽略。
+
+### 自定义链接采集与登录状态
+
+1. **公开商品页**：先创建 **采集规则**，测试标题、价格、图片能识别后再开始采集。
+2. **需要登录的商品页**：在管理端创建 **采集浏览器登录状态**（按适用网站），点击 **打开浏览器去登录** 自行登录。
+3. 登录后点击 **重新检测登录状态**，再测试规则或提交采集任务。
+4. 系统 **不保存账号密码**，**不自动破解验证码**；登录信息仅保存在本机采集浏览器中。
+5. 请勿在公共电脑保留登录状态；Docker 无头环境无法弹出登录窗口，本地开发请开启采集浏览器的可视化模式（见 [docs/env.md](docs/env.md) 中 `COLLECTOR_HEADLESS`）。
+
+**术语说明（面向用户）**
+
+- **采集规则**：告诉系统从网页哪里读取商品标题、图片、价格等内容。
+- **页面位置**：开发者常说的 selector；普通用户无需手写，推荐用「AI 帮我生成规则」。
+- **登录状态**：商品页需登录时，可在采集浏览器中手动登录，系统不保存账号密码。
+
+更多说明见 [docs/docker-deployment.md](docs/docker-deployment.md)、[docs/custom-collect-rules.md](docs/custom-collect-rules.md)。
+
+### AI 帮我生成采集规则
+
+适合不会手写规则的新用户：
+
+1. 先在 **设置 → AI 设置** 配置大模型并通过 **测试 AI**。
+2. 打开 **采集 → 采集规则**，点击 **AI 帮我生成规则**（或在自定义链接采集弹窗中触发）。
+3. 输入 **商品链接**，勾选要采集的内容（商品标题、价格、主图、详情图片、商品参数；商品规格为高级可选项）。
+4. 系统先读取页面上的商品信息，再让 AI 生成采集规则，并自动测试识别效果。
+5. 确认无误后 **保存采集规则**；高级用户可在「采集规则内容（高级）」中微调。
+6. **商品规格、库存、实时价格** 常由网站动态加载，不一定都能自动识别。
+7. 已有 **1688 / 速卖通** 等专用采集器的链接会提示优先使用专用采集器。
+
+管理员可在 **采集设置 → 自定义链接** 中开关「启用 AI 帮我生成规则」等功能（对应配置项见 [docs/env.md](docs/env.md)）。
 
 ## 本地开发启动
 

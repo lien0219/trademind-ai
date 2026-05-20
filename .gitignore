@@ -2,12 +2,31 @@
 .env
 .env.local
 .env.*.local
+.env.docker
 .envrc
 
 # Runtime data
 /data/uploads/*
 !/data/uploads/.gitkeep
+/data/browser-profiles/*
+!/data/browser-profiles/.gitkeep
+/data/storage-states/*
+!/data/storage-states/.gitkeep
 /backend/data/uploads/
+
+# Collector runtime（Playwright userDataDir、Cookie、Local Storage 等，含敏感登录态，禁止提交）
+collector/data/browser-profiles/*
+!collector/data/browser-profiles/.gitkeep
+collector/.profiles/
+collector/data/storage-states/*
+!collector/data/storage-states/.gitkeep
+collector/data/runtime/
+collector/data/snapshots/*
+!collector/data/snapshots/.gitkeep
+collector/data/tmp/
+collector/data/cache/
+# 历史 bug：debug-snapshot 曾误写入 src/data，兜底忽略残留
+collector/src/data/
 
 # Node
 node_modules/
@@ -34,6 +53,8 @@ coverage/
 playwright-report/
 test-results/
 blob-report/
+.playwright/
+ms-playwright/
 
 # Monorepo / 构建工具
 .turbo/

@@ -83,6 +83,43 @@ export async function disableCollectRule(id: string) {
   return postJSON<CollectRuleDetail>(`/api/v1/collect/rules/${id}/disable`, {});
 }
 
-export async function testCollectRule(id: string, payload: { url: string }) {
-  return postJSON<{ product: unknown }>(`/api/v1/collect/rules/${id}/test`, payload);
+export type CollectRuleTestResult = {
+  accessStatus: string;
+  finalUrl: string;
+  httpStatus?: number;
+  extractedFields?: {
+    title?: boolean;
+    price?: boolean;
+    mainImage?: boolean;
+    mainImagesCount?: number;
+    detailImagesCount?: number;
+    attributesCount?: number;
+    titleText?: string;
+    titleSelector?: string;
+    titleConfidence?: string;
+    titleSuspectWrong?: boolean;
+    attributeSamples?: { key: string; value: string }[];
+  };
+  qualityScore?: {
+    titleOk?: boolean;
+    priceOk?: boolean;
+    mainImagesOk?: boolean;
+    descriptionImagesOk?: boolean;
+    attributesOk?: boolean;
+    skuSupported?: boolean;
+    score?: number;
+    hints?: string[];
+  };
+  missingFields?: string[];
+  warnings?: string[];
+  errorCode?: string;
+  suggestion?: string;
+  product?: unknown;
+};
+
+export async function testCollectRule(
+  id: string,
+  payload: { url: string; profileId?: string; useBrowserProfile?: boolean },
+) {
+  return postJSON<CollectRuleTestResult>(`/api/v1/collect/rules/${id}/test`, payload);
 }

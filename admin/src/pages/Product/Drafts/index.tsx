@@ -13,6 +13,7 @@ import { createProductImagesBatch, createProductTextBatch } from '@/services/aiB
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
+import PricingApplyModal from '@/components/PricingApplyModal';
 
 export default function ProductDraftsPage() {
   const location = useLocation();
@@ -41,6 +42,7 @@ export default function ProductDraftsPage() {
   const [bulkForm] = Form.useForm();
   const [bulkOp, setBulkOp] = useState<string>('title_optimize');
   const [bulkConfirmFiltered, setBulkConfirmFiltered] = useState(false);
+  const [pricingBatchOpen, setPricingBatchOpen] = useState(false);
 
   useEffect(() => {
     actionRef.current?.reload();
@@ -290,6 +292,9 @@ export default function ProductDraftsPage() {
           >
             批量发布检查
           </Button>,
+          <Button key="pricing" onClick={() => setPricingBatchOpen(true)}>
+            批量设置发布价
+          </Button>,
           <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
             新建草稿
           </Button>,
@@ -484,12 +489,12 @@ export default function ProductDraftsPage() {
             <>
               <Form.Item
                 name="provider"
-                label="图片 Provider"
+                label="图片处理服务"
                 tooltip={bulkOp === 'image_remove_background' ? '后端会强制 removebg' : '如 openai_image / comfyui'}
               >
                 <Input placeholder={bulkOp === 'image_remove_background' ? 'removebg' : 'openai_image'} />
               </Form.Item>
-              <Form.Item name="prompt" label="Prompt（摘要入任务，可选）">
+              <Form.Item name="prompt" label="画面描述（可选，写入任务摘要）">
                 <Input.TextArea rows={3} placeholder="场景/风格提示；勿在公开场合粘贴完整商业秘密" />
               </Form.Item>
             </>
@@ -503,6 +508,15 @@ export default function ProductDraftsPage() {
           )}
         </Form>
       </Drawer>
+
+      <PricingApplyModal
+        open={pricingBatchOpen}
+        onClose={() => setPricingBatchOpen(false)}
+        mode="batch"
+        productIds={selectedRowKeys.length > 0 ? selectedRowKeys : undefined}
+        listFilters={selectedRowKeys.length === 0 ? listFilters : undefined}
+        onApplied={() => actionRef.current?.reload()}
+      />
     </PageContainer>
   );
 }

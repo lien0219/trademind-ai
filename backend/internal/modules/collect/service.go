@@ -13,9 +13,11 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
@@ -25,6 +27,7 @@ type Service struct {
 	DB                      *gorm.DB
 	Products                *product.Service
 	Rules                   *collectrule.Service
+	Profiles                *collectbrowserprofile.Service
 	OpLog                   *operationlog.Service
 	Client                  *CollectorClient
 	Redis                   *rdb.Client
@@ -37,6 +40,16 @@ type Service struct {
 	MaxAutoRetries    int
 	RetryBaseDelaySec int
 	RetryMaxDelaySec  int
+
+	// 1688 batch throttling (env defaults; settings group collector overrides at runtime).
+	Batch1688Concurrency int
+	Batch1688DelayMinMs  int
+	Batch1688DelayMaxMs  int
+	BatchRetryOnBlocked  bool
+	BatchRetryOnTimeout  bool
+	Batch1688MaxRetries  int
+
+	Settings *settings.Service
 
 	// TaskLeaseTimeoutSeconds is Redis/DB lease for multi-instance workers (from COLLECT_TASK_TIMEOUT_SECONDS).
 	TaskLeaseTimeoutSeconds int
@@ -262,14 +275,26 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	})
 	s.reconcileCollectBatch(ctx, task.BatchID)
 
+	releaseGate, preflightErr := s.runBatchCollectPreflight(ctx, task)
+	if preflightErr != nil {
+		s.handleCollectJobError(ctx, task, preflightErr)
+		return
+	}
+	if releaseGate != nil {
+		defer releaseGate()
+	}
+
 	var collectorOpts map[string]any
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
-			RuleID       string          `json:"ruleId"`
-			RuleName     string          `json:"ruleName"`
-			Domain       string          `json:"domain"`
-			MatchPattern string          `json:"matchPattern"`
-			Rule         json.RawMessage `json:"rule"`
+			RuleID            string          `json:"ruleId"`
+			RuleName          string          `json:"ruleName"`
+			Domain            string          `json:"domain"`
+			MatchPattern      string          `json:"matchPattern"`
+			Rule              json.RawMessage `json:"rule"`
+			ProfileID         string          `json:"profileId,omitempty"`
+			ProfileKey        string          `json:"profileKey,omitempty"`
+			UseBrowserProfile bool            `json:"useBrowserProfile"`
 		}
 		if len(task.RequestOptions) == 0 {
 			s.failTask(ctx, task, prevStatus, "missing custom rule snapshot", nil)
@@ -291,6 +316,19 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			"matchPattern": snap.MatchPattern,
 			"rule":         ruleObj,
 		}
+		if snap.UseBrowserProfile && strings.TrimSpace(snap.ProfileKey) != "" {
+			collectorOpts["useBrowserProfile"] = true
+			collectorOpts["profileKey"] = strings.TrimSpace(snap.ProfileKey)
+			if strings.TrimSpace(snap.ProfileID) != "" {
+				collectorOpts["profileId"] = strings.TrimSpace(snap.ProfileID)
+			}
+		}
+	}
+	if task.BatchID != nil {
+		if collectorOpts == nil {
+			collectorOpts = map[string]any{}
+		}
+		collectorOpts["batchMode"] = true
 	}
 
 	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL, collectorOpts)
@@ -304,8 +342,18 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 		s.handleCollectJobError(ctx, task, fmt.Errorf("parse normalized product: %w", err))
 		return
 	}
+	if strings.EqualFold(strings.TrimSpace(task.Source), "1688") && len(norm.MainImages) == 0 {
+		s.handleCollectJobError(ctx, task, &CollectorRejectedError{
+			Code:    "PARSE_FAILED",
+			Message: "missing main images after collect",
+		})
+		return
+	}
 
 	params := norm.importParams(outcome.ProductJSON)
+	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
+		params, outcome.ProductJSON = normalizeCustomImport(task.Source, norm, outcome.ProductJSON)
+	}
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
 		s.handleCollectJobError(ctx, task, err)
@@ -408,6 +456,11 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	if err := s.ValidateSourceForCollect(c.Request.Context(), source, false); err != nil {
 		return zero, err
 	}
+	if strings.EqualFold(strings.TrimSpace(source), "custom") {
+		if err := s.checkCustomCollectURLConflict(c.Request.Context(), url); err != nil {
+			return zero, err
+		}
+	}
 
 	var reqOpts datatypes.JSON
 	if strings.EqualFold(strings.TrimSpace(source), "custom") {
@@ -425,6 +478,16 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		blob, err := s.Rules.BuildTaskPayload(rule)
 		if err != nil {
 			return zero, err
+		}
+		if s.Profiles != nil && body.UseBrowserProfile && body.ProfileID != nil {
+			pid, err := uuid.Parse(strings.TrimSpace(*body.ProfileID))
+			if err != nil {
+				return zero, fmt.Errorf("invalid profileId")
+			}
+			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), blob, &pid, true, url)
+			if err != nil {
+				return zero, err
+			}
 		}
 		reqOpts = blob
 	}
@@ -580,7 +643,7 @@ func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	if err := s.DB.WithContext(c.Request.Context()).First(&t, "id = ?", id).Error; err != nil {
 		return zero, err
 	}
-	return taskToDTO(&t), nil
+	return s.enrichTaskDTO(c.Request.Context(), &t), nil
 }
 
 // List paginates tasks with filters.
@@ -618,7 +681,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 
 	items := make([]TaskDTO, 0, len(rows))
 	for i := range rows {
-		items = append(items, taskToDTO(&rows[i]))
+		items = append(items, s.enrichTaskDTO(c.Request.Context(), &rows[i]))
 	}
 
 	pages := int(total) / ps

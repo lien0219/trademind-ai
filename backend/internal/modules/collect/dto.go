@@ -9,9 +9,11 @@ import (
 
 // CreateTaskBody binds POST /collect/tasks.
 type CreateTaskBody struct {
-	Source string  `json:"source"`
-	URL    string  `json:"url"`
-	RuleID *string `json:"ruleId,omitempty"`
+	Source            string  `json:"source"`
+	URL               string  `json:"url"`
+	RuleID            *string `json:"ruleId,omitempty"`
+	ProfileID         *string `json:"profileId,omitempty"`
+	UseBrowserProfile bool    `json:"useBrowserProfile"`
 }
 
 // CreateBatchBody binds POST /collect/batches.
@@ -32,19 +34,24 @@ type BatchListQuery struct {
 
 // BatchDTO is API-facing batch shape.
 type BatchDTO struct {
-	ID             uuid.UUID  `json:"id"`
-	Source         string     `json:"source"`
-	TotalCount     int        `json:"totalCount"`
-	PendingCount   int        `json:"pendingCount"`
-	RunningCount   int        `json:"runningCount"`
-	SuccessCount   int        `json:"successCount"`
-	FailedCount    int        `json:"failedCount"`
-	CancelledCount int        `json:"cancelledCount"`
-	Status         string     `json:"status"`
-	CreatedBy      *uuid.UUID `json:"createdBy,omitempty"`
-	CreatedAt      time.Time  `json:"createdAt"`
-	UpdatedAt      time.Time  `json:"updatedAt"`
-	FinishedAt     *time.Time `json:"finishedAt,omitempty"`
+	ID               uuid.UUID      `json:"id"`
+	Source           string         `json:"source"`
+	TotalCount       int            `json:"totalCount"`
+	PendingCount     int            `json:"pendingCount"`
+	RunningCount     int            `json:"runningCount"`
+	SuccessCount     int            `json:"successCount"`
+	FailedCount      int            `json:"failedCount"`
+	CancelledCount   int            `json:"cancelledCount"`
+	RetryingCount    int            `json:"retryingCount,omitempty"`
+	BlockedCount     int            `json:"blockedCount,omitempty"`
+	TimeoutCount     int            `json:"timeoutCount,omitempty"`
+	ParseFailedCount int            `json:"parseFailedCount,omitempty"`
+	ErrorSummary     map[string]int `json:"errorSummary,omitempty"`
+	Status           string         `json:"status"`
+	CreatedBy        *uuid.UUID     `json:"createdBy,omitempty"`
+	CreatedAt        time.Time      `json:"createdAt"`
+	UpdatedAt        time.Time      `json:"updatedAt"`
+	FinishedAt       *time.Time     `json:"finishedAt,omitempty"`
 }
 
 // BatchListResult paginates batches.
@@ -79,24 +86,28 @@ type ListQuery struct {
 
 // TaskDTO is API-facing task shape.
 type TaskDTO struct {
-	ID              uuid.UUID       `json:"id"`
-	BatchID         *uuid.UUID      `json:"batchId,omitempty"`
-	Source          string          `json:"source"`
-	SourceURL       string          `json:"sourceUrl"`
-	Status          string          `json:"status"`
-	ResultProductID *uuid.UUID      `json:"resultProductId,omitempty"`
-	RawResult       json.RawMessage `json:"rawResult,omitempty"`
-	ErrorMessage    string          `json:"errorMessage,omitempty"`
-	RetryCount      int             `json:"retryCount"`
-	MaxRetries      int             `json:"maxRetries"`
-	RequestOptions  json.RawMessage `json:"requestOptions,omitempty"`
-	NextRetryAt     *time.Time      `json:"nextRetryAt,omitempty"`
-	RetryEnqueuedAt *time.Time      `json:"retryEnqueuedAt,omitempty"`
-	CreatedBy       *uuid.UUID      `json:"createdBy,omitempty"`
-	StartedAt       *time.Time      `json:"startedAt,omitempty"`
-	FinishedAt      *time.Time      `json:"finishedAt,omitempty"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
+	ID                        uuid.UUID       `json:"id"`
+	BatchID                   *uuid.UUID      `json:"batchId,omitempty"`
+	Source                    string          `json:"source"`
+	SourceURL                 string          `json:"sourceUrl"`
+	Status                    string          `json:"status"`
+	ResultProductID           *uuid.UUID      `json:"resultProductId,omitempty"`
+	RawResult                 json.RawMessage `json:"rawResult,omitempty"`
+	ErrorMessage              string          `json:"errorMessage,omitempty"`
+	CollectorErrorCode        string          `json:"collectorErrorCode,omitempty"`
+	Retryable                 *bool           `json:"retryable,omitempty"`
+	FailureHint               string          `json:"failureHint,omitempty"`
+	SameUrlSucceededElsewhere bool            `json:"sameUrlSucceededElsewhere,omitempty"`
+	RetryCount                int             `json:"retryCount"`
+	MaxRetries                int             `json:"maxRetries"`
+	RequestOptions            json.RawMessage `json:"requestOptions,omitempty"`
+	NextRetryAt               *time.Time      `json:"nextRetryAt,omitempty"`
+	RetryEnqueuedAt           *time.Time      `json:"retryEnqueuedAt,omitempty"`
+	CreatedBy                 *uuid.UUID      `json:"createdBy,omitempty"`
+	StartedAt                 *time.Time      `json:"startedAt,omitempty"`
+	FinishedAt                *time.Time      `json:"finishedAt,omitempty"`
+	CreatedAt                 time.Time       `json:"createdAt"`
+	UpdatedAt                 time.Time       `json:"updatedAt"`
 }
 
 // ListResult paginates tasks.
@@ -158,4 +169,16 @@ func batchToDTO(b *CollectBatch) BatchDTO {
 		UpdatedAt:      b.UpdatedAt,
 		FinishedAt:     b.FinishedAt,
 	}
+}
+
+func batchToDetailDTO(b *CollectBatch, stats BatchStatsDTO) BatchDTO {
+	dto := batchToDTO(b)
+	dto.RetryingCount = stats.RetryingCount
+	dto.BlockedCount = stats.BlockedCount
+	dto.TimeoutCount = stats.TimeoutCount
+	dto.ParseFailedCount = stats.ParseFailedCount
+	if len(stats.ErrorSummary) > 0 {
+		dto.ErrorSummary = stats.ErrorSummary
+	}
+	return dto
 }

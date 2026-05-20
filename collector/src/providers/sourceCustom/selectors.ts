@@ -13,10 +13,42 @@ export async function extractSelectorStrings(
   return evaluateInPage(
     page,
     ({ selectors: sels, attr: a, multiple: mul }) => {
+      const lazyImgAttrs = [
+        'src',
+        'data-src',
+        'data-original',
+        'data-origin',
+        'data-lazy-img',
+        'data-lazysrc',
+        'data-lazyload',
+        'data-url',
+        'data-img',
+        'init-src',
+        'data-lazy-src',
+      ];
+
+      const pickSrcsetFirst = (el: Element): string => {
+        const ss = el.getAttribute('srcset') ?? el.getAttribute('data-srcset') ?? '';
+        if (!ss.trim()) return '';
+        const first = ss.split(',')[0]?.trim().split(/\s+/)[0]?.trim() ?? '';
+        return first;
+      };
+
+      const pickImgUrl = (el: Element): string => {
+        const tag = el.tagName.toLowerCase();
+        if (tag !== 'img' && tag !== 'source') {
+          return '';
+        }
+        for (const a of lazyImgAttrs) {
+          const v = el.getAttribute(a);
+          if (v && !v.startsWith('data:image')) return v.trim();
+        }
+        return pickSrcsetFirst(el);
+      };
+
       const pickAttr = (el: Element, name: string): string => {
         const tag = el.tagName.toLowerCase();
         if (name === 'text') {
-          const tag = el.tagName.toLowerCase();
           if (tag === 'meta') {
             const c = el.getAttribute('content');
             return typeof c === 'string' ? c.trim() : '';
@@ -24,11 +56,16 @@ export async function extractSelectorStrings(
           return (el.textContent ?? '').trim();
         }
         if (name === 'html') return (el as HTMLElement).innerHTML?.trim() ?? '';
-        if (name === 'src' || name === 'href' || name === 'content' || name === 'data-src' || name === 'data-original') {
+        if (name === 'src') {
+          const direct = pickImgUrl(el);
+          if (direct) return direct;
+          const v = el.getAttribute('src');
+          return typeof v === 'string' ? v.trim() : '';
+        }
+        if (name === 'href' || name === 'content' || name === 'data-src' || name === 'data-original') {
           const v = el.getAttribute(name);
           return typeof v === 'string' ? v.trim() : '';
         }
-        /** meta[property] uses attr content via rule selecting meta tags */
         if (tag === 'meta') {
           const c = el.getAttribute('content');
           return typeof c === 'string' ? c.trim() : '';

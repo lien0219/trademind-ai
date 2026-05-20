@@ -44,7 +44,7 @@ export default [
     routes: [
       {
         path: '/ops/workers/monitor',
-        name: 'Worker 监控',
+        name: '后台任务监控',
         icon: 'CloudServerOutlined',
         component: './Workers/Monitor',
       },
@@ -76,7 +76,7 @@ export default [
     routes: [
       {
         path: '/ai/prompts',
-        name: 'Prompt 模板',
+        name: 'AI 技能模板',
         component: './AI/Prompts',
       },
       {
@@ -146,6 +146,11 @@ export default [
         component: './Collect/Rules',
       },
       {
+        path: '/collect/browser-profiles',
+        name: '采集浏览器登录状态',
+        component: './Collect/BrowserProfiles',
+      },
+      {
         path: '/collect/batches',
         name: '批量采集',
         component: './Collect/Batches',
@@ -196,7 +201,7 @@ export default [
       },
       {
         path: '/orders/sku-matches',
-        name: 'SKU 匹配',
+        name: '规格匹配',
         component: './Orders/SkuMatches',
       },
       {
@@ -308,6 +313,11 @@ export default [
         path: '/settings/inventory',
         name: '库存 / 订单',
         component: './Settings/Inventory',
+      },
+      {
+        path: '/settings/pricing',
+        name: '商品定价',
+        component: './Settings/Pricing',
       },
       {
         path: '/settings/platforms',

@@ -173,5 +173,26 @@ func IntegrationConfigDefinitions() []IntegrationConfigSchema {
 				{Name: "inventory_sync_platform_rate_limit_per_minute_amazon", Label: "Amazon 每分钟起始配额", Type: "number", Required: false, DefaultValue: 30},
 			},
 		},
+		{
+			Key:         "pricing",
+			Title:       "商品定价 / 发布价格",
+			Category:    "product",
+			Description: "采集价通常作为成本价；应用规则后仅更新本地 product_skus.price，不自动刊登、不调用平台 API。",
+			GroupKey:    "pricing",
+			Fields: []IntegrationFieldSchema{
+				{Name: "default_markup_type", Label: "默认加价方式", Type: "text", Required: false, Help: "percent / fixed / none", DefaultValue: "percent"},
+				{Name: "default_markup_percent", Label: "默认加价比例（%）", Type: "number", Required: false, DefaultValue: 30},
+				{Name: "default_markup_amount", Label: "默认固定加价金额", Type: "number", Required: false, DefaultValue: 0},
+				{Name: "default_rounding_mode", Label: "默认尾数", Type: "text", Required: false, Help: "none / integer / .9 / .99 / .95", DefaultValue: ".99"},
+				{Name: "default_min_margin_percent", Label: "默认最低利润率（%）", Type: "number", Required: false, DefaultValue: 10},
+				{Name: "default_currency", Label: "默认币种", Type: "text", Required: false, DefaultValue: "CNY"},
+				{Name: "enable_platform_pricing_rules", Label: "启用平台覆盖规则", Type: "switch", Required: false, DefaultValue: true},
+				{Name: "tiktok_markup_percent", Label: "TikTok 加价比例（%）", Type: "number", Required: false, DefaultValue: 30},
+				{Name: "shopee_markup_percent", Label: "Shopee 加价比例（%）", Type: "number", Required: false, DefaultValue: 30},
+				{Name: "lazada_markup_percent", Label: "Lazada 加价比例（%）", Type: "number", Required: false, DefaultValue: 30},
+				{Name: "amazon_markup_percent", Label: "Amazon 加价比例（%）", Type: "number", Required: false, DefaultValue: 30},
+				{Name: "batch_max_size", Label: "单次批量定价最多 SKU 数", Type: "number", Required: false, DefaultValue: 500},
+			},
+		},
 	}
 }

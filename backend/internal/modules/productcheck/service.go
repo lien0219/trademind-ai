@@ -64,6 +64,7 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	checks := make([]CheckItem, 0, 32)
 	checks = append(checks, checkProductBasics(prod)...)
 	checks = append(checks, checkSKUBasics(prod)...)
+	checks = append(checks, checkSKUPricing(prod)...)
 
 	imgChecks, mainURLs := checkImages(prod, plat)
 	checks = append(checks, imgChecks...)
@@ -171,17 +172,17 @@ func checkSKUBasics(p product.Product) []CheckItem {
 	}
 	for _, s := range p.SKUs {
 		sid := s.ID.String()
-		pr := 0.0
-		if s.Price != nil {
-			pr = *s.Price
+		if s.Price == nil {
+			continue
 		}
-		if s.Price == nil || pr <= 0 {
+		pr := *s.Price
+		if pr <= 0 {
 			out = append(out, CheckItem{
-				Group:               "sku",
-				Code:                "sku.price_invalid",
+				Group:               "pricing",
+				Code:                "pricing.price_invalid",
 				Level:               levelError,
 				Message:             "SKU 价格无效（需大于 0）",
-				Suggestion:          "请为每个 SKU 填写有效售价。",
+				Suggestion:          "请为每个 SKU 填写有效售价或应用定价规则。",
 				RelatedResourceType: "product_sku",
 				RelatedResourceID:   sid,
 			})
@@ -208,6 +209,71 @@ func checkSKUBasics(p product.Product) []CheckItem {
 				Level:               levelWarning,
 				Message:             "SKU 编码为空",
 				Suggestion:          "建议填写 SKUCode 便于平台映射与库存同步。",
+				RelatedResourceType: "product_sku",
+				RelatedResourceID:   sid,
+			})
+		}
+	}
+	return out
+}
+
+func checkSKUPricing(p product.Product) []CheckItem {
+	var out []CheckItem
+	for _, s := range p.SKUs {
+		sid := s.ID.String()
+		if s.Price == nil {
+			out = append(out, CheckItem{
+				Group:               "pricing",
+				Code:                "pricing.price_missing",
+				Level:               levelError,
+				Message:             "SKU 销售价未设置",
+				Suggestion:          "请填写 SKU 销售价，或在 SKU 标签页应用定价规则。",
+				RelatedResourceType: "product_sku",
+				RelatedResourceID:   sid,
+			})
+			continue
+		}
+		pr := *s.Price
+		if pr <= 0 {
+			out = append(out, CheckItem{
+				Group:               "pricing",
+				Code:                "pricing.price_invalid",
+				Level:               levelError,
+				Message:             "SKU 销售价无效（需大于 0）",
+				Suggestion:          "请修正 SKU 销售价或应用定价规则。",
+				RelatedResourceType: "product_sku",
+				RelatedResourceID:   sid,
+			})
+		}
+		if s.CostPrice != nil && *s.CostPrice > 0 && pr < *s.CostPrice {
+			out = append(out, CheckItem{
+				Group:               "pricing",
+				Code:                "pricing.price_below_cost",
+				Level:               levelWarning,
+				Message:             "销售价低于成本价",
+				Suggestion:          "建议检查加价规则或手动调整销售价。",
+				RelatedResourceType: "product_sku",
+				RelatedResourceID:   sid,
+			})
+		}
+		if s.MinPublishPrice != nil && *s.MinPublishPrice > 0 && pr < *s.MinPublishPrice {
+			out = append(out, CheckItem{
+				Group:               "pricing",
+				Code:                "pricing.price_below_min_publish_price",
+				Level:               levelWarning,
+				Message:             "销售价低于最低发布价保护",
+				Suggestion:          "请提高销售价或调整 SKU 最低发布价。",
+				RelatedResourceType: "product_sku",
+				RelatedResourceID:   sid,
+			})
+		}
+		if s.CompareAtPrice != nil && *s.CompareAtPrice > 0 && *s.CompareAtPrice < pr {
+			out = append(out, CheckItem{
+				Group:               "pricing",
+				Code:                "pricing.compare_at_below_price",
+				Level:               levelWarning,
+				Message:             "划线价低于当前销售价",
+				Suggestion:          "请检查 compare_at_price 是否填写正确。",
 				RelatedResourceType: "product_sku",
 				RelatedResourceID:   sid,
 			})

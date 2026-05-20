@@ -62,7 +62,23 @@ type UpdateRuleBody struct {
 }
 
 type TestRuleBody struct {
-	URL string `json:"url"`
+	URL               string  `json:"url"`
+	ProfileID         *string `json:"profileId,omitempty"`
+	UseBrowserProfile bool    `json:"useBrowserProfile"`
+}
+
+// RuleTestResultDTO is returned by POST /api/v1/collect/rules/:id/test (Collector preview, no task/product).
+type RuleTestResultDTO struct {
+	AccessStatus    string                 `json:"accessStatus"`
+	FinalURL        string                 `json:"finalUrl"`
+	HTTPStatus      int                    `json:"httpStatus,omitempty"`
+	ExtractedFields map[string]interface{} `json:"extractedFields"`
+	MissingFields   []string               `json:"missingFields"`
+	Warnings        []string               `json:"warnings"`
+	QualityScore    map[string]interface{} `json:"qualityScore,omitempty"`
+	ErrorCode       string                 `json:"errorCode,omitempty"`
+	Suggestion      string                 `json:"suggestion"`
+	Product         json.RawMessage        `json:"product,omitempty"`
 }
 
 func ruleToListDTO(r *CollectRule) RuleListItemDTO {

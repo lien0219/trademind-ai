@@ -68,6 +68,11 @@
 | `DELETE` | `/api/v1/products/:id` | 删除或归档商品。 |
 | `POST` | `/api/v1/products/:id/apply-ai-title` | 应用 AI 标题。 |
 | `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述。 |
+| `POST` | `/api/v1/pricing/calculate` | 单 SKU 发布价试算（不写入数据库）。 |
+| `POST` | `/api/v1/products/:id/pricing/apply` | 对商品 SKU 应用定价规则；`confirm=false` 仅预览，`confirm=true` 更新 `product_skus.price`。 |
+| `POST` | `/api/v1/products/pricing/batch-apply` | 批量应用定价规则；需 `productIds` 或 `filters`，空条件须 `confirmAll=true`。 |
+
+`settings` 分组 **`pricing`**：默认加价方式/比例、尾数、平台覆盖、`batch_max_size`（默认 500）。**不**创建刊登任务、**不**调用平台 API。
 
 ## AI
 
@@ -83,10 +88,30 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/collect/tasks` | 创建采集任务。 |
+| `POST` | `/api/v1/collect/tasks` | 创建采集任务。`source=custom` 时若 URL 属于已有 **available/beta** 专用采集器域名，返回业务码 **40002**，`data.errorCode=CUSTOM_COLLECT_PROVIDER_CONFLICT`，含 `recommendedProvider` 与 `message`。 |
 | `GET` | `/api/v1/collect/tasks` | 采集任务列表。 |
 | `GET` | `/api/v1/collect/tasks/:id` | 采集任务详情。 |
 | `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务。 |
+| `POST` | `/api/v1/collect/rules/ai-generate` | AI 根据商品 URL 生成自定义采集规则（分析页面摘要 → AI → 校验 → 自动规则测试）。1688 / AliExpress 等 **available/beta** 专用平台返回 **40002**。规则非法返回 **40003** `AI_RULE_INVALID`。 |
+| `POST` | `/api/v1/collect/rules/ai-generate-and-save` | 同上并直接保存为 `collect_rule`。 |
+| `GET` | `/api/collector/providers/1688/auth-status` | 1688 采集浏览器登录态检测（同 `/api/v1/collector/...`）。 |
+| `POST` | `/api/collector/providers/1688/open-login-browser` | 打开持久化 Playwright 浏览器供 1688 手动登录。 |
+
+`GET /api/collector/providers/1688/auth-status` 返回示例：
+
+```json
+{
+  "provider": "1688",
+  "status": "ok",
+  "loggedIn": true,
+  "needVerification": false,
+  "message": "1688 登录态正常",
+  "lastCheckedAt": "2026-05-20T12:00:00.000Z",
+  "profilePath": "/path/to/collector/data/browser-profiles/1688"
+}
+```
+
+`status` 取值：`ok`（已登录）、`not_logged_in`（未登录）、`verification_required`（需安全验证）、`unknown`（检测页异常）。
 
 ## 店铺与平台
 

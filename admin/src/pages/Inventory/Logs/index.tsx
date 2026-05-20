@@ -117,8 +117,7 @@ export default function InventoryLogsPage() {
   return (
     <PageContainer title="库存流水">
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        对应表 <Typography.Text code>inventory_change_logs</Typography.Text>：记录本地 SKU 库存调整、
-        订单扣减、回滚与平台同步回填产生的库存变更。
+        记录本地商品规格库存的手动调整、订单扣减、回滚与平台同步产生的变更。
       </Typography.Paragraph>
       <ProTable<InventoryChangeLogRow>
         rowKey="id"

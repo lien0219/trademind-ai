@@ -126,7 +126,7 @@ export default function WorkersMonitorPage() {
         render: (_, row) => workerTypeLabel(row.workerType),
       },
       {
-        title: 'Worker ID',
+        title: '进程 ID',
         dataIndex: 'workerId',
         ellipsis: true,
         copyable: true,
@@ -138,7 +138,7 @@ export default function WorkersMonitorPage() {
         ellipsis: true,
       },
       {
-        title: 'PID',
+        title: '系统进程号',
         dataIndex: 'pid',
         width: 80,
       },
@@ -169,7 +169,7 @@ export default function WorkersMonitorPage() {
     { title: '状态', dataIndex: 'status', width: 90 },
     { title: '锁定者', dataIndex: 'lockedBy', ellipsis: true },
     {
-      title: '租约截止',
+      title: '执行截止',
       dataIndex: 'lockedUntil',
       width: 172,
       render: (_, r) => formatTs(r.lockedUntil || undefined),
@@ -186,9 +186,9 @@ export default function WorkersMonitorPage() {
   const summary = data?.summary ?? EMPTY_SUMMARY;
 
   return (
-    <PageContainer header={{ title: 'Worker 监控' }}>
+    <PageContainer header={{ title: '后台任务监控', subTitle: '查看采集、图片、订单同步等后台进程是否在正常运行' }}>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        展示队列 Worker 进程注册与任务租约（每 {POLL_MS / 1000} 秒刷新；页面隐藏时暂停）。
+        展示各类型后台任务进程状态与正在执行中的任务（每 {POLL_MS / 1000} 秒刷新；页面隐藏时暂停）。
       </Typography.Paragraph>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -205,7 +205,7 @@ export default function WorkersMonitorPage() {
                   </Col>
                   <Col xs={24} sm={8}>
                     <Statistic
-                      title="重试中 / 停滞 / 租约过期"
+                      title="重试中 / 停滞 / 执行超时"
                       value={`${failSum.retryingTotal ?? 0}/${failSum.staleTotal ?? 0}/${failSum.leaseExpiredTotal ?? 0}`}
                     />
                   </Col>
@@ -237,7 +237,7 @@ export default function WorkersMonitorPage() {
       </Row>
 
       <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-        按 Worker 类型
+        按任务类型
       </Typography.Title>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         {WORKER_MONITOR_TYPE_KEYS.map((k) => {
@@ -260,7 +260,7 @@ export default function WorkersMonitorPage() {
         })}
       </Row>
 
-      <ProCard title="Worker 实例" bordered style={{ marginBottom: 16 }}>
+      <ProCard title="后台进程列表" bordered style={{ marginBottom: 16 }}>
         <ProTable<WorkerMonitorInstance>
           rowKey={(r) => r.workerInstanceId || r.workerId}
           columns={columns}

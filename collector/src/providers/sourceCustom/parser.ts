@@ -2,59 +2,101 @@ import type { Page } from 'playwright';
 import { evaluateInPage, evaluateInPageVoid } from '../../browser/evaluate-in-page.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import type { CustomAttributesRule, CustomFieldRule, CustomRuleDecl } from './types.js';
+import { normalizeImageList, type ImageFilters } from './image-utils.js';
+import { normalizeCustomRuleDecl } from './normalize-rule.js';
+import { extractDomImageCandidates } from './page-images.js';
+import { fixMisplacedPriceInCurrency, normalizePriceText } from './price-normalize.js';
 import { extractJsonLdHints } from './jsonld.js';
+import { extractMetaImageHints } from './meta-images.js';
 import { extractOpenGraphHints } from './opengraph.js';
 import { extractSelectorStrings } from './selectors.js';
+import {
+  evaluateTitleCandidate,
+  pickBestTitle,
+  type TitleCandidate,
+  TITLE_SUSPECT_HINT,
+} from './title-quality.js';
+import { DESCRIPTION_IMAGES_EMPTY_HINT } from './quality-score.js';
 
-function resolveUrl(pageUrl: string, raw: string): string {
-  const s = raw.trim();
-  if (!s) return '';
+/** Built-in selectors when rule mainImages miss (e.g. jd.com lazy gallery). */
+function builtinMainImageSelectors(pageUrl: string): string[] {
+  let host = '';
   try {
-    return new URL(s, pageUrl).href;
+    host = new URL(pageUrl).hostname.toLowerCase();
   } catch {
-    return s;
+    return [];
   }
+  const common = [
+    'meta[property="og:image"]',
+    'meta[itemprop="image"]',
+    '#spec-img',
+    'img#spec-img',
+    '#spec-img img',
+    '.spec-img img',
+    '#main-img',
+    'img[data-origin]',
+    'img[data-lazy-img]',
+    '.image-zoom img',
+    '#preview img',
+    '.product-gallery img',
+    '[property="og:image"]',
+  ];
+  if (host.includes('jd.com')) {
+    return [
+      '#spec-list img',
+      '#spec-n1 img',
+      '.spec-items img',
+      '#spec-img',
+      'img[data-img]',
+      'img[data-origin]',
+      'img[data-lazy-img]',
+      ...common,
+    ];
+  }
+  if (host.includes('tmall.com') || host.includes('taobao.com')) {
+    return ['#J_UlThumb img', '#J_ImgBooth img', ...common, 'img[src*="alicdn"]'];
+  }
+  return common;
 }
 
-function isJunkImageUrl(u: string): boolean {
-  const s = u.toLowerCase();
-  if (!s.startsWith('http://') && !s.startsWith('https://') && !s.startsWith('data:')) return false;
-  if (s.startsWith('data:')) return true;
-  if (s.includes('favicon')) return true;
-  if (s.includes('pixel') && (s.includes('1x1') || s.includes('tracking'))) return true;
-  if (s.includes('placeholder')) return true;
-  if (s.includes('/logo.') || s.endsWith('/logo.png') || s.includes('logo.svg')) return true;
-  if (s.includes('icon.') || s.includes('/icon/')) return true;
-  if (s.includes('spacer.gif')) return true;
-  if (s.includes('blank.gif')) return true;
-  return false;
-}
-
-function normalizeImages(pageUrl: string, urls: string[], limit: number): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of urls) {
-    const abs = resolveUrl(pageUrl, raw);
-    if (!abs || !abs.startsWith('http')) continue;
-    if (isJunkImageUrl(abs)) continue;
-    if (seen.has(abs)) continue;
-    seen.add(abs);
-    out.push(abs);
-    if (out.length >= limit) break;
+function builtinTitleSelectors(pageUrl: string): string[] {
+  let host = '';
+  try {
+    host = new URL(pageUrl).hostname.toLowerCase();
+  } catch {
+    return ['[property="og:title"]', 'meta[property="og:title"]', 'h1'];
   }
-  return out;
+  if (host.includes('jd.com')) {
+    return [
+      '.sku-name',
+      '.itemInfo-wrap .sku-name',
+      '.p-name',
+      '[property="og:title"]',
+      'meta[property="og:title"]',
+    ];
+  }
+  if (host.includes('tmall.com') || host.includes('taobao.com')) {
+    return ['.tb-main-title', 'h1', '[property="og:title"]', 'meta[property="og:title"]'];
+  }
+  return ['[property="og:title"]', 'meta[property="og:title"]', 'h1'];
 }
 
 async function extractFieldText(
   page: Page,
   pageUrl: string,
   field: CustomFieldRule | undefined,
-): Promise<{ values: string[]; fb?: string }> {
+): Promise<{ values: string[]; fb?: string; hitSelector?: string }> {
   if (!field) return { values: [] };
   const sels = Array.isArray(field.selectors) ? field.selectors : [];
-  const vals = await extractSelectorStrings(page, sels, typeof field.attr === 'string' ? field.attr : 'text', !!field.multiple);
+  const vals = await extractSelectorStrings(
+    page,
+    sels,
+    typeof field.attr === 'string' ? field.attr : 'text',
+    !!field.multiple,
+  );
   const fb = typeof field.fallback === 'string' ? field.fallback.trim() : '';
-  return { values: vals.map((v) => v.trim()).filter(Boolean), fb };
+  const hitSelector = vals.length > 0 && sels.length > 0 ? sels[0] : undefined;
+  return { values: vals.map((v) => v.trim()).filter(Boolean), fb, hitSelector };
 }
 
 async function extractFieldImages(
@@ -68,7 +110,43 @@ async function extractFieldImages(
     typeof field.limit === 'number' && field.limit > 0 ? Math.min(field.limit, defaultLimit) : defaultLimit;
   const sels = Array.isArray(field.selectors) ? field.selectors : [];
   const vals = await extractSelectorStrings(page, sels, typeof field.attr === 'string' ? field.attr : 'src', true);
-  return normalizeImages(pageUrl, vals, lim);
+  const filters = field.filters as ImageFilters | undefined;
+  return normalizeImageList(pageUrl, vals, lim, filters);
+}
+
+async function scrollToDetailArea(page: Page, field: CustomFieldRule | undefined): Promise<void> {
+  const sels = field?.selectors ?? [];
+  const firstSel = sels.find((s) => typeof s === 'string' && s.trim());
+  if (!firstSel) {
+    await evaluateInPageVoid(page, () => {
+      window.scrollTo(0, document.body.scrollHeight);
+    }).catch(() => undefined);
+    await new Promise((r) => setTimeout(r, 600));
+    return;
+  }
+  await evaluateInPage(
+    page,
+    (sel: string) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      else window.scrollTo(0, document.body.scrollHeight);
+    },
+    firstSel,
+  ).catch(() => undefined);
+  await new Promise((r) => setTimeout(r, 800));
+}
+
+function parseTextAllAttributes(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const parts = text.split(/[/|；;\n]+/);
+  for (const part of parts) {
+    const m = part.match(/^(.{1,40}?)[：:]\s*(.+)$/);
+    if (!m) continue;
+    const k = m[1].trim();
+    const v = m[2].trim();
+    if (k && v && !(k in out)) out[k] = v;
+  }
+  return out;
 }
 
 async function extractPairsAttributes(page: Page, ar: CustomAttributesRule): Promise<Record<string, string>> {
@@ -101,10 +179,45 @@ async function extractPairsAttributes(page: Page, ar: CustomAttributesRule): Pro
   return pairs;
 }
 
-export async function parseCustomProduct(page: Page, pageUrl: string, rule: CustomRuleDecl): Promise<NormalizedProduct> {
+async function extractTextAllAttributes(page: Page, ar: CustomAttributesRule): Promise<Record<string, string>> {
+  const sel = typeof ar.textSelector === 'string' ? ar.textSelector.trim() : '';
+  if (!sel) return {};
+  const text = await evaluateInPage(
+    page,
+    (s: string) => {
+      const el = document.querySelector(s);
+      return (el?.textContent ?? '').trim();
+    },
+    sel,
+  );
+  if (!text) return {};
+  return parseTextAllAttributes(text);
+}
+
+async function extractAttributes(page: Page, ar: CustomAttributesRule | undefined): Promise<Record<string, string>> {
+  if (!ar || ar.mode === 'disabled') return {};
+  const mode = ar.mode ?? 'pairs';
+  if (mode === 'text_all') return extractTextAllAttributes(page, ar);
+  return extractPairsAttributes(page, ar);
+}
+
+export type ParseCustomProductResult = {
+  product: NormalizedProduct;
+  titleDiagnostics?: TitleCandidate;
+  qualityWarnings: string[];
+};
+
+export async function parseCustomProduct(
+  page: Page,
+  pageUrl: string,
+  ruleInput: CustomRuleDecl,
+  opts?: { scrollForDetailImages?: boolean },
+): Promise<ParseCustomProductResult> {
+  const rule = normalizeCustomRuleDecl(ruleInput);
   const fb = rule.fallbacks ?? {};
   const useJsonLd = fb.jsonLd !== false;
   const useOg = fb.openGraph !== false;
+  const qualityWarnings: string[] = [];
 
   const jsonLd = useJsonLd ? await extractJsonLdHints(page) : null;
   const og = useOg ? await extractOpenGraphHints(page) : { images: [] as string[] };
@@ -113,25 +226,67 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
     (await evaluateInPageVoid(page, () => document.title?.trim() || ''))?.trim() ?? '';
 
   const titleSel = await extractFieldText(page, pageUrl, rule.title);
+  let titleSelValues = titleSel.values;
+  let titleHitSelector = titleSel.hitSelector;
+  if (titleSelValues.length === 0) {
+    const builtinTitle: CustomFieldRule = {
+      selectors: builtinTitleSelectors(pageUrl),
+      attr: 'text',
+      multiple: false,
+    };
+    const fallbackTitle = await extractFieldText(page, pageUrl, builtinTitle);
+    titleSelValues = fallbackTitle.values;
+    titleHitSelector = fallbackTitle.hitSelector;
+  }
   const currencySel = await extractFieldText(page, pageUrl, rule.currency);
+  const priceSel = await extractFieldText(page, pageUrl, rule.price);
 
-  let title =
-    titleSel.values[0] ||
-    titleSel.fb ||
-    jsonLd?.title ||
-    og.title ||
-    docTitle;
+  const titleCandidates: TitleCandidate[] = [];
+  for (const [i, val] of titleSelValues.entries()) {
+    const sel =
+      rule.title?.selectors?.[i] ??
+      rule.title?.selectors?.[0] ??
+      builtinTitleSelectors(pageUrl)[i] ??
+      builtinTitleSelectors(pageUrl)[0];
+    titleCandidates.push(evaluateTitleCandidate(val, 'selector', sel));
+  }
+  if (titleSel.fb) titleCandidates.push(evaluateTitleCandidate(titleSel.fb, 'fallback'));
+  if (jsonLd?.title) titleCandidates.push(evaluateTitleCandidate(jsonLd.title, 'jsonLd'));
+  if (og.title) titleCandidates.push(evaluateTitleCandidate(og.title, 'openGraph'));
+  if (docTitle) titleCandidates.push(evaluateTitleCandidate(docTitle, 'documentTitle'));
 
-  title = title?.trim() ?? '';
+  const bestTitle = pickBestTitle(titleCandidates);
+  const title = bestTitle?.text?.trim() ?? '';
+  const titleDiagnostics = bestTitle;
 
-  let currency =
-    currencySel.values[0] ||
-    currencySel.fb ||
-    jsonLd?.currency ||
-    og.currency ||
-    '';
+  if (bestTitle?.suspectWrongTitle) {
+    qualityWarnings.push(TITLE_SUSPECT_HINT);
+  }
 
+  let currency = currencySel.values[0] || currencySel.fb || jsonLd?.currency || og.currency || '';
   currency = currency.trim();
+
+  let productPrice: number | undefined;
+  let priceText = priceSel.values[0] || priceSel.fb || '';
+
+  if (priceText) {
+    const norm = normalizePriceText(priceText);
+    productPrice = norm.price;
+    if (norm.currency && !currency) currency = norm.currency;
+    priceText = norm.priceText ?? priceText;
+  }
+
+  if (currency) {
+    const fixed = fixMisplacedPriceInCurrency(currency, productPrice);
+    currency = fixed.currency;
+    if (fixed.price !== undefined && productPrice === undefined) productPrice = fixed.price;
+    if (fixed.priceText && !priceText) priceText = fixed.priceText;
+  }
+
+  if (productPrice === undefined && jsonLd?.priceAmount !== undefined) {
+    productPrice = jsonLd.priceAmount;
+    if (!currency && jsonLd.currency) currency = jsonLd.currency;
+  }
 
   const mainLimit =
     typeof rule.mainImages?.limit === 'number' && rule.mainImages.limit > 0
@@ -143,24 +298,60 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
       : 30;
 
   let mainImages = await extractFieldImages(page, pageUrl, rule.mainImages, mainLimit);
+  if (mainImages.length === 0) {
+    const builtin: CustomFieldRule = {
+      selectors: builtinMainImageSelectors(pageUrl),
+      attr: 'src',
+      multiple: true,
+      limit: mainLimit,
+      filters: { minWidth: 200, minHeight: 200, dedupeByImageKey: true },
+    };
+    mainImages = await extractFieldImages(page, pageUrl, builtin, mainLimit);
+  }
   if (mainImages.length === 0 && jsonLd?.images?.length) {
-    mainImages = normalizeImages(pageUrl, jsonLd.images, mainLimit);
+    mainImages = normalizeImageList(pageUrl, jsonLd.images, mainLimit, { dedupeByImageKey: true });
   }
   if (mainImages.length === 0 && og.images?.length) {
-    mainImages = normalizeImages(pageUrl, og.images, mainLimit);
+    mainImages = normalizeImageList(pageUrl, og.images, mainLimit, { dedupeByImageKey: true });
+  }
+  if (mainImages.length === 0 && fb.meta !== false) {
+    const metaImgs = await extractMetaImageHints(page);
+    if (metaImgs.length) mainImages = normalizeImageList(pageUrl, metaImgs, mainLimit, { dedupeByImageKey: true });
+  }
+  if (mainImages.length === 0) {
+    const domImgs = await extractDomImageCandidates(page, mainLimit * 2, pageUrl);
+    if (domImgs.length) mainImages = normalizeImageList(pageUrl, domImgs, mainLimit, { dedupeByImageKey: true });
+  }
+
+  if (mainImages.length === 1) {
+    qualityWarnings.push('主图仅识别 1 张，轮播图可能未抓全，建议检查主图区域规则。');
+  }
+
+  const shouldScroll =
+    opts?.scrollForDetailImages !== false &&
+    (rule.descriptionImages?.scrollIntoView !== false || opts?.scrollForDetailImages === true);
+  if (shouldScroll && rule.descriptionImages?.selectors?.length) {
+    await scrollToDetailArea(page, rule.descriptionImages);
   }
 
   let descriptionImages = await extractFieldImages(page, pageUrl, rule.descriptionImages, descLimit);
+  if (descriptionImages.length === 0 && rule.descriptionImages?.selectors?.length) {
+    qualityWarnings.push(DESCRIPTION_IMAGES_EMPTY_HINT);
+  }
 
   let attributes: Record<string, string | number | boolean> = {};
   try {
     const ar = rule.attributes;
     if (ar && ar.mode !== 'disabled') {
-      const pairs = await extractPairsAttributes(page, ar);
+      const pairs = await extractAttributes(page, ar);
       attributes = pairs as Record<string, string | number | boolean>;
     }
   } catch {
     attributes = {};
+  }
+
+  if (Object.keys(attributes).length === 0 && rule.attributes?.mode && rule.attributes.mode !== 'disabled') {
+    qualityWarnings.push('商品参数未识别，可补充 attributes 规则或手动填写。');
   }
 
   const skuMode = rule.skus?.mode ?? 'disabled';
@@ -170,18 +361,26 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
 
   const raw: Record<string, unknown> = {
     extractProvider: 'custom',
+    productPrice,
+    priceText: priceText || undefined,
     pageUrl: finalUrl,
+    qualityWarnings: qualityWarnings.length ? qualityWarnings : undefined,
+    titleDiagnostics: titleDiagnostics
+      ? {
+          text: titleDiagnostics.text,
+          selector: titleDiagnostics.selector,
+          confidence: titleDiagnostics.confidence,
+          suspectWrongTitle: titleDiagnostics.suspectWrongTitle,
+          hint: titleDiagnostics.hint,
+          source: titleDiagnostics.source,
+        }
+      : undefined,
     stateDigest: {
       jsonLd: !!jsonLd?.title || (jsonLd?.images?.length ?? 0) > 0,
       openGraph: !!(og.title || og.images?.length),
       meta: fb.meta !== false ? !!(og.description || og.currency) : false,
-      titleSource:
-        titleSel.values[0] ? 'selector'
-        : jsonLd?.title ? 'jsonLd'
-        : og.title ? 'openGraph'
-        : docTitle ? 'documentTitle'
-        : 'none',
-      selectorTitleHits: titleSel.values.length,
+      titleSource: titleDiagnostics?.source ?? 'none',
+      selectorTitleHits: titleSelValues.length,
       jsonLdSnippet:
         jsonLd?.descriptionSnippet ??
         (jsonLd?.brand ? `brand=${jsonLd.brand.slice(0, 120)}` : undefined),
@@ -194,9 +393,12 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
           hasPrice: jsonLd.priceAmount !== undefined,
         }
       : null,
+    attributeSamples: Object.entries(attributes)
+      .slice(0, 5)
+      .map(([k, v]) => ({ key: k, value: String(v) })),
   };
 
-  return {
+  const product: NormalizedProduct = {
     source: 'custom',
     sourceUrl: finalUrl,
     title,
@@ -207,4 +409,16 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
     skus,
     raw,
   };
+
+  return { product, titleDiagnostics, qualityWarnings };
+}
+
+/** @deprecated Use parseCustomProduct return type; kept for callers expecting NormalizedProduct only. */
+export async function parseCustomProductLegacy(
+  page: Page,
+  pageUrl: string,
+  ruleInput: CustomRuleDecl,
+): Promise<NormalizedProduct> {
+  const { product } = await parseCustomProduct(page, pageUrl, ruleInput);
+  return product;
 }

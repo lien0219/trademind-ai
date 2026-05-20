@@ -16,6 +16,12 @@ func (s *Service) effectiveMaxRetries(task *CollectTask) int {
 	if task != nil && task.MaxRetries > 0 {
 		return task.MaxRetries
 	}
+	if task != nil && task.BatchID != nil && strings.EqualFold(strings.TrimSpace(task.Source), "1688") {
+		p := s.batchPolicyForSource(context.Background(), task.Source)
+		if p.MaxRetries > 0 {
+			return p.MaxRetries
+		}
+	}
 	if s != nil && s.MaxAutoRetries > 0 {
 		return s.MaxAutoRetries
 	}
@@ -59,21 +65,37 @@ func collectRetryDelaySeconds(retryCount, baseSec, capSec int) int {
 	return d
 }
 
-func collectErrNonRetryable(err error) bool {
+func collectorErrorCode(err error) string {
 	if err == nil {
-		return false
+		return ""
 	}
 	var rej *CollectorRejectedError
 	if errors.As(err, &rej) && rej != nil {
-		switch strings.ToUpper(strings.TrimSpace(rej.Code)) {
-		case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
-			"PROVIDER_NOT_AVAILABLE", "PAGE_BLOCKED_OR_VERIFY_REQUIRED":
-			return true
-		default:
-			return false
-		}
+		return strings.ToUpper(strings.TrimSpace(rej.Code))
 	}
-	return false
+	return ""
+}
+
+func collectErrNonRetryable(err error, task *CollectTask, policy BatchSourcePolicy) bool {
+	code := collectorErrorCode(err)
+	if code == "" {
+		return false
+	}
+	inBatch := task != nil && task.BatchID != nil
+	return !isCollectorCodeRetryable(code, inBatch, policy)
+}
+
+func batchRetryDelaySeconds(retryCount, baseSec, capSec int, code string, boost bool) int {
+	delay := collectRetryDelaySeconds(retryCount, baseSec, capSec)
+	if !boost {
+		return delay
+	}
+	switch strings.ToUpper(strings.TrimSpace(code)) {
+	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA",
+		"TIMEOUT", "PAGE_TIMEOUT", "PAGE_LOAD_TIMEOUT", "NAVIGATION_FAILED":
+		delay = collectRetryDelaySeconds(retryCount, baseSec*2, capSec)
+	}
+	return delay
 }
 
 func collectorRejectExtras(err error) map[string]any {
@@ -99,12 +121,24 @@ func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg 
 	}
 	now := time.Now().UTC()
 	newRC := task.RetryCount + 1
-	delaySec := collectRetryDelaySeconds(newRC, s.effectiveRetryBaseSec(), s.effectiveRetryMaxSec())
+	code := ""
+	if extras != nil {
+		if v, ok := extras["collectorCode"].(string); ok {
+			code = v
+		}
+	}
+	policy := BatchSourcePolicy{}
+	boost := false
+	if task.BatchID != nil {
+		policy = s.batchPolicyForSource(ctx, task.Source)
+		boost = policy.BatchRetryBoost
+	}
+	delaySec := batchRetryDelaySeconds(newRC, s.effectiveRetryBaseSec(), s.effectiveRetryMaxSec(), code, boost)
 	next := now.Add(time.Duration(delaySec) * time.Second)
 	tid := task.ID
 	maxR := s.effectiveMaxRetries(task)
 
-	payload := map[string]any{"nextDelaySeconds": delaySec}
+	payload := map[string]any{"nextDelaySeconds": delaySec, "retryReason": code}
 	for k, v := range extras {
 		payload[k] = v
 	}
@@ -172,13 +206,27 @@ func (s *Service) handleCollectJobError(ctx context.Context, task *CollectTask, 
 	}
 	msg = truncateRunes(strings.TrimSpace(msg), 8000)
 
-	if !s.AutoRetryEnabled || collectErrNonRetryable(jobErr) {
-		s.failTask(ctx, task, StatusRunning, msg, collectorRejectExtras(jobErr))
+	policy := BatchSourcePolicy{}
+	if task.BatchID != nil {
+		policy = s.batchPolicyForSource(ctx, task.Source)
+	}
+	if !s.AutoRetryEnabled || collectErrNonRetryable(jobErr, task, policy) {
+		extras := collectorRejectExtras(jobErr)
+		if extras == nil {
+			extras = map[string]any{}
+		}
+		extras["retryable"] = false
+		s.failTask(ctx, task, StatusRunning, msg, extras)
 		return
 	}
 
 	maxR := s.effectiveMaxRetries(task)
 	extras := collectorRejectExtras(jobErr)
+	if extras == nil {
+		extras = map[string]any{}
+	}
+	extras["retryable"] = true
+	extras["retryReason"] = collectorErrorCode(jobErr)
 	if task.RetryCount >= maxR {
 		s.failTaskRetryExhausted(ctx, task, msg, extras)
 		return

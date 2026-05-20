@@ -3,9 +3,9 @@ import type { CollectorProvider } from '../collector-provider.js';
 import type { CollectInput } from '../collector-provider.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import type { CollectFeature } from '../../types/provider-meta.js';
-import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
-import type { CustomCollectOptions, CustomRuleDecl } from './types.js';
-import { parseCustomProduct } from './parser.js';
+import type { CustomCollectOptions } from './types.js';
+import { normalizeCustomRuleDecl } from './normalize-rule.js';
+import { runCustomCollect } from './run-custom.js';
 
 function isHttpUrl(url: string): boolean {
   try {
@@ -35,12 +35,14 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
   sourceId: 'custom',
   meta: {
     name: '自定义链接采集器',
-    description: '通过用户配置的选择器规则采集通用商品页',
+    description:
+      '适合采集没有专用采集器的网站商品页，可采集商品标题、价格、图片、参数等基础信息。',
     status: 'beta',
     batchSupported: false,
     urlPatterns: ['https://example.com/product/...'],
-    features: ['title', 'mainImages', 'descriptionImages', 'attributes'] satisfies CollectFeature[],
-    notes: '批量采集暂不开放；规则由后端传入 options。',
+    features: ['title', 'price', 'mainImages', 'descriptionImages', 'attributes'] satisfies CollectFeature[],
+    notes:
+      '商品规格、库存、动态价格不保证完整。使用前建议先测试采集规则。已支持的平台请优先使用专用采集器；自定义链接批量采集暂未开放。',
   },
 
   canHandle(urlStr: string): boolean {
@@ -56,9 +58,8 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
     const opts = input.options as CustomCollectOptions | undefined;
     const ruleUnknown = opts?.rule as unknown;
     if (!ruleUnknown || typeof ruleUnknown !== 'object') {
-      throw new Error('INVALID_REQUEST:missing rule in options');
+      throw new Error('CUSTOM_RULE_MISSING:missing rule in options');
     }
-    const rule = ruleUnknown as CustomRuleDecl;
 
     const domain = String(opts?.domain ?? '').trim().toLowerCase();
     if (!domain) {
@@ -76,32 +77,29 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
           throw new Error('INVALID_URL:url does not match matchPattern');
         }
       } catch {
-        throw new Error('INVALID_REQUEST:invalid matchPattern regexp');
+        throw new Error('CUSTOM_RULE_INVALID:invalid matchPattern regexp');
       }
     }
 
-    return browser.withPage(async (page) => {
-      const gotoTimeout = getDefaultNavigationTimeoutMs();
-      try {
-        await page.goto(urlStr, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
-      } catch (e) {
-        const err = e instanceof Error ? e.message : String(e);
-        throw new Error(`NAVIGATION_FAILED:${err}`);
-      }
+    const result = await runCustomCollect(
+      browser,
+      urlStr,
+      { ...opts, rule: normalizeCustomRuleDecl(ruleUnknown) },
+      'task',
+    );
 
-      await page.waitForLoadState('networkidle', { timeout: Math.min(gotoTimeout, 12_000) }).catch(() => undefined);
-
-      try {
-        await page.waitForSelector('body', { timeout: 8000 }).catch(() => undefined);
-      } catch {
-        /** ignore */
-      }
-
-      const product = await parseCustomProduct(page, urlStr, rule);
-      if (!product.title?.trim()) {
-        throw new Error('COLLECT_FAILED:empty_title_after_rules_and_fallbacks');
-      }
-      return product;
-    });
+    if (!result.product) {
+      throw new Error('COLLECT_FAILED:empty_product');
+    }
+    return result.product;
   },
 };
+
+/** Rule test entry — always returns preview payload via HTTP layer. */
+export async function runCustomRuleTest(
+  browser: BrowserManager,
+  urlStr: string,
+  opts: CustomCollectOptions,
+): Promise<import('./run-custom.js').CustomRunResult> {
+  return runCustomCollect(browser, urlStr, opts, 'rule_test');
+}

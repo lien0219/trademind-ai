@@ -211,7 +211,12 @@ export default function SystemSettingsPage() {
             <Form.Item label="统计时间窗（分钟）" name="repeated_failure_window_minutes">
               <InputNumber min={5} style={{ width: '100%' }} placeholder="与阈值同时配置后生效" />
             </Form.Item>
-            <Form.Item label="启用告警定时扫描 Worker（仍需环境变量 TASK_ALERT_SCAN_ENABLED）" name="enable_alert_scan_worker" valuePropName="checked">
+            <Form.Item
+              label="启用告警定时扫描"
+              name="enable_alert_scan_worker"
+              valuePropName="checked"
+              extra="需在环境变量中同时开启告警扫描开关后才会生效"
+            >
               <Switch />
             </Form.Item>
             <Form.Item

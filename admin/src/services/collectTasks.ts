@@ -9,6 +9,10 @@ export type CollectTaskRow = {
   resultProductId?: string;
   rawResult?: unknown;
   errorMessage?: string;
+  collectorErrorCode?: string;
+  retryable?: boolean;
+  failureHint?: string;
+  sameUrlSucceededElsewhere?: boolean;
   retryCount?: number;
   maxRetries?: number;
   nextRetryAt?: string;
@@ -65,7 +69,13 @@ export async function fetchCollectTask(id: string) {
   return getJSON<CollectTaskRow>(`/api/v1/collect/tasks/${id}`);
 }
 
-export async function createCollectTask(body: { source: string; url: string; ruleId?: string }) {
+export async function createCollectTask(body: {
+  source: string;
+  url: string;
+  ruleId?: string;
+  profileId?: string;
+  useBrowserProfile?: boolean;
+}) {
   return postJSON<CollectTaskRow>('/api/v1/collect/tasks', body);
 }
 

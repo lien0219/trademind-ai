@@ -70,7 +70,13 @@ type ProductSKU struct {
 	SKUName   string         `gorm:"size:512" json:"skuName"`
 	Attrs     datatypes.JSON `gorm:"type:jsonb" json:"attrs,omitempty"`
 	Price     *float64       `json:"price,omitempty"`
-	Stock     *int           `json:"stock,omitempty"`
+	// CostPrice: collected cost / purchase price (optional).
+	CostPrice *float64 `gorm:"column:cost_price" json:"costPrice,omitempty"`
+	// CompareAtPrice: optional strikethrough / list price.
+	CompareAtPrice *float64 `gorm:"column:compare_at_price" json:"compareAtPrice,omitempty"`
+	// MinPublishPrice: per-SKU floor when applying pricing rules.
+	MinPublishPrice *float64 `gorm:"column:min_publish_price" json:"minPublishPrice,omitempty"`
+	Stock           *int     `json:"stock,omitempty"`
 	// WarningStock: local alert line; new rows default from settings.inventory.default_warning_stock (fallback 5).
 	WarningStock int `gorm:"column:warning_stock;default:5;not null" json:"warningStock"`
 	// SafetyStock: optional lower bound; must be <= WarningStock; 0 means unset for below-safety comparisons except stock<=0 still out_of_stock.

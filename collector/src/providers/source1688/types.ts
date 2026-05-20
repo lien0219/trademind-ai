@@ -21,11 +21,14 @@ export type BrowserExtractPayload = {
     description?: string;
     ogTitle?: string;
     ogImage?: string;
+    twitterImage?: string;
     keywords?: string;
   };
   headingText: string;
   galleryUrls: string[];
   detailUrls: string[];
+  /** DOM 价格区域文本 */
+  domPriceTexts: string[];
   paramPairs: Array<{ key: string; value: string }>;
   domSkuDimensions: DomSkuDimension[];
   domSkuTableRows: DomSkuTableRow[];
@@ -38,6 +41,11 @@ export type Parse1688Result = Pick<
   'title' | 'mainImages' | 'descriptionImages' | 'attributes' | 'skus'
 > & {
   raw: Record<string, unknown>;
+  collectStatus?: 'success' | 'partial_success' | 'failed';
+  completeness?: number;
+  missingFields?: string[];
+  warnings?: string[];
+  extractDebug?: Record<string, unknown>;
 };
 
 export type { ProductSku };

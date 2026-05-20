@@ -122,35 +122,73 @@ function isLikelyProductDetailUrl(url: string): boolean {
   return /\/img\/ibank\//i.test(url);
 }
 
-/** 默认单价（阶梯价取第一档） */
+/** 默认单价（阶梯价取第一档）；跳过 unitWeight 等非价格字段 */
 export function extractDefaultOfferPrice(data: Record<string, unknown>): number | undefined {
-  function walk(x: unknown, depth: number): number | undefined {
-    if (depth > 12 || x == null || typeof x !== 'object') return undefined;
-    if (Array.isArray(x)) {
-      for (const i of x) {
-        const hit = walk(i, depth + 1);
-        if (hit !== undefined) return hit;
-      }
-      return undefined;
+  const priorityKeys = ['tradeModel', 'price', 'mainPrice', 'skuModel', 'orderModel', 'offerPrice'];
+  for (const key of priorityKeys) {
+    const mod = data[key];
+    if (mod && typeof mod === 'object') {
+      const hit = walkOfferPrice(mod, 0);
+      if (hit !== undefined) return hit;
     }
-    const o = x as Record<string, unknown>;
-    for (const k of ['price', 'discountPrice', 'priceDisplay', 'salePrice', 'offerPrice', 'finalPrice']) {
-      const n = coerceNumber(o[k]);
-      if (n !== undefined && n > 0 && n < 1_000_000) return n;
-    }
-    const priceMoney = o.priceMoney ?? o.salePriceMoney;
-    if (priceMoney && typeof priceMoney === 'object') {
-      const n = coerceNumber((priceMoney as Record<string, unknown>).value);
-      if (n !== undefined && n > 0) return n;
-    }
-    for (const v of Object.values(o)) {
-      const hit = walk(v, depth + 1);
+  }
+  for (const mod of Object.values(data)) {
+    const hit = walkOfferPrice(mod, 0);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
+}
+
+const OFFER_NON_PRICE = new Set([
+  'unitWeight',
+  'weight',
+  'netWeight',
+  'grossWeight',
+  'pieceWeight',
+  'volume',
+  'length',
+  'width',
+  'height',
+  'canBookCount',
+  'amountOnSale',
+  'skuId',
+  'specId',
+  'componentId',
+]);
+
+function walkOfferPrice(x: unknown, depth: number, parentKey = ''): number | undefined {
+  if (depth > 12 || x == null) return undefined;
+  if (typeof x === 'number') {
+    if (OFFER_NON_PRICE.has(parentKey)) return undefined;
+    return x > 0 && x < 1_000_000 ? x : undefined;
+  }
+  if (typeof x === 'string') {
+    if (OFFER_NON_PRICE.has(parentKey)) return undefined;
+    const n = coerceNumber(x);
+    return n !== undefined && n > 0 && n < 1_000_000 ? n : undefined;
+  }
+  if (Array.isArray(x)) {
+    for (const i of x) {
+      const hit = walkOfferPrice(i, depth + 1, parentKey);
       if (hit !== undefined) return hit;
     }
     return undefined;
   }
-  for (const mod of Object.values(data)) {
-    const hit = walk(mod, 0);
+  if (typeof x !== 'object') return undefined;
+  const o = x as Record<string, unknown>;
+  for (const k of ['price', 'discountPrice', 'priceDisplay', 'salePrice', 'offerPrice', 'finalPrice', 'consignPrice']) {
+    if (OFFER_NON_PRICE.has(k)) continue;
+    const n = coerceNumber(o[k]);
+    if (n !== undefined && n > 0 && n < 1_000_000) return n;
+  }
+  const priceMoney = o.priceMoney ?? o.salePriceMoney;
+  if (priceMoney && typeof priceMoney === 'object') {
+    const n = coerceNumber((priceMoney as Record<string, unknown>).value);
+    if (n !== undefined && n > 0) return n;
+  }
+  for (const [k, v] of Object.entries(o)) {
+    if (OFFER_NON_PRICE.has(k)) continue;
+    const hit = walkOfferPrice(v, depth + 1, k);
     if (hit !== undefined) return hit;
   }
   return undefined;

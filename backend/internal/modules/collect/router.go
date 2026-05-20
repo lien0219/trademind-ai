@@ -20,4 +20,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/collect/batches/:id/tasks", h.ListBatchTasks)
 	g.GET("/collect/batches/:id", h.GetBatch)
 	g.POST("/collect/batches/:id/retry-failed", h.RetryBatchFailed)
+
+	g.GET("/collector/providers/1688/auth-status", h.Get1688AuthStatus)
+	g.POST("/collector/providers/1688/open-login-browser", h.Open1688LoginBrowser)
 }

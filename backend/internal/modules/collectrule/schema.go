@@ -12,6 +12,13 @@ const maxRuleJSONBytes = 64 * 1024
 const maxSelectorStringLen = 512
 const maxSelectorsPerField = 40
 
+var forbiddenRulePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\bscript\b`),
+	regexp.MustCompile(`(?i)\beval\s*\(`),
+	regexp.MustCompile(`(?i)\bfunction\s*\(`),
+	regexp.MustCompile(`(?i)javascript\s*:`),
+}
+
 var (
 	ErrRuleTooLarge       = errors.New("rule json exceeds size limit")
 	ErrRuleInvalidJSON    = errors.New("rule must be a JSON object")
@@ -46,7 +53,7 @@ func ValidateMatchPattern(pat string) error {
 }
 
 func ValidateDomain(domain string) error {
-	d := strings.TrimSpace(strings.ToLower(domain))
+	d := NormalizeRuleDomain(domain)
 	if d == "" {
 		return ErrDomainEmpty
 	}
@@ -64,13 +71,23 @@ func ValidateRuleJSON(raw []byte) error {
 	if len(raw) > maxRuleJSONBytes {
 		return ErrRuleTooLarge
 	}
+	norm, err := NormalizeRuleJSON(raw)
+	if err != nil {
+		return err
+	}
 	var root map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &root); err != nil {
+	if err := json.Unmarshal(norm, &root); err != nil {
 		return ErrRuleInvalidJSON
 	}
+	hasTitle := false
 	for topKey, val := range root {
 		switch topKey {
-		case "title", "currency", "mainImages", "descriptionImages":
+		case "title":
+			hasTitle = true
+			if err := validateFieldSpec(val); err != nil {
+				return fmt.Errorf("%w: %s", ErrRuleSchema, err.Error())
+			}
+		case "currency", "mainImages", "descriptionImages", "price":
 			if err := validateFieldSpec(val); err != nil {
 				return fmt.Errorf("%w: %s", ErrRuleSchema, err.Error())
 			}
@@ -88,6 +105,38 @@ func ValidateRuleJSON(raw []byte) error {
 			}
 		default:
 			return fmt.Errorf("%w: unknown key %q", ErrRuleSchema, topKey)
+		}
+	}
+	if !hasTitle {
+		return fmt.Errorf("%w: title field is required", ErrRuleSchema)
+	}
+	if err := validateRuleSecurity(norm); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ValidateRuleForEnable ensures enabled rules include mainImages for practical collection.
+func ValidateRuleForEnable(raw []byte) error {
+	norm, err := NormalizeRuleJSON(raw)
+	if err != nil {
+		return err
+	}
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(norm, &root); err != nil {
+		return ErrRuleInvalidJSON
+	}
+	if _, ok := root["mainImages"]; !ok {
+		return fmt.Errorf("启用状态的规则需包含 mainImages 字段，请先补充主图规则或保存为停用")
+	}
+	return nil
+}
+
+func validateRuleSecurity(raw []byte) error {
+	s := string(raw)
+	for _, re := range forbiddenRulePatterns {
+		if re.MatchString(s) {
+			return fmt.Errorf("%w: forbidden token in rule JSON", ErrRuleSchema)
 		}
 	}
 	return nil
@@ -135,7 +184,7 @@ func validateAttributes(raw json.RawMessage) error {
 	}
 	mode := strings.TrimSpace(strings.ToLower(m.Mode))
 	switch mode {
-	case "", "pairs":
+	case "", "pairs", "row":
 		if err := checkSelectorLen(m.RowSelector); err != nil {
 			return err
 		}
@@ -145,6 +194,8 @@ func validateAttributes(raw json.RawMessage) error {
 		if err := checkSelectorLen(m.ValueSelector); err != nil {
 			return err
 		}
+	case "text_all":
+		// textSelector optional; validated at runtime
 	case "disabled":
 		return nil
 	default:
@@ -170,6 +221,11 @@ func validateFieldSpec(raw json.RawMessage) error {
 	for _, s := range m.Selectors {
 		if err := checkSelectorLen(s); err != nil {
 			return err
+		}
+		for _, re := range forbiddenRulePatterns {
+			if re.MatchString(s) {
+				return fmt.Errorf("forbidden selector content")
+			}
 		}
 	}
 	if len(m.Fallback) > 1024 {

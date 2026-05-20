@@ -18,6 +18,10 @@ const (
 	CategoryPlatformConfigIncomplete = "platform_config_incomplete"
 	CategoryNetworkTimeout           = "network_timeout"
 	CategoryCollectorBlocked         = "collector_blocked"
+	CategoryCollectorPlatformLogin   = "collector_platform_login"
+	CategoryCollectorMissingImages   = "collector_missing_images"
+	CategoryCollectorMissingPrice    = "collector_missing_price"
+	CategoryCollectorEvaluateScript  = "collector_evaluate_script"
 	CategoryCollectorInvalidURL      = "collector_invalid_url"
 	CategoryAIProviderError          = "ai_provider_error"
 	CategoryAIConfigIncomplete       = "ai_config_incomplete"
@@ -76,6 +80,7 @@ func defaultSeverity(cat string) string {
 		CategoryInventoryMappingMissing, CategorySKUMappingMissing, CategoryStorageError:
 		return SeverityHigh
 	case CategoryPlatformRateLimit, CategoryNetworkTimeout, CategoryCollectorBlocked,
+		CategoryCollectorPlatformLogin,
 		CategoryAIProviderError, CategoryImageProviderError, CategoryPlatformAPIError,
 		CategoryWorkerLeaseExpired:
 		return SeverityMedium
@@ -144,6 +149,74 @@ var rules = []rule{
 		category: CategoryNetworkTimeout, severity: SeverityMedium,
 		reason:  "网络超时或连接异常。",
 		suggest: "请检查本机与平台网络，稍后重试；持续出现需排查代理与防火墙。",
+	},
+	// Collector — page.evaluate 脚本注入失败
+	{
+		id: "sub:evaluate_script", substrs: []string{"__name is not defined", "evaluate_script_error"},
+		category: CategoryCollectorEvaluateScript, severity: SeverityHigh,
+		reason:    "采集脚本执行错误。",
+		suggest:   "页面解析脚本注入失败，请检查 page.evaluate 中是否引用了构建工具 helper 或外部函数。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// Collector — 1688 字段缺失（优先于 unknown）
+	{
+		id:       "sub:missing_main_images",
+		substrs:  []string{"missing_main_images"},
+		category: CategoryCollectorMissingImages, severity: SeverityMedium,
+		reason:    "商品页已打开，但未提取到主图字段。",
+		suggest:   "页面已打开，但未提取到主图。请打开原始快照确认页面是否正常显示主图；如果快照正常，请检查 1688 图片选择器或 JSON 提取逻辑。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	{
+		id:       "sub:missing_price",
+		substrs:  []string{"missing_price", "missing_core_fields"},
+		category: CategoryCollectorMissingPrice, severity: SeverityMedium,
+		reason:    "商品页已解析，但价格字段缺失。",
+		suggest:   "价格可能需要登录、权限或异步接口加载。请检查 1688 登录态和价格提取规则。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// 自定义采集 — LOGIN_REQUIRED 错误码（非 1688 专属检测）
+	{
+		id:        "sub:collect_login_required",
+		substrs:   []string{"login_required"},
+		category:  CategoryCollectorPlatformLogin,
+		severity:  SeverityMedium,
+		reason:    "页面疑似需要登录后才能查看商品详情。",
+		suggest:   "自定义链接采集器不做自动登录与账号密码保存。请确认该商品页是否公开可访问，或使用带登录态的采集浏览器（后续 Profile 扩展）。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// 自定义采集器 — 非 1688 站点登录墙（须在 1688 规则之前，且仅 custom 源）
+	{
+		id: "sub:custom_collector_login_wall",
+		substrs: []string{
+			"verification_or_login_page_detected",
+			"login_wall_detected",
+			"login_or_verification_redirect",
+			"verification_page_title",
+			"empty_fields_likely_login_wall",
+			"page_blocked_or_verify_required",
+		},
+		category:  CategoryCollectorBlocked,
+		severity:  SeverityMedium,
+		reason:    "自定义采集打开的是目标站点登录/验证页，不是商品详情。",
+		suggest:   "当前为「自定义链接采集器」且目标站（如京东）需登录才能查看商品；系统未提供该站登录 Profile。请核对规则 CSS 选择器，或确认该链接是否必须在已登录浏览器中打开。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// Collector — 1688 登录/验证失效（仅 1688 采集器或 custom+1688 链接）
+	{
+		id: "sub:1688_login_verify",
+		substrs: []string{
+			"verification_or_login_page_detected",
+			"verification_challenge_or_offer_unreadable",
+			"verification_or_login",
+			"offer_path_lost_with_no_product_data",
+			"captcha_redirect_url",
+		},
+		category:  CategoryCollectorPlatformLogin,
+		severity:  SeverityHigh,
+		reason:    "1688 采集浏览器未登录或登录态/安全验证已失效。",
+		suggest:   "请在采集设置中打开 1688 采集浏览器，重新登录或完成安全验证后再重试。",
+		taskTypes: []string{taskTypeCollect},
 	},
 	// Collector
 	{
@@ -246,6 +319,34 @@ func anySubstr(text string, subs []string) bool {
 	return false
 }
 
+func is1688CollectContext(in Input) bool {
+	text := joinText(in)
+	if strings.Contains(text, "1688.com") {
+		return true
+	}
+	pl := strings.TrimSpace(strings.ToLower(in.Platform))
+	return pl == "1688"
+}
+
+func skipCollectFailureRule(rID string, in Input) bool {
+	switch rID {
+	case "sub:collect_login_required":
+		if !strings.EqualFold(strings.TrimSpace(in.Platform), "custom") {
+			return true
+		}
+		return is1688CollectContext(in)
+	case "sub:custom_collector_login_wall":
+		if !strings.EqualFold(strings.TrimSpace(in.Platform), "custom") {
+			return true
+		}
+		return is1688CollectContext(in)
+	case "sub:1688_login_verify":
+		return !is1688CollectContext(in)
+	default:
+		return false
+	}
+}
+
 // Classify applies ordered keyword rules plus status hints. No AI, no IO.
 func Classify(in Input) Result {
 	in.TaskType = strings.TrimSpace(strings.ToLower(in.TaskType))
@@ -263,6 +364,9 @@ func Classify(in Input) Result {
 			}
 		}
 		if len(r.substrs) == 0 {
+			continue
+		}
+		if skipCollectFailureRule(r.id, in) {
 			continue
 		}
 		text := joinText(in)

@@ -69,6 +69,15 @@ func (h *Handler) Create(c *gin.Context) {
 			response.Fail(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable, err.Error())
 			return
 		}
+		var conflict *CustomCollectProviderConflict
+		if errors.As(err, &conflict) && conflict != nil {
+			response.JSON(c, http.StatusBadRequest, response.CodeCustomCollectProviderConflict, conflict.Message, gin.H{
+				"errorCode":           "CUSTOM_COLLECT_PROVIDER_CONFLICT",
+				"recommendedProvider": conflict.RecommendedProvider,
+				"message":             conflict.Message,
+			})
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -199,6 +208,34 @@ func (h *Handler) Retry(c *gin.Context) {
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// Get1688AuthStatus GET /api/v1/collector/providers/1688/auth-status
+func (h *Handler) Get1688AuthStatus(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	out, err := h.Svc.Client.Get1688AuthStatus(c.Request.Context())
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// Open1688LoginBrowser POST /api/v1/collector/providers/1688/open-login-browser
+func (h *Handler) Open1688LoginBrowser(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	out, err := h.Svc.Client.Open1688LoginBrowser(c.Request.Context())
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
 	}
 	response.OK(c, out)

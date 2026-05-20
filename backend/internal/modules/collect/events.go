@@ -27,6 +27,7 @@ const (
 	EventWorkerLeaseAcquired    = "worker.lease.acquired"
 	EventWorkerLeaseExpired     = "worker.lease.expired"
 	EventWorkerLeaseRecovered   = "worker.lease.recovered"
+	EventBatchDelayApplied      = "batch.delay.applied"
 )
 
 var blockedCollectEventPayloadKeys = map[string]struct{}{

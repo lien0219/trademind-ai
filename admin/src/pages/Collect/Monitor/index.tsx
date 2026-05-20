@@ -222,19 +222,19 @@ export default function CollectMonitorPage() {
   const batchTotal = batches ? sumBatches(batches) : 0;
 
   return (
-    <PageContainer title="采集监控" subTitle="队列深度、Worker 与 Collector 状态约每 5 秒刷新（页面隐藏时暂停）">
+    <PageContainer title="采集监控" subTitle="查看采集任务排队情况、后台进程与采集服务状态（约每 5 秒刷新）">
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" bordered>
-            <Statistic title="队列深度 (LLEN)" value={q?.depth ?? '—'} suffix={q && !q.redisAvailable ? <Tag color="warning">Redis</Tag> : null} />
+            <Statistic title="排队任务数" value={q?.depth ?? '—'} suffix={q && !q.redisAvailable ? <Tag color="warning">队列不可用</Tag> : null} />
             <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-              {q?.name ?? '—'} · {q?.redisAvailable ? 'Redis 可用' : 'Redis 不可用'}
+              {q?.name ?? '—'} · {q?.redisAvailable ? '任务队列正常' : '任务队列不可用'}
             </Typography.Paragraph>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" bordered>
-            <Statistic title="Worker 并发" value={w?.concurrency ?? '—'} />
+            <Statistic title="同时执行数" value={w?.concurrency ?? '—'} />
             <div style={{ marginTop: 8 }}>
               <Space size="small">
                 <Tag color={w?.enabled ? 'blue' : 'default'}>{w?.enabled ? '队列已启用' : '队列未启用'}</Tag>
@@ -250,13 +250,13 @@ export default function CollectMonitorPage() {
               value={`${((tasks?.pending ?? 0) + (tasks?.retryingCount ?? tasks?.retrying ?? 0)).toString()} / ${(tasks?.running ?? 0).toString()} / ${(tasks?.failed ?? 0).toString()}`}
             />
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              pending 含 retrying
+              排队数含等待重试
             </Typography.Text>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" bordered>
-            <div style={{ marginBottom: 4 }}>Collector</div>
+            <div style={{ marginBottom: 4 }}>采集服务</div>
             <Badge status={col?.reachable ? 'success' : 'error'} text={col?.reachable ? '可达' : '不可达'} />
             <Typography.Paragraph ellipsis type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
               {col?.baseUrl ?? '—'}
@@ -267,7 +267,7 @@ export default function CollectMonitorPage() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>
-          <Card size="small" bordered title="自动重试（Worker）">
+          <Card size="small" bordered title="自动重试">
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space wrap>
                 <Tag color={r?.enabled ? 'success' : 'default'}>{r?.enabled ? '已开启' : '已关闭'}</Tag>

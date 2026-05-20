@@ -1,6 +1,8 @@
 import type { BrowserManager } from '../browser/manager.js';
+import { CustomCollectError } from '../providers/sourceCustom/errors.js';
 import { getProviderBySource } from '../providers/registry.js';
 import type { NormalizedProduct } from '../types/product.js';
+import type { CustomAccessReport } from '../types/access-status.js';
 import type { CollectTaskErrorCode } from '../types/task.js';
 
 export type CollectTaskSuccess = {
@@ -14,21 +16,37 @@ export type CollectTaskFailure = {
     code: CollectTaskErrorCode;
     message: string;
   };
+  access?: CustomAccessReport;
 };
 
 export type CollectTaskResult = CollectTaskSuccess | CollectTaskFailure;
 
+const PREFIX_CODES: { p: string; code: CollectTaskErrorCode }[] = [
+  { p: 'LOGIN_REQUIRED:', code: 'LOGIN_REQUIRED' },
+  { p: 'CUSTOM_RULE_MISSING:', code: 'CUSTOM_RULE_MISSING' },
+  { p: 'CUSTOM_RULE_INVALID:', code: 'CUSTOM_RULE_INVALID' },
+  { p: 'PARSE_FAILED_TITLE_MISSING:', code: 'PARSE_FAILED_TITLE_MISSING' },
+  { p: 'PARSE_FAILED_IMAGE_MISSING:', code: 'PARSE_FAILED_IMAGE_MISSING' },
+  { p: 'INVALID_REQUEST:', code: 'INVALID_REQUEST' },
+  { p: 'PROVIDER_NOT_IMPLEMENTED:', code: 'PROVIDER_NOT_IMPLEMENTED' },
+  { p: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'PAGE_BLOCKED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'CAPTCHA:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'INVALID_URL:', code: 'INVALID_URL' },
+  { p: 'UNSUPPORTED_URL:', code: 'UNSUPPORTED_URL' },
+  { p: 'PRODUCT_NOT_FOUND:', code: 'PRODUCT_NOT_FOUND' },
+  { p: 'NAVIGATION_FAILED:', code: 'NAVIGATION_FAILED' },
+  { p: 'TIMEOUT:', code: 'TIMEOUT' },
+  { p: 'PAGE_LOAD_TIMEOUT:', code: 'TIMEOUT' },
+  { p: 'PAGE_TIMEOUT:', code: 'TIMEOUT' },
+  { p: 'PARSE_FAILED:', code: 'PARSE_FAILED' },
+  { p: 'COLLECT_FAILED:', code: 'COLLECT_FAILED' },
+  { p: 'PROVIDER_NOT_AVAILABLE:', code: 'PROVIDER_NOT_AVAILABLE' },
+];
+
 function mapPrefixedError(msg: string): { code: CollectTaskErrorCode; message: string } | null {
-  const prefixes: { p: string; code: CollectTaskErrorCode }[] = [
-    { p: 'INVALID_REQUEST:', code: 'INVALID_REQUEST' },
-    { p: 'PROVIDER_NOT_IMPLEMENTED:', code: 'PROVIDER_NOT_IMPLEMENTED' },
-    { p: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
-    { p: 'INVALID_URL:', code: 'INVALID_URL' },
-    { p: 'NAVIGATION_FAILED:', code: 'NAVIGATION_FAILED' },
-    { p: 'COLLECT_FAILED:', code: 'COLLECT_FAILED' },
-    { p: 'PROVIDER_NOT_AVAILABLE:', code: 'PROVIDER_NOT_AVAILABLE' },
-  ];
-  for (const { p, code } of prefixes) {
+  for (const { p, code } of PREFIX_CODES) {
     if (msg.startsWith(p)) {
       return { code, message: msg.slice(p.length) };
     }
@@ -64,7 +82,7 @@ export async function runCollectTask(
     return {
       status: 'failed',
       error: {
-        code: 'INVALID_URL',
+        code: 'UNSUPPORTED_URL',
         message: `url is not supported by source "${provider.sourceId}"`,
       },
     };
@@ -74,22 +92,26 @@ export async function runCollectTask(
     const product = await provider.collect(browser, { url, options: input.options });
     return { status: 'success', product };
   } catch (e) {
+    if (e instanceof CustomCollectError) {
+      return {
+        status: 'failed',
+        error: { code: e.code as CollectTaskErrorCode, message: e.message },
+        access: e.report,
+      };
+    }
     const msg = e instanceof Error ? e.message : String(e);
+    if (/__name is not defined|evaluate_script_error/i.test(msg)) {
+      return {
+        status: 'failed',
+        error: {
+          code: 'PARSE_FAILED',
+          message: `evaluate_script_error:${msg}`,
+        },
+      };
+    }
     const mapped = mapPrefixedError(msg);
     if (mapped) {
       return { status: 'failed', error: mapped };
-    }
-    if (msg.startsWith('NAVIGATION_FAILED:')) {
-      return {
-        status: 'failed',
-        error: { code: 'NAVIGATION_FAILED', message: msg.slice('NAVIGATION_FAILED:'.length) },
-      };
-    }
-    if (msg.startsWith('INVALID_URL:')) {
-      return {
-        status: 'failed',
-        error: { code: 'INVALID_URL', message: msg.slice('INVALID_URL:'.length) },
-      };
     }
     return {
       status: 'failed',

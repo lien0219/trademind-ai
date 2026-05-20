@@ -92,15 +92,18 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 		return nil, err
 	}
 	row := &ProductSKU{
-		ProductID:    productID,
-		SKUCode:      code,
-		SKUName:      name,
-		Attrs:        attrs,
-		Price:        body.Price,
-		Stock:        body.Stock,
-		ImageURL:     strings.TrimSpace(body.ImageURL),
-		WarningStock: 5,
-		SafetyStock:  0,
+		ProductID:       productID,
+		SKUCode:         code,
+		SKUName:         name,
+		Attrs:           attrs,
+		Price:           body.Price,
+		CostPrice:       body.CostPrice,
+		CompareAtPrice:  body.CompareAtPrice,
+		MinPublishPrice: body.MinPublishPrice,
+		Stock:           body.Stock,
+		ImageURL:        strings.TrimSpace(body.ImageURL),
+		WarningStock:    5,
+		SafetyStock:     0,
 	}
 	if s.Settings != nil {
 		if m, err := s.Settings.PlainByGroup(c.Request.Context(), 0, "inventory"); err == nil {
@@ -158,6 +161,15 @@ func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKU
 	}
 	if body.Price != nil {
 		row.Price = body.Price
+	}
+	if body.CostPrice != nil {
+		row.CostPrice = body.CostPrice
+	}
+	if body.CompareAtPrice != nil {
+		row.CompareAtPrice = body.CompareAtPrice
+	}
+	if body.MinPublishPrice != nil {
+		row.MinPublishPrice = body.MinPublishPrice
 	}
 	if body.Stock != nil {
 		row.Stock = body.Stock

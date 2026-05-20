@@ -199,10 +199,10 @@ export default function InventorySettingsPage() {
           showIcon
           type="info"
           icon={<InfoCircleOutlined />}
-          message="库存策略仅影响贸灵本地 SKU（product_skus）"
+          message="库存策略仅影响本地商品规格库存"
           description={
             <>
-              平台订单同步后再按策略尝试扣库；扣库失败或跳过<strong>不回滚平台侧数据</strong>。
+              平台订单同步后再按策略尝试扣减本地库存；扣库失败或跳过<strong>不会自动回滚平台侧数据</strong>。
               审计：<Typography.Link href="/inventory/effects">订单库存影响</Typography.Link>
               {' · '}
               <Typography.Link href="/inventory/logs">全局库存流水</Typography.Link>
@@ -239,13 +239,13 @@ export default function InventorySettingsPage() {
             type="info"
             style={{ marginBottom: 16 }}
             message="库存预警默认值说明"
-            description="下列「默认预警 / 安全线」只影响新创建的 SKU，不会批量改写已有 SKU；已有行可在商品详情「库存」或「库存预警」中单条或批量设置预警线。"
+            description="下列「默认预警 / 安全线」只影响新创建的商品规格，不会批量改写已有规格；已有规格可在商品详情「库存」或「库存预警」中单条或批量设置。"
           />
           <Typography.Title level={5}>库存预警（只读查询策略）</Typography.Title>
-          <Form.Item label="新建 SKU 默认预警线（warning_stock）" name="default_warning_stock">
+          <Form.Item label="新建商品规格默认预警线" name="default_warning_stock">
             <InputNumber min={0} style={{ width: '100%', maxWidth: 280 }} />
           </Form.Item>
-          <Form.Item label="新建 SKU 默认安全线（safety_stock）" name="default_safety_stock">
+          <Form.Item label="新建商品规格默认安全线" name="default_safety_stock">
             <InputNumber min={0} style={{ width: '100%', maxWidth: 280 }} />
           </Form.Item>
           <Form.Item label="启用库存预警能力" name="enable_inventory_alerts" valuePropName="checked">
@@ -265,23 +265,23 @@ export default function InventorySettingsPage() {
           </Form.Item>
 
           <Typography.Title level={5}>订单与库存联动</Typography.Title>
-          <Form.Item label="平台订单入库后自动尝试 SKU 匹配" name="auto_match_order_skus" valuePropName="checked">
+          <Form.Item label="平台订单入库后自动尝试规格匹配" name="auto_match_order_skus" valuePropName="checked">
             <Switch />
           </Form.Item>
           <Typography.Paragraph type="secondary">
-            匹配走刊登 external_sku_id / sku_code / 本地 sku_code；失败不落单失败，详见订单「SKU 匹配」与{' '}
+            系统会按平台规格编码与本地商品规格编码尝试匹配；匹配失败不会导致订单同步失败。详见订单「规格匹配」与{' '}
             <Typography.Link href="/orders/sku-matches">全局匹配记录</Typography.Link>。
           </Typography.Paragraph>
 
           <Form.Item
-            label="平台订单：SKU 匹配成功后允许自动扣库存（仍需打开「平台同步订单到达后自动扣库存」）"
+            label="平台订单：规格匹配成功后允许自动扣库存（仍需打开「平台同步订单到达后自动扣库存」）"
             name="auto_deduct_after_sku_match"
             valuePropName="checked"
           >
             <Switch />
           </Form.Item>
           <Typography.Paragraph type="secondary">
-            默认关闭，避免未核对映射时误扣。打开后仅当平台同步策略允许扣库且行已绑定本地 SKU 时生效。
+            默认关闭，避免未核对映射时误扣。打开后仅当平台同步策略允许扣库且订单行已绑定本地商品规格时生效。
           </Typography.Paragraph>
 
           <Form.Item
@@ -304,15 +304,14 @@ export default function InventorySettingsPage() {
           </Form.Item>
 
           <Form.Item
-            label="扣库成功后入队平台库存同步任务（需刊登与库存同步 Worker）"
+            label="扣库成功后自动创建平台库存同步任务（需已刊登且开启库存同步）"
             name="inventory_sync_after_deduct"
             valuePropName="checked"
           >
             <Switch />
           </Form.Item>
           <Typography.Paragraph type="secondary">
-            写入 <code>auto_sync_inventory_after_order_deduct</code> 并与旧键 <code>auto_sync_platform_inventory_after_deduct</code>{' '}
-            同步，后端读取时优先新键。
+            开启后，本地扣减成功会排队同步到各平台店铺库存（需商品已刊登）。
           </Typography.Paragraph>
 
           <Form.Item
@@ -323,19 +322,19 @@ export default function InventorySettingsPage() {
             <Switch />
           </Form.Item>
 
-          <Form.Item label="允许 SKU 本地库存扣成负数" name="allow_negative_stock" valuePropName="checked">
+          <Form.Item label="允许本地库存扣成负数" name="allow_negative_stock" valuePropName="checked">
             <Switch />
           </Form.Item>
 
-          <Typography.Title level={5}>批量库存同步与 Worker 节流</Typography.Title>
+          <Typography.Title level={5}>批量库存同步与频率限制</Typography.Title>
           <Typography.Paragraph type="secondary">
-            控制单次批量创建任务上限与各平台每分钟近似配额（Redis 计数）。超限任务会在 Worker 侧退回队列稍后重试并记录日志。
+            控制单次批量任务数量与各平台每分钟请求上限。超限时任务会稍后自动重试。
           </Typography.Paragraph>
           <Form.Item label="单次批量最多创建任务数" name="inventory_sync_batch_max_size">
             <InputNumber min={1} max={5000} style={{ width: '100%', maxWidth: 280 }} />
           </Form.Item>
           <Form.Item
-            label="单次批量设置预警线最多影响 SKU 数"
+            label="单次批量设置预警线最多影响规格数"
             name="inventory_stock_settings_batch_max_size"
             extra="仅限制批量修改预警线/安全线；与上方「单次批量库存同步最多创建任务数」无关。"
           >
