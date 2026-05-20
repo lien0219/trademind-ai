@@ -17,6 +17,7 @@
 # Collector runtime（Playwright userDataDir、Cookie、Local Storage 等，含敏感登录态，禁止提交）
 collector/data/browser-profiles/*
 !collector/data/browser-profiles/.gitkeep
+collector/.profiles/
 collector/data/storage-states/*
 !collector/data/storage-states/.gitkeep
 collector/data/runtime/

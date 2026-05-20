@@ -3,7 +3,7 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-20 — **发布价格配置 / 商品定价规则**：`settings.pricing`、`product_skus` 成本/划线/最低价字段、定价 API 与管理端 `/settings/pricing`、商品详情/列表批量应用（**仅更新本地 `product_skus.price`**，不刊登、不调平台 API）。
+**最后更新**：2026-05-20 — **自定义链接采集浏览器 Profile**：表 **`collect_browser_profiles`**、Collector **`custom/{profileKey}`** 持久化上下文、规则测试/采集任务 **`profileId`**；管理端 **`/collect/browser-profiles`** + 登录引导面板；**1688 登录检测不变**；不存账号密码、不返回 Cookie、不破解验证码。
 
 ---
 
@@ -397,6 +397,9 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-20 | **自定义链接采集浏览器 Profile**：**`collect_browser_profiles`**；API **`/api/v1/collect/browser-profiles*`**；Collector **`POST /v1/browser-profiles/:key/open-login|check`**；**`useBrowserProfile`+`profileKey`** 贯穿规则测试与 **`collect_tasks.request_options`**；管理端 **Profile 列表/登录引导**；安全：不存密码、Cookie 仅 Collector 本地、不前端直连 |
+| 2026-05-20 | **自定义链接通用访问状态检测**：Collector **`accessStatus`**（public/login_required/verify_required/…）+ **`POST /v1/collect/custom-rule-test`**；**`POST …/collect/rules/:id/test`** 返回 **accessStatus/finalUrl/extractedFields/missingFields/warnings/errorCode/suggestion**；Hub Modal **「测试访问与规则」**；任务 **`LOGIN_REQUIRED`/`PAGE_BLOCKED_OR_VERIFY_REQUIRED`/`PARSE_FAILED_*`** 中文解释；**非 1688 固定平台登录检测**（1688 仍 **`with1688Page`**）；预留 **`custom_*_browser_profile`**；**不**验证码破解、**不**自动绕过登录、**不**保存账号密码；**`docs/custom-collect-rules.md`** |
+| 2026-05-20 | **自定义链接采集器（单链接）**：**`collect_rules`** CRUD/测试/域名匹配；规则 JSON 支持 **selector+type** 与 **selectors+attr**（Go **`NormalizeRuleJSON`** + Collector **`normalizeCustomRuleDecl`**）；**`source=custom`** 任务 **`request_options` 规则快照** → Worker → Collector **`sourceCustom`**（CSS + JSON-LD/OG fallback，**不写 DOM 到 Go**）；管理端 **采集中心 Modal**、**采集规则测试预览**、错误码 **`CUSTOM_*`/`PARSE_FAILED_*`**；**`batchSupported=false`**；边界：不用户 JS、不存完整 HTML、不破解验证码；1688 **`*.1688.com` 复用登录 Profile**；文档 **`docs/custom-collect-rules.md`** |
 | 2026-05-20 | **发布价格配置 / 商品定价规则**：**`settings.pricing`**、**`internal/modules/pricing`**、**`product_skus.cost_price/compare_at_price/min_publish_price`**；API **`POST /pricing/calculate`**、**`POST /products/:id/pricing/apply`**、**`POST /products/pricing/batch-apply`**；管理端 **`/settings/pricing`**、草稿详情 **「应用定价规则」**、列表 **「批量设置发布价」**；**Product Readiness** 定价检查；**仅更新本地 SKU `price`**，不刊登、不调平台、不做财务 |
 | 2026-05-20 | **1688 采集防复发文档**：新增 **`docs/collector-1688-pitfalls.md`**；修复 **`page.evaluate` `__name`**（禁止 toString 注入）、**`unitWeight` 误作价格**、**SKU 维度噪声**与 **`1.2mm` 价表**未解析；失败中心 **`collector_evaluate_script`** |
 | 2026-05-20 | **1688 解析增强**：多路主图/价格 JSON+DOM 提取、页面滚动懒加载、mainImages 兜底、partial_success + completeness/extractDebug、失败 HTML/截图快照、失败中心 **missing_images/missing_price** 分类 |

@@ -221,9 +221,17 @@ Docker 完整编排包含：
 
 生产或公网部署前，请务必修改 `.env` 中的 `JWT_SECRET`、`APP_MASTER_KEY`、`ADMIN_BOOTSTRAP_PASSWORD`、数据库密码等敏感配置。
 
-**1688 采集浏览器登录态目录**：`docker-compose.full.yml` 将 `./data/browser-profiles` 与 `./data/storage-states` 挂载到 collector 容器，用于持久化 Playwright 登录 Cookie（含 Login Data、Cookies、History、Local Storage、Session Storage 等 Chromium 用户数据）。这些目录仅应存在于宿主机或数据卷中，**不得提交到 Git**；本地开发时 `collector/data/browser-profiles/` 同理已被 `.gitignore` 忽略。
+**1688 采集浏览器登录态目录**：`docker-compose.full.yml` 将 `./data/browser-profiles` 与 `./data/storage-states` 挂载到 collector 容器，用于持久化 Playwright 登录 Cookie（含 Login Data、Cookies、History、 Local Storage、Session Storage 等 Chromium 用户数据）。这些目录仅应存在于宿主机或数据卷中，**不得提交到 Git**；本地开发时 `collector/data/browser-profiles/` 同理已被 `.gitignore` 忽略。
 
-更多说明见 [docs/docker-deployment.md](docs/docker-deployment.md)。
+### 自定义链接采集与登录态 Profile
+
+1. **公开商品页**可直接用自定义规则采集。
+2. 若规则测试返回 **`LOGIN_REQUIRED`**，可在管理端创建 **采集浏览器 Profile**（按域名），点击 **打开采集浏览器** 自行登录。
+3. 登录后 **重新检测登录态**，再带 `profileId` 测试规则或提交采集任务。
+4. 系统 **不保存账号密码**，**不破解验证码**；登录 Cookie 仅存 Collector 本地 `browser-profiles/custom/{profileKey}`。
+5. Profile 含敏感登录态，请勿在公共电脑保留；Docker 无头环境无法弹窗登录，本地请设 **`COLLECTOR_HEADLESS=0`**。
+
+更多说明见 [docs/docker-deployment.md](docs/docker-deployment.md)、[docs/custom-collect-rules.md](docs/custom-collect-rules.md)。
 
 ## 本地开发启动
 

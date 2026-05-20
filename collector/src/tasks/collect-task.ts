@@ -1,6 +1,8 @@
 import type { BrowserManager } from '../browser/manager.js';
+import { CustomCollectError } from '../providers/sourceCustom/errors.js';
 import { getProviderBySource } from '../providers/registry.js';
 import type { NormalizedProduct } from '../types/product.js';
+import type { CustomAccessReport } from '../types/access-status.js';
 import type { CollectTaskErrorCode } from '../types/task.js';
 
 export type CollectTaskSuccess = {
@@ -14,11 +16,17 @@ export type CollectTaskFailure = {
     code: CollectTaskErrorCode;
     message: string;
   };
+  access?: CustomAccessReport;
 };
 
 export type CollectTaskResult = CollectTaskSuccess | CollectTaskFailure;
 
 const PREFIX_CODES: { p: string; code: CollectTaskErrorCode }[] = [
+  { p: 'LOGIN_REQUIRED:', code: 'LOGIN_REQUIRED' },
+  { p: 'CUSTOM_RULE_MISSING:', code: 'CUSTOM_RULE_MISSING' },
+  { p: 'CUSTOM_RULE_INVALID:', code: 'CUSTOM_RULE_INVALID' },
+  { p: 'PARSE_FAILED_TITLE_MISSING:', code: 'PARSE_FAILED_TITLE_MISSING' },
+  { p: 'PARSE_FAILED_IMAGE_MISSING:', code: 'PARSE_FAILED_IMAGE_MISSING' },
   { p: 'INVALID_REQUEST:', code: 'INVALID_REQUEST' },
   { p: 'PROVIDER_NOT_IMPLEMENTED:', code: 'PROVIDER_NOT_IMPLEMENTED' },
   { p: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
@@ -84,6 +92,13 @@ export async function runCollectTask(
     const product = await provider.collect(browser, { url, options: input.options });
     return { status: 'success', product };
   } catch (e) {
+    if (e instanceof CustomCollectError) {
+      return {
+        status: 'failed',
+        error: { code: e.code as CollectTaskErrorCode, message: e.message },
+        access: e.report,
+      };
+    }
     const msg = e instanceof Error ? e.message : String(e);
     if (/__name is not defined|evaluate_script_error/i.test(msg)) {
       return {

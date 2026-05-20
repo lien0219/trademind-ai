@@ -60,6 +60,12 @@ func truncateRunes(s string, max int) string {
 // CollectorRunner invokes Node Collector HTTP API (implemented via collect.CollectorClient adapter).
 type CollectorRunner interface {
 	RunCollect(ctx context.Context, source, rawURL string, options map[string]any) (json.RawMessage, error)
+	CustomRuleTest(ctx context.Context, rawURL string, options map[string]any) (*RuleTestResultDTO, error)
+}
+
+// ProfileOptionsEnricher adds browser profile fields to Collector options (implemented by collectbrowserprofile.Service).
+type ProfileOptionsEnricher interface {
+	EnrichCollectorOptions(ctx context.Context, opts map[string]any, profileID *uuid.UUID, useBrowserProfile bool, rawURL string) error
 }
 
 // TaskRulePayload is persisted on collect_tasks.request_options and sent to Collector as options.* .
@@ -76,6 +82,7 @@ type Service struct {
 	DB          *gorm.DB
 	OpLog       *operationlog.Service
 	Runner      CollectorRunner
+	Profiles    ProfileOptionsEnricher
 	TestTimeout time.Duration
 }
 
@@ -111,7 +118,7 @@ func (s *Service) ruleMatchesURL(rule *CollectRule, rawURL string) bool {
 	if err != nil {
 		return false
 	}
-	if !domainMatches(host, rule.Domain) {
+	if !domainMatches(host, NormalizeRuleDomain(rule.Domain)) {
 		return false
 	}
 	mp := strings.TrimSpace(rule.MatchPattern)
@@ -145,7 +152,8 @@ func (s *Service) ResolveEnabledRuleForCustom(ctx context.Context, rawURL string
 			return nil, fmt.Errorf("rule source mismatch")
 		}
 		if !s.ruleMatchesURL(&rule, urlStr) {
-			return nil, fmt.Errorf("url does not match rule domain or pattern")
+			host, _ := s.hostnameFromURL(urlStr)
+			return nil, ruleMatchError(host, &rule)
 		}
 		return &rule, nil
 	}
@@ -163,11 +171,11 @@ func (s *Service) ResolveEnabledRuleForCustom(ctx context.Context, rawURL string
 		return nil, err
 	}
 	for i := range rules {
-		if domainMatches(host, rules[i].Domain) && s.ruleMatchesURL(&rules[i], urlStr) {
+		if domainMatches(host, NormalizeRuleDomain(rules[i].Domain)) && s.ruleMatchesURL(&rules[i], urlStr) {
 			return &rules[i], nil
 		}
 	}
-	return nil, fmt.Errorf("no enabled rule matches this url domain")
+	return nil, fmt.Errorf("custom collect rule not found: please create a rule first")
 }
 
 // BuildTaskPayload serializes snapshot for collect_tasks.request_options.
@@ -242,7 +250,7 @@ func normalizeNewRule(body CreateRuleBody, adminID *uuid.UUID) (*CollectRule, er
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	domain := strings.TrimSpace(strings.ToLower(body.Domain))
+	domain := NormalizeRuleDomain(body.Domain)
 	if err := ValidateDomain(domain); err != nil {
 		return nil, err
 	}
@@ -259,7 +267,11 @@ func normalizeNewRule(body CreateRuleBody, adminID *uuid.UUID) (*CollectRule, er
 	if len(body.Rule) == 0 {
 		return nil, fmt.Errorf("rule is required")
 	}
-	if err := ValidateRuleJSON(body.Rule); err != nil {
+	normRule, err := NormalizeRuleJSON(body.Rule)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateRuleJSON(normRule); err != nil {
 		return nil, err
 	}
 	pr := 100
@@ -273,7 +285,7 @@ func normalizeNewRule(body CreateRuleBody, adminID *uuid.UUID) (*CollectRule, er
 		MatchPattern: strings.TrimSpace(body.MatchPattern),
 		Status:       st,
 		Priority:     pr,
-		Rule:         datatypes.JSON(body.Rule),
+		Rule:         datatypes.JSON(normRule),
 		Remark:       strings.TrimSpace(body.Remark),
 		CreatedBy:    adminID,
 	}, nil
@@ -320,7 +332,7 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateRuleBody, admi
 		updates["name"] = n
 	}
 	if body.Domain != nil {
-		d := strings.TrimSpace(strings.ToLower(*body.Domain))
+		d := NormalizeRuleDomain(*body.Domain)
 		if err := ValidateDomain(d); err != nil {
 			return nil, err
 		}
@@ -349,10 +361,14 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateRuleBody, admi
 		if len(*body.Rule) == 0 {
 			return nil, fmt.Errorf("rule cannot be empty")
 		}
-		if err := ValidateRuleJSON(*body.Rule); err != nil {
+		normRule, err := NormalizeRuleJSON(*body.Rule)
+		if err != nil {
 			return nil, err
 		}
-		updates["rule"] = datatypes.JSON(append(json.RawMessage(nil), *body.Rule...))
+		if err := ValidateRuleJSON(normRule); err != nil {
+			return nil, err
+		}
+		updates["rule"] = datatypes.JSON(append(json.RawMessage(nil), normRule...))
 	}
 	if len(updates) == 0 {
 		d := ruleToDetailDTO(&row)
@@ -454,8 +470,8 @@ func (s *Service) SetStatus(c *gin.Context, id uuid.UUID, status string, adminID
 	return &d, nil
 }
 
-// TestPreview runs Collector once without persisting tasks or products.
-func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, adminID *uuid.UUID) (json.RawMessage, error) {
+// TestPreview runs Collector custom-rule-test without persisting tasks or products.
+func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, adminID *uuid.UUID) (*RuleTestResultDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectrule: no db")
 	}
@@ -474,7 +490,8 @@ func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, a
 		return nil, fmt.Errorf("unsupported rule source")
 	}
 	if !s.ruleMatchesURL(&rule, rawURL) {
-		return nil, fmt.Errorf("url does not match rule domain or pattern")
+		host, _ := s.hostnameFromURL(rawURL)
+		return nil, ruleMatchError(host, &rule)
 	}
 
 	timeout := s.TestTimeout
@@ -491,8 +508,17 @@ func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, a
 		"matchPattern": rule.MatchPattern,
 		"rule":         json.RawMessage(rule.Rule),
 	}
+	if s.Profiles != nil && body.UseBrowserProfile && body.ProfileID != nil {
+		pid, err := uuid.Parse(strings.TrimSpace(*body.ProfileID))
+		if err != nil {
+			return nil, fmt.Errorf("invalid profileId")
+		}
+		if err := s.Profiles.EnrichCollectorOptions(ctx, opts, &pid, true, rawURL); err != nil {
+			return nil, err
+		}
+	}
 
-	out, err := s.Runner.RunCollect(ctx, "custom", rawURL, opts)
+	out, err := s.Runner.CustomRuleTest(ctx, rawURL, opts)
 	if err != nil {
 		if s.OpLog != nil {
 			msg := truncateRunes(err.Error(), 1500)
@@ -514,7 +540,7 @@ func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, a
 			Resource:    "collect_rule",
 			ResourceID:  id.String(),
 			Status:      "success",
-			Message:     truncateRunes(fmt.Sprintf("url_len=%d", len(rawURL)), 2000),
+			Message:     truncateRunes(fmt.Sprintf("access=%s url_len=%d", out.AccessStatus, len(rawURL)), 2000),
 		})
 	}
 	return out, nil

@@ -175,7 +175,34 @@ var rules = []rule{
 		suggest:   "价格可能需要登录、权限或异步接口加载。请检查 1688 登录态和价格提取规则。",
 		taskTypes: []string{taskTypeCollect},
 	},
-	// Collector — 1688 登录/验证失效（优先于通用风控规则）
+	// 自定义采集 — LOGIN_REQUIRED 错误码（非 1688 专属检测）
+	{
+		id:        "sub:collect_login_required",
+		substrs:   []string{"login_required"},
+		category:  CategoryCollectorPlatformLogin,
+		severity:  SeverityMedium,
+		reason:    "页面疑似需要登录后才能查看商品详情。",
+		suggest:   "自定义链接采集器不做自动登录与账号密码保存。请确认该商品页是否公开可访问，或使用带登录态的采集浏览器（后续 Profile 扩展）。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// 自定义采集器 — 非 1688 站点登录墙（须在 1688 规则之前，且仅 custom 源）
+	{
+		id: "sub:custom_collector_login_wall",
+		substrs: []string{
+			"verification_or_login_page_detected",
+			"login_wall_detected",
+			"login_or_verification_redirect",
+			"verification_page_title",
+			"empty_fields_likely_login_wall",
+			"page_blocked_or_verify_required",
+		},
+		category:  CategoryCollectorBlocked,
+		severity:  SeverityMedium,
+		reason:    "自定义采集打开的是目标站点登录/验证页，不是商品详情。",
+		suggest:   "当前为「自定义链接采集器」且目标站（如京东）需登录才能查看商品；系统未提供该站登录 Profile。请核对规则 CSS 选择器，或确认该链接是否必须在已登录浏览器中打开。",
+		taskTypes: []string{taskTypeCollect},
+	},
+	// Collector — 1688 登录/验证失效（仅 1688 采集器或 custom+1688 链接）
 	{
 		id: "sub:1688_login_verify",
 		substrs: []string{
@@ -292,6 +319,34 @@ func anySubstr(text string, subs []string) bool {
 	return false
 }
 
+func is1688CollectContext(in Input) bool {
+	text := joinText(in)
+	if strings.Contains(text, "1688.com") {
+		return true
+	}
+	pl := strings.TrimSpace(strings.ToLower(in.Platform))
+	return pl == "1688"
+}
+
+func skipCollectFailureRule(rID string, in Input) bool {
+	switch rID {
+	case "sub:collect_login_required":
+		if !strings.EqualFold(strings.TrimSpace(in.Platform), "custom") {
+			return true
+		}
+		return is1688CollectContext(in)
+	case "sub:custom_collector_login_wall":
+		if !strings.EqualFold(strings.TrimSpace(in.Platform), "custom") {
+			return true
+		}
+		return is1688CollectContext(in)
+	case "sub:1688_login_verify":
+		return !is1688CollectContext(in)
+	default:
+		return false
+	}
+}
+
 // Classify applies ordered keyword rules plus status hints. No AI, no IO.
 func Classify(in Input) Result {
 	in.TaskType = strings.TrimSpace(strings.ToLower(in.TaskType))
@@ -309,6 +364,9 @@ func Classify(in Input) Result {
 			}
 		}
 		if len(r.substrs) == 0 {
+			continue
+		}
+		if skipCollectFailureRule(r.id, in) {
 			continue
 		}
 		text := joinText(in)

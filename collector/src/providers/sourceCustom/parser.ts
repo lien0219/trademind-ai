@@ -2,9 +2,51 @@ import type { Page } from 'playwright';
 import { evaluateInPage, evaluateInPageVoid } from '../../browser/evaluate-in-page.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import type { CustomAttributesRule, CustomFieldRule, CustomRuleDecl } from './types.js';
+import { normalizeCustomRuleDecl } from './normalize-rule.js';
+import { extractDomImageCandidates } from './page-images.js';
 import { extractJsonLdHints } from './jsonld.js';
+import { extractMetaImageHints } from './meta-images.js';
 import { extractOpenGraphHints } from './opengraph.js';
 import { extractSelectorStrings } from './selectors.js';
+
+/** Built-in selectors when rule mainImages miss (e.g. jd.com lazy gallery). */
+function builtinMainImageSelectors(pageUrl: string): string[] {
+  let host = '';
+  try {
+    host = new URL(pageUrl).hostname.toLowerCase();
+  } catch {
+    return [];
+  }
+  const common = [
+    'meta[property="og:image"]',
+    'meta[itemprop="image"]',
+    '#spec-img',
+    'img#spec-img',
+    '#spec-img img',
+    '.spec-img img',
+    '#main-img',
+    'img[data-origin]',
+    'img[data-lazy-img]',
+    '.image-zoom img',
+    '#preview img',
+    '.product-gallery img',
+    '[property="og:image"]',
+  ];
+  if (host.includes('jd.com')) {
+    return [
+      ...common,
+      '#spec-n1 img',
+      '.spec-list img',
+      'img[data-img]',
+      'img[src*="360buyimg"]',
+      'img[src*="jfs"]',
+    ];
+  }
+  if (host.includes('tmall.com') || host.includes('taobao.com')) {
+    return [...common, '#J_ImgBooth img', '#J_UlThumb img', 'img[src*="alicdn"]'];
+  }
+  return common;
+}
 
 function resolveUrl(pageUrl: string, raw: string): string {
   const s = raw.trim();
@@ -101,7 +143,8 @@ async function extractPairsAttributes(page: Page, ar: CustomAttributesRule): Pro
   return pairs;
 }
 
-export async function parseCustomProduct(page: Page, pageUrl: string, rule: CustomRuleDecl): Promise<NormalizedProduct> {
+export async function parseCustomProduct(page: Page, pageUrl: string, ruleInput: CustomRuleDecl): Promise<NormalizedProduct> {
+  const rule = normalizeCustomRuleDecl(ruleInput);
   const fb = rule.fallbacks ?? {};
   const useJsonLd = fb.jsonLd !== false;
   const useOg = fb.openGraph !== false;
@@ -114,6 +157,7 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
 
   const titleSel = await extractFieldText(page, pageUrl, rule.title);
   const currencySel = await extractFieldText(page, pageUrl, rule.currency);
+  const priceSel = await extractFieldText(page, pageUrl, (ruleInput as { price?: CustomFieldRule }).price);
 
   let title =
     titleSel.values[0] ||
@@ -133,6 +177,16 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
 
   currency = currency.trim();
 
+  const priceText = priceSel.values[0] || priceSel.fb || '';
+  let productPrice: number | undefined;
+  if (priceText) {
+    const m = priceText.replace(/,/g, '').match(/(\d+(?:\.\d+)?)/);
+    if (m) productPrice = Number.parseFloat(m[1]);
+  }
+  if (productPrice === undefined && jsonLd?.priceAmount !== undefined) {
+    productPrice = jsonLd.priceAmount;
+  }
+
   const mainLimit =
     typeof rule.mainImages?.limit === 'number' && rule.mainImages.limit > 0
       ? Math.min(rule.mainImages.limit, 10)
@@ -143,11 +197,28 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
       : 30;
 
   let mainImages = await extractFieldImages(page, pageUrl, rule.mainImages, mainLimit);
+  if (mainImages.length === 0) {
+    const builtin: CustomFieldRule = {
+      selectors: builtinMainImageSelectors(pageUrl),
+      attr: 'src',
+      multiple: true,
+      limit: mainLimit,
+    };
+    mainImages = await extractFieldImages(page, pageUrl, builtin, mainLimit);
+  }
   if (mainImages.length === 0 && jsonLd?.images?.length) {
     mainImages = normalizeImages(pageUrl, jsonLd.images, mainLimit);
   }
   if (mainImages.length === 0 && og.images?.length) {
     mainImages = normalizeImages(pageUrl, og.images, mainLimit);
+  }
+  if (mainImages.length === 0 && fb.meta !== false) {
+    const metaImgs = await extractMetaImageHints(page);
+    if (metaImgs.length) mainImages = normalizeImages(pageUrl, metaImgs, mainLimit);
+  }
+  if (mainImages.length === 0) {
+    const domImgs = await extractDomImageCandidates(page, mainLimit * 2);
+    if (domImgs.length) mainImages = normalizeImages(pageUrl, domImgs, mainLimit);
   }
 
   let descriptionImages = await extractFieldImages(page, pageUrl, rule.descriptionImages, descLimit);
@@ -170,6 +241,7 @@ export async function parseCustomProduct(page: Page, pageUrl: string, rule: Cust
 
   const raw: Record<string, unknown> = {
     extractProvider: 'custom',
+    productPrice,
     pageUrl: finalUrl,
     stateDigest: {
       jsonLd: !!jsonLd?.title || (jsonLd?.images?.length ?? 0) > 0,

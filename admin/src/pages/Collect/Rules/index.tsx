@@ -8,10 +8,12 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Button, Descriptions, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Button, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import dayjs from 'dayjs';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CollectRuleRow } from '@/services/collectRules';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CollectRuleRow, CollectRuleTestResult } from '@/services/collectRules';
+import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
+import { RuleTestResultPanel } from '@/pages/Collect/components/RuleTestResultPanel';
 import {
   createCollectRule,
   deleteCollectRule,
@@ -23,7 +25,19 @@ import {
   updateCollectRule,
 } from '@/services/collectRules';
 
-const { Paragraph } = Typography;
+/** v1 简写：selector + type（保存时后端会规范化为 selectors + attr） */
+export const SIMPLE_CUSTOM_RULE_TEMPLATE = `{
+  "title": { "selector": "h1", "type": "text" },
+  "price": { "selector": ".price", "type": "text" },
+  "mainImage": {
+    "selector": "#spec-img, img#spec-img, img[data-origin], img[data-lazy-img], meta[property='og:image']",
+    "type": "attr",
+    "attr": "src"
+  },
+  "detailImages": { "selector": ".detail img", "type": "attr_all", "attr": "src" },
+  "attributes": { "mode": "disabled" },
+  "fallbacks": { "jsonLd": true, "openGraph": true, "meta": true }
+}`;
 
 export const DEFAULT_CUSTOM_RULE_TEMPLATE = `{
   "title": {
@@ -67,13 +81,27 @@ export default function CollectRulesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [testOpen, setTestOpen] = useState(false);
   const [testRuleId, setTestRuleId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<unknown>(null);
+  const [testResult, setTestResult] = useState<CollectRuleTestResult | null>(null);
+  const [testUrl, setTestUrl] = useState('');
+  const [testProfileId, setTestProfileId] = useState<string | undefined>();
+  const [testUseProfile, setTestUseProfile] = useState(false);
+  const [rulesCache, setRulesCache] = useState<CollectRuleRow[]>([]);
 
   const reload = useCallback(() => actionRef.current?.reload(), []);
 
   useEffect(() => {
-    if (!testOpen) setPreview(null);
+    if (!testOpen) {
+      setTestResult(null);
+      setTestUrl('');
+      setTestProfileId(undefined);
+      setTestUseProfile(false);
+    }
   }, [testOpen]);
+
+  const testRuleDomain = useMemo(() => {
+    if (!testRuleId) return '';
+    return rulesCache.find((r) => r.id === testRuleId)?.domain ?? '';
+  }, [testRuleId, rulesCache]);
 
   const columns: ProColumns<CollectRuleRow>[] = [
     { title: '名称', dataIndex: 'name', ellipsis: true, width: 180 },
@@ -112,7 +140,9 @@ export default function CollectRulesPage() {
             key="test"
             onClick={() => {
               setTestRuleId(row.id);
-              setPreview(null);
+              setTestResult(null);
+              setTestProfileId(undefined);
+              setTestUseProfile(false);
               setTestOpen(true);
             }}
           >
@@ -187,6 +217,7 @@ export default function CollectRulesPage() {
             domain: params.domain as string | undefined,
             status: params.status as string | undefined,
           });
+          setRulesCache(res.list ?? []);
           return {
             data: res.list,
             success: true,
@@ -290,11 +321,25 @@ export default function CollectRulesPage() {
         <ProFormText
           name="domain"
           label="域名"
-          placeholder="example.com"
+          placeholder="jd.com"
           rules={[{ required: true }]}
-          extra="匹配主机名与其子域（如 www.example.com）。"
+          extra="仅填主机名，不要带 https://。填 jd.com 可匹配 item.jd.com；填 1688.com 可匹配 detail.1688.com。勿只填 www.jd.com / www.1688.com（无法匹配 item / detail 子域）。"
+          transform={(v) => {
+            const s = typeof v === 'string' ? v : '';
+            if (!s.trim()) return s;
+            try {
+              if (s.includes('://')) return new URL(s).hostname.toLowerCase();
+            } catch {
+              /* keep raw */
+            }
+            return s.trim().toLowerCase().split('/')[0].split(':')[0];
+          }}
         />
-        <ProFormText name="matchPattern" label="URL 正则（可选）" placeholder="留空则仅按域名匹配整站 URL" />
+        <ProFormText
+          name="matchPattern"
+          label="URL 正则（可选）"
+          placeholder="留空则仅按域名匹配；1688 详情可填 ^https://detail\\.1688\\.com/offer/"
+        />
         <ProFormDigit name="priority" label="优先级" fieldProps={{ min: 0, max: 1_000_000 }} />
         <ProFormSelect
           name="status"
@@ -307,17 +352,33 @@ export default function CollectRulesPage() {
         />
         <ProFormTextArea name="remark" label="备注" fieldProps={{ rows: 2 }} />
         <div style={{ marginBottom: 8 }}>
-          <Button
-            size="small"
-            onClick={() => {
-              void navigator.clipboard.writeText(DEFAULT_CUSTOM_RULE_TEMPLATE).then(
-                () => message.success('模板已复制到剪贴板，请粘贴到 rule JSON'),
-                () => message.warning('复制失败，请手动复制模板'),
-              );
-            }}
-          >
-            复制默认规则模板
-          </Button>
+          <Space wrap>
+            <Button
+              size="small"
+              onClick={() => {
+                void navigator.clipboard.writeText(SIMPLE_CUSTOM_RULE_TEMPLATE).then(
+                  () => message.success('已复制简写模板（selector + type）'),
+                  () => message.warning('复制失败'),
+                );
+              }}
+            >
+              复制简写模板
+            </Button>
+            <Button
+              size="small"
+              onClick={() => {
+                void navigator.clipboard.writeText(DEFAULT_CUSTOM_RULE_TEMPLATE).then(
+                  () => message.success('已复制完整模板（selectors + attr）'),
+                  () => message.warning('复制失败'),
+                );
+              }}
+            >
+              复制完整模板
+            </Button>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              规则格式见仓库 docs/custom-collect-rules.md
+            </Typography.Text>
+          </Space>
         </div>
         <ProFormTextArea
           name="ruleJson"
@@ -347,52 +408,46 @@ export default function CollectRulesPage() {
         onFinish={async (vals) => {
           if (!testRuleId) return false;
           try {
-            const res = await testCollectRule(testRuleId, { url: vals.url.trim() });
-            setPreview(res.product);
-            message.success('预览成功');
+            const res = await testCollectRule(testRuleId, {
+              url: vals.url.trim(),
+              profileId: testUseProfile ? testProfileId : undefined,
+              useBrowserProfile: testUseProfile && Boolean(testProfileId),
+            });
+            setTestResult(res);
+            if (res.accessStatus === 'public' && !res.missingFields?.length) {
+              message.success('访问与字段提取正常');
+            } else {
+              message.info(res.suggestion || '测试完成');
+            }
             return false;
           } catch (e) {
             message.error(e instanceof Error ? e.message : '测试失败');
-            setPreview(null);
+            setTestResult(null);
             return false;
           }
         }}
         submitter={{ searchConfig: { submitText: '运行测试' } }}
       >
-        <ProFormText name="url" label="商品页 URL" rules={[{ required: true }]} />
-        {preview && typeof preview === 'object' && preview !== null ? (
-          <ProductPreviewBlock product={preview as Record<string, unknown>} />
+        <ProFormText
+          name="url"
+          label="商品页 URL"
+          rules={[{ required: true }]}
+          fieldProps={{
+            onChange: (e) => setTestUrl(e.target.value),
+          }}
+        />
+        {testResult ? <RuleTestResultPanel result={testResult} /> : null}
+        {testResult?.accessStatus === 'login_required' ? (
+          <BrowserProfileLoginPanel
+            url={testUrl}
+            domain={testRuleDomain}
+            profileId={testProfileId}
+            useBrowserProfile={testUseProfile}
+            onProfileIdChange={setTestProfileId}
+            onUseProfileChange={setTestUseProfile}
+          />
         ) : null}
       </ModalForm>
     </PageContainer>
-  );
-}
-
-function ProductPreviewBlock({ product }: { product: Record<string, unknown> }) {
-  const raw = product.raw as Record<string, unknown> | undefined;
-  const digest = raw?.stateDigest as Record<string, unknown> | undefined;
-  return (
-    <div style={{ marginTop: 16 }}>
-      <Paragraph strong>预览摘要</Paragraph>
-      <Descriptions bordered size="small" column={1}>
-        <Descriptions.Item label="title">{String(product.title ?? '—')}</Descriptions.Item>
-        <Descriptions.Item label="currency">{String(product.currency ?? '—')}</Descriptions.Item>
-        <Descriptions.Item label="mainImages">
-          {Array.isArray(product.mainImages) ? `${product.mainImages.length} 张` : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="descriptionImages">
-          {Array.isArray(product.descriptionImages) ? `${product.descriptionImages.length} 张` : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="attributes">
-          {product.attributes && typeof product.attributes === 'object'
-            ? JSON.stringify(product.attributes)
-            : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="skus">
-          {Array.isArray(product.skus) ? `${product.skus.length} 条` : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="raw.stateDigest">{digest ? JSON.stringify(digest) : '—'}</Descriptions.Item>
-      </Descriptions>
-    </div>
   );
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
@@ -57,6 +59,55 @@ func (a collectRunnerAdapter) RunCollect(ctx context.Context, source, rawURL str
 		return nil, err
 	}
 	return out.ProductJSON, nil
+}
+
+type browserProfileCollectorGW struct {
+	c *collect.CollectorClient
+}
+
+func (g browserProfileCollectorGW) OpenProfileLogin(ctx context.Context, profileKey, rawURL string) (string, error) {
+	if g.c == nil {
+		return "", fmt.Errorf("collector client unavailable")
+	}
+	return g.c.OpenBrowserProfileLogin(ctx, profileKey, rawURL)
+}
+
+func (g browserProfileCollectorGW) CheckProfileAccess(ctx context.Context, profileKey, rawURL string) (*collectbrowserprofile.CheckResultDTO, error) {
+	if g.c == nil {
+		return nil, fmt.Errorf("collector client unavailable")
+	}
+	out, err := g.c.CheckBrowserProfileAccess(ctx, profileKey, rawURL)
+	if err != nil {
+		return nil, err
+	}
+	return &collectbrowserprofile.CheckResultDTO{
+		AccessStatus: out.AccessStatus,
+		FinalURL:     out.FinalURL,
+		ErrorCode:    out.ErrorCode,
+		Message:      out.Message,
+	}, nil
+}
+
+func (a collectRunnerAdapter) CustomRuleTest(ctx context.Context, rawURL string, options map[string]any) (*collectrule.RuleTestResultDTO, error) {
+	raw, err := a.c.CustomRuleTest(ctx, rawURL, options)
+	if err != nil {
+		return nil, err
+	}
+	var extracted map[string]interface{}
+	if len(raw.ExtractedFields) > 0 {
+		_ = json.Unmarshal(raw.ExtractedFields, &extracted)
+	}
+	return &collectrule.RuleTestResultDTO{
+		AccessStatus:    raw.AccessStatus,
+		FinalURL:        raw.FinalURL,
+		HTTPStatus:      raw.HTTPStatus,
+		ExtractedFields: extracted,
+		MissingFields:   raw.MissingFields,
+		Warnings:        raw.Warnings,
+		ErrorCode:       raw.ErrorCode,
+		Suggestion:      raw.Suggestion,
+		Product:         raw.Product,
+	}, nil
 }
 
 // Deps holds process-wide dependencies for HTTP handlers.
@@ -111,10 +162,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout)
 
+	profileSvc := &collectbrowserprofile.Service{
+		DB:        dep.DB,
+		Collector: browserProfileCollectorGW{c: collectorClient},
+		OpLog:     opLogSvc,
+		Timeout:   collectorTimeout,
+	}
+	profileH := &collectbrowserprofile.Handler{Svc: profileSvc}
+
 	collectRuleSvc := &collectrule.Service{
 		DB:          dep.DB,
 		OpLog:       opLogSvc,
 		Runner:      collectRunnerAdapter{c: collectorClient},
+		Profiles:    profileSvc,
 		TestTimeout: collectorTimeout,
 	}
 
@@ -170,6 +230,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		DB:       dep.DB,
 		Products: productSvc,
 		Rules:    collectRuleSvc,
+		Profiles: profileSvc,
 		OpLog:    opLogSvc,
 		Client:   collectorClient,
 		Redis:    dep.Redis,
@@ -375,6 +436,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	pricing.Register(authed, pricingH)
 	collect.Register(authed, collectH)
 	collectrule.Register(authed, collectRuleH)
+	collectbrowserprofile.Register(authed, profileH)
 
 	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
 	collectorAlias := r.Group("/api/collector")

@@ -1,4 +1,5 @@
 import { chromium, type Browser, type Page } from 'playwright';
+import { CustomProfileSessionManager } from './profile-sessions.js';
 import { BrowserSessionManager } from './session-manager.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
@@ -10,6 +11,7 @@ import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env
 export class BrowserManager {
   private browser: Browser | null = null;
   readonly sessions = new BrowserSessionManager();
+  readonly customProfiles = new CustomProfileSessionManager();
 
   /** @deprecated 使用 sessions */
   get profile1688() {
@@ -27,6 +29,10 @@ export class BrowserManager {
 
   async with1688Page<T>(fn: (page: Page) => Promise<T>): Promise<T> {
     return this.sessions.withProviderPage('1688', fn);
+  }
+
+  async withCustomProfilePage<T>(profileKey: string, fn: (page: Page) => Promise<T>): Promise<T> {
+    return this.customProfiles.withProfilePage(profileKey, fn);
   }
 
   async withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
@@ -50,6 +56,7 @@ export class BrowserManager {
   }
 
   async close(): Promise<void> {
+    await this.customProfiles.close();
     await this.sessions.close();
     if (!this.browser) return;
     await this.browser.close();

@@ -2,6 +2,7 @@ import { PageContainer } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Col, Empty, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
+import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 
@@ -50,6 +51,7 @@ function providerStatusPresentation(status: CollectProviderStatus) {
 export default function CollectHubPage() {
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,7 +140,13 @@ export default function CollectHubPage() {
                       <Button
                         type="primary"
                         disabled={!runnableSingle}
-                        onClick={() => history.push(`/collect/tasks?source=${encodeURIComponent(p.source)}`)}
+                        onClick={() => {
+                          if (p.source === 'custom') {
+                            setCustomModalOpen(true);
+                          } else {
+                            history.push(`/collect/tasks?source=${encodeURIComponent(p.source)}`);
+                          }
+                        }}
                       >
                         立即采集
                       </Button>
@@ -163,6 +171,7 @@ export default function CollectHubPage() {
           })}
         </Row>
       )}
+      <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} />
     </PageContainer>
   );
 }

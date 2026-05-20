@@ -74,7 +74,9 @@ func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolic
 	code = strings.ToUpper(strings.TrimSpace(code))
 	switch code {
 	case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
-		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "UNSUPPORTED_URL":
+		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "UNSUPPORTED_URL",
+		"LOGIN_REQUIRED", "CUSTOM_RULE_MISSING", "CUSTOM_RULE_INVALID",
+		"PARSE_FAILED_TITLE_MISSING", "PARSE_FAILED_IMAGE_MISSING":
 		return false
 	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA":
 		if inBatch && policy.RetryOnBlocked {
@@ -99,8 +101,22 @@ func collectFailureHint(code string, sameURLSucceeded bool) string {
 		return "该链接单独采集成功，批量失败可能由并发、访问频率或目标站点风控导致。建议降低批量并发或稍后重试。"
 	}
 	switch code {
+	case "LOGIN_REQUIRED":
+		return "页面跳转到登录页。请创建采集浏览器 Profile，打开采集浏览器手动登录后，勾选 Profile 再测试规则或提交采集任务。"
+	case "PROFILE_NOT_FOUND":
+		return "采集浏览器 Profile 不存在或已停用，请重新选择或新建。"
+	case "PROFILE_LOGIN_REQUIRED":
+		return "所选 Profile 仍未通过登录检测，请打开采集浏览器登录后点击「重新检测登录态」。"
+	case "CUSTOM_RULE_MISSING":
+		return "未找到匹配的自定义采集规则，请先在「采集规则」创建并启用规则。"
+	case "CUSTOM_RULE_INVALID":
+		return "采集规则 JSON 无效，请检查 selector 与 type。"
 	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA":
-		return "目标站点触发验证或风控；若为 1688，请先在「设置 → 采集服务」打开采集浏览器完成登录或安全验证。"
+		return "目标站点触发验证或风控；1688 链接请先在「设置 → 采集服务」完成登录；自定义采集请稍后重试或降低频率。"
+	case "PARSE_FAILED_TITLE_MISSING":
+		return "页面已打开但未提取到标题，请在采集规则中检查 title 选择器，或先用规则「测试」验证。"
+	case "PARSE_FAILED_IMAGE_MISSING":
+		return "页面已打开但未提取到图片，请检查 mainImage / detailImages 选择器，或启用 JSON-LD / OpenGraph fallback。"
 	case "PARSE_FAILED":
 		return "页面解析不完整，请查看任务详情中的 missingFields / extractDebug。"
 	case "TIMEOUT", "PAGE_TIMEOUT", "PAGE_LOAD_TIMEOUT", "NAVIGATION_FAILED":
@@ -193,6 +209,10 @@ func inferCodeFromMessage(msg string) string {
 	}
 	upper := strings.ToUpper(msg)
 	for _, code := range []string{
+		"PARSE_FAILED_TITLE_MISSING",
+		"PARSE_FAILED_IMAGE_MISSING",
+		"CUSTOM_RULE_MISSING",
+		"CUSTOM_RULE_INVALID",
 		"PAGE_BLOCKED_OR_VERIFY_REQUIRED",
 		"NAVIGATION_FAILED",
 		"PAGE_LOAD_TIMEOUT",

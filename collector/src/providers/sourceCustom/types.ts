@@ -51,4 +51,14 @@ export type CustomCollectOptions = {
   domain?: string;
   matchPattern?: string;
   rule?: CustomRuleDecl;
+  /** task = 正式采集；rule_test 请走 POST /v1/collect/custom-rule-test */
+  mode?: 'task' | 'rule_test';
+  /** 使用 collect_browser_profiles.profile_key 的持久化登录态 */
+  useBrowserProfile?: boolean;
+  profileKey?: string;
+  profileId?: string;
+  /** @deprecated 使用 useBrowserProfile */
+  customUseBrowserProfile?: boolean;
+  customBrowserProfileName?: string;
+  customCookieProfileId?: string;
 };

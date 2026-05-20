@@ -17,6 +17,12 @@ import {
 } from '@/services/collectTasks';
 import type { CollectRuleRow } from '@/services/collectRules';
 import { queryCollectRules } from '@/services/collectRules';
+import { mapCollectErrorMessage } from '@/constants/collectErrors';
+import {
+  formatRuleDomainMismatchMessage,
+  ruleMatchesURL,
+  suggestRuleDomainForHost,
+} from '@/utils/collectRuleMatch';
 
 function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
@@ -45,6 +51,7 @@ export default function CollectTasksPage() {
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [enabledRules, setEnabledRules] = useState<CollectRuleRow[]>([]);
   const formSource = Form.useWatch('source', form);
+  const formUrl = Form.useWatch('url', form);
 
   useEffect(() => {
     const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : 4000);
@@ -78,6 +85,12 @@ export default function CollectTasksPage() {
       }
     })();
   }, [formSource]);
+
+  const rulesForUrl = useMemo(() => {
+    const url = formUrl?.trim();
+    if (!url || formSource !== 'custom') return enabledRules;
+    return enabledRules.filter((r) => ruleMatchesURL(r, url));
+  }, [enabledRules, formSource, formUrl]);
 
   useEffect(() => {
     actionRef.current?.reload();
@@ -298,6 +311,11 @@ export default function CollectTasksPage() {
             showIcon
             style={{ marginBottom: 12 }}
             message="未选择规则时，系统会尝试按域名匹配启用规则。"
+            description={
+              formUrl?.includes('1688.com') ?
+                '1688 商品链接建议优先使用「1688采集器」；自定义采集器需配置正确选择器，且须在「设置 → 采集服务」完成 1688 登录，否则会命中验证码页。'
+              : undefined
+            }
           />
         ) : null}
         <Form
@@ -316,6 +334,27 @@ export default function CollectTasksPage() {
               message.warning('请填写商品链接');
               return;
             }
+            if (src === 'custom') {
+              const rid = vals.ruleId?.trim();
+              if (rid) {
+                const rule = enabledRules.find((r) => r.id === rid);
+                if (rule && !ruleMatchesURL(rule, url)) {
+                  message.error(formatRuleDomainMismatchMessage(url, rule.domain));
+                  return;
+                }
+              } else if (rulesForUrl.length === 0 && enabledRules.length > 0) {
+                try {
+                  const host = new URL(url).hostname.toLowerCase();
+                  const suggested = suggestRuleDomainForHost(host);
+                  message.error(
+                    `当前链接与已启用规则均不匹配。链接主机名为 ${host}，请在「采集规则」将域名设为 ${suggested}`,
+                  );
+                } catch {
+                  message.error('当前链接与已启用规则均不匹配，请检查链接或规则域名');
+                }
+                return;
+              }
+            }
             setSubmitting(true);
             try {
               const rid = vals.ruleId?.trim();
@@ -327,7 +366,7 @@ export default function CollectTasksPage() {
               message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof Error ? e.message : '采集失败');
+              message.error(mapCollectErrorMessage(e));
             } finally {
               setSubmitting(false);
             }
@@ -344,9 +383,15 @@ export default function CollectTasksPage() {
             <Form.Item label="规则" name="ruleId">
               <Select
                 allowClear
-                placeholder="可选：指定 ruleId"
-                style={{ width: 280 }}
-                options={enabledRules.map((r) => ({
+                placeholder={
+                  formUrl?.trim()
+                    ? rulesForUrl.length
+                      ? '可选：指定规则（已按链接过滤）'
+                      : '无匹配规则，请检查链接或规则域名'
+                    : '可选：指定 ruleId'
+                }
+                style={{ width: 320 }}
+                options={(formUrl?.trim() ? rulesForUrl : enabledRules).map((r) => ({
                   label: `${r.name}（${r.domain} · p${r.priority}）`,
                   value: r.id,
                 }))}

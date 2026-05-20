@@ -2,6 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { BrowserManager } from '../browser/manager.js';
 import { getHttpPort } from '../config/env.js';
 import { listRegisteredSources, listProviderPublicMetas } from '../providers/registry.js';
+import { runCustomRuleTest } from '../providers/sourceCustom/index.js';
+import type { CustomCollectOptions } from '../providers/sourceCustom/types.js';
 import { runCollectTask } from '../tasks/collect-task.js';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -11,6 +13,17 @@ function json(res: ServerResponse, status: number, body: unknown): void {
     'Content-Length': buf.length,
   });
   res.end(buf);
+}
+
+function matchBrowserProfileRoute(
+  method: string,
+  url: string,
+): { profileKey: string; action: 'open-login' | 'check' } | null {
+  if (method !== 'POST') return null;
+  const path = url.split('?')[0] ?? '';
+  const m = path.match(/^\/v1\/browser-profiles\/([^/]+)\/(open-login|check)$/);
+  if (!m) return null;
+  return { profileKey: decodeURIComponent(m[1]), action: m[2] as 'open-login' | 'check' };
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -61,6 +74,91 @@ export function createCollectorServer(browser: BrowserManager) {
         return;
       }
 
+      const profileRoute = matchBrowserProfileRoute(req.method ?? '', req.url ?? '');
+      if (profileRoute) {
+        let body: unknown = {};
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'body must be valid JSON' },
+          });
+          return;
+        }
+        const url = String((body as { url?: string }).url ?? '').trim();
+        if (!url) {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'url is required' },
+          });
+          return;
+        }
+        try {
+          if (profileRoute.action === 'open-login') {
+            const data = await browser.customProfiles.openLoginBrowser(profileRoute.profileKey, url);
+            json(res, 200, { ok: true, data });
+            return;
+          }
+          const data = await browser.customProfiles.checkProfileAccess(profileRoute.profileKey, url);
+          json(res, 200, { ok: true, data });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          const code = message.startsWith('HEADED_BROWSER_REQUIRED')
+            ? 'HEADED_BROWSER_REQUIRED'
+            : message.startsWith('INVALID_PROFILE_KEY')
+              ? 'INVALID_PROFILE_KEY'
+              : 'INTERNAL';
+          const status = code === 'HEADED_BROWSER_REQUIRED' ? 422 : code === 'INVALID_PROFILE_KEY' ? 400 : 500;
+          json(res, status, { ok: false, error: { code, message } });
+        }
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/v1/collect/custom-rule-test') {
+        let body: unknown;
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'body must be valid JSON' },
+          });
+          return;
+        }
+        const b = body as { url?: string; options?: CustomCollectOptions };
+        const url = b.url?.trim() ?? '';
+        const opts = b.options;
+        if (!url || !opts?.rule) {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'url and options.rule are required' },
+          });
+          return;
+        }
+        try {
+          const result = await runCustomRuleTest(browser, url, opts);
+          json(res, 200, {
+            ok: true,
+            data: {
+              accessStatus: result.report.accessStatus,
+              finalUrl: result.report.finalUrl,
+              httpStatus: result.report.httpStatus,
+              extractedFields: result.report.extractedFields,
+              missingFields: result.report.missingFields,
+              warnings: result.report.warnings,
+              errorCode: result.report.errorCode,
+              suggestion: result.report.suggestion,
+              product: result.product ?? null,
+            },
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          json(res, 500, { ok: false, error: { code: 'INTERNAL', message } });
+        }
+        return;
+      }
+
       if (req.method === 'POST' && req.url === '/v1/collect') {
         let body: unknown;
         try {
@@ -80,7 +178,11 @@ export function createCollectorServer(browser: BrowserManager) {
         if (result.status === 'success') {
           json(res, 200, { ok: true, data: { product: result.product } });
         } else {
-          json(res, 422, { ok: false, error: result.error });
+          json(res, 422, {
+            ok: false,
+            error: result.error,
+            data: result.access ? { accessReport: result.access } : undefined,
+          });
         }
         return;
       }

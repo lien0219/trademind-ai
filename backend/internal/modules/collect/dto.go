@@ -9,9 +9,11 @@ import (
 
 // CreateTaskBody binds POST /collect/tasks.
 type CreateTaskBody struct {
-	Source string  `json:"source"`
-	URL    string  `json:"url"`
-	RuleID *string `json:"ruleId,omitempty"`
+	Source            string  `json:"source"`
+	URL               string  `json:"url"`
+	RuleID            *string `json:"ruleId,omitempty"`
+	ProfileID         *string `json:"profileId,omitempty"`
+	UseBrowserProfile bool    `json:"useBrowserProfile"`
 }
 
 // CreateBatchBody binds POST /collect/batches.

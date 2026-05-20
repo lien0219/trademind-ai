@@ -173,6 +173,31 @@ export default function CollectorSettingsPage() {
       </ProCard>
 
       <ProCard
+        title="通用采集浏览器 Profile"
+        bordered
+        style={{ marginBottom: 16 }}
+        extra={
+          <Button type="link" onClick={() => window.location.assign('/collect/browser-profiles')}>
+            管理采集浏览器 Profile
+          </Button>
+        }
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="适用于自定义链接采集器"
+          description={
+            <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+              <li>商品页需登录时，可创建 Profile，在可视化采集浏览器中手动登录后保存状态。</li>
+              <li>系统不保存账号密码；Cookie 仅存于 Collector 本地目录，请勿在公共电脑使用。</li>
+              <li>验证码 / 风控需用户自行完成，系统不提供破解能力。</li>
+              <li>Docker 无头环境无法弹出登录窗口，本地开发请设置 COLLECTOR_HEADLESS=0。</li>
+            </ul>
+          }
+        />
+      </ProCard>
+
+      <ProCard
         bordered
         extra={
           <Button type="link" onClick={load} disabled={loading}>

@@ -13,6 +13,7 @@ import {
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { mapCollectorErrorCodeLabel } from '@/constants/collectErrors';
 import {
   fetchCollectTask,
   queryCollectTaskEvents,
@@ -143,7 +144,14 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
               )}
             </Descriptions.Item>
             {task.collectorErrorCode ? (
-              <Descriptions.Item label="错误码">{task.collectorErrorCode}</Descriptions.Item>
+              <Descriptions.Item label="错误码">
+                <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
+                {mapCollectorErrorCodeLabel(task.collectorErrorCode) ? (
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
+                    {mapCollectorErrorCodeLabel(task.collectorErrorCode)}
+                  </Typography.Paragraph>
+                ) : null}
+              </Descriptions.Item>
             ) : null}
             {task.retryable !== undefined ? (
               <Descriptions.Item label="可自动重试">{task.retryable ? '是' : '否'}</Descriptions.Item>

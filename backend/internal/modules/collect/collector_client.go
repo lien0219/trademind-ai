@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -34,8 +35,9 @@ func NewCollectorClient(baseURL string, timeout time.Duration) *CollectorClient 
 
 // CollectorRejectedError is returned when collector responds with ok=false (e.g. HTTP 422).
 type CollectorRejectedError struct {
-	Code    string
-	Message string
+	Code         string
+	Message      string
+	AccessReport json.RawMessage `json:"-"`
 }
 
 func (e *CollectorRejectedError) Error() string {
@@ -64,6 +66,181 @@ type CollectOutcome struct {
 }
 
 // Collect invokes POST /v1/collect and returns normalized product JSON on success.
+// CustomRuleTestResult is the structured preview from POST /v1/collect/custom-rule-test.
+type CustomRuleTestResult struct {
+	AccessStatus    string          `json:"accessStatus"`
+	FinalURL        string          `json:"finalUrl"`
+	HTTPStatus      int             `json:"httpStatus,omitempty"`
+	ExtractedFields json.RawMessage `json:"extractedFields"`
+	MissingFields   []string        `json:"missingFields"`
+	Warnings        []string        `json:"warnings"`
+	ErrorCode       string          `json:"errorCode,omitempty"`
+	Suggestion      string          `json:"suggestion"`
+	Product         json.RawMessage `json:"product,omitempty"`
+}
+
+// CustomRuleTest invokes POST /v1/collect/custom-rule-test (no collect_tasks / products).
+func (c *CollectorClient) CustomRuleTest(ctx context.Context, rawURL string, options map[string]any) (*CustomRuleTestResult, error) {
+	if c == nil || c.Client == nil {
+		return nil, fmt.Errorf("collector client unavailable")
+	}
+	if c.BaseURL == "" {
+		return nil, fmt.Errorf("collector base url is empty")
+	}
+	body := map[string]any{"url": strings.TrimSpace(rawURL), "options": options}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/v1/collect/custom-rule-test", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("collector request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if err != nil {
+		return nil, err
+	}
+	var env collectEnvelope
+	if err := json.Unmarshal(respBody, &env); err != nil {
+		return nil, fmt.Errorf("collector invalid json: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK || !env.OK {
+		msg := "custom rule test failed"
+		code := "UNKNOWN"
+		if env.Error != nil {
+			if env.Error.Message != "" {
+				msg = env.Error.Message
+			}
+			if env.Error.Code != "" {
+				code = env.Error.Code
+			}
+		}
+		return nil, &CollectorRejectedError{Code: code, Message: msg}
+	}
+	var out CustomRuleTestResult
+	if err := json.Unmarshal(env.Data, &out); err != nil {
+		return nil, fmt.Errorf("parse custom rule test: %w", err)
+	}
+	return &out, nil
+}
+
+// ProfileAccessDTO mirrors collector POST /v1/browser-profiles/:key/check.
+type ProfileAccessDTO struct {
+	AccessStatus string `json:"accessStatus"`
+	FinalURL     string `json:"finalUrl"`
+	HTTPStatus   int    `json:"httpStatus,omitempty"`
+	ErrorCode    string `json:"errorCode,omitempty"`
+	Message      string `json:"message"`
+}
+
+type profileOpenLoginData struct {
+	Message     string `json:"message"`
+	ProfilePath string `json:"profilePath"`
+	AlreadyOpen bool   `json:"alreadyOpen"`
+}
+
+// OpenBrowserProfileLogin opens headed persistent browser for manual login (custom profiles).
+func (c *CollectorClient) OpenBrowserProfileLogin(ctx context.Context, profileKey, rawURL string) (string, error) {
+	if c == nil || c.Client == nil {
+		return "", fmt.Errorf("collector client unavailable")
+	}
+	profileKey = strings.TrimSpace(profileKey)
+	rawURL = strings.TrimSpace(rawURL)
+	if profileKey == "" || rawURL == "" {
+		return "", fmt.Errorf("profileKey and url required")
+	}
+	body, _ := json.Marshal(map[string]string{"url": rawURL})
+	path := fmt.Sprintf("%s/v1/browser-profiles/%s/open-login", c.BaseURL, url.PathEscape(profileKey))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("collector request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return "", err
+	}
+	var env collectEnvelope
+	if err := json.Unmarshal(respBody, &env); err != nil {
+		return "", fmt.Errorf("collector invalid json: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK || !env.OK {
+		code, msg := "UNKNOWN", "open login failed"
+		if env.Error != nil {
+			if env.Error.Code != "" {
+				code = env.Error.Code
+			}
+			if env.Error.Message != "" {
+				msg = env.Error.Message
+			}
+		}
+		return "", &CollectorRejectedError{Code: code, Message: msg}
+	}
+	var data profileOpenLoginData
+	_ = json.Unmarshal(env.Data, &data)
+	if data.Message != "" {
+		return data.Message, nil
+	}
+	return "采集浏览器已打开", nil
+}
+
+// CheckBrowserProfileAccess uses profile persistent context to probe URL access.
+func (c *CollectorClient) CheckBrowserProfileAccess(ctx context.Context, profileKey, rawURL string) (*ProfileAccessDTO, error) {
+	if c == nil || c.Client == nil {
+		return nil, fmt.Errorf("collector client unavailable")
+	}
+	profileKey = strings.TrimSpace(profileKey)
+	rawURL = strings.TrimSpace(rawURL)
+	body, _ := json.Marshal(map[string]string{"url": rawURL})
+	path := fmt.Sprintf("%s/v1/browser-profiles/%s/check", c.BaseURL, url.PathEscape(profileKey))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("collector request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+	var env collectEnvelope
+	if err := json.Unmarshal(respBody, &env); err != nil {
+		return nil, fmt.Errorf("collector invalid json: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK || !env.OK {
+		code, msg := "UNKNOWN", "profile check failed"
+		if env.Error != nil {
+			if env.Error.Code != "" {
+				code = env.Error.Code
+			}
+			if env.Error.Message != "" {
+				msg = env.Error.Message
+			}
+		}
+		return nil, &CollectorRejectedError{Code: code, Message: msg}
+	}
+	var out ProfileAccessDTO
+	if err := json.Unmarshal(env.Data, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string, options map[string]any) (*CollectOutcome, error) {
 	if c == nil || c.Client == nil {
 		return nil, fmt.Errorf("collector client unavailable")
@@ -131,13 +308,15 @@ func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string, op
 		return &CollectOutcome{ProductJSON: wrap.Product}, nil
 
 	case http.StatusUnprocessableEntity:
+		rej := &CollectorRejectedError{Code: "UNPROCESSABLE", Message: string(respBody)}
 		if env.Error != nil {
-			return nil, &CollectorRejectedError{
-				Code:    env.Error.Code,
-				Message: env.Error.Message,
-			}
+			rej.Code = env.Error.Code
+			rej.Message = env.Error.Message
 		}
-		return nil, &CollectorRejectedError{Code: "UNPROCESSABLE", Message: string(respBody)}
+		if len(env.Data) > 0 {
+			rej.AccessReport = env.Data
+		}
+		return nil, rej
 
 	default:
 		if env.Error != nil && env.Error.Message != "" {

@@ -146,6 +146,11 @@ export default [
         component: './Collect/Rules',
       },
       {
+        path: '/collect/browser-profiles',
+        name: '采集浏览器 Profile',
+        component: './Collect/BrowserProfiles',
+      },
+      {
         path: '/collect/batches',
         name: '批量采集',
         component: './Collect/Batches',

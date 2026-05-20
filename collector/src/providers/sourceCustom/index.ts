@@ -3,9 +3,9 @@ import type { CollectorProvider } from '../collector-provider.js';
 import type { CollectInput } from '../collector-provider.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import type { CollectFeature } from '../../types/provider-meta.js';
-import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
-import type { CustomCollectOptions, CustomRuleDecl } from './types.js';
-import { parseCustomProduct } from './parser.js';
+import type { CustomCollectOptions } from './types.js';
+import { normalizeCustomRuleDecl } from './normalize-rule.js';
+import { runCustomCollect } from './run-custom.js';
 
 function isHttpUrl(url: string): boolean {
   try {
@@ -40,7 +40,8 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
     batchSupported: false,
     urlPatterns: ['https://example.com/product/...'],
     features: ['title', 'mainImages', 'descriptionImages', 'attributes'] satisfies CollectFeature[],
-    notes: '批量采集暂不开放；规则由后端传入 options。',
+    notes:
+      '批量采集暂未开放。含通用访问状态检测（非 1688 专属登录检测）。1688 域名复用登录 Profile。',
   },
 
   canHandle(urlStr: string): boolean {
@@ -56,9 +57,8 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
     const opts = input.options as CustomCollectOptions | undefined;
     const ruleUnknown = opts?.rule as unknown;
     if (!ruleUnknown || typeof ruleUnknown !== 'object') {
-      throw new Error('INVALID_REQUEST:missing rule in options');
+      throw new Error('CUSTOM_RULE_MISSING:missing rule in options');
     }
-    const rule = ruleUnknown as CustomRuleDecl;
 
     const domain = String(opts?.domain ?? '').trim().toLowerCase();
     if (!domain) {
@@ -76,32 +76,29 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
           throw new Error('INVALID_URL:url does not match matchPattern');
         }
       } catch {
-        throw new Error('INVALID_REQUEST:invalid matchPattern regexp');
+        throw new Error('CUSTOM_RULE_INVALID:invalid matchPattern regexp');
       }
     }
 
-    return browser.withPage(async (page) => {
-      const gotoTimeout = getDefaultNavigationTimeoutMs();
-      try {
-        await page.goto(urlStr, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
-      } catch (e) {
-        const err = e instanceof Error ? e.message : String(e);
-        throw new Error(`NAVIGATION_FAILED:${err}`);
-      }
+    const result = await runCustomCollect(
+      browser,
+      urlStr,
+      { ...opts, rule: normalizeCustomRuleDecl(ruleUnknown) },
+      'task',
+    );
 
-      await page.waitForLoadState('networkidle', { timeout: Math.min(gotoTimeout, 12_000) }).catch(() => undefined);
-
-      try {
-        await page.waitForSelector('body', { timeout: 8000 }).catch(() => undefined);
-      } catch {
-        /** ignore */
-      }
-
-      const product = await parseCustomProduct(page, urlStr, rule);
-      if (!product.title?.trim()) {
-        throw new Error('COLLECT_FAILED:empty_title_after_rules_and_fallbacks');
-      }
-      return product;
-    });
+    if (!result.product) {
+      throw new Error('COLLECT_FAILED:empty_product');
+    }
+    return result.product;
   },
 };
+
+/** Rule test entry — always returns preview payload via HTTP layer. */
+export async function runCustomRuleTest(
+  browser: BrowserManager,
+  urlStr: string,
+  opts: CustomCollectOptions,
+): Promise<import('./run-custom.js').CustomRunResult> {
+  return runCustomCollect(browser, urlStr, opts, 'rule_test');
+}

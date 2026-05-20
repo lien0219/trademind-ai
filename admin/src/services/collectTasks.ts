@@ -69,7 +69,13 @@ export async function fetchCollectTask(id: string) {
   return getJSON<CollectTaskRow>(`/api/v1/collect/tasks/${id}`);
 }
 
-export async function createCollectTask(body: { source: string; url: string; ruleId?: string }) {
+export async function createCollectTask(body: {
+  source: string;
+  url: string;
+  ruleId?: string;
+  profileId?: string;
+  useBrowserProfile?: boolean;
+}) {
   return postJSON<CollectTaskRow>('/api/v1/collect/tasks', body);
 }
 

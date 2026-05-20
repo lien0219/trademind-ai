@@ -46,7 +46,7 @@ func ValidateMatchPattern(pat string) error {
 }
 
 func ValidateDomain(domain string) error {
-	d := strings.TrimSpace(strings.ToLower(domain))
+	d := NormalizeRuleDomain(domain)
 	if d == "" {
 		return ErrDomainEmpty
 	}
@@ -64,13 +64,23 @@ func ValidateRuleJSON(raw []byte) error {
 	if len(raw) > maxRuleJSONBytes {
 		return ErrRuleTooLarge
 	}
+	norm, err := NormalizeRuleJSON(raw)
+	if err != nil {
+		return err
+	}
 	var root map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &root); err != nil {
+	if err := json.Unmarshal(norm, &root); err != nil {
 		return ErrRuleInvalidJSON
 	}
+	hasTitle := false
 	for topKey, val := range root {
 		switch topKey {
-		case "title", "currency", "mainImages", "descriptionImages":
+		case "title":
+			hasTitle = true
+			if err := validateFieldSpec(val); err != nil {
+				return fmt.Errorf("%w: %s", ErrRuleSchema, err.Error())
+			}
+		case "currency", "mainImages", "descriptionImages", "price":
 			if err := validateFieldSpec(val); err != nil {
 				return fmt.Errorf("%w: %s", ErrRuleSchema, err.Error())
 			}
@@ -89,6 +99,9 @@ func ValidateRuleJSON(raw []byte) error {
 		default:
 			return fmt.Errorf("%w: unknown key %q", ErrRuleSchema, topKey)
 		}
+	}
+	if !hasTitle {
+		return fmt.Errorf("%w: title field is required", ErrRuleSchema)
 	}
 	return nil
 }

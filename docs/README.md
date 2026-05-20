@@ -13,6 +13,7 @@
 | [architecture.md](architecture.md) | 总体架构、分层、数据与队列、安全原则 | 开发者 / 架构维护者 |
 | [provider.md](provider.md) | AI / Storage / Image / Platform / Collector Provider 扩展机制 | Provider 贡献者 |
 | [collector-1688-pitfalls.md](collector-1688-pitfalls.md) | 1688 采集已知 bug、防复发约束与回归命令 | Collector / AI Agent |
+| [custom-collect-rules.md](custom-collect-rules.md) | 自定义链接采集规则 JSON、API 与错误码 | collect / admin / Collector |
 | [module-map.md](module-map.md) | 模块关联索引，说明改 A 时要检查哪些 B / C / D | 开发者 / AI Agent |
 | [roadmap.md](roadmap.md) | 版本路线图与阶段目标 | 所有人 |
 

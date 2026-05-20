@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sanitizeProfileKey } from './profile-key.js';
 
 /** collector 包根目录（与运行时 cwd 无关）。 */
 export const COLLECTOR_PACKAGE_ROOT = path.resolve(
@@ -15,6 +16,7 @@ export const COLLECTOR_PACKAGE_ROOT = path.resolve(
 export function getBrowserProfileRoot(): string {
   const raw =
     process.env.COLLECTOR_BROWSER_PROFILE_DIR?.trim() ||
+    process.env.COLLECTOR_PROFILE_DIR?.trim() ||
     process.env.BROWSER_PROFILE_ROOT?.trim() ||
     '';
   if (raw) {
@@ -26,6 +28,12 @@ export function getBrowserProfileRoot(): string {
 /** 1688 userDataDir：BROWSER_PROFILE_ROOT/1688 */
 export function get1688UserDataDir(): string {
   return path.join(getBrowserProfileRoot(), '1688');
+}
+
+/** Custom collect browser profile: BROWSER_PROFILE_ROOT/custom/{profileKey} */
+export function getCustomProfileUserDataDir(profileKey: string): string {
+  const safe = sanitizeProfileKey(profileKey);
+  return path.join(getBrowserProfileRoot(), 'custom', safe);
 }
 
 export function getStorageStateRoot(): string {

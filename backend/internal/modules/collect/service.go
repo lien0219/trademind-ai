@@ -13,6 +13,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -26,6 +27,7 @@ type Service struct {
 	DB                      *gorm.DB
 	Products                *product.Service
 	Rules                   *collectrule.Service
+	Profiles                *collectbrowserprofile.Service
 	OpLog                   *operationlog.Service
 	Client                  *CollectorClient
 	Redis                   *rdb.Client
@@ -285,11 +287,14 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	var collectorOpts map[string]any
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
-			RuleID       string          `json:"ruleId"`
-			RuleName     string          `json:"ruleName"`
-			Domain       string          `json:"domain"`
-			MatchPattern string          `json:"matchPattern"`
-			Rule         json.RawMessage `json:"rule"`
+			RuleID            string          `json:"ruleId"`
+			RuleName          string          `json:"ruleName"`
+			Domain            string          `json:"domain"`
+			MatchPattern      string          `json:"matchPattern"`
+			Rule              json.RawMessage `json:"rule"`
+			ProfileID         string          `json:"profileId,omitempty"`
+			ProfileKey        string          `json:"profileKey,omitempty"`
+			UseBrowserProfile bool            `json:"useBrowserProfile"`
 		}
 		if len(task.RequestOptions) == 0 {
 			s.failTask(ctx, task, prevStatus, "missing custom rule snapshot", nil)
@@ -310,6 +315,13 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			"domain":       snap.Domain,
 			"matchPattern": snap.MatchPattern,
 			"rule":         ruleObj,
+		}
+		if snap.UseBrowserProfile && strings.TrimSpace(snap.ProfileKey) != "" {
+			collectorOpts["useBrowserProfile"] = true
+			collectorOpts["profileKey"] = strings.TrimSpace(snap.ProfileKey)
+			if strings.TrimSpace(snap.ProfileID) != "" {
+				collectorOpts["profileId"] = strings.TrimSpace(snap.ProfileID)
+			}
 		}
 	}
 	if task.BatchID != nil {
@@ -458,6 +470,16 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		blob, err := s.Rules.BuildTaskPayload(rule)
 		if err != nil {
 			return zero, err
+		}
+		if s.Profiles != nil && body.UseBrowserProfile && body.ProfileID != nil {
+			pid, err := uuid.Parse(strings.TrimSpace(*body.ProfileID))
+			if err != nil {
+				return zero, fmt.Errorf("invalid profileId")
+			}
+			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), blob, &pid, true, url)
+			if err != nil {
+				return zero, err
+			}
 		}
 		reqOpts = blob
 	}
