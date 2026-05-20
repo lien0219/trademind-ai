@@ -231,3 +231,111 @@ body,
 .tm-action-space.ant-space {
   gap: @tm-action-btn-gap !important;
 }
+
+/* 采集服务设置页 */
+.tm-collector-settings {
+  .tm-collector-settings__selector {
+    margin-bottom: 16px;
+  }
+
+  .tm-collector-provider-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  @media (max-width: 992px) {
+    .tm-collector-provider-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 576px) {
+    .tm-collector-provider-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .tm-collector-provider-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 88px;
+    padding: 14px 16px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 12px;
+    background: var(--ant-color-bg-container);
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      border-color: var(--ant-color-primary-hover);
+    }
+
+    &.is-active {
+      border-color: var(--ant-color-primary);
+      background: rgba(37, 99, 235, 0.06);
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.22);
+    }
+
+    &.is-planned:not(.is-active) {
+      opacity: 0.88;
+    }
+  }
+
+  .tm-collector-provider-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .tm-collector-provider-card__title {
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ant-color-text);
+  }
+
+  .tm-collector-provider-card__desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ant-color-text-secondary);
+  }
+
+  .tm-collector-settings__panel {
+    height: 100%;
+  }
+
+  .tm-collector-auth-panel {
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--ant-color-border-secondary);
+    background: var(--ant-color-fill-quaternary);
+  }
+
+  .tm-collector-auth-panel--ok {
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.08);
+  }
+
+  .tm-collector-auth-panel--not_logged_in,
+  .tm-collector-auth-panel--verification_required {
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  .tm-collector-auth-panel--unknown {
+    border-color: rgba(148, 163, 184, 0.35);
+    background: rgba(148, 163, 184, 0.1);
+  }
+
+  .tm-collector-settings__footer {
+    margin-top: 16px;
+  }
+
+  .tm-collector-settings__section-title {
+    margin: 4px 0 12px !important;
+    font-size: 14px !important;
+  }
+}

@@ -119,10 +119,7 @@ export default function CollectBrowserProfilesPage() {
   ];
 
   return (
-    <PageContainer
-      title="采集浏览器 Profile"
-      subTitle="自定义链接采集登录态（不保存账号密码，Cookie 仅存于 Collector 本地目录）"
-    >
+    <PageContainer title="采集浏览器 Profile" subTitle="适用于自定义链接采集器">
       <Typography.Paragraph type="secondary">
         Profile 目录由采集服务管理，请勿在公共电脑保存敏感登录态。验证码需用户自行完成，系统不提供破解能力。
       </Typography.Paragraph>

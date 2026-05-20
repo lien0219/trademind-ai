@@ -1,6 +1,25 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Badge, Button, Form, Input, InputNumber, message, Space, Switch, Typography } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { history, useLocation } from '@umijs/max';
+import {
+  Alert,
+  Badge,
+  Button,
+  Col,
+  Divider,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { CollectProviderRow } from '@/services/collectProviders';
+import { queryCollectProviders } from '@/services/collectProviders';
 import {
   fetch1688AuthStatus,
   open1688LoginBrowser,
@@ -8,6 +27,13 @@ import {
   type Provider1688AuthStatusValue,
 } from '@/services/collectAuth';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
+import {
+  COLLECT_SETTINGS_PROVIDER_OPTIONS,
+  findCollectSettingsOption,
+  isPlannedCollectProvider,
+  resolveCollectSettingsProvider,
+  type CollectSettingsProviderKey,
+} from '@/utils/collectSettingsProvider';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
 const GROUP = 'collector';
@@ -23,6 +49,21 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_batch_retry_on_blocked: {},
   collect_batch_retry_on_timeout: {},
   collect_batch_max_retries_1688: {},
+  collect_custom_access_check_enabled: {},
+  collect_custom_profile_enabled: {},
+  collect_custom_batch_enabled: {},
+  collect_aliexpress_timeout_ms: {},
+  collect_aliexpress_retry_on_timeout: {},
+  collect_aliexpress_batch_enabled: {},
+};
+
+const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
+  '1688': '登录态检测与批量采集节流',
+  aliexpress: 'Beta 单条采集与重试策略',
+  pinduoduo: '暂未开放，预留配置入口',
+  taobao: '暂未开放，预留配置入口',
+  shein_temu: '暂未开放，预留配置入口',
+  custom: 'Profile、采集规则与访问检测',
 };
 
 type AuthDisplayStatus = 'checking' | Provider1688AuthStatusValue;
@@ -40,7 +81,10 @@ function resolveDisplayStatus(
   return 'not_logged_in';
 }
 
-const AUTH_STATUS_LABEL: Record<AuthDisplayStatus, { text: string; badge: 'processing' | 'success' | 'error' | 'warning' | 'default' }> = {
+const AUTH_STATUS_LABEL: Record<
+  AuthDisplayStatus,
+  { text: string; badge: 'processing' | 'success' | 'error' | 'warning' | 'default' }
+> = {
   checking: { text: '检测中…', badge: 'processing' },
   ok: { text: '已登录', badge: 'success' },
   not_logged_in: { text: '未登录', badge: 'error' },
@@ -54,12 +98,362 @@ function authStatusBadge(status: Provider1688AuthStatus | null, checking: boolea
   return <Badge status={meta.badge} text={meta.text} />;
 }
 
+function parseBoolSetting(v: string | undefined, defaultTrue = true): boolean {
+  if (v === undefined || v === '') return defaultTrue;
+  return v === '1' || v === 'true';
+}
+
+function providerStatusTag(status?: CollectProviderRow['status']) {
+  switch (status) {
+    case 'available':
+      return <Tag color="success">已可用</Tag>;
+    case 'beta':
+      return <Tag color="processing">测试中</Tag>;
+    case 'planned':
+      return <Tag>规划中</Tag>;
+    default:
+      return null;
+  }
+}
+
+function CollectorProviderSelector({
+  activeKey,
+  providers,
+  onChange,
+}: {
+  activeKey: CollectSettingsProviderKey;
+  providers: CollectProviderRow[];
+  onChange: (key: CollectSettingsProviderKey) => void;
+}) {
+  return (
+    <div className="tm-collector-provider-grid">
+      {COLLECT_SETTINGS_PROVIDER_OPTIONS.map((option) => {
+        const row = providers.find((p) => p.source.toLowerCase() === option.source.toLowerCase());
+        const planned = row ? row.status === 'planned' : !!option.planned;
+        return (
+          <div
+            key={option.key}
+            role="button"
+            tabIndex={0}
+            className={[
+              'tm-collector-provider-card',
+              activeKey === option.key ? 'is-active' : '',
+              planned ? 'is-planned' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => onChange(option.key)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onChange(option.key);
+              }
+            }}
+          >
+            <div className="tm-collector-provider-card__head">
+              <span className="tm-collector-provider-card__title">{option.label}</span>
+              {providerStatusTag(row?.status) ?? (planned ? <Tag>规划中</Tag> : null)}
+            </div>
+            <span className="tm-collector-provider-card__desc">{PROVIDER_CARD_DESC[option.key]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Collector1688Section({
+  authStatus,
+  authChecking,
+  loginOpening,
+  onRecheck,
+  onOpenLogin,
+}: {
+  authStatus: Provider1688AuthStatus | null;
+  authChecking: boolean;
+  loginOpening: boolean;
+  onRecheck: () => void;
+  onOpenLogin: () => void;
+}) {
+  const authKey = resolveDisplayStatus(authStatus, authChecking);
+
+  return (
+    <ProCard
+      title="1688 专属配置"
+      bordered
+      className="tm-collector-settings__panel"
+      extra={
+        <Space wrap size="small" className="tm-action-space">
+          <Button size="small" onClick={onRecheck} loading={authChecking}>
+            重新检测
+          </Button>
+          <Button size="small" type="primary" onClick={onOpenLogin} loading={loginOpening}>
+            打开采集浏览器登录
+          </Button>
+        </Space>
+      }
+    >
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <div className={`tm-collector-auth-panel tm-collector-auth-panel--${authKey}`}>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Space wrap>
+              <Typography.Text strong>1688 登录状态</Typography.Text>
+              {authStatusBadge(authStatus, authChecking)}
+            </Space>
+            {authChecking ? (
+              <Typography.Text type="secondary">正在检测登录态…</Typography.Text>
+            ) : authStatus?.message ? (
+              <Typography.Text type="secondary">{authStatus.message}</Typography.Text>
+            ) : (
+              <Typography.Text type="secondary">
+                请在普通浏览器外，使用采集专用浏览器完成 1688 登录。
+              </Typography.Text>
+            )}
+            {authStatus?.lastCheckedAt ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                上次检测：{authStatus.lastCheckedAt}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        </div>
+
+        <Alert
+          type="info"
+          showIcon
+          message="在 Chrome / Edge 中登录 1688 不会被采集器识别，请使用上方按钮打开专用浏览器。"
+        />
+
+        <Typography.Title level={5} className="tm-collector-settings__section-title">
+          批量采集节流
+        </Typography.Title>
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="并发上限"
+              name="collect_batch_concurrency_1688"
+              tooltip="仅 1688 批量采集生效；建议 1–2，过高易触发风控。"
+            >
+              <InputNumber min={1} max={2} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item label="最大自动重试次数" name="collect_batch_max_retries_1688">
+              <InputNumber min={0} max={5} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item label="随机间隔最小（毫秒）" name="collect_batch_delay_min_ms_1688">
+              <InputNumber min={0} max={120000} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item label="随机间隔最大（毫秒）" name="collect_batch_delay_max_ms_1688">
+              <InputNumber min={0} max={120000} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Divider style={{ margin: '4px 0 12px' }} />
+
+        <Typography.Title level={5} className="tm-collector-settings__section-title">
+          失败重试
+        </Typography.Title>
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="遇风控 / 验证页自动重试"
+              name="collect_batch_retry_on_blocked"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="遇超时 / 导航失败自动重试"
+              name="collect_batch_retry_on_timeout"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+        </Row>
+      </Space>
+    </ProCard>
+  );
+}
+
+function CollectorCustomSection() {
+  return (
+    <ProCard title="自定义链接专属配置" bordered className="tm-collector-settings__panel">
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Alert
+          type="info"
+          showIcon
+          message="适用于没有专用采集器的网站商品页"
+          description="需要登录的网站，请创建采集浏览器 Profile，自行登录后再测试规则与采集。"
+        />
+        <Space wrap className="tm-action-space">
+          <Button type="primary" onClick={() => history.push('/collect/browser-profiles')}>
+            管理 Profile
+          </Button>
+          <Button onClick={() => history.push('/collect/rules')}>采集规则</Button>
+          <Button onClick={() => history.push('/collect/rules')}>测试规则</Button>
+        </Space>
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="启用访问状态检测"
+              name="collect_custom_access_check_enabled"
+              valuePropName="checked"
+              tooltip="提交前检测页面是否公开可访问、是否疑似需登录或触发风控。"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="允许使用登录态 Profile"
+              name="collect_custom_profile_enabled"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Alert type="warning" showIcon message="自定义链接批量采集：暂未开放" />
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          在「采集规则」页创建并启用规则后，使用「测试规则」验证 selector 能否正确抽取字段，再提交正式采集任务。
+        </Typography.Paragraph>
+      </Space>
+    </ProCard>
+  );
+}
+
+function CollectorAliExpressSection({ providerRow }: { providerRow?: CollectProviderRow }) {
+  const isBeta = providerRow?.status === 'beta';
+
+  return (
+    <ProCard title="速卖通专属配置" bordered className="tm-collector-settings__panel">
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <div className="tm-collector-auth-panel">
+          <Space wrap>
+            <Typography.Text strong>AliExpress 采集状态</Typography.Text>
+            <Badge
+              status={providerRow?.status === 'available' ? 'success' : 'processing'}
+              text={
+                providerRow?.status === 'available'
+                  ? '已可用'
+                  : providerRow?.status === 'beta'
+                    ? '测试中（beta）'
+                    : '状态未知'
+              }
+            />
+          </Space>
+        </div>
+
+        {isBeta ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="速卖通采集器当前为 beta，部分页面可能因页面结构或网络原因采集不完整。"
+          />
+        ) : null}
+
+        <Alert
+          type="info"
+          showIcon
+          message="SKU / 属性提取"
+          description="内置 Provider 会尝试提取标题、主图、详情图、属性与 SKU 变体。请先单条采集验证字段完整性。"
+        />
+
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="页面超时覆盖（毫秒）"
+              name="collect_aliexpress_timeout_ms"
+              tooltip="留空或 0 时使用通用「页面打开超时」。"
+            >
+              <InputNumber min={0} max={300000} style={{ width: '100%' }} placeholder="使用通用超时" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="超时 / 导航失败自动重试"
+              name="collect_aliexpress_retry_on_timeout"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Alert
+          type="warning"
+          showIcon
+          message={
+            providerRow?.batchSupported
+              ? '速卖通批量采集已开放'
+              : '速卖通批量采集：暂未开放（测试阶段仅支持单条采集）'
+          }
+        />
+        <Form.Item
+          label="启用速卖通批量采集（预留）"
+          name="collect_aliexpress_batch_enabled"
+          valuePropName="checked"
+          hidden={!providerRow?.batchSupported}
+        >
+          <Switch disabled={!providerRow?.batchSupported} />
+        </Form.Item>
+      </Space>
+    </ProCard>
+  );
+}
+
+function CollectorPlannedSection({ providerLabel }: { providerLabel: string }) {
+  return (
+    <ProCard bordered className="tm-collector-settings__panel">
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description={
+          <Space direction="vertical" size="small">
+            <Typography.Text>{providerLabel}暂未开放，当前仅保留配置入口。</Typography.Text>
+            <Typography.Text type="secondary">
+              后续支持后，可在这里配置登录态、并发、重试和字段提取策略。
+            </Typography.Text>
+          </Space>
+        }
+      >
+        <Button type="primary" onClick={() => history.push('/collect/hub')}>
+          返回采集中心
+        </Button>
+      </Empty>
+    </ProCard>
+  );
+}
+
 export default function CollectorSettingsPage() {
+  const location = useLocation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [authStatus, setAuthStatus] = useState<Provider1688AuthStatus | null>(null);
   const [authChecking, setAuthChecking] = useState(false);
   const [loginOpening, setLoginOpening] = useState(false);
+
+  const providerKey = useMemo(
+    () => resolveCollectSettingsProvider(new URLSearchParams(location.search || '').get('provider')),
+    [location.search],
+  );
+  const providerOption = useMemo(() => findCollectSettingsOption(providerKey), [providerKey]);
+  const planned = useMemo(
+    () => isPlannedCollectProvider(providers, providerOption),
+    [providers, providerOption],
+  );
+  const providerRow = useMemo(
+    () => providers.find((p) => p.source.toLowerCase() === providerOption.source.toLowerCase()),
+    [providers, providerOption.source],
+  );
 
   const loadAuthStatus = useCallback(async () => {
     setAuthChecking(true);
@@ -93,19 +487,20 @@ export default function CollectorSettingsPage() {
         collect_batch_delay_max_ms_1688: g.collect_batch_delay_max_ms_1688
           ? Number(g.collect_batch_delay_max_ms_1688)
           : 5000,
-        collect_batch_retry_on_blocked:
-          g.collect_batch_retry_on_blocked === undefined ||
-          g.collect_batch_retry_on_blocked === '' ||
-          g.collect_batch_retry_on_blocked === '1' ||
-          g.collect_batch_retry_on_blocked === 'true',
-        collect_batch_retry_on_timeout:
-          g.collect_batch_retry_on_timeout === undefined ||
-          g.collect_batch_retry_on_timeout === '' ||
-          g.collect_batch_retry_on_timeout === '1' ||
-          g.collect_batch_retry_on_timeout === 'true',
+        collect_batch_retry_on_blocked: parseBoolSetting(g.collect_batch_retry_on_blocked),
+        collect_batch_retry_on_timeout: parseBoolSetting(g.collect_batch_retry_on_timeout),
         collect_batch_max_retries_1688: g.collect_batch_max_retries_1688
           ? Number(g.collect_batch_max_retries_1688)
           : 2,
+        collect_custom_access_check_enabled: parseBoolSetting(g.collect_custom_access_check_enabled),
+        collect_custom_profile_enabled: parseBoolSetting(g.collect_custom_profile_enabled),
+        collect_custom_batch_enabled: g.collect_custom_batch_enabled === '1' || g.collect_custom_batch_enabled === 'true',
+        collect_aliexpress_timeout_ms: g.collect_aliexpress_timeout_ms
+          ? Number(g.collect_aliexpress_timeout_ms)
+          : undefined,
+        collect_aliexpress_retry_on_timeout: parseBoolSetting(g.collect_aliexpress_retry_on_timeout),
+        collect_aliexpress_batch_enabled:
+          g.collect_aliexpress_batch_enabled === '1' || g.collect_aliexpress_batch_enabled === 'true',
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -115,9 +510,21 @@ export default function CollectorSettingsPage() {
   }, [form]);
 
   useEffect(() => {
-    load();
-    loadAuthStatus();
-  }, [load, loadAuthStatus]);
+    void load();
+    void queryCollectProviders()
+      .then((rows) => setProviders(Array.isArray(rows) ? rows : []))
+      .catch(() => setProviders([]));
+  }, [load]);
+
+  useEffect(() => {
+    if (providerKey === '1688') {
+      void loadAuthStatus();
+    }
+  }, [providerKey, loadAuthStatus]);
+
+  const handleProviderChange = (key: CollectSettingsProviderKey) => {
+    history.replace(`/settings/collector?provider=${encodeURIComponent(key)}`);
+  };
 
   const handleOpenLoginBrowser = async () => {
     setLoginOpening(true);
@@ -132,153 +539,130 @@ export default function CollectorSettingsPage() {
     }
   };
 
+  const handleSave = async (values: Record<string, unknown>) => {
+    try {
+      const payload = {
+        ...values,
+        goto_timeout_ms: String(values.goto_timeout_ms ?? ''),
+        headless: values.headless ? '1' : '0',
+        collect_batch_concurrency_1688: String(values.collect_batch_concurrency_1688 ?? 1),
+        collect_batch_delay_min_ms_1688: String(values.collect_batch_delay_min_ms_1688 ?? 1500),
+        collect_batch_delay_max_ms_1688: String(values.collect_batch_delay_max_ms_1688 ?? 5000),
+        collect_batch_retry_on_blocked: values.collect_batch_retry_on_blocked ? '1' : '0',
+        collect_batch_retry_on_timeout: values.collect_batch_retry_on_timeout ? '1' : '0',
+        collect_batch_max_retries_1688: String(values.collect_batch_max_retries_1688 ?? 2),
+        collect_custom_access_check_enabled: values.collect_custom_access_check_enabled ? '1' : '0',
+        collect_custom_profile_enabled: values.collect_custom_profile_enabled ? '1' : '0',
+        collect_custom_batch_enabled: values.collect_custom_batch_enabled ? '1' : '0',
+        collect_aliexpress_timeout_ms:
+          values.collect_aliexpress_timeout_ms != null && values.collect_aliexpress_timeout_ms !== ''
+            ? String(values.collect_aliexpress_timeout_ms)
+            : '',
+        collect_aliexpress_retry_on_timeout: values.collect_aliexpress_retry_on_timeout ? '1' : '0',
+        collect_aliexpress_batch_enabled: values.collect_aliexpress_batch_enabled ? '1' : '0',
+      };
+      await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
+      message.success('已保存');
+      await load();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '保存失败');
+    }
+  };
+
+  const providerSpecificSection = planned ? (
+    <CollectorPlannedSection providerLabel={providerOption.label} />
+  ) : providerKey === '1688' ? (
+    <Collector1688Section
+      authStatus={authStatus}
+      authChecking={authChecking}
+      loginOpening={loginOpening}
+      onRecheck={loadAuthStatus}
+      onOpenLogin={handleOpenLoginBrowser}
+    />
+  ) : providerKey === 'custom' ? (
+    <CollectorCustomSection />
+  ) : providerKey === 'aliexpress' ? (
+    <CollectorAliExpressSection providerRow={providerRow} />
+  ) : null;
+
   return (
-    <PageContainer title="采集服务">
-      <ProCard
-        title="1688 采集浏览器登录态"
-        bordered
-        style={{ marginBottom: 16 }}
-        extra={
-          <Space>
-            <Button onClick={loadAuthStatus} loading={authChecking}>
-              重新检测
-            </Button>
-            <Button type="primary" onClick={handleOpenLoginBrowser} loading={loginOpening}>
-              打开采集浏览器登录 1688
-            </Button>
-          </Space>
-        }
-      >
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Alert
-            type="info"
-            showIcon
-            message="请注意：在普通 Chrome/Edge 中登录 1688 不会被采集器识别。请使用这里打开的采集浏览器完成登录。"
+    <PageContainer title="采集服务" subTitle={`当前：${providerOption.label}`}>
+      <div className="tm-collector-settings">
+        <ProCard bordered className="tm-collector-settings__selector" title="采集器类型">
+          <CollectorProviderSelector
+            activeKey={providerKey}
+            providers={providers}
+            onChange={handleProviderChange}
           />
-          <div>
-            <Typography.Text type="secondary">当前状态：</Typography.Text>{' '}
-            {authStatusBadge(authStatus, authChecking)}
-            {authChecking ? (
-              <Typography.Text style={{ marginLeft: 12 }}>正在检测登录态…</Typography.Text>
-            ) : authStatus?.message ? (
-              <Typography.Text style={{ marginLeft: 12 }}>{authStatus.message}</Typography.Text>
-            ) : null}
-          </div>
-          {authStatus?.lastCheckedAt ? (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              上次检测：{authStatus.lastCheckedAt}
-            </Typography.Text>
+        </ProCard>
+
+        <Form form={form} layout="vertical" onFinish={handleSave}>
+          {planned ? (
+            providerSpecificSection
+          ) : (
+            <Row gutter={[16, 16]} align="stretch">
+              <Col xs={24} xl={10}>
+                <ProCard
+                  title="通用采集服务配置"
+                  bordered
+                  className="tm-collector-settings__panel"
+                  extra={
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      影响所有采集器
+                    </Typography.Text>
+                  }
+                >
+                  <Form.Item label="主服务 URL" name="main_service_url" rules={[{ required: true }]}>
+                    <Input placeholder="http://127.0.0.1:8080" />
+                  </Form.Item>
+                  <Form.Item
+                    label="采集服务监听地址"
+                    name="collector_http_addr"
+                    rules={[{ required: true }]}
+                  >
+                    <Input placeholder=":3100" />
+                  </Form.Item>
+                  <Row gutter={16}>
+                    <Col xs={24} sm={12}>
+                      <Form.Item
+                        label="页面打开超时（毫秒）"
+                        name="goto_timeout_ms"
+                        rules={[{ required: true }]}
+                      >
+                        <InputNumber min={1000} max={300000} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label="无头模式" name="headless" valuePropName="checked">
+                        <Switch />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </ProCard>
+              </Col>
+              <Col xs={24} xl={14}>
+                {providerSpecificSection}
+              </Col>
+            </Row>
+          )}
+
+          {!planned ? (
+            <ProCard bordered className="tm-collector-settings__footer">
+              <Space wrap className="tm-action-space">
+                <Button type="primary" htmlType="submit" loading={loading}>
+                  保存配置
+                </Button>
+                <Button onClick={load} disabled={loading}>
+                  重新加载
+                </Button>
+                <Button type="link" onClick={() => history.push('/collect/hub')} style={{ paddingInline: 0 }}>
+                  返回采集中心
+                </Button>
+              </Space>
+            </ProCard>
           ) : null}
-        </Space>
-      </ProCard>
-
-      <ProCard
-        title="通用采集浏览器 Profile"
-        bordered
-        style={{ marginBottom: 16 }}
-        extra={
-          <Button type="link" onClick={() => window.location.assign('/collect/browser-profiles')}>
-            管理采集浏览器 Profile
-          </Button>
-        }
-      >
-        <Alert
-          type="info"
-          showIcon
-          message="适用于自定义链接采集器"
-          description={
-            <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
-              <li>商品页需登录时，可创建 Profile，在可视化采集浏览器中手动登录后保存状态。</li>
-              <li>系统不保存账号密码；Cookie 仅存于 Collector 本地目录，请勿在公共电脑使用。</li>
-              <li>验证码 / 风控需用户自行完成，系统不提供破解能力。</li>
-              <li>Docker 无头环境无法弹出登录窗口，本地开发请设置 COLLECTOR_HEADLESS=0。</li>
-            </ul>
-          }
-        />
-      </ProCard>
-
-      <ProCard
-        bordered
-        extra={
-          <Button type="link" onClick={load} disabled={loading}>
-            重新加载
-          </Button>
-        }
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          style={{ maxWidth: 560 }}
-          onFinish={async (values) => {
-            try {
-              const payload = {
-                ...values,
-                goto_timeout_ms: String(values.goto_timeout_ms ?? ''),
-                headless: values.headless ? '1' : '0',
-                collect_batch_concurrency_1688: String(values.collect_batch_concurrency_1688 ?? 1),
-                collect_batch_delay_min_ms_1688: String(values.collect_batch_delay_min_ms_1688 ?? 1500),
-                collect_batch_delay_max_ms_1688: String(values.collect_batch_delay_max_ms_1688 ?? 5000),
-                collect_batch_retry_on_blocked: values.collect_batch_retry_on_blocked ? '1' : '0',
-                collect_batch_retry_on_timeout: values.collect_batch_retry_on_timeout ? '1' : '0',
-                collect_batch_max_retries_1688: String(values.collect_batch_max_retries_1688 ?? 2),
-              };
-              await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
-              message.success('已保存');
-              await load();
-            } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
-            }
-          }}
-        >
-          <Form.Item
-            label="主服务 URL"
-            name="main_service_url"
-            rules={[{ required: true }]}
-          >
-            <Input placeholder="http://127.0.0.1:8080" />
-          </Form.Item>
-          <Form.Item
-            label="采集服务监听地址"
-            name="collector_http_addr"
-            rules={[{ required: true }]}
-          >
-            <Input placeholder=":3100" />
-          </Form.Item>
-          <Form.Item label="页面打开超时（毫秒）" name="goto_timeout_ms" rules={[{ required: true }]}>
-            <InputNumber min={1000} max={300000} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="无头模式" name="headless" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            label="1688 批量并发上限"
-            name="collect_batch_concurrency_1688"
-            tooltip="仅批量采集生效；建议 1–2，过高易触发 1688 风控导致整批失败。"
-          >
-            <InputNumber min={1} max={2} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="1688 批量随机间隔最小（毫秒）" name="collect_batch_delay_min_ms_1688">
-            <InputNumber min={0} max={120000} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="1688 批量随机间隔最大（毫秒）" name="collect_batch_delay_max_ms_1688">
-            <InputNumber min={0} max={120000} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="批量遇风控/验证页时自动重试" name="collect_batch_retry_on_blocked" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item label="批量遇超时/导航失败时自动重试" name="collect_batch_retry_on_timeout" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item label="1688 批量任务最大自动重试次数" name="collect_batch_max_retries_1688">
-            <InputNumber min={0} max={5} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
-              保存
-            </Button>
-          </Form.Item>
         </Form>
-      </ProCard>
+      </div>
     </PageContainer>
   );
 }

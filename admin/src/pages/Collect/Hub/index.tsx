@@ -10,6 +10,10 @@ import {
   CUSTOM_COLLECT_CARD_DESCRIPTION,
   CUSTOM_COLLECT_CARD_NOTES,
 } from '@/utils/customCollectPlatform';
+import {
+  collectSettingsConfigButtonLabel,
+  collectSettingsPath,
+} from '@/utils/collectSettingsProvider';
 
 const { Paragraph, Title, Text } = Typography;
 
@@ -172,8 +176,12 @@ export default function CollectHubPage() {
                         批量采集
                       </Button>
                     </Tooltip>
-                    <Button type="link" style={{ paddingLeft: 0 }} onClick={() => history.push('/settings/collector')}>
-                      采集服务配置
+                    <Button
+                      type="link"
+                      style={{ paddingLeft: 0 }}
+                      onClick={() => history.push(collectSettingsPath(p.source))}
+                    >
+                      {collectSettingsConfigButtonLabel(p.status)}
                     </Button>
                   </Space>
                   {cardCopy.notes ? (

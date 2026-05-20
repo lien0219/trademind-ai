@@ -189,6 +189,7 @@ export default function CollectRulesPage() {
   return (
     <PageContainer
       title="采集规则"
+      subTitle="适用于自定义链接采集器"
       extra={
         <Button
           type="primary"
