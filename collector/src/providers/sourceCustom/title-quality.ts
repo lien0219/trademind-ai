@@ -57,14 +57,15 @@ function scoreTitleText(text: string, source: TitleCandidate['source'], selector
   }
 
   if (selector) {
-    const selLow = selector.toLowerCase();
+    const selLow = selector.toLowerCase().trim();
     if (PRODUCT_TITLE_HINTS.some((h) => selLow.includes(h))) {
       if (!suspectWrongTitle) confidence = 'high';
     }
-    if (selLow.includes('h1') || selLow.includes('product') || selLow.includes('sku-name')) {
-      if (!suspectWrongTitle && confidence !== 'low') confidence = 'high';
-    }
-    if (selLow === 'title' || selLow.includes('document')) {
+    if (selLow === 'h1' || selLow === 'title') {
+      confidence = 'low';
+      suspectWrongTitle = true;
+      hints.push('标题 selector 过于宽泛（h1/title）');
+    } else if (selLow.includes('document')) {
       if (confidence === 'medium') confidence = 'low';
       suspectWrongTitle = true;
       hints.push('可能来自页面 document.title');

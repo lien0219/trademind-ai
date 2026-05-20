@@ -206,6 +206,29 @@ async function navigatePage(page: Page, urlStr: string): Promise<{ httpStatus?: 
   return { httpStatus };
 }
 
+async function prepareGenericProductPage(page: Page, urlStr: string): Promise<void> {
+  let host = '';
+  try {
+    host = new URL(urlStr).hostname.toLowerCase();
+  } catch {
+    host = '';
+  }
+  await page.waitForSelector('body', { timeout: 8000 }).catch(() => undefined);
+  if (host.includes('jd.com')) {
+    await page
+      .waitForSelector('.sku-name, .itemInfo-wrap .sku-name, [property="og:title"], .p-price', {
+        timeout: 10_000,
+      })
+      .catch(() => undefined);
+  }
+  await page
+    .evaluate(() => {
+      window.scrollTo(0, Math.min(800, document.body.scrollHeight));
+    })
+    .catch(() => undefined);
+  await new Promise((r) => setTimeout(r, 600));
+}
+
 export async function runCustomCollect(
   browser: BrowserManager,
   urlStr: string,
@@ -266,13 +289,7 @@ export async function runCustomCollect(
     if (use1688Session) {
       await prepare1688OfferPage(page, false);
     } else {
-      await page.waitForSelector('body', { timeout: 8000 }).catch(() => undefined);
-      await page
-        .evaluate(() => {
-          window.scrollTo(0, Math.min(600, document.body.scrollHeight));
-        })
-        .catch(() => undefined);
-      await new Promise((r) => setTimeout(r, 400));
+      await prepareGenericProductPage(page, urlStr);
     }
 
     const signals = await evaluateGenericPageAccess(page, httpStatus);
@@ -293,7 +310,7 @@ export async function runCustomCollect(
     let titleDiag: TitleCandidate | undefined;
     try {
       const parsed = await parseCustomProduct(page, urlStr, rule, {
-        scrollForDetailImages: opts.scrollForDetailImages ?? mode === 'rule_test',
+        scrollForDetailImages: opts.scrollForDetailImages ?? true,
       });
       product = parsed.product;
       titleDiag = parsed.titleDiagnostics;

@@ -19,22 +19,26 @@ type GenerateAndSaveBody struct {
 	GenerateBody
 	Name     string `json:"name"`
 	Priority *int   `json:"priority"`
+	Status   string `json:"status,omitempty"`
 }
 
 type GenerateResultDTO struct {
-	Rule          json.RawMessage                `json:"rule"`
-	Domain        string                         `json:"domain"`
-	SuggestedName string                         `json:"suggestedName"`
-	Confidence    float64                        `json:"confidence"`
-	Explanation   string                         `json:"explanation"`
-	Warnings      []string                       `json:"warnings"`
-	TestResult    *collectrule.RuleTestResultDTO `json:"testResult,omitempty"`
-	PlannedHint   string                         `json:"plannedHint,omitempty"`
+	Rule                   json.RawMessage                `json:"rule"`
+	Domain                 string                         `json:"domain"`
+	SuggestedName          string                         `json:"suggestedName"`
+	Confidence             float64                        `json:"confidence"`
+	Explanation            string                         `json:"explanation"`
+	Warnings               []string                       `json:"warnings"`
+	MissingGeneratedFields []string                       `json:"missingGeneratedFields,omitempty"`
+	QualityGate            QualityGateDTO                 `json:"qualityGate"`
+	TestResult             *collectrule.RuleTestResultDTO `json:"testResult,omitempty"`
+	PlannedHint            string                         `json:"plannedHint,omitempty"`
 }
 
 type aiRuleOutput struct {
-	Rule        json.RawMessage `json:"rule"`
-	Confidence  float64         `json:"confidence"`
-	Explanation string          `json:"explanation"`
-	Warnings    []string        `json:"warnings"`
+	Rule                   json.RawMessage `json:"rule"`
+	Confidence             float64         `json:"confidence"`
+	Explanation            string          `json:"explanation"`
+	Warnings               []string        `json:"warnings"`
+	MissingGeneratedFields []string        `json:"missingGeneratedFields"`
 }

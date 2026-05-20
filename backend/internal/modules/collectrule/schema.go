@@ -12,6 +12,13 @@ const maxRuleJSONBytes = 64 * 1024
 const maxSelectorStringLen = 512
 const maxSelectorsPerField = 40
 
+var forbiddenRulePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\bscript\b`),
+	regexp.MustCompile(`(?i)\beval\s*\(`),
+	regexp.MustCompile(`(?i)\bfunction\s*\(`),
+	regexp.MustCompile(`(?i)javascript\s*:`),
+}
+
 var (
 	ErrRuleTooLarge       = errors.New("rule json exceeds size limit")
 	ErrRuleInvalidJSON    = errors.New("rule must be a JSON object")
@@ -103,6 +110,35 @@ func ValidateRuleJSON(raw []byte) error {
 	if !hasTitle {
 		return fmt.Errorf("%w: title field is required", ErrRuleSchema)
 	}
+	if err := validateRuleSecurity(norm); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ValidateRuleForEnable ensures enabled rules include mainImages for practical collection.
+func ValidateRuleForEnable(raw []byte) error {
+	norm, err := NormalizeRuleJSON(raw)
+	if err != nil {
+		return err
+	}
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(norm, &root); err != nil {
+		return ErrRuleInvalidJSON
+	}
+	if _, ok := root["mainImages"]; !ok {
+		return fmt.Errorf("启用状态的规则需包含 mainImages 字段，请先补充主图规则或保存为停用")
+	}
+	return nil
+}
+
+func validateRuleSecurity(raw []byte) error {
+	s := string(raw)
+	for _, re := range forbiddenRulePatterns {
+		if re.MatchString(s) {
+			return fmt.Errorf("%w: forbidden token in rule JSON", ErrRuleSchema)
+		}
+	}
 	return nil
 }
 
@@ -185,6 +221,11 @@ func validateFieldSpec(raw json.RawMessage) error {
 	for _, s := range m.Selectors {
 		if err := checkSelectorLen(s); err != nil {
 			return err
+		}
+		for _, re := range forbiddenRulePatterns {
+			if re.MatchString(s) {
+				return fmt.Errorf("forbidden selector content")
+			}
 		}
 	}
 	if len(m.Fallback) > 1024 {

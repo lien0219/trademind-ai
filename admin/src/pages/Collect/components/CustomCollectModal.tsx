@@ -87,6 +87,15 @@ function PlatformConflictAlert({
   );
 }
 
+function isLoginLikelyHost(url: string): boolean {
+  try {
+    const host = new URL(url.trim()).hostname.toLowerCase();
+    return host.includes('jd.com') || host.includes('tmall.com') || host.includes('taobao.com');
+  } catch {
+    return false;
+  }
+}
+
 export function CustomCollectModal({ open, onClose }: Props) {
   const [rules, setRules] = useState<CollectRuleRow[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
@@ -231,6 +240,14 @@ export function CustomCollectModal({ open, onClose }: Props) {
           message.error(picked.message);
           return false;
         }
+        if (isLoginLikelyHost(url) && !(useBrowserProfile && profileId)) {
+          message.warning('该站点通常需要登录态才能看到商品信息，请先启用「已登录采集浏览器」并选择 Profile');
+          return false;
+        }
+        if (testResult?.missingFields?.includes('title') && !(useBrowserProfile && profileId)) {
+          message.warning('测试未识别商品标题，建议先启用登录态并重新测试后再提交');
+          return false;
+        }
         try {
           await createCollectTask({
             source: 'custom',
@@ -345,14 +362,31 @@ export function CustomCollectModal({ open, onClose }: Props) {
           <Spin tip="正在打开页面并检测…" />
         </div>
       ) : null}
+      {formUrl.trim() && isLoginLikelyHost(formUrl) && !(useBrowserProfile && profileId) ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="该站点建议使用已登录采集浏览器"
+          description="京东 / 淘宝 / 天猫商品页在未登录时往往看不到标题、价格和主图，采集会失败。"
+        />
+      ) : null}
+      <BrowserProfileLoginPanel
+        tone="optional"
+        url={formUrl}
+        profileId={profileId}
+        useBrowserProfile={useBrowserProfile}
+        onProfileIdChange={setProfileId}
+        onUseProfileChange={setUseBrowserProfile}
+      />
       {testResult ? <RuleTestResultPanel result={testResult} /> : null}
       {testResult?.accessStatus === 'login_required' ? (
-        <BrowserProfileLoginPanel
-          url={formUrl}
-          profileId={profileId}
-          useBrowserProfile={useBrowserProfile}
-          onProfileIdChange={setProfileId}
-          onUseProfileChange={setUseBrowserProfile}
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginTop: 12 }}
+          message="页面需要登录"
+          description="请在上方面板选择 Profile 并完成登录，然后重新测试后再提交采集任务。"
         />
       ) : null}
       {useBrowserProfile && profileId && testResult?.accessStatus !== 'login_required' ? (

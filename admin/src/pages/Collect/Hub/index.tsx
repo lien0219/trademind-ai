@@ -1,14 +1,16 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Button, Col, Empty, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Button, Col, Empty, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import {
+  COLLECT_HUB_TYPE_HINT,
   CUSTOM_BATCH_DISABLED_TOOLTIP,
   CUSTOM_COLLECT_CARD_DESCRIPTION,
   CUSTOM_COLLECT_CARD_NOTES,
+  DEDICATED_COLLECT_CARD_NOTES,
 } from '@/utils/customCollectPlatform';
 import {
   collectSettingsConfigButtonLabel,
@@ -42,14 +44,22 @@ function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefine
   return undefined;
 }
 
-function providerCardCopy(p: CollectProviderRow): { description: string; notes: string } {
+function providerCardCopy(p: CollectProviderRow): { description: string; notes: string; typeLabel: string; typeHint: string } {
   if (p.source === 'custom') {
     return {
       description: CUSTOM_COLLECT_CARD_DESCRIPTION,
       notes: CUSTOM_COLLECT_CARD_NOTES,
+      typeLabel: COLLECT_HUB_TYPE_HINT.custom.title,
+      typeHint: COLLECT_HUB_TYPE_HINT.custom.summary,
     };
   }
-  return { description: p.description, notes: p.notes ?? '' };
+  const notes = [DEDICATED_COLLECT_CARD_NOTES, p.notes?.trim()].filter(Boolean).join(' ');
+  return {
+    description: p.description,
+    notes,
+    typeLabel: COLLECT_HUB_TYPE_HINT.dedicated.title,
+    typeHint: COLLECT_HUB_TYPE_HINT.dedicated.summary,
+  };
 }
 
 function providerStatusPresentation(status: CollectProviderStatus) {
@@ -99,6 +109,26 @@ export default function CollectHubPage() {
 
   return (
     <PageContainer title="采集中心">
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="如何选择采集器？"
+        description={
+          <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
+            <li>
+              <Text strong>{COLLECT_HUB_TYPE_HINT.dedicated.title}</Text>
+              {' — '}
+              {COLLECT_HUB_TYPE_HINT.dedicated.summary}
+            </li>
+            <li>
+              <Text strong>{COLLECT_HUB_TYPE_HINT.custom.title}</Text>
+              {' — '}
+              {COLLECT_HUB_TYPE_HINT.custom.summary}
+            </li>
+          </ul>
+        }
+      />
       {loading ? (
         <Spin style={{ display: 'block', marginTop: 48 }} />
       ) : sorted.length === 0 ? (
@@ -126,8 +156,13 @@ export default function CollectHubPage() {
                     <Title level={5} style={{ margin: 0 }}>
                       {p.name}
                     </Title>
+                    <Tag color={p.source === 'custom' ? 'blue' : 'purple'}>{cardCopy.typeLabel}</Tag>
                     <Tag color={tag.color}>{tag.text}</Tag>
                   </Space>
+
+                  <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
+                    {cardCopy.typeHint}
+                  </Paragraph>
 
                   <Paragraph type="secondary" style={{ flex: 1, marginBottom: 12 }}>
                     {cardCopy.description}

@@ -32,6 +32,7 @@ import type { CollectRuleAIGenerateResult } from '@/services/collectRuleAI';
 import { aiGenerateCollectRule } from '@/services/collectRuleAI';
 import { createCollectRule } from '@/services/collectRules';
 import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
+import { RuleQualityScoreCard } from '@/pages/Collect/components/RuleQualityScoreCard';
 import { RuleTestResultPanel } from '@/pages/Collect/components/RuleTestResultPanel';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import { detectCustomCollectPlatform } from '@/utils/customCollectPlatform';
@@ -106,6 +107,8 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
     return detectCustomCollectPlatform(url);
   }, [formUrl]);
 
+  const canSaveEnabled = result?.qualityGate?.allowSaveEnabled === true;
+
   const stepIndex = result ? 2 : generating ? 1 : 0;
   const generateDisabled = platformHint?.kind === 'blocked' || !formUrl.trim() || generating;
 
@@ -159,7 +162,11 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
       if (!formName.trim() && res.suggestedName) {
         setFormName(res.suggestedName);
       }
-      message.success('采集规则已生成，并完成识别测试');
+      if (res.qualityGate?.allowSaveEnabled) {
+        message.success('采集规则已生成，识别效果达标，可保存并启用');
+      } else {
+        message.warning('规则已生成并完成测试，但识别效果未达标，建议重新生成或保存为草稿后手动调整');
+      }
     } catch (e) {
       message.error(mapCollectErrorMessage(e));
     } finally {
@@ -167,7 +174,11 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (status: 'enabled' | 'disabled') => {
+    if (status === 'enabled' && !canSaveEnabled) {
+      message.warning('当前规则识别效果较差，建议重新生成或手动调整后再启用');
+      return;
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(ruleJson || '{}');
@@ -187,10 +198,10 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
         name,
         domain,
         priority: formPriority,
-        status: 'enabled',
+        status,
         rule: parsed,
       });
-      message.success('采集规则已保存');
+      message.success(status === 'enabled' ? '采集规则已保存并启用' : '采集规则已保存为草稿（停用）');
       onSaved?.();
       onClose();
     } catch (e) {
@@ -230,9 +241,22 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
                 AI 帮我生成规则
               </Button>
             ) : (
-              <Button type="primary" loading={saving} onClick={() => void handleSave()}>
-                保存采集规则
-              </Button>
+              <>
+                <Button loading={saving} onClick={() => void handleSave('disabled')}>
+                  保存为草稿
+                </Button>
+                {canSaveEnabled ? (
+                  <Button type="primary" loading={saving} onClick={() => void handleSave('enabled')}>
+                    保存并启用
+                  </Button>
+                ) : (
+                  <Tooltip title="识别效果未达标或缺少标题/主图规则，请先调整或重新生成">
+                    <Button type="primary" disabled>
+                      保存并启用
+                    </Button>
+                  </Tooltip>
+                )}
+              </>
             )}
           </Space>
         ),
@@ -259,7 +283,7 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
           showIcon
           className="tm-ai-rule-modal__alert"
           message="输入一个商品链接，系统会先读取页面上的商品信息，再让 AI 帮你生成采集规则。生成后会自动测试标题、价格、图片等内容是否能识别。"
-          description="商品规格、库存、实时价格通常由网站动态加载，不一定都能自动识别。"
+          description="商品规格、库存、实时价格通常由网站动态加载，不一定都能自动识别。识别评分低于 60 时不建议直接启用。"
         />
         <Typography.Paragraph type="secondary" className="tm-ai-rule-modal__hero-text" style={{ marginBottom: 0 }}>
           请先在
@@ -399,49 +423,95 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
         {result ? (
           <section className="tm-ai-rule-modal__section tm-ai-rule-modal__section--result">
             <Typography.Title level={5} className="tm-ai-rule-modal__section-title">
-              生成结果
-              {typeof result.confidence === 'number' ? (
-                <Tag color="processing" className="tm-ai-rule-modal__confidence">
-                  置信度 {Math.round(result.confidence * 100)}%
-                </Tag>
-              ) : null}
+              识别效果
             </Typography.Title>
 
-            {result.plannedHint ? (
-              <Alert type="info" showIcon className="tm-ai-rule-modal__alert" message={result.plannedHint} />
-            ) : null}
-            {result.explanation ? (
-              <div className="tm-ai-rule-modal__explain">{result.explanation}</div>
-            ) : null}
-            {result.warnings?.length ? (
-              <Alert
-                type="warning"
-                showIcon
-                className="tm-ai-rule-modal__alert"
-                message="注意事项"
-                description={
-                  <ul className="tm-ai-rule-modal__warn-list">
-                    {result.warnings.map((w) => (
-                      <li key={w}>{w}</li>
-                    ))}
-                  </ul>
-                }
-              />
+            {result.qualityGate ? (
+              <RuleQualityScoreCard gate={result.qualityGate} confidence={result.confidence} />
             ) : null}
 
-            <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-              下方为采集规则内容（高级），一般无需修改；格式错误会导致采集失败。
-            </Typography.Paragraph>
-            <ProFormTextArea
-              label="采集规则内容（高级）"
-              fieldProps={{
-                rows: 10,
-                value: ruleJson,
-                onChange: (e) => setRuleJson(e.target.value),
-                className: 'tm-ai-rule-modal__json',
-              }}
-            />
-            {result.testResult ? <RuleTestResultPanel result={result.testResult} /> : null}
+            <div className="tm-ai-rule-modal__result-stack">
+              {result.plannedHint ? (
+                <Alert type="info" showIcon className="tm-ai-rule-modal__alert" message={result.plannedHint} />
+              ) : null}
+
+              {!canSaveEnabled ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="tm-ai-rule-modal__alert"
+                  message="当前规则识别效果较差，建议重新生成或手动调整后再启用"
+                  description={
+                    result.qualityGate?.blockReasons?.length ? (
+                      <ul className="tm-ai-rule-modal__warn-list">
+                        {result.qualityGate.blockReasons.map((r) => (
+                          <li key={r}>{r}</li>
+                        ))}
+                      </ul>
+                    ) : undefined
+                  }
+                />
+              ) : null}
+
+              {result.qualityGate?.suggestions?.length ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  className="tm-ai-rule-modal__alert"
+                  message="建议操作"
+                  description={result.qualityGate.suggestions.join(' · ')}
+                />
+              ) : null}
+
+              {result.missingGeneratedFields?.length ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="tm-ai-rule-modal__alert"
+                  message="未能生成的字段"
+                  description={result.missingGeneratedFields.join('、')}
+                />
+              ) : null}
+
+              {result.explanation ? (
+                <div className="tm-ai-rule-modal__explain">{result.explanation}</div>
+              ) : null}
+
+              {result.warnings?.length ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="tm-ai-rule-modal__alert"
+                  message="注意事项"
+                  description={
+                    <ul className="tm-ai-rule-modal__warn-list">
+                      {result.warnings.slice(0, 8).map((w) => (
+                        <li key={w}>{w}</li>
+                      ))}
+                    </ul>
+                  }
+                />
+              ) : null}
+            </div>
+
+            {result.testResult ? (
+              <RuleTestResultPanel result={result.testResult} showProduct={false} compact />
+            ) : null}
+
+            <div className="tm-ai-rule-modal__json-block">
+              <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
+                下方为采集规则内容（高级），一般无需修改；格式错误会导致采集失败。
+              </Typography.Paragraph>
+              <ProFormTextArea
+                label="采集规则内容（高级）"
+                fieldProps={{
+                  rows: 10,
+                  value: ruleJson,
+                  onChange: (e) => setRuleJson(e.target.value),
+                  className: 'tm-ai-rule-modal__json',
+                }}
+              />
+            </div>
           </section>
         ) : null}
       </div>

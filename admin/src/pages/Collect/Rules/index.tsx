@@ -2,6 +2,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
   PageContainer,
+  ProFormDependency,
   ProFormDigit,
   ProFormSelect,
   ProFormText,
@@ -74,6 +75,18 @@ function formatTs(s?: string) {
   if (!s) return '—';
   const d = dayjs(s);
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
+}
+
+function isTitleOnlyRuleJson(raw?: string): boolean {
+  if (!raw?.trim()) return false;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const keys = Object.keys(obj).filter((k) => k !== 'fallbacks');
+    if (keys.length === 1 && keys[0] === 'title') return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 export default function CollectRulesPage() {
@@ -399,6 +412,18 @@ export default function CollectRulesPage() {
           style={{ marginBottom: 8 }}
           message="这里是系统识别页面内容的规则，格式不正确会导致采集失败。不会写的话，建议使用「AI 帮我生成规则」。"
         />
+        <ProFormDependency name={['ruleJson']}>
+          {({ ruleJson }) =>
+            isTitleOnlyRuleJson(typeof ruleJson === 'string' ? ruleJson : undefined) ? (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 8 }}
+                message="当前规则只会采集标题，无法采集价格、图片和参数。用于正式采集前，建议补充主图和价格规则。"
+              />
+            ) : null
+          }
+        </ProFormDependency>
         <ProFormTextArea
           name="ruleJson"
           label="采集规则内容（高级）"

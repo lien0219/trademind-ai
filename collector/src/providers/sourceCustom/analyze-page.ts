@@ -100,15 +100,17 @@ async function extractPageDigestInBrowser(page: Page, maxCandidates: number): Pr
 
       const titleCandidates: Cand[] = [];
       const titleSelectors = [
-        'h1',
-        '[property="og:title"]',
-        'meta[name="twitter:title"]',
+        '.sku-name',
+        '.itemInfo-wrap .sku-name',
+        '.p-name',
+        '#productTitle',
         '.product-title',
         '.product-name',
-        '#productTitle',
-        '.sku-name',
         '.item-title',
         '[itemprop="name"]',
+        '[property="og:title"]',
+        'meta[name="twitter:title"]',
+        'h1',
       ];
       for (const sel of titleSelectors) {
         const nodes = document.querySelectorAll(sel);
@@ -119,25 +121,30 @@ async function extractPageDigestInBrowser(page: Page, maxCandidates: number): Pr
             ? el.getAttribute('content') ?? ''
             : (el.textContent ?? '').trim();
         if (!sample.trim()) continue;
+        let confidence = 0.72;
+        if (sel.includes('sku-name') || sel.includes('p-name') || sel === '#productTitle') confidence = 0.92;
+        else if (sel.includes('og:title')) confidence = 0.85;
+        else if (sel === 'h1') confidence = 0.35;
         pushUnique(titleCandidates, {
           selector: sel,
           sample: clamp(sample),
           attr: el.tagName.toLowerCase() === 'meta' ? 'content' : 'text',
           count: nodes.length,
-          confidence: sel === 'h1' ? 0.9 : sel.includes('og:title') ? 0.85 : 0.7,
+          confidence,
         });
       }
 
       const priceCandidates: Cand[] = [];
       const priceSelectors = [
+        '.summary-price .price',
+        '.p-price',
+        '.price',
         '[itemprop="price"]',
         '[data-price]',
-        '.price',
         '.product-price',
         '.sale-price',
         '#price',
         '.price-current',
-        '.p-price',
         '.sku-price',
       ];
       for (const sel of priceSelectors) {
@@ -160,6 +167,9 @@ async function extractPageDigestInBrowser(page: Page, maxCandidates: number): Pr
 
       const mainImageCandidates: Cand[] = [];
       const mainImageSelectors = [
+        '#spec-list img',
+        '.spec-list img',
+        '.jqzoom img',
         'meta[property="og:image"]',
         '#spec-img',
         'img#spec-img',
@@ -191,6 +201,8 @@ async function extractPageDigestInBrowser(page: Page, maxCandidates: number): Pr
 
       const detailImageCandidates: Cand[] = [];
       const detailSelectors = [
+        '#J-detail-content img',
+        '.detail-content img',
         '.detail img',
         '.product-description img',
         '.description img',
@@ -215,6 +227,8 @@ async function extractPageDigestInBrowser(page: Page, maxCandidates: number): Pr
 
       const attributeCandidates: Cand[] = [];
       const attrPatterns: Array<{ row: string; key?: string; value?: string; confidence: number }> = [
+        { row: '.Ptable-item dl', key: 'dt', value: 'dd', confidence: 0.88 },
+        { row: '.parameter2 li', key: '.name', value: '.value', confidence: 0.86 },
         { row: '.spec-row', key: '.spec-key', value: '.spec-value', confidence: 0.8 },
         { row: 'dl dt', confidence: 0.75 },
         { row: 'table tr', confidence: 0.55 },

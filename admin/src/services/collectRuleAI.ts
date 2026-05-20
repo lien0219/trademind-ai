@@ -1,6 +1,25 @@
 import { postJSON } from './request';
 import type { CollectRuleDetail, CollectRuleTestResult } from './collectRules';
 
+export type CollectRuleAIFieldHit = {
+  field: string;
+  label: string;
+  inRule: boolean;
+  extracted: boolean;
+  points: number;
+  maxPoints: number;
+};
+
+export type CollectRuleAIQualityGate = {
+  score: number;
+  allowSaveEnabled: boolean;
+  allowSaveDraft: boolean;
+  blockReasons?: string[];
+  suggestions?: string[];
+  fieldHits?: CollectRuleAIFieldHit[];
+  scoreBreakdown?: Record<string, number>;
+};
+
 export type CollectRuleAIGenerateResult = {
   rule: unknown;
   domain: string;
@@ -8,6 +27,8 @@ export type CollectRuleAIGenerateResult = {
   confidence: number;
   explanation: string;
   warnings?: string[];
+  missingGeneratedFields?: string[];
+  qualityGate: CollectRuleAIQualityGate;
   testResult?: CollectRuleTestResult;
   plannedHint?: string;
 };
@@ -28,6 +49,7 @@ export async function aiGenerateAndSaveCollectRule(payload: {
   domain?: string;
   name: string;
   priority?: number;
+  status?: 'enabled' | 'disabled';
   profileId?: string;
   useBrowserProfile?: boolean;
   targetFields?: string[];

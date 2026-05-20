@@ -274,6 +274,11 @@ func normalizeNewRule(body CreateRuleBody, adminID *uuid.UUID) (*CollectRule, er
 	if err := ValidateRuleJSON(normRule); err != nil {
 		return nil, err
 	}
+	if st == StatusEnabled {
+		if err := ValidateRuleForEnable(normRule); err != nil {
+			return nil, err
+		}
+	}
 	pr := 100
 	if body.Priority != nil {
 		pr = clampPriority(*body.Priority)
@@ -357,11 +362,13 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateRuleBody, admi
 	if body.Remark != nil {
 		updates["remark"] = strings.TrimSpace(*body.Remark)
 	}
+	var normRule []byte
 	if body.Rule != nil {
 		if len(*body.Rule) == 0 {
 			return nil, fmt.Errorf("rule cannot be empty")
 		}
-		normRule, err := NormalizeRuleJSON(*body.Rule)
+		var err error
+		normRule, err = NormalizeRuleJSON(*body.Rule)
 		if err != nil {
 			return nil, err
 		}
@@ -369,6 +376,19 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateRuleBody, admi
 			return nil, err
 		}
 		updates["rule"] = datatypes.JSON(append(json.RawMessage(nil), normRule...))
+	}
+	finalStatus := row.Status
+	if body.Status != nil {
+		finalStatus = strings.TrimSpace(strings.ToLower(*body.Status))
+	}
+	finalRule := row.Rule
+	if normRule != nil {
+		finalRule = datatypes.JSON(normRule)
+	}
+	if finalStatus == StatusEnabled {
+		if err := ValidateRuleForEnable(finalRule); err != nil {
+			return nil, err
+		}
 	}
 	if len(updates) == 0 {
 		d := ruleToDetailDTO(&row)
@@ -443,6 +463,11 @@ func (s *Service) SetStatus(c *gin.Context, id uuid.UUID, status string, adminID
 	if row.Status == st {
 		d := ruleToDetailDTO(&row)
 		return &d, nil
+	}
+	if st == StatusEnabled {
+		if err := ValidateRuleForEnable(row.Rule); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Model(&CollectRule{}).
 		Where("id = ?", id).

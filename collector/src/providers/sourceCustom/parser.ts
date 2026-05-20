@@ -59,6 +59,28 @@ function builtinMainImageSelectors(pageUrl: string): string[] {
   return common;
 }
 
+function builtinTitleSelectors(pageUrl: string): string[] {
+  let host = '';
+  try {
+    host = new URL(pageUrl).hostname.toLowerCase();
+  } catch {
+    return ['[property="og:title"]', 'meta[property="og:title"]', 'h1'];
+  }
+  if (host.includes('jd.com')) {
+    return [
+      '.sku-name',
+      '.itemInfo-wrap .sku-name',
+      '.p-name',
+      '[property="og:title"]',
+      'meta[property="og:title"]',
+    ];
+  }
+  if (host.includes('tmall.com') || host.includes('taobao.com')) {
+    return ['.tb-main-title', 'h1', '[property="og:title"]', 'meta[property="og:title"]'];
+  }
+  return ['[property="og:title"]', 'meta[property="og:title"]', 'h1'];
+}
+
 async function extractFieldText(
   page: Page,
   pageUrl: string,
@@ -204,12 +226,28 @@ export async function parseCustomProduct(
     (await evaluateInPageVoid(page, () => document.title?.trim() || ''))?.trim() ?? '';
 
   const titleSel = await extractFieldText(page, pageUrl, rule.title);
+  let titleSelValues = titleSel.values;
+  let titleHitSelector = titleSel.hitSelector;
+  if (titleSelValues.length === 0) {
+    const builtinTitle: CustomFieldRule = {
+      selectors: builtinTitleSelectors(pageUrl),
+      attr: 'text',
+      multiple: false,
+    };
+    const fallbackTitle = await extractFieldText(page, pageUrl, builtinTitle);
+    titleSelValues = fallbackTitle.values;
+    titleHitSelector = fallbackTitle.hitSelector;
+  }
   const currencySel = await extractFieldText(page, pageUrl, rule.currency);
   const priceSel = await extractFieldText(page, pageUrl, rule.price);
 
   const titleCandidates: TitleCandidate[] = [];
-  for (const [i, val] of titleSel.values.entries()) {
-    const sel = rule.title?.selectors?.[i] ?? rule.title?.selectors?.[0];
+  for (const [i, val] of titleSelValues.entries()) {
+    const sel =
+      rule.title?.selectors?.[i] ??
+      rule.title?.selectors?.[0] ??
+      builtinTitleSelectors(pageUrl)[i] ??
+      builtinTitleSelectors(pageUrl)[0];
     titleCandidates.push(evaluateTitleCandidate(val, 'selector', sel));
   }
   if (titleSel.fb) titleCandidates.push(evaluateTitleCandidate(titleSel.fb, 'fallback'));
@@ -342,7 +380,7 @@ export async function parseCustomProduct(
       openGraph: !!(og.title || og.images?.length),
       meta: fb.meta !== false ? !!(og.description || og.currency) : false,
       titleSource: titleDiagnostics?.source ?? 'none',
-      selectorTitleHits: titleSel.values.length,
+      selectorTitleHits: titleSelValues.length,
       jsonLdSnippet:
         jsonLd?.descriptionSnippet ??
         (jsonLd?.brand ? `brand=${jsonLd.brand.slice(0, 120)}` : undefined),

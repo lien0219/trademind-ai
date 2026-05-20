@@ -2,6 +2,16 @@ import type { CustomFieldRule, CustomRuleDecl } from './types.js';
 
 const ALLOWED_TYPES = new Set(['text', 'text_all', 'attr', 'attr_all', 'html', 'html_all']);
 
+function coerceSelectors(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((s) => String(s).trim()).filter(Boolean);
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    return [raw.trim()];
+  }
+  return [];
+}
+
 function attrFromType(type: string, attrHint?: string): { attr: string; multiple: boolean } {
   switch (type) {
     case 'text_all':
@@ -22,12 +32,19 @@ function attrFromType(type: string, attrHint?: string): { attr: string; multiple
 
 /** Map declarative { selector, type } or legacy { selectors, attr } to CustomFieldRule. */
 export function normalizeFieldRule(field: unknown): CustomFieldRule | undefined {
-  if (!field || typeof field !== 'object') return undefined;
+  if (!field) return undefined;
+  if (typeof field === 'string') {
+    const s = field.trim();
+    if (!s) return undefined;
+    return { selectors: [s], attr: 'text', multiple: false };
+  }
+  if (typeof field !== 'object') return undefined;
   const o = field as Record<string, unknown>;
 
-  if (Array.isArray(o.selectors) && o.selectors.length > 0) {
+  const selectors = coerceSelectors(o.selectors);
+  if (selectors.length > 0) {
     return {
-      selectors: o.selectors.map((s) => String(s).trim()).filter(Boolean),
+      selectors,
       attr: typeof o.attr === 'string' ? o.attr : 'text',
       multiple: !!o.multiple,
       limit: typeof o.limit === 'number' ? o.limit : undefined,

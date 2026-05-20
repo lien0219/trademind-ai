@@ -13,6 +13,7 @@ const { Paragraph, Text } = Typography;
 type Props = {
   result: CollectRuleTestResult;
   showProduct?: boolean;
+  compact?: boolean;
 };
 
 function fieldOk(v: boolean | number | undefined): string {
@@ -34,7 +35,7 @@ function confidenceLabel(c?: string): string {
   }
 }
 
-export function RuleTestResultPanel({ result, showProduct = true }: Props) {
+export function RuleTestResultPanel({ result, showProduct = true, compact = false }: Props) {
   const st = accessStatusLabel(result.accessStatus);
   const hint = accessStatusHint(result.accessStatus);
   const ef = result.extractedFields ?? {};
@@ -71,10 +72,12 @@ export function RuleTestResultPanel({ result, showProduct = true }: Props) {
   );
 
   return (
-    <div style={{ marginTop: 16 }}>
-      <Paragraph strong>采集效果测试</Paragraph>
+    <div className={compact ? 'tm-rule-test-panel tm-rule-test-panel--compact' : 'tm-rule-test-panel'} style={{ marginTop: compact ? 0 : 16 }}>
+      <Paragraph strong style={{ marginBottom: compact ? 8 : 16 }}>
+        采集效果测试
+      </Paragraph>
 
-      {typeof qs?.score === 'number' ? (
+      {!compact && typeof qs?.score === 'number' ? (
         <div style={{ marginBottom: 12 }}>
           <Text type="secondary">采集质量评分</Text>
           <Progress

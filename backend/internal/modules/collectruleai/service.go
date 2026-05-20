@@ -416,18 +416,30 @@ func (s *Service) GenerateCollectRuleWithAI(c *gin.Context, body GenerateBody, a
 		return nil, err
 	}
 
+	augRule, augWarnings, augErr := augmentRuleFromDigest(normRule, digest, targetFields)
+	if augErr == nil && len(augRule) > 0 {
+		if augmented, err := normalizeAndValidateRule(augRule); err == nil {
+			normRule = augmented
+		}
+	}
+
 	testResult, testErr := s.runRuleTest(c, rawURL, domain, normRule, body, adminID)
 	warnings := append([]string(nil), aiOut.Warnings...)
+	warnings = append(warnings, augWarnings...)
+	missingFields := dedupeStrings(append(append([]string(nil), aiOut.MissingGeneratedFields...), missingGeneratedFields(normRule, targetFields)...))
+	warnings = mergeFieldCoverageWarnings(warnings, normRule, targetFields, aiOut.MissingGeneratedFields)
 	if testErr != nil {
 		warnings = append(warnings, "rule_test_failed:"+truncateRunes(testErr.Error(), 120))
 	} else if testResult != nil {
 		warnings = appendQualityTestWarnings(warnings, testResult)
 		if testResult.QualityScore != nil {
-			if score, ok := testResult.QualityScore["score"].(float64); ok && score < 50 {
+			if score, ok := testResult.QualityScore["score"].(float64); ok && score < qualityEnableThreshold {
 				warnings = append(warnings, "规则测试质量偏低，请根据测试结果调整 selector 或重新生成。")
 			}
 		}
 	}
+
+	qualityGate := computeQualityGate(normRule, targetFields, testResult)
 
 	nameHint := strings.TrimSpace(body.RuleName)
 	if nameHint == "" {
@@ -437,14 +449,16 @@ func (s *Service) GenerateCollectRuleWithAI(c *gin.Context, body GenerateBody, a
 	s.writeOpLog(c, adminID, "collect.rule.ai_generate", rawURL, domain, nameHint, targetFields, "", aiOut.Confidence, "")
 
 	return &GenerateResultDTO{
-		Rule:          normRule,
-		Domain:        domain,
-		SuggestedName: nameHint,
-		Confidence:    aiOut.Confidence,
-		Explanation:   aiOut.Explanation,
-		Warnings:      warnings,
-		TestResult:    testResult,
-		PlannedHint:   plannedHint,
+		Rule:                   normRule,
+		Domain:                 domain,
+		SuggestedName:          nameHint,
+		Confidence:             aiOut.Confidence,
+		Explanation:            aiOut.Explanation,
+		Warnings:               warnings,
+		MissingGeneratedFields: missingFields,
+		QualityGate:            qualityGate,
+		TestResult:             testResult,
+		PlannedHint:            plannedHint,
 	}, nil
 }
 
@@ -498,11 +512,21 @@ func (s *Service) GenerateAndSave(c *gin.Context, body GenerateAndSaveBody, admi
 	if body.Priority != nil {
 		pr = *body.Priority
 	}
+	st := strings.TrimSpace(strings.ToLower(body.Status))
+	if st == "" {
+		st = collectrule.StatusEnabled
+	}
+	if st == collectrule.StatusEnabled && !gen.QualityGate.AllowSaveEnabled {
+		return nil, fmt.Errorf("当前规则识别效果较差，建议重新生成或手动调整后再启用")
+	}
+	if st != collectrule.StatusEnabled && st != collectrule.StatusDisabled {
+		st = collectrule.StatusDisabled
+	}
 	createBody := collectrule.CreateRuleBody{
 		Name:     name,
 		Domain:   gen.Domain,
 		Priority: &pr,
-		Status:   collectrule.StatusEnabled,
+		Status:   st,
 		Rule:     gen.Rule,
 	}
 	out, err := s.Rules.CreateFromAI(c, createBody, adminID)

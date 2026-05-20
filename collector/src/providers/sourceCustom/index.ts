@@ -41,7 +41,7 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
     batchSupported: false,
     urlPatterns: ['https://example.com/product/...'],
     features: ['title', 'mainImages', 'descriptionImages', 'attributes'] satisfies CollectFeature[],
-    notes: '适用于暂未提供专用采集器的网站。已支持的平台请使用对应采集器，批量采集暂未开放。',
+    notes: '自定义采集器适合采集页面基础信息（标题、价格、图片、参数）；SKU / 库存 / 动态价格不保证完整。已支持的平台请优先使用专用采集器。',
   },
 
   canHandle(urlStr: string): boolean {
