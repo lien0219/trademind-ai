@@ -42,6 +42,8 @@ import {
   DeleteOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
+import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
+import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import { uploadFile } from '@/services/files';
@@ -177,81 +179,7 @@ function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
 }
 
 function isPinduoduoProduct(data: ProductDetail | null): boolean {
-  if (!data) return false;
-  const src = data.source?.trim().toLowerCase();
-  return src === 'pinduoduo' || src === 'pdd';
-}
-
-function pinduoduoWarningCodesFromRaw(rawData: unknown): string[] {
-  if (!rawData || typeof rawData !== 'object') return [];
-  const root = rawData as Record<string, unknown>;
-  const inner = root.raw;
-  if (!inner || typeof inner !== 'object') return [];
-  const w = (inner as Record<string, unknown>).warnings;
-  if (!Array.isArray(w)) return [];
-  return w.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
-}
-
-function hasPinduoduoSkuParseFailed(rawData: unknown): boolean {
-  const codes = pinduoduoWarningCodesFromRaw(rawData);
-  return codes.includes('sku_parse_failed') || codes.includes('sku_rows_detected_but_empty');
-}
-
-function hasOnlyDefaultPinduoduoSku(skus: ProductSKURow[] | undefined): boolean {
-  const rows = (skus ?? []).filter((s) => !String(s.id).startsWith('new_'));
-  return rows.length === 1 && rows[0]?.skuName?.trim() === '默认规格';
-}
-
-const PINDUODUO_WARNING_HINTS: Record<string, string> = {
-  no_main_images: '未识别到商品主图，请手动添加主图。',
-  main_images_missing: '未识别到商品主图，请手动添加主图。',
-  main_images_maybe_incomplete: '主图数量较少，可能未采集完整，请发布前检查图片。',
-  main_images_fallback_used: '部分图片由系统自动兜底识别，请发布前确认是否正确。',
-  main_image_fallback_from_sku: '主图由规格图自动兜底生成，请发布前确认是否正确。',
-  main_image_fallback_from_detail: '主图由详情图自动兜底生成，请发布前确认是否正确。',
-  main_image_fallback_from_page: '主图由页面商品图自动兜底生成，请发布前确认是否正确。',
-  description_images_missing: '未识别到详情图，可手动补充或重新采集。',
-  detail_images_lazy_load: '详情图可能未完全加载，请核对商品介绍区域图片。',
-  images_filtered: '已过滤部分店铺图、服务图或无关图片，请核对主图与详情图。',
-  description_missing: '未识别到文字描述，可使用 AI 生成描述。',
-  sku_parse_failed: '商品规格来自页面自动识别，请发布前核对价格和库存。',
-  sku_stock_unknown: '库存未完整识别，请人工确认。',
-  attributes_missing: '未识别到商品参数，可后续手动补充。',
-  title_maybe_platform_title: '标题可能为平台页标题，请人工核对。',
-  title_maybe_contaminated: '标题可能混入按钮文案，请人工核对。',
-};
-
-function pinduoduoFieldHints(data: ProductDetail | null): string[] {
-  if (!data || !isPinduoduoProduct(data)) return [];
-  const hints: string[] = [
-    '该商品来自拼多多采集器，请发布前检查标题、价格、图片、商品规格和库存。',
-  ];
-  const warnCodes = pinduoduoWarningCodesFromRaw(data.rawData);
-  for (const code of warnCodes) {
-    const line = PINDUODUO_WARNING_HINTS[code];
-    if (line && !hints.includes(line)) hints.push(line);
-  }
-  const mainCount = (data.images ?? []).filter((i) => i.imageType === 'main').length;
-  const detailCount = (data.images ?? []).filter(
-    (i) => i.imageType === 'detail' || i.imageType === 'description',
-  ).length;
-  if (mainCount === 0 && !warnCodes.includes('no_main_images') && !warnCodes.includes('main_images_missing')) {
-    hints.push('未识别到商品主图，请手动添加主图。');
-  }
-  if (mainCount > 0 && mainCount < 3 && !warnCodes.includes('main_images_maybe_incomplete')) {
-    hints.push('主图数量较少，可能未采集完整，请发布前检查图片。');
-  }
-  if (detailCount === 0 && !warnCodes.includes('description_images_missing')) {
-    hints.push('未识别到详情图，可手动补充或重新采集。');
-  }
-  if (!data.description?.trim() && !warnCodes.includes('description_missing')) {
-    hints.push('未识别到文字描述，可使用 AI 生成描述。');
-  }
-  const skuCount = (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length;
-  if (skuCount > 0 && !warnCodes.includes('sku_parse_failed')) {
-    hints.push('商品规格来自页面自动识别，请发布前核对价格和库存。');
-  }
-  return hints;
+  return !!data && isPinduoduoSource(data.source);
 }
 
 function formatInventorySyncTaskCreateError(e: unknown): string {
@@ -479,15 +407,6 @@ export default function ProductDraftDetailPage() {
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
-  const showPinduoduoBetaHint = useMemo(() => isPinduoduoProduct(data), [data]);
-  const pinduoduoFieldHintLines = useMemo(() => pinduoduoFieldHints(data), [data]);
-  const showPinduoduoSkuParseHint = useMemo(
-    () =>
-      isPinduoduoProduct(data) &&
-      hasOnlyDefaultPinduoduoSku(data?.skus) &&
-      hasPinduoduoSkuParseFailed(data?.rawData),
-    [data],
-  );
 
   const { caps, optionsForTask } = useImageProviders();
 
@@ -947,23 +866,7 @@ export default function ProductDraftDetailPage() {
               label: '基础信息',
               children: (
                 <Card variant="borderless">
-                  {showPinduoduoBetaHint ? (
-                    <Alert
-                      type="info"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                      message="该商品来自拼多多采集器，请发布前检查标题、价格、图片、商品规格和库存。"
-                      description={
-                        pinduoduoFieldHintLines.length > 0 ? (
-                          <ul style={{ margin: 0, paddingLeft: 20 }}>
-                            {pinduoduoFieldHintLines.map((line) => (
-                              <li key={line}>{line}</li>
-                            ))}
-                          </ul>
-                        ) : undefined
-                      }
-                    />
-                  ) : null}
+                  {isPinduoduoProduct(data) ? <ProductCollectQualityAlert product={data} /> : null}
                   {showCustomIncompleteHint ? (
                     <Alert
                       type="info"
@@ -972,7 +875,7 @@ export default function ProductDraftDetailPage() {
                       message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和 SKU 后再发布。"
                     />
                   ) : null}
-                  {collectQualityWarnings.length > 0 ? (
+                  {!isPinduoduoProduct(data) && collectQualityWarnings.length > 0 ? (
                     <Alert
                       type="warning"
                       showIcon
@@ -1139,7 +1042,7 @@ export default function ProductDraftDetailPage() {
               label: '图片管理',
               children: (
                 <Card variant="borderless">
-                  {showPinduoduoBetaHint ? (
+                  {isPinduoduoProduct(data) ? (
                     <Alert
                       type="info"
                       showIcon
@@ -1347,14 +1250,6 @@ export default function ProductDraftDetailPage() {
               label: '商品规格',
               children: (
                 <Card variant="borderless">
-                  {showPinduoduoSkuParseHint ? (
-                    <Alert
-                      type="warning"
-                      showIcon
-                      style={{ marginBottom: 12 }}
-                      message="页面可能存在多个规格，但当前未能完整识别，请人工检查或重新采集。"
-                    />
-                  ) : null}
                   {(data.source === 'custom' || isPinduoduoProduct(data)) &&
                   (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
                     <Alert
