@@ -5,6 +5,7 @@ import {
   type ProColumns,
 } from '@ant-design/pro-components';
 import { Button, Drawer, Popconfirm, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
+import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { history } from '@umijs/max';
 import { useMemo, useRef, useState } from 'react';
@@ -83,7 +84,7 @@ export default function InventorySyncBatchesPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '批次号',
@@ -226,7 +227,7 @@ export default function InventorySyncBatchesPage() {
         dataIndex: 'createdAt',
         width: 156,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       { title: 'platform', dataIndex: 'platform', width: 88 },
       { title: '店铺', dataIndex: 'shopName', width: 120, ellipsis: true, render: (_, r) => r.shopName || '—' },

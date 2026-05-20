@@ -6,6 +6,7 @@ import {
   type ProColumns,
 } from '@ant-design/pro-components';
 import { history, useLocation } from '@umijs/max';
+import { formatDateTime } from '@/utils/formatTime';
 import {
   Badge,
   Button,
@@ -255,7 +256,7 @@ export default function TaskCenterFailuresPage() {
         dataIndex: 'createdAt',
         width: 156,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '标题',
@@ -469,11 +470,10 @@ export default function TaskCenterFailuresPage() {
 
   const batchRows = sel.slice(0, 50);
 
-  const latestFailedText = useMemo(() => {
-    if (!summary?.latestFailedAt) return '';
-    const d = dayjs(summary.latestFailedAt);
-    return d.isValid() ? d.format('YYYY-MM-DD HH:mm') : String(summary.latestFailedAt);
-  }, [summary?.latestFailedAt]);
+  const latestFailedText = useMemo(
+    () => (summary?.latestFailedAt ? formatDateTime(summary.latestFailedAt, '') : ''),
+    [summary?.latestFailedAt],
+  );
 
   return (
     <PageContainer

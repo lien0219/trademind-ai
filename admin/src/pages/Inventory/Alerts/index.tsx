@@ -20,7 +20,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import dayjs from 'dayjs';
+import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -346,7 +346,7 @@ export default function InventoryAlertsPage() {
         width: 156,
         search: false,
         render: (_, r) =>
-          r.lastInventoryChangeAt ? dayjs(r.lastInventoryChangeAt).format('YYYY-MM-DD HH:mm') : '—',
+          r.lastInventoryChangeAt ? formatDateTime(r.lastInventoryChangeAt) : '—',
       },
       {
         title: '操作',

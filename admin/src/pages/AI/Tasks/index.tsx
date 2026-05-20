@@ -1,4 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Button, Collapse, Descriptions, Drawer, Spin, Tag } from 'antd';
 import dayjs from 'dayjs';
@@ -85,7 +86,7 @@ export default function AiTasksPage() {
       dataIndex: 'createdAt',
       width: 172,
       search: false,
-      render: (_, row) => dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '任务类型',
@@ -247,13 +248,13 @@ export default function AiTasksPage() {
               <Descriptions.Item label="输出 tokens">{detail.tokenOutput ?? 0}</Descriptions.Item>
               <Descriptions.Item label="费用">{detail.costAmount ?? 0}</Descriptions.Item>
               <Descriptions.Item label="开始时间">
-                {detail.startedAt ? dayjs(detail.startedAt).format('YYYY-MM-DD HH:mm:ss') : '—'}
+                {detail.startedAt ? formatDateTime(detail.startedAt) : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="结束时间">
-                {detail.finishedAt ? dayjs(detail.finishedAt).format('YYYY-MM-DD HH:mm:ss') : '—'}
+                {detail.finishedAt ? formatDateTime(detail.finishedAt) : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="创建时间">
-                {dayjs(detail.createdAt).format('YYYY-MM-DD HH:mm:ss')}
+                {formatDateTime(detail.createdAt)}
               </Descriptions.Item>
               <Descriptions.Item label="错误信息">{detail.errorMessage || '—'}</Descriptions.Item>
             </Descriptions>

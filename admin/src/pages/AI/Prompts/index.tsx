@@ -1,4 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import {
   ModalForm,
   PageContainer,
@@ -9,7 +10,6 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Button, Popconfirm, Tag, message } from 'antd';
-import dayjs from 'dayjs';
 import { useRef, useState } from 'react';
 import {
   createAIPrompt,
@@ -64,7 +64,7 @@ export default function AIPromptsPage() {
       dataIndex: 'updatedAt',
       width: 176,
       search: false,
-      render: (_, row) => dayjs(row.updatedAt).format('YYYY-MM-DD HH:mm:ss'),
+      render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
       title: '操作',

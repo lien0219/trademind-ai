@@ -1,4 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Tag } from 'antd';
 import dayjs from 'dayjs';
@@ -19,7 +20,7 @@ export default function OperationLogsPage() {
       dataIndex: 'createdAt',
       width: 172,
       search: false,
-      render: (_, row) => dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '用户',

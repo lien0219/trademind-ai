@@ -4,6 +4,7 @@ import {
   ProFormTextArea,
 } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber } from 'antd';
 import { useRef, useState, useMemo, useEffect } from 'react';
@@ -106,6 +107,7 @@ export default function ProductDraftsPage() {
       width: 172,
       search: false,
       valueType: 'dateTime',
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '操作',

@@ -6,6 +6,7 @@ import {
   ProFormText,
 } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
@@ -61,6 +62,7 @@ export default function CustomerConversationsPage() {
       width: 172,
       search: false,
       valueType: 'dateTime',
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: 'platform',
@@ -121,6 +123,7 @@ export default function CustomerConversationsPage() {
       width: 172,
       search: false,
       valueType: 'dateTime',
+      render: (_, row) => formatDateTime(row.lastMessageAt),
     },
     {
       title: '操作',

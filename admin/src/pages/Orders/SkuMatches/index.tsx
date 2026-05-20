@@ -2,6 +2,7 @@ import { PageContainer, ProTable, type ProColumns } from '@ant-design/pro-compon
 import { Button, Space } from 'antd';
 import { history, useSearchParams } from '@umijs/max';
 import { queryOrderSkuMatches, type OrderSkuMatchListRow } from '@/services/orders';
+import { formatDateTime } from '@/utils/formatTime';
 import { queryShops } from '@/services/shops';
 
 export default function OrderSkuMatchesPage() {
@@ -16,6 +17,7 @@ export default function OrderSkuMatchesPage() {
       width: 170,
       hideInSearch: true,
       sorter: true,
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '平台',

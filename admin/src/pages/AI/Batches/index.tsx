@@ -1,4 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import {
   Button,
@@ -52,7 +53,8 @@ export default function AiBatchesPage() {
   const [tasksKind, setTasksKind] = useState<string>('');
 
   const columns: ProColumns<AIOperationBatchRow>[] = [
-    { title: '创建时间', dataIndex: 'createdAt', width: 176, valueType: 'dateTime', search: false },
+    { title: '创建时间', dataIndex: 'createdAt', width: 176, valueType: 'dateTime',
+      render: (_, row) => formatDateTime(row.createdAt), search: false },
     { title: '批次号', dataIndex: 'batchNo', width: 140, ellipsis: true, copyable: true, search: false },
     {
       title: '类型',

@@ -1,9 +1,9 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { Alert, Button, Form, Input, Select, Space, Switch, Tag, Typography, message } from 'antd';
-import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
@@ -208,7 +208,7 @@ export default function CollectTasksPage() {
       dataIndex: 'nextRetryAt',
       width: 172,
       search: false,
-      render: (_, row) => formatTs(row.nextRetryAt),
+      render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
       title: '商品草稿',
@@ -256,21 +256,21 @@ export default function CollectTasksPage() {
       dataIndex: 'startedAt',
       width: 168,
       search: false,
-      render: (_, row) => formatTs(row.startedAt),
+      render: (_, row) => formatDateTime(row.startedAt),
     },
     {
       title: '结束时间',
       dataIndex: 'finishedAt',
       width: 168,
       search: false,
-      render: (_, row) => formatTs(row.finishedAt),
+      render: (_, row) => formatDateTime(row.finishedAt),
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 168,
       search: false,
-      render: (_, row) => formatTs(row.createdAt),
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '操作',
@@ -436,13 +436,13 @@ export default function CollectTasksPage() {
               }
               showIcon
               message={pddUrlHint}
-              style={{ marginBottom: 12, width: '100%' }}
+              style={{ marginTop: 16, marginBottom: 0, width: '100%' }}
             />
           ) : null}
           {isPddSource ? (
-            <div style={{ width: '100%', marginBottom: 12 }}>
+            <div style={{ width: '100%', marginTop: 16, marginBottom: 12 }}>
               <PinduoduoLoginPanel loginUrl={formUrl?.trim() || undefined} compact />
-              <Space style={{ marginTop: 12 }}>
+              <Space style={{ marginTop: 16 }}>
                 <Switch
                   checked={pddUseBrowserProfile || pddUrlType === 'wholesale_detail'}
                   disabled={pddUrlType === 'wholesale_detail'}
@@ -498,8 +498,3 @@ export default function CollectTasksPage() {
   );
 }
 
-function formatTs(s?: string) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}

@@ -1,4 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, PageContainer, ProFormDependency, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { CopyOutlined } from '@ant-design/icons';
 import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message, Alert } from 'antd';
@@ -127,7 +128,7 @@ export default function ImageTasksPage() {
       dataIndex: 'createdAt',
       width: 172,
       search: false,
-      render: (_, row) => dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '任务类型',
@@ -176,7 +177,7 @@ export default function ImageTasksPage() {
       dataIndex: 'nextRetryAt',
       width: 172,
       search: false,
-      render: (_, row) => (row.nextRetryAt ? dayjs(row.nextRetryAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+      render: (_, row) => (row.nextRetryAt ? formatDateTime(row.nextRetryAt) : '—'),
     },
     {
       title: '商品 ID',
@@ -613,19 +614,19 @@ export default function ImageTasksPage() {
               <Descriptions.Item label="源图 ID">{detail.sourceImageId || '—'}</Descriptions.Item>
               <Descriptions.Item label="创建者">{detail.createdBy || '—'}</Descriptions.Item>
               <Descriptions.Item label="开始时间">
-                {detail.startedAt ? dayjs(detail.startedAt).format('YYYY-MM-DD HH:mm:ss') : '—'}
+                {detail.startedAt ? formatDateTime(detail.startedAt) : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="结束时间">
-                {detail.finishedAt ? dayjs(detail.finishedAt).format('YYYY-MM-DD HH:mm:ss') : '—'}
+                {detail.finishedAt ? formatDateTime(detail.finishedAt) : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="创建时间">
-                {dayjs(detail.createdAt).format('YYYY-MM-DD HH:mm:ss')}
+                {formatDateTime(detail.createdAt)}
               </Descriptions.Item>
               <Descriptions.Item label="自动重试">
                 {detail.retryCount ?? 0} / {detail.maxRetries ?? '—'}
               </Descriptions.Item>
               <Descriptions.Item label="下次自动重试">
-                {detail.nextRetryAt ? dayjs(detail.nextRetryAt).format('YYYY-MM-DD HH:mm:ss') : '—'}
+                {detail.nextRetryAt ? formatDateTime(detail.nextRetryAt) : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="错误信息">{detail.errorMessage || '—'}</Descriptions.Item>
             </Descriptions>

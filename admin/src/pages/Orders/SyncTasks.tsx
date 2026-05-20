@@ -5,6 +5,7 @@ import {
   type ProColumns,
 } from '@ant-design/pro-components';
 import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef, useState } from 'react';
 import { ORDER_SYNC_TASK_STATUS } from '@/constants/status';
@@ -45,7 +46,7 @@ export default function OrderSyncTasksPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '店铺 ID',
@@ -103,14 +104,14 @@ export default function OrderSyncTasksPage() {
         dataIndex: 'startedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.startedAt ? dayjs(r.startedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.startedAt ? formatDateTime(r.startedAt) : '—'),
       },
       {
         title: '结束',
         dataIndex: 'finishedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.finishedAt ? dayjs(r.finishedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.finishedAt ? formatDateTime(r.finishedAt) : '—'),
       },
       {
         title: '错误',

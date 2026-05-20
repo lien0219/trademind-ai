@@ -1,9 +1,9 @@
 import { PictureOutlined } from '@ant-design/icons';
+import { formatDateTime } from '@/utils/formatTime';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Link } from '@umijs/renderer-react';
 import { Button, Image, Popconfirm, message } from 'antd';
-import dayjs from 'dayjs';
 import { useRef } from 'react';
 import { deleteFile, fetchFiles, type FileRow } from '@/services/files';
 
@@ -69,7 +69,7 @@ export default function FilesPage() {
       dataIndex: 'createdAt',
       width: 180,
       search: false,
-      render: (_, row) => dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '操作',

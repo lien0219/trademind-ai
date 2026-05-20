@@ -1,4 +1,5 @@
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
+import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
   EditableProTable,
@@ -42,7 +43,7 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PRODUCT_STATUS } from '@/constants/status';
+import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import { uploadFile } from '@/services/files';
 import {
   applyAiDescription,
@@ -95,6 +96,28 @@ import {
 function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
   return c === 'available' || c === 'beta';
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  tiktok: 'TikTok',
+  shopee: 'Shopee',
+  lazada: 'Lazada',
+  amazon: 'Amazon',
+  mock: 'Mock',
+};
+
+function platformDisplayName(platform?: string): string {
+  const key = (platform || '').trim().toLowerCase();
+  if (!key) return '—';
+  return PLATFORM_LABELS[key] ?? platform ?? '—';
+}
+
+function inventorySyncCapabilityTag(cap?: string) {
+  if (!cap) return '—';
+  const key = cap.trim().toLowerCase() as keyof typeof PLATFORM_PROVIDER_STATUS;
+  const meta = PLATFORM_PROVIDER_STATUS[key];
+  if (meta) return <Tag color={meta.color}>{meta.text}</Tag>;
+  return <Tag>{cap}</Tag>;
 }
 
 const SKU_BATCH_STOCK_MAX_HINT = 500;
@@ -1082,7 +1105,7 @@ export default function ProductDraftDetailPage() {
                           title: '时间',
                           dataIndex: 'createdAt',
                           width: 176,
-                          render: (v) => String(v ?? '').replace('T', ' ').slice(0, 19) || '—',
+                          render: (v) => formatDateTime(v as string),
                         },
                       ]}
                       size="small"
@@ -1404,33 +1427,29 @@ export default function ProductDraftDetailPage() {
                   <Alert
                     type="info"
                     showIcon
-                    message="手动库存与同步"
+                    style={{ marginBottom: 24 }}
+                    message="库存说明"
                     description={
                       <>
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          本地商品规格库存由系统管理；各平台店铺侧上次同步记录在{' '}
-                          <Typography.Text code>product_publication_skus.stock</Typography.Text>。
-                          当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 为{' '}
-                          <Typography.Text code>available</Typography.Text>/
-                          <Typography.Text code>beta</Typography.Text>
-                          时可创建同步任务：TikTok Shop、Shopee、Lazada、Amazon 已接入真实库存更新 API（测试中 / beta），其中 Amazon 通过 SP-API
-                          Listings Items <Typography.Text code>PATCH</Typography.Text> 更新{' '}
-                          <Typography.Text code>fulfillment_availability</Typography.Text>。
+                          在此调整本地 SKU 库存与预警线；已刊登到各平台的 SKU 可在下方同步到店铺。
+                          仅当平台已开放「库存同步」且映射完整时可发起同步（TikTok、Shopee、Lazada、Amazon 已支持）。
                         </Typography.Paragraph>
-                        <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          异步任务：<Link to="/inventory/alerts">库存预警</Link>
+                        <Typography.Paragraph style={{ marginBottom: 0 }}>
+                          相关入口：
+                          <Link to="/inventory/alerts">库存预警</Link>
                           {' · '}
-                          <Link to="/inventory/sync-tasks">库存同步任务</Link>
+                          <Link to="/inventory/sync-tasks">同步任务</Link>
                           {' · '}
-                          <Link to={`/inventory/logs?productId=${data.id}`}>按商品查库存变更</Link>
+                          <Link to={`/inventory/logs?productId=${data.id}`}>变更记录</Link>
                           {' · '}
-                          <Link to="/inventory/effects">订单扣减影响</Link>
+                          <Link to="/inventory/effects">订单扣减</Link>
                         </Typography.Paragraph>
                       </>
                     }
                   />
 
-                  <Space align="center" style={{ marginBottom: 8 }} wrap>
+                  <Space align="center" style={{ marginBottom: 12 }} wrap>
                     <Typography.Title level={5} style={{ margin: 0 }}>
                       本地规格
                     </Typography.Title>
@@ -1651,7 +1670,7 @@ export default function ProductDraftDetailPage() {
                       onClick={() => {
                         Modal.confirm({
                           title: '批量同步选中刊登 SKU？',
-                          content: `将把本地库存写入同步队列（选中 ${pubSkuSelectedKeys.length} 条）。缺少外部映射或平台 inventory_sync 非 available/beta 的映射将由服务端跳过并计入批次 skipped。`,
+                          content: `将为选中的 ${pubSkuSelectedKeys.length} 条映射创建库存同步任务。缺少平台映射或未开放库存同步能力的条目将自动跳过。`,
                           okText: '创建批次',
                           onOk: async () => {
                             try {
@@ -1678,7 +1697,7 @@ export default function ProductDraftDetailPage() {
                       批量同步到平台
                     </Button>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      勾选表格左侧可选映射；灰色行为缺映射或未开放同步能力。
+                      勾选左侧可选行；不可选项表示缺少平台映射或未开放库存同步。
                     </Typography.Text>
                   </Space>
                   <Spin spinning={pubSkuLoading}>
@@ -1703,7 +1722,7 @@ export default function ProductDraftDetailPage() {
                           ellipsis: true,
                           render: (_, r) => r.shopName || '—',
                         },
-                        { title: '平台', dataIndex: 'platform', width: 108 },
+                        { title: '平台', dataIndex: 'platform', width: 108, render: (v: string) => platformDisplayName(v) },
                         {
                           title: '本地商品规格',
                           ellipsis: true,
@@ -1751,9 +1770,9 @@ export default function ProductDraftDetailPage() {
                           },
                         },
                         {
-                          title: 'inventory_sync',
+                          title: '库存同步',
                           width: 110,
-                          render: (_x, r) => r.inventorySyncCapability || '—',
+                          render: (_x, r) => inventorySyncCapabilityTag(r.inventorySyncCapability),
                         },
                         {
                           title: '操作',
@@ -2418,11 +2437,7 @@ export default function ProductDraftDetailPage() {
                 title: '时间',
                 dataIndex: 'createdAt',
                 width: 168,
-                render: (v: string) => {
-                  if (!v) return '—';
-                  const d = new Date(v);
-                  return Number.isNaN(d.getTime()) ? v : d.toLocaleString();
-                },
+                render: (v: string) => formatDateTime(v),
               },
               { title: '类型', dataIndex: 'changeType', width: 136 },
               { title: '前', width: 56, dataIndex: 'beforeStock' },

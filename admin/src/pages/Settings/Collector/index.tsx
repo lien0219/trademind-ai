@@ -1,4 +1,5 @@
 import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import {
   Alert,
@@ -262,7 +263,7 @@ function Collector1688Section({
             )}
             {authStatus?.lastCheckedAt ? (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                上次检测：{authStatus.lastCheckedAt}
+                上次检测：{formatDateTime(authStatus.lastCheckedAt)}
               </Typography.Text>
             ) : null}
           </Space>
@@ -580,7 +581,7 @@ function CollectorPinduoduoSection({
             </Typography.Text>
             {authStatus?.lastCheckedAt ? (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                上次检测：{authStatus.lastCheckedAt}
+                上次检测：{formatDateTime(authStatus.lastCheckedAt)}
               </Typography.Text>
             ) : null}
           </Space>

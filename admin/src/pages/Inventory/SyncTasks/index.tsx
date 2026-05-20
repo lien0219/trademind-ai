@@ -6,6 +6,7 @@ import {
   type ProFormInstance,
 } from '@ant-design/pro-components';
 import { Button, Drawer, Modal, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -72,7 +73,7 @@ export default function InventorySyncTasksPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '商品 ID',
@@ -145,14 +146,14 @@ export default function InventorySyncTasksPage() {
         dataIndex: 'startedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.startedAt ? dayjs(r.startedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.startedAt ? formatDateTime(r.startedAt) : '—'),
       },
       {
         title: '结束',
         dataIndex: 'finishedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.finishedAt ? dayjs(r.finishedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.finishedAt ? formatDateTime(r.finishedAt) : '—'),
       },
       {
         title: '错误',

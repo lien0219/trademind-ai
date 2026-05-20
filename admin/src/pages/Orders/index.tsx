@@ -28,6 +28,7 @@ import {
   message,
 } from 'antd';
 import dayjs from 'dayjs';
+import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -290,7 +291,7 @@ export default function OrdersPage() {
         dataIndex: 'orderedAt',
         search: false,
         width: 160,
-        render: (_, r) => (r.orderedAt ? dayjs(r.orderedAt).format('YYYY-MM-DD HH:mm') : '—'),
+        render: (_, r) => (r.orderedAt ? formatDateTime(r.orderedAt) : '—'),
       },
       {
         title: '创建时间',
@@ -303,7 +304,7 @@ export default function OrdersPage() {
             end: end ? dayjs(end as string).toISOString() : undefined,
           }),
         },
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '操作',
@@ -426,7 +427,7 @@ export default function OrdersPage() {
         title: '时间',
         dataIndex: 'createdAt',
         width: 152,
-        render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm'),
+        render: (v: string) => formatDateTime(v),
       },
     ],
     [],

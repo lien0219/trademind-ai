@@ -9,6 +9,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { history, useRequest } from '@umijs/max';
 import { Button, Col, Descriptions, Empty, List, Row, Space, Statistic, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
@@ -269,7 +270,7 @@ export default function ProductOperationsDashboardPage() {
                   </Typography.Text>
                 ) : null}
                 <Typography.Text type="secondary" style={{ marginLeft: 8 }}>
-                  {dayjs(item.occurredAt).format('YYYY-MM-DD HH:mm')}
+                  {formatDateTime(item.occurredAt)}
                 </Typography.Text>
               </Typography.Link>
             </List.Item>

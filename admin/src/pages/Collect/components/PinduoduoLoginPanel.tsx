@@ -142,44 +142,53 @@ export function PinduoduoLoginPanel({ loginUrl, compact, onAuthChange }: Props) 
         )
       }
       description={
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          {!compact ? (
-            <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
-              {hint}
-            </Typography.Paragraph>
-          ) : null}
-          {hasContext ? (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              检测/登录目标：{contextUrl.length > 72 ? `${contextUrl.slice(0, 72)}…` : contextUrl}
-            </Typography.Text>
-          ) : null}
-          {authStatus?.message && displayKey !== 'unchecked' ? (
-            <Typography.Text type="secondary">{authStatus.message}</Typography.Text>
-          ) : null}
-          {authStatus?.lastCheckedAt ? (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              上次检测：{authStatus.lastCheckedAt}
-            </Typography.Text>
-          ) : null}
-          <Space wrap align="start">
+        compact ? (
+          <Space wrap align="start" style={{ marginTop: 4 }}>
             <Button size="small" onClick={() => void loadAuthStatus()} loading={authChecking}>
               重新检测
             </Button>
-            <Space direction="vertical" size={2}>
-              <Button
-                size="small"
-                type="primary"
-                onClick={() => void handleOpenLogin()}
-                loading={loginOpening}
-              >
-                打开拼多多采集浏览器登录
-              </Button>
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => void handleOpenLogin()}
+              loading={loginOpening}
+            >
+              打开拼多多采集浏览器登录
+            </Button>
+          </Space>
+        ) : (
+          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
+              {hint}
+            </Typography.Paragraph>
+            {hasContext ? (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                如跳转到微信页面，请用微信扫码完成授权。
+                检测/登录目标：{contextUrl.length > 72 ? `${contextUrl.slice(0, 72)}…` : contextUrl}
               </Typography.Text>
+            ) : null}
+            {authStatus?.message && displayKey !== 'unchecked' ? (
+              <Typography.Text type="secondary">{authStatus.message}</Typography.Text>
+            ) : null}
+            <Space wrap align="start">
+              <Button size="small" onClick={() => void loadAuthStatus()} loading={authChecking}>
+                重新检测
+              </Button>
+              <Space direction="vertical" size={2}>
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => void handleOpenLogin()}
+                  loading={loginOpening}
+                >
+                  打开拼多多采集浏览器登录
+                </Button>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  如跳转到微信页面，请用微信扫码完成授权。
+                </Typography.Text>
+              </Space>
             </Space>
           </Space>
-        </Space>
+        )
       }
     />
   );

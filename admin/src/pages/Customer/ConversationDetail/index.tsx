@@ -1,4 +1,5 @@
 import { PageContainer } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { history, useParams } from '@umijs/max';
 import {
   Button,
@@ -380,7 +381,7 @@ export default function CustomerConversationDetailPage() {
                     <Descriptions.Item label="履约">{mapBizStatus(conv.orderSummary.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}</Descriptions.Item>
                     <Descriptions.Item label="订单金额">{`${conv.orderSummary.currency} ${conv.orderSummary.totalAmount}`}</Descriptions.Item>
                     <Descriptions.Item label="下单时间">
-                      {conv.orderSummary.orderedAt ? dayjs(conv.orderSummary.orderedAt).format('YYYY-MM-DD HH:mm') : '—'}
+                      {conv.orderSummary.orderedAt ? formatDateTime(conv.orderSummary.orderedAt) : '—'}
                     </Descriptions.Item>
                     <Descriptions.Item label="最新物流状态" span={2}>
                       {conv.orderSummary.latestShipmentStatus
@@ -442,7 +443,7 @@ export default function CustomerConversationDetailPage() {
                             title={
                               <Space size={8}>
                                 <Typography.Text type="secondary">
-                                  {dayjs(item.createdAt).format('YYYY-MM-DD HH:mm')}
+                                  {formatDateTime(item.createdAt)}
                                 </Typography.Text>
                                 <Tag>{item.role}</Tag>
                                 <Tag>{item.source}</Tag>
