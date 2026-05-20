@@ -730,10 +730,13 @@ export async function extractBrowserPayload(
       });
 
       /** 粗略风控页（不抛出，由外层决定是否降级） */
-      const bodyPeek = document.body?.innerText?.slice(0, 2500) ?? '';
+      const bodyPeek = document.body?.innerText?.slice(0, 3500) ?? '';
+      const htmlPeek = document.documentElement?.innerHTML?.slice(0, 4000) ?? '';
       const blocked =
-        /安全验证|请完成验证|访问过于频繁|captcha/i.test(bodyPeek) ||
-        (/验证/.test(bodyPeek) && headingText.length < 2);
+        /安全验证|请完成验证|访问过于频繁|captcha|滑块验证|人机验证|nc-container|punish-page/i.test(bodyPeek) ||
+        /punish|x5secdata|captcha/i.test(htmlPeek) ||
+        (/验证/.test(bodyPeek) && headingText.length < 2) ||
+        (/请登录|账号登录/.test(bodyPeek) && headingText.length < 2);
 
       let docTitle = typeof document.title === 'string' ? document.title.trim() : '';
       /** 若为拦截页 Title 常为「淘宝网」或无意义 — 仍可返回由外层判断 */

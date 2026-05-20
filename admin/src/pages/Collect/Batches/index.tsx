@@ -2,7 +2,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { history, useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
-import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select } from 'antd';
+import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
@@ -266,14 +266,16 @@ export default function CollectBatchesPage() {
     {
       title: '链接',
       dataIndex: 'sourceUrl',
+      width: 220,
       ellipsis: true,
       copyable: true,
+      fixed: 'left',
       search: false,
     },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 120,
+      width: 108,
       valueType: 'select',
       valueEnum: {
         pending: { text: '排队' },
@@ -290,7 +292,7 @@ export default function CollectBatchesPage() {
     },
     {
       title: '重试',
-      width: 100,
+      width: 88,
       search: false,
       render: (_, row) => (
         <span>
@@ -301,32 +303,61 @@ export default function CollectBatchesPage() {
     {
       title: '下次重试',
       dataIndex: 'nextRetryAt',
-      width: 168,
+      width: 156,
       search: false,
       render: (_, row) => formatTs(row.nextRetryAt),
     },
     {
       title: '商品草稿',
       dataIndex: 'resultProductId',
-      width: 220,
+      width: 120,
+      ellipsis: true,
       search: false,
       render: (_, row) =>
         row.resultProductId ? (
-          <Link to={`/product/drafts/${row.resultProductId}`}>{row.resultProductId}</Link>
+          <Link to={`/product/drafts/${row.resultProductId}`} title={row.resultProductId}>
+            {row.resultProductId.slice(0, 8)}…
+          </Link>
         ) : (
           '—'
         ),
     },
     {
-      title: '错误',
-      dataIndex: 'errorMessage',
+      title: '错误码',
+      dataIndex: 'collectorErrorCode',
+      width: 176,
       ellipsis: true,
       search: false,
+      render: (_, row) => row.collectorErrorCode || '—',
+    },
+    {
+      title: '可重试',
+      width: 72,
+      search: false,
+      render: (_, row) =>
+        row.retryable === undefined ? '—' : row.retryable ? <Tag color="warning">是</Tag> : <Tag>否</Tag>,
+    },
+    {
+      title: '错误',
+      dataIndex: 'errorMessage',
+      width: 200,
+      ellipsis: true,
+      search: false,
+      render: (_, row) => {
+        const text = [row.errorMessage, row.failureHint].filter(Boolean).join(' · ');
+        if (!text) return '—';
+        return (
+          <Typography.Text ellipsis={{ tooltip: text }} style={{ maxWidth: 188 }}>
+            {text}
+          </Typography.Text>
+        );
+      },
     },
     {
       title: '操作',
       valueType: 'option',
-      width: 160,
+      width: 112,
+      fixed: 'right',
       search: false,
       render: (_, row) => {
         const actions = [
@@ -482,22 +513,59 @@ export default function CollectBatchesPage() {
       <Drawer
         title={activeBatch ? `批次 · ${activeBatch.source} · ${activeBatch.id.slice(0, 8)}…` : '批次任务'}
         placement="right"
-        width={960}
+        width={1100}
         open={drawerOpen}
         onClose={closeDrawer}
         destroyOnHidden
+        styles={{ body: { paddingTop: 16, overflow: 'hidden' } }}
       >
         {activeBatch && (
           <>
+            {activeBatch.failedCount > 0 && activeBatch.successCount > 0 ? (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 16 }}
+                message="本批次部分链接失败"
+                description="若同一链接单独采集成功，批量失败通常与并发、访问频率或目标站点风控有关。可在「设置 → 采集服务」降低 1688 批量并发，或稍后重试失败任务。"
+              />
+            ) : null}
             <ProCard bordered size="small" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
               <Space wrap size="middle">
                 <Tag>总数 {activeBatch.totalCount}</Tag>
                 <Tag>排队 {activeBatch.pendingCount}</Tag>
                 <Tag>执行中 {activeBatch.runningCount}</Tag>
+                <Tag color="processing">重试中 {activeBatch.retryingCount ?? 0}</Tag>
                 <Tag color="success">成功 {activeBatch.successCount}</Tag>
                 <Tag color="error">失败 {activeBatch.failedCount}</Tag>
                 <Tag>取消 {activeBatch.cancelledCount}</Tag>
+                {(activeBatch.blockedCount ?? 0) > 0 ? (
+                  <Tag color="orange">风控 {activeBatch.blockedCount}</Tag>
+                ) : null}
+                {(activeBatch.timeoutCount ?? 0) > 0 ? (
+                  <Tag color="volcano">超时 {activeBatch.timeoutCount}</Tag>
+                ) : null}
+                {(activeBatch.parseFailedCount ?? 0) > 0 ? (
+                  <Tag color="magenta">解析失败 {activeBatch.parseFailedCount}</Tag>
+                ) : null}
               </Space>
+              {activeBatch.errorSummary && Object.keys(activeBatch.errorSummary).length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <Typography.Text type="secondary">失败摘要（按错误码）：</Typography.Text>
+                  <pre
+                    style={{
+                      margin: '8px 0 0',
+                      padding: 8,
+                      background: '#fafafa',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      overflow: 'auto',
+                    }}
+                  >
+                    {JSON.stringify(activeBatch.errorSummary, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
             </ProCard>
 
             <ProTable<CollectTaskRow>
@@ -506,10 +574,13 @@ export default function CollectBatchesPage() {
               columns={taskColumns}
               search={{ filterType: 'light' }}
               pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-              options={{ reload: true }}
+              options={{ reload: true, density: true, setting: true }}
               polling={taskPolling}
               headerTitle={false}
               toolBarRender={() => []}
+              scroll={{ x: 1252 }}
+              tableStyle={{ minWidth: '100%' }}
+              style={{ width: '100%' }}
               request={async (params) => {
                 const res = await queryCollectBatchTasks(activeBatch.id, {
                   page: params.current,

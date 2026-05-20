@@ -18,17 +18,27 @@ export type CollectTaskFailure = {
 
 export type CollectTaskResult = CollectTaskSuccess | CollectTaskFailure;
 
+const PREFIX_CODES: { p: string; code: CollectTaskErrorCode }[] = [
+  { p: 'INVALID_REQUEST:', code: 'INVALID_REQUEST' },
+  { p: 'PROVIDER_NOT_IMPLEMENTED:', code: 'PROVIDER_NOT_IMPLEMENTED' },
+  { p: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'PAGE_BLOCKED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'CAPTCHA:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
+  { p: 'INVALID_URL:', code: 'INVALID_URL' },
+  { p: 'UNSUPPORTED_URL:', code: 'UNSUPPORTED_URL' },
+  { p: 'PRODUCT_NOT_FOUND:', code: 'PRODUCT_NOT_FOUND' },
+  { p: 'NAVIGATION_FAILED:', code: 'NAVIGATION_FAILED' },
+  { p: 'TIMEOUT:', code: 'TIMEOUT' },
+  { p: 'PAGE_LOAD_TIMEOUT:', code: 'TIMEOUT' },
+  { p: 'PAGE_TIMEOUT:', code: 'TIMEOUT' },
+  { p: 'PARSE_FAILED:', code: 'PARSE_FAILED' },
+  { p: 'COLLECT_FAILED:', code: 'COLLECT_FAILED' },
+  { p: 'PROVIDER_NOT_AVAILABLE:', code: 'PROVIDER_NOT_AVAILABLE' },
+];
+
 function mapPrefixedError(msg: string): { code: CollectTaskErrorCode; message: string } | null {
-  const prefixes: { p: string; code: CollectTaskErrorCode }[] = [
-    { p: 'INVALID_REQUEST:', code: 'INVALID_REQUEST' },
-    { p: 'PROVIDER_NOT_IMPLEMENTED:', code: 'PROVIDER_NOT_IMPLEMENTED' },
-    { p: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED:', code: 'PAGE_BLOCKED_OR_VERIFY_REQUIRED' },
-    { p: 'INVALID_URL:', code: 'INVALID_URL' },
-    { p: 'NAVIGATION_FAILED:', code: 'NAVIGATION_FAILED' },
-    { p: 'COLLECT_FAILED:', code: 'COLLECT_FAILED' },
-    { p: 'PROVIDER_NOT_AVAILABLE:', code: 'PROVIDER_NOT_AVAILABLE' },
-  ];
-  for (const { p, code } of prefixes) {
+  for (const { p, code } of PREFIX_CODES) {
     if (msg.startsWith(p)) {
       return { code, message: msg.slice(p.length) };
     }
@@ -64,7 +74,7 @@ export async function runCollectTask(
     return {
       status: 'failed',
       error: {
-        code: 'INVALID_URL',
+        code: 'UNSUPPORTED_URL',
         message: `url is not supported by source "${provider.sourceId}"`,
       },
     };
@@ -78,18 +88,6 @@ export async function runCollectTask(
     const mapped = mapPrefixedError(msg);
     if (mapped) {
       return { status: 'failed', error: mapped };
-    }
-    if (msg.startsWith('NAVIGATION_FAILED:')) {
-      return {
-        status: 'failed',
-        error: { code: 'NAVIGATION_FAILED', message: msg.slice('NAVIGATION_FAILED:'.length) },
-      };
-    }
-    if (msg.startsWith('INVALID_URL:')) {
-      return {
-        status: 'failed',
-        error: { code: 'INVALID_URL', message: msg.slice('INVALID_URL:'.length) },
-      };
     }
     return {
       status: 'failed',

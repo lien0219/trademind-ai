@@ -9,6 +9,10 @@ export type CollectTaskRow = {
   resultProductId?: string;
   rawResult?: unknown;
   errorMessage?: string;
+  collectorErrorCode?: string;
+  retryable?: boolean;
+  failureHint?: string;
+  sameUrlSucceededElsewhere?: boolean;
   retryCount?: number;
   maxRetries?: number;
   nextRetryAt?: string;

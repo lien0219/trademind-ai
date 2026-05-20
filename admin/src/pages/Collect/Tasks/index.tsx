@@ -2,7 +2,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
-import { Alert, Button, Form, Input, Select, Tag, message } from 'antd';
+import { Alert, Button, Form, Input, Select, Tag, Typography, message } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
@@ -194,10 +194,27 @@ export default function CollectTasksPage() {
         ),
     },
     {
+      title: '错误码',
+      dataIndex: 'collectorErrorCode',
+      width: 168,
+      search: false,
+      render: (_, row) => row.collectorErrorCode || '—',
+    },
+    {
       title: '错误信息',
       dataIndex: 'errorMessage',
       ellipsis: true,
       search: false,
+      render: (_, row) => (
+        <span>
+          {row.errorMessage || '—'}
+          {row.failureHint ? (
+            <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+              {row.failureHint}
+            </Typography.Text>
+          ) : null}
+        </span>
+      ),
     },
     {
       title: '开始时间',

@@ -44,6 +44,7 @@ function eventTagColor(ev: string): string | undefined {
     case 'task.auto_retry_scheduled':
     case 'task.auto_retry_enqueued':
     case 'task.manual_retry':
+    case 'batch.delay.applied':
       return 'warning';
     default:
       return undefined;
@@ -141,6 +142,15 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                 '—'
               )}
             </Descriptions.Item>
+            {task.collectorErrorCode ? (
+              <Descriptions.Item label="错误码">{task.collectorErrorCode}</Descriptions.Item>
+            ) : null}
+            {task.retryable !== undefined ? (
+              <Descriptions.Item label="可自动重试">{task.retryable ? '是' : '否'}</Descriptions.Item>
+            ) : null}
+            {task.failureHint ? (
+              <Descriptions.Item label="排查提示">{task.failureHint}</Descriptions.Item>
+            ) : null}
           </Descriptions>
 
           <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 0 }}>

@@ -10,6 +10,11 @@ export type CollectBatchRow = {
   successCount: number;
   failedCount: number;
   cancelledCount: number;
+  retryingCount?: number;
+  blockedCount?: number;
+  timeoutCount?: number;
+  parseFailedCount?: number;
+  errorSummary?: Record<string, number>;
   status: string;
   createdBy?: string;
   createdAt: string;

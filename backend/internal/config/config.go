@@ -39,6 +39,14 @@ type Config struct {
 	// CollectBatchMaxURLs limits URLs per POST /collect/batches (default 50).
 	CollectBatchMaxURLs int
 
+	// 1688 bulk collect throttling (conservative defaults; settings.collector can override).
+	CollectBatchConcurrency1688 int
+	CollectBatchDelayMinMs1688  int
+	CollectBatchDelayMaxMs1688  int
+	CollectBatchRetryOnBlocked  bool
+	CollectBatchRetryOnTimeout  bool
+	CollectBatchMaxRetries1688  int
+
 	// Worker automatic retry (backoff via DB next_retry_at + scheduler LPUSH).
 	CollectAutoRetryEnabled      bool
 	CollectMaxRetries            int
@@ -169,6 +177,13 @@ func Load() (*Config, error) {
 			"collect:tasks",
 		)),
 		CollectBatchMaxURLs: atoiOrDefault(os.Getenv("COLLECT_BATCH_MAX_URLS"), 50),
+
+		CollectBatchConcurrency1688: atoiOrDefault(os.Getenv("COLLECT_BATCH_CONCURRENCY_1688"), 1),
+		CollectBatchDelayMinMs1688:  atoiOrDefault(os.Getenv("COLLECT_BATCH_DELAY_MIN_MS_1688"), 1500),
+		CollectBatchDelayMaxMs1688:  atoiOrDefault(os.Getenv("COLLECT_BATCH_DELAY_MAX_MS_1688"), 5000),
+		CollectBatchRetryOnBlocked:  envBool(os.Getenv("COLLECT_BATCH_RETRY_ON_BLOCKED"), true),
+		CollectBatchRetryOnTimeout:  envBool(os.Getenv("COLLECT_BATCH_RETRY_ON_TIMEOUT"), true),
+		CollectBatchMaxRetries1688:  atoiOrDefault(os.Getenv("COLLECT_BATCH_MAX_RETRIES_1688"), 2),
 
 		CollectAutoRetryEnabled:      envBool(os.Getenv("COLLECT_AUTO_RETRY_ENABLED"), true),
 		CollectMaxRetries:            atoiOrDefault(os.Getenv("COLLECT_MAX_RETRIES"), 3),

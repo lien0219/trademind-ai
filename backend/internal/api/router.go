@@ -183,6 +183,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		collectSvc.RetryBaseDelaySec = dep.Config.CollectRetryBaseDelaySeconds
 		collectSvc.RetryMaxDelaySec = dep.Config.CollectRetryMaxDelaySeconds
 		collectSvc.TaskLeaseTimeoutSeconds = dep.Config.CollectTaskTimeoutSeconds
+		collectSvc.Batch1688Concurrency = dep.Config.CollectBatchConcurrency1688
+		collectSvc.Batch1688DelayMinMs = dep.Config.CollectBatchDelayMinMs1688
+		collectSvc.Batch1688DelayMaxMs = dep.Config.CollectBatchDelayMaxMs1688
+		collectSvc.BatchRetryOnBlocked = dep.Config.CollectBatchRetryOnBlocked
+		collectSvc.BatchRetryOnTimeout = dep.Config.CollectBatchRetryOnTimeout
+		collectSvc.Batch1688MaxRetries = dep.Config.CollectBatchMaxRetries1688
+		collectSvc.Settings = settingsSvc
 	}
 	collectH := &collect.Handler{Svc: collectSvc}
 	collectRuleH := &collectrule.Handler{Svc: collectRuleSvc}

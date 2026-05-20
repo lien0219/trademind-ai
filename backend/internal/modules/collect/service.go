@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
@@ -37,6 +38,16 @@ type Service struct {
 	MaxAutoRetries    int
 	RetryBaseDelaySec int
 	RetryMaxDelaySec  int
+
+	// 1688 batch throttling (env defaults; settings group collector overrides at runtime).
+	Batch1688Concurrency int
+	Batch1688DelayMinMs  int
+	Batch1688DelayMaxMs  int
+	BatchRetryOnBlocked  bool
+	BatchRetryOnTimeout  bool
+	Batch1688MaxRetries  int
+
+	Settings *settings.Service
 
 	// TaskLeaseTimeoutSeconds is Redis/DB lease for multi-instance workers (from COLLECT_TASK_TIMEOUT_SECONDS).
 	TaskLeaseTimeoutSeconds int
@@ -262,6 +273,15 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	})
 	s.reconcileCollectBatch(ctx, task.BatchID)
 
+	releaseGate, preflightErr := s.runBatchCollectPreflight(ctx, task)
+	if preflightErr != nil {
+		s.handleCollectJobError(ctx, task, preflightErr)
+		return
+	}
+	if releaseGate != nil {
+		defer releaseGate()
+	}
+
 	var collectorOpts map[string]any
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
@@ -292,6 +312,12 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			"rule":         ruleObj,
 		}
 	}
+	if task.BatchID != nil {
+		if collectorOpts == nil {
+			collectorOpts = map[string]any{}
+		}
+		collectorOpts["batchMode"] = true
+	}
 
 	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL, collectorOpts)
 	if err != nil {
@@ -302,6 +328,13 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	norm, err := parseNormalized(outcome.ProductJSON)
 	if err != nil {
 		s.handleCollectJobError(ctx, task, fmt.Errorf("parse normalized product: %w", err))
+		return
+	}
+	if strings.EqualFold(strings.TrimSpace(task.Source), "1688") && len(norm.MainImages) == 0 {
+		s.handleCollectJobError(ctx, task, &CollectorRejectedError{
+			Code:    "PARSE_FAILED",
+			Message: "missing main images after collect",
+		})
 		return
 	}
 
@@ -580,7 +613,7 @@ func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	if err := s.DB.WithContext(c.Request.Context()).First(&t, "id = ?", id).Error; err != nil {
 		return zero, err
 	}
-	return taskToDTO(&t), nil
+	return s.enrichTaskDTO(c.Request.Context(), &t), nil
 }
 
 // List paginates tasks with filters.
@@ -618,7 +651,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 
 	items := make([]TaskDTO, 0, len(rows))
 	for i := range rows {
-		items = append(items, taskToDTO(&rows[i]))
+		items = append(items, s.enrichTaskDTO(c.Request.Context(), &rows[i]))
 	}
 
 	pages := int(total) / ps

@@ -11,6 +11,12 @@ const FIELDS: Record<string, FieldSpec> = {
   collector_http_addr: {},
   goto_timeout_ms: {},
   headless: {},
+  collect_batch_concurrency_1688: {},
+  collect_batch_delay_min_ms_1688: {},
+  collect_batch_delay_max_ms_1688: {},
+  collect_batch_retry_on_blocked: {},
+  collect_batch_retry_on_timeout: {},
+  collect_batch_max_retries_1688: {},
 };
 
 export default function CollectorSettingsPage() {
@@ -27,6 +33,28 @@ export default function CollectorSettingsPage() {
         collector_http_addr: g.collector_http_addr || ':3100',
         goto_timeout_ms: g.goto_timeout_ms ? Number(g.goto_timeout_ms) : 45000,
         headless: g.headless === '0' || g.headless === 'false' ? false : true,
+        collect_batch_concurrency_1688: g.collect_batch_concurrency_1688
+          ? Number(g.collect_batch_concurrency_1688)
+          : 1,
+        collect_batch_delay_min_ms_1688: g.collect_batch_delay_min_ms_1688
+          ? Number(g.collect_batch_delay_min_ms_1688)
+          : 1500,
+        collect_batch_delay_max_ms_1688: g.collect_batch_delay_max_ms_1688
+          ? Number(g.collect_batch_delay_max_ms_1688)
+          : 5000,
+        collect_batch_retry_on_blocked:
+          g.collect_batch_retry_on_blocked === undefined ||
+          g.collect_batch_retry_on_blocked === '' ||
+          g.collect_batch_retry_on_blocked === '1' ||
+          g.collect_batch_retry_on_blocked === 'true',
+        collect_batch_retry_on_timeout:
+          g.collect_batch_retry_on_timeout === undefined ||
+          g.collect_batch_retry_on_timeout === '' ||
+          g.collect_batch_retry_on_timeout === '1' ||
+          g.collect_batch_retry_on_timeout === 'true',
+        collect_batch_max_retries_1688: g.collect_batch_max_retries_1688
+          ? Number(g.collect_batch_max_retries_1688)
+          : 2,
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -59,6 +87,12 @@ export default function CollectorSettingsPage() {
                 ...values,
                 goto_timeout_ms: String(values.goto_timeout_ms ?? ''),
                 headless: values.headless ? '1' : '0',
+                collect_batch_concurrency_1688: String(values.collect_batch_concurrency_1688 ?? 1),
+                collect_batch_delay_min_ms_1688: String(values.collect_batch_delay_min_ms_1688 ?? 1500),
+                collect_batch_delay_max_ms_1688: String(values.collect_batch_delay_max_ms_1688 ?? 5000),
+                collect_batch_retry_on_blocked: values.collect_batch_retry_on_blocked ? '1' : '0',
+                collect_batch_retry_on_timeout: values.collect_batch_retry_on_timeout ? '1' : '0',
+                collect_batch_max_retries_1688: String(values.collect_batch_max_retries_1688 ?? 2),
               };
               await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
               message.success('已保存');
@@ -87,6 +121,28 @@ export default function CollectorSettingsPage() {
           </Form.Item>
           <Form.Item label="无头模式" name="headless" valuePropName="checked">
             <Switch />
+          </Form.Item>
+          <Form.Item
+            label="1688 批量并发上限"
+            name="collect_batch_concurrency_1688"
+            tooltip="仅批量采集生效；建议 1–2，过高易触发 1688 风控导致整批失败。"
+          >
+            <InputNumber min={1} max={2} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="1688 批量随机间隔最小（毫秒）" name="collect_batch_delay_min_ms_1688">
+            <InputNumber min={0} max={120000} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="1688 批量随机间隔最大（毫秒）" name="collect_batch_delay_max_ms_1688">
+            <InputNumber min={0} max={120000} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="批量遇风控/验证页时自动重试" name="collect_batch_retry_on_blocked" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item label="批量遇超时/导航失败时自动重试" name="collect_batch_retry_on_timeout" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item label="1688 批量任务最大自动重试次数" name="collect_batch_max_retries_1688">
+            <InputNumber min={0} max={5} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>

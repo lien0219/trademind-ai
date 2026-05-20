@@ -206,13 +206,18 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		}
 		bid := batch.ID
 		taskIDs = make([]uuid.UUID, 0, len(urls))
+		batchPolicy := s.batchPolicyForSource(ctx, source)
+		maxRetries := s.defaultMaxRetriesForNewTask()
+		if strings.EqualFold(strings.TrimSpace(source), "1688") && batchPolicy.MaxRetries > 0 {
+			maxRetries = batchPolicy.MaxRetries
+		}
 		for _, u := range urls {
 			task := CollectTask{
 				BatchID:    &bid,
 				Source:     source,
 				SourceURL:  u,
 				Status:     StatusPending,
-				MaxRetries: s.defaultMaxRetriesForNewTask(),
+				MaxRetries: maxRetries,
 				CreatedBy:  adminID,
 			}
 			if err := tx.Create(&task).Error; err != nil {
@@ -346,7 +351,7 @@ func (s *Service) ListBatches(c *gin.Context, q BatchListQuery) (*BatchListResul
 	}, nil
 }
 
-// GetBatchDTO returns one batch.
+// GetBatchDTO returns one batch with derived failure stats.
 func (s *Service) GetBatchDTO(c *gin.Context, id uuid.UUID) (BatchDTO, error) {
 	var zero BatchDTO
 	if s == nil || s.DB == nil {
@@ -356,7 +361,8 @@ func (s *Service) GetBatchDTO(c *gin.Context, id uuid.UUID) (BatchDTO, error) {
 	if err := s.DB.WithContext(c.Request.Context()).First(&b, "id = ?", id).Error; err != nil {
 		return zero, err
 	}
-	return batchToDTO(&b), nil
+	stats := s.computeBatchStats(c.Request.Context(), id)
+	return batchToDetailDTO(&b, stats), nil
 }
 
 // ListBatchTasks paginates tasks in a batch.
@@ -384,7 +390,7 @@ func (s *Service) ListBatchTasks(c *gin.Context, batchID uuid.UUID, q ListQuery)
 	}
 	items := make([]TaskDTO, 0, len(rows))
 	for i := range rows {
-		items = append(items, taskToDTO(&rows[i]))
+		items = append(items, s.enrichTaskDTO(c.Request.Context(), &rows[i]))
 	}
 	pages := int(total) / ps
 	if int(total)%ps != 0 {
