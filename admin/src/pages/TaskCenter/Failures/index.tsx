@@ -49,6 +49,8 @@ import {
   TASK_NORMALIZED_STATUS,
   failureCategoryLabel,
 } from '@/constants/taskCenter';
+import { openPinduoduoLoginBrowser } from '@/services/collectAuth';
+import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
 
 function normTag(norm: string) {
   const m = TASK_NORMALIZED_STATUS[norm];
@@ -102,6 +104,21 @@ export default function TaskCenterFailuresPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<FailureDetailDTO | null>(null);
   const [sel, setSel] = useState<UnifiedTaskDTO[]>([]);
+  const [pddLoginOpening, setPddLoginOpening] = useState(false);
+
+  const isPddLoginFailure = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
+    if (!row || row.taskType !== 'collect') return false;
+    const pl = (row.platform ?? '').toLowerCase();
+    if (pl !== 'pinduoduo' && pl !== 'pdd') return false;
+    const code = (row.errorCode ?? '').toUpperCase();
+    const cat = (row.failureCategory ?? '').toLowerCase();
+    return (
+      code === 'LOGIN_REQUIRED' ||
+      code === 'WECHAT_AUTH_REQUIRED' ||
+      cat === 'login_required' ||
+      (row.errorMessage ?? '').includes('open.weixin.qq.com')
+    );
+  };
 
   useEffect(() => {
     void (async () => {
@@ -723,6 +740,60 @@ export default function TaskCenterFailuresPage() {
               <Typography.Paragraph type="secondary">关联：{detail.relatedResourceTitle}</Typography.Paragraph>
             ) : null}
             <Space wrap>
+              {isPddLoginFailure(detail) ? (
+                <Button
+                  type="primary"
+                  loading={pddLoginOpening}
+                  onClick={async () => {
+                    setPddLoginOpening(true);
+                    try {
+                      const src =
+                        typeof detail.extra?.sourceUrl === 'string'
+                          ? String(detail.extra.sourceUrl).trim()
+                          : '';
+                      const loginUrl = resolvePinduoduoLoginTargetUrl(src || undefined);
+                      const res = await openPinduoduoLoginBrowser(loginUrl);
+                      message.success(res.message || '已打开拼多多采集浏览器');
+                    } catch (e) {
+                      message.error((e as Error).message);
+                    } finally {
+                      setPddLoginOpening(false);
+                    }
+                  }}
+                >
+                  打开拼多多采集浏览器登录
+                </Button>
+              ) : null}
+              {detail.retryable ? (
+                <Button
+                  onClick={() => {
+                    Modal.confirm({
+                      title: '重试该采集任务？',
+                      okText: '重试',
+                      onOk: async () => {
+                        try {
+                          await retryTaskFailure(detail.taskType, detail.id);
+                          message.success('已提交重试');
+                          actionRef.current?.reload?.();
+                        } catch (e) {
+                          message.error((e as Error).message);
+                        }
+                      },
+                    });
+                  }}
+                >
+                  重试任务
+                </Button>
+              ) : null}
+              {typeof detail.extra?.sourceUrl === 'string' && detail.extra.sourceUrl ? (
+                <Button
+                  onClick={() => {
+                    window.open(detail.extra!.sourceUrl as string, '_blank', 'noopener,noreferrer');
+                  }}
+                >
+                  打开原始失败页面
+                </Button>
+              ) : null}
               {detail.taskType ? (
                 <Button
                   onClick={() => {
@@ -746,8 +817,8 @@ export default function TaskCenterFailuresPage() {
                 </Button>
               ) : null}
               {detail.detailUrl ? (
-                <Button type="primary" onClick={() => history.push(detail.detailUrl!)}>
-                  打开原模块页面
+                <Button onClick={() => history.push(detail.detailUrl!)}>
+                  打开任务详情
                 </Button>
               ) : null}
             </Space>

@@ -72,8 +72,10 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
   switch (c) {
     case 'LOGIN_REQUIRED':
       return isPdd
-        ? '该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用公开商品详情页链接。'
+        ? '该页面需要登录后才能采集。请打开拼多多采集浏览器完成登录或微信扫码授权后重试。'
         : '当前商品页跳转到了登录页面，请先使用采集浏览器登录后再测试。';
+    case 'WECHAT_AUTH_REQUIRED':
+      return '拼多多登录需要微信扫码授权，请在采集浏览器中完成扫码后再重试。';
     case 'PAGE_BLOCKED_OR_VERIFY_REQUIRED':
     case 'PAGE_BLOCKED':
     case 'VERIFY_REQUIRED':
@@ -158,6 +160,9 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
   }
   if (upper.includes('PRODUCT_NOT_FOUND')) {
     return mapCollectorErrorCodeDetail('PRODUCT_NOT_FOUND', source);
+  }
+  if (upper.includes('WECHAT_AUTH') || raw.includes('open.weixin.qq.com')) {
+    return mapCollectorErrorCodeDetail('WECHAT_AUTH_REQUIRED', source);
   }
   if (upper.includes('LOGIN_REQUIRED')) {
     return mapCollectorErrorCodeDetail('LOGIN_REQUIRED', source);

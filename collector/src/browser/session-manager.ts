@@ -8,13 +8,34 @@ import {
   type AuthCheckStatus,
 } from '../providers/source1688/auth-detect.js';
 import {
+  buildPinduoduoAuthCheckResult,
+  evaluatePinduoduoAuthPage,
+  evaluatePinduoduoProductEvidence,
+  logPinduoduoAuthDebug,
+  resolvePinduoduoAuthResult,
+  type PinduoduoAuthCheckResult,
+} from '../providers/sourcePinduoduo/auth-detect.js';
+import {
+  resolvePinduoduoAuthCheckPlan,
+  resolvePinduoduoOpenLoginUrl,
+} from '../providers/sourcePinduoduo/login-url.js';
+import { PINDUODUO_PROFILE_KEY } from '../providers/sourcePinduoduo/profile.js';
+import {
   ensureBrowserDataDirs,
   get1688UserDataDir,
+  getPinduoduoUserDataDir,
 } from './browser-paths.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
 
 const PROVIDER_1688 = '1688';
+const PROVIDER_PINDUODUO = 'pinduoduo';
+
+export { PINDUODUO_PROFILE_KEY };
+
+export type AuthStatusPinduoduo = PinduoduoAuthCheckResult & {
+  profilePath?: string;
+};
 
 export type AuthStatus1688 = {
   provider: typeof PROVIDER_1688;
@@ -33,7 +54,21 @@ function defaultUserAgent(): string {
   );
 }
 
-function persistentContextOptions(headless: boolean) {
+const PDD_LOGIN_VIEWPORT = { width: 1280, height: 900 };
+
+function persistentContextOptions(headless: boolean, provider: string = PROVIDER_1688) {
+  if (provider === PROVIDER_PINDUODUO) {
+    return {
+      headless,
+      locale: 'zh-CN' as const,
+      userAgent: defaultUserAgent(),
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        `--window-size=${PDD_LOGIN_VIEWPORT.width},${PDD_LOGIN_VIEWPORT.height}`,
+      ],
+      viewport: PDD_LOGIN_VIEWPORT,
+    };
+  }
   return {
     headless,
     locale: 'zh-CN' as const,
@@ -65,6 +100,16 @@ export class BrowserSessionManager {
     return get1688UserDataDir();
   }
 
+  getPinduoduoUserDataDir(): string {
+    return getPinduoduoUserDataDir();
+  }
+
+  private providerUserDataDir(provider: string): string {
+    if (provider === PROVIDER_1688) return get1688UserDataDir();
+    if (provider === PROVIDER_PINDUODUO) return getPinduoduoUserDataDir();
+    return `${get1688UserDataDir()}/../${provider}`;
+  }
+
   isLoginSessionActive(provider: string = PROVIDER_1688): boolean {
     return this.loginSessionActive.has(provider);
   }
@@ -90,12 +135,11 @@ export class BrowserSessionManager {
     }
 
     ensureBrowserDataDirs();
-    const userDataDir =
-      provider === PROVIDER_1688 ? get1688UserDataDir() : `${get1688UserDataDir()}/../${provider}`;
+    const userDataDir = this.providerUserDataDir(provider);
 
     const context = await chromium.launchPersistentContext(
       userDataDir,
-      persistentContextOptions(wantHeadless),
+      persistentContextOptions(wantHeadless, provider),
     );
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     context.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());
@@ -127,15 +171,28 @@ export class BrowserSessionManager {
     message: string;
     alreadyOpen: boolean;
   }> {
+    const loginUrl =
+      provider === PROVIDER_PINDUODUO
+        ? 'https://mobile.yangkeduo.com/'
+        : 'https://www.1688.com/';
+    const alreadyMsg =
+      provider === PROVIDER_PINDUODUO
+        ? '采集浏览器已打开，请在窗口中完成拼多多登录或安全验证'
+        : '采集浏览器已打开，请在窗口中完成 1688 登录或安全验证';
+    const openedMsg =
+      provider === PROVIDER_PINDUODUO
+        ? '已打开拼多多采集浏览器。若跳转到微信页面，请用微信扫码完成授权（系统不保存账号密码），完成后点击「重新检测」。'
+        : '已打开采集浏览器，请在此窗口完成 1688 登录与安全验证（普通 Chrome/Edge 登录无效）';
+
     return this.runLocked(async () => {
-      const userDataDir = get1688UserDataDir();
+      const userDataDir = this.providerUserDataDir(provider);
       const existing = this.contexts.get(provider);
       if (this.loginSessionActive.has(provider) && existing && !existing.isClosed()) {
         const page = existing.pages()[0] ?? (await existing.newPage());
         await page.bringToFront().catch(() => undefined);
         return {
           profilePath: userDataDir,
-          message: '采集浏览器已打开，请在窗口中完成 1688 登录或安全验证',
+          message: alreadyMsg,
           alreadyOpen: true,
         };
       }
@@ -143,14 +200,59 @@ export class BrowserSessionManager {
       this.loginSessionActive.add(provider);
       const context = await this.getOrCreateProviderContext(provider, { headless: false });
       const page = context.pages()[0] ?? (await context.newPage());
-      await page.goto('https://www.1688.com/', {
+      await page.goto(loginUrl, {
         waitUntil: 'domcontentloaded',
         timeout: getDefaultNavigationTimeoutMs(),
       });
 
       return {
         profilePath: userDataDir,
-        message: '已打开采集浏览器，请在此窗口完成 1688 登录与安全验证（普通 Chrome/Edge 登录无效）',
+        message: openedMsg,
+        alreadyOpen: false,
+      };
+    });
+  }
+
+  async openPinduoduoLoginBrowser(contextUrl?: string): Promise<{
+    profilePath: string;
+    message: string;
+    alreadyOpen: boolean;
+  }> {
+    const { url, hasContext } = resolvePinduoduoOpenLoginUrl(contextUrl);
+    const openedHint = hasContext
+      ? '已打开目标商品页，请在采集浏览器中完成登录或微信授权，完成后点击「重新检测」。'
+      : '已打开拼多多批发入口。建议从失败任务或采集弹窗打开具体商品链接登录；若跳转微信请扫码授权。';
+    return this.runLocked(async () => {
+      const userDataDir = getPinduoduoUserDataDir();
+      const existing = this.contexts.get(PROVIDER_PINDUODUO);
+      if (this.loginSessionActive.has(PROVIDER_PINDUODUO) && existing && !existing.isClosed()) {
+        const page = existing.pages()[0] ?? (await existing.newPage());
+        await page.bringToFront().catch(() => undefined);
+        if (page.url() === 'about:blank' || !page.url().startsWith('http')) {
+          await page.goto(url, {
+            waitUntil: 'domcontentloaded',
+            timeout: getDefaultNavigationTimeoutMs(),
+          });
+        }
+        return {
+          profilePath: userDataDir,
+          message:
+            '采集浏览器已打开。若页面跳转到微信，请扫码完成授权后再点击「重新检测」。',
+          alreadyOpen: true,
+        };
+      }
+
+      this.loginSessionActive.add(PROVIDER_PINDUODUO);
+      const context = await this.getOrCreateProviderContext(PROVIDER_PINDUODUO, { headless: false });
+      const page = context.pages()[0] ?? (await context.newPage());
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: getDefaultNavigationTimeoutMs(),
+      });
+
+      return {
+        profilePath: userDataDir,
+        message: `${openedHint}（系统不保存账号密码）`,
         alreadyOpen: false,
       };
     });
@@ -245,6 +347,118 @@ export class BrowserSessionManager {
         lastCheckedAt,
         profilePath: userDataDir,
       };
+    });
+  }
+
+  async checkPinduoduoAuthStatus(
+    contextUrl?: string,
+    settingsTestUrl?: string,
+  ): Promise<AuthStatusPinduoduo> {
+    return this.runLocked(async () => {
+      const lastCheckedAt = new Date().toISOString();
+      const userDataDir = getPinduoduoUserDataDir();
+      const timeoutMs = getDefaultNavigationTimeoutMs();
+      const headless = this.loginSessionActive.has(PROVIDER_PINDUODUO) ? false : true;
+      const context = await this.getOrCreateProviderContext(PROVIDER_PINDUODUO, { headless });
+      const plan = resolvePinduoduoAuthCheckPlan(contextUrl, settingsTestUrl);
+      const checkUrl = plan.checkUrl;
+
+      const page = await context.newPage();
+      page.setDefaultNavigationTimeout(timeoutMs);
+      page.setDefaultTimeout(timeoutMs);
+
+      try {
+        await page.goto(checkUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+        await page
+          .waitForLoadState('networkidle', { timeout: Math.min(timeoutMs, 12_000) })
+          .catch(() => undefined);
+
+        const finalUrl = page.url();
+        const signals = await evaluatePinduoduoAuthPage(page);
+        const evidence = await evaluatePinduoduoProductEvidence(page);
+        const resolved = resolvePinduoduoAuthResult({
+          signals,
+          evidence,
+          finalUrl,
+          checkUrl,
+          checkMode: plan.mode,
+        });
+
+        const message =
+          plan.hint && resolved.status === 'homepage_only'
+            ? plan.hint
+            : resolved.message;
+
+        logPinduoduoAuthDebug({
+          userDataDir,
+          profileKey: PINDUODUO_PROFILE_KEY,
+          checkUrl,
+          finalUrl,
+          checkMode: plan.mode,
+          urlType: buildPinduoduoAuthCheckResult({
+            status: resolved.status,
+            loggedIn: resolved.loggedIn,
+            needVerification: resolved.needVerification,
+            message,
+            lastCheckedAt,
+            checkedUrl: checkUrl,
+            finalUrl,
+            checkMode: plan.mode,
+            evidence,
+          }).urlType,
+          evidence,
+          result: resolved.status,
+          message,
+        });
+
+        await page.close().catch(() => undefined);
+        return {
+          ...buildPinduoduoAuthCheckResult({
+            status: resolved.status,
+            loggedIn: resolved.loggedIn,
+            needVerification: resolved.needVerification,
+            message,
+            lastCheckedAt,
+            checkedUrl: checkUrl,
+            finalUrl,
+            checkMode: plan.mode,
+            evidence,
+          }),
+          profilePath: userDataDir,
+        };
+      } catch (e) {
+        await page.close().catch(() => undefined);
+        const err = e instanceof Error ? e.message : String(e);
+        const emptyEvidence = {
+          hasProductTitle: false,
+          hasPrice: false,
+          hasMainImage: false,
+          hasLoginText: false,
+          hasWechatAuth: /weixin\.qq\.com/i.test(err),
+          hasAppRedirect: false,
+        };
+        logPinduoduoAuthDebug({
+          userDataDir,
+          profileKey: PINDUODUO_PROFILE_KEY,
+          checkUrl,
+          result: 'unknown',
+          message: err,
+        });
+        return {
+          ...buildPinduoduoAuthCheckResult({
+            status: 'unknown',
+            loggedIn: false,
+            needVerification: /verify|captcha|验证/i.test(err),
+            message: `检测页异常：${err}`,
+            lastCheckedAt,
+            checkedUrl: checkUrl,
+            finalUrl: '',
+            checkMode: plan.mode,
+            evidence: emptyEvidence,
+          }),
+          profilePath: userDataDir,
+        };
+      }
     });
   }
 

@@ -34,6 +34,12 @@ func pinduoduoURLTypeLabel(sourceURL string) string {
 func accessStatusLabelFromFailure(category, errMsg string) string {
 	msg := strings.ToLower(strings.TrimSpace(errMsg))
 	cat := strings.TrimSpace(strings.ToLower(category))
+	if strings.Contains(msg, "open.weixin.qq.com") || strings.Contains(msg, "wechat_auth") {
+		return "需要微信扫码授权"
+	}
+	if strings.Contains(msg, "app_redirect") || strings.Contains(msg, "app 引导") {
+		return "App 引导页"
+	}
 	if cat == "login_required" || strings.Contains(msg, "login_required") {
 		return "需要登录"
 	}
@@ -62,7 +68,10 @@ func collectFailureContextExtras(sourceURL, errMsg, failureCategory, classifierS
 		accessStatus = "—"
 	}
 	suggested = strings.TrimSpace(classifierSuggest)
-	if urlType == "拼多多批发页" && accessStatus == "需要登录" {
+	if strings.Contains(strings.ToLower(errMsg), "open.weixin.qq.com") ||
+		accessStatus == "需要微信扫码授权" {
+		suggested = "请打开拼多多采集浏览器，在弹出的微信授权页面完成扫码登录后，再重试采集任务。"
+	} else if urlType == "拼多多批发页" && accessStatus == "需要登录" {
 		suggested = "请打开采集浏览器登录拼多多后重试，或换用普通商品详情页链接。"
 	}
 	return urlType, accessStatus, suggested

@@ -30,6 +30,11 @@ export function get1688UserDataDir(): string {
   return path.join(getBrowserProfileRoot(), '1688');
 }
 
+/** 拼多多专用 Profile（与 1688 / custom 隔离）：BROWSER_PROFILE_ROOT/pinduoduo */
+export function getPinduoduoUserDataDir(): string {
+  return path.join(getBrowserProfileRoot(), 'pinduoduo');
+}
+
 /** Custom collect browser profile: BROWSER_PROFILE_ROOT/custom/{profileKey} */
 export function getCustomProfileUserDataDir(profileKey: string): string {
   const safe = sanitizeProfileKey(profileKey);
@@ -45,7 +50,12 @@ export function getStorageStateRoot(): string {
 }
 
 export function ensureBrowserDataDirs(): void {
-  for (const dir of [getBrowserProfileRoot(), get1688UserDataDir(), getStorageStateRoot()]) {
+  for (const dir of [
+    getBrowserProfileRoot(),
+    get1688UserDataDir(),
+    getPinduoduoUserDataDir(),
+    getStorageStateRoot(),
+  ]) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }

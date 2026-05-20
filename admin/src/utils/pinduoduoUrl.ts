@@ -70,3 +70,62 @@ export function pinduoduoUrlHint(urlStr: string): string | null {
 export function pinduoduoProfileDomain(): string {
   return 'pinduoduo.com';
 }
+
+/** 移动端首页（无商品参数），不适合作为登录入口。 */
+export function isPinduoduoMobileHomeOnly(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr.trim());
+    const host = u.hostname.toLowerCase();
+    if (host !== 'mobile.yangkeduo.com' && host !== 'yangkeduo.com') return false;
+    const path = u.pathname.replace(/\/$/, '') || '/';
+    const hasGoods =
+      u.searchParams.has('goods_id') ||
+      u.searchParams.has('goodsId') ||
+      /goods/.test(path);
+    return path === '/' && !hasGoods;
+  } catch {
+    return false;
+  }
+}
+
+/** 打开登录 / 重新检测时优先使用的上下文 URL（排除移动端 App 首页）。 */
+export function resolvePinduoduoLoginTargetUrl(contextUrl?: string): string {
+  const raw = contextUrl?.trim() ?? '';
+  if (raw) {
+    try {
+      const u = new URL(raw);
+      if (u.protocol === 'http:' || u.protocol === 'https:') {
+        const host = u.hostname.toLowerCase();
+        const okHost =
+          host.endsWith('.pinduoduo.com') ||
+          host.endsWith('.yangkeduo.com') ||
+          host === 'pinduoduo.com' ||
+          host === 'yangkeduo.com';
+        if (okHost && !isPinduoduoMobileHomeOnly(raw)) {
+          return raw;
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return 'https://pifa.pinduoduo.com/';
+}
+
+export function hasPinduoduoLoginContext(contextUrl?: string): boolean {
+  const raw = contextUrl?.trim() ?? '';
+  if (!raw) return false;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    const okHost =
+      host.endsWith('.pinduoduo.com') ||
+      host.endsWith('.yangkeduo.com') ||
+      host === 'pinduoduo.com' ||
+      host === 'yangkeduo.com';
+    return okHost && !isPinduoduoMobileHomeOnly(raw);
+  } catch {
+    return false;
+  }
+}

@@ -355,10 +355,16 @@ func isPinduoduoCollectContext(in Input) bool {
 }
 
 func pinduoduoLoginSuggest(in Input) string {
-	if isPinduoduoCollectContext(in) {
-		return "该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用普通商品详情页链接。"
+	if !isPinduoduoCollectContext(in) {
+		return ""
 	}
-	return ""
+	text := joinText(in)
+	if strings.Contains(text, "open.weixin.qq.com") ||
+		strings.Contains(text, "wechat_auth") ||
+		strings.Contains(text, "微信扫码") {
+		return "请打开拼多多采集浏览器，在弹出的微信授权页面完成扫码登录后，再重试采集任务。"
+	}
+	return "该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用普通商品详情页链接。"
 }
 
 func skipCollectFailureRule(rID string, in Input) bool {

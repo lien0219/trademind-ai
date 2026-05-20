@@ -23,4 +23,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 
 	g.GET("/collector/providers/1688/auth-status", h.Get1688AuthStatus)
 	g.POST("/collector/providers/1688/open-login-browser", h.Open1688LoginBrowser)
+	g.GET("/collector/providers/pinduoduo/auth-status", h.GetPinduoduoAuthStatus)
+	g.POST("/collector/providers/pinduoduo/check-login", h.CheckPinduoduoLogin)
+	g.POST("/collect/providers/pinduoduo/check-login", h.CheckPinduoduoLogin)
+	g.POST("/collector/providers/pinduoduo/open-login-browser", h.OpenPinduoduoLoginBrowser)
 }

@@ -22,10 +22,14 @@ import type { CollectProviderRow } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { collectProviderStatusPresentation } from '@/utils/collectProviderStatus';
 import {
+  checkPinduoduoLogin,
   fetch1688AuthStatus,
   open1688LoginBrowser,
+  openPinduoduoLoginBrowser,
   type Provider1688AuthStatus,
   type Provider1688AuthStatusValue,
+  type ProviderPinduoduoAuthStatus,
+  type ProviderPinduoduoAuthStatusValue,
 } from '@/services/collectAuth';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import {
@@ -58,6 +62,7 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_aliexpress_retry_on_timeout: {},
   collect_aliexpress_batch_enabled: {},
   collect_pinduoduo_timeout_ms: {},
+  collect_pinduoduo_auth_check_url: {},
   collect_pinduoduo_access_check_enabled: {},
   collect_pinduoduo_retry_on_timeout: {},
   collect_pinduoduo_batch_enabled: {},
@@ -72,13 +77,16 @@ const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
   custom: '登录状态、采集规则与页面访问检测',
 };
 
-type AuthDisplayStatus = 'checking' | Provider1688AuthStatusValue;
+type AuthDisplayStatus = 'unchecked' | 'checking' | Provider1688AuthStatusValue;
+type PddAuthDisplayStatus = 'unchecked' | 'checking' | ProviderPinduoduoAuthStatusValue;
 
 function resolveDisplayStatus(
   status: Provider1688AuthStatus | null,
   checking: boolean,
+  loaded = true,
 ): AuthDisplayStatus {
   if (checking) return 'checking';
+  if (!loaded) return 'unchecked';
   if (!status) return 'unknown';
   if (status.status) return status.status;
   if (status.needVerification) return 'verification_required';
@@ -87,20 +95,64 @@ function resolveDisplayStatus(
   return 'not_logged_in';
 }
 
+function resolvePddDisplayStatus(
+  status: ProviderPinduoduoAuthStatus | null,
+  checking: boolean,
+  loaded: boolean,
+): PddAuthDisplayStatus {
+  if (checking) return 'checking';
+  if (!loaded) return 'unchecked';
+  if (!status) return 'unknown';
+  if (status.status) return status.status;
+  if (status.needVerification) return 'verification_required';
+  if (status.loggedIn) return 'ok';
+  return 'not_logged_in';
+}
+
 const AUTH_STATUS_LABEL: Record<
   AuthDisplayStatus,
   { text: string; badge: 'processing' | 'success' | 'error' | 'warning' | 'default' }
 > = {
+  unchecked: { text: '未检测', badge: 'default' },
   checking: { text: '检测中…', badge: 'processing' },
   ok: { text: '已登录', badge: 'success' },
   not_logged_in: { text: '未登录', badge: 'error' },
-  verification_required: { text: '需要安全验证', badge: 'warning' },
+  verification_required: { text: '需要验证', badge: 'warning' },
   unknown: { text: '检测异常', badge: 'default' },
 };
 
-function authStatusBadge(status: Provider1688AuthStatus | null, checking: boolean) {
-  const key = resolveDisplayStatus(status, checking);
+const PDD_AUTH_STATUS_LABEL: Record<
+  PddAuthDisplayStatus,
+  { text: string; badge: 'processing' | 'success' | 'error' | 'warning' | 'default' }
+> = {
+  unchecked: { text: '未检测', badge: 'default' },
+  checking: { text: '检测中…', badge: 'processing' },
+  ok: { text: '已登录', badge: 'success' },
+  not_logged_in: { text: '需要登录', badge: 'error' },
+  wechat_auth_required: { text: '需要微信扫码授权', badge: 'warning' },
+  app_redirect: { text: 'App 引导页', badge: 'warning' },
+  verification_required: { text: '需要验证', badge: 'warning' },
+  homepage_only: { text: '只能访问首页，无法确认是否已登录', badge: 'warning' },
+  unknown: { text: '暂时无法确认登录状态', badge: 'default' },
+};
+
+function authStatusBadge(
+  status: Provider1688AuthStatus | null,
+  checking: boolean,
+  loaded = true,
+) {
+  const key = resolveDisplayStatus(status, checking, loaded);
   const meta = AUTH_STATUS_LABEL[key];
+  return <Badge status={meta.badge} text={meta.text} />;
+}
+
+function pddAuthStatusBadge(
+  status: ProviderPinduoduoAuthStatus | null,
+  checking: boolean,
+  loaded: boolean,
+) {
+  const key = resolvePddDisplayStatus(status, checking, loaded);
+  const meta = PDD_AUTH_STATUS_LABEL[key];
   return <Badge status={meta.badge} text={meta.text} />;
 }
 
@@ -432,11 +484,42 @@ function CollectorAliExpressSection({ providerRow }: { providerRow?: CollectProv
   );
 }
 
-function CollectorPinduoduoSection({ providerRow }: { providerRow?: CollectProviderRow }) {
+function CollectorPinduoduoSection({
+  providerRow,
+  authStatus,
+  authChecking,
+  authLoaded,
+  loginOpening,
+  onRecheck,
+  onOpenLogin,
+}: {
+  providerRow?: CollectProviderRow;
+  authStatus: ProviderPinduoduoAuthStatus | null;
+  authChecking: boolean;
+  authLoaded: boolean;
+  loginOpening: boolean;
+  onRecheck: () => void;
+  onOpenLogin: () => void;
+}) {
   const isBeta = providerRow?.status === 'beta';
+  const authKey = resolvePddDisplayStatus(authStatus, authChecking, authLoaded);
 
   return (
-    <ProCard title="拼多多专属配置" bordered className="tm-collector-settings__panel">
+    <ProCard
+      title="拼多多专属配置"
+      bordered
+      className="tm-collector-settings__panel"
+      extra={
+        <Space wrap size="small" className="tm-action-space">
+          <Button size="small" onClick={onRecheck} loading={authChecking}>
+            重新检测
+          </Button>
+          <Button size="small" type="primary" onClick={onOpenLogin} loading={loginOpening}>
+            打开拼多多采集浏览器登录
+          </Button>
+        </Space>
+      }
+    >
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <div className="tm-collector-auth-panel">
           <Space wrap>
@@ -454,6 +537,55 @@ function CollectorPinduoduoSection({ providerRow }: { providerRow?: CollectProvi
           </Space>
         </div>
 
+        <div className={`tm-collector-auth-panel tm-collector-auth-panel--${authKey}`}>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Space wrap>
+              <Typography.Text strong>拼多多登录状态</Typography.Text>
+              {pddAuthStatusBadge(authStatus, authChecking, authLoaded)}
+            </Space>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              拼多多部分商品页和批发页需要登录或微信扫码授权。建议从失败任务或采集弹窗中打开登录，系统会直接打开需要采集的商品页；若无上下文则打开批发入口（不会打开移动端 App 首页）。系统不会保存账号密码。
+            </Typography.Paragraph>
+            {authChecking ? (
+              <Typography.Text type="secondary">正在检测登录态…</Typography.Text>
+            ) : authStatus?.message ? (
+              <Typography.Text type="secondary">{authStatus.message}</Typography.Text>
+            ) : authKey === 'wechat_auth_required' ? (
+              <Typography.Text type="secondary">
+                拼多多登录需要微信扫码授权，请在弹出的采集浏览器中完成扫码登录。
+              </Typography.Text>
+            ) : authKey === 'not_logged_in' ? (
+              <Typography.Text type="secondary">
+                请先打开采集浏览器登录拼多多，然后重新检测。
+              </Typography.Text>
+            ) : authKey === 'app_redirect' ? (
+              <Typography.Text type="secondary">
+                当前为 App 引导页，无法确认登录态。请从具体商品链接或失败任务中打开登录后再检测。
+              </Typography.Text>
+            ) : authKey === 'verification_required' ? (
+              <Typography.Text type="secondary">
+                拼多多页面可能出现验证码或安全验证，请在采集浏览器中手动完成验证后重试。
+              </Typography.Text>
+            ) : authKey === 'homepage_only' ? (
+              <Typography.Text type="secondary">
+                拼多多首页可能游客也能访问。请从失败任务中点击「打开拼多多采集浏览器登录」，或在采集弹窗输入具体商品链接后重新检测。
+              </Typography.Text>
+            ) : authKey === 'unknown' ? (
+              <Typography.Text type="secondary">
+                请确认采集浏览器中是否已完成登录或微信授权，然后使用具体商品链接重新检测。
+              </Typography.Text>
+            ) : null}
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+              如跳转到微信页面，请用微信扫码完成授权。
+            </Typography.Text>
+            {authStatus?.lastCheckedAt ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                上次检测：{authStatus.lastCheckedAt}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        </div>
+
         {isBeta ? (
           <Alert
             type="warning"
@@ -461,6 +593,14 @@ function CollectorPinduoduoSection({ providerRow }: { providerRow?: CollectProvi
             message="拼多多采集器当前为测试中，适合单链接采集商品基础信息。商品规格、库存和动态价格可能不完整，请采集后人工检查。"
           />
         ) : null}
+
+        <Form.Item
+          label="用于检测的商品链接"
+          name="collect_pinduoduo_auth_check_url"
+          tooltip="填写拼多多商品详情页（含批发 goods/detail），重新检测时将打开该页验证登录态。"
+        >
+          <Input placeholder="建议填写一个需要采集的拼多多商品详情链接，用于确认登录状态" allowClear />
+        </Form.Item>
 
         <Row gutter={16}>
           <Col xs={24} sm={12}>
@@ -536,7 +676,12 @@ export default function CollectorSettingsPage() {
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [authStatus, setAuthStatus] = useState<Provider1688AuthStatus | null>(null);
   const [authChecking, setAuthChecking] = useState(false);
+  const [authLoaded, setAuthLoaded] = useState(false);
   const [loginOpening, setLoginOpening] = useState(false);
+  const [pddAuthStatus, setPddAuthStatus] = useState<ProviderPinduoduoAuthStatus | null>(null);
+  const [pddAuthChecking, setPddAuthChecking] = useState(false);
+  const [pddAuthLoaded, setPddAuthLoaded] = useState(false);
+  const [pddLoginOpening, setPddLoginOpening] = useState(false);
 
   const providerKey = useMemo(
     () => resolveCollectSettingsProvider(new URLSearchParams(location.search || '').get('provider')),
@@ -562,8 +707,30 @@ export default function CollectorSettingsPage() {
       message.error((e as Error)?.message || '1688 登录态检测失败');
     } finally {
       setAuthChecking(false);
+      setAuthLoaded(true);
     }
   }, []);
+
+  const loadPddAuthStatus = useCallback(async () => {
+    const testUrl = String(form.getFieldValue('collect_pinduoduo_auth_check_url') ?? '').trim();
+    if (!testUrl) {
+      message.warning(
+        '未提供商品详情链接，本次只能检测拼多多首页是否可访问，不能准确判断是否已登录。',
+        6,
+      );
+    }
+    setPddAuthChecking(true);
+    try {
+      const data = await checkPinduoduoLogin({ testUrl: testUrl || undefined });
+      setPddAuthStatus(data);
+    } catch (e: unknown) {
+      setPddAuthStatus(null);
+      message.error((e as Error)?.message || '拼多多登录态检测失败');
+    } finally {
+      setPddAuthChecking(false);
+      setPddAuthLoaded(true);
+    }
+  }, [form]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -602,6 +769,7 @@ export default function CollectorSettingsPage() {
         collect_pinduoduo_timeout_ms: g.collect_pinduoduo_timeout_ms
           ? Number(g.collect_pinduoduo_timeout_ms)
           : undefined,
+        collect_pinduoduo_auth_check_url: g.collect_pinduoduo_auth_check_url || '',
         collect_pinduoduo_access_check_enabled: parseBoolSetting(g.collect_pinduoduo_access_check_enabled),
         collect_pinduoduo_retry_on_timeout: parseBoolSetting(g.collect_pinduoduo_retry_on_timeout),
         collect_pinduoduo_batch_enabled:
@@ -625,7 +793,10 @@ export default function CollectorSettingsPage() {
     if (providerKey === '1688') {
       void loadAuthStatus();
     }
-  }, [providerKey, loadAuthStatus]);
+    if (providerKey === 'pinduoduo') {
+      void loadPddAuthStatus();
+    }
+  }, [providerKey, loadAuthStatus, loadPddAuthStatus]);
 
   const handleProviderChange = (key: CollectSettingsProviderKey) => {
     history.replace(`/settings/collector?provider=${encodeURIComponent(key)}`);
@@ -641,6 +812,21 @@ export default function CollectorSettingsPage() {
       message.error((e as Error)?.message || '打开采集浏览器失败');
     } finally {
       setLoginOpening(false);
+    }
+  };
+
+  const handleOpenPddLoginBrowser = async () => {
+    setPddLoginOpening(true);
+    try {
+      const testUrl = String(form.getFieldValue('collect_pinduoduo_auth_check_url') ?? '').trim();
+      const loginTarget = testUrl || 'https://pifa.pinduoduo.com/';
+      const result = await openPinduoduoLoginBrowser(loginTarget);
+      message.success(result.message || '已打开拼多多采集浏览器');
+      await loadPddAuthStatus();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '打开拼多多采集浏览器失败');
+    } finally {
+      setPddLoginOpening(false);
     }
   };
 
@@ -670,6 +856,7 @@ export default function CollectorSettingsPage() {
           values.collect_pinduoduo_timeout_ms != null && values.collect_pinduoduo_timeout_ms !== ''
             ? String(values.collect_pinduoduo_timeout_ms)
             : '',
+        collect_pinduoduo_auth_check_url: String(values.collect_pinduoduo_auth_check_url ?? '').trim(),
         collect_pinduoduo_access_check_enabled: values.collect_pinduoduo_access_check_enabled ? '1' : '0',
         collect_pinduoduo_retry_on_timeout: values.collect_pinduoduo_retry_on_timeout ? '1' : '0',
         collect_pinduoduo_batch_enabled: values.collect_pinduoduo_batch_enabled ? '1' : '0',
@@ -697,7 +884,15 @@ export default function CollectorSettingsPage() {
   ) : providerKey === 'aliexpress' ? (
     <CollectorAliExpressSection providerRow={providerRow} />
   ) : providerKey === 'pinduoduo' ? (
-    <CollectorPinduoduoSection providerRow={providerRow} />
+    <CollectorPinduoduoSection
+      providerRow={providerRow}
+      authStatus={pddAuthStatus}
+      authChecking={pddAuthChecking}
+      authLoaded={pddAuthLoaded}
+      loginOpening={pddLoginOpening}
+      onRecheck={loadPddAuthStatus}
+      onOpenLogin={handleOpenPddLoginBrowser}
+    />
   ) : null;
 
   return (

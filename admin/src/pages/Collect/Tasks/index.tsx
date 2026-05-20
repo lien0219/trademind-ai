@@ -27,8 +27,8 @@ import {
   ruleMatchesURL,
   suggestRuleDomainForHost,
 } from '@/utils/collectRuleMatch';
-import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
-import { classifyPinduoduoUrl, pinduoduoProfileDomain, pinduoduoUrlHint } from '@/utils/pinduoduoUrl';
+import { PinduoduoLoginPanel } from '@/pages/Collect/components/PinduoduoLoginPanel';
+import { classifyPinduoduoUrl, pinduoduoUrlHint } from '@/utils/pinduoduoUrl';
 
 function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
@@ -58,7 +58,6 @@ export default function CollectTasksPage() {
   const [enabledRules, setEnabledRules] = useState<CollectRuleRow[]>([]);
   const formSource = Form.useWatch('source', form);
   const formUrl = Form.useWatch('url', form);
-  const [pddProfileId, setPddProfileId] = useState<string | undefined>();
   const [pddUseBrowserProfile, setPddUseBrowserProfile] = useState(false);
   const isPddSource = formSource === 'pinduoduo' || formSource === 'pdd';
   const pddUrlHint = useMemo(() => {
@@ -383,8 +382,8 @@ export default function CollectTasksPage() {
                 ...(src === 'custom' ? { ruleId: rid || undefined } : {}),
                 ...(isPddSource
                   ? {
-                      profileId: pddUseBrowserProfile ? pddProfileId : undefined,
-                      useBrowserProfile: pddUseBrowserProfile && Boolean(pddProfileId),
+                      useBrowserProfile:
+                        pddUseBrowserProfile || pddUrlType === 'wholesale_detail',
                     }
                   : {}),
               });
@@ -442,22 +441,15 @@ export default function CollectTasksPage() {
           ) : null}
           {isPddSource ? (
             <div style={{ width: '100%', marginBottom: 12 }}>
-              <Space style={{ marginBottom: 8 }}>
-                <Switch checked={pddUseBrowserProfile} onChange={setPddUseBrowserProfile} />
+              <PinduoduoLoginPanel loginUrl={formUrl?.trim() || undefined} compact />
+              <Space style={{ marginTop: 12 }}>
+                <Switch
+                  checked={pddUseBrowserProfile || pddUrlType === 'wholesale_detail'}
+                  disabled={pddUrlType === 'wholesale_detail'}
+                  onChange={setPddUseBrowserProfile}
+                />
                 <Typography.Text>使用已登录的采集浏览器</Typography.Text>
               </Space>
-              {pddUseBrowserProfile ? (
-                <BrowserProfileLoginPanel
-                  url={formUrl?.trim() ?? ''}
-                  domain={pinduoduoProfileDomain()}
-                  profileProvider="pinduoduo"
-                  profileId={pddProfileId}
-                  useBrowserProfile={pddUseBrowserProfile}
-                  tone="optional"
-                  onProfileIdChange={setPddProfileId}
-                  onUseProfileChange={setPddUseBrowserProfile}
-                />
-              ) : null}
             </div>
           ) : null}
           <Form.Item>

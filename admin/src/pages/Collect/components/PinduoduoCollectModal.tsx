@@ -1,9 +1,14 @@
 import { Alert, Button, Form, Input, Modal, Space, Switch, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
+import { PinduoduoLoginPanel } from '@/pages/Collect/components/PinduoduoLoginPanel';
+import type { ProviderPinduoduoAuthStatus } from '@/services/collectAuth';
 import { createCollectTask } from '@/services/collectTasks';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
-import { classifyPinduoduoUrl, pinduoduoProfileDomain, pinduoduoUrlHint } from '@/utils/pinduoduoUrl';
+import {
+  classifyPinduoduoUrl,
+  hasPinduoduoLoginContext,
+  pinduoduoUrlHint,
+} from '@/utils/pinduoduoUrl';
 
 type Props = {
   open: boolean;
@@ -15,14 +20,14 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
   const [form] = Form.useForm<{ url: string }>();
   const url = Form.useWatch('url', form);
   const [submitting, setSubmitting] = useState(false);
-  const [profileId, setProfileId] = useState<string | undefined>();
   const [useBrowserProfile, setUseBrowserProfile] = useState(false);
+  const [authStatus, setAuthStatus] = useState<ProviderPinduoduoAuthStatus | null>(null);
 
   useEffect(() => {
     if (!open) {
       form.resetFields();
-      setProfileId(undefined);
       setUseBrowserProfile(false);
+      setAuthStatus(null);
     }
   }, [open, form]);
 
@@ -36,6 +41,17 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
   const canSubmit =
     urlType === 'goods_detail' || urlType === 'wholesale_detail';
 
+  useEffect(() => {
+    if (urlType === 'wholesale_detail') {
+      setUseBrowserProfile(true);
+    }
+  }, [urlType]);
+
+  const loginNotReady =
+    (useBrowserProfile || urlType === 'wholesale_detail') &&
+    authStatus != null &&
+    !authStatus.loggedIn;
+
   const handleSubmit = async () => {
     const vals = await form.validateFields();
     const raw = vals.url?.trim();
@@ -47,13 +63,15 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
       message.warning(pinduoduoUrlHint(raw) ?? '请输入拼多多商品详情页链接');
       return;
     }
+    if (urlType === 'wholesale_detail' && authStatus && !authStatus.loggedIn) {
+      message.warning('批发页通常需要登录，请先打开拼多多采集浏览器登录后再采集');
+    }
     setSubmitting(true);
     try {
       await createCollectTask({
         source: 'pinduoduo',
         url: raw,
-        profileId: useBrowserProfile ? profileId : undefined,
-        useBrowserProfile: useBrowserProfile && Boolean(profileId),
+        useBrowserProfile: useBrowserProfile || urlType === 'wholesale_detail',
       });
       message.success('采集任务已提交，正在后台处理');
       onSubmitted?.();
@@ -65,12 +83,14 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
     }
   };
 
+  const loginUrl = hasPinduoduoLoginContext(url?.trim()) ? url!.trim() : undefined;
+
   return (
     <Modal
       title="拼多多采集"
       open={open}
       onCancel={onClose}
-      width={640}
+      width={680}
       destroyOnHidden
       footer={
         <Space>
@@ -82,7 +102,7 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
       }
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        第一版优先支持普通商品详情页（mobile.yangkeduo.com / pinduoduo.com）。拼多多批发页（pifa.pinduoduo.com）可能需要登录态。
+        第一版优先支持普通商品详情页。拼多多批发页（pifa.pinduoduo.com）通常需要登录后才能采集。
       </Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item
@@ -102,21 +122,19 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
         />
       ) : null}
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <PinduoduoLoginPanel loginUrl={loginUrl} onAuthChange={setAuthStatus} />
         <Space>
-          <Switch checked={useBrowserProfile} onChange={setUseBrowserProfile} />
+          <Switch
+            checked={useBrowserProfile || urlType === 'wholesale_detail'}
+            disabled={urlType === 'wholesale_detail'}
+            onChange={setUseBrowserProfile}
+          />
           <Typography.Text>使用已登录的采集浏览器</Typography.Text>
         </Space>
-        {useBrowserProfile ? (
-          <BrowserProfileLoginPanel
-            url={url?.trim() ?? ''}
-            domain={pinduoduoProfileDomain()}
-            profileProvider="pinduoduo"
-            profileId={profileId}
-            useBrowserProfile={useBrowserProfile}
-            tone="optional"
-            onProfileIdChange={setProfileId}
-            onUseProfileChange={setUseBrowserProfile}
-          />
+        {loginNotReady ? (
+          <Typography.Text type="warning">
+            当前未检测到登录态，任务可能因需要登录而失败，建议先完成登录后再采集。
+          </Typography.Text>
         ) : null}
       </Space>
     </Modal>

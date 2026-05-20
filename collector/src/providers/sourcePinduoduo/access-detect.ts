@@ -6,6 +6,7 @@ import {
   resolveAccessStatusFromSignals,
   accessStatusToErrorCode,
 } from '../sourceCustom/access-detect.js';
+import { isWechatAuthUrl } from './auth-detect.js';
 import { isPinduoduoHost } from './validate-url.js';
 import { classifyPinduoduoUrl, type PinduoduoUrlType, wholesaleLoginSuggestion } from './url-type.js';
 
@@ -45,7 +46,10 @@ function isPinduoduoLoginUrl(href: string): boolean {
   return false;
 }
 
-function loginSuggestionForUrlType(urlType: PinduoduoUrlType): string {
+function loginSuggestionForUrlType(urlType: PinduoduoUrlType, finalUrl?: string): string {
+  if (finalUrl && isWechatAuthUrl(finalUrl)) {
+    return '拼多多登录需要微信扫码授权，请在采集浏览器中完成扫码后再重试采集。';
+  }
   if (urlType === 'wholesale_detail') {
     return wholesaleLoginSuggestion();
   }
@@ -82,7 +86,7 @@ function toCustomAccessReport(
     missingFields: ['title'],
     warnings: [],
     errorCode: code,
-    suggestion: loginSuggestionForUrlType(urlType),
+    suggestion: loginSuggestionForUrlType(urlType, report.finalUrl),
   };
 }
 
@@ -99,6 +103,14 @@ export async function detectPinduoduoAccessStatus(
   }));
 
   const base = { finalUrl, pageTitle: snap.title, bodySnippet: snap.body.slice(0, 400), urlType };
+
+  if (isWechatAuthUrl(finalUrl)) {
+    return {
+      ...base,
+      status: 'login_required',
+      errorCode: 'LOGIN_REQUIRED',
+    };
+  }
 
   if (isPinduoduoLoginUrl(finalUrl) || signals.loginRedirect) {
     return {

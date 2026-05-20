@@ -1,5 +1,6 @@
 import type { Page } from 'playwright';
 import type { BrowserManager } from '../../browser/manager.js';
+import { PINDUODUO_PROFILE_KEY } from './profile.js';
 import type { CollectInput, CollectorProvider } from '../collector-provider.js';
 import type { CollectFeature } from '../../types/provider-meta.js';
 import type { NormalizedProduct } from '../../types/product.js';
@@ -60,10 +61,10 @@ class PinduoduoCollectorProvider implements CollectorProvider {
     }
 
     const navUrl = normalizePinduoduoNavUrl(sourceUrl);
-    const useProfile =
+    const profileKey = String(input.options?.profileKey ?? '').trim();
+    const useDedicatedProfile =
       input.options?.useBrowserProfile === true &&
-      typeof input.options?.profileKey === 'string' &&
-      input.options.profileKey.trim().length > 0;
+      profileKey === PINDUODUO_PROFILE_KEY;
 
     const run = async (page: Page) => {
       const gotoTimeout = getDefaultNavigationTimeoutMs();
@@ -122,8 +123,8 @@ class PinduoduoCollectorProvider implements CollectorProvider {
       } satisfies NormalizedProduct;
     };
 
-    if (useProfile) {
-      return browser.withCustomProfilePage(String(input.options!.profileKey), run);
+    if (useDedicatedProfile) {
+      return browser.withPinduoduoPage(run);
     }
 
     const browserInstance = await browser.ensureBrowser();
