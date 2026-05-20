@@ -109,16 +109,17 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
 }
 
 export const CUSTOM_COLLECT_USAGE_LINES = [
+  '自定义链接采集适合采基础信息。不同网站结构差异较大，采集结果请先预览确认后再使用。',
   '用于采集没有专用采集器的网站商品页。请先创建采集规则，再开始采集。',
   '如果是 1688、速卖通等已支持的平台，请优先使用对应的专用采集器，识别更稳定。',
   '建议先测试采集效果，确认标题、价格、图片识别正确后再提交采集任务。',
 ] as const;
 
 export const CUSTOM_COLLECT_CARD_DESCRIPTION =
-  '用于采集没有专用采集器的网站商品页。请先创建采集规则，再开始采集。';
+  '适合采集没有专用采集器的网站商品页，可采集商品标题、价格、图片、参数等基础信息。';
 
 export const CUSTOM_COLLECT_CARD_NOTES =
-  '自定义采集器适合采集页面基础信息（标题、价格、图片、参数）；SKU / 库存 / 动态价格不保证完整。1688、速卖通等已支持平台请优先使用专用采集器。';
+  '商品规格、库存、动态价格不保证完整。使用前建议先测试采集规则。已支持的平台请优先使用专用采集器；自定义链接批量采集暂未开放。';
 
 export const DEDICATED_COLLECT_CARD_NOTES =
   '专用采集器适合采集完整商品数据，含商品规格与库存；已针对平台页面结构专门适配，识别更稳定。';
@@ -135,4 +136,4 @@ export const COLLECT_HUB_TYPE_HINT = {
 } as const;
 
 export const CUSTOM_BATCH_DISABLED_TOOLTIP =
-  '自定义链接批量采集暂未开放。请先使用单条采集验证规则是否稳定。';
+  '已支持的平台请优先使用专用采集器；自定义链接批量采集暂未开放。';

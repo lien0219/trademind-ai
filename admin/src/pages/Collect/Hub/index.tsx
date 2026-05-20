@@ -1,10 +1,11 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Alert, Button, Col, Empty, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Button, Col, Empty, message, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
+import { queryCollectRules } from '@/services/collectRules';
 import {
   COLLECT_HUB_TYPE_HINT,
   CUSTOM_BATCH_DISABLED_TOOLTIP,
@@ -13,13 +14,19 @@ import {
   DEDICATED_COLLECT_CARD_NOTES,
 } from '@/utils/customCollectPlatform';
 import {
+  collectProviderStatusPresentation,
+  CUSTOM_COLLECT_DISPLAY_FEATURES,
+  CUSTOM_COLLECT_FEATURE_LABEL,
+  NO_COLLECT_RULE_MESSAGE,
+} from '@/utils/collectProviderStatus';
+import {
   collectSettingsConfigButtonLabel,
   collectSettingsPath,
 } from '@/utils/collectSettingsProvider';
 
 const { Paragraph, Title, Text } = Typography;
 
-const FEATURE_LABEL: Record<string, string> = {
+const DEDICATED_FEATURE_LABEL: Record<string, string> = {
   title: '商品标题',
   mainImages: '商品主图',
   descriptionImages: '详情图片',
@@ -44,6 +51,22 @@ function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefine
   return undefined;
 }
 
+function providerCardFeatures(p: CollectProviderRow): string[] {
+  if (p.source === 'custom') {
+    const fromApi = (p.features ?? []).filter((f) => f !== 'skus');
+    if (fromApi.length > 0) return fromApi;
+    return [...CUSTOM_COLLECT_DISPLAY_FEATURES];
+  }
+  return p.features ?? [];
+}
+
+function featureLabelForProvider(p: CollectProviderRow, feature: string): string {
+  if (p.source === 'custom') {
+    return CUSTOM_COLLECT_FEATURE_LABEL[feature] ?? feature;
+  }
+  return DEDICATED_FEATURE_LABEL[feature] ?? feature;
+}
+
 function providerCardCopy(p: CollectProviderRow): { description: string; notes: string; typeLabel: string; typeHint: string } {
   if (p.source === 'custom') {
     return {
@@ -62,19 +85,18 @@ function providerCardCopy(p: CollectProviderRow): { description: string; notes: 
   };
 }
 
-function providerStatusPresentation(status: CollectProviderStatus) {
-  switch (status) {
-    case 'available':
-      return { text: '已可用', color: 'success' as const };
-    case 'beta':
-      return { text: '测试中', color: 'processing' as const };
-    case 'planned':
-      return { text: '规划中', color: 'default' as const };
-    case 'disabled':
-      return { text: '已禁用', color: 'error' as const };
-    default:
-      return { text: status, color: 'default' as const };
+async function openCustomCollectModal(
+  setCustomModalOpen: (open: boolean) => void,
+): Promise<void> {
+  try {
+    const res = await queryCollectRules({ page: 1, pageSize: 1, status: 'enabled' });
+    if (!res.list?.length) {
+      message.warning(NO_COLLECT_RULE_MESSAGE);
+    }
+  } catch {
+    // 仍打开 Modal，由弹窗内引导创建规则
   }
+  setCustomModalOpen(true);
 }
 
 export default function CollectHubPage() {
@@ -136,9 +158,10 @@ export default function CollectHubPage() {
       ) : (
         <Row gutter={[16, 16]}>
           {sorted.map((p) => {
-            const tag = providerStatusPresentation(p.status);
+            const tag = collectProviderStatusPresentation(p.source, p.status);
             const runnableSingle = providerRunnableForSingleTask(p.status);
             const cardCopy = providerCardCopy(p);
+            const cardFeatures = providerCardFeatures(p);
             return (
               <Col xs={24} sm={24} md={12} lg={12} xl={8} key={p.source}>
                 <div
@@ -179,10 +202,10 @@ export default function CollectHubPage() {
                     <Text strong>支持能力</Text>
                   </div>
                   <div style={{ marginBottom: 16 }}>
-                    {p.features?.length ? (
+                    {cardFeatures.length ? (
                       <Space wrap size={[4, 8]}>
-                        {p.features.map((f) => (
-                          <Tag key={f}>{FEATURE_LABEL[f] ?? f}</Tag>
+                        {cardFeatures.map((f) => (
+                          <Tag key={f}>{featureLabelForProvider(p, f)}</Tag>
                         ))}
                       </Space>
                     ) : (
@@ -197,7 +220,7 @@ export default function CollectHubPage() {
                         disabled={!runnableSingle}
                         onClick={() => {
                           if (p.source === 'custom') {
-                            setCustomModalOpen(true);
+                            void openCustomCollectModal(setCustomModalOpen);
                           } else {
                             history.push(`/collect/tasks?source=${encodeURIComponent(p.source)}`);
                           }

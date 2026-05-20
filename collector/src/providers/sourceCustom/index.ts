@@ -36,12 +36,13 @@ export const sourceCustomCollectorProvider: CollectorProvider = {
   meta: {
     name: '自定义链接采集器',
     description:
-      '用于采集没有专用采集器的网站商品页。请优先使用平台专属采集器，字段识别更稳定。',
+      '适合采集没有专用采集器的网站商品页，可采集商品标题、价格、图片、参数等基础信息。',
     status: 'beta',
     batchSupported: false,
     urlPatterns: ['https://example.com/product/...'],
-    features: ['title', 'mainImages', 'descriptionImages', 'attributes'] satisfies CollectFeature[],
-    notes: '自定义采集器适合采集页面基础信息（标题、价格、图片、参数）；SKU / 库存 / 动态价格不保证完整。已支持的平台请优先使用专用采集器。',
+    features: ['title', 'price', 'mainImages', 'descriptionImages', 'attributes'] satisfies CollectFeature[],
+    notes:
+      '商品规格、库存、动态价格不保证完整。使用前建议先测试采集规则。已支持的平台请优先使用专用采集器；自定义链接批量采集暂未开放。',
   },
 
   canHandle(urlStr: string): boolean {

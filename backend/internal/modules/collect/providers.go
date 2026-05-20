@@ -84,12 +84,12 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 		{
 			Source:         "custom",
 			Name:           "自定义链接采集器",
-			Description:    "用于采集没有专用采集器的网站商品页。请优先使用平台专属采集器，字段识别更稳定。",
+			Description:    "适合采集没有专用采集器的网站商品页，可采集商品标题、价格、图片、参数等基础信息。",
 			Status:         "beta",
 			BatchSupported: false,
 			URLPatterns:    []string{"https://example.com/product/..."},
-			Features:       []string{"title", "mainImages", "descriptionImages", "attributes"},
-			Notes:          "适用于暂未提供专用采集器的网站。已支持的平台请使用对应采集器，批量采集暂未开放。",
+			Features:       []string{"title", "price", "mainImages", "descriptionImages", "attributes"},
+			Notes:          "商品规格、库存、动态价格不保证完整。使用前建议先测试采集规则。已支持的平台请优先使用专用采集器；自定义链接批量采集暂未开放。",
 		},
 	}
 }

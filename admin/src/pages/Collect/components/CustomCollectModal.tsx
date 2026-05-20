@@ -19,6 +19,7 @@ import {
   detectCustomCollectPlatform,
   type CustomCollectPlatformHint,
 } from '@/utils/customCollectPlatform';
+import { NO_COLLECT_RULE_MESSAGE } from '@/utils/collectProviderStatus';
 
 type Props = {
   open: boolean;
@@ -166,7 +167,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
       return;
     }
     if (rules.length === 0) {
-      message.error('请先到「采集规则」创建并启用一条采集规则');
+      message.warning(NO_COLLECT_RULE_MESSAGE);
       return;
     }
     const picked = resolveRuleId(rules, url, formRuleId);
@@ -232,7 +233,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
           return false;
         }
         if (rules.length === 0) {
-          message.error('请先到「采集规则」创建并启用一条采集规则');
+          message.warning(NO_COLLECT_RULE_MESSAGE);
           return false;
         }
         const picked = resolveRuleId(rules, url, vals.ruleId);
@@ -291,7 +292,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="还没有适用于该网站的采集规则"
+          message={NO_COLLECT_RULE_MESSAGE}
           description={
             <Space direction="vertical" size="small">
               <span>可使用 AI 根据商品页面自动生成规则，或手动创建。</span>

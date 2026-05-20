@@ -20,6 +20,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CollectProviderRow } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
+import { collectProviderStatusPresentation } from '@/utils/collectProviderStatus';
 import {
   fetch1688AuthStatus,
   open1688LoginBrowser,
@@ -104,17 +105,10 @@ function parseBoolSetting(v: string | undefined, defaultTrue = true): boolean {
   return v === '1' || v === 'true';
 }
 
-function providerStatusTag(status?: CollectProviderRow['status']) {
-  switch (status) {
-    case 'available':
-      return <Tag color="success">已可用</Tag>;
-    case 'beta':
-      return <Tag color="processing">测试中</Tag>;
-    case 'planned':
-      return <Tag>规划中</Tag>;
-    default:
-      return null;
-  }
+function providerStatusTag(row?: CollectProviderRow) {
+  if (!row?.status) return null;
+  const tag = collectProviderStatusPresentation(row.source, row.status);
+  return <Tag color={tag.color}>{tag.text}</Tag>;
 }
 
 function CollectorProviderSelector({
@@ -153,7 +147,7 @@ function CollectorProviderSelector({
           >
             <div className="tm-collector-provider-card__head">
               <span className="tm-collector-provider-card__title">{option.label}</span>
-              {providerStatusTag(row?.status) ?? (planned ? <Tag>规划中</Tag> : null)}
+              {providerStatusTag(row) ?? (planned ? <Tag>规划中</Tag> : null)}
             </div>
             <span className="tm-collector-provider-card__desc">{PROVIDER_CARD_DESC[option.key]}</span>
           </div>
@@ -284,10 +278,20 @@ function Collector1688Section({
   );
 }
 
-function CollectorCustomSection() {
+function CollectorCustomSection({ providerRow }: { providerRow?: CollectProviderRow }) {
+  const statusTag = providerRow ? collectProviderStatusPresentation(providerRow.source, providerRow.status) : null;
+
   return (
     <ProCard title="自定义链接专属配置" bordered className="tm-collector-settings__panel">
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        {statusTag ? (
+          <div className="tm-collector-auth-panel">
+            <Space wrap>
+              <Typography.Text strong>自定义链接采集状态</Typography.Text>
+              <Tag color={statusTag.color}>{statusTag.text}</Tag>
+            </Space>
+          </div>
+        ) : null}
         <Alert
           type="info"
           showIcon
@@ -596,7 +600,7 @@ export default function CollectorSettingsPage() {
       onOpenLogin={handleOpenLoginBrowser}
     />
   ) : providerKey === 'custom' ? (
-    <CollectorCustomSection />
+    <CollectorCustomSection providerRow={providerRow} />
   ) : providerKey === 'aliexpress' ? (
     <CollectorAliExpressSection providerRow={providerRow} />
   ) : null;

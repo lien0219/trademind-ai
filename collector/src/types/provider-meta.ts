@@ -3,7 +3,7 @@
 export type ProviderStatus = 'available' | 'beta' | 'planned' | 'disabled';
 
 /** 结构化能力枚举（与服务端入库字段对应，不做解析逻辑变更） */
-export type CollectFeature = 'title' | 'mainImages' | 'descriptionImages' | 'attributes' | 'skus';
+export type CollectFeature = 'title' | 'price' | 'mainImages' | 'descriptionImages' | 'attributes' | 'skus';
 
 export type CollectProviderMeta = {
   name: string;
