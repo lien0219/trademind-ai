@@ -17,6 +17,7 @@ import {
   Card,
   Collapse,
   Descriptions,
+  Dropdown,
   Drawer,
   Form,
   Image,
@@ -422,6 +423,55 @@ export default function ProductDraftDetailPage() {
 
   const { caps, optionsForTask } = useImageProviders();
 
+  const runQuickImageTask = useCallback(
+    async (image: ProductImageRow, taskType: string, extraInput?: Record<string, unknown>) => {
+      if (!id) return;
+      const opts = optionsForTask(taskType);
+      const provider =
+        taskType === 'remove_background'
+          ? 'removebg'
+          : (opts.find((o) => o.value && !o.disabled)?.value as string | undefined) ?? 'openai_image';
+      try {
+        await createImageTask({
+          taskType,
+          provider,
+          productId: id,
+          sourceImageId: image.id,
+          sourceImageUrl: image.publicUrl || image.originUrl,
+          input: {
+            prompt: aiImgPrompt || undefined,
+            negativePrompt: aiImgNegPrompt || undefined,
+            style: aiImgStyle,
+            background: aiImgBackground,
+            imageType: image.imageType,
+            ...extraInput,
+          },
+        });
+        message.success('AI 图片任务已提交');
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '提交失败');
+      }
+    },
+    [id, optionsForTask, aiImgPrompt, aiImgNegPrompt, aiImgStyle, aiImgBackground],
+  );
+
+  const runSelectBestMain = useCallback(
+    async (mode: 'score_only' | 'recommend' | 'auto_set') => {
+      if (!id) return;
+      try {
+        await createImageTask({
+          taskType: 'select_best_main',
+          productId: id,
+          input: { selectMode: mode },
+        });
+        message.success('已提交自动选主图任务');
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '提交失败');
+      }
+    },
+    [id],
+  );
+
   const aiImgAllowNoSourceImage = useMemo(() => {
     if (aiImgTaskType !== 'generate_scene') return false;
     const prov = aiImgProvider.trim().toLowerCase();
@@ -699,9 +749,25 @@ export default function ProductDraftDetailPage() {
       },
       {
         title: '操作',
-        width: 200,
+        width: 320,
         render: (_, r) => (
-          <Space wrap>
+          <Space wrap size={[0, 4]}>
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'remove_watermark', label: 'AI 去水印', onClick: () => void runQuickImageTask(r, 'remove_watermark') },
+                  { key: 'remove_logo', label: 'AI 去 Logo', onClick: () => void runQuickImageTask(r, 'remove_logo') },
+                  { key: 'remove_background', label: 'AI 去背景', onClick: () => void runQuickImageTask(r, 'remove_background') },
+                  { key: 'generate_marketing', label: 'AI 营销图', onClick: () => void runQuickImageTask(r, 'generate_marketing') },
+                  { key: 'enhance_detail', label: 'AI 增强详情图', onClick: () => void runQuickImageTask(r, 'enhance_detail') },
+                  { key: 'score_image', label: 'AI 评分', onClick: () => void runQuickImageTask(r, 'score_image') },
+                ],
+              }}
+            >
+              <Button type="link" size="small">
+                AI 处理
+              </Button>
+            </Dropdown>
             <Button type="link" size="small" onClick={() => setImgEdit(r)}>
               编辑
             </Button>
@@ -726,7 +792,7 @@ export default function ProductDraftDetailPage() {
         ),
       },
     ],
-    [id, reloadDetail],
+    [id, reloadDetail, runQuickImageTask],
   );
 
   const skuColumns = useMemo(
@@ -1332,6 +1398,14 @@ export default function ProductDraftDetailPage() {
                     search={false}
                     options={false}
                     pagination={false}
+                    toolBarRender={() => [
+                      <Button key="select-main" onClick={() => void runSelectBestMain('recommend')}>
+                        设为最佳主图（推荐）
+                      </Button>,
+                      <Button key="auto-main" type="primary" ghost onClick={() => void runSelectBestMain('auto_set')}>
+                        自动设为主图
+                      </Button>,
+                    ]}
                     dataSource={sortedImages}
                     columns={imageColumns}
                     size="small"

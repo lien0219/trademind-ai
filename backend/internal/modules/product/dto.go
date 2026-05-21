@@ -101,21 +101,30 @@ type SKUStockSettingsBody struct {
 
 // ImageCreateBody binds POST /products/:id/images.
 type ImageCreateBody struct {
-	FileID    *uuid.UUID `json:"fileId"`
-	ObjectKey string     `json:"objectKey"`
-	OriginURL string     `json:"originUrl"`
-	PublicURL string     `json:"publicUrl"`
-	ImageType string     `json:"imageType"`
-	SortOrder *int       `json:"sortOrder"`
+	FileID          *uuid.UUID `json:"fileId"`
+	ObjectKey       string     `json:"objectKey"`
+	StorageKey      string     `json:"storageKey"`
+	OriginURL       string     `json:"originUrl"`
+	PublicURL       string     `json:"publicUrl"`
+	ImageType       string     `json:"imageType"`
+	Source          string     `json:"source"`
+	SourceTaskID    *uuid.UUID `json:"sourceTaskId"`
+	OriginalImageID *uuid.UUID `json:"originalImageId"`
+	Score           *float64   `json:"score"`
+	IsBestMain      *bool      `json:"isBestMain"`
+	SortOrder       *int       `json:"sortOrder"`
 }
 
 // ImageUpdateBody binds PUT /products/:id/images/:imageId.
 type ImageUpdateBody struct {
-	ImageType *string `json:"imageType"`
-	ObjectKey *string `json:"objectKey"`
-	OriginURL *string `json:"originUrl"`
-	PublicURL *string `json:"publicUrl"`
-	SortOrder *int    `json:"sortOrder"`
+	ImageType  *string  `json:"imageType"`
+	ObjectKey  *string  `json:"objectKey"`
+	StorageKey *string  `json:"storageKey"`
+	OriginURL  *string  `json:"originUrl"`
+	PublicURL  *string  `json:"publicUrl"`
+	Score      *float64 `json:"score"`
+	IsBestMain *bool    `json:"isBestMain"`
+	SortOrder  *int     `json:"sortOrder"`
 }
 
 // ImageReorderBody binds POST /products/:id/images/reorder.

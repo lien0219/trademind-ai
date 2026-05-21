@@ -547,9 +547,16 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 		taskType = imagetask.TaskTypeGenerateScene
 	case OperationImageReplaceBackground:
 		taskType = imagetask.TaskTypeReplaceBackground
+	case OperationImageBatchGenerateMain:
+		taskType = imagetask.TaskTypeBatchGenerateMain
+	case OperationImageScore:
+		taskType = imagetask.TaskTypeScoreImage
+	case OperationImageSelectBestMain:
+		taskType = imagetask.TaskTypeSelectBestMain
 	default:
 		return nil, fmt.Errorf("invalid operationType")
 	}
+	needsMainImage := taskType != imagetask.TaskTypeSelectBestMain
 	maxN := s.aiBatchMaxSize(ctx)
 	ids, err := parseProductIDs(body.ProductIDs)
 	if err != nil {
@@ -612,28 +619,37 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	createN, skipN, failN := 0, 0, 0
 	for _, pid := range ids {
 		var img product.ProductImage
-		err := s.DB.WithContext(ctx).
-			Where("product_id = ? AND image_type = ?", pid, product.ImageTypeMain).
-			Order("sort_order ASC, created_at ASC").
-			First(&img).Error
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				skipN++
+		var srcID *uuid.UUID
+		var srcURL string
+		if needsMainImage {
+			err := s.DB.WithContext(ctx).
+				Where("product_id = ? AND image_type = ?", pid, product.ImageTypeMain).
+				Order("sort_order ASC, created_at ASC").
+				First(&img).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					skipN++
+					continue
+				}
+				failN++
 				continue
 			}
-			failN++
-			continue
+			srcID = &img.ID
+			srcURL = strings.TrimSpace(img.PublicURL)
+			if srcURL == "" {
+				srcURL = strings.TrimSpace(img.OriginURL)
+			}
 		}
-		srcID := img.ID
 		row, cerr := s.Image.CreateAndPersist(ctx, imagetask.CreatePayload{
-			TaskType:      taskType,
-			Provider:      opt.Provider,
-			ProductID:     &pid,
-			SourceImageID: &srcID,
-			Input:         datatypes.JSON(inBytes),
-			CreatedBy:     adminID,
-			BatchID:       &batchID,
-			BatchNo:       batchNo,
+			TaskType:       taskType,
+			Provider:       opt.Provider,
+			ProductID:      &pid,
+			SourceImageID:  srcID,
+			SourceImageURL: srcURL,
+			Input:          datatypes.JSON(inBytes),
+			CreatedBy:      adminID,
+			BatchID:        &batchID,
+			BatchNo:        batchNo,
 		})
 		if cerr != nil {
 			failN++

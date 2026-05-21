@@ -62,6 +62,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&operationlog.OperationLog{},
 		&files.FileRecord{},
 		&imagetask.ImageTask{},
+		&imagetask.ImageTaskItem{},
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},

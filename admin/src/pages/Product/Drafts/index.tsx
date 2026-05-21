@@ -458,6 +458,9 @@ export default function ProductDraftsPage() {
                 { label: 'AI 描述生成', value: 'description_generate' },
                 { label: '去背景（主图）', value: 'image_remove_background' },
                 { label: '生成场景图（主图）', value: 'image_generate_scene' },
+                { label: '批量主图生成', value: 'image_batch_generate_main' },
+                { label: '批量图片评分', value: 'image_score' },
+                { label: '批量自动选主图', value: 'image_select_best_main' },
               ]}
             />
           </Form.Item>

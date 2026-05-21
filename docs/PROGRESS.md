@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-21 — **拼多多商品详情页采集提示优化**：合并重复蓝色/黄色提示为统一组件 **`ProductCollectQualityAlert`**；蓝色仅保留一句来源说明 + 字段识别小标签；黄色/红色仅展示基于商品实际数据的 **error / warning**（去重、最多 5 条可展开）；**info** 级 fallback 文案不再刷屏；**发布前检查**逻辑不变；**1688 / custom** 详情页不变。
+**最后更新**：2026-05-21 — **AI 图片任务生产化 + 存储打通**：`image_tasks` 扩展为 AI 图片任务主表（含 prompt/options/result_count 等）；新增 **`ai_image_task_items`** 子项表；**`product_images`** 增加 source/source_task_id/original_image_id/storage_key/score/is_best_main 及 marketing/ai_generated 类型；支持 **14+ task_type**（去水印/去 Logo/综合清理/营销图/评分/自动选主图等）；Worker 结果 **统一下载并上传至当前 Storage Provider**（key：`products/{productId}/ai/{taskType}/{yyyy}/{mm}/{uuid}.webp`）；**POST /image/tasks/:id/apply** 一键回写商品图库；商品详情页与 AI 图片任务页增加模板入口与批量操作。
+
+**此前**：2026-05-21 — **拼多多商品详情页采集提示优化**：合并重复蓝色/黄色提示为统一组件 **`ProductCollectQualityAlert`**；蓝色仅保留一句来源说明 + 字段识别小标签；黄色/红色仅展示基于商品实际数据的 **error / warning**（去重、最多 5 条可展开）；**info** 级 fallback 文案不再刷屏；**发布前检查**逻辑不变；**1688 / custom** 详情页不变。
 
 **此前**：2026-05-21 — **拼多多图片采集完整性优化**：pifa 详情页新增 **缩略图轮播读取**（右箭头最多 5 次）、**点击缩略图获取大图**（最多 12 张）、**详情图分段滚动懒加载**（10 段 + 商品介绍 Tab）；主图来源含当前大图 / 缩略图 / 点击切换大图 / 页面脚本 gallery / SKU 兜底；**主图少于 3 张自动补充兜底**（`main_images_fallback_used` / `main_images_maybe_incomplete` warning，不阻断草稿）；**`raw.imageDebug`** 增加 `mainAreaCandidates` / `thumbnailClickedImages` 等摘要；单个与批量采集 **共用 `wholesale-detail` 解析链**；商品草稿页补 **主图不完整 / 详情图缺失 / 兜底提示**。**1688 / custom 不变**。
 

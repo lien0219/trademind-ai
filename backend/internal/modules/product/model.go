@@ -21,10 +21,20 @@ const (
 	ImageTypeMain = "main"
 	// ImageTypeDetail is the canonical type for gallery / detail images (API & UI use "detail").
 	ImageTypeDetail = "detail"
+	// ImageTypeMarketing marks promotional / listing marketing images.
+	ImageTypeMarketing = "marketing"
+	// ImageTypeAIGenerated marks AI-processed images saved to the product library.
+	ImageTypeAIGenerated = "ai_generated"
 	// ImageTypeSKU marks images associated with SKU variants.
 	ImageTypeSKU = "sku"
 	// ImageTypeDescription is a legacy value kept for rows imported before "detail" was introduced.
 	ImageTypeDescription = "description"
+)
+
+const (
+	ImageSourceCollect = "collect"
+	ImageSourceUpload  = "upload"
+	ImageSourceAI      = "ai"
 )
 
 // Product is a draft listing row (soft-deleted when removed).
@@ -52,12 +62,18 @@ func (Product) TableName() string { return "products" }
 // ProductImage links remote or stored images to a product.
 type ProductImage struct {
 	model.HardDeleteBase
-	ProductID uuid.UUID `gorm:"type:char(36);index;not null" json:"productId"`
-	ImageType string    `gorm:"size:32;index;not null" json:"imageType"`
-	OriginURL string    `gorm:"size:2048" json:"originUrl"`
-	ObjectKey string    `gorm:"size:512" json:"objectKey"`
-	PublicURL string    `gorm:"size:2048" json:"publicUrl"`
-	SortOrder int       `gorm:"index" json:"sortOrder"`
+	ProductID       uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
+	ImageType       string     `gorm:"size:32;index;not null" json:"imageType"`
+	Source          string     `gorm:"size:32;index" json:"source,omitempty"`
+	SourceTaskID    *uuid.UUID `gorm:"type:char(36);index" json:"sourceTaskId,omitempty"`
+	OriginalImageID *uuid.UUID `gorm:"type:char(36);index" json:"originalImageId,omitempty"`
+	OriginURL       string     `gorm:"size:2048" json:"originUrl"`
+	ObjectKey       string     `gorm:"size:512" json:"objectKey"`
+	StorageKey      string     `gorm:"size:512" json:"storageKey,omitempty"`
+	PublicURL       string     `gorm:"size:2048" json:"publicUrl"`
+	Score           *float64   `json:"score,omitempty"`
+	IsBestMain      bool       `gorm:"default:false" json:"isBestMain"`
+	SortOrder       int        `gorm:"index" json:"sortOrder"`
 }
 
 func (ProductImage) TableName() string { return "product_images" }
