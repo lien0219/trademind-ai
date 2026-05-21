@@ -71,7 +71,18 @@ import {
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
-import { isProviderSelectable, providersForTask } from '@/constants/imageProviders';
+import {
+  AI_IMAGE_BACKGROUND_PRESETS,
+  AI_IMAGE_FIELD,
+  AI_IMAGE_NEGATIVE_PROMPT_PRESETS,
+  AI_IMAGE_SCENE_PRESETS,
+  AI_IMAGE_STYLE_PRESETS,
+  DEFAULT_AI_IMAGE_BACKGROUND,
+  DEFAULT_AI_IMAGE_SCENE,
+  DEFAULT_AI_IMAGE_STYLE,
+  isProviderSelectable,
+  providersForTask,
+} from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import { createImageTask } from '@/services/imageTasks';
 import { Link } from '@umijs/renderer-react';
@@ -350,8 +361,9 @@ export default function ProductDraftDetailPage() {
   const [aiImgBusy, setAiImgBusy] = useState(false);
   const [aiImgPrompt, setAiImgPrompt] = useState<string>('');
   const [aiImgNegPrompt, setAiImgNegPrompt] = useState<string>('');
-  const [aiImgBackground, setAiImgBackground] = useState<string>('white studio background');
-  const [aiImgStyle, setAiImgStyle] = useState<string>('clean ecommerce');
+  const [aiImgScene, setAiImgScene] = useState<string>(DEFAULT_AI_IMAGE_SCENE);
+  const [aiImgBackground, setAiImgBackground] = useState<string>(DEFAULT_AI_IMAGE_BACKGROUND);
+  const [aiImgStyle, setAiImgStyle] = useState<string>(DEFAULT_AI_IMAGE_STYLE);
 
   const [pubRows, setPubRows] = useState<ProductPublicationRow[]>([]);
   const [pubCtxLoading, setPubCtxLoading] = useState(false);
@@ -1057,33 +1069,115 @@ export default function ProductDraftDetailPage() {
                         <Link to="/ai/image-tasks">AI 图片任务</Link> 查看。去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI
                         Image；替换背景推荐 OpenAI Image 或 ComfyUI；高级自定义推荐 ComfyUI。
                       </Typography.Text>
-                      <Input.TextArea
-                        value={aiImgPrompt}
-                        onChange={(e) => setAiImgPrompt(e.target.value)}
-                        rows={3}
-                        placeholder="补充说明 / Prompt（可选）"
-                        style={{ maxWidth: 560 }}
-                      />
-                      <Input.TextArea
-                        value={aiImgNegPrompt}
-                        onChange={(e) => setAiImgNegPrompt(e.target.value)}
-                        rows={2}
-                        placeholder="Negative prompt（可选）"
-                        style={{ maxWidth: 560 }}
-                      />
+                      <div style={{ maxWidth: 560 }}>
+                        <Typography.Text strong>{AI_IMAGE_FIELD.prompt.label}</Typography.Text>
+                        <Typography.Text type="secondary">（可选）</Typography.Text>
+                        <Input.TextArea
+                          value={aiImgPrompt}
+                          onChange={(e) => setAiImgPrompt(e.target.value)}
+                          rows={3}
+                          placeholder={AI_IMAGE_FIELD.prompt.placeholder}
+                          style={{ marginTop: 6 }}
+                        />
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {AI_IMAGE_FIELD.prompt.extra}
+                        </Typography.Text>
+                      </div>
+                      <div style={{ maxWidth: 560 }}>
+                        <Typography.Text strong>{AI_IMAGE_FIELD.negativePrompt.label}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          （可选 · {AI_IMAGE_FIELD.negativePrompt.subLabel}）
+                        </Typography.Text>
+                        <div style={{ marginTop: 6, marginBottom: 6 }}>
+                          <Typography.Text type="secondary" style={{ fontSize: 12, marginRight: 8 }}>
+                            {AI_IMAGE_FIELD.negativePrompt.presetsLabel}：
+                          </Typography.Text>
+                          <Space wrap size={[4, 4]}>
+                            {AI_IMAGE_NEGATIVE_PROMPT_PRESETS.map((preset) => (
+                              <Tag
+                                key={preset.value}
+                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                color={
+                                  aiImgNegPrompt
+                                    .split(/,\s*/)
+                                    .map((part) => part.trim())
+                                    .includes(preset.value)
+                                    ? 'blue'
+                                    : 'default'
+                                }
+                                onClick={() => {
+                                  setAiImgNegPrompt((prev) => {
+                                    const parts = prev
+                                      .split(/,\s*/)
+                                      .map((part) => part.trim())
+                                      .filter(Boolean);
+                                    if (parts.includes(preset.value)) {
+                                      return parts.filter((part) => part !== preset.value).join(', ');
+                                    }
+                                    return [...parts, preset.value].join(', ');
+                                  });
+                                }}
+                              >
+                                {preset.label}
+                              </Tag>
+                            ))}
+                          </Space>
+                        </div>
+                        <Input.TextArea
+                          value={aiImgNegPrompt}
+                          onChange={(e) => setAiImgNegPrompt(e.target.value)}
+                          rows={2}
+                          placeholder={AI_IMAGE_FIELD.negativePrompt.placeholder}
+                        />
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {AI_IMAGE_FIELD.negativePrompt.extra}
+                        </Typography.Text>
+                      </div>
                       <Space wrap align="start">
-                        <Input
-                          placeholder="背景 / 目标背景"
-                          style={{ width: 260 }}
-                          value={aiImgBackground}
-                          onChange={(e) => setAiImgBackground(e.target.value)}
-                        />
-                        <Input
-                          placeholder="风格 style"
-                          style={{ width: 200 }}
-                          value={aiImgStyle}
-                          onChange={(e) => setAiImgStyle(e.target.value)}
-                        />
+                        <div>
+                          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+                            {AI_IMAGE_FIELD.background.label}
+                          </Typography.Text>
+                          <Select
+                            placeholder={AI_IMAGE_FIELD.background.placeholder}
+                            style={{ width: 260 }}
+                            value={aiImgBackground}
+                            onChange={setAiImgBackground}
+                            options={AI_IMAGE_BACKGROUND_PRESETS}
+                            showSearch
+                            optionFilterProp="label"
+                          />
+                        </div>
+                        <div>
+                          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+                            {AI_IMAGE_FIELD.style.label}
+                          </Typography.Text>
+                          <Select
+                            placeholder={AI_IMAGE_FIELD.style.placeholder}
+                            style={{ width: 200 }}
+                            value={aiImgStyle}
+                            onChange={setAiImgStyle}
+                            options={AI_IMAGE_STYLE_PRESETS}
+                            showSearch
+                            optionFilterProp="label"
+                          />
+                        </div>
+                        {aiImgTaskType === 'generate_scene' ? (
+                          <div>
+                            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+                              {AI_IMAGE_FIELD.scene.label}
+                            </Typography.Text>
+                            <Select
+                              placeholder={AI_IMAGE_FIELD.scene.placeholder}
+                              style={{ width: 200 }}
+                              value={aiImgScene}
+                              onChange={setAiImgScene}
+                              options={AI_IMAGE_SCENE_PRESETS}
+                              showSearch
+                              optionFilterProp="label"
+                            />
+                          </div>
+                        ) : null}
                       </Space>
                       <Space wrap align="start">
                         <Select
@@ -1149,18 +1243,18 @@ export default function ProductDraftDetailPage() {
                                 input = {
                                   prompt: aiImgPrompt.trim(),
                                   negativePrompt: aiImgNegPrompt.trim(),
-                                  scene: 'minimal studio',
-                                  style: aiImgStyle.trim() || 'clean ecommerce',
+                                  scene: aiImgScene.trim() || DEFAULT_AI_IMAGE_SCENE,
+                                  style: aiImgStyle.trim() || DEFAULT_AI_IMAGE_STYLE,
                                   size: '1024x1024',
-                                  background: aiImgBackground.trim() || 'white studio background',
+                                  background: aiImgBackground.trim() || DEFAULT_AI_IMAGE_BACKGROUND,
                                   platform: 'TikTok Shop',
                                 };
                               } else if (aiImgTaskType === 'replace_background') {
                                 input = {
                                   prompt: aiImgPrompt.trim(),
                                   negativePrompt: aiImgNegPrompt.trim(),
-                                  background: aiImgBackground.trim() || 'white studio background',
-                                  style: aiImgStyle.trim() || 'clean ecommerce',
+                                  background: aiImgBackground.trim() || DEFAULT_AI_IMAGE_BACKGROUND,
+                                  style: aiImgStyle.trim() || DEFAULT_AI_IMAGE_STYLE,
                                   platform: 'TikTok Shop',
                                   size: '1024x1024',
                                 };

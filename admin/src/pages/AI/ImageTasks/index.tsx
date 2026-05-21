@@ -6,7 +6,18 @@ import { Button, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message, A
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageTaskDetail, ImageTaskListRow } from '@/services/imageTasks';
-import { displayNameForProvider, isProviderSelectable } from '@/constants/imageProviders';
+import {
+  AI_IMAGE_BACKGROUND_PRESETS,
+  AI_IMAGE_FIELD,
+  AI_IMAGE_NEGATIVE_PROMPT_PRESETS,
+  AI_IMAGE_SCENE_PRESETS,
+  AI_IMAGE_STYLE_PRESETS,
+  DEFAULT_AI_IMAGE_BACKGROUND,
+  DEFAULT_AI_IMAGE_SCENE,
+  DEFAULT_AI_IMAGE_STYLE,
+  displayNameForProvider,
+  isProviderSelectable,
+} from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import { createImageTask, getImageTask, queryImageTasks, retryImageTask } from '@/services/imageTasks';
 import { createProductImage } from '@/services/products';
@@ -317,15 +328,15 @@ export default function ImageTasksPage() {
           sourceImageUrl: '',
           prompt: '',
           negativePrompt: '',
-          scene: 'minimal studio',
-          style: 'clean ecommerce',
+          scene: DEFAULT_AI_IMAGE_SCENE,
+          style: DEFAULT_AI_IMAGE_STYLE,
           size: '1024x1024',
-          background: 'white studio background',
+          background: DEFAULT_AI_IMAGE_BACKGROUND,
           platform: 'TikTok Shop',
           rbPrompt: '',
           rbNegativePrompt: '',
-          rbBackground: 'white studio background',
-          rbStyle: 'clean ecommerce',
+          rbBackground: DEFAULT_AI_IMAGE_BACKGROUND,
+          rbStyle: DEFAULT_AI_IMAGE_STYLE,
           rbPlatform: 'TikTok Shop',
           rbSize: '1024x1024',
           inputJson: '{}',
@@ -502,12 +513,41 @@ export default function ImageTasksPage() {
           {(dep: { taskType?: string }) =>
             dep.taskType === 'generate_scene' ? (
               <>
-                <ProFormTextArea name="prompt" label="画面描述（可选）" fieldProps={{ rows: 4 }} />
-                <ProFormText name="negativePrompt" label="排除内容（可选）" />
-                <ProFormText name="scene" label="Scene（可选）" placeholder="minimal studio" />
-                <ProFormText name="style" label="Style（可选）" placeholder="clean ecommerce" />
+                <ProFormTextArea
+                  name="prompt"
+                  label={AI_IMAGE_FIELD.prompt.label}
+                  extra={AI_IMAGE_FIELD.prompt.extra}
+                  fieldProps={{ rows: 4, placeholder: AI_IMAGE_FIELD.prompt.placeholder }}
+                />
+                <ProFormTextArea
+                  name="negativePrompt"
+                  label={`${AI_IMAGE_FIELD.negativePrompt.label}（${AI_IMAGE_FIELD.negativePrompt.subLabel}）`}
+                  extra={AI_IMAGE_FIELD.negativePrompt.extra}
+                  fieldProps={{ rows: 2, placeholder: AI_IMAGE_FIELD.negativePrompt.placeholder }}
+                />
+                <ProFormSelect
+                  name="scene"
+                  label={AI_IMAGE_FIELD.scene.label}
+                  options={AI_IMAGE_SCENE_PRESETS}
+                  showSearch
+                  fieldProps={{ optionFilterProp: 'label' }}
+                  extra={AI_IMAGE_FIELD.scene.extra}
+                />
+                <ProFormSelect
+                  name="style"
+                  label={AI_IMAGE_FIELD.style.label}
+                  options={AI_IMAGE_STYLE_PRESETS}
+                  showSearch
+                  fieldProps={{ optionFilterProp: 'label' }}
+                />
                 <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
-                <ProFormText name="background" label="背景（可选）" placeholder="white studio background" />
+                <ProFormSelect
+                  name="background"
+                  label={AI_IMAGE_FIELD.background.label}
+                  options={AI_IMAGE_BACKGROUND_PRESETS}
+                  showSearch
+                  fieldProps={{ optionFilterProp: 'label' }}
+                />
                 <ProFormText name="platform" label="平台（可选）" placeholder="TikTok Shop" />
               </>
             ) : null
@@ -517,10 +557,32 @@ export default function ImageTasksPage() {
           {(dep: { taskType?: string }) =>
             dep.taskType === 'replace_background' ? (
               <>
-                <ProFormTextArea name="rbPrompt" label="画面描述（可选）" fieldProps={{ rows: 3 }} />
-                <ProFormText name="rbNegativePrompt" label="排除内容（可选）" />
-                <ProFormText name="rbBackground" label="目标背景" placeholder="white studio background" />
-                <ProFormText name="rbStyle" label="风格（可选）" placeholder="clean ecommerce" />
+                <ProFormTextArea
+                  name="rbPrompt"
+                  label={AI_IMAGE_FIELD.prompt.label}
+                  extra={AI_IMAGE_FIELD.prompt.extra}
+                  fieldProps={{ rows: 3, placeholder: AI_IMAGE_FIELD.prompt.placeholder }}
+                />
+                <ProFormTextArea
+                  name="rbNegativePrompt"
+                  label={`${AI_IMAGE_FIELD.negativePrompt.label}（${AI_IMAGE_FIELD.negativePrompt.subLabel}）`}
+                  extra={AI_IMAGE_FIELD.negativePrompt.extra}
+                  fieldProps={{ rows: 2, placeholder: AI_IMAGE_FIELD.negativePrompt.placeholder }}
+                />
+                <ProFormSelect
+                  name="rbBackground"
+                  label={AI_IMAGE_FIELD.background.label}
+                  options={AI_IMAGE_BACKGROUND_PRESETS}
+                  showSearch
+                  fieldProps={{ optionFilterProp: 'label' }}
+                />
+                <ProFormSelect
+                  name="rbStyle"
+                  label={AI_IMAGE_FIELD.style.label}
+                  options={AI_IMAGE_STYLE_PRESETS}
+                  showSearch
+                  fieldProps={{ optionFilterProp: 'label' }}
+                />
                 <ProFormText name="rbPlatform" label="平台（可选）" placeholder="TikTok Shop" />
                 <ProFormText name="rbSize" label="尺寸（可选）" placeholder="1024x1024" />
               </>

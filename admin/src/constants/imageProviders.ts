@@ -102,6 +102,100 @@ export function displayNameForProvider(caps: ImageProviderCapability[], provider
   return hit?.displayName ?? provider;
 }
 
+/** AI 图片任务背景预设：界面中文，提交英文 prompt 片段 */
+export type ImagePromptPreset = { label: string; value: string };
+
+export const DEFAULT_AI_IMAGE_BACKGROUND = 'white studio background';
+export const DEFAULT_AI_IMAGE_STYLE = 'clean ecommerce';
+
+export const AI_IMAGE_BACKGROUND_PRESETS: ImagePromptPreset[] = [
+  { label: '白色摄影棚背景', value: 'white studio background' },
+  { label: '纯白背景', value: 'pure white background' },
+  { label: '浅灰渐变背景', value: 'light gray gradient background' },
+  { label: '木质桌面', value: 'wooden tabletop' },
+  { label: '厨房台面', value: 'kitchen counter' },
+  { label: '户外花园', value: 'outdoor garden' },
+  { label: '办公桌面', value: 'office desk' },
+  { label: '居家生活场景', value: 'cozy home lifestyle setting' },
+];
+
+export const AI_IMAGE_STYLE_PRESETS: ImagePromptPreset[] = [
+  { label: '干净电商风', value: 'clean ecommerce' },
+  { label: '极简产品摄影', value: 'minimalist product photo' },
+  { label: '生活方式拍摄', value: 'lifestyle product shot' },
+  { label: '高级奢华感', value: 'premium luxury product styling' },
+  { label: '明亮通透', value: 'bright and airy' },
+  { label: '自然光感', value: 'natural soft lighting' },
+];
+
+export function aiImageBackgroundLabel(value: string): string {
+  const v = value.trim();
+  const hit = AI_IMAGE_BACKGROUND_PRESETS.find((p) => p.value === v);
+  return hit?.label ?? v;
+}
+
+export function aiImageStyleLabel(value: string): string {
+  const v = value.trim();
+  const hit = AI_IMAGE_STYLE_PRESETS.find((p) => p.value === v);
+  return hit?.label ?? v;
+}
+
+/** 场景预设：界面中文，提交英文 prompt 片段 */
+export const AI_IMAGE_SCENE_PRESETS: ImagePromptPreset[] = [
+  { label: '简约摄影棚', value: 'minimal studio' },
+  { label: '现代厨房', value: 'modern kitchen' },
+  { label: '户外自然光', value: 'outdoor natural setting' },
+  { label: '客厅居家', value: 'cozy living room' },
+  { label: '办公桌场景', value: 'office desk setup' },
+  { label: '节日礼盒氛围', value: 'festive gift presentation' },
+];
+
+export const DEFAULT_AI_IMAGE_SCENE = 'minimal studio';
+
+/** 反向提示词常用项：界面中文，提交英文 negative prompt 片段 */
+export const AI_IMAGE_NEGATIVE_PROMPT_PRESETS: ImagePromptPreset[] = [
+  { label: '水印与文字', value: 'watermark, logo, text overlay, caption' },
+  { label: '模糊失焦', value: 'blurry, out of focus, motion blur' },
+  { label: '畸形失真', value: 'deformed, distorted, bad anatomy, extra limbs' },
+  { label: '低画质', value: 'low quality, jpeg artifacts, pixelated, noisy' },
+  { label: '杂乱背景', value: 'cluttered background, messy scene, distracting elements' },
+];
+
+export function aiImageNegativePromptLabel(value: string): string {
+  const v = value.trim();
+  const hit = AI_IMAGE_NEGATIVE_PROMPT_PRESETS.find((p) => p.value === v);
+  return hit?.label ?? v;
+}
+
+/** AI 图片任务表单字段文案 */
+export const AI_IMAGE_FIELD = {
+  prompt: {
+    label: '画面描述',
+    placeholder: '例如：商品居中摆放，柔和侧光，突出毛绒材质与细节',
+    extra: '补充摆放、光线、构图等要求；系统将结合商品标题与背景/风格生成提示词',
+  },
+  negativePrompt: {
+    label: '排除内容',
+    subLabel: '反向提示词',
+    placeholder: '例如：不要水印、文字、模糊、畸形、低画质（可点击下方常用项快速填入）',
+    extra: '描述不希望出现在画面中的元素，提交时将转为英文反向提示词',
+    presetsLabel: '常用排除项',
+  },
+  background: {
+    label: '背景',
+    placeholder: '选择背景或目标背景',
+  },
+  style: {
+    label: '风格',
+    placeholder: '选择画面风格',
+  },
+  scene: {
+    label: '场景',
+    placeholder: '选择商品所处场景',
+    extra: '场景描述将写入 AI 提示词',
+  },
+} as const;
+
 /** Fields shown per provider on settings page */
 export const PROVIDER_FIELD_KEYS: Record<string, string[]> = {
   noop: ['timeout_sec'],
