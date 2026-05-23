@@ -8,11 +8,13 @@ import (
 )
 
 type testImageBody struct {
-	Provider string `json:"provider"`
-	TestMode string `json:"testMode"`
+	Provider string            `json:"provider"`
+	TestMode string            `json:"testMode"`
+	Settings map[string]string `json:"settings"`
 }
 
 // TestImage POST /api/v1/settings/test-image
+// Optional JSON settings lets the admin test unsaved form values; empty body uses saved settings.image only.
 func (h *Handler) TestImage(c *gin.Context) {
 	if h == nil || h.Svc == nil || h.Svc.Settings == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image settings unavailable")
@@ -25,6 +27,7 @@ func (h *Handler) TestImage(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, err.Error())
 		return
 	}
+	m = MergeImagePlain(m, body.Settings)
 	res := imgprov.TestConnection(c.Request.Context(), m, body.Provider, body.TestMode)
 	if res != nil && !res.OK {
 		if h.Svc.OpLog != nil {

@@ -172,6 +172,20 @@ export default function ImageSettingsPage() {
 
   const visibleFieldKeys = PROVIDER_FIELD_KEYS[provider || 'noop'] ?? ['timeout_sec'];
 
+  const buildTestSettingsPayload = (values: Record<string, unknown>): Record<string, string> => {
+    const keys = new Set<string>(['provider', 'provider_preset', ...visibleFieldKeys]);
+    const out: Record<string, string> = {};
+    for (const key of keys) {
+      const raw = values[key];
+      if (raw == null) continue;
+      const val = String(raw).trim();
+      if (val === '') continue;
+      if (ENCRYPTED_KEYS.has(key) && val.includes('****')) continue;
+      out[key] = String(raw);
+    }
+    return out;
+  };
+
   const onScenarioPick = (id: ImageScenarioId) => {
     setScenario(id);
     const sc = IMAGE_SCENARIOS.find((s) => s.id === id);
@@ -363,14 +377,17 @@ export default function ImageSettingsPage() {
                 onClick={async () => {
                   setTesting(true);
                   try {
+                    const values = await form.validateFields();
                     const res = await testImageProvider({
                       provider: provider || undefined,
                       testMode: 'config_only',
+                      settings: buildTestSettingsPayload(values),
                     });
+                    const latency = res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
                     if (res.ok) {
-                      message.success(res.message || '配置检查通过');
+                      message.success(`${res.message || '配置检查通过'}${latency}`);
                     } else {
-                      message.warning(res.message || '配置不完整');
+                      message.warning(`${res.message || '配置不完整'}${latency}`);
                     }
                   } catch (e: unknown) {
                     message.error((e as Error)?.message || '测试失败');

@@ -19,9 +19,11 @@ export type TestImageProviderResult = {
 export type TestImageProviderPayload = {
   provider?: string;
   testMode?: 'config_only' | 'live';
+  /** Optional form overrides; masked secrets are ignored so stored values are used. */
+  settings?: Record<string, string>;
 };
 
-/** POST /api/v1/settings/test-image */
+/** POST /api/v1/settings/test-image — optional settings tests current form without saving */
 export async function testImageProvider(payload?: TestImageProviderPayload) {
   return postJSON<TestImageProviderResult, TestImageProviderPayload | Record<string, never>>(
     '/api/v1/settings/test-image',
