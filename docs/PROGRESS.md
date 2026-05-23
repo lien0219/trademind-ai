@@ -431,6 +431,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-23 | **通义万相默认模型更新**：默认模型 **`wan2.7-image-pro`**、默认尺寸 **`2K`**；**`dashscope_image`** 客户端切换至万相 2.7 **`multimodal-generation`** API；设置页 placeholder 同步 |
 | 2026-05-21 | **拼多多图片分类精细化**：区域分轨主图/详情图；SKU 图仅 **sku.imageUrl**；修复详情图误入主图；**imageSummary**；管理端图片类型排序与提示 |
 | 2026-05-21 | **拼多多 pifa 解析精细化**：标题清洗（去「分享商品」等）；**mainDescription** 提取与入库；图片 **source** 分类与 **imageFilterSummary**；SKU 名/库存拆分；草稿页字段级提示 |
 | 2026-05-21 | **拼多多 pifa 批发详情页解析增强**：**`wholesale-detail*.ts`** 专用解析；标题/价格区间/SKU 行价库存/主图详情图/商品参数；平台标题过滤与质量 **`partial_success`**；草稿页 beta/SKU 提示；**`normalizePinduoduoImport`** **`priceMin/Max`**；**1688/custom 不变**；**批量仍关闭** |

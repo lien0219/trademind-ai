@@ -289,8 +289,8 @@ export const ALL_IMAGE_FIELD_SPECS: Record<
     extra: '阿里云百炼 / DashScope',
   },
   dashscope_image_api_key: { label: '通义万相 API Key', encrypted: true, extra: '请到阿里云百炼控制台申请' },
-  dashscope_image_model: { label: '通义万相模型', placeholder: 'wanx2.1-t2i-turbo' },
-  dashscope_image_size: { label: '通义万相尺寸', placeholder: '1024*1024', extra: '使用 * 分隔，如 1024*1024' },
+  dashscope_image_model: { label: '通义万相模型', placeholder: 'wan2.7-image-pro' },
+  dashscope_image_size: { label: '通义万相尺寸', placeholder: '2K', extra: '推荐 1K / 2K / 4K；也兼容旧像素格式如 1024*1024' },
   dashscope_image_quality: { label: '通义万相质量（可选）' },
   volcengine_image_base_url: {
     label: '火山方舟接口地址',

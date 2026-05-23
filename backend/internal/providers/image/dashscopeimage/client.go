@@ -1,4 +1,4 @@
-// Package dashscopeimage calls Alibaba DashScope Wan text-to-image (async task + poll).
+// Package dashscopeimage calls Alibaba DashScope Wan image generation (async task + poll).
 package dashscopeimage
 
 import (
@@ -12,18 +12,23 @@ import (
 	"time"
 )
 
-const defaultBaseURL = "https://dashscope.aliyuncs.com/api/v1"
+const (
+	defaultBaseURL = "https://dashscope.aliyuncs.com/api/v1"
+	defaultModel   = "wan2.7-image-pro"
+	defaultSize    = "2K"
+	generationPath = "/services/aigc/multimodal-generation/generation"
+)
 
 // Options configures DashScope image synthesis.
 type Options struct {
 	BaseURL string
 	APIKey  string
 	Model   string
-	Size    string // e.g. 1024*1024
+	Size    string // e.g. 2K, 1K, 4K
 	Timeout time.Duration
 }
 
-// Client generates images via text2image/image-synthesis.
+// Client generates images via Wan 2.7 multimodal-generation API.
 type Client struct {
 	opt        Options
 	httpClient *http.Client
@@ -45,15 +50,9 @@ func NewClient(opt Options) (*Client, error) {
 	}
 	model := strings.TrimSpace(opt.Model)
 	if model == "" {
-		model = "wanx2.1-t2i-turbo"
+		model = defaultModel
 	}
-	size := strings.TrimSpace(opt.Size)
-	if size == "" {
-		size = "1024*1024"
-	}
-	// normalize 1024x1024 -> 1024*1024
-	size = strings.ReplaceAll(size, "x", "*")
-	size = strings.ReplaceAll(size, "X", "*")
+	size := normalizeSize(opt.Size)
 
 	sec := opt.Timeout
 	if sec <= 0 {
@@ -76,7 +75,12 @@ func (c *Client) ResolvedModel() string { return c.opt.Model }
 type submitBody struct {
 	Model string `json:"model"`
 	Input struct {
-		Prompt string `json:"prompt"`
+		Messages []struct {
+			Role    string `json:"role"`
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"messages"`
 	} `json:"input"`
 	Parameters struct {
 		Size string `json:"size"`
@@ -84,13 +88,20 @@ type submitBody struct {
 	} `json:"parameters"`
 }
 
+type outputChoice struct {
+	Message struct {
+		Content []struct {
+			Image string `json:"image"`
+			URL   string `json:"url"`
+		} `json:"content"`
+	} `json:"message"`
+}
+
 type submitResp struct {
 	Output struct {
-		TaskID     string `json:"task_id"`
-		TaskStatus string `json:"task_status"`
-		Results    []struct {
-			URL string `json:"url"`
-		} `json:"results"`
+		TaskID     string         `json:"task_id"`
+		TaskStatus string         `json:"task_status"`
+		Choices    []outputChoice `json:"choices"`
 	} `json:"output"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -98,10 +109,8 @@ type submitResp struct {
 
 type taskResp struct {
 	Output struct {
-		TaskStatus string `json:"task_status"`
-		Results    []struct {
-			URL string `json:"url"`
-		} `json:"results"`
+		TaskStatus string         `json:"task_status"`
+		Choices    []outputChoice `json:"choices"`
 	} `json:"output"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -126,7 +135,7 @@ func (c *Client) authReq(ctx context.Context, method, path string, body []byte) 
 	return req, nil
 }
 
-// GenerateScene submits text2image and polls until success or timeout.
+// GenerateScene submits text-to-image and polls until success or timeout.
 func (c *Client) GenerateScene(ctx context.Context, prompt string) ([]byte, string, error) {
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
@@ -134,14 +143,26 @@ func (c *Client) GenerateScene(ctx context.Context, prompt string) ([]byte, stri
 	}
 	var body submitBody
 	body.Model = c.opt.Model
-	body.Input.Prompt = prompt
+	body.Input.Messages = []struct {
+		Role    string `json:"role"`
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+	}{
+		{
+			Role: "user",
+			Content: []struct {
+				Text string `json:"text"`
+			}{{Text: prompt}},
+		},
+	}
 	body.Parameters.Size = c.opt.Size
 	body.Parameters.N = 1
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, "", err
 	}
-	req, err := c.authReq(ctx, http.MethodPost, "/services/aigc/text2image/image-synthesis", raw)
+	req, err := c.authReq(ctx, http.MethodPost, generationPath, raw)
 	if err != nil {
 		return nil, "", err
 	}
@@ -163,9 +184,8 @@ func (c *Client) GenerateScene(ctx context.Context, prompt string) ([]byte, stri
 	}
 	taskID := strings.TrimSpace(sub.Output.TaskID)
 	if taskID == "" {
-		// sync path
-		if len(sub.Output.Results) > 0 && strings.TrimSpace(sub.Output.Results[0].URL) != "" {
-			return c.download(ctx, sub.Output.Results[0].URL)
+		if imgURL := firstImageURL(sub.Output.Choices); imgURL != "" {
+			return c.download(ctx, imgURL)
 		}
 		return nil, "", fmt.Errorf("dashscope_image: no task_id in response")
 	}
@@ -200,10 +220,10 @@ func (c *Client) pollTask(ctx context.Context, taskID string) ([]byte, string, e
 		st := strings.ToUpper(strings.TrimSpace(tr.Output.TaskStatus))
 		switch st {
 		case "SUCCEEDED", "SUCCESS":
-			if len(tr.Output.Results) == 0 || strings.TrimSpace(tr.Output.Results[0].URL) == "" {
-				return nil, "", fmt.Errorf("dashscope_image: empty result url")
+			if imgURL := firstImageURL(tr.Output.Choices); imgURL != "" {
+				return c.download(ctx, imgURL)
 			}
-			return c.download(ctx, tr.Output.Results[0].URL)
+			return nil, "", fmt.Errorf("dashscope_image: empty result url")
 		case "FAILED", "CANCELED", "CANCELLED":
 			return nil, "", fmt.Errorf("dashscope_image: task %s: %s", st, strings.TrimSpace(tr.Message))
 		}
@@ -246,6 +266,45 @@ func (c *Client) download(ctx context.Context, rawURL string) ([]byte, string, e
 		ct = "image/png"
 	}
 	return data, ct, nil
+}
+
+func normalizeSize(raw string) string {
+	size := strings.TrimSpace(raw)
+	if size == "" {
+		return defaultSize
+	}
+	upper := strings.ToUpper(size)
+	switch upper {
+	case "1K", "2K", "4K":
+		return upper
+	}
+	// legacy pixel sizes from wanx2.x settings
+	normalized := strings.ReplaceAll(size, "x", "*")
+	normalized = strings.ReplaceAll(normalized, "X", "*")
+	switch normalized {
+	case "1024*1024", "1280*1280":
+		return "1K"
+	case "2048*2048":
+		return "2K"
+	case "4096*4096":
+		return "4K"
+	default:
+		return size
+	}
+}
+
+func firstImageURL(choices []outputChoice) string {
+	for _, choice := range choices {
+		for _, item := range choice.Message.Content {
+			if u := strings.TrimSpace(item.Image); u != "" {
+				return u
+			}
+			if u := strings.TrimSpace(item.URL); u != "" {
+				return u
+			}
+		}
+	}
+	return ""
 }
 
 func trimAPIErr(b []byte) string {
