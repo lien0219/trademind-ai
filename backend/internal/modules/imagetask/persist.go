@@ -98,6 +98,7 @@ func (s *Service) upsertPrimaryTaskItem(ctx context.Context, task *ImageTask, fi
 	if err != nil {
 		item := &ImageTaskItem{
 			TaskID:           task.ID,
+			ProductID:        task.ProductID,
 			SourceImageID:    task.SourceImageID,
 			SourceImageURL:   task.SourceImageURL,
 			OutputImageURL:   finalURL,
@@ -176,9 +177,10 @@ func extractPromptFields(p CreatePayload) (prompt, neg, inputMode string) {
 	return prompt, neg, inputMode
 }
 
-func (s *Service) createTaskItemPending(ctx context.Context, taskID uuid.UUID, srcID *uuid.UUID, srcURL string) (*uuid.UUID, error) {
+func (s *Service) createTaskItemPending(ctx context.Context, taskID uuid.UUID, productID *uuid.UUID, srcID *uuid.UUID, srcURL string) (*uuid.UUID, error) {
 	item := &ImageTaskItem{
 		TaskID:         taskID,
+		ProductID:      productID,
 		SourceImageID:  srcID,
 		SourceImageURL: srcURL,
 		Status:         ItemStatusPending,

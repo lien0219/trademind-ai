@@ -69,6 +69,7 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 
 	imgChecks, mainURLs := checkImages(prod, plat)
 	checks = append(checks, imgChecks...)
+	checks = append(checks, s.checkImageQualityHints(ctx, prod)...)
 
 	checks = append(checks, checkInventoryHints(prod)...)
 

@@ -70,6 +70,7 @@ func (ImageTask) TableName() string { return "image_tasks" }
 type ImageTaskItem struct {
 	model.HardDeleteBase
 	TaskID           uuid.UUID      `gorm:"type:char(36);index;not null" json:"taskId"`
+	ProductID        *uuid.UUID     `gorm:"type:char(36);index" json:"productId,omitempty"`
 	SourceImageID    *uuid.UUID     `gorm:"type:char(36);index" json:"sourceImageId,omitempty"`
 	SourceImageURL   string         `gorm:"type:text" json:"sourceImageUrl,omitempty"`
 	OutputImageURL   string         `gorm:"type:text" json:"outputImageUrl,omitempty"`

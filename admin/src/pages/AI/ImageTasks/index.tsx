@@ -5,7 +5,7 @@ import { CopyOutlined } from '@ant-design/icons';
 import { Button, Card, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message, Alert, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ImageTaskDetail, ImageTaskListRow } from '@/services/imageTasks';
+import type { ImageTaskDetail, ImageTaskItemRow, ImageTaskListRow } from '@/services/imageTasks';
 import {
   AI_IMAGE_BACKGROUND_PRESETS,
   AI_IMAGE_FIELD,
@@ -28,6 +28,8 @@ import {
   listImageTaskItems,
   queryImageTasks,
   retryImageTask,
+  saveImageTaskItemToProduct,
+  setImageTaskItemAsMain,
   taskTypeLabel,
 } from '@/services/imageTasks';
 
@@ -799,12 +801,9 @@ export default function ImageTasksPage() {
                               <Button
                                 size="small"
                                 onClick={() =>
-                                  void applyImageTaskResult(detail.id, {
-                                    productId: detail.productId!,
-                                    itemId: item.id,
-                                    applyMode: 'main',
-                                    setBest: true,
-                                  }).then(() => message.success('已设为主图'))
+                                  void setImageTaskItemAsMain(item.id, { productId: detail.productId! }).then(() =>
+                                    message.success('已设为主图'),
+                                  )
                                 }
                               >
                                 设为主图
@@ -812,14 +811,24 @@ export default function ImageTasksPage() {
                               <Button
                                 size="small"
                                 onClick={() =>
-                                  void applyImageTaskResult(detail.id, {
+                                  void saveImageTaskItemToProduct(item.id, {
                                     productId: detail.productId!,
-                                    itemId: item.id,
                                     applyMode: 'detail',
                                   }).then(() => message.success('已设为详情图'))
                                 }
                               >
                                 设为详情图
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={() =>
+                                  void saveImageTaskItemToProduct(item.id, {
+                                    productId: detail.productId!,
+                                    applyMode: 'ai_generated',
+                                  }).then(() => message.success('已保存到商品图库'))
+                                }
+                              >
+                                保存到商品
                               </Button>
                             </Space>
                           ) : null}

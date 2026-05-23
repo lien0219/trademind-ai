@@ -39,6 +39,12 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 			return err
 		}
 		raw, _ := scoreJSONFromScore(score)
+		if task.SourceImageID != nil {
+			v := score.OverallScore
+			_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+				Where("id = ?", *task.SourceImageID).
+				Update("score", v).Error
+		}
 		outObj := map[string]any{
 			"provider": task.Provider,
 			"taskType": task.TaskType,
@@ -98,6 +104,7 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 			raw, _ := scoreJSONFromScore(r.score)
 			item := &ImageTaskItem{
 				TaskID:         task.ID,
+				ProductID:      task.ProductID,
 				SourceImageID:  ptrUUID(r.img.ID),
 				SourceImageURL: strings.TrimSpace(r.img.PublicURL),
 				ScoreJSON:      raw,

@@ -48,6 +48,15 @@
 | `GET` | `/api/v1/image/tasks` | 图片任务列表。 |
 | `GET` | `/api/v1/image/tasks/:id` | 图片任务详情。 |
 | `POST` | `/api/v1/image/tasks/:id/retry` | 重试失败任务。 |
+| `GET` | `/api/v1/image/tasks/:id/items` | 任务子项列表（源图→结果图、评分 JSON）。 |
+| `POST` | `/api/v1/image/tasks/:id/apply` | 将成功任务结果写入 `product_images`（不覆盖原图）。 |
+| `GET` | `/api/v1/image/tasks/monitor` | 队列与任务监控快照。 |
+| `POST` | `/api/v1/ai/image/tasks` | 创建 AI 图片任务（与 `/image/tasks` 等价）。 |
+| `GET` | `/api/v1/ai/image/tasks` | AI 图片任务列表。 |
+| `GET` | `/api/v1/ai/image/tasks/:id` | AI 图片任务详情。 |
+| `POST` | `/api/v1/ai/image/task-items/:id/save-to-product` | 将任务子项结果保存为新商品图（`applyMode`: main/detail/marketing/ai_generated）。 |
+| `POST` | `/api/v1/ai/image/task-items/:id/set-as-main` | 将任务子项结果设为主图（`is_best_main`）。 |
+| `POST` | `/api/v1/ai/image/score` | 同步商品图评分（返回 overall/clarity/cleanliness 等维度）。 |
 
 ## 文件
 
@@ -68,6 +77,7 @@
 | `DELETE` | `/api/v1/products/:id` | 删除或归档商品。 |
 | `POST` | `/api/v1/products/:id/apply-ai-title` | 应用 AI 标题。 |
 | `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述。 |
+| `POST` | `/api/v1/products/:id/images/select-best-main` | 自动评分并选择最佳主图；JSON `mode`: `score_only` / `recommend` / `auto_set`。 |
 | `POST` | `/api/v1/pricing/calculate` | 单 SKU 发布价试算（不写入数据库）。 |
 | `POST` | `/api/v1/products/:id/pricing/apply` | 对商品 SKU 应用定价规则；`confirm=false` 仅预览，`confirm=true` 更新 `product_skus.price`。 |
 | `POST` | `/api/v1/products/pricing/batch-apply` | 批量应用定价规则；需 `productIds` 或 `filters`，空条件须 `confirmAll=true`。 |

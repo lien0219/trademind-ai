@@ -61,6 +61,7 @@ import {
   generateDescription,
   optimizeProductTitle,
   reorderProductImages,
+  selectBestMainProductImages,
   updateProduct,
   updateProductImage,
   updateProductSku,
@@ -85,7 +86,7 @@ import {
   providersForTask,
 } from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
-import { createImageTask } from '@/services/imageTasks';
+import { createImageTask, scoreProductImage } from '@/services/imageTasks';
 import { Link } from '@umijs/renderer-react';
 import {
   listProductPublications,
@@ -459,11 +460,7 @@ export default function ProductDraftDetailPage() {
     async (mode: 'score_only' | 'recommend' | 'auto_set') => {
       if (!id) return;
       try {
-        await createImageTask({
-          taskType: 'select_best_main',
-          productId: id,
-          input: { selectMode: mode },
-        });
+        await selectBestMainProductImages(id, { mode });
         message.success('已提交自动选主图任务');
       } catch (e: unknown) {
         message.error((e as Error)?.message || '提交失败');
@@ -731,7 +728,19 @@ export default function ProductDraftDetailPage() {
           <Image src={r.publicUrl || r.originUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 4 }} />
         ),
       },
-      { title: '类型', dataIndex: 'imageType', width: 100, render: (v) => imageTypeLabel(String(v ?? '')) },
+      { title: '类型', dataIndex: 'imageType', width: 100, render: (v, r) => (
+        <Space direction="vertical" size={0}>
+          <span>{imageTypeLabel(String(v ?? ''))}</span>
+          {r.isBestMain ? <Tag color="gold">最佳主图</Tag> : null}
+          {r.source === 'ai' ? <Tag color="blue">AI</Tag> : null}
+        </Space>
+      ) },
+      {
+        title: '评分',
+        dataIndex: 'score',
+        width: 72,
+        render: (v) => (typeof v === 'number' ? v.toFixed(1) : '—'),
+      },
       {
         title: 'sortOrder',
         dataIndex: 'sortOrder',
@@ -749,7 +758,7 @@ export default function ProductDraftDetailPage() {
       },
       {
         title: '操作',
-        width: 320,
+        width: 420,
         render: (_, r) => (
           <Space wrap size={[0, 4]}>
             <Dropdown
@@ -758,9 +767,27 @@ export default function ProductDraftDetailPage() {
                   { key: 'remove_watermark', label: 'AI 去水印', onClick: () => void runQuickImageTask(r, 'remove_watermark') },
                   { key: 'remove_logo', label: 'AI 去 Logo', onClick: () => void runQuickImageTask(r, 'remove_logo') },
                   { key: 'remove_background', label: 'AI 去背景', onClick: () => void runQuickImageTask(r, 'remove_background') },
+                  { key: 'upscale', label: 'AI 高清修复', onClick: () => void runQuickImageTask(r, 'upscale') },
                   { key: 'generate_marketing', label: 'AI 营销图', onClick: () => void runQuickImageTask(r, 'generate_marketing') },
                   { key: 'enhance_detail', label: 'AI 增强详情图', onClick: () => void runQuickImageTask(r, 'enhance_detail') },
-                  { key: 'score_image', label: 'AI 评分', onClick: () => void runQuickImageTask(r, 'score_image') },
+                  {
+                    key: 'score_image',
+                    label: 'AI 评分',
+                    onClick: async () => {
+                      try {
+                        const score = await scoreProductImage({
+                          productId: id,
+                          sourceImageId: r.id,
+                          sourceImageUrl: r.publicUrl || r.originUrl,
+                          imageType: r.imageType,
+                        });
+                        message.success(`评分 ${score.overallScore.toFixed(1)}：${score.suggestion || '已完成'}`);
+                        await reloadDetail();
+                      } catch (e: unknown) {
+                        message.error((e as Error)?.message || '评分失败');
+                      }
+                    },
+                  },
                 ],
               }}
             >
@@ -768,6 +795,36 @@ export default function ProductDraftDetailPage() {
                 AI 处理
               </Button>
             </Dropdown>
+            <Button
+              type="link"
+              size="small"
+              onClick={async () => {
+                try {
+                  await updateProductImage(id, r.id, { imageType: 'main', isBestMain: true, sortOrder: 0 });
+                  message.success('已设为主图');
+                  await reloadDetail();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '操作失败');
+                }
+              }}
+            >
+              设为主图
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              onClick={async () => {
+                try {
+                  await updateProductImage(id, r.id, { imageType: 'detail' });
+                  message.success('已设为详情图');
+                  await reloadDetail();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '操作失败');
+                }
+              }}
+            >
+              设为详情图
+            </Button>
             <Button type="link" size="small" onClick={() => setImgEdit(r)}>
               编辑
             </Button>

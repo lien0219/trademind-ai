@@ -49,7 +49,7 @@ export async function queryImageTasks(params: {
   start?: string;
   end?: string;
 }): Promise<ListResponse> {
-  return getWithParams<ListResponse>('/api/v1/image/tasks', {
+  return getWithParams<ListResponse>('/api/v1/ai/image/tasks', {
     page: params.page,
     pageSize: params.pageSize,
     taskType: params.taskType || undefined,
@@ -62,7 +62,7 @@ export async function queryImageTasks(params: {
 }
 
 export async function getImageTask(id: string): Promise<ImageTaskDetail> {
-  return getJSON<ImageTaskDetail>(`/api/v1/image/tasks/${id}`);
+  return getJSON<ImageTaskDetail>(`/api/v1/ai/image/tasks/${id}`);
 }
 
 export async function createImageTask(payload: {
@@ -84,7 +84,7 @@ export async function createImageTask(payload: {
   if (p) {
     body.provider = p;
   }
-  return postJSON<ImageTaskDetail>('/api/v1/image/tasks', body);
+  return postJSON<ImageTaskDetail>('/api/v1/ai/image/tasks', body);
 }
 
 export async function retryImageTask(id: string): Promise<ImageTaskDetail> {
@@ -148,6 +148,40 @@ export async function applyImageTaskResult(
   return postJSON(`/api/v1/image/tasks/${taskId}/apply`, payload);
 }
 
+export async function saveImageTaskItemToProduct(
+  itemId: string,
+  payload: { productId: string; applyMode?: string; setBest?: boolean },
+) {
+  return postJSON(`/api/v1/ai/image/task-items/${itemId}/save-to-product`, payload);
+}
+
+export async function setImageTaskItemAsMain(itemId: string, payload: { productId: string }) {
+  return postJSON(`/api/v1/ai/image/task-items/${itemId}/set-as-main`, payload);
+}
+
+export type ImageScoreResult = {
+  overallScore: number;
+  clarityScore: number;
+  cleanlinessScore: number;
+  compositionScore: number;
+  mainSuitabilityScore: number;
+  detailSuitabilityScore: number;
+  issues: string[];
+  suggestion: string;
+  width?: number;
+  height?: number;
+  source?: string;
+};
+
+export async function scoreProductImage(payload: {
+  productId?: string;
+  sourceImageId?: string;
+  sourceImageUrl?: string;
+  imageType?: string;
+}) {
+  return postJSON<ImageScoreResult>('/api/v1/ai/image/score', payload);
+}
+
 export type ImageTaskItemRow = {
   id: string;
   taskId: string;
@@ -195,6 +229,8 @@ export const IMAGE_TASK_TYPE_OPTIONS: { label: string; value: string; group?: st
 export const IMAGE_TASK_TEMPLATES: { title: string; taskType: string; description: string }[] = [
   { title: '去水印', taskType: 'remove_watermark', description: '去除商品图水印，结果自动入库' },
   { title: '去 Logo', taskType: 'remove_logo', description: '去除品牌 Logo 与角标' },
+  { title: '去角标/贴纸', taskType: 'remove_badge', description: '去除角标、贴纸等装饰元素' },
+  { title: '去二维码', taskType: 'remove_qrcode', description: '去除二维码、条码等扫描元素' },
   { title: '综合清理', taskType: 'cleanup', description: '一次性清理水印/Logo/贴纸/二维码' },
   { title: '去背景', taskType: 'remove_background', description: '白底图 / 抠图（remove.bg）' },
   { title: '高清修复', taskType: 'upscale', description: '提升清晰度，适合模糊主图' },
