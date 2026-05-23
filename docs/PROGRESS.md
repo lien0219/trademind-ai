@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-23 — **看板 SQL 容错（ai_description / MAX 扫描）**：`operationdashboard` 改用 `information_schema` 检测 `products.ai_description` 是否存在（缺列时回退 `description` 长度口径）；`MAX(updated_at)` 改用 `sql.NullTime` 避免无失败任务时 Scan 报错；启动迁移增加 `migrateLegacyProductTextColumns` 补全 `products` AI 文本列。
+**最后更新**：2026-05-23 — **登录 / 注册页 UI 现代化**：`/user/login` 重构为响应式 SaaS 双栏布局（桌面 `grid: 1.1fr / minmax(420px,520px)`，平板/移动端单列）；左侧品牌区更新 slogan、简介与 6 项能力标签，背景装饰改为低透明度绝对定位卡片（`opacity 0.1–0.14`，不遮挡正文）；右侧登录卡片 `max-width 460px`、圆角阴影、Tab/输入框/渐变主按钮统一；`<1024px` 隐藏左侧宣传区并显示顶部 Logo；`<768px` 全宽卡片 + 16px 边距；**未改动**登录/注册接口与权限逻辑。
+
+**此前**：2026-05-23 — **看板 SQL 容错（ai_description / MAX 扫描）**：`operationdashboard` 改用 `information_schema` 检测 `products.ai_description` 是否存在（缺列时回退 `description` 长度口径）；`MAX(updated_at)` 改用 `sql.NullTime` 避免无失败任务时 Scan 报错；启动迁移增加 `migrateLegacyProductTextColumns` 补全 `products` AI 文本列。
 
 **此前**：2026-05-23 — **工作台看板验收修复**：修复 `operationdashboard` 聚合 SQL（`product_images`/`product_skus` 无 `deleted_at`、兼容缺失 `ai_description` 列）；前端 KPI 并入概览区（10 项，0 也展示）、待办/漏斗/异常/快捷入口始终渲染（接口空时用本地兜底结构）、最近动态空态增加引导按钮。
 
