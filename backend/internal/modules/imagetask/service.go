@@ -139,18 +139,24 @@ func comfyIntSetting(raw string, def, minV, maxV int) int {
 func (s *Service) resolveImageProvider(ctx context.Context, explicit string) (string, error) {
 	v := strings.TrimSpace(strings.ToLower(explicit))
 	if v != "" {
+		if v == "noop" {
+			return "", fmt.Errorf("占位演示不能用于商品图处理，请在「设置 → 图片 AI」选择通义万相或其他图片服务")
+		}
 		return v, nil
 	}
 	if s.Settings == nil {
-		return "noop", nil
+		return "", fmt.Errorf("请先在「设置 → 图片 AI」配置默认图片服务")
 	}
 	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
 	if err != nil {
 		return "", err
 	}
-	v = strings.TrimSpace(strings.ToLower(m["provider"]))
+	v = strings.TrimSpace(strings.ToLower(m["image_task_default_provider"]))
 	if v == "" {
-		v = "noop"
+		v = strings.TrimSpace(strings.ToLower(m["provider"]))
+	}
+	if v == "" || v == "noop" {
+		return "", fmt.Errorf("请先在「设置 → 图片 AI」配置默认图片服务（当前为占位演示）")
 	}
 	return v, nil
 }
@@ -223,35 +229,45 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	if !isValidTaskType(p.TaskType) {
 		return nil, fmt.Errorf("invalid taskType")
 	}
-	effectiveProv, err := s.resolveImageProvider(ctx, p.Provider)
-	if err != nil {
-		return nil, err
-	}
-	if p.TaskType == TaskTypeRemoveBackground {
-		effectiveProv = "removebg"
-	}
+
+	var effectiveProv string
 	if IsScoringTaskType(p.TaskType) {
-		if ep, err := s.resolveImageProvider(ctx, p.Provider); err == nil && ep != "" {
+		if p.TaskType == TaskTypeScoreImage {
+			if s == nil || s.AIGateway == nil {
+				return nil, fmt.Errorf("未配置 AI 服务，无法进行商品图评分（请在「设置 → AI」配置）")
+			}
+		}
+		explicit := strings.TrimSpace(strings.ToLower(p.Provider))
+		if explicit != "" && explicit != "noop" {
+			effectiveProv = explicit
+		} else if ep, err := s.resolveImageProvider(ctx, p.Provider); err == nil && ep != "" {
 			effectiveProv = ep
 		} else {
-			effectiveProv = "noop"
+			effectiveProv = "ai_vision"
 		}
-	}
-	if !IsScoringTaskType(p.TaskType) {
+	} else {
+		var err error
+		effectiveProv, err = s.resolveImageProvider(ctx, p.Provider)
+		if err != nil {
+			return nil, err
+		}
+		if p.TaskType == TaskTypeRemoveBackground {
+			effectiveProv = "removebg"
+		}
 		if !imgprov.IsRunnableProvider(effectiveProv) {
 			return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
 		}
 		if !imgprov.SupportsTask(effectiveProv, p.TaskType) {
 			return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
 		}
-	}
-	if s.Settings != nil {
-		m, err := s.Settings.PlainByGroup(ctx, 0, "image")
-		if err != nil {
-			return nil, err
-		}
-		if err := imgprov.ValidateSettingsForProvider(effectiveProv, m); err != nil {
-			return nil, err
+		if s.Settings != nil {
+			m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+			if err != nil {
+				return nil, err
+			}
+			if err := imgprov.ValidateSettingsForProvider(effectiveProv, m); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -383,7 +399,8 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	}
 	if task.TaskType == TaskTypeReplaceBackground &&
 		(strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") ||
-			strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image")) {
+			strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image") ||
+			strings.EqualFold(strings.TrimSpace(task.Provider), "dashscope_image")) {
 		hints = s.prepareReplaceBackgroundHints(ctx, task, hints)
 	}
 	timeout := s.computeExecutionTimeout(ctx, task)
@@ -431,6 +448,25 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		}
 		if task.TaskType == TaskTypeReplaceBackground && strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image") {
 			rb, err := s.resolveOpenAIReplaceBackgroundSource(pctx, task)
+			if err != nil {
+				return nil, err
+			}
+			if rb.File != nil {
+				defer rb.File.Close()
+			}
+			return prov.ReplaceBackground(pctx, imgprov.ReplaceBackgroundRequest{
+				ImageRequest: imgprov.ImageRequest{
+					SourceURL:         rb.PublicURL,
+					SourceFile:        rb.File,
+					SourceFilename:    rb.Filename,
+					SourceContentType: rb.ContentType,
+					Input:             hints,
+				},
+				Background: stringFromMap(hints, "background"),
+			})
+		}
+		if task.TaskType == TaskTypeReplaceBackground && strings.EqualFold(strings.TrimSpace(task.Provider), "dashscope_image") {
+			rb, err := s.resolveOpenAIEditSource(pctx, task)
 			if err != nil {
 				return nil, err
 			}

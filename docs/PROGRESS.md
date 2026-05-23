@@ -431,6 +431,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-23 | **AI 图片清理任务走真实 Provider**：去水印/去 Logo/去二维码/综合清理等不再走 **noop 占位演示**；默认读取 **`settings.image.provider`**（或 **`image_task_default_provider`**）；**`dashscope_image`** 接入万相 2.7 **图像编辑** API；结果仍 **`persistProviderResult` 入库**；未配置 Key 返回「未配置通义万相 API Key」；**`score_image`** 走 **AI 视觉模型**（`ai_vision`），**`select_best_main`** 逻辑保留 |
 | 2026-05-23 | **通义万相默认模型更新**：默认模型 **`wan2.7-image-pro`**、默认尺寸 **`2K`**；**`dashscope_image`** 客户端切换至万相 2.7 **`multimodal-generation`** API；设置页 placeholder 同步 |
 | 2026-05-21 | **拼多多图片分类精细化**：区域分轨主图/详情图；SKU 图仅 **sku.imageUrl**；修复详情图误入主图；**imageSummary**；管理端图片类型排序与提示 |
 | 2026-05-21 | **拼多多 pifa 解析精细化**：标题清洗（去「分享商品」等）；**mainDescription** 提取与入库；图片 **source** 分类与 **imageFilterSummary**；SKU 名/库存拆分；草稿页字段级提示 |

@@ -98,6 +98,9 @@ export function providersForTask(
 
 export function displayNameForProvider(caps: ImageProviderCapability[], provider: string) {
   const p = provider.trim().toLowerCase();
+  if (p === 'ai_vision') {
+    return 'AI 视觉模型';
+  }
   const hit = caps.find((c) => c.provider === p);
   return hit?.displayName ?? provider;
 }

@@ -147,7 +147,8 @@ func (s *Service) runProviderForTask(ctx context.Context, prov imgprov.Provider,
 
 	if IsCleanupTaskType(tt) {
 		hints = prepareCleanupHints(task, hints)
-		if strings.EqualFold(strings.TrimSpace(task.Provider), "openai_image") {
+		provName := strings.TrimSpace(strings.ToLower(task.Provider))
+		if provName == "openai_image" || provName == "dashscope_image" {
 			rb, err := s.resolveOpenAIEditSource(ctx, task)
 			if err != nil {
 				return nil, err
@@ -165,18 +166,19 @@ func (s *Service) runProviderForTask(ctx context.Context, prov imgprov.Provider,
 				},
 			})
 		}
-		if strings.EqualFold(strings.TrimSpace(task.Provider), "comfyui") {
+		if provName == "comfyui" {
 			return prov.ReplaceBackground(ctx, imgprov.ReplaceBackgroundRequest{
 				ImageRequest: imgprov.ImageRequest{SourceURL: src, Input: hints},
 			})
 		}
-		return prov.Enhance(ctx, imgprov.ImageRequest{SourceURL: src, Input: hints})
+		return nil, imgprov.UnsupportedTaskError(task.Provider, task.TaskType)
 	}
 
 	switch tt {
 	case TaskTypeGenerateMarketing, TaskTypeGenerateMainImage, TaskTypeBatchGenerateMain:
 		hints = prepareGenerationHints(task, hints)
-		if src != "" && (strings.EqualFold(task.Provider, "openai_image") || strings.EqualFold(task.Provider, "comfyui")) {
+		provName := strings.TrimSpace(strings.ToLower(task.Provider))
+		if src != "" && (provName == "openai_image" || provName == "comfyui" || provName == "dashscope_image") {
 			rb, err := s.resolveOpenAIEditSource(ctx, task)
 			if err == nil {
 				if rb.File != nil {

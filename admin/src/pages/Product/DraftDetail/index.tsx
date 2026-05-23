@@ -1,3 +1,4 @@
+import type { CSSProperties, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -265,7 +266,64 @@ function imageTypeLabel(t: string): string {
   if (t === 'main') return '主图';
   if (t === 'detail' || t === 'description') return '详情图';
   if (t === 'sku') return '规格图';
+  if (t === 'marketing') return '营销图';
+  if (t === 'ai_generated') return 'AI 图';
   return t;
+}
+
+const IMAGE_META_TAG_STYLE: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: '20px',
+  padding: '0 6px',
+  borderRadius: 4,
+};
+
+function ProductImageMetaTags({ row }: { row: ProductImageRow }) {
+  const tags: ReactNode[] = [];
+  if (row.isBestMain) {
+    tags.push(
+      <Tag key="best" color="gold" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        最佳主图
+      </Tag>,
+    );
+  }
+  if (row.source === 'ai') {
+    tags.push(
+      <Tag key="ai" color="processing" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        AI 生成
+      </Tag>,
+    );
+  } else if (row.source === 'upload') {
+    tags.push(
+      <Tag key="upload" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        上传
+      </Tag>,
+    );
+  } else if (row.source === 'collect') {
+    tags.push(
+      <Tag key="collect" color="default" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        采集
+      </Tag>,
+    );
+  }
+  if (tags.length === 0) return null;
+  return (
+    <Space size={[6, 4]} wrap style={{ marginTop: 2 }}>
+      {tags}
+    </Space>
+  );
+}
+
+function ProductImageTypeCell({ row }: { row: ProductImageRow }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0' }}>
+      <Typography.Text strong style={{ fontSize: 13, lineHeight: '20px' }}>
+        {imageTypeLabel(String(row.imageType ?? ''))}
+      </Typography.Text>
+      <ProductImageMetaTags row={row} />
+    </div>
+  );
 }
 
 function draftStockStatusTag(raw?: string) {
@@ -427,11 +485,7 @@ export default function ProductDraftDetailPage() {
   const runQuickImageTask = useCallback(
     async (image: ProductImageRow, taskType: string, extraInput?: Record<string, unknown>) => {
       if (!id) return;
-      const opts = optionsForTask(taskType);
-      const provider =
-        taskType === 'remove_background'
-          ? 'removebg'
-          : (opts.find((o) => o.value && !o.disabled)?.value as string | undefined) ?? 'openai_image';
+      const provider = taskType === 'remove_background' ? 'removebg' : undefined;
       try {
         await createImageTask({
           taskType,
@@ -453,7 +507,7 @@ export default function ProductDraftDetailPage() {
         message.error((e as Error)?.message || '提交失败');
       }
     },
-    [id, optionsForTask, aiImgPrompt, aiImgNegPrompt, aiImgStyle, aiImgBackground],
+    [id, aiImgPrompt, aiImgNegPrompt, aiImgStyle, aiImgBackground],
   );
 
   const runSelectBestMain = useCallback(
@@ -723,18 +777,24 @@ export default function ProductDraftDetailPage() {
     () => [
       {
         title: '预览',
-        width: 88,
+        width: 96,
         render: (_, r) => (
-          <Image src={r.publicUrl || r.originUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 4 }} />
+          <div style={{ padding: '4px 0' }}>
+            <Image
+              src={r.publicUrl || r.originUrl}
+              width={56}
+              height={56}
+              style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid var(--ant-color-border-secondary)' }}
+            />
+          </div>
         ),
       },
-      { title: '类型', dataIndex: 'imageType', width: 100, render: (v, r) => (
-        <Space direction="vertical" size={0}>
-          <span>{imageTypeLabel(String(v ?? ''))}</span>
-          {r.isBestMain ? <Tag color="gold">最佳主图</Tag> : null}
-          {r.source === 'ai' ? <Tag color="blue">AI</Tag> : null}
-        </Space>
-      ) },
+      {
+        title: '类型',
+        dataIndex: 'imageType',
+        width: 132,
+        render: (_, r) => <ProductImageTypeCell row={r} />,
+      },
       {
         title: '评分',
         dataIndex: 'score',
@@ -760,7 +820,7 @@ export default function ProductDraftDetailPage() {
         title: '操作',
         width: 420,
         render: (_, r) => (
-          <Space wrap size={[0, 4]}>
+          <Space wrap size={[12, 6]} style={{ padding: '4px 0' }}>
             <Dropdown
               menu={{
                 items: [

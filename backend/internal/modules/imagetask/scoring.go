@@ -148,8 +148,7 @@ Scores are 0-100 numbers.`, imageURL, strings.TrimSpace(productTitle), imageType
 		MaxTokens: 800,
 	})
 	if err != nil {
-		base.Suggestion = "AI scoring unavailable: " + truncateMsg(err.Error(), 120)
-		return base, nil
+		return ImageScore{}, fmt.Errorf("AI 视觉评分失败: %w", err)
 	}
 	content := strings.TrimSpace(resp.Content)
 	var aiScore ImageScore

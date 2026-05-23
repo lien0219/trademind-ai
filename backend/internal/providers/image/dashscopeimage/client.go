@@ -4,6 +4,7 @@ package dashscopeimage
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,8 +16,11 @@ import (
 const (
 	defaultBaseURL = "https://dashscope.aliyuncs.com/api/v1"
 	defaultModel   = "wan2.7-image-pro"
-	defaultSize    = "2K"
-	generationPath = "/services/aigc/multimodal-generation/generation"
+	defaultSize    = "2048*2048"
+	// Wan 2.7 sync HTTP: multimodal-generation (no X-DashScope-Async header).
+	syncGenerationPath = "/services/aigc/multimodal-generation/generation"
+	// Wan 2.7 async HTTP: image-generation + X-DashScope-Async: enable + poll.
+	asyncGenerationPath = "/services/aigc/image-generation/generation"
 )
 
 // Options configures DashScope image synthesis.
@@ -46,7 +50,7 @@ func normalizeBase(u string) string {
 func NewClient(opt Options) (*Client, error) {
 	key := strings.TrimSpace(opt.APIKey)
 	if key == "" {
-		return nil, fmt.Errorf("dashscope_image_api_key is not configured")
+		return nil, fmt.Errorf("未配置通义万相 API Key")
 	}
 	model := strings.TrimSpace(opt.Model)
 	if model == "" {
@@ -72,19 +76,23 @@ func NewClient(opt Options) (*Client, error) {
 
 func (c *Client) ResolvedModel() string { return c.opt.Model }
 
+type messageContent struct {
+	Text  string `json:"text,omitempty"`
+	Image string `json:"image,omitempty"`
+}
+
 type submitBody struct {
 	Model string `json:"model"`
 	Input struct {
 		Messages []struct {
-			Role    string `json:"role"`
-			Content []struct {
-				Text string `json:"text"`
-			} `json:"content"`
+			Role    string           `json:"role"`
+			Content []messageContent `json:"content"`
 		} `json:"messages"`
 	} `json:"input"`
 	Parameters struct {
-		Size string `json:"size"`
-		N    int    `json:"n"`
+		Size      string `json:"size"`
+		N         int    `json:"n"`
+		Watermark bool   `json:"watermark,omitempty"`
 	} `json:"parameters"`
 }
 
@@ -116,7 +124,19 @@ type taskResp struct {
 	Message string `json:"message"`
 }
 
-func (c *Client) authReq(ctx context.Context, method, path string, body []byte) (*http.Request, error) {
+// DataURL encodes image bytes for DashScope image field (data:{mime};base64,...).
+func DataURL(data []byte, contentType string) string {
+	ct := strings.TrimSpace(contentType)
+	if ct == "" {
+		ct = http.DetectContentType(data)
+	}
+	if !strings.HasPrefix(strings.ToLower(ct), "image/") {
+		ct = "image/jpeg"
+	}
+	return fmt.Sprintf("data:%s;base64,%s", ct, base64.StdEncoding.EncodeToString(data))
+}
+
+func (c *Client) authReq(ctx context.Context, method, path string, body []byte, async bool) (*http.Request, error) {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
@@ -131,38 +151,55 @@ func (c *Client) authReq(ctx context.Context, method, path string, body []byte) 
 	}
 	req.Header.Set("Authorization", "Bearer "+c.opt.APIKey)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-DashScope-Async", "enable")
+	if async {
+		req.Header.Set("X-DashScope-Async", "enable")
+	}
 	return req, nil
 }
 
-// GenerateScene submits text-to-image and polls until success or timeout.
-func (c *Client) GenerateScene(ctx context.Context, prompt string) ([]byte, string, error) {
-	prompt = strings.TrimSpace(prompt)
-	if prompt == "" {
-		return nil, "", fmt.Errorf("dashscope_image: empty prompt")
-	}
+func (c *Client) buildSubmitBody(content []messageContent) ([]byte, error) {
 	var body submitBody
 	body.Model = c.opt.Model
 	body.Input.Messages = []struct {
-		Role    string `json:"role"`
-		Content []struct {
-			Text string `json:"text"`
-		} `json:"content"`
+		Role    string           `json:"role"`
+		Content []messageContent `json:"content"`
 	}{
-		{
-			Role: "user",
-			Content: []struct {
-				Text string `json:"text"`
-			}{{Text: prompt}},
-		},
+		{Role: "user", Content: content},
 	}
 	body.Parameters.Size = c.opt.Size
 	body.Parameters.N = 1
-	raw, err := json.Marshal(body)
+	body.Parameters.Watermark = false
+	return json.Marshal(body)
+}
+
+func (c *Client) submitMultimodal(ctx context.Context, content []messageContent) ([]byte, string, error) {
+	raw, err := c.buildSubmitBody(content)
 	if err != nil {
 		return nil, "", err
 	}
-	req, err := c.authReq(ctx, http.MethodPost, generationPath, raw)
+	// Prefer sync endpoint (documented for wan2.7 image edit); async header on this path returns HTTP 403.
+	if img, ct, err := c.postGeneration(ctx, syncGenerationPath, raw, false); err == nil {
+		return img, ct, nil
+	} else if !shouldRetryAsync(err) {
+		return nil, "", err
+	}
+	return c.postGeneration(ctx, asyncGenerationPath, raw, true)
+}
+
+func shouldRetryAsync(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "asynchronous calls") {
+		return false
+	}
+	return strings.Contains(msg, "synchronous calls") ||
+		strings.Contains(msg, "does not support synchronous")
+}
+
+func (c *Client) postGeneration(ctx context.Context, path string, raw []byte, async bool) ([]byte, string, error) {
+	req, err := c.authReq(ctx, http.MethodPost, path, raw, async)
 	if err != nil {
 		return nil, "", err
 	}
@@ -182,14 +219,39 @@ func (c *Client) GenerateScene(ctx context.Context, prompt string) ([]byte, stri
 	if sub.Code != "" && sub.Code != "Success" && !strings.EqualFold(sub.Code, "OK") {
 		return nil, "", fmt.Errorf("dashscope_image: %s", strings.TrimSpace(sub.Message))
 	}
-	taskID := strings.TrimSpace(sub.Output.TaskID)
-	if taskID == "" {
-		if imgURL := firstImageURL(sub.Output.Choices); imgURL != "" {
-			return c.download(ctx, imgURL)
-		}
-		return nil, "", fmt.Errorf("dashscope_image: no task_id in response")
+	if imgURL := firstImageURL(sub.Output.Choices); imgURL != "" {
+		return c.download(ctx, imgURL)
 	}
-	return c.pollTask(ctx, taskID)
+	taskID := strings.TrimSpace(sub.Output.TaskID)
+	if taskID != "" && async {
+		return c.pollTask(ctx, taskID)
+	}
+	return nil, "", fmt.Errorf("dashscope_image: empty result in response")
+}
+
+// GenerateScene submits text-to-image and polls until success or timeout.
+func (c *Client) GenerateScene(ctx context.Context, prompt string) ([]byte, string, error) {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return nil, "", fmt.Errorf("dashscope_image: empty prompt")
+	}
+	return c.submitMultimodal(ctx, []messageContent{{Text: prompt}})
+}
+
+// EditImage submits image+text editing (inpaint / cleanup / upscale) and polls until done.
+func (c *Client) EditImage(ctx context.Context, imageRef, prompt string) ([]byte, string, error) {
+	imageRef = strings.TrimSpace(imageRef)
+	prompt = strings.TrimSpace(prompt)
+	if imageRef == "" {
+		return nil, "", fmt.Errorf("dashscope_image: source image required")
+	}
+	if prompt == "" {
+		return nil, "", fmt.Errorf("dashscope_image: empty prompt")
+	}
+	return c.submitMultimodal(ctx, []messageContent{
+		{Image: imageRef},
+		{Text: prompt},
+	})
 }
 
 func (c *Client) pollTask(ctx context.Context, taskID string) ([]byte, string, error) {
@@ -199,7 +261,7 @@ func (c *Client) pollTask(ctx context.Context, taskID string) ([]byte, string, e
 	}
 	interval := 2 * time.Second
 	for time.Now().Before(deadline) {
-		req, err := c.authReq(ctx, http.MethodGet, "/tasks/"+taskID, nil)
+		req, err := c.authReq(ctx, http.MethodGet, "/tasks/"+taskID, nil, false)
 		if err != nil {
 			return nil, "", err
 		}
@@ -273,24 +335,21 @@ func normalizeSize(raw string) string {
 	if size == "" {
 		return defaultSize
 	}
-	upper := strings.ToUpper(size)
-	switch upper {
-	case "1K", "2K", "4K":
-		return upper
-	}
-	// legacy pixel sizes from wanx2.x settings
 	normalized := strings.ReplaceAll(size, "x", "*")
 	normalized = strings.ReplaceAll(normalized, "X", "*")
-	switch normalized {
-	case "1024*1024", "1280*1280":
-		return "1K"
-	case "2048*2048":
-		return "2K"
-	case "4096*4096":
-		return "4K"
-	default:
-		return size
+	upper := strings.ToUpper(strings.TrimSpace(normalized))
+	switch upper {
+	case "1K":
+		return "1024*1024"
+	case "2K":
+		return "2048*2048"
+	case "4K":
+		return "4096*4096"
 	}
+	if strings.Contains(normalized, "*") {
+		return normalized
+	}
+	return size
 }
 
 func firstImageURL(choices []outputChoice) string {

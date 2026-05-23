@@ -32,6 +32,7 @@ import {
   setImageTaskItemAsMain,
   taskTypeLabel,
 } from '@/services/imageTasks';
+import { COLLECT_TASK_STATUS } from '@/constants/status';
 
 function formatJsonPretty(v: unknown): string {
   if (v == null) return '';
@@ -44,12 +45,9 @@ function formatJsonPretty(v: unknown): string {
 
 function statusTag(status: string) {
   const s = status?.trim() || '';
-  if (s === 'success') return <Tag color="success">success</Tag>;
-  if (s === 'failed') return <Tag color="error">failed</Tag>;
-  if (s === 'retrying') return <Tag color="warning">等待重试</Tag>;
-  if (s === 'running' || s === 'pending') return <Tag color="processing">处理中</Tag>;
-  if (s === 'cancelled') return <Tag>cancelled</Tag>;
-  return <Tag>{s || '-'}</Tag>;
+  const m = COLLECT_TASK_STATUS[s as keyof typeof COLLECT_TASK_STATUS];
+  if (m) return <Tag color={m.color}>{m.text}</Tag>;
+  return <Tag>{s || '—'}</Tag>;
 }
 
 function JsonBlock({ title, value }: { title: string; value: unknown }) {
@@ -163,14 +161,9 @@ export default function ImageTasksPage() {
       dataIndex: 'status',
       width: 100,
       valueType: 'select',
-      valueEnum: {
-        pending: { text: 'pending' },
-        running: { text: 'running' },
-        retrying: { text: 'retrying' },
-        success: { text: 'success' },
-        failed: { text: 'failed' },
-        cancelled: { text: 'cancelled' },
-      },
+      valueEnum: Object.fromEntries(
+        Object.entries(COLLECT_TASK_STATUS).map(([k, v]) => [k, { text: v.text }]),
+      ),
       render: (_, row) => statusTag(row.status),
     },
     {
@@ -445,18 +438,10 @@ export default function ImageTasksPage() {
           rules={[{ required: true }]}
           fieldProps={{
             onChange: (v: string) => {
-              const opts = optionsForTask(v);
-              const first = opts.find((o) => o.value && !o.disabled);
               if (v === 'remove_background') {
                 createForm.setFieldsValue({ provider: 'removebg' });
-              } else if (v === 'generate_scene') {
-                createForm.setFieldsValue({
-                  provider: first?.value === 'removebg' ? 'dashscope_image' : first?.value ?? 'dashscope_image',
-                });
-              } else if (v === 'replace_background') {
-                createForm.setFieldsValue({ provider: first?.value ?? '' });
               } else {
-                createForm.setFieldsValue({ provider: first?.value ?? '' });
+                createForm.setFieldsValue({ provider: '' });
               }
             },
           }}
@@ -789,7 +774,7 @@ export default function ImageTasksPage() {
                           </div>
                         ) : null}
                         <div>
-                          <div>状态：{item.status}</div>
+                          <div>状态：{statusTag(item.status)}</div>
                           {item.isSelectedBest ? <Tag color="gold">推荐主图</Tag> : null}
                           {item.scoreJson ? (
                             <pre style={{ fontSize: 11, maxWidth: 280, overflow: 'auto' }}>
