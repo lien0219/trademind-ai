@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
+	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	recentLimit = 5
+	recentLimit = 10
 	descShort   = 60
 )
 
@@ -31,6 +32,7 @@ type Service struct {
 	Inventory       *inventory.Service
 	TaskCenter      *taskcenter.Service
 	OrderExceptions *orderexception.Service
+	flags           schemaFlags
 }
 
 // GetProductOperationDashboard returns dashboard data (local DB only; no side effects).
@@ -80,13 +82,13 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query) (*P
 	missingDescTx := s.missingAiDescriptionTx(ctx, q)
 	_ = missingDescTx.Session(&gorm.Session{}).Count(&sum.MissingAiDescriptionCount).Error
 
-	titleOrDesc := s.DB.WithContext(ctx).Model(&product.Product{}).Where("products.deleted_at IS NULL")
-	titleOrDesc = s.applyProductScope(titleOrDesc, q)
+	titleOrDesc := s.productTimeScope(ctx, q)
+	descMissing := s.aiDescMissingExpr(ctx)
 	titleOrDesc = titleOrDesc.Where("products.status <> ?", product.StatusArchived).
 		Where(`(
 			(TRIM(COALESCE(products.ai_title,'')) = '' AND (TRIM(COALESCE(products.title,'')) <> '' OR TRIM(COALESCE(products.original_title,'')) <> ''))
 			OR
-			(TRIM(COALESCE(products.ai_description,'')) = '' AND (TRIM(COALESCE(products.description,'')) = '' OR LENGTH(TRIM(COALESCE(products.description,''))) < ?))
+			(`+descMissing+` AND (TRIM(COALESCE(products.description,'')) = '' OR LENGTH(TRIM(COALESCE(products.description,''))) < ?))
 		)`, descShort)
 	_ = titleOrDesc.Count(&sum.AiPendingProducts).Error
 
@@ -187,11 +189,131 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query) (*P
 	publishableTx := s.publishableProductsTx(ctx, q)
 	var publishableCount int64
 	_ = publishableTx.Session(&gorm.Session{}).Count(&publishableCount).Error
+	sum.Publishable = publishableCount
+
+	// Image tasks (local DB only)
+	imgPendingTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
+		Where("status IN ?", []string{imagetask.StatusPending, imagetask.StatusRunning, imagetask.StatusRetrying})
+	if q.Start != nil {
+		imgPendingTx = imgPendingTx.Where("created_at >= ?", *q.Start)
+	}
+	if q.End != nil {
+		imgPendingTx = imgPendingTx.Where("created_at <= ?", *q.End)
+	}
+	_ = imgPendingTx.Count(&sum.ImageTaskPending).Error
+
+	imgFailedTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("status = ?", imagetask.StatusFailed)
+	if q.Start != nil {
+		imgFailedTx = imgFailedTx.Where("updated_at >= ?", *q.Start)
+	}
+	if q.End != nil {
+		imgFailedTx = imgFailedTx.Where("updated_at <= ?", *q.End)
+	}
+	_ = imgFailedTx.Count(&sum.ImageTaskFailed).Error
+
+	// Products with AI-processed images
+	imgProdTx := s.DB.WithContext(ctx).Table("product_images AS pi").
+		Joins("INNER JOIN products p ON p.id = pi.product_id").
+		Where(`(pi.source = ? OR pi.image_type IN ? OR pi.source_task_id IS NOT NULL)`,
+			product.ImageSourceAI, []string{product.ImageTypeAIGenerated, product.ImageTypeMarketing})
+	if soft, _ := s.schemaFlags(ctx); soft {
+		imgProdTx = imgProdTx.Where("p.deleted_at IS NULL")
+	}
+	imgProdTx = s.applyProductJoinScope(imgProdTx, q, "p")
+	_ = imgProdTx.Distinct("pi.product_id").Count(&sum.ImageProcessedCount).Error
+
+	// Collected products (have source URL or known collector source)
+	collectedTx := s.productTimeScope(ctx, q).
+		Where("products.status <> ?", product.StatusArchived).
+		Where(`(TRIM(COALESCE(products.source_url,'')) <> '' OR products.source IN ?)`,
+			[]string{"1688", "pinduoduo", "pdd", "taobao", "custom", "aliexpress"})
+	_ = collectedTx.Count(&sum.CollectedProducts).Error
+
+	// AI title / description completed
+	aiTitleDoneTx := s.productTimeScope(ctx, q).
+		Where("products.status <> ?", product.StatusArchived).
+		Where("TRIM(COALESCE(products.ai_title,'')) <> ''")
+	_ = aiTitleDoneTx.Count(&sum.AiTitleCompleted).Error
+
+	aiDescDoneTx := s.productTimeScope(ctx, q).
+		Where("products.status <> ?", product.StatusArchived).
+		Where(s.aiDescDoneExpr(ctx))
+	_ = aiDescDoneTx.Count(&sum.AiDescCompleted).Error
+
+	aiTextDoneTx := s.productTimeScope(ctx, q).
+		Where("products.status <> ?", product.StatusArchived).
+		Where("TRIM(COALESCE(products.ai_title,'')) <> ''").
+		Where(s.aiDescDoneExpr(ctx))
+	_ = aiTextDoneTx.Count(&sum.AiTextCompleted).Error
+
+	sum.ReadinessPassed = publishableCount
+
+	// Collect failures
+	collectFailTx := s.collectTaskScope(ctx, q).Where("status = ?", collect.StatusFailed)
+	_ = collectFailTx.Count(&sum.CollectFailedCount).Error
+
+	// Today new products
+	todayStart := startOfDayUTC(time.Now().UTC())
+	todayNewTx := s.productTimeScope(ctx, q)
+	if q.Start != nil || q.End != nil {
+		if q.Start != nil {
+			todayNewTx = todayNewTx.Where("products.created_at >= ?", *q.Start)
+		}
+		if q.End != nil {
+			todayNewTx = todayNewTx.Where("products.created_at <= ?", *q.End)
+		}
+	} else {
+		todayNewTx = todayNewTx.Where("products.created_at >= ?", todayStart)
+	}
+	_ = todayNewTx.Count(&sum.TodayNewProducts).Error
+
+	// Compact KPI aliases
+	sum.DraftTotal = sum.DraftProducts + sum.ReadyProducts
+	sum.MissingAiTitle = sum.MissingAiTitleCount
+	sum.MissingAiDescription = sum.MissingAiDescriptionCount
+	sum.ReadinessBlockedKPI = sum.ReadinessBlocked
+	sum.Published = sum.PublishedProducts
+	sum.InventoryAlerts = sum.LowStockSkus + sum.OutOfStockSkus
+	sum.OrderExceptions = sum.OrderExceptionTotal
 
 	out.Todos = buildTodoCards(sum, publishableCount)
+	out.Funnel = buildFunnel(sum)
+	out.Exceptions = s.buildExceptions(ctx, q, sum, shopPtr)
 	out.Recent = s.buildRecent(ctx, q, shopPtr)
 
 	return out, nil
+}
+
+func startOfDayUTC(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+func (s *Service) applyProductJoinScope(tx *gorm.DB, q Query, alias string) *gorm.DB {
+	if v := strings.TrimSpace(q.Source); v != "" {
+		tx = tx.Where(alias+".source = ?", v)
+	}
+	if q.Start != nil {
+		tx = tx.Where(alias+".updated_at >= ?", *q.Start)
+	}
+	if q.End != nil {
+		tx = tx.Where(alias+".updated_at <= ?", *q.End)
+	}
+	return tx
+}
+
+func (s *Service) collectTaskScope(ctx context.Context, q Query) *gorm.DB {
+	tx := s.DB.WithContext(ctx).Model(&collect.CollectTask{})
+	if v := strings.TrimSpace(q.Source); v != "" {
+		tx = tx.Where("source = ?", v)
+	}
+	if q.Start != nil {
+		tx = tx.Where("updated_at >= ?", *q.Start)
+	}
+	if q.End != nil {
+		tx = tx.Where("updated_at <= ?", *q.End)
+	}
+	return tx
 }
 
 func (s *Service) invCount(ctx context.Context, base inventory.AlertsListQuery, alertType string) (int64, error) {
@@ -205,11 +327,6 @@ func (s *Service) invCount(ctx context.Context, base inventory.AlertsListQuery, 
 		return 0, err
 	}
 	return res.Total, nil
-}
-
-func (s *Service) productTimeScope(ctx context.Context, q Query) *gorm.DB {
-	tx := s.DB.WithContext(ctx).Model(&product.Product{}).Where("products.deleted_at IS NULL")
-	return s.applyProductScope(tx, q)
 }
 
 func (s *Service) applyProductScope(tx *gorm.DB, q Query) *gorm.DB {
@@ -301,20 +418,21 @@ func (s *Service) readinessBlockedTx(ctx context.Context, q Query) *gorm.DB {
 		Where(`(
 			(TRIM(COALESCE(products.title,'')) = '' AND TRIM(COALESCE(products.original_title,'')) = '')
 			OR TRIM(COALESCE(products.currency,'')) = ''
-			OR NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)
-			OR NOT EXISTS (SELECT 1 FROM product_skus ps0 WHERE ps0.product_id = products.id AND ps0.deleted_at IS NULL)
-			OR EXISTS (SELECT 1 FROM product_skus ps1 WHERE ps1.product_id = products.id AND ps1.deleted_at IS NULL AND (ps1.price IS NULL OR ps1.price <= 0))
+			OR NOT `+sqlMainImageExists+`
+			OR NOT `+sqlSKUExists+`
+			OR `+sqlInvalidPriceSKU+`
 		)`, product.ImageTypeMain)
 }
 
 func (s *Service) readinessWarningTx(ctx context.Context, q Query) *gorm.DB {
 	blocked := s.readinessBlockedTx(ctx, q).Select("products.id")
+	descMissing := s.aiDescMissingExpr(ctx)
 	return s.productTimeScope(ctx, q).
 		Where("products.status NOT IN ?", []string{product.StatusArchived}).
 		Where("products.id NOT IN (?)", blocked).
 		Where(`(
 			TRIM(COALESCE(products.ai_title,'')) = ''
-			OR (TRIM(COALESCE(products.ai_description,'')) = '' AND LENGTH(TRIM(COALESCE(products.description,''))) < ?)
+			OR (`+descMissing+` AND LENGTH(TRIM(COALESCE(products.description,''))) < ?)
 		)`, descShort)
 }
 
@@ -324,7 +442,7 @@ func (s *Service) readinessReadyTx(ctx context.Context, q Query) *gorm.DB {
 		Where("products.status NOT IN ?", []string{product.StatusArchived}).
 		Where("products.id NOT IN (?)", blocked).
 		Where("TRIM(COALESCE(products.ai_title,'')) <> ''").
-		Where("(TRIM(COALESCE(products.ai_description,'')) <> '' OR LENGTH(TRIM(COALESCE(products.description,''))) >= ?)", descShort)
+		Where(s.aiDescPresentExpr(ctx), descShort)
 }
 
 func (s *Service) missingAiTitleTx(ctx context.Context, q Query) *gorm.DB {
@@ -335,9 +453,10 @@ func (s *Service) missingAiTitleTx(ctx context.Context, q Query) *gorm.DB {
 }
 
 func (s *Service) missingAiDescriptionTx(ctx context.Context, q Query) *gorm.DB {
+	descMissing := s.aiDescMissingExpr(ctx)
 	return s.productTimeScope(ctx, q).
 		Where("products.status <> ?", product.StatusArchived).
-		Where("TRIM(COALESCE(products.ai_description,'')) = ''").
+		Where(descMissing).
 		Where("( TRIM(COALESCE(products.description,'')) = '' OR LENGTH(TRIM(COALESCE(products.description,''))) < ? )", descShort)
 }
 
@@ -346,56 +465,188 @@ func (s *Service) publishableProductsTx(ctx context.Context, q Query) *gorm.DB {
 		Where("products.status IN ?", []string{product.StatusDraft, product.StatusReady}).
 		Where("( TRIM(COALESCE(products.title,'')) <> '' OR TRIM(COALESCE(products.original_title,'')) <> '' )").
 		Where("TRIM(COALESCE(products.currency,'')) <> ''").
-		Where(`EXISTS (
-			SELECT 1 FROM product_images pi
-			WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL
-		)`, product.ImageTypeMain).
-		Where(`EXISTS (
-			SELECT 1 FROM product_skus ps
-			WHERE ps.product_id = products.id AND ps.deleted_at IS NULL
-		)`).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM product_skus ps2
-			WHERE ps2.product_id = products.id AND ps2.deleted_at IS NULL AND (ps2.price IS NULL OR ps2.price <= 0)
-		)`)
+		Where(sqlMainImageExists, product.ImageTypeMain).
+		Where(sqlSKUExists).
+		Where("NOT " + sqlInvalidPriceSKU)
 }
 
 func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 	return []TodoCard{
-		{ID: "missing_ai_title", Title: "待 AI 标题优化", Count: sum.MissingAiTitleCount, Severity: failureclassifier.SeverityMedium,
-			Description: "已有标题但尚未生成 AI 标题", Link: "/product/drafts?missingAiTitle=1"},
-		{ID: "missing_ai_description", Title: "待 AI 描述生成", Count: sum.MissingAiDescriptionCount, Severity: failureclassifier.SeverityMedium,
-			Description: "描述缺失或过短且尚无 AI 描述", Link: "/product/drafts?missingAiDescription=1"},
-		{ID: "readiness_blocked", Title: "发布检查不通过（近似）", Count: sum.ReadinessBlocked, Severity: failureclassifier.SeverityHigh,
-			Description: "缺标题/主图/SKU/有效价格/币种等", Link: "/product/drafts?readiness=blocked"},
-		{ID: "publishable", Title: "待刊登商品（基础完备）", Count: publishable, Severity: failureclassifier.SeverityLow,
-			Description: "草稿/就绪且具备主图、SKU 与有效价格", Link: "/product/drafts?publishable=1"},
-		{ID: "publish_failed", Title: "刊登失败任务", Count: sum.PublishFailedTasks, Severity: failureclassifier.SeverityHigh,
-			Description: "商品刊登任务处于失败态", Link: "/product/publish-tasks?status=failed"},
-		{ID: "inventory_alerts", Title: "库存预警 SKU", Count: sum.LowStockSkus + sum.OutOfStockSkus, Severity: failureclassifier.SeverityHigh,
-			Description: "低库存或缺货（按预警策略）", Link: "/inventory/alerts"},
-		{ID: "inventory_sync_failed", Title: "库存同步失败", Count: sum.InventorySyncFailedCount, Severity: failureclassifier.SeverityHigh,
-			Description: "最近同步任务失败（刊登映射维度）", Link: "/inventory/sync-tasks?status=failed"},
-		{ID: "customer_pending", Title: "客服待回复", Count: sum.CustomerPendingConversations, Severity: failureclassifier.SeverityMedium,
-			Description: "会话处于开放或待回复状态", Link: "/customer/conversations?status=open"},
-		{ID: "failures", Title: "失败任务（汇总）", Count: sum.FailedTaskTotal, Severity: failureclassifier.SeverityHigh,
-			Description: "统一失败任务中心统计", Link: "/task-center/failures"},
-		{ID: "order_exceptions", Title: "订单异常工作台", Count: sum.OrderExceptionTotal, Severity: failureclassifier.SeverityHigh,
-			Description: "未匹配 SKU / 扣库存失败 / 库存同步失败等需人工处理项（不含已处理/已忽略）", Link: "/orders/exceptions"},
-		{ID: "sku_unmatched_order_items", Title: "未匹配 SKU", Count: sum.SKUUnmatchedOrderItems, Severity: failureclassifier.SeverityHigh,
-			Description: "平台订单行尚未绑定本地 SKU", Link: "/orders/exceptions?exceptionType=sku_unmatched"},
+		todoCard("missing_ai_title", "待补 AI 标题", sum.MissingAiTitleCount, failureclassifier.SeverityMedium,
+			"这些商品还没有 AI 标题", "/product/drafts?missingAiTitle=1"),
+		todoCard("missing_ai_description", "待补 AI 描述", sum.MissingAiDescriptionCount, failureclassifier.SeverityMedium,
+			"这些商品还没有 AI 描述", "/product/drafts?missingAiDescription=1"),
+		todoCard("readiness_blocked", "发布检查未通过", sum.ReadinessBlocked, failureclassifier.SeverityHigh,
+			"缺标题、主图、规格或价格等，需先补齐", "/product/drafts?readiness=blocked"),
+		todoCard("inventory_alerts", "库存预警", sum.LowStockSkus+sum.OutOfStockSkus, failureclassifier.SeverityHigh,
+			"低库存或缺货，建议尽快补货或调整", "/inventory/alerts"),
+		todoCard("ai_image_failed", "AI 图片任务失败", sum.ImageTaskFailed, failureclassifier.SeverityHigh,
+			"图片处理失败，可在任务页重试", "/ai/image-tasks?status=failed"),
+		todoCard("collect_failed", "采集失败", sum.CollectFailedCount, failureclassifier.SeverityHigh,
+			"商品链接采集未成功，可重试", "/collect/tasks?status=failed"),
+		todoCard("publish_failed", "刊登失败", sum.PublishFailedTasks, failureclassifier.SeverityHigh,
+			"刊登到平台时出错，请查看详情后重试", "/product/publish-tasks?status=failed"),
+		todoCard("order_exceptions", "订单异常", sum.OrderExceptionTotal, failureclassifier.SeverityHigh,
+			"含未匹配 SKU 等需人工处理的订单问题", "/orders/exceptions"),
 	}
+}
+
+func todoCard(id, title string, count int64, severity, desc, link string) TodoCard {
+	return TodoCard{
+		ID:          id,
+		Key:         id,
+		Title:       title,
+		Count:       count,
+		Severity:    severity,
+		Level:       severityToLevel(severity),
+		Description: desc,
+		Link:        link,
+	}
+}
+
+func buildFunnel(sum *Summary) []FunnelStep {
+	return []FunnelStep{
+		{Key: "collected", Title: "采集商品", Count: sum.CollectedProducts, Link: "/collect/hub",
+			Description: "已从链接采集并生成草稿的商品"},
+		{Key: "draft", Title: "商品草稿", Count: sum.DraftTotal, Link: "/product/drafts",
+			Description: "草稿与就绪状态的商品"},
+		{Key: "ai_text", Title: "AI 标题 / 描述", Count: sum.AiTextCompleted, Link: "/product/drafts",
+			Description: "已完成 AI 标题与描述的商品"},
+		{Key: "ai_image", Title: "AI 图片处理", Count: sum.ImageProcessedCount, Link: "/ai/image-tasks",
+			Description: "已有 AI 处理图片的商品"},
+		{Key: "readiness_pass", Title: "发布检查通过", Count: sum.ReadinessPassed, Link: "/product/drafts?publishable=1",
+			Description: "基础信息完备、可创建刊登任务"},
+		{Key: "published", Title: "已刊登", Count: sum.Published, Link: "/product/drafts?status=published",
+			Description: "已刊登到平台的商品"},
+	}
+}
+
+func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, shopPtr *uuid.UUID) []ExceptionItem {
+	var out []ExceptionItem
+
+	// Collect failures
+	{
+		collectFailTx := s.collectTaskScope(ctx, q).Where("status = ?", collect.StatusFailed)
+		last := scanOptionalMaxTime(collectFailTx)
+		out = append(out, ExceptionItem{
+			Key: "collect_failed", Title: "采集失败", Count: sum.CollectFailedCount, LastOccurred: last,
+			Link:        "/collect/tasks?status=failed",
+			Description: "商品链接采集未成功，可重试或检查登录状态",
+		})
+	}
+
+	// AI text failures
+	{
+		tx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+			Where("status = ?", aitask.StatusFailed).
+			Where("task_type IN ?", []string{"title_optimize", "product_description_generate"})
+		if q.Start != nil {
+			tx = tx.Where("updated_at >= ?", *q.Start)
+		}
+		if q.End != nil {
+			tx = tx.Where("updated_at <= ?", *q.End)
+		}
+		last := scanOptionalMaxTime(tx)
+		out = append(out, ExceptionItem{
+			Key: "ai_text_failed", Title: "AI 文本任务失败", Count: sum.AiTaskFailedCount, LastOccurred: last,
+			Link:        "/ai/tasks?status=failed",
+			Description: "标题优化或描述生成失败，可在 AI 任务页重试",
+		})
+	}
+
+	// AI image failures
+	{
+		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("status = ?", imagetask.StatusFailed)
+		if q.Start != nil {
+			tx = tx.Where("updated_at >= ?", *q.Start)
+		}
+		if q.End != nil {
+			tx = tx.Where("updated_at <= ?", *q.End)
+		}
+		last := scanOptionalMaxTime(tx)
+		out = append(out, ExceptionItem{
+			Key: "ai_image_failed", Title: "AI 图片任务失败", Count: sum.ImageTaskFailed, LastOccurred: last,
+			Link:        "/ai/image-tasks?status=failed",
+			Description: "去水印、去背景等图片处理失败，可重试任务",
+		})
+	}
+
+	// Publish failures
+	{
+		tx := s.publishTaskScope(ctx, q).Where("status = ?", productpublish.TaskFailed)
+		last := scanOptionalMaxTime(tx)
+		out = append(out, ExceptionItem{
+			Key: "publish_failed", Title: "商品刊登失败", Count: sum.PublishFailedTasks, LastOccurred: last,
+			Link:        "/product/publish-tasks?status=failed",
+			Description: "刊登到平台时出错，请查看错误详情后重试",
+		})
+	}
+
+	// Inventory sync failures
+	{
+		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ?", inventory.StatusFailed)
+		if pl := strings.TrimSpace(q.Platform); pl != "" {
+			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
+		}
+		if shopPtr != nil {
+			invTx = invTx.Where("shop_id = ?", *shopPtr)
+		}
+		if q.Start != nil {
+			invTx = invTx.Where("updated_at >= ?", *q.Start)
+		}
+		if q.End != nil {
+			invTx = invTx.Where("updated_at <= ?", *q.End)
+		}
+		last := scanOptionalMaxTime(invTx)
+		out = append(out, ExceptionItem{
+			Key: "inventory_sync_failed", Title: "库存同步失败", Count: sum.InventorySyncFailedCount, LastOccurred: last,
+			Link:        "/inventory/sync-tasks?status=failed",
+			Description: "平台库存同步未成功，可在同步任务页重试",
+		})
+	}
+
+	// Order exceptions
+	{
+		var last *time.Time
+		if s.OrderExceptions != nil {
+			res, err := s.OrderExceptions.ListOrderExceptions(ctx, orderexception.ListOrderExceptionsRequest{
+				Platform: strings.TrimSpace(q.Platform),
+				ShopID:   strings.TrimSpace(q.ShopID),
+				Start:    q.Start,
+				End:      q.End,
+				Page:     1,
+				PageSize: 1,
+			})
+			if err == nil && res != nil && len(res.List) > 0 {
+				t := res.List[0].UpdatedAt
+				last = &t
+			}
+		}
+		desc := fmt.Sprintf("含未匹配 SKU（%d 行）等需人工处理的订单问题", sum.SKUUnmatchedOrderItems)
+		out = append(out, ExceptionItem{
+			Key: "order_exceptions", Title: "订单异常 / SKU 未匹配", Count: sum.OrderExceptionTotal, LastOccurred: last,
+			Link:        "/orders/exceptions",
+			Description: desc,
+		})
+	}
+
+	return out
 }
 
 func defaultQuickLinks() []QuickLink {
 	return []QuickLink{
-		{Title: "批量 AI 商品运营", Link: "/ai/batches"},
-		{Title: "商品草稿（批量发布检查）", Link: "/product/drafts"},
-		{Title: "商品刊登任务", Link: "/product/publish-tasks"},
-		{Title: "库存预警", Link: "/inventory/alerts"},
-		{Title: "库存同步任务", Link: "/inventory/sync-tasks"},
-		{Title: "失败任务中心", Link: "/task-center/failures"},
-		{Title: "客服会话", Link: "/customer/conversations"},
+		{Title: "采集中心", Link: "/collect/hub", Description: "输入商品链接开始采集"},
+		{Title: "商品草稿", Link: "/product/drafts", Description: "查看和编辑商品草稿"},
+		{Title: "批量 AI 优化", Link: "/ai/batches", Description: "批量优化标题与描述"},
+		{Title: "AI 图片任务", Link: "/ai/image-tasks", Description: "去水印、营销图等图片处理"},
+		{Title: "发布检查", Link: "/product/drafts?readiness=blocked", Description: "查看未通过发布检查的商品"},
+		{Title: "商品刊登任务", Link: "/product/publish-tasks", Description: "管理刊登到平台的任务"},
+		{Title: "库存预警", Link: "/inventory/alerts", Description: "低库存与缺货提醒"},
+		{Title: "失败任务中心", Link: "/ops/task-center/failures", Description: "统一查看各类失败任务"},
+		{Title: "订单异常工作台", Link: "/orders/exceptions", Description: "处理 SKU 未匹配等订单问题"},
+		{Title: "设置 AI", Link: "/settings/ai", Description: "配置 AI 模型与 API"},
+		{Title: "设置图片 AI", Link: "/settings/image", Description: "配置图片处理 Provider"},
+		{Title: "设置存储", Link: "/settings/storage", Description: "配置图片与文件存储"},
 	}
 }
 
@@ -405,9 +656,12 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// Collected products
 	{
 		qb := s.DB.WithContext(ctx).Table("collect_tasks AS t").
-			Select("t.id, t.result_product_id AS result_product_id, t.updated_at, t.source, p.title AS prod_title").
-			Joins("INNER JOIN products p ON p.id = t.result_product_id AND p.deleted_at IS NULL").
+			Select("t.id, t.result_product_id AS result_product_id, t.updated_at, t.source, p.title AS prod_title, t.status").
+			Joins("INNER JOIN products p ON p.id = t.result_product_id").
 			Where("t.status = ? AND t.result_product_id IS NOT NULL", collect.StatusSuccess)
+		if soft, _ := s.schemaFlags(ctx); soft {
+			qb = qb.Where("p.deleted_at IS NULL")
+		}
 		if v := strings.TrimSpace(q.Source); v != "" {
 			qb = qb.Where("t.source = ?", v)
 		}
@@ -422,16 +676,57 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			UpdatedAt     time.Time `gorm:"column:updated_at"`
 			Source        string    `gorm:"column:source"`
 			ProdTitle     string    `gorm:"column:prod_title"`
+			Status        string    `gorm:"column:status"`
 		}
 		_ = qb.Order("t.updated_at DESC").Limit(recentLimit).Scan(&r2).Error
 		for _, r := range r2 {
-			b.CollectedProducts = append(b.CollectedProducts, RecentItem{
+			item := RecentItem{
 				Type:       "collect",
-				Title:      clip(r.ProdTitle, 80),
-				Subtitle:   r.Source,
+				Title:      clip(r.ProdTitle, 120),
+				Subtitle:   humanizeProductSource(r.Source),
+				Status:     humanizeTaskStatus(r.Status),
 				OccurredAt: r.UpdatedAt,
 				Link:       fmt.Sprintf("/product/drafts/%s", r.ResultProduct.String()),
-			})
+			}
+			b.CollectedProducts = append(b.CollectedProducts, item)
+			b.Products = append(b.Products, item)
+		}
+	}
+
+	// AI text tasks
+	{
+		var rows []aitask.AITask
+		tx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+			Where("task_type IN ?", []string{"title_optimize", "product_description_generate"}).
+			Order("updated_at DESC").Limit(recentLimit)
+		if q.Start != nil {
+			tx = tx.Where("updated_at >= ?", *q.Start)
+		}
+		if q.End != nil {
+			tx = tx.Where("updated_at <= ?", *q.End)
+		}
+		_ = tx.Find(&rows).Error
+		for _, r := range rows {
+			title := r.TaskType
+			switch r.TaskType {
+			case "title_optimize":
+				title = "AI 标题优化"
+			case "product_description_generate":
+				title = "AI 描述生成"
+			}
+			link := "/ai/tasks"
+			if r.ID != uuid.Nil {
+				link = fmt.Sprintf("/ai/tasks?keyword=%s", r.ID.String())
+			}
+			item := RecentItem{
+				Type:       "ai_task",
+				Title:      title,
+				Subtitle:   clip(r.ErrorMessage, 80),
+				Status:     humanizeTaskStatus(r.Status),
+				OccurredAt: r.UpdatedAt,
+				Link:       link,
+			}
+			b.AiTasks = append(b.AiTasks, item)
 		}
 	}
 
@@ -450,9 +745,37 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			b.AiBatches = append(b.AiBatches, RecentItem{
 				Type:       "ai_batch",
 				Title:      r.BatchNo,
-				Subtitle:   r.OperationType + " · " + r.Status,
+				Subtitle:   humanizeBatchOperationType(r.OperationType),
+				Status:     humanizeTaskStatus(r.Status),
 				OccurredAt: r.UpdatedAt,
 				Link:       fmt.Sprintf("/ai/batches?id=%s", r.ID.String()),
+			})
+		}
+	}
+
+	// Image tasks
+	{
+		var rows []imagetask.ImageTask
+		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Order("updated_at DESC").Limit(recentLimit)
+		if q.Start != nil {
+			tx = tx.Where("updated_at >= ?", *q.Start)
+		}
+		if q.End != nil {
+			tx = tx.Where("updated_at <= ?", *q.End)
+		}
+		_ = tx.Find(&rows).Error
+		for _, r := range rows {
+			sub := ""
+			if r.Status == imagetask.StatusFailed {
+				sub = clip(r.ErrorMessage, 80)
+			}
+			b.ImageTasks = append(b.ImageTasks, RecentItem{
+				Type:       "image_task",
+				Title:      humanizeImageTaskType(r.TaskType),
+				Subtitle:   sub,
+				Status:     humanizeTaskStatus(r.Status),
+				OccurredAt: r.UpdatedAt,
+				Link:       fmt.Sprintf("/ai/image-tasks?keyword=%s", r.ID.String()),
 			})
 		}
 	}
@@ -463,11 +786,15 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 		tx := s.publishTaskScope(ctx, q).Order("updated_at DESC").Limit(recentLimit)
 		_ = tx.Find(&rows).Error
 		for _, r := range rows {
-			st := clip(r.ErrorMessage, 120)
+			sub := humanizeTaskStatus(r.Status)
+			if r.Status == productpublish.TaskFailed {
+				sub = clip(r.ErrorMessage, 100)
+			}
 			b.PublishTasks = append(b.PublishTasks, RecentItem{
 				Type:       "product_publish",
-				Title:      r.Platform + " · " + r.Status,
-				Subtitle:   st,
+				Title:      r.Platform + " 刊登",
+				Subtitle:   sub,
+				Status:     humanizeTaskStatus(r.Status),
 				OccurredAt: r.UpdatedAt,
 				Link:       fmt.Sprintf("/product/publish-tasks?keyword=%s", r.ID.String()),
 			})
@@ -495,7 +822,8 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 				b.InventoryAlerts = append(b.InventoryAlerts, RecentItem{
 					Type:       "inventory_alert",
 					Title:      clip(e.ProductTitle, 80) + " · " + e.SKUCode,
-					Subtitle:   strings.Join(e.AlertTypes, ","),
+					Subtitle:   "低库存",
+					Status:     "预警",
 					OccurredAt: ts,
 					Link:       "/inventory/alerts",
 				})
@@ -512,14 +840,15 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			b.CustomerConversations = append(b.CustomerConversations, RecentItem{
 				Type:       "customer_conversation",
 				Title:      clip(r.CustomerName, 64),
-				Subtitle:   r.Platform + " · " + r.Status,
+				Subtitle:   r.Platform,
+				Status:     humanizeTaskStatus(r.Status),
 				OccurredAt: r.UpdatedAt,
 				Link:       fmt.Sprintf("/customer/conversations/%s", r.ID.String()),
 			})
 		}
 	}
 
-	// Recent hard failures (publish + inventory sync)
+	// Recent hard failures (publish + inventory sync + collect + ai + image)
 	{
 		var pubF []productpublish.ProductPublishTask
 		tx := s.publishTaskScope(ctx, q).Where("status = ?", productpublish.TaskFailed).Order("updated_at DESC").Limit(recentLimit)
@@ -529,6 +858,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 				Type:       "failed_publish",
 				Title:      r.Platform + " · 刊登失败",
 				Subtitle:   clip(r.ErrorMessage, 100),
+				Status:     "失败",
 				OccurredAt: r.UpdatedAt,
 				Link:       "/product/publish-tasks?status=failed",
 			})
@@ -553,8 +883,27 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 				Type:       "failed_inventory_sync",
 				Title:      r.Platform + " · 库存同步失败",
 				Subtitle:   clip(r.ErrorMessage, 100),
+				Status:     "失败",
 				OccurredAt: r.UpdatedAt,
 				Link:       "/inventory/sync-tasks?status=failed",
+			})
+		}
+		var collectF []collect.CollectTask
+		cTx := s.collectTaskScope(ctx, q).Where("status = ?", collect.StatusFailed).Order("updated_at DESC").Limit(recentLimit)
+		_ = cTx.Find(&collectF).Error
+		for _, r := range collectF {
+			code := collect.InferErrorCodeFromMessage(r.ErrorMessage)
+			label := humanizeCollectorError(code)
+			if label == "" {
+				label = clip(r.ErrorMessage, 80)
+			}
+			b.FailedTasks = append(b.FailedTasks, RecentItem{
+				Type:       "failed_collect",
+				Title:      "采集失败",
+				Subtitle:   label,
+				Status:     "失败",
+				OccurredAt: r.UpdatedAt,
+				Link:       fmt.Sprintf("/collect/tasks?keyword=%s", r.ID.String()),
 			})
 		}
 	}
@@ -575,9 +924,10 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			b.Alerts = append(b.Alerts, RecentItem{
 				Type:       "task_alert",
 				Title:      clip(r.Title, 120),
-				Subtitle:   r.Severity + " · " + r.TaskType,
+				Subtitle:   r.TaskType,
+				Status:     "开放",
 				OccurredAt: r.LastSeenAt,
-				Link:       "/task-center/alerts",
+				Link:       "/ops/task-center/alerts",
 			})
 		}
 	}
@@ -587,8 +937,12 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 
 func clip(s string, max int) string {
 	s = strings.TrimSpace(s)
-	if max <= 0 || len(s) <= max {
+	if max <= 0 {
 		return s
 	}
-	return s[:max] + "…"
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "…"
 }

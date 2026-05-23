@@ -329,6 +329,16 @@ func exceptionToDTO(ctx context.Context, s *Service, r aggRow) OrderExceptionDTO
 }
 
 func (s *Service) collectSKUUnmatched(ctx context.Context, req ListOrderExceptionsRequest) ([]aggRow, error) {
+	if s == nil || s.DB == nil {
+		return nil, nil
+	}
+	orderItem := &order.OrderItem{}
+	if !s.DB.Migrator().HasTable(orderItem) {
+		return nil, nil
+	}
+	if !s.DB.Migrator().HasColumn(orderItem, "product_sku_id") || !s.DB.Migrator().HasColumn(orderItem, "external_sku_id") {
+		return nil, nil
+	}
 	type hit struct {
 		MatchID      *uuid.UUID `gorm:"column:match_id"`
 		OrderItemID  uuid.UUID  `gorm:"column:order_item_id"`
@@ -578,15 +588,30 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 }
 
 func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderExceptionsRequest) ([]aggRow, error) {
+	if s == nil || s.DB == nil {
+		return nil, nil
+	}
+	dst := &inventory.InventorySyncTask{}
+	if !s.DB.Migrator().HasTable(dst) {
+		return nil, nil
+	}
+
 	var tasks []inventory.InventorySyncTask
-	tx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).
-		Where("status = ? AND product_sku_id IS NOT NULL", inventory.StatusFailed).
-		Where(`EXISTS (
+	tx := s.DB.WithContext(ctx).Model(dst).Where("status = ?", inventory.StatusFailed)
+
+	// When SKU linkage columns exist, only surface failures tied to successful order deducts.
+	hasTaskSKU := s.DB.Migrator().HasColumn(dst, "product_sku_id")
+	hasEffectSKU := s.DB.Migrator().HasTable(&inventory.OrderInventoryEffect{}) &&
+		s.DB.Migrator().HasColumn(&inventory.OrderInventoryEffect{}, "product_sku_id")
+	if hasTaskSKU && hasEffectSKU {
+		tx = tx.Where("product_sku_id IS NOT NULL").Where(`EXISTS (
 			SELECT 1 FROM order_inventory_effects oie
 			WHERE oie.product_sku_id = inventory_sync_tasks.product_sku_id
 			  AND oie.effect_type = ?
 			  AND oie.status = ?
 		)`, inventory.EffectTypeDeduct, inventory.InventoryEffectSuccess)
+	}
+
 	if req.Platform != "" {
 		tx = tx.Where("LOWER(platform) = ?", strings.ToLower(strings.TrimSpace(req.Platform)))
 	}

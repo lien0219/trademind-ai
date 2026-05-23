@@ -1,4 +1,4 @@
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
@@ -47,7 +47,13 @@ export default function CollectTasksPage() {
     return q.get('source')?.trim() ?? '';
   }, [location.search]);
 
+  const statusFromQuery = useMemo(() => {
+    const q = new URLSearchParams(location.search || '');
+    return q.get('status')?.trim() || undefined;
+  }, [location.search]);
+
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
   const [form] = Form.useForm<{ source: string; url: string; ruleId?: string }>();
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(4000);
@@ -76,6 +82,12 @@ export default function CollectTasksPage() {
     document.addEventListener('visibilitychange', sync);
     return () => document.removeEventListener('visibilitychange', sync);
   }, []);
+
+  useEffect(() => {
+    if (!statusFromQuery) return;
+    formRef.current?.setFieldsValue?.({ status: statusFromQuery });
+    actionRef.current?.reload?.();
+  }, [statusFromQuery]);
 
   useEffect(() => {
     void (async () => {
@@ -463,6 +475,7 @@ export default function CollectTasksPage() {
       <ProTable<CollectTaskRow>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto' }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}

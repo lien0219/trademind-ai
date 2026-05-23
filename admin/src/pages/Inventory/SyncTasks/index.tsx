@@ -39,6 +39,14 @@ export default function InventorySyncTasksPage() {
     }
   }, [location.search]);
 
+  const statusFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('status')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<InventorySyncTaskDTO | null>(null);
   const [failedSelectedIds, setFailedSelectedIds] = useState<string[]>([]);
@@ -48,6 +56,12 @@ export default function InventorySyncTasksPage() {
     formRef.current?.setFieldsValue?.({ batchId: batchIdFromUrl });
     actionRef.current?.reload?.();
   }, [batchIdFromUrl]);
+
+  useEffect(() => {
+    if (!statusFromUrl) return;
+    formRef.current?.setFieldsValue?.({ status: statusFromUrl });
+    actionRef.current?.reload?.();
+  }, [statusFromUrl]);
 
   const columns: ProColumns<InventorySyncTaskDTO>[] = useMemo(
     () => [

@@ -1,9 +1,10 @@
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Button, Collapse, Descriptions, Drawer, Spin, Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from '@umijs/max';
 import {
   AI_PROMPT_CODE_OPTIONS,
   AI_TASK_TYPE_OPTIONS,
@@ -97,10 +98,25 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
 }
 
 export default function AiTasksPage() {
+  const location = useLocation();
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
+  const statusFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('status')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<AiTaskDetail | null>(null);
+
+  useEffect(() => {
+    if (!statusFromUrl) return;
+    formRef.current?.setFieldsValue?.({ status: statusFromUrl });
+    actionRef.current?.reload?.();
+  }, [statusFromUrl]);
 
   const openDetail = useCallback(async (id: string) => {
     setDrawerOpen(true);
@@ -249,6 +265,7 @@ export default function AiTasksPage() {
       <ProTable<AiTaskListRow>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         options={{ reload: true, density: true, setting: true }}

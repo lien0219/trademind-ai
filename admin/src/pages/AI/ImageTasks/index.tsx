@@ -1,10 +1,11 @@
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { CopyOutlined } from '@ant-design/icons';
 import { Button, Card, Descriptions, Drawer, Image, Space, Spin, Tag, message, Typography } from 'antd';
 import dayjs from 'dayjs';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from '@umijs/max';
 import { CreateImageTaskModal } from '@/components/CreateImageTaskModal';
 import type { ImageTaskDetail, ImageTaskItemRow, ImageTaskListRow } from '@/services/imageTasks';
 import { displayNameForProvider } from '@/constants/imageProviders';
@@ -71,8 +72,17 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
 }
 
 export default function ImageTasksPage() {
+  const location = useLocation();
   const { caps } = useImageProviders();
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
+  const statusFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('status')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<ImageTaskDetail | null>(null);
@@ -87,6 +97,12 @@ export default function ImageTasksPage() {
     }, 4000);
     return () => window.clearInterval(iv);
   }, []);
+
+  useEffect(() => {
+    if (!statusFromUrl) return;
+    formRef.current?.setFieldsValue?.({ status: statusFromUrl });
+    actionRef.current?.reload?.();
+  }, [statusFromUrl]);
 
   useEffect(() => {
     if (!drawerOpen || !detail) return;
@@ -273,6 +289,7 @@ export default function ImageTasksPage() {
       <ProTable<ImageTaskListRow>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         options={{ reload: true, density: true, setting: true }}

@@ -3,7 +3,7 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber } from 'antd';
@@ -25,10 +25,12 @@ export default function ProductDraftsPage() {
       missingAiDescription: sp.get('missingAiDescription') === '1',
       readinessBlocked: sp.get('readiness') === 'blocked',
       publishable: sp.get('publishable') === '1',
+      status: sp.get('status')?.trim() || undefined,
     };
   }, [location.search]);
 
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -47,6 +49,9 @@ export default function ProductDraftsPage() {
 
   useEffect(() => {
     actionRef.current?.reload();
+    if (urlFilters.status) {
+      formRef.current?.setFieldsValue?.({ status: urlFilters.status });
+    }
   }, [location.search]);
 
   const columns: ProColumns<ProductListRow>[] = [
@@ -241,7 +246,8 @@ export default function ProductDraftsPage() {
       {(urlFilters.missingAiTitle ||
         urlFilters.missingAiDescription ||
         urlFilters.readinessBlocked ||
-        urlFilters.publishable) && (
+        urlFilters.publishable ||
+        urlFilters.status) && (
         <Alert
           type="info"
           showIcon
@@ -252,6 +258,7 @@ export default function ProductDraftsPage() {
       <ProTable<ProductListRow>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         rowSelection={{
           type: 'checkbox',
           selectedRowKeys,
@@ -310,7 +317,7 @@ export default function ProductDraftsPage() {
           const res = await fetchProducts({
             page: params.current,
             pageSize: params.pageSize,
-            status: params.status as string | undefined,
+            status: urlFilters.status || (params.status as string | undefined),
             source: params.source as string | undefined,
             keyword: params.keyword as string | undefined,
             missingAiTitle: urlFilters.missingAiTitle || undefined,

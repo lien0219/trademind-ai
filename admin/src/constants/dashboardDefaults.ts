@@ -1,0 +1,230 @@
+import type {
+  DashboardException,
+  DashboardFunnelStep,
+  DashboardQuickLink,
+  DashboardSummary,
+  DashboardTodo,
+} from '@/services/dashboard';
+
+/** 快捷入口：不依赖接口，保证看板始终可导航 */
+export const DEFAULT_QUICK_LINKS: DashboardQuickLink[] = [
+  { title: '采集中心', link: '/collect/hub', description: '输入商品链接开始采集' },
+  { title: '商品草稿', link: '/product/drafts', description: '查看和编辑商品草稿' },
+  { title: '批量 AI 优化', link: '/ai/batches', description: '批量优化标题与描述' },
+  { title: 'AI 图片任务', link: '/ai/image-tasks', description: '去水印、营销图等图片处理' },
+  { title: '发布检查', link: '/product/drafts?readiness=blocked', description: '查看未通过发布检查的商品' },
+  { title: '商品刊登任务', link: '/product/publish-tasks', description: '管理刊登到平台的任务' },
+  { title: '库存预警', link: '/inventory/alerts', description: '低库存与缺货提醒' },
+  { title: '失败任务中心', link: '/ops/task-center/failures', description: '统一查看各类失败任务' },
+  { title: '订单异常工作台', link: '/orders/exceptions', description: '处理 SKU 未匹配等订单问题' },
+  { title: 'AI 设置', link: '/settings/ai', description: '配置 AI 模型与 API' },
+  { title: '图片 AI 设置', link: '/settings/image', description: '配置图片处理 Provider' },
+  { title: '存储设置', link: '/settings/storage', description: '配置图片与文件存储' },
+];
+
+export const DEFAULT_FUNNEL: DashboardFunnelStep[] = [
+  { key: 'collected', title: '采集商品', count: 0, link: '/collect/hub', description: '已从链接采集并生成草稿的商品' },
+  { key: 'draft', title: '商品草稿', count: 0, link: '/product/drafts', description: '草稿与就绪状态的商品' },
+  { key: 'ai_text', title: 'AI 标题 / 描述', count: 0, link: '/product/drafts', description: '已完成 AI 标题与描述的商品' },
+  { key: 'ai_image', title: 'AI 图片处理', count: 0, link: '/ai/image-tasks', description: '已有 AI 处理图片的商品' },
+  { key: 'readiness_pass', title: '发布检查通过', count: 0, link: '/product/drafts?publishable=1', description: '基础信息完备、可创建刊登任务' },
+  { key: 'published', title: '已刊登', count: 0, link: '/product/drafts?status=published', description: '已刊登到平台的商品' },
+];
+
+export const DEFAULT_TODOS: DashboardTodo[] = [
+  {
+    id: 'missing_ai_title',
+    key: 'missing_ai_title',
+    title: '待补 AI 标题',
+    count: 0,
+    severity: 'medium',
+    level: 'warning',
+    description: '这些商品还没有 AI 标题',
+    link: '/product/drafts?missingAiTitle=1',
+  },
+  {
+    id: 'missing_ai_description',
+    key: 'missing_ai_description',
+    title: '待补 AI 描述',
+    count: 0,
+    severity: 'medium',
+    level: 'warning',
+    description: '这些商品还没有 AI 描述',
+    link: '/product/drafts?missingAiDescription=1',
+  },
+  {
+    id: 'readiness_blocked',
+    key: 'readiness_blocked',
+    title: '发布检查未通过',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '缺标题、主图、规格或价格等，需先补齐',
+    link: '/product/drafts?readiness=blocked',
+  },
+  {
+    id: 'inventory_alerts',
+    key: 'inventory_alerts',
+    title: '库存预警',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '低库存或缺货，建议尽快补货或调整',
+    link: '/inventory/alerts',
+  },
+  {
+    id: 'ai_image_failed',
+    key: 'ai_image_failed',
+    title: 'AI 图片任务失败',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '图片处理失败，可在任务页重试',
+    link: '/ai/image-tasks?status=failed',
+  },
+  {
+    id: 'collect_failed',
+    key: 'collect_failed',
+    title: '采集失败',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '商品链接采集未成功，可重试',
+    link: '/collect/tasks?status=failed',
+  },
+  {
+    id: 'publish_failed',
+    key: 'publish_failed',
+    title: '刊登失败',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '刊登到平台时出错，请查看详情后重试',
+    link: '/product/publish-tasks?status=failed',
+  },
+  {
+    id: 'order_exceptions',
+    key: 'order_exceptions',
+    title: '订单异常',
+    count: 0,
+    severity: 'high',
+    level: 'danger',
+    description: '含未匹配 SKU 等需人工处理的订单问题',
+    link: '/orders/exceptions',
+  },
+];
+
+export const DEFAULT_EXCEPTIONS: DashboardException[] = [
+  {
+    key: 'collect_failed',
+    title: '采集失败',
+    count: 0,
+    link: '/collect/tasks?status=failed',
+    description: '商品链接采集未成功，可重试或检查登录状态',
+  },
+  {
+    key: 'ai_text_failed',
+    title: 'AI 文本任务失败',
+    count: 0,
+    link: '/ai/tasks?status=failed',
+    description: '标题优化或描述生成失败，可在 AI 任务页重试',
+  },
+  {
+    key: 'ai_image_failed',
+    title: 'AI 图片任务失败',
+    count: 0,
+    link: '/ai/image-tasks?status=failed',
+    description: '去水印、去背景等图片处理失败，可重试任务',
+  },
+  {
+    key: 'publish_failed',
+    title: '商品刊登失败',
+    count: 0,
+    link: '/product/publish-tasks?status=failed',
+    description: '刊登到平台时出错，请查看错误详情后重试',
+  },
+  {
+    key: 'inventory_sync_failed',
+    title: '库存同步失败',
+    count: 0,
+    link: '/inventory/sync-tasks?status=failed',
+    description: '平台库存同步未成功，可在同步任务页重试',
+  },
+  {
+    key: 'order_exceptions',
+    title: '订单异常 / SKU 未匹配',
+    count: 0,
+    link: '/orders/exceptions',
+    description: '平台订单行尚未绑定本地 SKU，需人工处理',
+  },
+];
+
+export const EMPTY_SUMMARY: DashboardSummary = {
+  totalProducts: 0,
+  draftProducts: 0,
+  readyProducts: 0,
+  publishedProducts: 0,
+  archivedProducts: 0,
+  aiPendingProducts: 0,
+  readinessBlockedProducts: 0,
+  publishFailedTasks: 0,
+  lowStockSkus: 0,
+  customerPendingConversations: 0,
+  failedTasks: 0,
+  missingAiTitleCount: 0,
+  missingAiDescriptionCount: 0,
+  aiTaskFailedCount: 0,
+  aiBatchRunningCount: 0,
+  aiBatchFailedCount: 0,
+  readinessWarningProducts: 0,
+  readinessReadyProducts: 0,
+  publishPendingTasks: 0,
+  publishRunningTasks: 0,
+  publishedPublicationCount: 0,
+  outOfStockSkus: 0,
+  platformStockMismatchCount: 0,
+  inventorySyncFailedCount: 0,
+  customerOpenConversations: 0,
+  customerPendingReplyCount: 0,
+  aiReplySuggestionPendingCount: 0,
+  failedTaskTotal: 0,
+  criticalAlertCount: 0,
+  openAlertCount: 0,
+  orderExceptionTotal: 0,
+  skuUnmatchedOrderItems: 0,
+  inventoryDeductFailedOrders: 0,
+  draftTotal: 0,
+  todayNewProducts: 0,
+  missingAiTitle: 0,
+  missingAiDescription: 0,
+  imageTaskPending: 0,
+  imageTaskFailed: 0,
+  readinessBlocked: 0,
+  publishable: 0,
+  published: 0,
+  imageProcessedProducts: 0,
+  inventoryAlerts: 0,
+  orderExceptions: 0,
+  collectFailedCount: 0,
+  aiTitleCompletedCount: 0,
+  aiDescriptionCompletedCount: 0,
+  collectedProductsCount: 0,
+  aiTextCompletedCount: 0,
+  readinessPassedCount: 0,
+};
+
+export function mergeFunnel(apiSteps?: DashboardFunnelStep[]): DashboardFunnelStep[] {
+  if (!apiSteps?.length) return DEFAULT_FUNNEL;
+  const byKey = new Map(apiSteps.map((s) => [s.key, s]));
+  return DEFAULT_FUNNEL.map((base) => ({ ...base, ...byKey.get(base.key) }));
+}
+
+export function mergeTodos(apiTodos?: DashboardTodo[]): DashboardTodo[] {
+  const byKey = new Map((apiTodos ?? []).map((t) => [t.key || t.id, t]));
+  return DEFAULT_TODOS.map((base) => ({ ...base, ...byKey.get(base.key) }));
+}
+
+export function mergeExceptions(apiExceptions?: DashboardException[]): DashboardException[] {
+  const byKey = new Map((apiExceptions ?? []).map((e) => [e.key, e]));
+  return DEFAULT_EXCEPTIONS.map((base) => ({ ...base, ...byKey.get(base.key) }));
+}
