@@ -27,7 +27,7 @@
     "install:collector:browsers": "pnpm --filter @trademind/collector exec playwright install chromium"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
+    "@types/node": "^25.9.0",
     "execa": "^9.5.2",
     "picocolors": "^1.1.1",
     "tsx": "^4.19.2"
