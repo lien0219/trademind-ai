@@ -1,9 +1,17 @@
-import { InfoCircleOutlined } from '@ant-design/icons';
+import { DollarOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, InputNumber, Select, Switch, Typography, message } from 'antd';
+import { Alert, Button, Col, Divider, Form, InputNumber, Row, Select, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  MARKUP_TYPE_OPTIONS,
+  PRICING_CURRENCY_OPTIONS,
+  PRICING_PLATFORM_MARKUPS,
+  ROUNDING_MODE_OPTIONS,
+} from '@/constants/pricingSettings';
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
+
+const { Paragraph, Text } = Typography;
 
 const GROUP = 'pricing';
 
@@ -80,91 +88,178 @@ export default function PricingSettingsPage() {
   }, [load]);
 
   return (
-    <PageContainer title="商品定价 / 发布价格配置" loading={loading}>
-      <Alert
-        type="info"
-        showIcon
-        icon={<InfoCircleOutlined />}
-        style={{ marginBottom: 16 }}
-        message="采集价通常是成本价，不建议直接作为发布价"
-        description={
-          <Typography.Paragraph style={{ marginBottom: 0 }}>
-            在此配置默认加价与尾数规则。在商品详情或列表「应用定价规则」后，仅更新本地商品规格的销售价，不会自动发布到平台店铺。
-          </Typography.Paragraph>
-        }
-      />
-      <ProCard>
-        <Form form={form} layout="vertical" onFinish={async (vals) => {
-          try {
-            await saveSettingsItems(buildPutItems(vals));
-            message.success('已保存');
-            await load();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '保存失败');
-          }
-        }}>
-          <Form.Item name="default_markup_type" label="默认加价方式" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: '百分比加价', value: 'percent' },
-                { label: '固定金额加价', value: 'fixed' },
-                { label: '不加价', value: 'none' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="default_markup_percent" label="默认加价比例（%）">
-            <InputNumber min={0} max={1000} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="default_markup_amount" label="默认固定加价金额">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="default_rounding_mode" label="默认尾数规则">
-            <Select
-              options={[
-                { label: '不处理', value: 'none' },
-                { label: '取整', value: 'integer' },
-                { label: '.9', value: '.9' },
-                { label: '.99', value: '.99' },
-                { label: '.95', value: '.95' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="default_min_margin_percent" label="默认最低利润率（%）">
-            <InputNumber min={0} max={1000} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="default_currency" label="默认币种">
-            <Select
-              options={[
-                { label: 'CNY', value: 'CNY' },
-                { label: 'USD', value: 'USD' },
-                { label: 'EUR', value: 'EUR' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="enable_platform_pricing_rules" label="启用平台覆盖规则" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Typography.Title level={5}>平台加价比例（%）</Typography.Title>
-          <Form.Item name="tiktok_markup_percent" label="TikTok">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="shopee_markup_percent" label="Shopee">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="lazada_markup_percent" label="Lazada">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="amazon_markup_percent" label="Amazon">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="batch_max_size" label="单次批量定价最多规格数">
-            <InputNumber min={1} max={5000} style={{ width: '100%' }} />
-          </Form.Item>
-          <Button type="primary" htmlType="submit">
-            保存
-          </Button>
+    <PageContainer title="商品定价 / 发布价格配置" subTitle="配置默认加价、尾数与平台覆盖规则，用于本地销售价计算">
+      <div className="tm-system-settings">
+        <ProCard bordered className="tm-system-settings__hero">
+          <div className="tm-system-settings__hero-inner">
+            <div className="tm-system-settings__hero-icon">
+              <DollarOutlined />
+            </div>
+            <div className="tm-system-settings__hero-body">
+              <Typography.Title level={5} className="tm-system-settings__hero-title">
+                成本价 → 发布价
+              </Typography.Title>
+              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
+                采集价通常是成本价，不建议直接作为发布价。在此配置默认加价与尾数规则；在商品详情或列表「应用定价规则」后，仅更新本地商品规格的销售价，不会自动发布到平台店铺。
+              </Paragraph>
+            </div>
+          </div>
+        </ProCard>
+
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={async (vals) => {
+            try {
+              await saveSettingsItems(buildPutItems(vals));
+              message.success('已保存');
+              await load();
+            } catch (e: unknown) {
+              message.error((e as Error)?.message || '保存失败');
+            }
+          }}
+        >
+          <ProCard
+            bordered
+            title="默认定价规则"
+            className="tm-system-settings__panel"
+            extra={
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
+                重新加载
+              </Button>
+            }
+          >
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item name="default_markup_type" label="加价方式" rules={[{ required: true, message: '请选择加价方式' }]}>
+                  <Select options={MARKUP_TYPE_OPTIONS} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item name="default_currency" label="默认币种">
+                  <Select options={PRICING_CURRENCY_OPTIONS} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item name="default_rounding_mode" label="尾数规则" extra="例如 .99 使价格显示为 19.99">
+                  <Select options={ROUNDING_MODE_OPTIONS} />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item noStyle shouldUpdate={(prev, next) => prev.default_markup_type !== next.default_markup_type}>
+              {({ getFieldValue }) => {
+                const markupType = String(getFieldValue('default_markup_type') || 'percent');
+                return (
+                  <Row gutter={[24, 0]}>
+                    <Col xs={24} md={12} lg={8}>
+                      <Form.Item
+                        label="加价比例（%）"
+                        name="default_markup_percent"
+                        extra={markupType === 'percent' ? '在成本价基础上按百分比加价' : '仅「百分比加价」时生效'}
+                      >
+                        <InputNumber
+                          min={0}
+                          max={1000}
+                          style={{ width: '100%' }}
+                          placeholder="30"
+                          disabled={markupType !== 'percent'}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12} lg={8}>
+                      <Form.Item
+                        label="固定加价金额"
+                        name="default_markup_amount"
+                        extra={markupType === 'fixed' ? '在成本价基础上加固定金额' : '仅「固定金额加价」时生效'}
+                      >
+                        <InputNumber
+                          min={0}
+                          style={{ width: '100%' }}
+                          placeholder="0"
+                          disabled={markupType !== 'fixed'}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12} lg={8}>
+                      <Form.Item
+                        label="最低利润率（%）"
+                        name="default_min_margin_percent"
+                        tooltip="用于校验或提示；具体行为取决于定价引擎实现"
+                      >
+                        <InputNumber min={0} max={1000} style={{ width: '100%' }} placeholder="10" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                );
+              }}
+            </Form.Item>
+          </ProCard>
+
+          <ProCard bordered title="平台覆盖规则" className="tm-system-settings__panel">
+            <Form.Item
+              label="启用平台覆盖"
+              name="enable_platform_pricing_rules"
+              valuePropName="checked"
+              extra="开启后，各平台可单独设置加价比例，覆盖默认定价"
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, next) => prev.enable_platform_pricing_rules !== next.enable_platform_pricing_rules}
+            >
+              {({ getFieldValue }) => {
+                const platformRulesEnabled = !!getFieldValue('enable_platform_pricing_rules');
+                return (
+                  <>
+                    <Divider plain>平台加价比例（%）</Divider>
+                    <Row gutter={[16, 0]}>
+                      {PRICING_PLATFORM_MARKUPS.map((item) => (
+                        <Col xs={24} sm={12} md={6} key={item.name}>
+                          <Form.Item label={item.label} name={item.name}>
+                            <InputNumber
+                              min={0}
+                              style={{ width: '100%' }}
+                              placeholder="30"
+                              disabled={!platformRulesEnabled}
+                            />
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                    {!platformRulesEnabled ? (
+                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>
+                        启用平台覆盖后可配置各平台加价比例
+                      </Text>
+                    ) : null}
+                  </>
+                );
+              }}
+            </Form.Item>
+          </ProCard>
+
+          <ProCard bordered title="批量操作" className="tm-system-settings__panel">
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  label="单次批量定价上限"
+                  name="batch_max_size"
+                  extra="商品列表批量「应用定价规则」时，单次最多处理的规格数量"
+                >
+                  <InputNumber min={1} max={5000} style={{ width: '100%' }} placeholder="500" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </ProCard>
+
+          <ProCard bordered className="tm-system-settings__footer">
+            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
+              保存配置
+            </Button>
+          </ProCard>
         </Form>
-      </ProCard>
+      </div>
     </PageContainer>
   );
 }

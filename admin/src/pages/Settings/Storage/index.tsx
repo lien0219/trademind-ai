@@ -2,14 +2,17 @@ import { Link } from '@umijs/renderer-react';
 import {
   CloudOutlined,
   CloudServerOutlined,
+  CloudUploadOutlined,
   DatabaseOutlined,
   FolderOpenOutlined,
   GlobalOutlined,
+  HddOutlined,
+  ReloadOutlined,
+  SaveOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
-  Alert,
   Button,
   Col,
   Form,
@@ -26,6 +29,7 @@ import {
 import type { UploadFile } from 'antd';
 import type { ComponentType, CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { storageConnectionSectionTitle } from '@/constants/storageSettings';
 import { deleteFile, uploadFile, type UploadedFileInfo } from '@/services/files';
 import { fetchSettingsList, saveSettingsItems, testStorageConnection, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
@@ -466,33 +470,28 @@ export default function StorageSettingsPage() {
   }, [kind, form]);
 
   return (
-    <PageContainer title="存储设置">
-      <ProCard bordered style={{ marginBottom: 16 }}>
-        <Alert
-          type="info"
-          showIcon
-          message="自备云存储与访问域名"
-          description={
-            <>
-              请在 AWS / Cloudflare R2 / MinIO / 腾讯云 COS / 阿里云 OSS 等开通 Bucket 与密钥；密钥仅在后端加密保存，浏览器不直连对象存储，上传请使用本页测试或「文件管理」走{' '}
-              <Typography.Text code>/api/v1/files/upload</Typography.Text>。总览见{' '}
-              <Link to="/settings/integrations">第三方集成总览</Link>。
-            </>
-          }
-        />
-      </ProCard>
-      <ProCard
-        bordered
-        extra={
-          <Button type="link" onClick={load} disabled={loading}>
-            重新加载
-          </Button>
-        }
-      >
+    <PageContainer title="存储设置" subTitle="配置商品图片与附件的存储方式，支持本地磁盘与主流对象存储">
+      <div className="tm-storage-settings">
+        <ProCard bordered className="tm-system-settings__hero">
+          <div className="tm-system-settings__hero-inner">
+            <div className="tm-system-settings__hero-icon">
+              <HddOutlined />
+            </div>
+            <div className="tm-system-settings__hero-body">
+              <Typography.Title level={5} className="tm-system-settings__hero-title">
+                自备云存储与访问域名
+              </Typography.Title>
+              <Typography.Paragraph type="secondary" className="tm-system-settings__hero-desc">
+                请在 AWS、Cloudflare R2、MinIO、腾讯云 COS、阿里云 OSS 等开通 Bucket 与密钥；密钥仅在后端加密保存，浏览器不直连对象存储。上传走服务端接口，可在本页或「文件管理」中测试。总览见{' '}
+                <Link to="/settings/integrations">第三方集成总览</Link>。
+              </Typography.Paragraph>
+            </div>
+          </div>
+        </ProCard>
+
         <Form
           form={form}
           layout="vertical"
-          style={{ maxWidth: 920 }}
           onFinish={async (values) => {
             try {
               await saveSettingsItems(buildStoragePutItems(values as Record<string, unknown>));
@@ -503,229 +502,261 @@ export default function StorageSettingsPage() {
             }
           }}
         >
-          <Form.Item label="存储方式" name="kind" rules={[{ required: true, message: '请选择存储方式' }]}>
-            <Radio.Group className="tm-storage-kind-group">
-              <Row gutter={[12, 12]}>
-                {STORAGE_KIND_OPTIONS.map(({ value, title, desc, Icon }) => (
-                  <Col xs={24} sm={12} lg={8} key={value}>
-                    <Radio value={value} className="tm-storage-kind-radio">
-                      <div className="tm-storage-kind-card-main">
-                        <span className="tm-storage-kind-icon">
-                          <Icon />
-                        </span>
-                        <div className="tm-storage-kind-text">
-                          <div className="tm-storage-kind-title-row">
-                            <span className="tm-storage-kind-title">{title}</span>
+          <ProCard
+            bordered
+            title="存储方式"
+            className="tm-system-settings__panel"
+            extra={
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
+                重新加载
+              </Button>
+            }
+          >
+            <Form.Item label="选择存储后端" name="kind" rules={[{ required: true, message: '请选择存储方式' }]}>
+              <Radio.Group className="tm-storage-kind-group">
+                <Row gutter={[12, 12]}>
+                  {STORAGE_KIND_OPTIONS.map(({ value, title, desc, Icon }) => (
+                    <Col xs={24} sm={12} lg={8} key={value}>
+                      <Radio value={value} className="tm-storage-kind-radio">
+                        <div className="tm-storage-kind-card-main">
+                          <span className="tm-storage-kind-icon">
+                            <Icon />
+                          </span>
+                          <div className="tm-storage-kind-text">
+                            <div className="tm-storage-kind-title-row">
+                              <span className="tm-storage-kind-title">{title}</span>
+                            </div>
+                            <div className="tm-storage-kind-desc">{desc}</div>
                           </div>
-                          <div className="tm-storage-kind-desc">{desc}</div>
                         </div>
-                      </div>
-                    </Radio>
-                  </Col>
-                ))}
+                      </Radio>
+                    </Col>
+                  ))}
+                </Row>
+              </Radio.Group>
+            </Form.Item>
+          </ProCard>
+
+          <ProCard bordered title={storageConnectionSectionTitle(kind)} className="tm-system-settings__panel">
+            {kind === 'local' || !kind ? (
+              <Row gutter={[24, 0]}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label="公开访问前缀"
+                    name="public_base"
+                    extra="可填 /static 或完整 URL 前缀，与后端静态资源路由一致"
+                  >
+                    <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label="本地保存目录"
+                    name="local_root"
+                    rules={[{ required: true, message: '请输入本地保存目录' }]}
+                    extra="相对项目根目录，如 data/uploads"
+                  >
+                    <Input placeholder="data/uploads" />
+                  </Form.Item>
+                </Col>
               </Row>
-            </Radio.Group>
-          </Form.Item>
+            ) : null}
 
-          {kind === 'local' || !kind ? (
-            <>
-              <Form.Item
-                label="公开访问前缀 URL"
-                name="public_base"
-                extra="可填 /static 或完整 URL 前缀，与后端 GET /static 或反代一致"
-              >
-                <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
-              </Form.Item>
-              <Form.Item
-                label="本地根目录"
-                name="local_root"
-                rules={[{ required: true }]}
-                extra="相对路径以仓库根目录为准（如 data/uploads → 项目根/data/uploads），与从 backend 或根目录启动无关"
-              >
-                <Input placeholder="data/uploads" />
-              </Form.Item>
-            </>
-          ) : null}
-
-          {showS3Form ? (
-            <>
-              <Form.Item
-                label="S3 Endpoint（s3_endpoint）"
-                name="s3_endpoint"
-                rules={
-                  kind === 'r2' || kind === 'minio'
-                    ? [{ required: true, message: '请填写 Endpoint URL（含协议，如 https:// 或 http://）' }]
-                    : []
-                }
-                extra={
-                  kind === 's3'
-                    ? '使用 AWS 官方分区时可留空；自定义网关 / MinIO / R2 需填完整接口地址'
-                    : '示例 R2: https://<account_id>.r2.cloudflarestorage.com；MinIO: http://127.0.0.1:9000'
-                }
-              >
-                <Input placeholder="https://s3.amazonaws.com 或 MinIO / R2 地址" />
-              </Form.Item>
-              <Form.Item label="Region（s3_region）" name="s3_region">
-                <Input placeholder={kind === 'r2' ? 'auto' : kind === 'minio' ? 'us-east-1' : 'ap-southeast-1'} />
-              </Form.Item>
-              <Form.Item label="Bucket（s3_bucket）" name="s3_bucket" rules={[{ required: true }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="Access Key ID" name="s3_access_key_id" rules={[{ required: true }]}>
-                <Input.Password autoComplete="new-password" placeholder="AKIA… 或 R2 token" />
-              </Form.Item>
-              <Form.Item label="Secret Access Key" name="s3_secret_access_key" rules={[{ required: true }]}>
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item label="Path-style 访问" name="s3_force_path_style">
-                <Radio.Group>
-                  <Radio value="false">虚拟主机样式（AWS 默认）</Radio>
-                  <Radio value="true">Path-style（MinIO 常用）</Radio>
-                </Radio.Group>
-              </Form.Item>
-              <Form.Item label="传输" name="s3_use_ssl">
-                <Radio.Group>
-                  <Radio value="true">优先 HTTPS（Endpoint 无 scheme 时）</Radio>
-                  <Radio value="false">允许 HTTP（如内网 MinIO）</Radio>
-                </Radio.Group>
-              </Form.Item>
-              <Form.Item label="预签名下载 URL" name="s3_presign_enabled">
-                <Radio.Group>
-                  <Radio value="false">关闭（推荐：配置对外 URL 前缀）</Radio>
-                  <Radio value="true">启用（GetURL 返回短期预签名，链接会过期）</Radio>
-                </Radio.Group>
-              </Form.Item>
-              {presignOn === 'true' ? (
-                <Form.Item label="预签名有效期（秒）" name="s3_presign_expire_seconds">
-                  <InputNumber min={60} max={604800} style={{ width: '100%' }} />
+            {showS3Form ? (
+              <>
+                <Row gutter={[24, 0]}>
+                  <Col xs={24} md={14}>
+                    <Form.Item
+                      label="接口地址 Endpoint"
+                      name="s3_endpoint"
+                      rules={
+                        kind === 'r2' || kind === 'minio'
+                          ? [{ required: true, message: '请填写 Endpoint URL（含 https:// 或 http://）' }]
+                          : []
+                      }
+                      extra={
+                        kind === 's3'
+                          ? 'AWS 官方分区可留空；R2 / MinIO 需填完整地址'
+                          : 'R2: https://<account_id>.r2.cloudflarestorage.com；MinIO: http://127.0.0.1:9000'
+                      }
+                    >
+                      <Input placeholder="https://s3.amazonaws.com 或 MinIO / R2 地址" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={10}>
+                    <Form.Item label="区域 Region" name="s3_region">
+                      <Input placeholder={kind === 'r2' ? 'auto' : kind === 'minio' ? 'us-east-1' : 'ap-southeast-1'} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={[24, 0]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="存储桶 Bucket" name="s3_bucket" rules={[{ required: true, message: '请填写 Bucket' }]}>
+                      <Input placeholder="my-bucket" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="Access Key ID" name="s3_access_key_id" rules={[{ required: true }]}>
+                      <Input.Password autoComplete="new-password" placeholder="AKIA… 或 R2 Token" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item label="Secret Access Key" name="s3_secret_access_key" rules={[{ required: true }]}>
+                  <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
                 </Form.Item>
-              ) : null}
-              <Form.Item
-                label="对象公开访问 URL 前缀（s3_public_base）"
-                name="s3_public_base"
-                dependencies={['s3_presign_enabled']}
-                rules={[
-                  {
-                    validator: async (_rule, v) => {
-                      if (presignOn === 'true') {
-                        return;
-                      }
-                      if (!String(v || '').trim()) {
-                        throw new Error('请填写对外可访问的 URL 前缀，或启用上方的「预签名下载 URL」');
-                      }
+                <Row gutter={[24, 0]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="Path-style 访问" name="s3_force_path_style">
+                      <Radio.Group>
+                        <Radio value="false">虚拟主机（AWS 默认）</Radio>
+                        <Radio value="true">Path-style（MinIO 常用）</Radio>
+                      </Radio.Group>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="传输加密" name="s3_use_ssl">
+                      <Radio.Group>
+                        <Radio value="true">优先 HTTPS</Radio>
+                        <Radio value="false">允许 HTTP（内网 MinIO）</Radio>
+                      </Radio.Group>
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item label="预签名下载 URL" name="s3_presign_enabled">
+                  <Radio.Group>
+                    <Radio value="false">关闭（推荐：配置对外 URL 前缀）</Radio>
+                    <Radio value="true">启用（返回短期签名链接）</Radio>
+                  </Radio.Group>
+                </Form.Item>
+                {presignOn === 'true' ? (
+                  <Form.Item label="预签名有效期（秒）" name="s3_presign_expire_seconds">
+                    <InputNumber min={60} max={604800} style={{ width: '100%' }} placeholder="3600" />
+                  </Form.Item>
+                ) : null}
+                <Form.Item
+                  label="对外访问 URL 前缀"
+                  name="s3_public_base"
+                  dependencies={['s3_presign_enabled']}
+                  rules={[
+                    {
+                      validator: async (_rule, v) => {
+                        if (presignOn === 'true') {
+                          return;
+                        }
+                        if (!String(v || '').trim()) {
+                          throw new Error('请填写对外 URL 前缀，或启用预签名下载');
+                        }
+                      },
                     },
-                  },
-                ]}
-                extra="例如 Cloudflare 自定义域名、CloudFront，或 MinIO 对外网关；外链形式为 prefix + 「/」 + objectKey"
-              >
-                <Input placeholder="https://cdn.example.com/my-bucket 或 https://pub-xxx.r2.dev" />
-              </Form.Item>
-            </>
-          ) : null}
+                  ]}
+                  extra="CDN / 自定义域名；外链为 prefix + / + objectKey"
+                >
+                  <Input placeholder="https://cdn.example.com/my-bucket" />
+                </Form.Item>
+              </>
+            ) : null}
+            {showCosForm ? (
+              <>
+                <Row gutter={[24, 0]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      label="存储桶 Bucket"
+                      name="cos_bucket"
+                      rules={[{ required: true, message: '请填写 COS 存储桶' }]}
+                      extra="腾讯云名称形如 example-1250000000（含 AppID 后缀）"
+                    >
+                      <Input placeholder="example-1250000000" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      label="区域 Region"
+                      name="cos_region"
+                      rules={[{ required: true, message: '请填写区域' }]}
+                      extra="例如 ap-guangzhou"
+                    >
+                      <Input placeholder="ap-guangzhou" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={[24, 0]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="SecretId" name="cos_secret_id" rules={[{ required: true }]}>
+                      <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="SecretKey" name="cos_secret_key" rules={[{ required: true }]}>
+                      <Input.Password autoComplete="new-password" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={[24, 0]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="AppID（可选）" name="cos_app_id" extra="桶名为裸名称时需填写，用于拼接域名">
+                      <Input placeholder="1250000000" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="自定义 Endpoint（可选）" name="cos_endpoint" extra="加速域等特殊入口；留空使用标准域名">
+                      <Input placeholder="https://…" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item label="对外 URL 前缀（可选）" name="cos_public_base" extra="CDN 域名；留空则使用桶 REST 域名">
+                  <Input placeholder="https://your-cdn.example.com" />
+                </Form.Item>
+                <Form.Item label="使用 HTTPS" name="cos_use_https">
+                  <Radio.Group>
+                    <Radio value="true">HTTPS</Radio>
+                    <Radio value="false">HTTP（内网）</Radio>
+                  </Radio.Group>
+                </Form.Item>
+              </>
+            ) : null}
 
-          {showCosForm ? (
-            <>
-              <Form.Item
-                label="Bucket（cos_bucket）"
-                name="cos_bucket"
-                rules={[{ required: true, message: '请填写 COS 存储桶标识' }]}
-                extra={
-                  <>
-                    Tencent 侧名称形如 <Typography.Text code>myapp-1250000000</Typography.Text>
-                    （含 AppID 后缀）。若填写裸桶名 <Typography.Text code>myapp</Typography.Text>，请在后项填写{' '}
-                    <Typography.Text code>cos_app_id</Typography.Text>。
-                  </>
-                }
-              >
-                <Input placeholder="example-1250000000" />
-              </Form.Item>
-              <Form.Item
-                label="Region（cos_region）"
-                name="cos_region"
-                rules={[{ required: true }]}
-                extra="例如 ap-guangzhou"
-              >
-                <Input placeholder="ap-guangzhou" />
-              </Form.Item>
-              <Form.Item label="SecretId（cos_secret_id）" name="cos_secret_id" rules={[{ required: true }]}>
-                <Input.Password autoComplete="new-password" placeholder="仅存库 AES-GCM；列表脱敏后以 **** 表示，不改密钥时请保留" />
-              </Form.Item>
-              <Form.Item label="SecretKey（cos_secret_key）" name="cos_secret_key" rules={[{ required: true }]}>
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item
-                label="AppID（cos_app_id，可选）"
-                name="cos_app_id"
-                extra='当 cos_bucket 为裸名称（不含 "-"）时用于拼接 Bucket 域名后缀'
-              >
-                <Input placeholder="1250000000" />
-              </Form.Item>
-              <Form.Item
-                label="自定义 Endpoint（cos_endpoint，可选）"
-                name="cos_endpoint"
-                extra="自定义加速域 / 万象 CI 等特殊入口时填写；留空则用标准 https://{{bucket}}.cos.{{region}}.myqcloud.com"
-              >
-                <Input placeholder="https://…" />
-              </Form.Item>
-              <Form.Item
-                label="对外 URL 前缀（cos_public_base，可选）"
-                name="cos_public_base"
-                extra="CDN 或静态网站托管域名前缀；外链为 prefix/objectKey；留空则使用桶 REST 域名"
-              >
-                <Input placeholder="https://your-cdn.example.com" />
-              </Form.Item>
-              <Form.Item label="使用 HTTPS（cos_use_https）" name="cos_use_https">
-                <Radio.Group>
-                  <Radio value="true">HTTPS</Radio>
-                  <Radio value="false">HTTP（内网等）</Radio>
-                </Radio.Group>
-              </Form.Item>
-            </>
-          ) : null}
+            {showOssForm ? (
+              <>
+                <Form.Item
+                  label="接口地址 Endpoint"
+                  name="oss_endpoint"
+                  rules={[{ required: true, message: '请填写 OSS Endpoint' }]}
+                  extra="例如 https://oss-cn-guangzhou.aliyuncs.com"
+                >
+                  <Input placeholder="https://oss-cn-guangzhou.aliyuncs.com" />
+                </Form.Item>
+                <Row gutter={[24, 0]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="存储桶 Bucket" name="oss_bucket" rules={[{ required: true, message: '请填写 Bucket' }]}>
+                      <Input placeholder="trademind-assets" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="AccessKey ID" name="oss_access_key_id" rules={[{ required: true }]}>
+                      <Input.Password autoComplete="new-password" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item label="AccessKey Secret" name="oss_access_key_secret" rules={[{ required: true }]}>
+                  <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
+                </Form.Item>
+                <Form.Item label="对外 URL 前缀（可选）" name="oss_public_base" extra="CDN / 自定义域名；留空使用虚拟托管域名">
+                  <Input placeholder="https://cdn.example.com" />
+                </Form.Item>
+                <Form.Item label="使用 HTTPS" name="oss_use_https">
+                  <Radio.Group>
+                    <Radio value="true">HTTPS</Radio>
+                    <Radio value="false">HTTP（内网）</Radio>
+                  </Radio.Group>
+                </Form.Item>
+              </>
+            ) : null}
+          </ProCard>
 
-          {showOssForm ? (
-            <>
-              <Form.Item
-                label="OSS Endpoint（oss_endpoint）"
-                name="oss_endpoint"
-                rules={[{ required: true, message: '请填写 OSS Endpoint URL' }]}
-                extra="形如 https://oss-cn-guangzhou.aliyuncs.com（可含 VPC/内网 EndPoint）；与 oss_use_https 一致"
-              >
-                <Input placeholder="https://oss-cn-guangzhou.aliyuncs.com" />
-              </Form.Item>
-              <Form.Item label="Bucket（oss_bucket）" name="oss_bucket" rules={[{ required: true }]}>
-                <Input placeholder="trademind-assets" />
-              </Form.Item>
-              <Form.Item label="AccessKey Id（oss_access_key_id）" name="oss_access_key_id" rules={[{ required: true }]}>
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item
-                label="AccessKey Secret（oss_access_key_secret）"
-                name="oss_access_key_secret"
-                rules={[{ required: true }]}
-              >
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item
-                label="对外 URL 前缀（oss_public_base，可选）"
-                name="oss_public_base"
-                extra="CDN/自定义域名；留空则用虚拟托管域名：https://bucket + endpoint-host；仅当 Bucket 已对公网可读时可直接外链"
-              >
-                <Input placeholder="https://cdn.example.com 或 Bucket 绑定域名" />
-              </Form.Item>
-              <Form.Item label="使用 HTTPS（oss_use_https）" name="oss_use_https">
-                <Radio.Group>
-                  <Radio value="true">HTTPS</Radio>
-                  <Radio value="false">HTTP（内网等）</Radio>
-                </Radio.Group>
-              </Form.Item>
-            </>
-          ) : null}
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={loading}>
-                保存
+          <ProCard bordered className="tm-system-settings__footer">
+            <Space wrap className="tm-action-space">
+              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
+                保存配置
               </Button>
               <Button
                 loading={testing}
@@ -744,65 +775,71 @@ export default function StorageSettingsPage() {
                 测试连接
               </Button>
             </Space>
-          </Form.Item>
+          </ProCard>
         </Form>
-      </ProCard>
-      <ProCard title="上传测试" bordered style={{ marginTop: 16 }}>
-        <Space align="start" wrap size="large">
-          <Upload
-            maxCount={1}
-            accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
-            showUploadList
-            fileList={uploadTestList}
-            onRemove={async () => {
-              if (!uploadTestFile?.id) {
-                setUploadTestFile(null);
-                return true;
-              }
-              try {
-                await deleteFile(uploadTestFile.id);
-                message.success('已删除文件记录与磁盘对象');
-                setUploadTestFile(null);
-                return true;
-              } catch (e: unknown) {
-                message.error((e as Error)?.message || '删除失败');
-                return false;
-              }
-            }}
-            beforeUpload={(file) => {
-              void (async () => {
-                setUploading(true);
-                setUploadTestFile(null);
-                try {
-                  const r = await uploadFile(file);
-                  setUploadTestFile(r);
-                  message.success('上传成功');
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '上传失败');
-                } finally {
-                  setUploading(false);
+
+        <ProCard bordered title="上传测试" className="tm-system-settings__panel">
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            保存配置后，可选择图片验证上传与访问是否正常。
+          </Typography.Paragraph>
+          <Space align="start" wrap size="large">
+            <Upload
+              maxCount={1}
+              accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
+              showUploadList
+              fileList={uploadTestList}
+              onRemove={async () => {
+                if (!uploadTestFile?.id) {
+                  setUploadTestFile(null);
+                  return true;
                 }
-              })();
-              return false;
-            }}
-          >
-            <Button loading={uploading}>选择图片并上传（走 /api/v1/files/upload）</Button>
-          </Upload>
-          {uploadTestFile ? (
-            <Space direction="vertical" size="small">
-              <Typography.Text type="secondary">文件 ID（删除时使用）</Typography.Text>
-              <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
-                {uploadTestFile.id}
-              </Typography.Paragraph>
-              <Typography.Text type="secondary">返回 URL</Typography.Text>
-              <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
-                {uploadTestFile.url}
-              </Typography.Paragraph>
-              <Image src={uploadTestFile.url} alt="upload" width={200} style={{ objectFit: 'contain' }} />
-            </Space>
-          ) : null}
-        </Space>
-      </ProCard>
+                try {
+                  await deleteFile(uploadTestFile.id);
+                  message.success('已删除文件记录与存储对象');
+                  setUploadTestFile(null);
+                  return true;
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '删除失败');
+                  return false;
+                }
+              }}
+              beforeUpload={(file) => {
+                void (async () => {
+                  setUploading(true);
+                  setUploadTestFile(null);
+                  try {
+                    const r = await uploadFile(file);
+                    setUploadTestFile(r);
+                    message.success('上传成功');
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '上传失败');
+                  } finally {
+                    setUploading(false);
+                  }
+                })();
+                return false;
+              }}
+            >
+              <Button loading={uploading} icon={<CloudUploadOutlined />}>
+                选择图片并上传
+              </Button>
+            </Upload>
+            {uploadTestFile ? (
+              <Space direction="vertical" size="small">
+                <Typography.Text type="secondary">文件 ID</Typography.Text>
+                <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
+                  {uploadTestFile.id}
+                </Typography.Paragraph>
+                <Typography.Text type="secondary">访问 URL</Typography.Text>
+                <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
+                  {uploadTestFile.url}
+                </Typography.Paragraph>
+                <Image src={uploadTestFile.url} alt="upload" width={200} style={{ objectFit: 'contain' }} />
+              </Space>
+            ) : null}
+          </Space>
+        </ProCard>
+      </div>
     </PageContainer>
   );
 }

@@ -1,10 +1,13 @@
+import { ApiOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
+  Col,
   Form,
   Input,
   InputNumber,
+  Row,
   Select,
   Space,
   Spin,
@@ -16,6 +19,13 @@ import {
 } from 'antd';
 import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  PLATFORM_DEV_PORTALS,
+  PLATFORM_STATUS_META,
+  platformAppFieldHelp,
+  platformAppFieldLabel,
+  platformAppFieldPlaceholder,
+} from '@/constants/platformAppConfig';
 import type { AppConfigFieldDTO, PlatformProviderMeta } from '@/services/shops';
 import {
   externalDocUrlFor,
@@ -25,12 +35,7 @@ import {
 } from '@/services/platformOpen';
 import { queryPlatformProviders } from '@/services/shops';
 
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  available: { label: '可用', color: 'success' },
-  beta: { label: '测试中', color: 'processing' },
-  planned: { label: '规划中', color: 'default' },
-  disabled: { label: '停用', color: 'error' },
-};
+const { Paragraph, Text, Title } = Typography;
 
 function valuesToFormFields(fields: AppConfigFieldDTO[], values: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -50,7 +55,6 @@ function valuesToFormFields(fields: AppConfigFieldDTO[], values: Record<string, 
   return out;
 }
 
-/** Build PATCH map: omit undefined so backend keeps previous value; booleans always sent. */
 function buildPutValues(fields: AppConfigFieldDTO[], formVals: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const f of fields) {
@@ -77,15 +81,19 @@ function buildPutValues(fields: AppConfigFieldDTO[], formVals: Record<string, un
   return out;
 }
 
+function isFullWidthField(f: AppConfigFieldDTO): boolean {
+  return f.type === 'textarea' || f.name === 'oauth_scopes' || f.name === 'scopes';
+}
+
 function renderFieldControl(f: AppConfigFieldDTO) {
-  const ph = f.placeholder ?? '';
+  const ph = platformAppFieldPlaceholder(f);
   switch (f.type) {
     case 'password':
       return <Input.Password placeholder={ph} autoComplete={f.sensitive ? 'new-password' : 'off'} />;
     case 'textarea':
       return <Input.TextArea rows={4} placeholder={ph} />;
     case 'number':
-      return <InputNumber min={f.name === 'timeout_sec' ? 5 : undefined} style={{ width: '100%' }} />;
+      return <InputNumber min={f.name === 'timeout_sec' ? 5 : undefined} style={{ width: '100%' }} placeholder={ph || undefined} />;
     case 'switch':
       return <Switch />;
     case 'select':
@@ -108,7 +116,7 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
 
   const schema = meta.appConfigSchema;
   const fields = schema?.fields ?? [];
-  const st = STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
+  const st = PLATFORM_STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,23 +140,26 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
 
   return (
     <Spin spinning={loading}>
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
         {meta.status === 'planned' && (
           <Alert
             showIcon
             type="warning"
-            message="该平台能力暂未接入，可先保存开放平台配置。"
-            description="店铺授权、连接测试、订单同步等能力可能尚未完全开放；可先在此保存开放平台应用参数，供后续对接使用。"
+            message="该平台能力暂未完全接入"
+            description="可先保存开放平台应用参数，供后续店铺授权与 API 对接使用。"
           />
         )}
-        {schema.description && <Typography.Paragraph type="secondary">{schema.description}</Typography.Paragraph>}
-        <Typography.Paragraph type="secondary">
-          接入状态：<Tag color={st.color}>{st.label}</Tag>
-        </Typography.Paragraph>
+        {schema?.description ? (
+          <Alert showIcon type="info" message={`${meta.name} 配置说明`} description={schema.description} />
+        ) : null}
+        <div>
+          <Text type="secondary">接入状态 </Text>
+          <Tag color={st.color}>{st.label}</Tag>
+        </div>
+
         <Form
           layout="vertical"
           form={form}
-          style={{ maxWidth: 720 }}
           onFinish={async (vals: Record<string, unknown>) => {
             try {
               const payload = buildPutValues(fields, vals);
@@ -160,33 +171,37 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
             }
           }}
         >
-          {fields.map((f) => (
-            <Form.Item
-              key={f.name}
-              name={f.name}
-              label={f.label}
-              valuePropName={f.type === 'switch' ? 'checked' : 'value'}
-              rules={[{ required: f.required, message: `${f.label} 为必填` }]}
-              extra={f.help}
-            >
-              {renderFieldControl(f)}
-            </Form.Item>
-          ))}
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={loading}>
+          <Row gutter={[24, 0]}>
+            {fields.map((f) => (
+              <Col xs={24} md={isFullWidthField(f) ? 24 : 12} key={f.name}>
+                <Form.Item
+                  name={f.name}
+                  label={platformAppFieldLabel(f)}
+                  valuePropName={f.type === 'switch' ? 'checked' : 'value'}
+                  rules={[{ required: f.required, message: `请填写${platformAppFieldLabel(f)}` }]}
+                  extra={platformAppFieldHelp(f)}
+                >
+                  {renderFieldControl(f)}
+                </Form.Item>
+              </Col>
+            ))}
+          </Row>
+
+          <div className="tm-system-settings__footer" style={{ marginTop: 8, position: 'static', boxShadow: 'none', padding: '12px 0 0' }}>
+            <Space wrap>
+              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
                 保存配置
               </Button>
-              <Button onClick={() => void load()} disabled={loading}>
+              <Button icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
                 重新加载
               </Button>
-              {docUrl && (
+              {docUrl ? (
                 <Typography.Link href={docUrl} target="_blank" rel="noreferrer">
-                  开放平台门户
+                  开放平台文档
                 </Typography.Link>
-              )}
+              ) : null}
             </Space>
-          </Form.Item>
+          </div>
         </Form>
       </Space>
     </Spin>
@@ -227,53 +242,61 @@ export default function PlatformSettingsPage() {
     }
   }, [tab, withSchema]);
 
-  const items = withSchema.map((p) => ({
-    key: p.platform,
-    label: `${p.name}${p.platform === 'tiktok' ? '（Beta）' : ''}`,
-    children: <PlatformPanel meta={p} />,
-  }));
+  const items = withSchema.map((p) => {
+    const st = PLATFORM_STATUS_META[p.status];
+    return {
+      key: p.platform,
+      label: (
+        <Space size={6}>
+          <span>{p.name}</span>
+          {st && p.status !== 'available' ? <Tag color={st.color} style={{ margin: 0 }}>{st.label}</Tag> : null}
+        </Space>
+      ),
+      children: <PlatformPanel meta={p} />,
+    };
+  });
 
   return (
-    <PageContainer title="平台开放配置">
-      <ProCard bordered>
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="由您在各平台开放平台自建应用并把参数填回贸灵"
-          description={
-            <>
-              请在各平台开放平台创建应用，将 App Key、Secret 等参数填回贸灵。敏感信息会加密保存在服务端。
-              店铺授权后的访问令牌仅保存在对应店铺记录中，不会写入通用系统设置。
-              <br />
-              授权店铺请前往{' '}
-              <Link to="/shops">店铺管理</Link>
-              ，若未完成应用级配置会先提示你到本页补齐。
-              <br />
-              参考门户：{' '}
-              <Typography.Link href="https://partner.tiktokshop.com/" target="_blank" rel="noreferrer">
-                TikTok Shop Partner
-              </Typography.Link>
-              、{' '}
-              <Typography.Link href="https://open.shopee.com/" target="_blank" rel="noreferrer">
-                Shopee Open
-              </Typography.Link>
-              、{' '}
-              <Typography.Link href="https://open.lazada.com/" target="_blank" rel="noreferrer">
-                Lazada Open
-              </Typography.Link>
-              、Amazon SP-API、AliExpress、Shopify Partners、Woo REST、eBay Developers 等——按实际对接平台选择。
-            </>
-          }
-        />
-        <Spin spinning={loadingProviders}>
-          {items.length === 0 ? (
-            <Typography.Paragraph type="secondary">暂无带应用配置 Schema 的平台（请刷新或检查后端注册）。</Typography.Paragraph>
-          ) : (
-            <Tabs activeKey={tab} onChange={setTab} items={items} />
-          )}
-        </Spin>
-      </ProCard>
+    <PageContainer title="平台开放配置" subTitle="各跨境平台 Partner 应用参数（App Key / Secret 等），店铺授权在「店铺管理」完成">
+      <div className="tm-system-settings">
+        <ProCard bordered className="tm-system-settings__hero">
+          <div className="tm-system-settings__hero-inner">
+            <div className="tm-system-settings__hero-icon">
+              <ApiOutlined />
+            </div>
+            <div className="tm-system-settings__hero-body">
+              <Title level={5} className="tm-system-settings__hero-title">
+                开放平台应用参数
+              </Title>
+              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
+                请在各平台开放平台创建应用，将 App Key、Secret 等填回贸灵；敏感信息加密存库。店铺授权后的 Access Token 仅保存在对应店铺，不会写入此处。完成配置后前往{' '}
+                <Link to="/shops">店铺管理</Link> 授权。
+              </Paragraph>
+            </div>
+          </div>
+        </ProCard>
+
+        <ProCard bordered title="选择平台" className="tm-system-settings__panel">
+          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            开发者门户：
+            {PLATFORM_DEV_PORTALS.map((p, i) => (
+              <span key={p.url}>
+                {i > 0 ? ' · ' : ' '}
+                <Typography.Link href={p.url} target="_blank" rel="noreferrer">
+                  {p.name}
+                </Typography.Link>
+              </span>
+            ))}
+          </Paragraph>
+          <Spin spinning={loadingProviders}>
+            {items.length === 0 ? (
+              <Paragraph type="secondary">暂无可用平台配置项，请刷新或检查后端注册。</Paragraph>
+            ) : (
+              <Tabs activeKey={tab} onChange={setTab} items={items} />
+            )}
+          </Spin>
+        </ProCard>
+      </div>
     </PageContainer>
   );
 }

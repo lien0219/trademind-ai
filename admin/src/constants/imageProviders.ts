@@ -294,7 +294,11 @@ export const ALL_IMAGE_FIELD_SPECS: Record<
   dashscope_image_api_key: { label: '通义万相 API Key', encrypted: true, extra: '请到阿里云百炼控制台申请' },
   dashscope_image_model: { label: '通义万相模型', placeholder: 'wan2.7-image-pro' },
   dashscope_image_size: { label: '通义万相尺寸', placeholder: '2K', extra: '推荐 1K / 2K / 4K；也兼容旧像素格式如 1024*1024' },
-  dashscope_image_quality: { label: '通义万相质量（可选）' },
+  dashscope_image_quality: {
+    label: '通义万相质量（可选）',
+    placeholder: '留空即可',
+    extra: '一般无需填写；输出清晰度主要由「通义万相尺寸」控制（如 2K、4K 或 1024*1024）。若服务商文档要求质量参数，可填 standard 或 high',
+  },
   volcengine_image_base_url: {
     label: '火山方舟接口地址',
     placeholder: 'https://ark.cn-beijing.volces.com/api/v3',
