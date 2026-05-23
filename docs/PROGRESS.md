@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-23 — **AI 图片任务生产可用版收口**：新增 **`/api/v1/ai/image/*`** 标准路由（tasks / task-items save-to-product / set-as-main / score）；**`POST /products/:id/images/select-best-main`**（`score_only` / `recommend` / `auto_set`）；**`ai_image_task_items.product_id`**；发布检查增加主图评分/水印/Logo/二维码/详情图缺失告警；商品详情图片管理补全快捷 AI 操作与设主图/详情图。
+**最后更新**：2026-05-23 — **AI 图片任务「新建任务」小白化**：新增复用组件 **`CreateImageTaskModal`**（默认 9 类任务、商品图/上传/URL 选图、处理结果自动入库/设主图/设详情图、高级设置折叠 **商品图片 ID / 外部链接 / JSON 参数**）；**`/ai/image-tasks`** 与 **商品详情 → 图片管理** 共用弹窗；每张商品图旁 **AI 去水印 / 去 Logo / 去背景 / 营销图 / 评分 / 设为最佳主图** 一键预填；后端 **`autoSetDetail`** 支持任务成功后自动写入详情图。
+
+**此前**：2026-05-23 — **AI 图片任务生产可用版收口**：新增 **`/api/v1/ai/image/*`** 标准路由（tasks / task-items save-to-product / set-as-main / score）；**`POST /products/:id/images/select-best-main`**（`score_only` / `recommend` / `auto_set`）；**`ai_image_task_items.product_id`**；发布检查增加主图评分/水印/Logo/二维码/详情图缺失告警；商品详情图片管理补全快捷 AI 操作与设主图/详情图。
 
 **此前**：2026-05-21 — **AI 图片任务生产化 + 存储打通**：`image_tasks` 扩展为 AI 图片任务主表（含 prompt/options/result_count 等）；新增 **`ai_image_task_items`** 子项表；**`product_images`** 增加 source/source_task_id/original_image_id/storage_key/score/is_best_main 及 marketing/ai_generated 类型；支持 **14+ task_type**（去水印/去 Logo/综合清理/营销图/评分/自动选主图等）；Worker 结果 **统一下载并上传至当前 Storage Provider**（key：`products/{productId}/ai/{taskType}/{yyyy}/{mm}/{uuid}.webp`）；**POST /image/tasks/:id/apply** 一键回写商品图库；商品详情页与 AI 图片任务页增加模板入口与批量操作。
 

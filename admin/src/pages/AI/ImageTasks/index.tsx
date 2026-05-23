@@ -1,30 +1,18 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
-import { ModalForm, PageContainer, ProFormDependency, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { CopyOutlined } from '@ant-design/icons';
-import { Button, Card, Descriptions, Drawer, Form, Image, Space, Spin, Tag, message, Alert, Typography } from 'antd';
+import { Button, Card, Descriptions, Drawer, Image, Space, Spin, Tag, message, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CreateImageTaskModal } from '@/components/CreateImageTaskModal';
 import type { ImageTaskDetail, ImageTaskItemRow, ImageTaskListRow } from '@/services/imageTasks';
-import {
-  AI_IMAGE_BACKGROUND_PRESETS,
-  AI_IMAGE_FIELD,
-  AI_IMAGE_NEGATIVE_PROMPT_PRESETS,
-  AI_IMAGE_SCENE_PRESETS,
-  AI_IMAGE_STYLE_PRESETS,
-  DEFAULT_AI_IMAGE_BACKGROUND,
-  DEFAULT_AI_IMAGE_SCENE,
-  DEFAULT_AI_IMAGE_STYLE,
-  displayNameForProvider,
-  isProviderSelectable,
-} from '@/constants/imageProviders';
+import { displayNameForProvider } from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import {
   applyImageTaskResult,
-  createImageTask,
   getImageTask,
   IMAGE_TASK_TEMPLATES,
-  IMAGE_TASK_TYPE_OPTIONS,
   listImageTaskItems,
   queryImageTasks,
   retryImageTask,
@@ -82,17 +70,15 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   );
 }
 
-const TASK_TYPES = IMAGE_TASK_TYPE_OPTIONS.map((t) => ({ label: t.label, value: t.value }));
-
 export default function ImageTasksPage() {
-  const { caps, optionsForTask } = useImageProviders();
-  const [createForm] = Form.useForm();
+  const { caps } = useImageProviders();
   const actionRef = useRef<ActionType>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<ImageTaskDetail | null>(null);
   const [taskItems, setTaskItems] = useState<ImageTaskItemRow[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState<{ taskType?: string }>({});
 
   useEffect(() => {
     const iv = window.setInterval(() => {
@@ -266,13 +252,13 @@ export default function ImageTasksPage() {
 
   return (
     <PageContainer title="AI 图片任务">
-      <Card size="small" style={{ marginBottom: 16 }} title="任务模板">
+      <Card size="small" style={{ marginBottom: 16 }} title="快捷模板">
         <Space wrap>
           {IMAGE_TASK_TEMPLATES.map((tpl) => (
             <Button
               key={tpl.taskType}
               onClick={() => {
-                createForm.setFieldsValue({ taskType: tpl.taskType });
+                setCreatePrefill({ taskType: tpl.taskType });
                 setCreateOpen(true);
               }}
             >
@@ -311,305 +297,26 @@ export default function ImageTasksPage() {
         }}
         headerTitle={false}
         toolBarRender={() => [
-          <Button key="create" type="primary" onClick={() => setCreateOpen(true)}>
+          <Button
+            key="create"
+            type="primary"
+            onClick={() => {
+              setCreatePrefill({});
+              setCreateOpen(true);
+            }}
+          >
             新建任务
           </Button>,
         ]}
       />
 
-      <ModalForm<{
-        taskType: string;
-        provider?: string;
-        productId?: string;
-        sourceImageId?: string;
-        sourceImageUrl?: string;
-        prompt?: string;
-        negativePrompt?: string;
-        scene?: string;
-        style?: string;
-        size?: string;
-        background?: string;
-        platform?: string;
-        rbPrompt?: string;
-        rbNegativePrompt?: string;
-        rbBackground?: string;
-        rbStyle?: string;
-        rbPlatform?: string;
-        rbSize?: string;
-        inputJson: string;
-      }>
-        form={createForm}
-        title="新建图片任务"
+      <CreateImageTaskModal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        initialValues={{
-          taskType: 'resize',
-          provider: '',
-          productId: '',
-          sourceImageId: '',
-          sourceImageUrl: '',
-          prompt: '',
-          negativePrompt: '',
-          scene: DEFAULT_AI_IMAGE_SCENE,
-          style: DEFAULT_AI_IMAGE_STYLE,
-          size: '1024x1024',
-          background: DEFAULT_AI_IMAGE_BACKGROUND,
-          platform: 'TikTok Shop',
-          rbPrompt: '',
-          rbNegativePrompt: '',
-          rbBackground: DEFAULT_AI_IMAGE_BACKGROUND,
-          rbStyle: DEFAULT_AI_IMAGE_STYLE,
-          rbPlatform: 'TikTok Shop',
-          rbSize: '1024x1024',
-          inputJson: '{}',
-        }}
-        modalProps={{ destroyOnHidden: true }}
-        onFinish={async (values) => {
-          let extra: Record<string, unknown> = {};
-          const raw = (values.inputJson ?? '').trim();
-          if (raw) {
-            try {
-              extra = JSON.parse(raw) as Record<string, unknown>;
-            } catch {
-              message.error('附加参数需为合法 JSON');
-              return false;
-            }
-          }
-          const input: Record<string, unknown> = { ...extra };
-          const tt = (values.taskType ?? '').trim();
-          if (tt === 'generate_scene') {
-            const pick = {
-              prompt: (values.prompt ?? '').trim(),
-              negativePrompt: (values.negativePrompt ?? '').trim(),
-              scene: (values.scene ?? '').trim(),
-              style: (values.style ?? '').trim(),
-              size: (values.size ?? '').trim(),
-              background: (values.background ?? '').trim(),
-              platform: (values.platform ?? '').trim(),
-            };
-            Object.assign(input, pick);
-          }
-          if (tt === 'replace_background') {
-            const pick = {
-              prompt: (values.rbPrompt ?? '').trim(),
-              negativePrompt: (values.rbNegativePrompt ?? '').trim(),
-              background: (values.rbBackground ?? '').trim(),
-              style: (values.rbStyle ?? '').trim(),
-              platform: (values.rbPlatform ?? '').trim(),
-              size: (values.rbSize ?? '').trim(),
-            };
-            Object.assign(input, pick);
-          }
-          try {
-            const task = await createImageTask({
-              taskType: values.taskType,
-              provider: values.provider?.trim() || undefined,
-              productId: values.productId?.trim() || undefined,
-              sourceImageId: values.sourceImageId?.trim() || undefined,
-              sourceImageUrl: values.sourceImageUrl?.trim() || undefined,
-              input,
-            });
-            if (task.status === 'pending' || task.status === 'running') {
-              message.success('图片任务已提交，正在后台处理');
-            } else if (task.status === 'success') {
-              message.success('任务已完成');
-            } else if (task.status === 'failed') {
-              message.warning(task.errorMessage || '任务失败');
-            } else {
-              message.success('已创建');
-            }
-            actionRef.current?.reload();
-            return true;
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '创建失败');
-            return false;
-          }
-        }}
-      >
-        <ProFormSelect
-          name="taskType"
-          label="任务类型"
-          options={TASK_TYPES.map((t) => ({
-            ...t,
-            disabled: !caps.some(
-              (c) => isProviderSelectable(c) && c.supportedTasks.includes(t.value),
-            ),
-          }))}
-          rules={[{ required: true }]}
-          fieldProps={{
-            onChange: (v: string) => {
-              if (v === 'remove_background') {
-                createForm.setFieldsValue({ provider: 'removebg' });
-              } else {
-                createForm.setFieldsValue({ provider: '' });
-              }
-            },
-          }}
-        />
-        <ProFormDependency name={['taskType']}>
-          {({ taskType }: { taskType?: string }) => (
-            <ProFormSelect
-              name="provider"
-              label="图片处理服务"
-              options={optionsForTask(taskType ?? '')}
-              extra="去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI / 火山方舟；高级自定义可选 ComfyUI"
-            />
-          )}
-        </ProFormDependency>
-        <ProFormDependency name={['taskType', 'provider']}>
-          {(dep: { taskType?: string; provider?: string }) =>
-            dep.taskType === 'replace_background' &&
-            String(dep.provider ?? '')
-              .trim()
-              .toLowerCase() === 'openai_image' ? (
-              <Alert
-                style={{ marginBottom: 16 }}
-                type="info"
-                showIcon
-                message="OpenAI replace_background 会由后端读取源图并提交给 OpenAI，不需要前端直连。"
-              />
-            ) : null
-          }
-        </ProFormDependency>
-        <ProFormText name="productId" label="商品 ID（可选）" />
-        <ProFormText
-          name="sourceImageId"
-          label="源图 sourceImageId（可选）"
-          placeholder="files.id 或 product_images.id（UUID）"
-          extra="填写后可使用本地/云端非公网源图；与源图 URL 二选一或同时提供（优先按 ID 解析）。"
-        />
-        <ProFormDependency name={['taskType', 'provider', 'sourceImageId']}>
-          {(dep: { taskType?: string; provider?: string; sourceImageId?: string }) => {
-            const tt = dep.taskType ?? '';
-            const p = String(dep.provider ?? '')
-              .trim()
-              .toLowerCase();
-            const optionalSrc =
-              tt === 'generate_scene' && (p === '' || p === 'openai_image' || p === 'comfyui');
-            return (
-              <ProFormText
-                name="sourceImageUrl"
-                label={optionalSrc ? '源图 URL（可选）' : '源图 URL'}
-                extra={
-                  optionalSrc
-                    ? 'OpenAI / ComfyUI 场景可不填；有参考图时请填公网可访问 URL，或在商品详情用「商品图」创建'
-                    : tt === 'remove_background'
-                      ? '可选：须公网可访问的直链；或使用上方的 sourceImageId（推荐本地/存储图）。'
-                      : tt === 'replace_background' && (p === 'openai_image' || p === '')
-                      ? '可选：公网直链或与 sourceImageId 二选一；OpenAI 换背景由后端读取源图并提交，无需前端直连 OpenAI。'
-                      : '请填写可从公网抓取的可访问 HTTPS 图像地址'
-                }
-                rules={[
-                  {
-                    validator: async (_rule, val) => {
-                      if (optionalSrc) {
-                        return Promise.resolve();
-                      }
-                      const id = String(dep.sourceImageId ?? '').trim();
-                      if ((tt === 'remove_background' || tt === 'replace_background') && id) {
-                        return Promise.resolve();
-                      }
-                      if (String(val ?? '').trim()) {
-                        return Promise.resolve();
-                      }
-                      if (tt === 'remove_background' || tt === 'replace_background') {
-                        return Promise.reject(new Error('请填写源图 URL 或 sourceImageId'));
-                      }
-                      return Promise.reject(new Error('请填写可访问的源图 URL'));
-                    },
-                  },
-                ]}
-              />
-            );
-          }}
-        </ProFormDependency>
-        <ProFormDependency name={['taskType']}>
-          {(dep: { taskType?: string }) =>
-            dep.taskType === 'generate_scene' ? (
-              <>
-                <ProFormTextArea
-                  name="prompt"
-                  label={AI_IMAGE_FIELD.prompt.label}
-                  extra={AI_IMAGE_FIELD.prompt.extra}
-                  fieldProps={{ rows: 4, placeholder: AI_IMAGE_FIELD.prompt.placeholder }}
-                />
-                <ProFormTextArea
-                  name="negativePrompt"
-                  label={`${AI_IMAGE_FIELD.negativePrompt.label}（${AI_IMAGE_FIELD.negativePrompt.subLabel}）`}
-                  extra={AI_IMAGE_FIELD.negativePrompt.extra}
-                  fieldProps={{ rows: 2, placeholder: AI_IMAGE_FIELD.negativePrompt.placeholder }}
-                />
-                <ProFormSelect
-                  name="scene"
-                  label={AI_IMAGE_FIELD.scene.label}
-                  options={AI_IMAGE_SCENE_PRESETS}
-                  showSearch
-                  fieldProps={{ optionFilterProp: 'label' }}
-                  extra={AI_IMAGE_FIELD.scene.extra}
-                />
-                <ProFormSelect
-                  name="style"
-                  label={AI_IMAGE_FIELD.style.label}
-                  options={AI_IMAGE_STYLE_PRESETS}
-                  showSearch
-                  fieldProps={{ optionFilterProp: 'label' }}
-                />
-                <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
-                <ProFormSelect
-                  name="background"
-                  label={AI_IMAGE_FIELD.background.label}
-                  options={AI_IMAGE_BACKGROUND_PRESETS}
-                  showSearch
-                  fieldProps={{ optionFilterProp: 'label' }}
-                />
-                <ProFormText name="platform" label="平台（可选）" placeholder="TikTok Shop" />
-              </>
-            ) : null
-          }
-        </ProFormDependency>
-        <ProFormDependency name={['taskType']}>
-          {(dep: { taskType?: string }) =>
-            dep.taskType === 'replace_background' ? (
-              <>
-                <ProFormTextArea
-                  name="rbPrompt"
-                  label={AI_IMAGE_FIELD.prompt.label}
-                  extra={AI_IMAGE_FIELD.prompt.extra}
-                  fieldProps={{ rows: 3, placeholder: AI_IMAGE_FIELD.prompt.placeholder }}
-                />
-                <ProFormTextArea
-                  name="rbNegativePrompt"
-                  label={`${AI_IMAGE_FIELD.negativePrompt.label}（${AI_IMAGE_FIELD.negativePrompt.subLabel}）`}
-                  extra={AI_IMAGE_FIELD.negativePrompt.extra}
-                  fieldProps={{ rows: 2, placeholder: AI_IMAGE_FIELD.negativePrompt.placeholder }}
-                />
-                <ProFormSelect
-                  name="rbBackground"
-                  label={AI_IMAGE_FIELD.background.label}
-                  options={AI_IMAGE_BACKGROUND_PRESETS}
-                  showSearch
-                  fieldProps={{ optionFilterProp: 'label' }}
-                />
-                <ProFormSelect
-                  name="rbStyle"
-                  label={AI_IMAGE_FIELD.style.label}
-                  options={AI_IMAGE_STYLE_PRESETS}
-                  showSearch
-                  fieldProps={{ optionFilterProp: 'label' }}
-                />
-                <ProFormText name="rbPlatform" label="平台（可选）" placeholder="TikTok Shop" />
-                <ProFormText name="rbSize" label="尺寸（可选）" placeholder="1024x1024" />
-              </>
-            ) : null
-          }
-        </ProFormDependency>
-        <ProFormTextArea
-          name="inputJson"
-          label="追加参数（高级，JSON，可选）"
-          fieldProps={{ rows: 4, style: { fontFamily: 'monospace' } }}
-          extra="将与上方字段合并后提交；结构化字段可被此处同名键覆盖"
-        />
-      </ModalForm>
+        prefill={createPrefill}
+        allowProductIdInput
+        onSuccess={() => actionRef.current?.reload()}
+      />
 
       <Drawer
         title="图片任务详情"

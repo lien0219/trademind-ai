@@ -246,3 +246,59 @@ export function taskTypeLabel(taskType: string): string {
   return hit?.label ?? taskType;
 }
 
+/** Default task types shown in beginner-friendly create modal. */
+export const BEGINNER_IMAGE_TASK_TYPE_VALUES = [
+  'remove_watermark',
+  'remove_logo',
+  'remove_background',
+  'cleanup',
+  'generate_marketing',
+  'enhance_detail',
+  'upscale',
+  'score_image',
+  'select_best_main',
+] as const;
+
+export type ImageTaskResultMode = 'auto_save' | 'set_main' | 'set_detail' | 'result_only';
+
+export const IMAGE_TASK_RESULT_MODE_OPTIONS: { label: string; value: ImageTaskResultMode; description: string }[] = [
+  {
+    label: '自动保存到商品图片库',
+    value: 'auto_save',
+    description: '处理成功后追加为 AI 生成图，不覆盖原图',
+  },
+  {
+    label: '处理完成后设为主图',
+    value: 'set_main',
+    description: '保存结果并设为主图 / 最佳主图',
+  },
+  {
+    label: '处理完成后设为详情图',
+    value: 'set_detail',
+    description: '保存结果并标记为详情图',
+  },
+  {
+    label: '仅生成结果，不自动写入商品图片',
+    value: 'result_only',
+    description: '结果可在 AI 图片任务页手动保存',
+  },
+];
+
+export function buildResultHandlingInput(mode: ImageTaskResultMode): Record<string, unknown> {
+  switch (mode) {
+    case 'auto_save':
+      return { autoSaveToProduct: true };
+    case 'set_main':
+      return { autoSaveToProduct: true, autoSetMain: true };
+    case 'set_detail':
+      return { autoSaveToProduct: true, autoSetDetail: true };
+    default:
+      return {};
+  }
+}
+
+/** Task types that may omit a single source image when productId is set. */
+export function imageTaskAllowsNoSource(taskType: string): boolean {
+  return taskType === 'select_best_main';
+}
+

@@ -146,6 +146,16 @@ func autoSetMainFromHints(hints map[string]any) bool {
 	return false
 }
 
+func autoSetDetailFromHints(hints map[string]any) bool {
+	if hints == nil {
+		return false
+	}
+	if v, ok := hints["autoSetDetail"].(bool); ok {
+		return v
+	}
+	return false
+}
+
 func resultCountFromHints(hints map[string]any, def int) int {
 	n := intFromAny(hints["resultCount"])
 	if n <= 0 {

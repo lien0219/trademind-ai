@@ -18,7 +18,6 @@ import {
   Card,
   Collapse,
   Descriptions,
-  Dropdown,
   Drawer,
   Form,
   Image,
@@ -74,20 +73,6 @@ import {
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
-import {
-  AI_IMAGE_BACKGROUND_PRESETS,
-  AI_IMAGE_FIELD,
-  AI_IMAGE_NEGATIVE_PROMPT_PRESETS,
-  AI_IMAGE_SCENE_PRESETS,
-  AI_IMAGE_STYLE_PRESETS,
-  DEFAULT_AI_IMAGE_BACKGROUND,
-  DEFAULT_AI_IMAGE_SCENE,
-  DEFAULT_AI_IMAGE_STYLE,
-  isProviderSelectable,
-  providersForTask,
-} from '@/constants/imageProviders';
-import { useImageProviders } from '@/hooks/useImageProviders';
-import { createImageTask, scoreProductImage } from '@/services/imageTasks';
 import { Link } from '@umijs/renderer-react';
 import {
   listProductPublications,
@@ -96,6 +81,7 @@ import {
 } from '@/services/productPublish';
 import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
 import PricingApplyModal from '@/components/PricingApplyModal';
+import { CreateImageTaskModal, type CreateImageTaskPrefill } from '@/components/CreateImageTaskModal';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
   adjustSkuStock,
@@ -415,15 +401,8 @@ export default function ProductDraftDetailPage() {
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
   const [lastUpload, setLastUpload] = useState<{ id: string; url: string; objectKey: string } | null>(null);
-  const [aiImgTaskType, setAiImgTaskType] = useState<string>('resize');
-  const [aiImgRowId, setAiImgRowId] = useState<string>();
-  const [aiImgProvider, setAiImgProvider] = useState<string>('');
-  const [aiImgBusy, setAiImgBusy] = useState(false);
-  const [aiImgPrompt, setAiImgPrompt] = useState<string>('');
-  const [aiImgNegPrompt, setAiImgNegPrompt] = useState<string>('');
-  const [aiImgScene, setAiImgScene] = useState<string>(DEFAULT_AI_IMAGE_SCENE);
-  const [aiImgBackground, setAiImgBackground] = useState<string>(DEFAULT_AI_IMAGE_BACKGROUND);
-  const [aiImgStyle, setAiImgStyle] = useState<string>(DEFAULT_AI_IMAGE_STYLE);
+  const [createImageOpen, setCreateImageOpen] = useState(false);
+  const [createImagePrefill, setCreateImagePrefill] = useState<CreateImageTaskPrefill>({});
 
   const [pubRows, setPubRows] = useState<ProductPublicationRow[]>([]);
   const [pubCtxLoading, setPubCtxLoading] = useState(false);
@@ -480,34 +459,28 @@ export default function ProductDraftDetailPage() {
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
 
-  const { caps, optionsForTask } = useImageProviders();
-
-  const runQuickImageTask = useCallback(
-    async (image: ProductImageRow, taskType: string, extraInput?: Record<string, unknown>) => {
-      if (!id) return;
-      const provider = taskType === 'remove_background' ? 'removebg' : undefined;
-      try {
-        await createImageTask({
-          taskType,
-          provider,
-          productId: id,
-          sourceImageId: image.id,
-          sourceImageUrl: image.publicUrl || image.originUrl,
-          input: {
-            prompt: aiImgPrompt || undefined,
-            negativePrompt: aiImgNegPrompt || undefined,
-            style: aiImgStyle,
-            background: aiImgBackground,
-            imageType: image.imageType,
-            ...extraInput,
-          },
-        });
-        message.success('AI 图片任务已提交');
-      } catch (e: unknown) {
-        message.error((e as Error)?.message || '提交失败');
-      }
+  const openCreateImageTask = useCallback(
+    (prefill: CreateImageTaskPrefill) => {
+      setCreateImagePrefill({
+        productId: id,
+        ...prefill,
+      });
+      setCreateImageOpen(true);
     },
-    [id, aiImgPrompt, aiImgNegPrompt, aiImgStyle, aiImgBackground],
+    [id],
+  );
+
+  const openQuickImageTask = useCallback(
+    (image: ProductImageRow, taskType: string, provider?: string) => {
+      openCreateImageTask({
+        taskType,
+        sourceImageId: image.id,
+        sourceImageUrl: (image.publicUrl || image.originUrl || '').trim(),
+        imageSourceMode: 'product',
+        provider: provider ?? (taskType === 'remove_background' ? 'removebg' : ''),
+      });
+    },
+    [openCreateImageTask],
   );
 
   const runSelectBestMain = useCallback(
@@ -522,22 +495,6 @@ export default function ProductDraftDetailPage() {
     },
     [id],
   );
-
-  const aiImgAllowNoSourceImage = useMemo(() => {
-    if (aiImgTaskType !== 'generate_scene') return false;
-    const prov = aiImgProvider.trim().toLowerCase();
-    if (prov === '') {
-      return caps.some(
-        (c) =>
-          isProviderSelectable(c) &&
-          c.supportedTasks.includes('generate_scene') &&
-          ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(
-            c.provider,
-          ),
-      );
-    }
-    return ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(prov);
-  }, [aiImgTaskType, aiImgProvider, caps]);
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -818,43 +775,38 @@ export default function ProductDraftDetailPage() {
       },
       {
         title: '操作',
-        width: 420,
+        width: 520,
         render: (_, r) => (
-          <Space wrap size={[12, 6]} style={{ padding: '4px 0' }}>
-            <Dropdown
-              menu={{
-                items: [
-                  { key: 'remove_watermark', label: 'AI 去水印', onClick: () => void runQuickImageTask(r, 'remove_watermark') },
-                  { key: 'remove_logo', label: 'AI 去 Logo', onClick: () => void runQuickImageTask(r, 'remove_logo') },
-                  { key: 'remove_background', label: 'AI 去背景', onClick: () => void runQuickImageTask(r, 'remove_background') },
-                  { key: 'upscale', label: 'AI 高清修复', onClick: () => void runQuickImageTask(r, 'upscale') },
-                  { key: 'generate_marketing', label: 'AI 营销图', onClick: () => void runQuickImageTask(r, 'generate_marketing') },
-                  { key: 'enhance_detail', label: 'AI 增强详情图', onClick: () => void runQuickImageTask(r, 'enhance_detail') },
-                  {
-                    key: 'score_image',
-                    label: 'AI 评分',
-                    onClick: async () => {
-                      try {
-                        const score = await scoreProductImage({
-                          productId: id,
-                          sourceImageId: r.id,
-                          sourceImageUrl: r.publicUrl || r.originUrl,
-                          imageType: r.imageType,
-                        });
-                        message.success(`评分 ${score.overallScore.toFixed(1)}：${score.suggestion || '已完成'}`);
-                        await reloadDetail();
-                      } catch (e: unknown) {
-                        message.error((e as Error)?.message || '评分失败');
-                      }
-                    },
-                  },
-                ],
-              }}
+          <Space wrap size={[8, 4]} style={{ padding: '4px 0' }}>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_watermark')}>
+              AI 去水印
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_logo')}>
+              AI 去 Logo
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_background')}>
+              AI 去背景
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'generate_marketing')}>
+              AI 营销图
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'score_image')}>
+              AI 评分
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              onClick={() =>
+                openCreateImageTask({
+                  taskType: 'select_best_main',
+                  imageSourceMode: 'product',
+                  sourceImageId: r.id,
+                  sourceImageUrl: (r.publicUrl || r.originUrl || '').trim(),
+                })
+              }
             >
-              <Button type="link" size="small">
-                AI 处理
-              </Button>
-            </Dropdown>
+              设为最佳主图
+            </Button>
             <Button
               type="link"
               size="small"
@@ -909,7 +861,7 @@ export default function ProductDraftDetailPage() {
         ),
       },
     ],
-    [id, reloadDetail, runQuickImageTask],
+    [id, reloadDetail, openQuickImageTask, openCreateImageTask],
   );
 
   const skuColumns = useMemo(
@@ -1248,235 +1200,14 @@ export default function ProductDraftDetailPage() {
                   <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Typography.Text type="secondary">
-                        可选择商品图作为源图；场景图在通义万相 / OpenAI / 火山方舟等服务下可无源图。任务由系统排队处理，结果在{' '}
-                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看。去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI
-                        Image；替换背景推荐 OpenAI Image 或 ComfyUI；高级自定义推荐 ComfyUI。
+                        在下方每张图片旁可一键发起 AI 处理；也可新建任务并选择图片。结果会自动保存到当前存储设置，可在{' '}
+                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看进度。
                       </Typography.Text>
-                      <div style={{ maxWidth: 560 }}>
-                        <Typography.Text strong>{AI_IMAGE_FIELD.prompt.label}</Typography.Text>
-                        <Typography.Text type="secondary">（可选）</Typography.Text>
-                        <Input.TextArea
-                          value={aiImgPrompt}
-                          onChange={(e) => setAiImgPrompt(e.target.value)}
-                          rows={3}
-                          placeholder={AI_IMAGE_FIELD.prompt.placeholder}
-                          style={{ marginTop: 6 }}
-                        />
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {AI_IMAGE_FIELD.prompt.extra}
-                        </Typography.Text>
-                      </div>
-                      <div style={{ maxWidth: 560 }}>
-                        <Typography.Text strong>{AI_IMAGE_FIELD.negativePrompt.label}</Typography.Text>
-                        <Typography.Text type="secondary">
-                          （可选 · {AI_IMAGE_FIELD.negativePrompt.subLabel}）
-                        </Typography.Text>
-                        <div style={{ marginTop: 6, marginBottom: 6 }}>
-                          <Typography.Text type="secondary" style={{ fontSize: 12, marginRight: 8 }}>
-                            {AI_IMAGE_FIELD.negativePrompt.presetsLabel}：
-                          </Typography.Text>
-                          <Space wrap size={[4, 4]}>
-                            {AI_IMAGE_NEGATIVE_PROMPT_PRESETS.map((preset) => (
-                              <Tag
-                                key={preset.value}
-                                style={{ cursor: 'pointer', userSelect: 'none' }}
-                                color={
-                                  aiImgNegPrompt
-                                    .split(/,\s*/)
-                                    .map((part) => part.trim())
-                                    .includes(preset.value)
-                                    ? 'blue'
-                                    : 'default'
-                                }
-                                onClick={() => {
-                                  setAiImgNegPrompt((prev) => {
-                                    const parts = prev
-                                      .split(/,\s*/)
-                                      .map((part) => part.trim())
-                                      .filter(Boolean);
-                                    if (parts.includes(preset.value)) {
-                                      return parts.filter((part) => part !== preset.value).join(', ');
-                                    }
-                                    return [...parts, preset.value].join(', ');
-                                  });
-                                }}
-                              >
-                                {preset.label}
-                              </Tag>
-                            ))}
-                          </Space>
-                        </div>
-                        <Input.TextArea
-                          value={aiImgNegPrompt}
-                          onChange={(e) => setAiImgNegPrompt(e.target.value)}
-                          rows={2}
-                          placeholder={AI_IMAGE_FIELD.negativePrompt.placeholder}
-                        />
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {AI_IMAGE_FIELD.negativePrompt.extra}
-                        </Typography.Text>
-                      </div>
-                      <Space wrap align="start">
-                        <div>
-                          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                            {AI_IMAGE_FIELD.background.label}
-                          </Typography.Text>
-                          <Select
-                            placeholder={AI_IMAGE_FIELD.background.placeholder}
-                            style={{ width: 260 }}
-                            value={aiImgBackground}
-                            onChange={setAiImgBackground}
-                            options={AI_IMAGE_BACKGROUND_PRESETS}
-                            showSearch
-                            optionFilterProp="label"
-                          />
-                        </div>
-                        <div>
-                          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                            {AI_IMAGE_FIELD.style.label}
-                          </Typography.Text>
-                          <Select
-                            placeholder={AI_IMAGE_FIELD.style.placeholder}
-                            style={{ width: 200 }}
-                            value={aiImgStyle}
-                            onChange={setAiImgStyle}
-                            options={AI_IMAGE_STYLE_PRESETS}
-                            showSearch
-                            optionFilterProp="label"
-                          />
-                        </div>
-                        {aiImgTaskType === 'generate_scene' ? (
-                          <div>
-                            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                              {AI_IMAGE_FIELD.scene.label}
-                            </Typography.Text>
-                            <Select
-                              placeholder={AI_IMAGE_FIELD.scene.placeholder}
-                              style={{ width: 200 }}
-                              value={aiImgScene}
-                              onChange={setAiImgScene}
-                              options={AI_IMAGE_SCENE_PRESETS}
-                              showSearch
-                              optionFilterProp="label"
-                            />
-                          </div>
-                        ) : null}
-                      </Space>
-                      <Space wrap align="start">
-                        <Select
-                          placeholder="选择商品图片（可选，换背景/去背景/缩放建议选）"
-                          allowClear
-                          style={{ minWidth: 280 }}
-                          value={aiImgRowId}
-                          onChange={(v) => setAiImgRowId(v)}
-                          options={sortedImages.map((im) => ({
-                            label: `${imageTypeLabel(im.imageType)} · ${(im.publicUrl || im.originUrl || '').slice(0, 48)}${(im.publicUrl || im.originUrl || '').length > 48 ? '…' : ''}`,
-                            value: im.id,
-                          }))}
-                        />
-                        <Select
-                          style={{ minWidth: 200 }}
-                          value={aiImgTaskType}
-                          onChange={(v) => {
-                            setAiImgTaskType(v);
-                            const matched = providersForTask(caps, v);
-                            const first = matched.find((c) => isProviderSelectable(c));
-                            if (v === 'remove_background') {
-                              setAiImgProvider('removebg');
-                            } else if (v === 'generate_scene') {
-                              setAiImgProvider(
-                                first?.provider === 'removebg' ? 'dashscope_image' : first?.provider ?? 'dashscope_image',
-                              );
-                            } else {
-                              setAiImgProvider(first?.provider ?? '');
-                            }
-                          }}
-                          options={[
-                            { label: '去背景', value: 'remove_background' },
-                            { label: '换背景', value: 'replace_background' },
-                            { label: '场景图', value: 'generate_scene' },
-                            {
-                              label: '缩放',
-                              value: 'resize',
-                              disabled: !caps.some(
-                                (c) => isProviderSelectable(c) && c.supportedTasks.includes('resize'),
-                              ),
-                            },
-                          ]}
-                        />
-                        <Select
-                          placeholder="选择图片服务"
-                          style={{ minWidth: 220 }}
-                          value={aiImgProvider}
-                          onChange={(v) => setAiImgProvider(v)}
-                          options={optionsForTask(aiImgTaskType)}
-                        />
-                        <Button
-                          type="primary"
-                          loading={aiImgBusy}
-                          disabled={!aiImgAllowNoSourceImage && !aiImgRowId}
-                          onClick={async () => {
-                            if (!aiImgAllowNoSourceImage && !aiImgRowId) return;
-                            setAiImgBusy(true);
-                            try {
-                              let input: Record<string, unknown> = {};
-                              if (aiImgTaskType === 'resize') {
-                                input = { width: 800, height: 800 };
-                              } else if (aiImgTaskType === 'generate_scene') {
-                                input = {
-                                  prompt: aiImgPrompt.trim(),
-                                  negativePrompt: aiImgNegPrompt.trim(),
-                                  scene: aiImgScene.trim() || DEFAULT_AI_IMAGE_SCENE,
-                                  style: aiImgStyle.trim() || DEFAULT_AI_IMAGE_STYLE,
-                                  size: '1024x1024',
-                                  background: aiImgBackground.trim() || DEFAULT_AI_IMAGE_BACKGROUND,
-                                  platform: 'TikTok Shop',
-                                };
-                              } else if (aiImgTaskType === 'replace_background') {
-                                input = {
-                                  prompt: aiImgPrompt.trim(),
-                                  negativePrompt: aiImgNegPrompt.trim(),
-                                  background: aiImgBackground.trim() || DEFAULT_AI_IMAGE_BACKGROUND,
-                                  style: aiImgStyle.trim() || DEFAULT_AI_IMAGE_STYLE,
-                                  platform: 'TikTok Shop',
-                                  size: '1024x1024',
-                                };
-                              }
-                              const srcRow = aiImgRowId
-                                ? sortedImages.find((im) => im.id === aiImgRowId)
-                                : undefined;
-                              const srcUrl = (srcRow?.publicUrl || srcRow?.originUrl || '').trim();
-                              const task = await createImageTask({
-                                taskType: aiImgTaskType,
-                                ...(aiImgProvider.trim() ? { provider: aiImgProvider.trim() } : {}),
-                                productId: id,
-                                ...(aiImgRowId
-                                  ? {
-                                      sourceImageId: aiImgRowId,
-                                      ...(srcUrl ? { sourceImageUrl: srcUrl } : {}),
-                                    }
-                                  : {}),
-                                input,
-                              });
-                              if (aiImgTaskType === 'replace_background') {
-                                message.success('图片任务已提交，可在 AI 图片任务页查看结果');
-                              } else if (task.status === 'pending' || task.status === 'running') {
-                                message.success('图片任务已提交，正在后台处理');
-                              } else if (task.status === 'success' && task.resultUrl) {
-                                message.success(`已完成：${task.resultUrl}`);
-                              } else {
-                                message.success('图片任务已创建');
-                              }
-                            } catch (e: unknown) {
-                              message.error((e as Error)?.message || '创建失败');
-                            } finally {
-                              setAiImgBusy(false);
-                            }
-                          }}
-                        >
-                          创建图片任务
+                      <Space wrap>
+                        <Button type="primary" onClick={() => openCreateImageTask({})}>
+                          新建图片任务
                         </Button>
-                        <Button href="/ai/image-tasks">查看 AI 图片任务</Button>
+                        <Button href="/ai/image-tasks">查看任务列表</Button>
                       </Space>
                     </Space>
                   </Card>
@@ -2818,6 +2549,15 @@ export default function ProductDraftDetailPage() {
         mode="product"
         productId={id}
         onApplied={() => void reloadDetail()}
+      />
+
+      <CreateImageTaskModal
+        open={createImageOpen}
+        onOpenChange={setCreateImageOpen}
+        prefill={createImagePrefill}
+        fixedProductId={id}
+        productImages={sortedImages}
+        onSuccess={() => void reloadDetail()}
       />
     </PageContainer>
   );

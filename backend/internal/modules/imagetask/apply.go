@@ -159,18 +159,22 @@ func (s *Service) maybeAutoApply(ctx context.Context, task *ImageTask, hints map
 	if s == nil || task == nil || task.ProductID == nil {
 		return
 	}
-	if !autoSaveFromHints(hints) && !autoSetMainFromHints(hints) {
+	if !autoSaveFromHints(hints) && !autoSetMainFromHints(hints) && !autoSetDetailFromHints(hints) {
 		return
 	}
 	mode := "ai_generated"
+	setBest := false
 	if autoSetMainFromHints(hints) {
 		mode = "main"
+		setBest = true
+	} else if autoSetDetailFromHints(hints) {
+		mode = "detail"
 	}
 	_, _ = s.ApplyTaskResult(ctx, ApplyItemOpts{
 		ProductID: *task.ProductID,
 		TaskID:    task.ID,
 		ApplyMode: mode,
-		SetBest:   autoSetMainFromHints(hints),
+		SetBest:   setBest,
 		AdminID:   task.CreatedBy,
 	})
 }
