@@ -1,14 +1,41 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Tag } from 'antd';
+import { Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useRef } from 'react';
+import {
+  OPERATION_LOG_ACTION_OPTIONS,
+  OPERATION_LOG_RESOURCE_OPTIONS,
+  operationLogActionLabel,
+  operationLogResourceLabel,
+} from '@/constants/operationLogs';
 import { fetchOperationLogs, type OperationLogRow } from '@/services/operationLogs';
 
 function statusTag(s: string) {
   const ok = s === 'success';
-  return <Tag color={ok ? 'success' : 'error'}>{s}</Tag>;
+  const label = ok ? '成功' : s === 'failed' ? '失败' : s;
+  return <Tag color={ok ? 'success' : 'error'}>{label}</Tag>;
+}
+
+function mappedCellLabel(label: string, raw?: string) {
+  const text = (label || '—').trim();
+  const key = (raw || '').trim();
+  const content = <Typography.Text>{text}</Typography.Text>;
+  if (!key || text === key) return content;
+  return <Tooltip title={`原始值：${key}`}>{content}</Tooltip>;
+}
+
+function mappedResourceTag(resource?: string) {
+  const key = (resource || '').trim();
+  const label = operationLogResourceLabel(key);
+  const tag = (
+    <Tag bordered={false} color="processing">
+      {label}
+    </Tag>
+  );
+  if (!key || label === key) return tag;
+  return <Tooltip title={`原始值：${key}`}>{tag}</Tooltip>;
 }
 
 export default function OperationLogsPage() {
@@ -31,13 +58,28 @@ export default function OperationLogsPage() {
     {
       title: '操作',
       dataIndex: 'action',
-      width: 132,
+      width: 168,
       ellipsis: true,
+      valueType: 'select',
+      fieldProps: {
+        showSearch: true,
+        optionFilterProp: 'label',
+        options: OPERATION_LOG_ACTION_OPTIONS,
+      },
+      render: (_, row) => mappedCellLabel(operationLogActionLabel(row.action), row.action),
     },
     {
       title: '资源',
       dataIndex: 'resource',
-      width: 112,
+      width: 140,
+      ellipsis: true,
+      valueType: 'select',
+      fieldProps: {
+        showSearch: true,
+        optionFilterProp: 'label',
+        options: OPERATION_LOG_RESOURCE_OPTIONS,
+      },
+      render: (_, row) => mappedResourceTag(row.resource),
     },
     {
       title: '状态',

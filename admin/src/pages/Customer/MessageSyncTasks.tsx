@@ -9,6 +9,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef, useState } from 'react';
 import { CUSTOMER_MESSAGE_SYNC_TASK_STATUS } from '@/constants/status';
+import { PLATFORM_OPTIONS, platformLabel } from '@/constants/userFriendly';
 import {
   getCustomerMessageSyncTask,
   queryCustomerMessageSyncTasks,
@@ -63,9 +64,17 @@ export default function CustomerMessageSyncTasksPage() {
         render: (_, r) => r.shopName || '—',
       },
       {
-        title: 'platform',
+        title: '平台',
         dataIndex: 'platform',
         width: 100,
+        valueType: 'select',
+        fieldProps: {
+          showSearch: true,
+          optionFilterProp: 'label',
+          options: PLATFORM_OPTIONS,
+          allowClear: true,
+        },
+        render: (_, r) => platformLabel(r.platform),
       },
       {
         title: '模式',
@@ -82,7 +91,7 @@ export default function CustomerMessageSyncTasksPage() {
         render: (_, r) => tagFromStatus(r.status),
       },
       {
-        title: 'total',
+        title: '总计',
         dataIndex: 'totalCount',
         width: 72,
         search: false,
@@ -196,7 +205,7 @@ export default function CustomerMessageSyncTasksPage() {
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
-              <Typography.Text type="secondary">({detail.platform})</Typography.Text>
+              <Typography.Text type="secondary">({platformLabel(detail.platform)})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: detail.id }}>
               <Typography.Text strong>taskId：</Typography.Text> {detail.id}

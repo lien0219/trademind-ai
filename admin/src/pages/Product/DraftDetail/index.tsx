@@ -37,16 +37,29 @@ import {
   Upload,
   Table,
   message,
+  Flex,
 } from 'antd';
 import {
-  ArrowUpOutlined,
   DeleteOutlined,
   PlusOutlined,
+  PictureOutlined,
+  RobotOutlined,
+  UnorderedListOutlined,
+  StarOutlined,
+  ThunderboltOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
+import {
+  PRODUCT_IMAGE_OBJECT_KEY_LABEL,
+  PRODUCT_IMAGE_ORIGIN_URL_LABEL,
+  PRODUCT_IMAGE_PUBLIC_URL_LABEL,
+  PRODUCT_IMAGE_SORT_ORDER_LABEL,
+  PRODUCT_IMAGE_URL_LABEL,
+} from '@/constants/userFriendly';
 import { uploadFile } from '@/services/files';
 import {
   applyAiDescription,
@@ -234,8 +247,8 @@ const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) =
 }));
 
 const IMAGE_TYPE_OPTIONS = [
-  { label: '主图 (main)', value: 'main' },
-  { label: '详情图 (detail)', value: 'detail' },
+  { label: '主图', value: 'main' },
+  { label: '详情图', value: 'detail' },
   { label: '规格图', value: 'sku' },
 ];
 
@@ -759,12 +772,12 @@ export default function ProductDraftDetailPage() {
         render: (v) => (typeof v === 'number' ? v.toFixed(1) : '—'),
       },
       {
-        title: 'sortOrder',
+        title: PRODUCT_IMAGE_SORT_ORDER_LABEL,
         dataIndex: 'sortOrder',
         width: 92,
       },
       {
-        title: 'URL',
+        title: PRODUCT_IMAGE_URL_LABEL,
         ellipsis: true,
         render: (_, r) => (
           <Typography.Link href={r.publicUrl || r.originUrl} target="_blank" rel="noreferrer">
@@ -1197,63 +1210,103 @@ export default function ProductDraftDetailPage() {
                       message="拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。"
                     />
                   ) : null}
-                  <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} variant="borderless">
-                    <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                      <Typography.Text type="secondary">
+                  <Card
+                    size="small"
+                    style={{
+                      marginBottom: 16,
+                      background: 'var(--ant-color-fill-alter)',
+                      border: '1px solid var(--ant-color-border-secondary)',
+                    }}
+                    styles={{ body: { padding: '16px 20px' } }}
+                  >
+                    <Flex vertical gap={16}>
+                      <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13, lineHeight: '22px' }}>
                         在下方每张图片旁可一键发起 AI 处理；也可新建任务并选择图片。结果会自动保存到当前存储设置，可在{' '}
                         <Link to="/ai/image-tasks">AI 图片任务</Link> 查看进度。
-                      </Typography.Text>
-                      <Space wrap>
-                        <Button type="primary" onClick={() => openCreateImageTask({})}>
-                          新建图片任务
-                        </Button>
-                        <Button href="/ai/image-tasks">查看任务列表</Button>
-                      </Space>
-                    </Space>
+                      </Typography.Paragraph>
+                      <Flex wrap="wrap" gap={16} align="stretch">
+                        <Flex
+                          vertical
+                          gap={10}
+                          style={{
+                            flex: '1 1 240px',
+                            minWidth: 240,
+                            paddingRight: 16,
+                            borderRight: '1px solid var(--ant-color-border-secondary)',
+                          }}
+                        >
+                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
+                            <PictureOutlined style={{ marginRight: 6 }} />
+                            图片管理
+                          </Typography.Text>
+                          <Space wrap size={[8, 8]}>
+                            <Button
+                              type="primary"
+                              icon={<PlusOutlined />}
+                              onClick={() => {
+                                setLastUpload(null);
+                                setImgEdit(null);
+                                setImgModalOpen(true);
+                              }}
+                            >
+                              添加图片
+                            </Button>
+                            <Tooltip title="按当前列表顺序提交全部图片 ID">
+                              <Button
+                                icon={<SyncOutlined />}
+                                onClick={async () => {
+                                  try {
+                                    const ordered = [...sortedImages].sort(
+                                      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+                                    );
+                                    await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
+                                    message.success('已同步');
+                                    await reloadDetail();
+                                  } catch (e: unknown) {
+                                    message.error((e as Error)?.message || '排序失败');
+                                  }
+                                }}
+                              >
+                                同步顺序
+                              </Button>
+                            </Tooltip>
+                          </Space>
+                        </Flex>
+                        <Flex vertical gap={10} style={{ flex: '2 1 320px', minWidth: 280 }}>
+                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
+                            <RobotOutlined style={{ marginRight: 6 }} />
+                            AI 处理
+                          </Typography.Text>
+                          <Space wrap size={[8, 8]}>
+                            <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
+                              新建图片任务
+                            </Button>
+                            <Link to="/ai/image-tasks">
+                              <Button icon={<UnorderedListOutlined />}>查看任务列表</Button>
+                            </Link>
+                            <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
+                              设为最佳主图
+                            </Button>
+                            <Button
+                              type="primary"
+                              ghost
+                              icon={<ThunderboltOutlined />}
+                              onClick={() => void runSelectBestMain('auto_set')}
+                            >
+                              自动设为主图
+                            </Button>
+                          </Space>
+                        </Flex>
+                      </Flex>
+                    </Flex>
                   </Card>
-                  <Space style={{ marginBottom: 12 }} wrap>
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      onClick={() => {
-                        setLastUpload(null);
-                        setImgEdit(null);
-                        setImgModalOpen(true);
-                      }}
-                    >
-                      添加图片
-                    </Button>
-                    <Tooltip title="按当前顺序提交全部图片 ID">
-                      <Button
-                        icon={<ArrowUpOutlined />}
-                        onClick={async () => {
-                          try {
-                            const ordered = [...sortedImages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-                            await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
-                            message.success('已同步');
-                            await reloadDetail();
-                          } catch (e: unknown) {
-                            message.error((e as Error)?.message || '排序失败');
-                          }
-                        }}
-                      >
-                        同步顺序
-                      </Button>
-                    </Tooltip>
-                  </Space>
                   <ProTable<ProductImageRow>
                     rowKey="id"
                     search={false}
                     options={false}
                     pagination={false}
-                    toolBarRender={() => [
-                      <Button key="select-main" onClick={() => void runSelectBestMain('recommend')}>
-                        设为最佳主图（推荐）
-                      </Button>,
-                      <Button key="auto-main" type="primary" ghost onClick={() => void runSelectBestMain('auto_set')}>
-                        自动设为主图
-                      </Button>,
-                    ]}
+                    headerTitle="图片列表"
+                    toolBarRender={false}
                     dataSource={sortedImages}
                     columns={imageColumns}
                     size="small"
@@ -2123,7 +2176,12 @@ export default function ProductDraftDetailPage() {
         }}
       >
         <ProFormSelect name="imageType" label="图片类型" options={IMAGE_TYPE_OPTIONS} rules={[{ required: true }]} />
-        <ProFormDigit name="sortOrder" label="sortOrder" min={0} fieldProps={{ style: { width: '100%' } }} />
+        <ProFormDigit
+          name="sortOrder"
+          label={PRODUCT_IMAGE_SORT_ORDER_LABEL}
+          min={0}
+          fieldProps={{ style: { width: '100%' } }}
+        />
         {!imgEdit ? (
           <Form.Item label="上传文件（可选）">
             <Upload
@@ -2146,9 +2204,21 @@ export default function ProductDraftDetailPage() {
             </Upload>
           </Form.Item>
         ) : null}
-        <ProFormText name="publicUrl" label="publicUrl" placeholder="https:// 或 /static/…" />
-        <ProFormText name="originUrl" label="originUrl" placeholder="外部原图地址（可选）" />
-        <ProFormText name="objectKey" label="objectKey" placeholder="存储键（可选）" />
+        <ProFormText
+          name="publicUrl"
+          label={PRODUCT_IMAGE_PUBLIC_URL_LABEL}
+          placeholder="https:// 或 /static/…"
+        />
+        <ProFormText
+          name="originUrl"
+          label={PRODUCT_IMAGE_ORIGIN_URL_LABEL}
+          placeholder="外部原图地址（可选）"
+        />
+        <ProFormText
+          name="objectKey"
+          label={PRODUCT_IMAGE_OBJECT_KEY_LABEL}
+          placeholder="存储路径（可选）"
+        />
       </ModalForm>
 
       <Modal

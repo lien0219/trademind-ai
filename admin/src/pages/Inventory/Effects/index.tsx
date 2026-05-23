@@ -1,9 +1,8 @@
 ﻿import { PageContainer, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { Typography } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef } from 'react';
-import { useLocation } from '@umijs/max';
+import { useLocation } from '@umijs/renderer-react';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import { queryGlobalInventoryEffects } from '@/services/inventory';
 
@@ -61,15 +60,12 @@ export default function InventoryEffectsPage() {
 
   return (
     <PageContainer title="订单库存影响">
-      <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        对应表 <Typography.Text code>order_inventory_effects</Typography.Text>：按订单行记录扣库 / 回滚状态。
-      </Typography.Paragraph>
       <ProTable<OrderInventoryEffectRow>
         rowKey="id"
         actionRef={actionRef}
         columns={columns}
         form={{ initialValues: initialSearch }}
-        search={{ defaultCollapsed: false }}
+        search={{ labelWidth: 112, defaultCollapsed: false }}
         pagination={{ pageSize: 20 }}
         request={async (params) => {
           const res = await queryGlobalInventoryEffects({

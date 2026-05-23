@@ -1,9 +1,15 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Button, Collapse, Descriptions, Drawer, Spin, Tag } from 'antd';
+import { Button, Collapse, Descriptions, Drawer, Spin, Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useRef, useState } from 'react';
+import {
+  AI_PROMPT_CODE_OPTIONS,
+  AI_TASK_TYPE_OPTIONS,
+  aiPromptCodeLabel,
+  aiTaskTypeLabel,
+} from '@/constants/aiPrompts';
 import type { AiTaskDetail, AiTaskListRow } from '@/services/aiTasks';
 import { getAiTask, queryAiTasks } from '@/services/aiTasks';
 
@@ -23,6 +29,34 @@ const AI_TASK_STATUS_LABEL: Record<string, { text: string; color?: string }> = {
   failed: { text: '失败', color: 'error' },
 };
 
+function mappedLabelCell(label: string, raw?: string) {
+  const text = (label || '—').trim();
+  const key = (raw || '').trim();
+  if (!key || text === key) {
+    return <Typography.Text>{text}</Typography.Text>;
+  }
+  return (
+    <Tooltip title={`原始值：${key}`}>
+      <Typography.Text>{text}</Typography.Text>
+    </Tooltip>
+  );
+}
+
+function conversationIdCell(row: AiTaskListRow) {
+  const id = (row.conversationId || '').trim();
+  if (id) {
+    return (
+      <Typography.Text copyable={{ text: id }} ellipsis>
+        {id}
+      </Typography.Text>
+    );
+  }
+  return (
+    <Tooltip title="仅「客服回复建议」类任务会关联会话 ID；商品标题/描述优化等任务请查看「商品 ID」">
+      <Typography.Text type="secondary">—</Typography.Text>
+    </Tooltip>
+  );
+}
 function statusTag(status: string) {
   const s = status?.trim() || '';
   const m = AI_TASK_STATUS_LABEL[s];
@@ -91,8 +125,25 @@ export default function AiTasksPage() {
     {
       title: '任务类型',
       dataIndex: 'taskType',
-      width: 200,
+      width: 140,
       ellipsis: true,
+      valueType: 'select',
+      fieldProps: {
+        showSearch: true,
+        optionFilterProp: 'label',
+        options: AI_TASK_TYPE_OPTIONS,
+      },
+      render: (_, row) => {
+        const label = aiTaskTypeLabel(row.taskType);
+        const content = (
+          <Tag bordered={false} color="geekblue">
+            {label}
+          </Tag>
+        );
+        const raw = (row.taskType || '').trim();
+        if (!raw || label === raw) return content;
+        return <Tooltip title={`原始值：${raw}`}>{content}</Tooltip>;
+      },
     },
     {
       title: '状态',
@@ -122,8 +173,15 @@ export default function AiTasksPage() {
     {
       title: '技能模板',
       dataIndex: 'promptCode',
-      width: 200,
+      width: 168,
       ellipsis: true,
+      valueType: 'select',
+      fieldProps: {
+        showSearch: true,
+        optionFilterProp: 'label',
+        options: AI_PROMPT_CODE_OPTIONS,
+      },
+      render: (_, row) => mappedLabelCell(aiPromptCodeLabel(row.promptCode), row.promptCode),
     },
     {
       title: '商品 ID',
@@ -138,6 +196,7 @@ export default function AiTasksPage() {
       width: 280,
       ellipsis: true,
       copyable: true,
+      render: (_, row) => conversationIdCell(row),
     },
     {
       title: '输入量',
@@ -237,12 +296,17 @@ export default function AiTasksPage() {
           <>
             <Descriptions column={1} size="small" bordered style={{ marginBottom: 24 }}>
               <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
-              <Descriptions.Item label="任务类型">{detail.taskType}</Descriptions.Item>
+              <Descriptions.Item label="任务类型">
+                {mappedLabelCell(aiTaskTypeLabel(detail.taskType), detail.taskType)}
+              </Descriptions.Item>
               <Descriptions.Item label="状态">{statusTag(detail.status)}</Descriptions.Item>
               <Descriptions.Item label="AI 服务商">{detail.provider || '—'}</Descriptions.Item>
               <Descriptions.Item label="模型">{detail.model || '—'}</Descriptions.Item>
-              <Descriptions.Item label="技能模板">{detail.promptCode || '—'}</Descriptions.Item>
+              <Descriptions.Item label="技能模板">
+                {mappedLabelCell(aiPromptCodeLabel(detail.promptCode), detail.promptCode)}
+              </Descriptions.Item>
               <Descriptions.Item label="商品 ID">{detail.productId || '—'}</Descriptions.Item>
+              <Descriptions.Item label="会话 ID">{conversationIdCell(detail)}</Descriptions.Item>
               <Descriptions.Item label="创建者">{detail.createdBy || '—'}</Descriptions.Item>
               <Descriptions.Item label="输入 tokens">{detail.tokenInput ?? 0}</Descriptions.Item>
               <Descriptions.Item label="输出 tokens">{detail.tokenOutput ?? 0}</Descriptions.Item>
