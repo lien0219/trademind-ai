@@ -84,7 +84,7 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   );
 }
 
-const TASK_TYPES = IMAGE_TASK_TYPE_OPTIONS.map((t) => ({ label: `${t.label} (${t.value})`, value: t.value }));
+const TASK_TYPES = IMAGE_TASK_TYPE_OPTIONS.map((t) => ({ label: t.label, value: t.value }));
 
 export default function ImageTasksPage() {
   const { caps, optionsForTask } = useImageProviders();

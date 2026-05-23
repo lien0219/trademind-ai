@@ -559,7 +559,7 @@ export default function StorageSettingsPage() {
                 }
                 extra={
                   kind === 's3'
-                    ? '使用 AWS 官方分区时可留空；自定义网关 / MinIO / R2 需填完整 Base URL'
+                    ? '使用 AWS 官方分区时可留空；自定义网关 / MinIO / R2 需填完整接口地址'
                     : '示例 R2: https://<account_id>.r2.cloudflarestorage.com；MinIO: http://127.0.0.1:9000'
                 }
               >

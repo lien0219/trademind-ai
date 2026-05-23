@@ -27,6 +27,7 @@ import {
   providerStatusLabel,
 } from '@/constants/imageProviders';
 import { fetchImageProviders, testImageProvider } from '@/services/imageProviders';
+import { taskTypeLabel } from '@/services/imageTasks';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
@@ -66,7 +67,7 @@ function ProviderMetaTags({ cap }: { cap: ImageProviderCapability }) {
       {cap.status !== 'available' ? <Tag color="default">{providerStatusLabel(cap.status)}</Tag> : null}
       {cap.supportedTasks.map((t) => (
         <Tag key={t} color="geekblue">
-          {t}
+          {taskTypeLabel(t)}
         </Tag>
       ))}
     </Space>
@@ -383,7 +384,7 @@ export default function ImageSettingsPage() {
             </Space>
           </Form.Item>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-            live 测试与真实图片生成可能产生费用；ComfyUI 需自行部署可访问实例。
+            真实调用测试与图片生成可能产生费用；ComfyUI 需自行部署可访问实例。
           </Typography.Paragraph>
         </Form>
       </ProCard>

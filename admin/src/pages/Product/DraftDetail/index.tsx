@@ -1345,7 +1345,7 @@ export default function ProductDraftDetailPage() {
                           ]}
                         />
                         <Select
-                          placeholder="Provider"
+                          placeholder="选择图片服务"
                           style={{ minWidth: 220 }}
                           value={aiImgProvider}
                           onChange={(v) => setAiImgProvider(v)}
