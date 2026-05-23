@@ -1,4 +1,6 @@
+import type { CSSProperties, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
+import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
   EditableProTable,
@@ -35,14 +37,29 @@ import {
   Upload,
   Table,
   message,
+  Flex,
 } from 'antd';
 import {
-  ArrowUpOutlined,
   DeleteOutlined,
   PlusOutlined,
+  PictureOutlined,
+  RobotOutlined,
+  UnorderedListOutlined,
+  StarOutlined,
+  ThunderboltOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
+import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
+import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PRODUCT_STATUS } from '@/constants/status';
+import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
+import {
+  PRODUCT_IMAGE_OBJECT_KEY_LABEL,
+  PRODUCT_IMAGE_ORIGIN_URL_LABEL,
+  PRODUCT_IMAGE_PUBLIC_URL_LABEL,
+  PRODUCT_IMAGE_SORT_ORDER_LABEL,
+  PRODUCT_IMAGE_URL_LABEL,
+} from '@/constants/userFriendly';
 import { uploadFile } from '@/services/files';
 import {
   applyAiDescription,
@@ -57,6 +74,7 @@ import {
   generateDescription,
   optimizeProductTitle,
   reorderProductImages,
+  selectBestMainProductImages,
   updateProduct,
   updateProductImage,
   updateProductSku,
@@ -68,9 +86,6 @@ import {
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
-import { isProviderSelectable, providersForTask } from '@/constants/imageProviders';
-import { useImageProviders } from '@/hooks/useImageProviders';
-import { createImageTask } from '@/services/imageTasks';
 import { Link } from '@umijs/renderer-react';
 import {
   listProductPublications,
@@ -79,6 +94,7 @@ import {
 } from '@/services/productPublish';
 import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
 import PricingApplyModal from '@/components/PricingApplyModal';
+import { CreateImageTaskModal, type CreateImageTaskPrefill } from '@/components/CreateImageTaskModal';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
   adjustSkuStock,
@@ -95,6 +111,28 @@ import {
 function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
   return c === 'available' || c === 'beta';
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  tiktok: 'TikTok',
+  shopee: 'Shopee',
+  lazada: 'Lazada',
+  amazon: 'Amazon',
+  mock: 'Mock',
+};
+
+function platformDisplayName(platform?: string): string {
+  const key = (platform || '').trim().toLowerCase();
+  if (!key) return '—';
+  return PLATFORM_LABELS[key] ?? platform ?? '—';
+}
+
+function inventorySyncCapabilityTag(cap?: string) {
+  if (!cap) return '—';
+  const key = cap.trim().toLowerCase() as keyof typeof PLATFORM_PROVIDER_STATUS;
+  const meta = PLATFORM_PROVIDER_STATUS[key];
+  if (meta) return <Tag color={meta.color}>{meta.text}</Tag>;
+  return <Tag>{cap}</Tag>;
 }
 
 const SKU_BATCH_STOCK_MAX_HINT = 500;
@@ -127,7 +165,7 @@ function collectedAttributesFromRaw(rawData: unknown): Record<string, string> {
   return {};
 }
 
-function customQualityWarningsFromRaw(rawData: unknown): string[] {
+function collectQualityWarningsFromRaw(rawData: unknown): string[] {
   if (!rawData || typeof rawData !== 'object') return [];
   const root = rawData as Record<string, unknown>;
   const raw = root.raw;
@@ -135,6 +173,11 @@ function customQualityWarningsFromRaw(rawData: unknown): string[] {
   const w = (raw as Record<string, unknown>).qualityWarnings;
   if (!Array.isArray(w)) return [];
   return w.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+}
+
+/** @deprecated use collectQualityWarningsFromRaw */
+function customQualityWarningsFromRaw(rawData: unknown): string[] {
+  return collectQualityWarningsFromRaw(rawData);
 }
 
 function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
@@ -146,6 +189,10 @@ function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
   const inner = raw?.raw as Record<string, unknown> | undefined;
   const hasPrice = inner?.productPrice != null;
   return !hasPrice || mainCount <= 1 || skuCount === 0 || attrCount === 0;
+}
+
+function isPinduoduoProduct(data: ProductDetail | null): boolean {
+  return !!data && isPinduoduoSource(data.source);
 }
 
 function formatInventorySyncTaskCreateError(e: unknown): string {
@@ -200,8 +247,8 @@ const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) =
 }));
 
 const IMAGE_TYPE_OPTIONS = [
-  { label: '主图 (main)', value: 'main' },
-  { label: '详情图 (detail)', value: 'detail' },
+  { label: '主图', value: 'main' },
+  { label: '详情图', value: 'detail' },
   { label: '规格图', value: 'sku' },
 ];
 
@@ -218,7 +265,64 @@ function imageTypeLabel(t: string): string {
   if (t === 'main') return '主图';
   if (t === 'detail' || t === 'description') return '详情图';
   if (t === 'sku') return '规格图';
+  if (t === 'marketing') return '营销图';
+  if (t === 'ai_generated') return 'AI 图';
   return t;
+}
+
+const IMAGE_META_TAG_STYLE: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: '20px',
+  padding: '0 6px',
+  borderRadius: 4,
+};
+
+function ProductImageMetaTags({ row }: { row: ProductImageRow }) {
+  const tags: ReactNode[] = [];
+  if (row.isBestMain) {
+    tags.push(
+      <Tag key="best" color="gold" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        最佳主图
+      </Tag>,
+    );
+  }
+  if (row.source === 'ai') {
+    tags.push(
+      <Tag key="ai" color="processing" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        AI 生成
+      </Tag>,
+    );
+  } else if (row.source === 'upload') {
+    tags.push(
+      <Tag key="upload" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        上传
+      </Tag>,
+    );
+  } else if (row.source === 'collect') {
+    tags.push(
+      <Tag key="collect" color="default" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        采集
+      </Tag>,
+    );
+  }
+  if (tags.length === 0) return null;
+  return (
+    <Space size={[6, 4]} wrap style={{ marginTop: 2 }}>
+      {tags}
+    </Space>
+  );
+}
+
+function ProductImageTypeCell({ row }: { row: ProductImageRow }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0' }}>
+      <Typography.Text strong style={{ fontSize: 13, lineHeight: '20px' }}>
+        {imageTypeLabel(String(row.imageType ?? ''))}
+      </Typography.Text>
+      <ProductImageMetaTags row={row} />
+    </div>
+  );
 }
 
 function draftStockStatusTag(raw?: string) {
@@ -310,14 +414,8 @@ export default function ProductDraftDetailPage() {
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
   const [lastUpload, setLastUpload] = useState<{ id: string; url: string; objectKey: string } | null>(null);
-  const [aiImgTaskType, setAiImgTaskType] = useState<string>('resize');
-  const [aiImgRowId, setAiImgRowId] = useState<string>();
-  const [aiImgProvider, setAiImgProvider] = useState<string>('');
-  const [aiImgBusy, setAiImgBusy] = useState(false);
-  const [aiImgPrompt, setAiImgPrompt] = useState<string>('');
-  const [aiImgNegPrompt, setAiImgNegPrompt] = useState<string>('');
-  const [aiImgBackground, setAiImgBackground] = useState<string>('white studio background');
-  const [aiImgStyle, setAiImgStyle] = useState<string>('clean ecommerce');
+  const [createImageOpen, setCreateImageOpen] = useState(false);
+  const [createImagePrefill, setCreateImagePrefill] = useState<CreateImageTaskPrefill>({});
 
   const [pubRows, setPubRows] = useState<ProductPublicationRow[]>([]);
   const [pubCtxLoading, setPubCtxLoading] = useState(false);
@@ -367,30 +465,49 @@ export default function ProductDraftDetailPage() {
     [data?.rawData],
   );
 
-  const customQualityWarnings = useMemo(
-    () => customQualityWarningsFromRaw(data?.rawData),
+  const collectQualityWarnings = useMemo(
+    () => collectQualityWarningsFromRaw(data?.rawData),
     [data?.rawData],
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
 
-  const { caps, optionsForTask } = useImageProviders();
+  const openCreateImageTask = useCallback(
+    (prefill: CreateImageTaskPrefill) => {
+      setCreateImagePrefill({
+        productId: id,
+        ...prefill,
+      });
+      setCreateImageOpen(true);
+    },
+    [id],
+  );
 
-  const aiImgAllowNoSourceImage = useMemo(() => {
-    if (aiImgTaskType !== 'generate_scene') return false;
-    const prov = aiImgProvider.trim().toLowerCase();
-    if (prov === '') {
-      return caps.some(
-        (c) =>
-          isProviderSelectable(c) &&
-          c.supportedTasks.includes('generate_scene') &&
-          ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(
-            c.provider,
-          ),
-      );
-    }
-    return ['openai_image', 'comfyui', 'dashscope_image', 'volcengine_image', 'siliconflow_image'].includes(prov);
-  }, [aiImgTaskType, aiImgProvider, caps]);
+  const openQuickImageTask = useCallback(
+    (image: ProductImageRow, taskType: string, provider?: string) => {
+      openCreateImageTask({
+        taskType,
+        sourceImageId: image.id,
+        sourceImageUrl: (image.publicUrl || image.originUrl || '').trim(),
+        imageSourceMode: 'product',
+        provider: provider ?? (taskType === 'remove_background' ? 'removebg' : ''),
+      });
+    },
+    [openCreateImageTask],
+  );
+
+  const runSelectBestMain = useCallback(
+    async (mode: 'score_only' | 'recommend' | 'auto_set') => {
+      if (!id) return;
+      try {
+        await selectBestMainProductImages(id, { mode });
+        message.success('已提交自动选主图任务');
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '提交失败');
+      }
+    },
+    [id],
+  );
 
   const reloadDetail = useCallback(async () => {
     if (!id) return;
@@ -546,8 +663,18 @@ export default function ProductDraftDetailPage() {
   }, [id, reloadPublicationSkus]);
 
   const sortedImages = useMemo(() => {
+    const typeRank = (t: string) => {
+      if (t === 'main') return 0;
+      if (t === 'sku') return 1;
+      if (t === 'detail' || t === 'description') return 2;
+      return 3;
+    };
     const list = [...(data?.images ?? [])];
-    list.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    list.sort((a, b) => {
+      const tr = typeRank(String(a.imageType ?? '')) - typeRank(String(b.imageType ?? ''));
+      if (tr !== 0) return tr;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
     return list;
   }, [data?.images]);
 
@@ -620,19 +747,37 @@ export default function ProductDraftDetailPage() {
     () => [
       {
         title: '预览',
-        width: 88,
+        width: 96,
         render: (_, r) => (
-          <Image src={r.publicUrl || r.originUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 4 }} />
+          <div style={{ padding: '4px 0' }}>
+            <Image
+              src={r.publicUrl || r.originUrl}
+              width={56}
+              height={56}
+              style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid var(--ant-color-border-secondary)' }}
+            />
+          </div>
         ),
       },
-      { title: '类型', dataIndex: 'imageType', width: 100, render: (v) => imageTypeLabel(String(v ?? '')) },
       {
-        title: 'sortOrder',
+        title: '类型',
+        dataIndex: 'imageType',
+        width: 132,
+        render: (_, r) => <ProductImageTypeCell row={r} />,
+      },
+      {
+        title: '评分',
+        dataIndex: 'score',
+        width: 72,
+        render: (v) => (typeof v === 'number' ? v.toFixed(1) : '—'),
+      },
+      {
+        title: PRODUCT_IMAGE_SORT_ORDER_LABEL,
         dataIndex: 'sortOrder',
         width: 92,
       },
       {
-        title: 'URL',
+        title: PRODUCT_IMAGE_URL_LABEL,
         ellipsis: true,
         render: (_, r) => (
           <Typography.Link href={r.publicUrl || r.originUrl} target="_blank" rel="noreferrer">
@@ -643,9 +788,68 @@ export default function ProductDraftDetailPage() {
       },
       {
         title: '操作',
-        width: 200,
+        width: 520,
         render: (_, r) => (
-          <Space wrap>
+          <Space wrap size={[8, 4]} style={{ padding: '4px 0' }}>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_watermark')}>
+              AI 去水印
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_logo')}>
+              AI 去 Logo
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_background')}>
+              AI 去背景
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'generate_marketing')}>
+              AI 营销图
+            </Button>
+            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'score_image')}>
+              AI 评分
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              onClick={() =>
+                openCreateImageTask({
+                  taskType: 'select_best_main',
+                  imageSourceMode: 'product',
+                  sourceImageId: r.id,
+                  sourceImageUrl: (r.publicUrl || r.originUrl || '').trim(),
+                })
+              }
+            >
+              设为最佳主图
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              onClick={async () => {
+                try {
+                  await updateProductImage(id, r.id, { imageType: 'main', isBestMain: true, sortOrder: 0 });
+                  message.success('已设为主图');
+                  await reloadDetail();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '操作失败');
+                }
+              }}
+            >
+              设为主图
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              onClick={async () => {
+                try {
+                  await updateProductImage(id, r.id, { imageType: 'detail' });
+                  message.success('已设为详情图');
+                  await reloadDetail();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '操作失败');
+                }
+              }}
+            >
+              设为详情图
+            </Button>
             <Button type="link" size="small" onClick={() => setImgEdit(r)}>
               编辑
             </Button>
@@ -670,7 +874,7 @@ export default function ProductDraftDetailPage() {
         ),
       },
     ],
-    [id, reloadDetail],
+    [id, reloadDetail, openQuickImageTask, openCreateImageTask],
   );
 
   const skuColumns = useMemo(
@@ -822,6 +1026,7 @@ export default function ProductDraftDetailPage() {
               label: '基础信息',
               children: (
                 <Card variant="borderless">
+                  {isPinduoduoProduct(data) ? <ProductCollectQualityAlert product={data} /> : null}
                   {showCustomIncompleteHint ? (
                     <Alert
                       type="info"
@@ -830,7 +1035,7 @@ export default function ProductDraftDetailPage() {
                       message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和 SKU 后再发布。"
                     />
                   ) : null}
-                  {customQualityWarnings.length > 0 ? (
+                  {!isPinduoduoProduct(data) && collectQualityWarnings.length > 0 ? (
                     <Alert
                       type="warning"
                       showIcon
@@ -838,7 +1043,7 @@ export default function ProductDraftDetailPage() {
                       message="采集质量提示"
                       description={
                         <ul style={{ margin: 0, paddingLeft: 20 }}>
-                          {customQualityWarnings.map((w) => (
+                          {collectQualityWarnings.map((w) => (
                             <li key={w}>{w}</li>
                           ))}
                         </ul>
@@ -914,7 +1119,7 @@ export default function ProductDraftDetailPage() {
                     <ProFormTextArea name="aiTitle" label="AI 标题" fieldProps={{ rows: 2 }} />
                     <ProFormTextArea name="description" label="主描述" fieldProps={{ rows: 5 }} />
                     <ProFormTextArea name="aiDescription" label="AI 描述" fieldProps={{ rows: 5 }} />
-                    <ProFormText name="currency" label="币种" initialValue="CNY" />
+                    <ProFormText name="currency" label="币种" />
                     <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} />
                   </ProForm>
                 </Card>
@@ -977,7 +1182,7 @@ export default function ProductDraftDetailPage() {
                           title: '时间',
                           dataIndex: 'createdAt',
                           width: 176,
-                          render: (v) => String(v ?? '').replace('T', ' ').slice(0, 19) || '—',
+                          render: (v) => formatDateTime(v as string),
                         },
                       ]}
                       size="small"
@@ -997,194 +1202,111 @@ export default function ProductDraftDetailPage() {
               label: '图片管理',
               children: (
                 <Card variant="borderless">
-                  <Card title="AI 图片任务" size="small" style={{ marginBottom: 16 }} variant="borderless">
-                    <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                      <Typography.Text type="secondary">
-                        可选择商品图作为源图；场景图在通义万相 / OpenAI / 火山方舟等服务下可无源图。任务由系统排队处理，结果在{' '}
-                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看。去背景推荐 remove.bg；场景图推荐通义万相 / OpenAI
-                        Image；替换背景推荐 OpenAI Image 或 ComfyUI；高级自定义推荐 ComfyUI。
-                      </Typography.Text>
-                      <Input.TextArea
-                        value={aiImgPrompt}
-                        onChange={(e) => setAiImgPrompt(e.target.value)}
-                        rows={3}
-                        placeholder="补充说明 / Prompt（可选）"
-                        style={{ maxWidth: 560 }}
-                      />
-                      <Input.TextArea
-                        value={aiImgNegPrompt}
-                        onChange={(e) => setAiImgNegPrompt(e.target.value)}
-                        rows={2}
-                        placeholder="Negative prompt（可选）"
-                        style={{ maxWidth: 560 }}
-                      />
-                      <Space wrap align="start">
-                        <Input
-                          placeholder="背景 / 目标背景"
-                          style={{ width: 260 }}
-                          value={aiImgBackground}
-                          onChange={(e) => setAiImgBackground(e.target.value)}
-                        />
-                        <Input
-                          placeholder="风格 style"
-                          style={{ width: 200 }}
-                          value={aiImgStyle}
-                          onChange={(e) => setAiImgStyle(e.target.value)}
-                        />
-                      </Space>
-                      <Space wrap align="start">
-                        <Select
-                          placeholder="选择商品图片（可选，换背景/去背景/缩放建议选）"
-                          allowClear
-                          style={{ minWidth: 280 }}
-                          value={aiImgRowId}
-                          onChange={(v) => setAiImgRowId(v)}
-                          options={sortedImages.map((im) => ({
-                            label: `${imageTypeLabel(im.imageType)} · ${(im.publicUrl || im.originUrl || '').slice(0, 48)}${(im.publicUrl || im.originUrl || '').length > 48 ? '…' : ''}`,
-                            value: im.id,
-                          }))}
-                        />
-                        <Select
-                          style={{ minWidth: 200 }}
-                          value={aiImgTaskType}
-                          onChange={(v) => {
-                            setAiImgTaskType(v);
-                            const matched = providersForTask(caps, v);
-                            const first = matched.find((c) => isProviderSelectable(c));
-                            if (v === 'remove_background') {
-                              setAiImgProvider('removebg');
-                            } else if (v === 'generate_scene') {
-                              setAiImgProvider(
-                                first?.provider === 'removebg' ? 'dashscope_image' : first?.provider ?? 'dashscope_image',
-                              );
-                            } else {
-                              setAiImgProvider(first?.provider ?? '');
-                            }
-                          }}
-                          options={[
-                            { label: '去背景', value: 'remove_background' },
-                            { label: '换背景', value: 'replace_background' },
-                            { label: '场景图', value: 'generate_scene' },
-                            {
-                              label: '缩放',
-                              value: 'resize',
-                              disabled: !caps.some(
-                                (c) => isProviderSelectable(c) && c.supportedTasks.includes('resize'),
-                              ),
-                            },
-                          ]}
-                        />
-                        <Select
-                          placeholder="Provider"
-                          style={{ minWidth: 220 }}
-                          value={aiImgProvider}
-                          onChange={(v) => setAiImgProvider(v)}
-                          options={optionsForTask(aiImgTaskType)}
-                        />
-                        <Button
-                          type="primary"
-                          loading={aiImgBusy}
-                          disabled={!aiImgAllowNoSourceImage && !aiImgRowId}
-                          onClick={async () => {
-                            if (!aiImgAllowNoSourceImage && !aiImgRowId) return;
-                            setAiImgBusy(true);
-                            try {
-                              let input: Record<string, unknown> = {};
-                              if (aiImgTaskType === 'resize') {
-                                input = { width: 800, height: 800 };
-                              } else if (aiImgTaskType === 'generate_scene') {
-                                input = {
-                                  prompt: aiImgPrompt.trim(),
-                                  negativePrompt: aiImgNegPrompt.trim(),
-                                  scene: 'minimal studio',
-                                  style: aiImgStyle.trim() || 'clean ecommerce',
-                                  size: '1024x1024',
-                                  background: aiImgBackground.trim() || 'white studio background',
-                                  platform: 'TikTok Shop',
-                                };
-                              } else if (aiImgTaskType === 'replace_background') {
-                                input = {
-                                  prompt: aiImgPrompt.trim(),
-                                  negativePrompt: aiImgNegPrompt.trim(),
-                                  background: aiImgBackground.trim() || 'white studio background',
-                                  style: aiImgStyle.trim() || 'clean ecommerce',
-                                  platform: 'TikTok Shop',
-                                  size: '1024x1024',
-                                };
-                              }
-                              const srcRow = aiImgRowId
-                                ? sortedImages.find((im) => im.id === aiImgRowId)
-                                : undefined;
-                              const srcUrl = (srcRow?.publicUrl || srcRow?.originUrl || '').trim();
-                              const task = await createImageTask({
-                                taskType: aiImgTaskType,
-                                ...(aiImgProvider.trim() ? { provider: aiImgProvider.trim() } : {}),
-                                productId: id,
-                                ...(aiImgRowId
-                                  ? {
-                                      sourceImageId: aiImgRowId,
-                                      ...(srcUrl ? { sourceImageUrl: srcUrl } : {}),
-                                    }
-                                  : {}),
-                                input,
-                              });
-                              if (aiImgTaskType === 'replace_background') {
-                                message.success('图片任务已提交，可在 AI 图片任务页查看结果');
-                              } else if (task.status === 'pending' || task.status === 'running') {
-                                message.success('图片任务已提交，正在后台处理');
-                              } else if (task.status === 'success' && task.resultUrl) {
-                                message.success(`已完成：${task.resultUrl}`);
-                              } else {
-                                message.success('图片任务已创建');
-                              }
-                            } catch (e: unknown) {
-                              message.error((e as Error)?.message || '创建失败');
-                            } finally {
-                              setAiImgBusy(false);
-                            }
+                  {isPinduoduoProduct(data) ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      message="拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。"
+                    />
+                  ) : null}
+                  <Card
+                    size="small"
+                    style={{
+                      marginBottom: 16,
+                      background: 'var(--ant-color-fill-alter)',
+                      border: '1px solid var(--ant-color-border-secondary)',
+                    }}
+                    styles={{ body: { padding: '16px 20px' } }}
+                  >
+                    <Flex vertical gap={16}>
+                      <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13, lineHeight: '22px' }}>
+                        在下方每张图片旁可一键发起 AI 处理；也可新建任务并选择图片。结果会自动保存到当前存储设置，可在{' '}
+                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看进度。
+                      </Typography.Paragraph>
+                      <Flex wrap="wrap" gap={16} align="stretch">
+                        <Flex
+                          vertical
+                          gap={10}
+                          style={{
+                            flex: '1 1 240px',
+                            minWidth: 240,
+                            paddingRight: 16,
+                            borderRight: '1px solid var(--ant-color-border-secondary)',
                           }}
                         >
-                          创建图片任务
-                        </Button>
-                        <Button href="/ai/image-tasks">查看 AI 图片任务</Button>
-                      </Space>
-                    </Space>
+                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
+                            <PictureOutlined style={{ marginRight: 6 }} />
+                            图片管理
+                          </Typography.Text>
+                          <Space wrap size={[8, 8]}>
+                            <Button
+                              type="primary"
+                              icon={<PlusOutlined />}
+                              onClick={() => {
+                                setLastUpload(null);
+                                setImgEdit(null);
+                                setImgModalOpen(true);
+                              }}
+                            >
+                              添加图片
+                            </Button>
+                            <Tooltip title="按当前列表顺序提交全部图片 ID">
+                              <Button
+                                icon={<SyncOutlined />}
+                                onClick={async () => {
+                                  try {
+                                    const ordered = [...sortedImages].sort(
+                                      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+                                    );
+                                    await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
+                                    message.success('已同步');
+                                    await reloadDetail();
+                                  } catch (e: unknown) {
+                                    message.error((e as Error)?.message || '排序失败');
+                                  }
+                                }}
+                              >
+                                同步顺序
+                              </Button>
+                            </Tooltip>
+                          </Space>
+                        </Flex>
+                        <Flex vertical gap={10} style={{ flex: '2 1 320px', minWidth: 280 }}>
+                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
+                            <RobotOutlined style={{ marginRight: 6 }} />
+                            AI 处理
+                          </Typography.Text>
+                          <Space wrap size={[8, 8]}>
+                            <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
+                              新建图片任务
+                            </Button>
+                            <Link to="/ai/image-tasks">
+                              <Button icon={<UnorderedListOutlined />}>查看任务列表</Button>
+                            </Link>
+                            <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
+                              设为最佳主图
+                            </Button>
+                            <Button
+                              type="primary"
+                              ghost
+                              icon={<ThunderboltOutlined />}
+                              onClick={() => void runSelectBestMain('auto_set')}
+                            >
+                              自动设为主图
+                            </Button>
+                          </Space>
+                        </Flex>
+                      </Flex>
+                    </Flex>
                   </Card>
-                  <Space style={{ marginBottom: 12 }} wrap>
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      onClick={() => {
-                        setLastUpload(null);
-                        setImgEdit(null);
-                        setImgModalOpen(true);
-                      }}
-                    >
-                      添加图片
-                    </Button>
-                    <Tooltip title="按当前顺序提交全部图片 ID">
-                      <Button
-                        icon={<ArrowUpOutlined />}
-                        onClick={async () => {
-                          try {
-                            const ordered = [...sortedImages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-                            await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
-                            message.success('已同步');
-                            await reloadDetail();
-                          } catch (e: unknown) {
-                            message.error((e as Error)?.message || '排序失败');
-                          }
-                        }}
-                      >
-                        同步顺序
-                      </Button>
-                    </Tooltip>
-                  </Space>
                   <ProTable<ProductImageRow>
                     rowKey="id"
                     search={false}
                     options={false}
                     pagination={false}
+                    headerTitle="图片列表"
+                    toolBarRender={false}
                     dataSource={sortedImages}
                     columns={imageColumns}
                     size="small"
@@ -1197,13 +1319,17 @@ export default function ProductDraftDetailPage() {
               label: '商品规格',
               children: (
                 <Card variant="borderless">
-                  {data.source === 'custom' &&
+                  {(data.source === 'custom' || isPinduoduoProduct(data)) &&
                   (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
                     <Alert
                       type="info"
                       showIcon
                       style={{ marginBottom: 12 }}
-                      message="当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增 SKU。"
+                      message={
+                        isPinduoduoProduct(data)
+                          ? '当前采集结果没有完整商品规格。你可以手动新增 SKU，或等待后续版本增强拼多多规格采集。'
+                          : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增 SKU。'
+                      }
                     />
                   ) : null}
                   <Space style={{ marginBottom: 12 }}>
@@ -1279,33 +1405,29 @@ export default function ProductDraftDetailPage() {
                   <Alert
                     type="info"
                     showIcon
-                    message="手动库存与同步"
+                    style={{ marginBottom: 24 }}
+                    message="库存说明"
                     description={
                       <>
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          本地商品规格库存由系统管理；各平台店铺侧上次同步记录在{' '}
-                          <Typography.Text code>product_publication_skus.stock</Typography.Text>。
-                          当开放平台 <Typography.Text code>inventory_sync</Typography.Text> 为{' '}
-                          <Typography.Text code>available</Typography.Text>/
-                          <Typography.Text code>beta</Typography.Text>
-                          时可创建同步任务：TikTok Shop、Shopee、Lazada、Amazon 已接入真实库存更新 API（测试中 / beta），其中 Amazon 通过 SP-API
-                          Listings Items <Typography.Text code>PATCH</Typography.Text> 更新{' '}
-                          <Typography.Text code>fulfillment_availability</Typography.Text>。
+                          在此调整本地 SKU 库存与预警线；已刊登到各平台的 SKU 可在下方同步到店铺。
+                          仅当平台已开放「库存同步」且映射完整时可发起同步（TikTok、Shopee、Lazada、Amazon 已支持）。
                         </Typography.Paragraph>
-                        <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          异步任务：<Link to="/inventory/alerts">库存预警</Link>
+                        <Typography.Paragraph style={{ marginBottom: 0 }}>
+                          相关入口：
+                          <Link to="/inventory/alerts">库存预警</Link>
                           {' · '}
-                          <Link to="/inventory/sync-tasks">库存同步任务</Link>
+                          <Link to="/inventory/sync-tasks">同步任务</Link>
                           {' · '}
-                          <Link to={`/inventory/logs?productId=${data.id}`}>按商品查库存变更</Link>
+                          <Link to={`/inventory/logs?productId=${data.id}`}>变更记录</Link>
                           {' · '}
-                          <Link to="/inventory/effects">订单扣减影响</Link>
+                          <Link to="/inventory/effects">订单扣减</Link>
                         </Typography.Paragraph>
                       </>
                     }
                   />
 
-                  <Space align="center" style={{ marginBottom: 8 }} wrap>
+                  <Space align="center" style={{ marginBottom: 12 }} wrap>
                     <Typography.Title level={5} style={{ margin: 0 }}>
                       本地规格
                     </Typography.Title>
@@ -1526,7 +1648,7 @@ export default function ProductDraftDetailPage() {
                       onClick={() => {
                         Modal.confirm({
                           title: '批量同步选中刊登 SKU？',
-                          content: `将把本地库存写入同步队列（选中 ${pubSkuSelectedKeys.length} 条）。缺少外部映射或平台 inventory_sync 非 available/beta 的映射将由服务端跳过并计入批次 skipped。`,
+                          content: `将为选中的 ${pubSkuSelectedKeys.length} 条映射创建库存同步任务。缺少平台映射或未开放库存同步能力的条目将自动跳过。`,
                           okText: '创建批次',
                           onOk: async () => {
                             try {
@@ -1553,7 +1675,7 @@ export default function ProductDraftDetailPage() {
                       批量同步到平台
                     </Button>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      勾选表格左侧可选映射；灰色行为缺映射或未开放同步能力。
+                      勾选左侧可选行；不可选项表示缺少平台映射或未开放库存同步。
                     </Typography.Text>
                   </Space>
                   <Spin spinning={pubSkuLoading}>
@@ -1578,7 +1700,7 @@ export default function ProductDraftDetailPage() {
                           ellipsis: true,
                           render: (_, r) => r.shopName || '—',
                         },
-                        { title: '平台', dataIndex: 'platform', width: 108 },
+                        { title: '平台', dataIndex: 'platform', width: 108, render: (v: string) => platformDisplayName(v) },
                         {
                           title: '本地商品规格',
                           ellipsis: true,
@@ -1626,9 +1748,9 @@ export default function ProductDraftDetailPage() {
                           },
                         },
                         {
-                          title: 'inventory_sync',
+                          title: '库存同步',
                           width: 110,
-                          render: (_x, r) => r.inventorySyncCapability || '—',
+                          render: (_x, r) => inventorySyncCapabilityTag(r.inventorySyncCapability),
                         },
                         {
                           title: '操作',
@@ -2054,7 +2176,12 @@ export default function ProductDraftDetailPage() {
         }}
       >
         <ProFormSelect name="imageType" label="图片类型" options={IMAGE_TYPE_OPTIONS} rules={[{ required: true }]} />
-        <ProFormDigit name="sortOrder" label="sortOrder" min={0} fieldProps={{ style: { width: '100%' } }} />
+        <ProFormDigit
+          name="sortOrder"
+          label={PRODUCT_IMAGE_SORT_ORDER_LABEL}
+          min={0}
+          fieldProps={{ style: { width: '100%' } }}
+        />
         {!imgEdit ? (
           <Form.Item label="上传文件（可选）">
             <Upload
@@ -2077,9 +2204,21 @@ export default function ProductDraftDetailPage() {
             </Upload>
           </Form.Item>
         ) : null}
-        <ProFormText name="publicUrl" label="publicUrl" placeholder="https:// 或 /static/…" />
-        <ProFormText name="originUrl" label="originUrl" placeholder="外部原图地址（可选）" />
-        <ProFormText name="objectKey" label="objectKey" placeholder="存储键（可选）" />
+        <ProFormText
+          name="publicUrl"
+          label={PRODUCT_IMAGE_PUBLIC_URL_LABEL}
+          placeholder="https:// 或 /static/…"
+        />
+        <ProFormText
+          name="originUrl"
+          label={PRODUCT_IMAGE_ORIGIN_URL_LABEL}
+          placeholder="外部原图地址（可选）"
+        />
+        <ProFormText
+          name="objectKey"
+          label={PRODUCT_IMAGE_OBJECT_KEY_LABEL}
+          placeholder="存储路径（可选）"
+        />
       </ModalForm>
 
       <Modal
@@ -2293,11 +2432,7 @@ export default function ProductDraftDetailPage() {
                 title: '时间',
                 dataIndex: 'createdAt',
                 width: 168,
-                render: (v: string) => {
-                  if (!v) return '—';
-                  const d = new Date(v);
-                  return Number.isNaN(d.getTime()) ? v : d.toLocaleString();
-                },
+                render: (v: string) => formatDateTime(v),
               },
               { title: '类型', dataIndex: 'changeType', width: 136 },
               { title: '前', width: 56, dataIndex: 'beforeStock' },
@@ -2484,6 +2619,15 @@ export default function ProductDraftDetailPage() {
         mode="product"
         productId={id}
         onApplied={() => void reloadDetail()}
+      />
+
+      <CreateImageTaskModal
+        open={createImageOpen}
+        onOpenChange={setCreateImageOpen}
+        prefill={createImagePrefill}
+        fixedProductId={id}
+        productImages={sortedImages}
+        onSuccess={() => void reloadDetail()}
       />
     </PageContainer>
   );

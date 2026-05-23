@@ -27,6 +27,7 @@ import {
   providerStatusLabel,
 } from '@/constants/imageProviders';
 import { fetchImageProviders, testImageProvider } from '@/services/imageProviders';
+import { taskTypeLabel } from '@/services/imageTasks';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
@@ -66,7 +67,7 @@ function ProviderMetaTags({ cap }: { cap: ImageProviderCapability }) {
       {cap.status !== 'available' ? <Tag color="default">{providerStatusLabel(cap.status)}</Tag> : null}
       {cap.supportedTasks.map((t) => (
         <Tag key={t} color="geekblue">
-          {t}
+          {taskTypeLabel(t)}
         </Tag>
       ))}
     </Space>
@@ -121,8 +122,8 @@ export default function ImageSettingsPage() {
         comfyui_max_poll_seconds: g.comfyui_max_poll_seconds ? Number(g.comfyui_max_poll_seconds) : 180,
         dashscope_image_api_key: g.dashscope_image_api_key || '',
         dashscope_image_base_url: g.dashscope_image_base_url || '',
-        dashscope_image_model: g.dashscope_image_model || 'wanx2.1-t2i-turbo',
-        dashscope_image_size: g.dashscope_image_size || '1024*1024',
+        dashscope_image_model: g.dashscope_image_model || 'wan2.7-image-pro',
+        dashscope_image_size: g.dashscope_image_size || '2K',
         dashscope_image_quality: g.dashscope_image_quality || '',
         volcengine_image_api_key: g.volcengine_image_api_key || '',
         volcengine_image_base_url: g.volcengine_image_base_url || '',
@@ -170,6 +171,20 @@ export default function ImageSettingsPage() {
   }, [caps, scenario]);
 
   const visibleFieldKeys = PROVIDER_FIELD_KEYS[provider || 'noop'] ?? ['timeout_sec'];
+
+  const buildTestSettingsPayload = (values: Record<string, unknown>): Record<string, string> => {
+    const keys = new Set<string>(['provider', 'provider_preset', ...visibleFieldKeys]);
+    const out: Record<string, string> = {};
+    for (const key of keys) {
+      const raw = values[key];
+      if (raw == null) continue;
+      const val = String(raw).trim();
+      if (val === '') continue;
+      if (ENCRYPTED_KEYS.has(key) && val.includes('****')) continue;
+      out[key] = String(raw);
+    }
+    return out;
+  };
 
   const onScenarioPick = (id: ImageScenarioId) => {
     setScenario(id);
@@ -362,14 +377,17 @@ export default function ImageSettingsPage() {
                 onClick={async () => {
                   setTesting(true);
                   try {
+                    const values = await form.validateFields();
                     const res = await testImageProvider({
                       provider: provider || undefined,
                       testMode: 'config_only',
+                      settings: buildTestSettingsPayload(values),
                     });
+                    const latency = res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
                     if (res.ok) {
-                      message.success(res.message || '配置检查通过');
+                      message.success(`${res.message || '配置检查通过'}${latency}`);
                     } else {
-                      message.warning(res.message || '配置不完整');
+                      message.warning(`${res.message || '配置不完整'}${latency}`);
                     }
                   } catch (e: unknown) {
                     message.error((e as Error)?.message || '测试失败');
@@ -383,7 +401,7 @@ export default function ImageSettingsPage() {
             </Space>
           </Form.Item>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-            live 测试与真实图片生成可能产生费用；ComfyUI 需自行部署可访问实例。
+            真实调用测试与图片生成可能产生费用；ComfyUI 需自行部署可访问实例。
           </Typography.Paragraph>
         </Form>
       </ProCard>

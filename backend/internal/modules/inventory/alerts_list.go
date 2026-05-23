@@ -278,7 +278,10 @@ ORDER BY publication_sku_id, created_at DESC
 
 func (s *Service) loadMaxLogTimeBySku(ctx context.Context, skuIDs []uuid.UUID) map[uuid.UUID]time.Time {
 	out := map[uuid.UUID]time.Time{}
-	if len(skuIDs) == 0 {
+	if len(skuIDs) == 0 || s == nil || s.DB == nil {
+		return out
+	}
+	if !s.DB.Migrator().HasColumn(&InventoryChangeLog{}, "product_sku_id") {
 		return out
 	}
 	type row struct {

@@ -5,6 +5,7 @@ import {
   type ProColumns,
 } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
+import { formatDateTime } from '@/utils/formatTime';
 import { Button, Drawer, message, Modal, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -104,7 +105,7 @@ export default function TaskCenterAlertsPage() {
         dataIndex: 'lastSeenAt',
         width: 160,
         search: false,
-        render: (_, r) => dayjs(r.lastSeenAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.lastSeenAt),
       },
       {
         title: '严重等级',
@@ -400,7 +401,7 @@ export default function TaskCenterAlertsPage() {
               title: '时间',
               dataIndex: 'createdAt',
               width: 168,
-              render: (t: string) => (t ? dayjs(t).format('MM-DD HH:mm:ss') : '—'),
+              render: (t: string) => (t ? formatDateTime(t) : '—'),
             },
             { title: '摘要', dataIndex: 'errorMessage', ellipsis: true },
           ]}

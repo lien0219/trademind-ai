@@ -1,4 +1,5 @@
 import { PageContainer, ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import {
   Alert,
@@ -322,7 +323,7 @@ export default function OrderExceptionsPage() {
         dataIndex: 'createdAt',
         search: false,
         width: 156,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '操作',

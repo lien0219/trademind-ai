@@ -49,9 +49,15 @@ export type ProductImageRow = {
   id: string;
   productId: string;
   imageType: string;
+  source?: string;
+  sourceTaskId?: string;
+  originalImageId?: string;
   originUrl: string;
   objectKey?: string;
+  storageKey?: string;
   publicUrl: string;
+  score?: number;
+  isBestMain?: boolean;
   sortOrder: number;
 };
 
@@ -317,6 +323,13 @@ export type AITaskRow = {
 
 export async function fetchProductAITasks(id: string) {
   return getJSON<{ list: AITaskRow[] }>(`/api/v1/products/${id}/ai/tasks`);
+}
+
+export async function selectBestMainProductImages(
+  productId: string,
+  payload?: { mode?: 'score_only' | 'recommend' | 'auto_set' },
+) {
+  return postJSON(`/api/v1/products/${productId}/images/select-best-main`, payload ?? {});
 }
 
 export type ProductSkuSearchHit = {

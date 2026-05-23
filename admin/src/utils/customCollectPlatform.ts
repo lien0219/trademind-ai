@@ -38,10 +38,19 @@ function hostMatchesTaobaoTmall(host: string): boolean {
 }
 
 function hostMatchesPdd(host: string): boolean {
-  if (host === 'pinduoduo.com' || host === 'yangkeduo.com' || host === 'mobile.yangkeduo.com') {
+  if (
+    host === 'pinduoduo.com' ||
+    host === 'yangkeduo.com' ||
+    host === 'mobile.yangkeduo.com' ||
+    host === 'pifa.pinduoduo.com'
+  ) {
     return true;
   }
-  return host.endsWith('.pinduoduo.com') || host.endsWith('.yangkeduo.com');
+  return (
+    host.endsWith('.pinduoduo.com') ||
+    host.endsWith('.yangkeduo.com') ||
+    host.endsWith('.pifa.pinduoduo.com')
+  );
 }
 
 function hostMatchesSheinTemu(host: string): boolean {
@@ -87,11 +96,12 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
 
   if (hostMatchesPdd(host)) {
     return {
-      kind: 'planned',
+      kind: 'blocked',
+      source: 'pinduoduo',
       platformLabel: '拼多多',
       message:
-        '该链接属于暂未开放专用采集器的平台。请先创建采集规则并测试采集效果，再开始采集。',
-      actionLabel: '我知道了',
+        '该链接属于拼多多平台，请使用「拼多多采集器」。专用采集器字段识别更稳定。',
+      actionLabel: '去使用拼多多采集器',
     };
   }
 
@@ -111,7 +121,7 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
 export const CUSTOM_COLLECT_USAGE_LINES = [
   '自定义链接采集适合采基础信息。不同网站结构差异较大，采集结果请先预览确认后再使用。',
   '用于采集没有专用采集器的网站商品页。请先创建采集规则，再开始采集。',
-  '如果是 1688、速卖通等已支持的平台，请优先使用对应的专用采集器，识别更稳定。',
+  '如果是 1688、速卖通、拼多多等已支持的平台，请优先使用对应的专用采集器，识别更稳定。',
   '建议先测试采集效果，确认标题、价格、图片识别正确后再提交采集任务。',
 ] as const;
 

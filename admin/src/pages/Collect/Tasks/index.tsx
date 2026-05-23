@@ -1,9 +1,9 @@
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
-import { Alert, Button, Form, Input, Select, Tag, Typography, message } from 'antd';
-import dayjs from 'dayjs';
+import { Alert, Button, Form, Input, Select, Space, Switch, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
@@ -27,6 +27,8 @@ import {
   ruleMatchesURL,
   suggestRuleDomainForHost,
 } from '@/utils/collectRuleMatch';
+import { PinduoduoLoginPanel } from '@/pages/Collect/components/PinduoduoLoginPanel';
+import { classifyPinduoduoUrl, pinduoduoUrlHint } from '@/utils/pinduoduoUrl';
 
 function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
@@ -45,7 +47,13 @@ export default function CollectTasksPage() {
     return q.get('source')?.trim() ?? '';
   }, [location.search]);
 
+  const statusFromQuery = useMemo(() => {
+    const q = new URLSearchParams(location.search || '');
+    return q.get('status')?.trim() || undefined;
+  }, [location.search]);
+
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
   const [form] = Form.useForm<{ source: string; url: string; ruleId?: string }>();
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(4000);
@@ -56,6 +64,17 @@ export default function CollectTasksPage() {
   const [enabledRules, setEnabledRules] = useState<CollectRuleRow[]>([]);
   const formSource = Form.useWatch('source', form);
   const formUrl = Form.useWatch('url', form);
+  const [pddUseBrowserProfile, setPddUseBrowserProfile] = useState(false);
+  const isPddSource = formSource === 'pinduoduo' || formSource === 'pdd';
+  const pddUrlHint = useMemo(() => {
+    const u = formUrl?.trim();
+    if (!u || !isPddSource) return null;
+    return pinduoduoUrlHint(u);
+  }, [formUrl, isPddSource]);
+  const pddUrlType = useMemo(
+    () => (isPddSource ? classifyPinduoduoUrl(formUrl?.trim() ?? '') : 'unknown'),
+    [formUrl, isPddSource],
+  );
 
   useEffect(() => {
     const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : 4000);
@@ -63,6 +82,12 @@ export default function CollectTasksPage() {
     document.addEventListener('visibilitychange', sync);
     return () => document.removeEventListener('visibilitychange', sync);
   }, []);
+
+  useEffect(() => {
+    if (!statusFromQuery) return;
+    formRef.current?.setFieldsValue?.({ status: statusFromQuery });
+    actionRef.current?.reload?.();
+  }, [statusFromQuery]);
 
   useEffect(() => {
     void (async () => {
@@ -195,7 +220,7 @@ export default function CollectTasksPage() {
       dataIndex: 'nextRetryAt',
       width: 172,
       search: false,
-      render: (_, row) => formatTs(row.nextRetryAt),
+      render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
       title: '商品草稿',
@@ -233,8 +258,8 @@ export default function CollectTasksPage() {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         const hint =
           row.failureHint ||
-          mapCollectorErrorCodeDetail(row.collectorErrorCode) ||
-          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage) : '');
+          mapCollectorErrorCodeDetail(row.collectorErrorCode, row.source) ||
+          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '');
         return hint || '—';
       },
     },
@@ -243,21 +268,21 @@ export default function CollectTasksPage() {
       dataIndex: 'startedAt',
       width: 168,
       search: false,
-      render: (_, row) => formatTs(row.startedAt),
+      render: (_, row) => formatDateTime(row.startedAt),
     },
     {
       title: '结束时间',
       dataIndex: 'finishedAt',
       width: 168,
       search: false,
-      render: (_, row) => formatTs(row.finishedAt),
+      render: (_, row) => formatDateTime(row.finishedAt),
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 168,
       search: false,
-      render: (_, row) => formatTs(row.createdAt),
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
       title: '操作',
@@ -367,11 +392,17 @@ export default function CollectTasksPage() {
                 source: src,
                 url,
                 ...(src === 'custom' ? { ruleId: rid || undefined } : {}),
+                ...(isPddSource
+                  ? {
+                      useBrowserProfile:
+                        pddUseBrowserProfile || pddUrlType === 'wholesale_detail',
+                    }
+                  : {}),
               });
               message.success('采集任务已提交，正在后台处理');
               actionRef.current?.reload();
             } catch (e) {
-              message.error(mapCollectErrorMessage(e));
+              message.error(mapCollectErrorMessage(e, vals.source));
             } finally {
               setSubmitting(false);
             }
@@ -406,6 +437,33 @@ export default function CollectTasksPage() {
           <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
             <Input style={{ width: 480, maxWidth: '100%' }} placeholder={placeholderUrl} />
           </Form.Item>
+          {isPddSource && pddUrlHint ? (
+            <Alert
+              type={
+                pddUrlType === 'goods_detail'
+                  ? 'success'
+                  : pddUrlType === 'wholesale_detail'
+                    ? 'warning'
+                    : 'info'
+              }
+              showIcon
+              message={pddUrlHint}
+              style={{ marginTop: 16, marginBottom: 0, width: '100%' }}
+            />
+          ) : null}
+          {isPddSource ? (
+            <div style={{ width: '100%', marginTop: 16, marginBottom: 12 }}>
+              <PinduoduoLoginPanel loginUrl={formUrl?.trim() || undefined} compact />
+              <Space style={{ marginTop: 16 }}>
+                <Switch
+                  checked={pddUseBrowserProfile || pddUrlType === 'wholesale_detail'}
+                  disabled={pddUrlType === 'wholesale_detail'}
+                  onChange={setPddUseBrowserProfile}
+                />
+                <Typography.Text>使用已登录的采集浏览器</Typography.Text>
+              </Space>
+            </div>
+          ) : null}
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={submitting}>
               提交
@@ -417,6 +475,7 @@ export default function CollectTasksPage() {
       <ProTable<CollectTaskRow>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto' }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
@@ -452,8 +511,3 @@ export default function CollectTasksPage() {
   );
 }
 
-function formatTs(s?: string) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}

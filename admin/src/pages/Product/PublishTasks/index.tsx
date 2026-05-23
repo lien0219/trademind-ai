@@ -3,10 +3,13 @@ import {
   ProTable,
   type ActionType,
   type ProColumns,
+  type ProFormInstance,
 } from '@ant-design/pro-components';
 import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
-import { useMemo, useRef, useState } from 'react';
+import { useLocation } from '@umijs/max';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
   getProductPublishTask,
@@ -22,9 +25,24 @@ function tagFromStatus(raw: string) {
 }
 
 export default function ProductPublishTasksPage() {
+  const location = useLocation();
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
+  const statusFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('status')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductPublishTaskDTO | null>(null);
+
+  useEffect(() => {
+    if (!statusFromUrl) return;
+    formRef.current?.setFieldsValue?.({ status: statusFromUrl });
+    actionRef.current?.reload?.();
+  }, [statusFromUrl]);
 
   const columns: ProColumns<ProductPublishTaskDTO>[] = useMemo(
     () => [
@@ -45,7 +63,7 @@ export default function ProductPublishTasksPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '商品 ID',
@@ -93,14 +111,14 @@ export default function ProductPublishTasksPage() {
         dataIndex: 'startedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.startedAt ? dayjs(r.startedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.startedAt ? formatDateTime(r.startedAt) : '—'),
       },
       {
         title: '结束',
         dataIndex: 'finishedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.finishedAt ? dayjs(r.finishedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.finishedAt ? formatDateTime(r.finishedAt) : '—'),
       },
       {
         title: '错误',
@@ -150,6 +168,7 @@ export default function ProductPublishTasksPage() {
       <ProTable<ProductPublishTaskDTO>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         pagination={{ pageSize: 20, showSizeChanger: true }}

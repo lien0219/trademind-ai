@@ -84,6 +84,7 @@ type normalizedProduct struct {
 	SourceURL         string            `json:"sourceUrl"`
 	Title             string            `json:"title"`
 	Currency          string            `json:"currency"`
+	MainDescription   string            `json:"mainDescription"`
 	MainImages        []string          `json:"mainImages"`
 	DescriptionImages []string          `json:"descriptionImages"`
 	Attributes        json.RawMessage   `json:"attributes"`
@@ -116,6 +117,7 @@ func (n *normalizedProduct) importParams(fullJSON json.RawMessage) product.Impor
 		SourceURL:          strings.TrimSpace(n.SourceURL),
 		Title:              strings.TrimSpace(n.Title),
 		Currency:           strings.TrimSpace(n.Currency),
+		Description:        strings.TrimSpace(n.MainDescription),
 		MainImages:         n.MainImages,
 		DescriptionImages:  n.DescriptionImages,
 		SKUs:               skus,
@@ -285,6 +287,21 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	}
 
 	var collectorOpts map[string]any
+	if isPinduoduoCollectSource(task.Source) {
+		useProfile := isPifaPinduoduoURL(task.SourceURL)
+		if len(task.RequestOptions) > 0 {
+			var snap struct {
+				ProfileKey        string `json:"profileKey,omitempty"`
+				UseBrowserProfile bool   `json:"useBrowserProfile"`
+			}
+			if err := json.Unmarshal(task.RequestOptions, &snap); err == nil {
+				if snap.UseBrowserProfile {
+					useProfile = true
+				}
+			}
+		}
+		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildPinduoduoRequestOptions(ctx, task.SourceURL, useProfile))
+	}
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
 			RuleID            string          `json:"ruleId"`
@@ -354,6 +371,9 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		params, outcome.ProductJSON = normalizeCustomImport(task.Source, norm, outcome.ProductJSON)
 	}
+	if strings.EqualFold(strings.TrimSpace(task.Source), "pinduoduo") || strings.EqualFold(strings.TrimSpace(task.Source), "pdd") {
+		params, outcome.ProductJSON = normalizePinduoduoImport(task.Source, norm, outcome.ProductJSON)
+	}
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
 		s.handleCollectJobError(ctx, task, err)
@@ -398,13 +418,37 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	})
 
 	if s.OpLog != nil {
+		action := "collect.task.success"
+		msg := fmt.Sprintf("product_id=%s", pid.String())
+		if isPinduoduoCollectSource(refreshed.Source) {
+			action = "collect.pinduoduo.single"
+			warnN := 0
+			var wrap struct {
+				Raw struct {
+					Warnings []string `json:"warnings"`
+				} `json:"raw"`
+			}
+			_ = json.Unmarshal(outcome.ProductJSON, &wrap)
+			warnN = len(wrap.Raw.Warnings)
+			if warnN > 0 {
+				_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+					AdminUserID: refreshed.CreatedBy,
+					Action:      "collect.pinduoduo.parse_warning",
+					Resource:    "collect_task",
+					ResourceID:  taskID.String(),
+					Status:      "success",
+					Message:     fmt.Sprintf("source=pinduoduo warningCount=%d productId=%s", warnN, pid.String()),
+				})
+			}
+			msg = fmt.Sprintf("source=pinduoduo success productId=%s warningCount=%d", pid.String(), warnN)
+		}
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: refreshed.CreatedBy,
-			Action:      "collect.task.success",
+			Action:      action,
 			Resource:    "collect_task",
 			ResourceID:  taskID.String(),
 			Status:      "success",
-			Message:     fmt.Sprintf("product_id=%s", pid.String()),
+			Message:     msg,
 		})
 	}
 }
@@ -490,6 +534,8 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 			}
 		}
 		reqOpts = blob
+	} else if isPinduoduoCollectSource(source) {
+		reqOpts = s.buildPinduoduoRequestOptions(c.Request.Context(), url, body.UseBrowserProfile)
 	}
 
 	task := &CollectTask{
@@ -532,12 +578,18 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	})
 
 	if s.OpLog != nil {
+		action := "collect.task.create"
+		msg := "task submitted to queue"
+		if isPinduoduoCollectSource(source) {
+			action = "collect.pinduoduo.single"
+			msg = "source=pinduoduo taskId=" + task.ID.String()
+		}
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "collect.task.create",
+			Action:     action,
 			Resource:   "collect_task",
 			ResourceID: task.ID.String(),
 			Status:     "success",
-			Message:    "task submitted to queue",
+			Message:    msg,
 		})
 	}
 	return s.GetDTO(c, task.ID)

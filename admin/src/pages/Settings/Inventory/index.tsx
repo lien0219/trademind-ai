@@ -1,9 +1,18 @@
-﻿import { InfoCircleOutlined } from '@ant-design/icons';
+﻿import { Link } from '@umijs/renderer-react';
+import { InboxOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, InputNumber, Switch, Typography, message } from 'antd';
+import { Alert, Button, Col, Divider, Form, InputNumber, Row, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  INVENTORY_ALERT_TOGGLES,
+  INVENTORY_ORDER_TOGGLES,
+  INVENTORY_PLATFORM_RATE_LIMITS,
+} from '@/constants/inventorySettings';
+import { INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL } from '@/constants/userFriendly';
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
+
+const { Paragraph, Text } = Typography;
 
 const GROUP = 'inventory';
 
@@ -108,6 +117,40 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
   return rows;
 }
 
+function SettingsToggleCard({
+  name,
+  label,
+  extra,
+  link,
+}: {
+  name: string;
+  label: string;
+  extra: string;
+  link?: { href: string; text: string };
+}) {
+  return (
+    <div className="tm-system-settings__toggle-card">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Text className="tm-system-settings__toggle-label">{label}</Text>
+          <Text type="secondary" className="tm-system-settings__toggle-extra">
+            {extra}
+            {link ? (
+              <>
+                {' '}
+                <Link to={link.href}>{link.text}</Link>
+              </>
+            ) : null}
+          </Text>
+        </div>
+        <Form.Item name={name} valuePropName="checked" style={{ marginBottom: 0, flexShrink: 0 }}>
+          <Switch />
+        </Form.Item>
+      </div>
+    </div>
+  );
+}
+
 export default function InventorySettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -192,175 +235,162 @@ export default function InventorySettingsPage() {
     void load();
   }, [load]);
 
+  const onFinish = async (values: Record<string, unknown>) => {
+    try {
+      await saveSettingsItems(buildPutItems(values));
+      message.success('已保存');
+      await load();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '保存失败');
+    }
+  };
+
   return (
-    <PageContainer title="库存 / 订单">
-      <ProCard bordered style={{ marginBottom: 16 }}>
-        <Alert
-          showIcon
-          type="info"
-          icon={<InfoCircleOutlined />}
-          message="库存策略仅影响本地商品规格库存"
-          description={
-            <>
-              平台订单同步后再按策略尝试扣减本地库存；扣库失败或跳过<strong>不会自动回滚平台侧数据</strong>。
-              审计：<Typography.Link href="/inventory/effects">订单库存影响</Typography.Link>
-              {' · '}
-              <Typography.Link href="/inventory/logs">全局库存流水</Typography.Link>
-              {' · '}
-              <Typography.Link href="/inventory/alerts">库存预警</Typography.Link>。
-            </>
-          }
-        />
-      </ProCard>
-      <ProCard
-        bordered
-        extra={
-          <Button type="link" onClick={load} disabled={loading}>
-            重新加载
-          </Button>
-        }
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          style={{ maxWidth: 640 }}
-          onFinish={async (values) => {
-            try {
-              await saveSettingsItems(buildPutItems(values));
-              message.success('已保存');
-              await load();
-            } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
+    <PageContainer title="库存 / 订单" subTitle="本地库存预警、订单扣减与平台库存同步策略">
+      <div className="tm-system-settings">
+        <ProCard bordered className="tm-system-settings__hero">
+          <div className="tm-system-settings__hero-inner">
+            <div className="tm-system-settings__hero-icon">
+              <InboxOutlined />
+            </div>
+            <div className="tm-system-settings__hero-body">
+              <Typography.Title level={5} className="tm-system-settings__hero-title">
+                本地库存与订单联动
+              </Typography.Title>
+              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
+                策略仅影响本地商品规格库存。平台订单同步后再按规则尝试扣减；扣库失败或跳过不会自动回滚平台侧数据。相关审计：
+                <Link to="/inventory/effects"> 订单库存影响</Link>、
+                <Link to="/inventory/logs"> 库存流水</Link>、
+                <Link to="/inventory/alerts"> 库存预警</Link>。
+              </Paragraph>
+            </div>
+          </div>
+        </ProCard>
+
+        <Form form={form} layout="vertical" onFinish={onFinish}>
+          <ProCard
+            bordered
+            title="库存预警"
+            className="tm-system-settings__panel"
+            extra={
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
+                重新加载
+              </Button>
             }
-          }}
-        >
-          <Alert
-            showIcon
-            type="info"
-            style={{ marginBottom: 16 }}
-            message="库存预警默认值说明"
-            description="下列「默认预警 / 安全线」只影响新创建的商品规格，不会批量改写已有规格；已有规格可在商品详情「库存」或「库存预警」中单条或批量设置。"
-          />
-          <Typography.Title level={5}>库存预警（只读查询策略）</Typography.Title>
-          <Form.Item label="新建商品规格默认预警线" name="default_warning_stock">
-            <InputNumber min={0} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-          <Form.Item label="新建商品规格默认安全线" name="default_safety_stock">
-            <InputNumber min={0} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-          <Form.Item label="启用库存预警能力" name="enable_inventory_alerts" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item label="售罄类预警（out_of_stock）" name="alert_out_of_stock" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item label="提示平台库存与本地不一致" name="alert_platform_stock_mismatch" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            label="平台库存与本地允许差异阈值（大于此值视为不一致；0 表示必须完全一致）"
-            name="platform_stock_mismatch_threshold"
           >
-            <InputNumber min={0} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
+            <Alert
+              showIcon
+              type="info"
+              style={{ marginBottom: 16 }}
+              message="默认值说明"
+              description="「默认预警线 / 安全线」只影响新创建的商品规格，不会批量改写已有规格；已有规格可在商品详情或「库存预警」中单独设置。"
+            />
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item label="新建规格默认预警线" name="default_warning_stock" extra="库存低于此值触发预警">
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="5" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item label="新建规格默认安全线" name="default_safety_stock" extra="0 表示不设置安全库存下限">
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  label="平台库存差异阈值"
+                  name="platform_stock_mismatch_threshold"
+                  tooltip="平台与本地库存差值超过此数视为不一致；0 表示必须完全一致"
+                >
+                  <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Divider plain>预警开关</Divider>
+            <Row gutter={[12, 12]}>
+              {INVENTORY_ALERT_TOGGLES.map((item) => (
+                <Col xs={24} sm={12} lg={8} key={item.name}>
+                  <SettingsToggleCard name={item.name} label={item.label} extra={item.extra} />
+                </Col>
+              ))}
+            </Row>
+          </ProCard>
 
-          <Typography.Title level={5}>订单与库存联动</Typography.Title>
-          <Form.Item label="平台订单入库后自动尝试规格匹配" name="auto_match_order_skus" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Typography.Paragraph type="secondary">
-            系统会按平台规格编码与本地商品规格编码尝试匹配；匹配失败不会导致订单同步失败。详见订单「规格匹配」与{' '}
-            <Typography.Link href="/orders/sku-matches">全局匹配记录</Typography.Link>。
-          </Typography.Paragraph>
+          <ProCard bordered title="订单与库存联动" className="tm-system-settings__panel">
+            <Row gutter={[12, 12]}>
+              {INVENTORY_ORDER_TOGGLES.map((item) => (
+                <Col xs={24} sm={12} lg={8} key={item.name}>
+                  <SettingsToggleCard
+                    name={item.name}
+                    label={item.label}
+                    extra={item.extra}
+                    link={'link' in item ? item.link : undefined}
+                  />
+                </Col>
+              ))}
+            </Row>
+          </ProCard>
 
-          <Form.Item
-            label="平台订单：规格匹配成功后允许自动扣库存（仍需打开「平台同步订单到达后自动扣库存」）"
-            name="auto_deduct_after_sku_match"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Typography.Paragraph type="secondary">
-            默认关闭，避免未核对映射时误扣。打开后仅当平台同步策略允许扣库且订单行已绑定本地商品规格时生效。
-          </Typography.Paragraph>
+          <ProCard bordered title="批量同步与限流" className="tm-system-settings__panel">
+            <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+              控制单次批量任务数量与各平台每分钟请求上限；超限时任务会稍后自动重试。
+            </Paragraph>
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12}>
+                <Form.Item label={INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL} name="inventory_sync_batch_max_size">
+                  <InputNumber min={1} max={5000} style={{ width: '100%' }} placeholder="500" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label="单次批量设置预警线上限"
+                  name="inventory_stock_settings_batch_max_size"
+                  extra="仅限制批量修改预警线 / 安全线，与上方库存同步批量无关"
+                >
+                  <InputNumber min={1} max={5000} style={{ width: '100%' }} placeholder="500" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item label="启用平台节流" name="inventory_sync_platform_rate_limit_enabled" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, next) =>
+                prev.inventory_sync_platform_rate_limit_enabled !== next.inventory_sync_platform_rate_limit_enabled
+              }
+            >
+              {({ getFieldValue }) => {
+                const rateLimitEnabled = !!getFieldValue('inventory_sync_platform_rate_limit_enabled');
+                return (
+                  <>
+                    <Row gutter={[16, 0]}>
+                      {INVENTORY_PLATFORM_RATE_LIMITS.map((item) => (
+                        <Col xs={24} sm={12} md={6} key={item.name}>
+                          <Form.Item label={`${item.label} 每分钟配额`} name={item.name}>
+                            <InputNumber min={1} style={{ width: '100%' }} disabled={!rateLimitEnabled} placeholder="60" />
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                    {!rateLimitEnabled ? (
+                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>
+                        启用平台节流后可配置各平台每分钟配额
+                      </Text>
+                    ) : null}
+                  </>
+                );
+              }}
+            </Form.Item>
+          </ProCard>
 
-          <Form.Item
-            label="手工订单：新建时默认自动扣库存"
-            name="auto_deduct_manual_orders"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Typography.Paragraph type="secondary">
-            与「新建订单」弹窗内的「创建后扣库存」并联：任一为真则创建后会尝试扣减。
-          </Typography.Paragraph>
-
-          <Form.Item label="平台同步订单到达后自动扣库存" name="auto_deduct_platform_orders" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-
-          <Form.Item label="订单取消 / 关闭时尝试自动回滚库存" name="auto_restore_cancelled_orders" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-
-          <Form.Item
-            label="扣库成功后自动创建平台库存同步任务（需已刊登且开启库存同步）"
-            name="inventory_sync_after_deduct"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Typography.Paragraph type="secondary">
-            开启后，本地扣减成功会排队同步到各平台店铺库存（需商品已刊登）。
-          </Typography.Paragraph>
-
-          <Form.Item
-            label="已有成功扣库记录时，仍允许人工绑定未匹配行并再扣（策略校验）"
-            name="allow_manual_sku_bind_after_deduct"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-
-          <Form.Item label="允许本地库存扣成负数" name="allow_negative_stock" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-
-          <Typography.Title level={5}>批量库存同步与频率限制</Typography.Title>
-          <Typography.Paragraph type="secondary">
-            控制单次批量任务数量与各平台每分钟请求上限。超限时任务会稍后自动重试。
-          </Typography.Paragraph>
-          <Form.Item label="单次批量最多创建任务数" name="inventory_sync_batch_max_size">
-            <InputNumber min={1} max={5000} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-          <Form.Item
-            label="单次批量设置预警线最多影响规格数"
-            name="inventory_stock_settings_batch_max_size"
-            extra="仅限制批量修改预警线/安全线；与上方「单次批量库存同步最多创建任务数」无关。"
-          >
-            <InputNumber min={1} max={5000} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-          <Form.Item label="启用平台节流" name="inventory_sync_platform_rate_limit_enabled" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item label="TikTok 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_tiktok">
-            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-          <Form.Item label="Shopee 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_shopee">
-            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-          <Form.Item label="Lazada 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_lazada">
-            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-          <Form.Item label="Amazon 每分钟配额" name="inventory_sync_platform_rate_limit_per_minute_amazon">
-            <InputNumber min={1} style={{ width: '100%', maxWidth: 280 }} />
-          </Form.Item>
-
-          <Button type="primary" htmlType="submit">
-            保存
-          </Button>
+          <ProCard bordered className="tm-system-settings__footer">
+            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
+              保存配置
+            </Button>
+          </ProCard>
         </Form>
-      </ProCard>
+      </div>
     </PageContainer>
   );
 }

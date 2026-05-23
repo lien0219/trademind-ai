@@ -36,7 +36,7 @@ func compatImageKeys(prefix string, m map[string]string) (openaiimage.Options, e
 func dashscopeOpts(m map[string]string) (dashscopeimage.Options, error) {
 	key := strings.TrimSpace(m["dashscope_image_api_key"])
 	if key == "" {
-		return dashscopeimage.Options{}, ErrAPIKeyMissing
+		return dashscopeimage.Options{}, fmt.Errorf("未配置通义万相 API Key")
 	}
 	model := strings.TrimSpace(m["dashscope_image_model"])
 	size := strings.TrimSpace(m["dashscope_image_size"])
@@ -113,9 +113,26 @@ func ValidateSettingsForProvider(provider string, m map[string]string) error {
 	case "ready":
 		return nil
 	case "missing_api_key":
-		return ErrAPIKeyMissing
+		return missingAPIKeyError(provider)
 	default:
 		return ErrConfigIncomplete
+	}
+}
+
+func missingAPIKeyError(provider string) error {
+	switch strings.TrimSpace(strings.ToLower(provider)) {
+	case "dashscope_image":
+		return fmt.Errorf("未配置通义万相 API Key")
+	case "openai_image":
+		return fmt.Errorf("未配置 OpenAI 图片 API Key")
+	case "removebg":
+		return fmt.Errorf("未配置 remove.bg API Key")
+	case "volcengine_image":
+		return fmt.Errorf("未配置火山方舟 API Key")
+	case "siliconflow_image":
+		return fmt.Errorf("未配置硅基流动 API Key")
+	default:
+		return ErrAPIKeyMissing
 	}
 }
 

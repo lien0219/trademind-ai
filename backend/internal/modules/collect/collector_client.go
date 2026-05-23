@@ -513,6 +513,67 @@ func (c *CollectorClient) decodeDataEnvelope(parent context.Context, method, pat
 	return env.Data, nil
 }
 
+func (c *CollectorClient) decodeDataEnvelopeWithBody(
+	parent context.Context,
+	method, path string,
+	body []byte,
+	timeout time.Duration,
+) (json.RawMessage, error) {
+	if c == nil || strings.TrimSpace(c.BaseURL) == "" {
+		return nil, fmt.Errorf("collector client unavailable")
+	}
+	ctx := parent
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var bodyReader io.Reader
+	if len(body) > 0 {
+		bodyReader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, bodyReader)
+	if err != nil {
+		return nil, err
+	}
+	if method == http.MethodPost || method == http.MethodPut {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	client := &http.Client{Timeout: timeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("collector request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("collector read body: %w", err)
+	}
+	var env collectEnvelope
+	if err := json.Unmarshal(respBody, &env); err != nil {
+		return nil, fmt.Errorf("collector invalid json (http %d): %w", resp.StatusCode, err)
+	}
+	if resp.StatusCode != http.StatusOK || !env.OK {
+		msg := "collector returned error"
+		code := "UNKNOWN"
+		if env.Error != nil {
+			if env.Error.Message != "" {
+				msg = env.Error.Message
+			}
+			if env.Error.Code != "" {
+				code = env.Error.Code
+			}
+		}
+		return nil, &CollectorRejectedError{Code: code, Message: msg}
+	}
+	return env.Data, nil
+}
+
 // Get1688AuthStatus calls GET /v1/providers/1688/auth-status.
 func (c *CollectorClient) Get1688AuthStatus(parent context.Context) (*Provider1688AuthStatusDTO, error) {
 	raw, err := c.decodeDataEnvelope(parent, http.MethodGet, "/v1/providers/1688/auth-status", 90*time.Second)
@@ -523,6 +584,7 @@ func (c *CollectorClient) Get1688AuthStatus(parent context.Context) (*Provider16
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, fmt.Errorf("collector parse auth status: %w", err)
 	}
+	out.ProfilePath = ""
 	return &out, nil
 }
 
@@ -536,5 +598,44 @@ func (c *CollectorClient) Open1688LoginBrowser(parent context.Context) (*Provide
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, fmt.Errorf("collector parse open login: %w", err)
 	}
+	out.ProfilePath = ""
+	return &out, nil
+}
+
+// GetPinduoduoAuthStatus calls GET /v1/providers/pinduoduo/auth-status (legacy; prefer CheckPinduoduoLogin).
+func (c *CollectorClient) GetPinduoduoAuthStatus(parent context.Context, checkURL, settingsTestURL string) (*ProviderPinduoduoAuthStatusDTO, error) {
+	return c.CheckPinduoduoLogin(parent, checkURL, settingsTestURL)
+}
+
+// CheckPinduoduoLogin calls POST /v1/providers/pinduoduo/check-login.
+func (c *CollectorClient) CheckPinduoduoLogin(parent context.Context, checkURL, settingsTestURL string) (*ProviderPinduoduoAuthStatusDTO, error) {
+	body, _ := json.Marshal(map[string]string{
+		"url":     strings.TrimSpace(checkURL),
+		"testUrl": strings.TrimSpace(settingsTestURL),
+	})
+	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/pinduoduo/check-login", body, 90*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	var out ProviderPinduoduoAuthStatusDTO
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("collector parse pinduoduo check login: %w", err)
+	}
+	out.ProfilePath = ""
+	return &out, nil
+}
+
+// OpenPinduoduoLoginBrowser calls POST /v1/providers/pinduoduo/open-login-browser.
+func (c *CollectorClient) OpenPinduoduoLoginBrowser(parent context.Context, loginURL string) (*ProviderPinduoduoOpenLoginResultDTO, error) {
+	body, _ := json.Marshal(map[string]string{"url": strings.TrimSpace(loginURL)})
+	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/pinduoduo/open-login-browser", body, 60*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	var out ProviderPinduoduoOpenLoginResultDTO
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("collector parse pinduoduo open login: %w", err)
+	}
+	out.ProfilePath = ""
 	return &out, nil
 }

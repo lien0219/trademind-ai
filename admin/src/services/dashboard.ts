@@ -31,32 +31,70 @@ export type DashboardSummary = {
   failedTaskTotal: number;
   criticalAlertCount: number;
   openAlertCount: number;
-  /** 订单异常工作台：待处理异常总数（与 GET /orders/exceptions 默认视图一致） */
   orderExceptionTotal: number;
-  /** 未匹配 / skipped SKU 行对应异常计数（工作台聚合） */
   skuUnmatchedOrderItems: number;
-  /** 扣库存失败相关订单异常计数（工作台聚合） */
   inventoryDeductFailedOrders: number;
+  /** Workbench compact KPI aliases */
+  draftTotal: number;
+  todayNewProducts: number;
+  missingAiTitle: number;
+  missingAiDescription: number;
+  imageTaskPending: number;
+  imageTaskFailed: number;
+  readinessBlocked: number;
+  publishable: number;
+  published: number;
+  imageProcessedProducts: number;
+  inventoryAlerts: number;
+  orderExceptions: number;
+  collectFailedCount: number;
+  aiTitleCompletedCount: number;
+  aiDescriptionCompletedCount: number;
+  collectedProductsCount: number;
+  aiTextCompletedCount: number;
+  readinessPassedCount: number;
 };
 
 export type DashboardTodo = {
   id: string;
+  key: string;
   title: string;
   count: number;
   severity: string;
+  level: string;
   description: string;
   link: string;
+};
+
+export type DashboardFunnelStep = {
+  key: string;
+  title: string;
+  count: number;
+  link: string;
+  description?: string;
+};
+
+export type DashboardException = {
+  key: string;
+  title: string;
+  count: number;
+  lastOccurredAt?: string;
+  link: string;
+  description: string;
 };
 
 export type DashboardQuickLink = {
   title: string;
   link: string;
+  description?: string;
+  icon?: string;
 };
 
 export type DashboardRecentItem = {
   type: string;
   title: string;
   subtitle?: string;
+  status?: string;
   occurredAt: string;
   link: string;
 };
@@ -64,11 +102,16 @@ export type DashboardRecentItem = {
 export type ProductOperationDashboard = {
   summary: DashboardSummary;
   todos: DashboardTodo[];
+  funnel: DashboardFunnelStep[];
+  exceptions: DashboardException[];
   charts: Record<string, unknown>;
   quickLinks: DashboardQuickLink[];
   recent: {
+    products?: DashboardRecentItem[];
     collectedProducts?: DashboardRecentItem[];
+    aiTasks?: DashboardRecentItem[];
     aiBatches?: DashboardRecentItem[];
+    imageTasks?: DashboardRecentItem[];
     publishTasks?: DashboardRecentItem[];
     inventoryAlerts?: DashboardRecentItem[];
     customerConversations?: DashboardRecentItem[];

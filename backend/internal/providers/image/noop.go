@@ -63,21 +63,10 @@ func (NoopProvider) Resize(ctx context.Context, req ResizeRequest) (*ImageResult
 	}, nil
 }
 
-// Enhance implements Provider — same passthrough as resize.
+// Enhance implements Provider — cleanup/edit tasks must use a real provider.
 func (NoopProvider) Enhance(ctx context.Context, req ImageRequest) (*ImageResult, error) {
-	_ = ctx
-	u := trimURL(req.SourceURL)
-	if u == "" {
-		return nil, errors.New("noop: source url required")
-	}
-	return &ImageResult{
-		PublicURL: u,
-		Meta: map[string]any{
-			"noop":    true,
-			"task":    "enhance",
-			"message": "passthrough source url",
-		},
-	}, nil
+	_, _ = ctx, req
+	return nil, fmt.Errorf("占位演示不支持图片编辑，请在「设置 → 图片 AI」配置通义万相或其他图片服务")
 }
 
 // TranslateImage implements Provider.

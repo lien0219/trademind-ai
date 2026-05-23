@@ -3,6 +3,7 @@ import { history } from '@umijs/max';
 import { Alert, Button, Col, Empty, message, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
+import { PinduoduoCollectModal } from '@/pages/Collect/components/PinduoduoCollectModal';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { queryCollectRules } from '@/services/collectRules';
@@ -11,7 +12,6 @@ import {
   CUSTOM_BATCH_DISABLED_TOOLTIP,
   CUSTOM_COLLECT_CARD_DESCRIPTION,
   CUSTOM_COLLECT_CARD_NOTES,
-  DEDICATED_COLLECT_CARD_NOTES,
 } from '@/utils/customCollectPlatform';
 import {
   collectProviderStatusPresentation,
@@ -28,10 +28,12 @@ const { Paragraph, Title, Text } = Typography;
 
 const DEDICATED_FEATURE_LABEL: Record<string, string> = {
   title: '商品标题',
+  price: '商品价格',
   mainImages: '商品主图',
   descriptionImages: '详情图片',
   attributes: '商品参数',
   skus: '商品规格',
+  stock: '库存（尽力识别）',
 };
 
 function providerRunnableForSingleTask(status: CollectProviderStatus) {
@@ -46,6 +48,9 @@ function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefine
   if (!providerRunnableForSingleTask(p.status)) return '当前版本暂未开放';
   if (!p.batchSupported) {
     if (p.source === 'custom') return CUSTOM_BATCH_DISABLED_TOOLTIP;
+    if (p.source === 'pinduoduo' || p.source === 'pdd') {
+      return '拼多多批量采集会自动限速，建议先少量测试。部分页面可能需要登录或触发验证。';
+    }
     return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
   }
   return undefined;
@@ -57,6 +62,11 @@ function providerCardFeatures(p: CollectProviderRow): string[] {
     if (fromApi.length > 0) return fromApi;
     return [...CUSTOM_COLLECT_DISPLAY_FEATURES];
   }
+  if (p.source === 'pinduoduo' || p.source === 'pdd') {
+    const fromApi = p.features ?? [];
+    if (fromApi.length > 0) return fromApi;
+    return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes', 'skus'];
+  }
   return p.features ?? [];
 }
 
@@ -67,6 +77,13 @@ function featureLabelForProvider(p: CollectProviderRow, feature: string): string
   return DEDICATED_FEATURE_LABEL[feature] ?? feature;
 }
 
+const DEDICATED_HUB_DESCRIPTION: Record<string, string> = {
+  '1688': '采集 1688 商品详情，支持标题、主图、详情图、属性与 SKU。',
+  pinduoduo: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
+  pdd: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
+  aliexpress: '采集速卖通商品详情，支持标题、图片、属性与 SKU（测试中）。',
+};
+
 function providerCardCopy(p: CollectProviderRow): { description: string; notes: string; typeLabel: string; typeHint: string } {
   if (p.source === 'custom') {
     return {
@@ -76,12 +93,14 @@ function providerCardCopy(p: CollectProviderRow): { description: string; notes: 
       typeHint: COLLECT_HUB_TYPE_HINT.custom.summary,
     };
   }
-  const notes = [DEDICATED_COLLECT_CARD_NOTES, p.notes?.trim()].filter(Boolean).join(' ');
+  const key = p.source.toLowerCase();
+  const description = DEDICATED_HUB_DESCRIPTION[key] ?? p.description?.trim() ?? '';
+  const notes = p.notes?.trim() ?? '';
   return {
-    description: p.description,
+    description,
     notes,
     typeLabel: COLLECT_HUB_TYPE_HINT.dedicated.title,
-    typeHint: COLLECT_HUB_TYPE_HINT.dedicated.summary,
+    typeHint: '',
   };
 }
 
@@ -103,6 +122,7 @@ export default function CollectHubPage() {
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [customModalOpen, setCustomModalOpen] = useState(false);
+  const [pddModalOpen, setPddModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +143,7 @@ export default function CollectHubPage() {
   }, []);
 
   const sorted = useMemo(() => {
-    const order = ['1688', 'pdd', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
+    const order = ['1688', 'pinduoduo', 'pdd', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
     return [...providers].sort(
       (a, b) => order.indexOf(a.source) - order.indexOf(b.source) || a.name.localeCompare(b.name),
     );
@@ -183,9 +203,11 @@ export default function CollectHubPage() {
                     <Tag color={tag.color}>{tag.text}</Tag>
                   </Space>
 
-                  <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
-                    {cardCopy.typeHint}
-                  </Paragraph>
+                  {cardCopy.typeHint ? (
+                    <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
+                      {cardCopy.typeHint}
+                    </Paragraph>
+                  ) : null}
 
                   <Paragraph type="secondary" style={{ flex: 1, marginBottom: 12 }}>
                     {cardCopy.description}
@@ -221,6 +243,8 @@ export default function CollectHubPage() {
                         onClick={() => {
                           if (p.source === 'custom') {
                             void openCustomCollectModal(setCustomModalOpen);
+                          } else if (p.source === 'pinduoduo' || p.source === 'pdd') {
+                            setPddModalOpen(true);
                           } else {
                             history.push(`/collect/tasks?source=${encodeURIComponent(p.source)}`);
                           }
@@ -254,6 +278,7 @@ export default function CollectHubPage() {
         </Row>
       )}
       <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} />
+      <PinduoduoCollectModal open={pddModalOpen} onClose={() => setPddModalOpen(false)} />
     </PageContainer>
   );
 }

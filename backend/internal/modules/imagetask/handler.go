@@ -73,7 +73,14 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(body.SourceImageID) == "" && strings.TrimSpace(body.SourceImageURL) == "" {
-		if !(strings.TrimSpace(body.TaskType) == TaskTypeGenerateScene && h.Svc.AllowsGenerateSceneNoSource(c.Request.Context(), body.Provider)) {
+		allowNoSource := strings.TrimSpace(body.TaskType) == TaskTypeGenerateScene && h.Svc.AllowsGenerateSceneNoSource(c.Request.Context(), body.Provider)
+		if !allowNoSource {
+			allowNoSource = strings.TrimSpace(body.TaskType) == TaskTypeSelectBestMain
+		}
+		if !allowNoSource && !RequiresSourceImage(strings.TrimSpace(body.TaskType)) && IsGenerationTaskType(strings.TrimSpace(body.TaskType)) {
+			allowNoSource = true
+		}
+		if !allowNoSource {
 			response.Fail(c, 400, response.CodeBadRequest, "sourceImageId or sourceImageUrl required")
 			return
 		}

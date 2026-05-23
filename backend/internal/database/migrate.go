@@ -48,6 +48,51 @@ func migrateLegacyPublicationSKUColumns(db *gorm.DB) error {
 	return nil
 }
 
+// migrateLegacyInventorySKUColumns renames early GORM typo columns (product_sk_uid / external_sk_uid)
+// and ensures inventory / order SKU linkage columns exist before raw SQL aggregations run.
+func migrateLegacyInventorySKUColumns(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	type spec struct {
+		model     any
+		legacyCol string
+		newCol    string
+	}
+	renames := []spec{
+		{&inventory.InventorySyncTask{}, "product_sk_uid", "product_sku_id"},
+		{&inventory.InventoryChangeLog{}, "product_sk_uid", "product_sku_id"},
+		{&inventory.OrderInventoryEffect{}, "product_sk_uid", "product_sku_id"},
+		{&order.OrderItem{}, "product_sk_uid", "product_sku_id"},
+		{&order.OrderItem{}, "external_sk_uid", "external_sku_id"},
+	}
+	for _, r := range renames {
+		if !db.Migrator().HasTable(r.model) {
+			continue
+		}
+		if db.Migrator().HasColumn(r.model, r.legacyCol) && !db.Migrator().HasColumn(r.model, r.newCol) {
+			if err := db.Migrator().RenameColumn(r.model, r.legacyCol, r.newCol); err != nil {
+				return fmt.Errorf("rename %T.%s -> %s: %w", r.model, r.legacyCol, r.newCol, err)
+			}
+		}
+	}
+	// Ensure current models add any still-missing columns (product_sku_id, external_sku_id, …).
+	return db.AutoMigrate(
+		&inventory.InventorySyncTask{},
+		&inventory.InventoryChangeLog{},
+		&inventory.OrderInventoryEffect{},
+		&order.OrderItem{},
+	)
+}
+
+// migrateLegacyProductTextColumns ensures AI text columns exist on older product tables.
+func migrateLegacyProductTextColumns(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	return db.AutoMigrate(&product.Product{})
+}
+
 // AutoMigrate applies schema for core foundation tables.
 func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
@@ -56,12 +101,19 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateLegacyPublicationSKUColumns(db); err != nil {
 		return err
 	}
+	if err := migrateLegacyInventorySKUColumns(db); err != nil {
+		return err
+	}
+	if err := migrateLegacyProductTextColumns(db); err != nil {
+		return err
+	}
 	return db.AutoMigrate(
 		&admin.AdminUser{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
 		&files.FileRecord{},
 		&imagetask.ImageTask{},
+		&imagetask.ImageTaskItem{},
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},

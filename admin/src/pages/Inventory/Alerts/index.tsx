@@ -20,10 +20,14 @@ import {
   Typography,
   message,
 } from 'antd';
-import dayjs from 'dayjs';
+import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  INVENTORY_SYNC_BATCHES_LABEL,
+  INVENTORY_SYNC_TASKS_LABEL,
+} from '@/constants/userFriendly';
 import {
   adjustSkuStock,
   batchUpdateStockSettings,
@@ -346,7 +350,7 @@ export default function InventoryAlertsPage() {
         width: 156,
         search: false,
         render: (_, r) =>
-          r.lastInventoryChangeAt ? dayjs(r.lastInventoryChangeAt).format('YYYY-MM-DD HH:mm') : '—',
+          r.lastInventoryChangeAt ? formatDateTime(r.lastInventoryChangeAt) : '—',
       },
       {
         title: '操作',
@@ -397,9 +401,9 @@ export default function InventoryAlertsPage() {
     <PageContainer title="库存预警">
       <Typography.Paragraph type="secondary">
         仅查询与提醒，不自动改平台库存；推送仍走{' '}
-        <Typography.Text code>inventory_sync_tasks</Typography.Text>
+        <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
         （可勾选 SKU 行后批量创建{' '}
-        <Typography.Link href="/inventory/sync-batches">同步批次</Typography.Link>
+        <Link to="/inventory/sync-batches">{INVENTORY_SYNC_BATCHES_LABEL}</Link>
         ）。
       </Typography.Paragraph>
       <ProTable<InventoryAlertRow>

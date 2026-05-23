@@ -1,4 +1,5 @@
 import { Link } from '@umijs/renderer-react';
+import { formatDateTime } from '@/utils/formatTime';
 import {
   Collapse,
   Descriptions,
@@ -10,7 +11,6 @@ import {
   Typography,
   message,
 } from 'antd';
-import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import {
@@ -30,11 +30,6 @@ export type CollectTaskEventDrawerProps = {
   onClose: () => void;
 };
 
-function fmtTime(s?: string | null) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}
 
 function eventTagColor(ev: string): string | undefined {
   switch (ev) {
@@ -137,7 +132,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
             </Descriptions.Item>
             <Descriptions.Item label="自动重试">
               {(task.retryCount ?? 0).toString()}/{task.maxRetries ?? '—'} · 下次{' '}
-              <Typography.Text type="secondary">{fmtTime(task.nextRetryAt)}</Typography.Text>
+              <Typography.Text type="secondary">{formatDateTime(task.nextRetryAt)}</Typography.Text>
             </Descriptions.Item>
             <Descriptions.Item label="当前错误">
               {task.errorMessage ? (
@@ -196,7 +191,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                   <div>
                     <Space wrap align="center" style={{ marginBottom: 6 }}>
                       <Typography.Text strong type="secondary">
-                        {fmtTime(ev.createdAt)}
+                        {formatDateTime(ev.createdAt)}
                       </Typography.Text>
                       <Tag color={eventTagColor(ev.eventType)}>{ev.eventType}</Tag>
                       <Typography.Text type="secondary">
@@ -209,7 +204,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                     {(ev.retryCount != null || ev.maxRetries != null || ev.nextRetryAt) && (
                       <Typography.Paragraph type="secondary" style={{ marginBottom: 4, fontSize: 12 }}>
                         重试 {ev.retryCount ?? '—'} / {ev.maxRetries ?? '—'}
-                        {ev.nextRetryAt ? ` · next ${fmtTime(ev.nextRetryAt)}` : ''}
+                        {ev.nextRetryAt ? ` · next ${formatDateTime(ev.nextRetryAt)}` : ''}
                       </Typography.Paragraph>
                     )}
                     {ev.errorMessage ? (

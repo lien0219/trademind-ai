@@ -1,9 +1,9 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { history, useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select, Typography } from 'antd';
-import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
@@ -176,7 +176,7 @@ export default function CollectBatchesPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, row) => formatTs(row.createdAt),
+        render: (_, row) => formatDateTime(row.createdAt),
       },
       {
         title: '采集器',
@@ -305,7 +305,7 @@ export default function CollectBatchesPage() {
       dataIndex: 'nextRetryAt',
       width: 156,
       search: false,
-      render: (_, row) => formatTs(row.nextRetryAt),
+      render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
       title: '商品草稿',
@@ -617,8 +617,3 @@ export default function CollectBatchesPage() {
   );
 }
 
-function formatTs(s?: string) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}

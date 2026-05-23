@@ -5,10 +5,15 @@ import {
   type ProColumns,
 } from '@ant-design/pro-components';
 import { Button, Drawer, Popconfirm, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
+import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { history } from '@umijs/max';
 import { useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import {
+  INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL,
+  platformLabel,
+} from '@/constants/userFriendly';
 import {
   getInventorySyncBatch,
   queryInventorySyncBatchTasks,
@@ -83,7 +88,7 @@ export default function InventorySyncBatchesPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '批次号',
@@ -107,9 +112,10 @@ export default function InventorySyncBatchesPage() {
         valueEnum: Object.fromEntries(Object.entries(SOURCE_LABEL).map(([k, v]) => [k, { text: v }])),
       },
       {
-        title: 'platform',
+        title: '平台',
         dataIndex: 'platform',
         width: 96,
+        render: (_, r) => platformLabel(r.platform),
       },
       {
         title: '店铺 ID',
@@ -226,9 +232,9 @@ export default function InventorySyncBatchesPage() {
         dataIndex: 'createdAt',
         width: 156,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
-      { title: 'platform', dataIndex: 'platform', width: 88 },
+      { title: '平台', dataIndex: 'platform', width: 88, render: (_, r) => platformLabel(r.platform) },
       { title: '店铺', dataIndex: 'shopName', width: 120, ellipsis: true, render: (_, r) => r.shopName || '—' },
       { title: 'SKU', dataIndex: 'skuCode', width: 112, ellipsis: true, render: (_, r) => r.skuCode || '—' },
       {
@@ -254,7 +260,7 @@ export default function InventorySyncBatchesPage() {
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         批量创建的库存同步任务会归入批次；Worker 完成后按任务聚合回写批次统计。单次创建上限见{' '}
         <Typography.Link href="/settings/inventory">设置 · 库存 / 订单</Typography.Link>
-        （<Typography.Text code>inventory_sync_batch_max_size</Typography.Text>）。
+        中的「{INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL}」。
       </Typography.Paragraph>
       <ProTable<InventorySyncBatchDTO>
         rowKey="id"
@@ -307,7 +313,7 @@ export default function InventorySyncBatchesPage() {
                       <Space wrap>
                         {batchStatusTag(drawerBatch.status)}
                         <Tag>{SOURCE_LABEL[drawerBatch.source] || drawerBatch.source}</Tag>
-                        {drawerBatch.platform ? <Tag>{drawerBatch.platform}</Tag> : null}
+                        {drawerBatch.platform ? <Tag>{platformLabel(drawerBatch.platform)}</Tag> : null}
                       </Space>
                       <Typography.Paragraph style={{ marginBottom: 0 }}>
                         <Typography.Text strong>计数：</Typography.Text> 总计 {drawerBatch.totalCount} · 待处理{' '}
@@ -346,7 +352,12 @@ export default function InventorySyncBatchesPage() {
                             width: 96,
                             render: (v: string) => taskTagFromStatus(v),
                           },
-                          { title: 'platform', dataIndex: 'platform', width: 88 },
+                          {
+                            title: '平台',
+                            dataIndex: 'platform',
+                            width: 88,
+                            render: (_: unknown, row: InventorySyncTaskDTO) => platformLabel(row.platform),
+                          },
                           {
                             title: 'SKU',
                             dataIndex: 'skuCode',

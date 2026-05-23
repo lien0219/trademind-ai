@@ -1,8 +1,9 @@
 ﻿import { PageContainer, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { Tag, Typography } from 'antd';
+import { Tag } from 'antd';
+import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef } from 'react';
-import { useLocation } from '@umijs/max';
+import { useLocation } from '@umijs/renderer-react';
 import type { InventoryChangeLogRow } from '@/services/inventory';
 import { queryGlobalInventoryLogs } from '@/services/inventory';
 
@@ -47,7 +48,7 @@ export default function InventoryLogsPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       { title: '商品 ID', dataIndex: 'productId', hideInTable: true },
       { title: 'SKU ID', dataIndex: 'productSkuId', hideInTable: true },
@@ -116,9 +117,6 @@ export default function InventoryLogsPage() {
 
   return (
     <PageContainer title="库存流水">
-      <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        记录本地商品规格库存的手动调整、订单扣减、回滚与平台同步产生的变更。
-      </Typography.Paragraph>
       <ProTable<InventoryChangeLogRow>
         rowKey="id"
         actionRef={actionRef}

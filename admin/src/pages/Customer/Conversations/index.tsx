@@ -6,11 +6,13 @@ import {
   ProFormText,
 } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
+import { PLATFORM_OPTIONS, platformLabel } from '@/constants/userFriendly';
 import {
   createConversation,
   queryConversations,
@@ -31,7 +33,7 @@ export default function CustomerConversationsPage() {
         const res = await queryShops({ page: 1, pageSize: 500 });
         setShopOptions(
           res.list.map((s) => ({
-            label: `${s.shopName} (${s.platform})`,
+            label: `${s.shopName} (${platformLabel(s.platform)})`,
             value: s.id,
           })),
         );
@@ -61,12 +63,20 @@ export default function CustomerConversationsPage() {
       width: 172,
       search: false,
       valueType: 'dateTime',
+      render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: 'platform',
+      title: '平台',
       dataIndex: 'platform',
       width: 120,
-      valueType: 'text',
+      valueType: 'select',
+      fieldProps: {
+        showSearch: true,
+        optionFilterProp: 'label',
+        options: PLATFORM_OPTIONS,
+        allowClear: true,
+      },
+      render: (_, row) => platformLabel(row.platform),
     },
     {
       title: '店铺',
@@ -78,7 +88,7 @@ export default function CustomerConversationsPage() {
         row.shopName ? (
           <span>
             {row.shopName}
-            {row.shopPlatform ? ` / ${row.shopPlatform}` : ''}
+            {row.shopPlatform ? ` / ${platformLabel(row.shopPlatform)}` : ''}
           </span>
         ) : (
           '—'
@@ -121,6 +131,7 @@ export default function CustomerConversationsPage() {
       width: 172,
       search: false,
       valueType: 'dateTime',
+      render: (_, row) => formatDateTime(row.lastMessageAt),
     },
     {
       title: '操作',
@@ -237,11 +248,12 @@ export default function CustomerConversationsPage() {
           return true;
         }}
       >
-        <ProFormText
+        <ProFormSelect
           name="platform"
-          label="platform"
+          label="平台"
           initialValue="manual"
-          placeholder="默认 manual"
+          options={PLATFORM_OPTIONS}
+          fieldProps={{ showSearch: true, optionFilterProp: 'label' }}
         />
         <ProFormSelect
           name="shopId"

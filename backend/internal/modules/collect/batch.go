@@ -180,6 +180,9 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	if err := s.ValidateSourceForCollect(ctx, source, true); err != nil {
 		return zero, err
 	}
+	if isPinduoduoCollectSource(source) && !s.pinduoduoBatchEnabled(ctx) {
+		return zero, fmt.Errorf("pinduoduo batch collect is disabled in settings")
+	}
 	urls, err := normalizeDedupeURLs(body.URLs, s.batchMaxURLs())
 	if err != nil {
 		return zero, err
@@ -208,7 +211,8 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		taskIDs = make([]uuid.UUID, 0, len(urls))
 		batchPolicy := s.batchPolicyForSource(ctx, source)
 		maxRetries := s.defaultMaxRetriesForNewTask()
-		if strings.EqualFold(strings.TrimSpace(source), "1688") && batchPolicy.MaxRetries > 0 {
+		if (strings.EqualFold(strings.TrimSpace(source), "1688") || isPinduoduoCollectSource(source)) &&
+			batchPolicy.MaxRetries > 0 {
 			maxRetries = batchPolicy.MaxRetries
 		}
 		for _, u := range urls {
@@ -263,12 +267,16 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	}
 
 	if s.OpLog != nil {
+		action := "collect.batch.create"
+		if isPinduoduoCollectSource(source) {
+			action = "collect.pinduoduo.batch"
+		}
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "collect.batch.create",
+			Action:     action,
 			Resource:   "collect_batch",
 			ResourceID: batch.ID.String(),
 			Status:     "success",
-			Message:    fmt.Sprintf("task_count=%d", len(taskIDs)),
+			Message:    fmt.Sprintf("source=%s task_count=%d", source, len(taskIDs)),
 		})
 	}
 

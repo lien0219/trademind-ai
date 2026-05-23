@@ -5,9 +5,11 @@ import {
   type ProColumns,
 } from '@ant-design/pro-components';
 import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef, useState } from 'react';
 import { CUSTOMER_MESSAGE_SYNC_TASK_STATUS } from '@/constants/status';
+import { PLATFORM_OPTIONS, platformLabel } from '@/constants/userFriendly';
 import {
   getCustomerMessageSyncTask,
   queryCustomerMessageSyncTasks,
@@ -45,7 +47,7 @@ export default function CustomerMessageSyncTasksPage() {
         dataIndex: 'createdAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.createdAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.createdAt),
       },
       {
         title: '店铺 ID',
@@ -62,9 +64,17 @@ export default function CustomerMessageSyncTasksPage() {
         render: (_, r) => r.shopName || '—',
       },
       {
-        title: 'platform',
+        title: '平台',
         dataIndex: 'platform',
         width: 100,
+        valueType: 'select',
+        fieldProps: {
+          showSearch: true,
+          optionFilterProp: 'label',
+          options: PLATFORM_OPTIONS,
+          allowClear: true,
+        },
+        render: (_, r) => platformLabel(r.platform),
       },
       {
         title: '模式',
@@ -81,7 +91,7 @@ export default function CustomerMessageSyncTasksPage() {
         render: (_, r) => tagFromStatus(r.status),
       },
       {
-        title: 'total',
+        title: '总计',
         dataIndex: 'totalCount',
         width: 72,
         search: false,
@@ -103,14 +113,14 @@ export default function CustomerMessageSyncTasksPage() {
         dataIndex: 'startedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.startedAt ? dayjs(r.startedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.startedAt ? formatDateTime(r.startedAt) : '—'),
       },
       {
         title: '结束',
         dataIndex: 'finishedAt',
         width: 156,
         search: false,
-        render: (_, r) => (r.finishedAt ? dayjs(r.finishedAt).format('YYYY-MM-DD HH:mm:ss') : '—'),
+        render: (_, r) => (r.finishedAt ? formatDateTime(r.finishedAt) : '—'),
       },
       {
         title: '错误',
@@ -195,7 +205,7 @@ export default function CustomerMessageSyncTasksPage() {
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
-              <Typography.Text type="secondary">({detail.platform})</Typography.Text>
+              <Typography.Text type="secondary">({platformLabel(detail.platform)})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: detail.id }}>
               <Typography.Text strong>taskId：</Typography.Text> {detail.id}

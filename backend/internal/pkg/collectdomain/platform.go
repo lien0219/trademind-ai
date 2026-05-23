@@ -12,7 +12,7 @@ const (
 	Platform1688        PlatformID = "1688"
 	PlatformAliExpress  PlatformID = "aliexpress"
 	PlatformTaobaoTmall PlatformID = "taobao"
-	PlatformPdd         PlatformID = "pdd"
+	PlatformPdd         PlatformID = "pinduoduo"
 	PlatformSheinTemu   PlatformID = "shein_temu"
 )
 
@@ -49,10 +49,12 @@ func hostMatchesTaobaoTmall(host string) bool {
 
 func hostMatchesPdd(host string) bool {
 	switch host {
-	case "pinduoduo.com", "yangkeduo.com", "mobile.yangkeduo.com":
+	case "pinduoduo.com", "yangkeduo.com", "mobile.yangkeduo.com", "pifa.pinduoduo.com":
 		return true
 	}
-	return strings.HasSuffix(host, ".pinduoduo.com") || strings.HasSuffix(host, ".yangkeduo.com")
+	return strings.HasSuffix(host, ".pinduoduo.com") ||
+		strings.HasSuffix(host, ".yangkeduo.com") ||
+		strings.HasSuffix(host, ".pifa.pinduoduo.com")
 }
 
 func hostMatchesSheinTemu(host string) bool {

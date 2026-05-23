@@ -1,4 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import {
   Button,
@@ -27,6 +28,9 @@ const OP_LABEL: Record<string, string> = {
   image_remove_background: '批量去背景',
   image_generate_scene: '批量场景图',
   image_replace_background: '批量换背景',
+  image_batch_generate_main: '批量主图生成',
+  image_score: '批量图片评分',
+  image_select_best_main: '批量自动选主图',
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -52,7 +56,8 @@ export default function AiBatchesPage() {
   const [tasksKind, setTasksKind] = useState<string>('');
 
   const columns: ProColumns<AIOperationBatchRow>[] = [
-    { title: '创建时间', dataIndex: 'createdAt', width: 176, valueType: 'dateTime', search: false },
+    { title: '创建时间', dataIndex: 'createdAt', width: 176, valueType: 'dateTime',
+      render: (_, row) => formatDateTime(row.createdAt), search: false },
     { title: '批次号', dataIndex: 'batchNo', width: 140, ellipsis: true, copyable: true, search: false },
     {
       title: '类型',

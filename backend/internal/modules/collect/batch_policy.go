@@ -65,6 +65,9 @@ func (s *Service) env1688BatchPolicy() BatchSourcePolicy {
 
 func (s *Service) batchPolicyForSource(ctx context.Context, source string) BatchSourcePolicy {
 	src := strings.TrimSpace(source)
+	if isPinduoduoCollectSource(src) {
+		return s.pinduoduoBatchPolicyFromSettings(ctx)
+	}
 	if !strings.EqualFold(src, "1688") {
 		return BatchSourcePolicy{Source: src}
 	}

@@ -1,8 +1,8 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Col, Row, Space, Statistic, Tag, Typography } from 'antd';
-import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import {
   TASK_CENTER_TASK_TYPE_LABEL,
@@ -36,11 +36,6 @@ const LEASE_SECTIONS: {
   { title: '库存同步', dataKey: 'inventorySync' },
 ];
 
-function formatTs(s?: string) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}
 
 function statusTag(eff: string | undefined, raw: string) {
   const v = (eff || raw || '').trim().toLowerCase();
@@ -152,13 +147,13 @@ export default function WorkersMonitorPage() {
         title: '最近心跳',
         dataIndex: 'lastHeartbeatAt',
         width: 172,
-        render: (_, row) => formatTs(row.lastHeartbeatAt),
+        render: (_, row) => formatDateTime(row.lastHeartbeatAt),
       },
       {
         title: '启动时间',
         dataIndex: 'startedAt',
         width: 172,
-        render: (_, row) => formatTs(row.startedAt),
+        render: (_, row) => formatDateTime(row.startedAt),
       },
     ],
     [],
@@ -172,13 +167,13 @@ export default function WorkersMonitorPage() {
       title: '执行截止',
       dataIndex: 'lockedUntil',
       width: 172,
-      render: (_, r) => formatTs(r.lockedUntil || undefined),
+      render: (_, r) => formatDateTime(r.lockedUntil || undefined),
     },
     {
       title: '更新时间',
       dataIndex: 'updatedAt',
       width: 172,
-      render: (_, r) => formatTs(r.updatedAt),
+      render: (_, r) => formatDateTime(r.updatedAt),
     },
   ];
 

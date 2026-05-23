@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -457,8 +458,26 @@ func (p dashscopeImageProvider) RemoveBackground(ctx context.Context, req ImageR
 }
 
 func (p dashscopeImageProvider) ReplaceBackground(ctx context.Context, req ReplaceBackgroundRequest) (*ImageResult, error) {
-	_, _ = ctx, req
-	return nil, ErrTaskNotSupported
+	prompt := assembledScenePrompt(req.Input)
+	if prompt == "" {
+		return nil, fmt.Errorf("assembled prompt required for dashscope_image edit")
+	}
+	imageRef, err := dashscopeImageRef(req.ImageRequest)
+	if err != nil {
+		return nil, err
+	}
+	img, ct, err := p.client.EditImage(ctx, imageRef, prompt)
+	if err != nil {
+		return nil, WrapProviderError(err)
+	}
+	return &ImageResult{
+		RawPayload:         img,
+		PayloadContentType: ct,
+		Meta: map[string]any{
+			"model":       p.client.ResolvedModel(),
+			"contentType": ct,
+		},
+	}, nil
 }
 
 func (p dashscopeImageProvider) GenerateScene(ctx context.Context, req GenerateSceneRequest) (*ImageResult, error) {
@@ -486,8 +505,26 @@ func (p dashscopeImageProvider) Resize(ctx context.Context, req ResizeRequest) (
 }
 
 func (p dashscopeImageProvider) Enhance(ctx context.Context, req ImageRequest) (*ImageResult, error) {
-	_, _ = ctx, req
-	return nil, ErrTaskNotSupported
+	prompt := assembledScenePrompt(req.Input)
+	if prompt == "" {
+		return nil, fmt.Errorf("assembled prompt required for dashscope_image edit")
+	}
+	imageRef, err := dashscopeImageRef(req)
+	if err != nil {
+		return nil, err
+	}
+	img, ct, err := p.client.EditImage(ctx, imageRef, prompt)
+	if err != nil {
+		return nil, WrapProviderError(err)
+	}
+	return &ImageResult{
+		RawPayload:         img,
+		PayloadContentType: ct,
+		Meta: map[string]any{
+			"model":       p.client.ResolvedModel(),
+			"contentType": ct,
+		},
+	}, nil
 }
 
 func (p dashscopeImageProvider) TranslateImage(ctx context.Context, req TranslateImageRequest) (*ImageResult, error) {
@@ -609,4 +646,25 @@ func ProviderSupportsGenerateSceneNoSource(name string) bool {
 	default:
 		return false
 	}
+}
+
+const maxDashScopeSourceBytes = 25 << 20
+
+func dashscopeImageRef(req ImageRequest) (string, error) {
+	if req.SourceFile != nil {
+		data, err := io.ReadAll(io.LimitReader(req.SourceFile, maxDashScopeSourceBytes))
+		if err != nil {
+			return "", fmt.Errorf("dashscope_image: read source image: %w", err)
+		}
+		ct := strings.TrimSpace(req.SourceContentType)
+		if ct == "" {
+			ct = http.DetectContentType(data)
+		}
+		return dashscopeimage.DataURL(data, ct), nil
+	}
+	u := strings.TrimSpace(req.SourceURL)
+	if u == "" {
+		return "", fmt.Errorf("dashscope_image: source image required")
+	}
+	return u, nil
 }

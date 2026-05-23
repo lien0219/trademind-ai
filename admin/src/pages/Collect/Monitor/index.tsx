@@ -1,8 +1,8 @@
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Link } from '@umijs/renderer-react';
 import { Badge, Button, Card, Col, Progress, Row, Space, Statistic, Tag, Tooltip, Typography } from 'antd';
-import dayjs from 'dayjs';
 import { useEffect, useState, type ReactNode } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
@@ -10,11 +10,6 @@ import { type CollectMonitorData, getCollectMonitor } from '@/services/collectMo
 
 const POLL_MS = 5000;
 
-function formatTs(s?: string) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}
 
 function sumTasks(t: CollectMonitorData['tasks']) {
   const retr = t.retryingCount ?? t.retrying;
@@ -74,7 +69,7 @@ export default function CollectMonitorPage() {
       title: '时间',
       dataIndex: 'updatedAt',
       width: 172,
-      render: (_, row) => formatTs(row.updatedAt),
+      render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
       title: '来源',
@@ -146,7 +141,7 @@ export default function CollectMonitorPage() {
       title: '时间',
       dataIndex: 'updatedAt',
       width: 172,
-      render: (_, row) => formatTs(row.updatedAt),
+      render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
       title: '来源',
@@ -168,7 +163,7 @@ export default function CollectMonitorPage() {
       title: '下次重试',
       dataIndex: 'nextRetryAt',
       width: 172,
-      render: (_, row) => formatTs(row.nextRetryAt),
+      render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
       title: '错误摘要',

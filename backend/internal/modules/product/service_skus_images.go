@@ -32,10 +32,14 @@ func normalizeImageType(raw string) (string, error) {
 		return ImageTypeMain, nil
 	case ImageTypeDetail, ImageTypeDescription:
 		return ImageTypeDetail, nil
+	case ImageTypeMarketing:
+		return ImageTypeMarketing, nil
+	case ImageTypeAIGenerated:
+		return ImageTypeAIGenerated, nil
 	case ImageTypeSKU:
 		return ImageTypeSKU, nil
 	default:
-		return "", fmt.Errorf("invalid image type (use main, detail, or sku)")
+		return "", fmt.Errorf("invalid image type (use main, detail, marketing, ai_generated, or sku)")
 	}
 }
 
@@ -237,6 +241,10 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 	pub := strings.TrimSpace(body.PublicURL)
 	origin := strings.TrimSpace(body.OriginURL)
 	objKey := strings.TrimSpace(body.ObjectKey)
+	storageKey := strings.TrimSpace(body.StorageKey)
+	if storageKey == "" {
+		storageKey = objKey
+	}
 
 	if body.FileID != nil && *body.FileID != uuid.Nil {
 		var fr files.FileRecord
@@ -245,6 +253,9 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 		}
 		if objKey == "" {
 			objKey = fr.ObjectKey
+		}
+		if storageKey == "" {
+			storageKey = fr.ObjectKey
 		}
 		if pub == "" {
 			pub = strings.TrimSpace(fr.PublicURL)
@@ -283,14 +294,33 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 	}
 
 	row := &ProductImage{
-		ProductID: productID,
-		ImageType: imgType,
-		OriginURL: origin,
-		ObjectKey: objKey,
-		PublicURL: pub,
-		SortOrder: sortOrder,
+		ProductID:       productID,
+		ImageType:       imgType,
+		Source:          strings.TrimSpace(body.Source),
+		SourceTaskID:    body.SourceTaskID,
+		OriginalImageID: body.OriginalImageID,
+		OriginURL:       origin,
+		ObjectKey:       objKey,
+		StorageKey:      storageKey,
+		PublicURL:       pub,
+		Score:           body.Score,
+		SortOrder:       sortOrder,
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
+	if body.IsBestMain != nil {
+		row.IsBestMain = *body.IsBestMain
+	}
+	if row.Source == "" {
+		row.Source = ImageSourceUpload
+	}
+
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if row.IsBestMain {
+			if err := tx.Model(&ProductImage{}).Where("product_id = ?", productID).Update("is_best_main", false).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Create(row).Error
+	}); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -326,6 +356,11 @@ func (s *Service) UpdateProductImage(c *gin.Context, productID, imageID uuid.UUI
 	if body.ObjectKey != nil {
 		row.ObjectKey = strings.TrimSpace(*body.ObjectKey)
 	}
+	if body.StorageKey != nil {
+		row.StorageKey = strings.TrimSpace(*body.StorageKey)
+	} else if body.ObjectKey != nil {
+		row.StorageKey = row.ObjectKey
+	}
 	if body.OriginURL != nil {
 		row.OriginURL = strings.TrimSpace(*body.OriginURL)
 	}
@@ -335,8 +370,21 @@ func (s *Service) UpdateProductImage(c *gin.Context, productID, imageID uuid.UUI
 	if body.SortOrder != nil {
 		row.SortOrder = *body.SortOrder
 	}
+	if body.Score != nil {
+		row.Score = body.Score
+	}
+	if body.IsBestMain != nil {
+		row.IsBestMain = *body.IsBestMain
+	}
 
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if body.IsBestMain != nil && *body.IsBestMain {
+			if err := tx.Model(&ProductImage{}).Where("product_id = ?", productID).Update("is_best_main", false).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Save(&row).Error
+	}); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {

@@ -1,4 +1,5 @@
 import { Link } from '@umijs/renderer-react';
+import { formatDateTime } from '@/utils/formatTime';
 import {
   ModalForm,
   PageContainer,
@@ -333,7 +334,7 @@ export default function ShopsPage() {
         dataIndex: 'updatedAt',
         width: 168,
         search: false,
-        render: (_, r) => dayjs(r.updatedAt).format('YYYY-MM-DD HH:mm'),
+        render: (_, r) => formatDateTime(r.updatedAt),
       },
       {
         title: '操作',

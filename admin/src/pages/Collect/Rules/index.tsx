@@ -1,4 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import {
   ModalForm,
   PageContainer,
@@ -10,7 +11,6 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Alert, Button, Popconfirm, Space, Tag, Typography, message } from 'antd';
-import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CollectRuleRow, CollectRuleTestResult } from '@/services/collectRules';
 import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
@@ -71,11 +71,6 @@ export const DEFAULT_CUSTOM_RULE_TEMPLATE = `{
   }
 }`;
 
-function formatTs(s?: string) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}
 
 function isTitleOnlyRuleJson(raw?: string): boolean {
   if (!raw?.trim()) return false;
@@ -134,7 +129,7 @@ export default function CollectRulesPage() {
       dataIndex: 'updatedAt',
       width: 172,
       search: false,
-      render: (_, row) => formatTs(row.updatedAt),
+      render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
       title: '操作',

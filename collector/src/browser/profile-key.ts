@@ -7,7 +7,7 @@ export function sanitizeProfileKey(raw: string): string {
   if (!/^[a-zA-Z0-9_-]+$/.test(key)) {
     throw new Error('INVALID_PROFILE_KEY:invalid_characters');
   }
-  if (key === '1688' || key.startsWith('..')) {
+  if (key === '1688' || key === 'pinduoduo' || key.startsWith('..')) {
     throw new Error('INVALID_PROFILE_KEY:reserved');
   }
   return key;

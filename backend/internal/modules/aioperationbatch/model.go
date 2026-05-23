@@ -15,6 +15,9 @@ const (
 	OperationImageRemoveBackground  = "image_remove_background"
 	OperationImageGenerateScene     = "image_generate_scene"
 	OperationImageReplaceBackground = "image_replace_background"
+	OperationImageBatchGenerateMain = "image_batch_generate_main"
+	OperationImageScore             = "image_score"
+	OperationImageSelectBestMain    = "image_select_best_main"
 )
 
 // Batch aggregate status values.

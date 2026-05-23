@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, PageContainer, ProFormText, ProTable } from '@ant-design/pro-components';
 import { Button, Input, Popconfirm, Space, Tag, Typography, message } from 'antd';
-import dayjs from 'dayjs';
 import { useRef, useState } from 'react';
 import {
   checkBrowserProfile,
@@ -13,11 +13,6 @@ import {
 } from '@/services/collectBrowserProfiles';
 import { accessStatusLabel } from '@/constants/collectAccess';
 
-function formatTs(s?: string) {
-  if (!s) return '—';
-  const d = dayjs(s);
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
-}
 
 const CHECK_STATUS: Record<string, { text: string; color: string }> = {
   logged_in: { text: '已登录', color: 'success' },
@@ -58,7 +53,7 @@ export default function CollectBrowserProfilesPage() {
       dataIndex: 'lastCheckAt',
       width: 168,
       search: false,
-      render: (_, row) => formatTs(row.lastCheckAt),
+      render: (_, row) => formatDateTime(row.lastCheckAt),
     },
     {
       title: '操作',

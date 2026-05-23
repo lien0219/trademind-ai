@@ -75,6 +75,54 @@ export function createCollectorServer(browser: BrowserManager) {
         return;
       }
 
+      if (req.method === 'GET' && (req.url === '/v1/providers/pinduoduo/auth-status' || req.url?.startsWith('/v1/providers/pinduoduo/auth-status?'))) {
+        const raw = req.url ?? '';
+        const q = raw.includes('?') ? new URL(raw, 'http://local').searchParams : null;
+        const checkUrl = q?.get('url')?.trim() || undefined;
+        const testUrl = q?.get('testUrl')?.trim() || undefined;
+        const status = await browser.sessions.checkPinduoduoAuthStatus(checkUrl, testUrl);
+        json(res, 200, { ok: true, data: status });
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/v1/providers/pinduoduo/check-login') {
+        let body: unknown = {};
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'body must be valid JSON' },
+          });
+          return;
+        }
+        const b = body as { url?: string; testUrl?: string };
+        const checkUrl = String(b.url ?? '').trim() || undefined;
+        const testUrl = String(b.testUrl ?? '').trim() || undefined;
+        const status = await browser.sessions.checkPinduoduoAuthStatus(checkUrl, testUrl);
+        json(res, 200, { ok: true, data: status });
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/v1/providers/pinduoduo/open-login-browser') {
+        let body: unknown = {};
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'body must be valid JSON' },
+          });
+          return;
+        }
+        const loginUrl = String((body as { url?: string }).url ?? '').trim();
+        const result = await browser.sessions.openPinduoduoLoginBrowser(
+          loginUrl || undefined,
+        );
+        json(res, 200, { ok: true, data: result });
+        return;
+      }
+
       const profileRoute = matchBrowserProfileRoute(req.method ?? '', req.url ?? '');
       if (profileRoute) {
         let body: unknown = {};
@@ -244,7 +292,7 @@ export function listenCollectorHttp(browser: BrowserManager): ReturnType<typeof 
   const port = getHttpPort();
   server.listen(port, () => {
     console.info(
-      `[collector] listening on :${port} (POST /v1/collect, POST /v1/custom/analyze-page, GET /v1/providers, GET /v1/providers/1688/auth-status, POST /v1/providers/1688/open-login-browser, GET /health)`,
+      `[collector] listening on :${port} (POST /v1/collect, GET /v1/providers/1688|pinduoduo/auth-status, POST .../open-login-browser, GET /health)`,
     );
   });
   return server;

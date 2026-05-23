@@ -2,6 +2,7 @@ package collect
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,10 +17,13 @@ func (s *Service) effectiveMaxRetries(task *CollectTask) int {
 	if task != nil && task.MaxRetries > 0 {
 		return task.MaxRetries
 	}
-	if task != nil && task.BatchID != nil && strings.EqualFold(strings.TrimSpace(task.Source), "1688") {
-		p := s.batchPolicyForSource(context.Background(), task.Source)
-		if p.MaxRetries > 0 {
-			return p.MaxRetries
+	if task != nil && task.BatchID != nil {
+		src := strings.TrimSpace(task.Source)
+		if strings.EqualFold(src, "1688") || isPinduoduoCollectSource(src) {
+			p := s.batchPolicyForSource(context.Background(), task.Source)
+			if p.MaxRetries > 0 {
+				return p.MaxRetries
+			}
 		}
 	}
 	if s != nil && s.MaxAutoRetries > 0 {
@@ -105,8 +109,30 @@ func collectorRejectExtras(err error) map[string]any {
 	var rej *CollectorRejectedError
 	if errors.As(err, &rej) && rej != nil {
 		code := strings.TrimSpace(rej.Code)
+		extras := map[string]any{}
 		if code != "" {
-			return map[string]any{"collectorCode": code}
+			extras["collectorCode"] = code
+			extras["errorType"] = strings.ToLower(code)
+		}
+		if len(rej.AccessReport) > 0 {
+			var wrap struct {
+				AccessReport struct {
+					AccessStatus string `json:"accessStatus"`
+				} `json:"accessReport"`
+			}
+			if json.Unmarshal(rej.AccessReport, &wrap) == nil && strings.TrimSpace(wrap.AccessReport.AccessStatus) != "" {
+				extras["accessStatus"] = wrap.AccessReport.AccessStatus
+			} else {
+				var direct struct {
+					AccessStatus string `json:"accessStatus"`
+				}
+				if json.Unmarshal(rej.AccessReport, &direct) == nil && strings.TrimSpace(direct.AccessStatus) != "" {
+					extras["accessStatus"] = direct.AccessStatus
+				}
+			}
+		}
+		if len(extras) > 0 {
+			return extras
 		}
 	}
 	return nil

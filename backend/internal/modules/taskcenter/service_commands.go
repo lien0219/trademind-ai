@@ -122,6 +122,20 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 
 	switch taskType {
 	case TaskTypeCollect:
+		var row collect.CollectTask
+		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err == nil {
+			out.Extra["sourceUrl"] = truncateRunes(row.SourceURL, 512)
+			urlType, accessStatus, suggested := collectFailureContextExtras(row.SourceURL, row.ErrorMessage, base.FailureCategory, base.SuggestedAction)
+			if urlType != "" {
+				out.Extra["urlTypeLabel"] = urlType
+			}
+			if accessStatus != "" {
+				out.Extra["accessStatusLabel"] = accessStatus
+			}
+			if suggested != "" {
+				out.Extra["suggestedActionDetail"] = suggested
+			}
+		}
 		var events []collect.CollectTaskEvent
 		_ = s.DB.WithContext(ctx).
 			Model(&collect.CollectTaskEvent{}).

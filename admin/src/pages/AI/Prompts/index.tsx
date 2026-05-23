@@ -1,16 +1,27 @@
+import { Link } from '@umijs/renderer-react';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { formatDateTime } from '@/utils/formatTime';
 import {
   ModalForm,
   PageContainer,
   ProFormDigit,
+  ProFormSelect,
   ProFormSwitch,
   ProFormText,
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Button, Popconfirm, Tag, message } from 'antd';
-import dayjs from 'dayjs';
-import { useRef, useState } from 'react';
+import { Button, Popconfirm, Tag, Tooltip, Typography, message } from 'antd';
+import { useEffect, useRef, useState } from 'react';
+import {
+  AI_PROMPT_SCENE_OPTIONS,
+  AI_PROMPT_USE_SYSTEM_DEFAULT,
+  AI_TEXT_PROVIDER_OPTIONS,
+  aiPromptSceneLabel,
+  aiTextProviderLabel,
+} from '@/constants/aiPrompts';
+import { fetchSettingsList } from '@/services/settings';
+import { pickGroup } from '@/utils/settingsForm';
 import {
   createAIPrompt,
   deleteAIPrompt,
@@ -45,13 +56,99 @@ export default function AIPromptsPage() {
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<AIPromptRow | null>(null);
+  const [systemAi, setSystemAi] = useState<{ provider: string; model: string }>({
+    provider: '',
+    model: '',
+  });
+
+  useEffect(() => {
+    fetchSettingsList()
+      .then((res) => {
+        const ai = pickGroup(res.items, 'ai');
+        setSystemAi({
+          provider: (ai.provider || 'openai_compatible').trim(),
+          model: (ai.model || '').trim(),
+        });
+      })
+      .catch(() => {
+        setSystemAi({ provider: 'openai_compatible', model: '' });
+      });
+  }, []);
+
+  const renderInheritedTag = (kind: 'provider' | 'model') => {
+    const systemValue = kind === 'provider' ? systemAi.provider : systemAi.model;
+    const systemLabel =
+      kind === 'provider' ? aiTextProviderLabel(systemValue) || systemValue : systemValue;
+    const tip = systemLabel
+      ? `未单独指定时，使用「设置 → AI」默认值：${systemLabel}`
+      : '未单独指定时，使用「设置 → AI」中的默认配置';
+    return (
+      <Tooltip title={tip}>
+        <Tag bordered={false} color="default">
+          {AI_PROMPT_USE_SYSTEM_DEFAULT}
+          {systemLabel ? ` · ${systemLabel}` : ''}
+        </Tag>
+      </Tooltip>
+    );
+  };
 
   const columns: ProColumns<AIPromptRow>[] = [
     { title: '模板编号', dataIndex: 'code', width: 180, ellipsis: true },
     { title: '名称', dataIndex: 'name', width: 160, ellipsis: true },
-    { title: '使用场景', dataIndex: 'scene', width: 120, search: false },
-    { title: 'AI 服务商', dataIndex: 'provider', width: 140, search: false },
-    { title: '模型', dataIndex: 'model', width: 140, ellipsis: true, search: false },
+    {
+      title: '使用场景',
+      dataIndex: 'scene',
+      width: 120,
+      search: false,
+      render: (_, row) => {
+        const label = aiPromptSceneLabel(row.scene);
+        const raw = (row.scene || '').trim();
+        if (!raw || label === raw) {
+          return label === '—' ? '—' : <Tag bordered={false}>{label}</Tag>;
+        }
+        return (
+          <Tooltip title={`原始值：${raw}`}>
+            <Tag bordered={false} color="blue">
+              {label}
+            </Tag>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: 'AI 服务商',
+      dataIndex: 'provider',
+      width: 180,
+      search: false,
+      render: (_, row) => {
+        const raw = (row.provider || '').trim();
+        if (!raw) return renderInheritedTag('provider');
+        const label = aiTextProviderLabel(raw);
+        return (
+          <Tooltip title={`原始值：${raw}`}>
+            <Tag bordered={false} color="purple">
+              {label}
+            </Tag>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: '模型',
+      dataIndex: 'model',
+      width: 160,
+      ellipsis: true,
+      search: false,
+      render: (_, row) => {
+        const raw = (row.model || '').trim();
+        if (!raw) return renderInheritedTag('model');
+        return (
+          <Tooltip title={`原始值：${raw}`}>
+            <Typography.Text>{raw}</Typography.Text>
+          </Tooltip>
+        );
+      },
+    },
     {
       title: '启用',
       dataIndex: 'enabled',
@@ -64,7 +161,7 @@ export default function AIPromptsPage() {
       dataIndex: 'updatedAt',
       width: 176,
       search: false,
-      render: (_, row) => dayjs(row.updatedAt).format('YYYY-MM-DD HH:mm:ss'),
+      render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
       title: '操作',
@@ -127,7 +224,12 @@ export default function AIPromptsPage() {
   return (
     <PageContainer
       title="AI 技能模板"
-      subTitle="配置标题优化、描述生成、客服建议等场景的提示词；一般使用系统内置模板即可。"
+      subTitle={
+        <>
+          配置标题优化、描述生成、客服建议等场景的提示词；一般使用系统内置模板即可。未单独指定 AI 服务商 / 模型时，将自动使用{' '}
+          <Link to="/settings/ai">设置 → AI</Link> 中的默认配置。
+        </>
+      }
     >
       <ProTable<AIPromptRow>
         headerTitle={false}
@@ -178,9 +280,19 @@ export default function AIPromptsPage() {
       >
         <ProFormText name="code" label="模板编号" rules={[{ required: true }]} extra="英文标识，如 product_title_optimize" />
         <ProFormText name="name" label="名称" rules={[{ required: true }]} />
-        <ProFormText name="scene" label="使用场景" />
-        <ProFormText name="provider" label="指定 AI 服务商（可选）" />
-        <ProFormText name="model" label="指定模型（可选）" />
+        <ProFormSelect
+          name="scene"
+          label="使用场景"
+          options={AI_PROMPT_SCENE_OPTIONS}
+          fieldProps={{ showSearch: true, optionFilterProp: 'label' }}
+        />
+        <ProFormSelect
+          name="provider"
+          label="指定 AI 服务商（可选）"
+          options={[{ value: '', label: AI_PROMPT_USE_SYSTEM_DEFAULT }, ...AI_TEXT_PROVIDER_OPTIONS]}
+          extra="留空则使用「设置 → AI」中的默认服务商"
+        />
+        <ProFormText name="model" label="指定模型（可选）" extra="留空则使用「设置 → AI」中的默认模型" />
         <ProFormDigit name="temperature" label="随机度" fieldProps={{ step: 0.1 }} initialValue={0.7} />
         <ProFormDigit name="maxTokens" label="最大输出长度" initialValue={512} />
         <ProFormSwitch name="enabled" label="启用" initialValue={true} />
@@ -249,9 +361,19 @@ export default function AIPromptsPage() {
       >
         <ProFormText name="code" label="模板编号" disabled />
         <ProFormText name="name" label="名称" rules={[{ required: true }]} />
-        <ProFormText name="scene" label="使用场景" />
-        <ProFormText name="provider" label="指定 AI 服务商（可选）" />
-        <ProFormText name="model" label="指定模型（可选）" />
+        <ProFormSelect
+          name="scene"
+          label="使用场景"
+          options={AI_PROMPT_SCENE_OPTIONS}
+          fieldProps={{ showSearch: true, optionFilterProp: 'label' }}
+        />
+        <ProFormSelect
+          name="provider"
+          label="指定 AI 服务商（可选）"
+          options={[{ value: '', label: AI_PROMPT_USE_SYSTEM_DEFAULT }, ...AI_TEXT_PROVIDER_OPTIONS]}
+          extra="留空则使用「设置 → AI」中的默认服务商"
+        />
+        <ProFormText name="model" label="指定模型（可选）" extra="留空则使用「设置 → AI」中的默认模型" />
         <ProFormDigit name="temperature" label="随机度" fieldProps={{ step: 0.1 }} />
         <ProFormDigit name="maxTokens" label="最大输出长度" />
         <ProFormSwitch name="enabled" label="启用" />

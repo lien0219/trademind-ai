@@ -1,6 +1,9 @@
 package failureclassifier
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestClassify_customJdLoginWall(t *testing.T) {
 	in := Input{
@@ -43,5 +46,26 @@ func TestClassify_custom1688Url(t *testing.T) {
 	r := Classify(in)
 	if r.MatchedRule != "sub:1688_login_verify" {
 		t.Fatalf("custom+1688 url should use 1688 hint, got %q", r.MatchedRule)
+	}
+}
+
+func TestClassify_pinduoduoLoginRequired(t *testing.T) {
+	in := Input{
+		TaskType:     taskTypeCollect,
+		Platform:     "pinduoduo",
+		ErrorCode:    "LOGIN_REQUIRED",
+		ErrorMessage: "login_required",
+		Title:        "pifa.pinduoduo.com · detail",
+		RawSummary:   "source=pinduoduo https://pifa.pinduoduo.com/goods/detail/?gid=123",
+	}
+	r := Classify(in)
+	if r.Category != CategoryLoginRequired {
+		t.Fatalf("want category login_required, got %q matched=%q", r.Category, r.MatchedRule)
+	}
+	if r.MatchedRule != "sub:login_required_collect" {
+		t.Fatalf("want sub:login_required_collect, got %q", r.MatchedRule)
+	}
+	if !strings.Contains(r.SuggestedAction, "拼多多") {
+		t.Fatalf("want pinduoduo-specific suggest, got %q", r.SuggestedAction)
 	}
 }

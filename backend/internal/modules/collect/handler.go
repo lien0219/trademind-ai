@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -237,6 +238,88 @@ func (h *Handler) Open1688LoginBrowser(c *gin.Context) {
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
+	}
+	response.OK(c, out)
+}
+
+// GetPinduoduoAuthStatus GET /api/v1/collector/providers/pinduoduo/auth-status
+func (h *Handler) GetPinduoduoAuthStatus(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	contextURL, settingsTestURL := h.Svc.ResolvePinduoduoAuthCheckInputs(
+		c.Request.Context(),
+		strings.TrimSpace(c.Query("url")),
+	)
+	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), contextURL, settingsTestURL)
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// CheckPinduoduoLogin POST /api/v1/collect/providers/pinduoduo/check-login
+func (h *Handler) CheckPinduoduoLogin(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	var body PinduoduoCheckLoginBody
+	_ = c.ShouldBindJSON(&body)
+	contextURL, settingsTestURL := h.Svc.ResolvePinduoduoAuthCheckInputs(c.Request.Context(), body.URL)
+	if t := strings.TrimSpace(body.TestURL); t != "" {
+		settingsTestURL = t
+	}
+	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), contextURL, settingsTestURL)
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		msg := "source=pinduoduo"
+		if out != nil {
+			msg += " status=" + strings.TrimSpace(out.Status)
+			if out.URLType != "" {
+				msg += " urlType=" + strings.TrimSpace(out.URLType)
+			}
+		}
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: collectAdminUUID(c),
+			Action:      "collect.pinduoduo.login_check",
+			Resource:    "collector_provider",
+			ResourceID:  "pinduoduo",
+			Status:      "success",
+			Message:     msg,
+		})
+	}
+	response.OK(c, out)
+}
+
+// OpenPinduoduoLoginBrowser POST /api/v1/collector/providers/pinduoduo/open-login-browser
+func (h *Handler) OpenPinduoduoLoginBrowser(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	var body PinduoduoOpenLoginBody
+	_ = c.ShouldBindJSON(&body)
+	loginURL := strings.TrimSpace(body.URL)
+	out, err := h.Svc.Client.OpenPinduoduoLoginBrowser(c.Request.Context(), loginURL)
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: collectAdminUUID(c),
+			Action:      "collect.pinduoduo.open_login",
+			Resource:    "collector_provider",
+			ResourceID:  "pinduoduo",
+			Status:      "success",
+			Message:     "source=pinduoduo opened login browser",
+		})
 	}
 	response.OK(c, out)
 }
