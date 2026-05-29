@@ -2,6 +2,7 @@ package imagerender
 
 import (
 	"image"
+	"image/color"
 	"strings"
 
 	"golang.org/x/image/draw"
@@ -18,6 +19,14 @@ func DrawText(dst *image.RGBA, block TextBlock, opts Options) error {
 	x, y, w, h := clampRect(block.BBox.X, block.BBox.Y, block.BBox.Width, block.BBox.Height, b.Dx(), b.Dy())
 	rect := image.Rect(x, y, x+w, y+h)
 	textColor := contrastTextColor(dst, rect, block.Style)
+	if bg := strings.TrimSpace(block.Style.BackgroundColor); bg != "" {
+		radius := block.Style.BorderRadius
+		if radius <= 0 {
+			radius = max(6, min(w, h)/2)
+		}
+		fillRoundedRect(dst, rect, radius, parseHexColor(bg, color.RGBA{R: 17, G: 17, B: 17, A: 255}))
+		textColor = parseHexColor(block.Style.Color, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	}
 	align := strings.TrimSpace(strings.ToLower(block.Align))
 	if align == "" {
 		align = strings.TrimSpace(strings.ToLower(block.Style.Align))
@@ -75,6 +84,43 @@ func DrawText(dst *image.RGBA, block TextBlock, opts Options) error {
 		d.DrawString(line)
 	}
 	return nil
+}
+
+func fillRoundedRect(dst *image.RGBA, rect image.Rectangle, radius int, c color.RGBA) {
+	rect = rect.Intersect(dst.Bounds())
+	if rect.Empty() {
+		return
+	}
+	if radius <= 0 {
+		radius = 1
+	}
+	if radius > rect.Dx()/2 {
+		radius = rect.Dx() / 2
+	}
+	if radius > rect.Dy()/2 {
+		radius = rect.Dy() / 2
+	}
+	r2 := radius * radius
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			cx := x
+			if x < rect.Min.X+radius {
+				cx = rect.Min.X + radius
+			} else if x >= rect.Max.X-radius {
+				cx = rect.Max.X - radius - 1
+			}
+			cy := y
+			if y < rect.Min.Y+radius {
+				cy = rect.Min.Y + radius
+			} else if y >= rect.Max.Y-radius {
+				cy = rect.Max.Y - radius - 1
+			}
+			dx, dy := x-cx, y-cy
+			if dx*dx+dy*dy <= r2 {
+				dst.SetRGBA(x, y, c)
+			}
+		}
+	}
 }
 
 // ToRGBA converts any image to RGBA (copies if needed).

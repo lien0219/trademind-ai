@@ -29,6 +29,8 @@ const (
 	StatusFailed              = "failed"
 	StatusCancelled           = "cancelled"
 	StatusSuccessWithWarnings = "success_with_warnings"
+	StatusLowQuality          = "low_quality"
+	StatusFailedValidation    = "failed_render_validation"
 )
 
 // ImageTask records one AI image processing job (ai_image_tasks in product docs).

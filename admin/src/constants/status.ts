@@ -16,6 +16,8 @@ export const COLLECT_TASK_STATUS = {
   cancelled: { text: '已取消', color: 'default' as const },
   retrying: { text: '等待重试', color: 'warning' as const },
   success_with_warnings: { text: '成功（有警告）', color: 'warning' as const },
+  low_quality: { text: '低质量', color: 'error' as const },
+  failed_render_validation: { text: '渲染校验失败', color: 'error' as const },
 };
 
 /** 采集批次聚合状态 */

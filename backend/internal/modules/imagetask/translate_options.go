@@ -70,12 +70,12 @@ func effectiveEraseMode(renderOpts translateRenderOptions) string {
 	if renderOpts.RenderMode == RenderModeHybrid {
 		em := renderOpts.EraseMode
 		if em == "" || em == "auto" {
-			return "background_sample"
+			return "precise_mask"
 		}
 		return em
 	}
 	if renderOpts.EraseMode == "" {
-		return "auto"
+		return "precise_mask"
 	}
 	return renderOpts.EraseMode
 }

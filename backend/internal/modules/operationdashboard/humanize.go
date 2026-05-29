@@ -180,6 +180,11 @@ var translateLayoutWarningLabels = map[string]string{
 	"IMAGE_NOT_CHANGED":          "生成图片没有变化，请重新生成或切换处理方式。",
 	"IMAGE_TEXT_NOT_APPLIED":     "翻译文字没有成功写入图片，请重新生成。",
 	"OUTPUT_TEXT_VERIFY_FAILED":  "系统无法确认文字替换效果，请人工检查图片。",
+	"background_patch_visible":   "背景修补痕迹明显。",
+	"layout_not_natural":         "排版不够自然。",
+	"text_overflow":              "部分文字超出推荐区域。",
+	"text_not_applied":           "翻译文字没有成功写入图片。",
+	"commercial_usability_low":   "商用评分偏低，不建议直接作为商品图使用。",
 }
 
 func humanizeTranslateWarningCode(code string) string {

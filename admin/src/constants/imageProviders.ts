@@ -324,7 +324,7 @@ export const ALL_IMAGE_FIELD_SPECS: Record<
   ocr_timeout_sec: { label: 'OCR 超时（秒）', placeholder: '30' },
   ocr_min_confidence: { label: 'OCR 最低置信度', placeholder: '0.8', extra: '低于此置信度的文字将被忽略' },
   ocr_fallback_to_vision: { label: '失败自动降级到 AI 视觉 OCR', placeholder: 'true / false' },
-  erase_mode: { label: '默认擦除方式', placeholder: 'auto', extra: '可用: auto / background_sample / blur_fill / opencv_inpaint / ai_inpaint' },
+  erase_mode: { label: '默认擦除方式', placeholder: 'auto', extra: '可用: auto / precise_mask / background_sample / blur_fill / opencv_inpaint / ai_inpaint' },
   ai_inpaint_comfyui_base_url: { label: '局部擦除 ComfyUI 地址', placeholder: 'http://127.0.0.1:8188' },
   ai_inpaint_comfyui_workflow_json: { label: '局部擦除 ComfyUI 工作流 JSON', valueType: 'json', extra: '支持占位符 {{sourceImageUrl}}、{{maskImageUrl}} 等' },
   ai_inpaint_comfyui_prompt_node_id: { label: '局部擦除提示词节点 ID' },

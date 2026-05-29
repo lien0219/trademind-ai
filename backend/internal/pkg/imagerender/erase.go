@@ -7,20 +7,26 @@ import (
 	"strings"
 )
 
+type EraseStats struct {
+	ErasePixels          int
+	PatchPixels          int
+	BackgroundDeltaScore float64
+	FlatFillRatio        float64
+	LargePatchDetected   bool
+}
+
 func chooseEraseMode(mode string, region *image.RGBA, rect image.Rectangle) string {
 	m := trimLower(mode)
 	switch m {
-	case EraseBackgroundSample, EraseBlurFill, EraseOpenCVInpaint, EraseAIInpaint:
+	case ErasePreciseMask, EraseBackgroundSample, EraseBlurFill, EraseOpenCVInpaint, EraseAIInpaint:
 		return m
 	}
 	variance := borderColorVariance(region, rect)
 	switch {
-	case variance < 120:
-		return EraseBackgroundSample
-	case variance < 800:
-		return EraseBackgroundSample
+	case variance < 1600:
+		return ErasePreciseMask
 	default:
-		return EraseBackgroundSample
+		return EraseOpenCVInpaint
 	}
 }
 
@@ -66,12 +72,15 @@ func borderColorVariance(img *image.RGBA, rect image.Rectangle) float64 {
 	return (vr + vg + vb) / (3 * n)
 }
 
-func eraseRegion(img *image.RGBA, rect image.Rectangle, mode string) {
+func eraseRegion(img *image.RGBA, rect image.Rectangle, mode string) EraseStats {
 	rect = rect.Intersect(img.Bounds())
 	if rect.Empty() {
-		return
+		return EraseStats{}
 	}
+	chosen := chooseEraseMode(mode, img, rect)
 	switch chooseEraseMode(mode, img, rect) {
+	case ErasePreciseMask:
+		return preciseMaskEraseRegion(img, rect)
 	case EraseBlurFill:
 		blurFillRegion(img, rect)
 	case EraseOpenCVInpaint:
@@ -79,6 +88,135 @@ func eraseRegion(img *image.RGBA, rect image.Rectangle, mode string) {
 	default:
 		sampleFillRegion(img, rect)
 	}
+	area := rect.Dx() * rect.Dy()
+	stats := EraseStats{ErasePixels: area, PatchPixels: area}
+	stats.LargePatchDetected = chosen == EraseBackgroundSample && area > 0
+	if chosen == EraseBackgroundSample {
+		stats.FlatFillRatio = 1
+	}
+	return stats
+}
+
+func preciseMaskEraseRegion(img *image.RGBA, rect image.Rectangle) EraseStats {
+	rect = rect.Intersect(img.Bounds())
+	if rect.Empty() {
+		return EraseStats{}
+	}
+	bg := averageBorderColor(img, rect)
+	mask := textStrokeMask(img, rect, bg)
+	mask = dilateMask(mask, rect.Dx(), rect.Dy(), 1)
+	changed := maskedInpaintRegion(img, rect, mask, 5)
+	area := rect.Dx() * rect.Dy()
+	stats := EraseStats{
+		ErasePixels: changed,
+		PatchPixels: changed,
+	}
+	if area > 0 {
+		stats.FlatFillRatio = float64(changed) / float64(area)
+	}
+	return stats
+}
+
+func textStrokeMask(img *image.RGBA, rect image.Rectangle, bg color.RGBA) []bool {
+	w, h := rect.Dx(), rect.Dy()
+	mask := make([]bool, w*h)
+	bgLum := luminance(bg)
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			c := img.RGBAAt(x, y)
+			delta := colorDistance(c, bg)
+			lumDelta := math.Abs(luminance(c) - bgLum)
+			if delta >= 54 || lumDelta >= 42 {
+				mask[(y-rect.Min.Y)*w+x-rect.Min.X] = true
+			}
+		}
+	}
+	return mask
+}
+
+func dilateMask(mask []bool, w, h, radius int) []bool {
+	if radius <= 0 || len(mask) == 0 {
+		return mask
+	}
+	out := make([]bool, len(mask))
+	copy(out, mask)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if !mask[y*w+x] {
+				continue
+			}
+			for dy := -radius; dy <= radius; dy++ {
+				for dx := -radius; dx <= radius; dx++ {
+					nx, ny := x+dx, y+dy
+					if nx < 0 || ny < 0 || nx >= w || ny >= h {
+						continue
+					}
+					out[ny*w+nx] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+func maskedInpaintRegion(img *image.RGBA, rect image.Rectangle, mask []bool, iterations int) int {
+	w, h := rect.Dx(), rect.Dy()
+	if w <= 0 || h <= 0 || len(mask) != w*h {
+		return 0
+	}
+	changed := 0
+	for _, v := range mask {
+		if v {
+			changed++
+		}
+	}
+	if changed == 0 {
+		return 0
+	}
+	for iter := 0; iter < iterations; iter++ {
+		next := cloneRGBA(img)
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				if !mask[y*w+x] {
+					continue
+				}
+				var r, g, bl, n float64
+				for _, d := range [][2]int{{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {1, 1}, {-1, 1}, {1, -1}, {-1, -1}} {
+					nx, ny := x+d[0], y+d[1]
+					if nx < 0 || ny < 0 || nx >= w || ny >= h || mask[ny*w+nx] {
+						continue
+					}
+					c := img.RGBAAt(rect.Min.X+nx, rect.Min.Y+ny)
+					r += float64(c.R)
+					g += float64(c.G)
+					bl += float64(c.B)
+					n++
+				}
+				if n == 0 {
+					continue
+				}
+				next.SetRGBA(rect.Min.X+x, rect.Min.Y+y, color.RGBA{
+					R: uint8(r / n),
+					G: uint8(g / n),
+					B: uint8(bl / n),
+					A: 255,
+				})
+			}
+		}
+		*img = *next
+	}
+	return changed
+}
+
+func colorDistance(a, b color.RGBA) float64 {
+	dr := float64(a.R) - float64(b.R)
+	dg := float64(a.G) - float64(b.G)
+	db := float64(a.B) - float64(b.B)
+	return math.Sqrt(dr*dr + dg*dg + db*db)
+}
+
+func luminance(c color.RGBA) float64 {
+	return 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
 }
 
 func sampleFillRegion(img *image.RGBA, rect image.Rectangle) {

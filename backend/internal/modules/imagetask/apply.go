@@ -32,7 +32,7 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", opts.TaskID).Error; err != nil {
 		return nil, err
 	}
-	if task.Status != StatusSuccess && task.Status != StatusSuccessWithWarnings {
+	if task.Status != StatusSuccess && task.Status != StatusSuccessWithWarnings && task.Status != StatusLowQuality {
 		return nil, fmt.Errorf("only successful tasks can be applied")
 	}
 	if task.ProductID == nil || *task.ProductID != opts.ProductID {

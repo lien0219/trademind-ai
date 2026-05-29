@@ -34,6 +34,7 @@ type translateTextStyle struct {
 	BackgroundColor string `json:"backgroundColor,omitempty"`
 	FontWeight      string `json:"fontWeight,omitempty"`
 	Align           string `json:"align,omitempty"`
+	BorderRadius    int    `json:"borderRadius,omitempty"`
 }
 
 type translateTextBlock struct {
@@ -55,6 +56,7 @@ type translateOCRResult struct {
 	SupplementedBlocks  int                  `json:"supplementedBlocks,omitempty"`
 	FilteredBlocksCount int                  `json:"filteredBlocksCount,omitempty"`
 	Blocks              []translateTextBlock `json:"blocks"`
+	Groups              []translateTextGroup `json:"groups,omitempty"`
 }
 
 type translateQualitySummary struct {
@@ -64,6 +66,18 @@ type translateQualitySummary struct {
 	LayoutPreserved          bool                   `json:"layoutPreserved"`
 	Layout                   translateLayoutSummary `json:"layout"`
 	Warnings                 []string               `json:"warnings"`
+}
+
+type translateRenderQuality struct {
+	TextAppliedScore         int      `json:"textAppliedScore"`
+	SourceTextRemovedScore   int      `json:"sourceTextRemovedScore"`
+	LayoutScore              int      `json:"layoutScore"`
+	StyleConsistencyScore    int      `json:"styleConsistencyScore"`
+	ReadabilityScore         int      `json:"readabilityScore"`
+	ProductPreservationScore int      `json:"productPreservationScore"`
+	CommercialUsabilityScore int      `json:"commercialUsabilityScore"`
+	Passed                   bool     `json:"passed"`
+	Warnings                 []string `json:"warnings"`
 }
 
 type translateTaskError struct {
@@ -586,7 +600,8 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		imageW = intFromAny(hints["imageWidth"])
 		imageH = intFromAny(hints["imageHeight"])
 	}
-	layoutPlans, layoutSummary := computeTranslateLayouts(ocr.Blocks, layoutOpts, imageW, imageH)
+	textGroups, layoutTemplate := buildTranslateTextGroups(ocr.Blocks, hints, imageW, imageH)
+	groupPlans, layoutSummary := computeTranslateGroupLayouts(textGroups, layoutOpts, imageW, imageH, layoutTemplate)
 	if bboxRepaired {
 		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningBBoxRepaired)
 	}
@@ -596,7 +611,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	if ocr.SupplementedBlocks > 0 || (len(ocr.Blocks) == 1 && imageW > 400 && imageH > 400) {
 		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningPartialOCR)
 	}
-	applyLayoutPlansToBlocks(ocr.Blocks, layoutPlans)
+	applyGroupPlansToOCR(textGroups, groupPlans, ocr)
 
 	quality := buildTranslateQuality(ocr, hints, layoutSummary)
 	if quality.TranslatedBlocksCount == 0 {
@@ -604,11 +619,14 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	}
 
 	if renderOpts.RenderMode == RenderModeAIEdit {
+		layoutPlans, _ := computeTranslateLayouts(ocr.Blocks, layoutOpts, imageW, imageH)
 		return s.executeTranslateAIEdit(ctx, task, hints, ocr, layoutPlans, layoutSummary, quality, sourceLang, targetLang)
 	}
 	if renderOpts.RenderMode == RenderModeDeterministic || renderOpts.RenderMode == RenderModeHybrid {
-		return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, layoutPlans, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
+		renderBlocks := buildRenderBlocksFromGroups(textGroups, groupPlans)
+		return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, renderBlocks, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
 	}
 	renderOpts.RenderMode = RenderModeHybrid
-	return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, layoutPlans, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
+	renderBlocks := buildRenderBlocksFromGroups(textGroups, groupPlans)
+	return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, renderBlocks, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
 }

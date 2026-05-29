@@ -124,3 +124,28 @@ func TestRuleBasedShortText(t *testing.T) {
 		t.Fatalf("got %q want Free Shipping", got)
 	}
 }
+
+func TestBuildTranslateTextGroupsPhoneStandTemplate(t *testing.T) {
+	blocks := []translateTextBlock{
+		{ID: "b1", Text: "金属底座", TranslatedText: "Metal Base", BBox: translateTextBBox{X: 48, Y: 42, Width: 132, Height: 34}, Style: titleGroupStyle()},
+		{ID: "b2", Text: "折叠支架", TranslatedText: "Foldable Stand", BBox: translateTextBBox{X: 48, Y: 82, Width: 150, Height: 34}, Style: titleGroupStyle()},
+		{ID: "b3", Text: "手机 / 平板", TranslatedText: "Phone/Tablet", BBox: translateTextBBox{X: 48, Y: 134, Width: 120, Height: 34}, Style: badgeGroupStyle()},
+		{ID: "b4", Text: "暗夜黑", TranslatedText: "Midnight Black", BBox: translateTextBBox{X: 58, Y: 620, Width: 110, Height: 36}, Style: badgeGroupStyle()},
+	}
+	groups, tpl := buildTranslateTextGroups(blocks, map[string]any{"layoutTemplate": "auto"}, 800, 800)
+	if tpl != layoutTemplateTitleBadge {
+		t.Fatalf("template = %q, want title_badge", tpl)
+	}
+	if len(groups) != 3 {
+		t.Fatalf("groups = %d, want 3", len(groups))
+	}
+	if groups[0].GroupType != groupTypeMainTitle || len(groups[0].TranslatedLines) != 2 {
+		t.Fatalf("main title group not merged: %+v", groups[0])
+	}
+	if groups[1].GroupType != groupTypeBadge {
+		t.Fatalf("badge group = %q", groups[1].GroupType)
+	}
+	if groups[2].GroupType != groupTypeBottomBadge {
+		t.Fatalf("bottom badge group = %q", groups[2].GroupType)
+	}
+}

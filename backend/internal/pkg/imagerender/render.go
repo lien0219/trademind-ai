@@ -9,12 +9,18 @@ import (
 
 // Result holds rendered image bytes and metadata.
 type Result struct {
-	Data         []byte
-	ContentType  string
-	EraseMode    string
-	BlocksDrawn  int
-	SourceSHA256 string
-	OutputSHA256 string
+	Data                 []byte
+	ContentType          string
+	EraseMode            string
+	BlocksDrawn          int
+	SourceSHA256         string
+	OutputSHA256         string
+	EraseAreaRatio       float64
+	PatchAreaRatio       float64
+	BackgroundDeltaScore float64
+	FlatFillRatio        float64
+	LargePatchDetected   bool
+	RetryStrategies      []string
 }
 
 // RenderAndEncode erases original text regions, draws translated text, and encodes output.
@@ -36,17 +42,32 @@ func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, op
 		eraseMode = EraseAuto
 	}
 	usedErase := ""
+	var stats EraseStats
+	imageArea := max(1, b.Dx()*b.Dy())
 	for _, block := range blocks {
-		if block.BBox.Width <= 0 || block.BBox.Height <= 0 {
+		eraseBox := block.EraseBBox
+		if eraseBox.Width <= 0 || eraseBox.Height <= 0 {
+			eraseBox = block.BBox
+		}
+		if eraseBox.Width <= 0 || eraseBox.Height <= 0 {
 			continue
 		}
-		expanded := expandRect(block.BBox, maskPad, b.Dx(), b.Dy())
+		pad := maskPad
+		if block.ErasePadding > 0 {
+			pad = block.ErasePadding
+		}
+		expanded := expandEraseRect(eraseBox, pad, b.Dx(), b.Dy())
 		rect := image.Rect(expanded.X, expanded.Y, expanded.X+expanded.Width, expanded.Y+expanded.Height)
 		chosen := chooseEraseMode(eraseMode, rgba, rect)
 		if usedErase == "" {
 			usedErase = chosen
 		}
-		eraseRegion(rgba, rect, chosen)
+		blockStats := eraseRegion(rgba, rect, chosen)
+		stats.ErasePixels += blockStats.ErasePixels
+		stats.PatchPixels += blockStats.PatchPixels
+		stats.BackgroundDeltaScore += blockStats.BackgroundDeltaScore
+		stats.FlatFillRatio += blockStats.FlatFillRatio * float64(blockStats.PatchPixels)
+		stats.LargePatchDetected = stats.LargePatchDetected || blockStats.LargePatchDetected
 	}
 	drawn := 0
 	for _, block := range blocks {
@@ -66,12 +87,17 @@ func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, op
 		return nil, err
 	}
 	res := &Result{
-		Data:         data,
-		ContentType:  ct,
-		EraseMode:    usedErase,
-		BlocksDrawn:  drawn,
-		SourceSHA256: SHA256Hex(sourceBytes),
-		OutputSHA256: SHA256Hex(data),
+		Data:                 data,
+		ContentType:          ct,
+		EraseMode:            usedErase,
+		BlocksDrawn:          drawn,
+		SourceSHA256:         SHA256Hex(sourceBytes),
+		OutputSHA256:         SHA256Hex(data),
+		EraseAreaRatio:       float64(stats.ErasePixels) / float64(imageArea),
+		PatchAreaRatio:       float64(stats.PatchPixels) / float64(imageArea),
+		BackgroundDeltaScore: stats.BackgroundDeltaScore,
+		FlatFillRatio:        stats.FlatFillRatio / float64(max(1, stats.PatchPixels)),
+		LargePatchDetected:   stats.LargePatchDetected || float64(stats.PatchPixels)/float64(imageArea) > 0.08,
 	}
 	return res, nil
 }

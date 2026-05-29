@@ -59,6 +59,8 @@ Collector Provider
 
 图片任务应通过任务状态与队列执行，避免长请求同步阻塞。
 
+`translate_image_text` 采用 OCR → 翻译 → 样式分组 → 确定性渲染链路。文字会先聚合为 `main_title`、`badge`、`bottom_badge` 等 group，再按 `auto` / `title_badge` / `preserve_original` 等模板排版；黑底标签会重绘圆角胶囊背景，普通文本优先局部擦除并继承原图字重、颜色和对齐，不再默认用白色矩形覆盖所有区域。结果需输出 `renderQuality` 评分，低于商用阈值时标记 `success_with_warnings`。
+
 ## Platform Provider
 
 用于接入跨境电商平台能力。

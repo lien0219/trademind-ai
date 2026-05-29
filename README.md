@@ -382,7 +382,7 @@ api_key: <你的 DashScope API Key>
 
 - **OCR 服务**：支持 `paddleocr`（本地推荐）、`ai_vision`（AI 视觉大模型）、预留百度/阿里云/腾讯云 OCR。
 - **PaddleOCR 配置**：选择 `paddleocr` 后，需填写本地部署的 OCR 服务地址（如 `http://127.0.0.1:8000`）。
-- **局部擦除方式**：支持 `auto`、`background_sample`、`blur_fill`、`opencv_inpaint`、`ai_inpaint`。
+- **局部擦除方式**：支持 `auto`、`precise_mask`（默认优先，精细擦字）、`background_sample`、`blur_fill`、`opencv_inpaint`、`ai_inpaint`。
 - **ComfyUI 局部擦除**：若选择 `ai_inpaint`，可配置专用的 ComfyUI 地址与工作流 JSON（支持 `{{sourceImageUrl}}` 与 `{{maskImageUrl}}` 变量）。
 
 #### 小白推荐配置
@@ -395,7 +395,7 @@ api_key: <你的 DashScope API Key>
 #### 未配置时的降级策略
 
 - **OCR 未配置**：若未配置 PaddleOCR，将自动降级使用 AI 视觉模型（需在 AI 设置中配置支持视觉的模型）。
-- **局部擦除未配置**：若选择了 `ai_inpaint` 但未配置 ComfyUI，将自动降级使用程序擦除方式（如 `background_sample`）。
+- **局部擦除未配置**：若选择了 `ai_inpaint` 但未配置 ComfyUI，将自动降级使用程序擦除方式（优先 `precise_mask`，再按质量重试 `blur_fill` / `opencv_inpaint`）。
 - **图片服务未配置**：图片任务将提示“图片处理服务未配置，请先到「设置 → 图片 AI 设置」选择图片处理服务”。
 - **存储未配置**：图片任务将提示“图片存储未配置，请先到「设置 → 存储设置」配置图片保存位置”。
 

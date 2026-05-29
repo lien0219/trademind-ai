@@ -16,17 +16,20 @@ type TextStyle struct {
 	BackgroundColor string `json:"backgroundColor,omitempty"`
 	FontWeight      string `json:"fontWeight,omitempty"`
 	Align           string `json:"align,omitempty"`
+	BorderRadius    int    `json:"borderRadius,omitempty"`
 }
 
 // TextBlock is one region to erase and redraw.
 type TextBlock struct {
-	ID       string
-	Lines    []string
-	FontSize int
-	BBox     BBox
-	Style    TextStyle
-	Align    string
-	Bold     bool
+	ID           string
+	Lines        []string
+	FontSize     int
+	BBox         BBox
+	EraseBBox    BBox
+	Style        TextStyle
+	Align        string
+	Bold         bool
+	ErasePadding int
 }
 
 // Options controls erase and padding behavior.
@@ -38,6 +41,7 @@ type Options struct {
 }
 
 const (
+	ErasePreciseMask      = "precise_mask"
 	EraseBackgroundSample = "background_sample"
 	EraseBlurFill         = "blur_fill"
 	EraseOpenCVInpaint    = "opencv_inpaint"
@@ -100,6 +104,36 @@ func clampRect(x, y, w, h, imgW, imgH int) (int, int, int, int) {
 func expandRect(b BBox, pad, imgW, imgH int) BBox {
 	x, y, w, h := b.X-pad, b.Y-pad, b.Width+pad*2, b.Height+pad*2
 	x, y, w, h = clampRect(x, y, w, h, imgW, imgH)
+	return BBox{X: x, Y: y, Width: w, Height: h}
+}
+
+func clampEraseRect(x, y, w, h, imgW, imgH int) (int, int, int, int) {
+	if x < 0 {
+		w += x
+		x = 0
+	}
+	if y < 0 {
+		h += y
+		y = 0
+	}
+	if imgW > 0 && x+w > imgW {
+		w = imgW - x
+	}
+	if imgH > 0 && y+h > imgH {
+		h = imgH - y
+	}
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	return x, y, w, h
+}
+
+func expandEraseRect(b BBox, pad, imgW, imgH int) BBox {
+	x, y, w, h := b.X-pad, b.Y-pad, b.Width+pad*2, b.Height+pad*2
+	x, y, w, h = clampEraseRect(x, y, w, h, imgW, imgH)
 	return BBox{X: x, Y: y, Width: w, Height: h}
 }
 

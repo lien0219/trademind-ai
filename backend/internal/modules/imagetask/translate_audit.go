@@ -45,9 +45,10 @@ func translateAuditMsg(task *ImageTask, fields map[string]any) string {
 }
 
 type translateResultMeta struct {
-	Translate    translateSummaryMeta      `json:"translate"`
-	Layout       translateLayoutMeta       `json:"layout"`
-	Verification translateVerificationMeta `json:"verification"`
+	Translate     translateSummaryMeta      `json:"translate"`
+	Layout        translateLayoutMeta       `json:"layout"`
+	Verification  translateVerificationMeta `json:"verification"`
+	RenderQuality translateRenderQuality    `json:"renderQuality,omitempty"`
 }
 
 type translateSummaryMeta struct {
@@ -60,14 +61,21 @@ type translateSummaryMeta struct {
 }
 
 type translateLayoutMeta struct {
-	RenderMode        string   `json:"renderMode"`
-	EraseMode         string   `json:"eraseMode"`
-	AutoWrappedBlocks int      `json:"autoWrappedBlocks"`
-	FontResizedBlocks int      `json:"fontResizedBlocks"`
-	SimplifiedBlocks  int      `json:"simplifiedBlocks"`
-	OverflowBlocks    int      `json:"overflowBlocks"`
-	MinFontSizeUsed   int      `json:"minFontSizeUsed"`
-	Warnings          []string `json:"warnings"`
+	RenderMode         string   `json:"renderMode"`
+	EraseMode          string   `json:"eraseMode"`
+	LayoutTemplate     string   `json:"layoutTemplate,omitempty"`
+	EraseAreaRatio     float64  `json:"eraseAreaRatio,omitempty"`
+	PatchAreaRatio     float64  `json:"patchAreaRatio,omitempty"`
+	BackgroundDelta    float64  `json:"backgroundDeltaScore,omitempty"`
+	FlatFillRatio      float64  `json:"flatFillRatio,omitempty"`
+	LargePatchDetected bool     `json:"largePatchDetected,omitempty"`
+	RetryStrategies    []string `json:"retryStrategies,omitempty"`
+	AutoWrappedBlocks  int      `json:"autoWrappedBlocks"`
+	FontResizedBlocks  int      `json:"fontResizedBlocks"`
+	SimplifiedBlocks   int      `json:"simplifiedBlocks"`
+	OverflowBlocks     int      `json:"overflowBlocks"`
+	MinFontSizeUsed    int      `json:"minFontSizeUsed"`
+	Warnings           []string `json:"warnings"`
 }
 
 type translateVerificationMeta struct {
@@ -106,14 +114,53 @@ func buildRenderBlocks(ocr *translateOCRResult, plans []translateBlockLayoutPlan
 				X: plan.BBox.X, Y: plan.BBox.Y,
 				Width: plan.BBox.Width, Height: plan.BBox.Height,
 			},
+			EraseBBox: imagerender.BBox{
+				X: b.BBox.X, Y: b.BBox.Y,
+				Width: b.BBox.Width, Height: b.BBox.Height,
+			},
 			Style: imagerender.TextStyle{
 				Color:           b.Style.Color,
 				BackgroundColor: b.Style.BackgroundColor,
 				FontWeight:      b.Style.FontWeight,
 				Align:           align,
+				BorderRadius:    b.Style.BorderRadius,
 			},
 			Align: align,
 			Bold:  strings.EqualFold(b.Style.FontWeight, "bold"),
+		})
+	}
+	return out
+}
+
+func buildImageRenderBlocks(blocks []translateRenderBlock) []imagerender.TextBlock {
+	out := make([]imagerender.TextBlock, 0, len(blocks))
+	for _, b := range blocks {
+		align := strings.TrimSpace(b.Style.Align)
+		if align == "" {
+			align = "left"
+		}
+		out = append(out, imagerender.TextBlock{
+			ID:       b.ID,
+			Lines:    append([]string(nil), b.Lines...),
+			FontSize: b.FontSize,
+			BBox: imagerender.BBox{
+				X: b.BBox.X, Y: b.BBox.Y,
+				Width: b.BBox.Width, Height: b.BBox.Height,
+			},
+			EraseBBox: imagerender.BBox{
+				X: b.EraseBBox.X, Y: b.EraseBBox.Y,
+				Width: b.EraseBBox.Width, Height: b.EraseBBox.Height,
+			},
+			Style: imagerender.TextStyle{
+				Color:           b.Style.Color,
+				BackgroundColor: b.Style.BackgroundColor,
+				FontWeight:      b.Style.FontWeight,
+				Align:           align,
+				BorderRadius:    b.Style.BorderRadius,
+			},
+			Align:        align,
+			Bold:         strings.EqualFold(b.Style.FontWeight, "bold"),
+			ErasePadding: b.ErasePadding,
 		})
 	}
 	return out

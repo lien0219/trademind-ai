@@ -36,6 +36,7 @@ type translateBlockLayoutPlan struct {
 
 type translateLayoutSummary struct {
 	AutoLayout        bool     `json:"autoLayout"`
+	LayoutTemplate    string   `json:"layoutTemplate,omitempty"`
 	TextBlocksCount   int      `json:"textBlocksCount"`
 	AutoWrappedBlocks int      `json:"autoWrappedBlocks"`
 	FontResizedBlocks int      `json:"fontResizedBlocks"`

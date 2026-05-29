@@ -255,6 +255,7 @@ export function TranslateImageTextModal({
                   options={[
                     { label: '默认（读取设置）', value: '' },
                     { label: '自动', value: 'auto' },
+                    { label: '精细擦字（推荐）', value: 'precise_mask' },
                     { label: '背景采样', value: 'background_sample' },
                     { label: '模糊填充', value: 'blur_fill' },
                     { label: 'OpenCV 修复', value: 'opencv_inpaint' },

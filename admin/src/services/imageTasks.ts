@@ -354,6 +354,8 @@ export type TranslateImageTextInputOpts = {
   maxLines?: number;
   textPadding?: number;
   maskPadding?: number;
+  layoutTemplate?: 'preserve_original' | 'ecommerce_clean' | 'title_badge' | 'auto';
+  styleMode?: 'preserve' | 'recreate';
 };
 
 export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
@@ -409,6 +411,8 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
     maxLines: opts.maxLines ?? 3,
     textPadding: opts.textPadding ?? 6,
     maskPadding: opts.maskPadding ?? 8,
+    layoutTemplate: opts.layoutTemplate ?? 'auto',
+    styleMode: opts.styleMode ?? undefined,
   };
   if (layoutMode === 'preserve') {
     input.allowTextBoxExpand = opts.allowTextBoxExpand === true;
@@ -431,6 +435,13 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
 
 export type TranslateLayoutSummary = {
   autoLayout?: boolean;
+  layoutTemplate?: string;
+  eraseAreaRatio?: number;
+  patchAreaRatio?: number;
+  backgroundDeltaScore?: number;
+  flatFillRatio?: number;
+  largePatchDetected?: boolean;
+  retryStrategies?: string[];
   textBlocksCount?: number;
   autoWrappedBlocks?: number;
   fontResizedBlocks?: number;
@@ -454,6 +465,11 @@ export type TranslateTaskOutput = {
       shortTranslatedText?: string;
       drawText?: string;
       confidence?: number;
+    }>;
+    groups?: Array<{
+      id?: string;
+      groupType?: string;
+      translatedLines?: string[];
     }>;
   };
   translate?: {
@@ -480,6 +496,17 @@ export type TranslateTaskOutput = {
     layout?: TranslateLayoutSummary;
     warnings?: string[];
   };
+  renderQuality?: {
+    textAppliedScore?: number;
+    sourceTextRemovedScore?: number;
+    layoutScore?: number;
+    styleConsistencyScore?: number;
+    readabilityScore?: number;
+    productPreservationScore?: number;
+    commercialUsabilityScore?: number;
+    passed?: boolean;
+    warnings?: string[];
+  };
 };
 
 const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
@@ -493,6 +520,13 @@ const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
   IMAGE_NOT_CHANGED: '生成图片没有变化，请重新生成或切换处理方式。',
   IMAGE_TEXT_NOT_APPLIED: '翻译文字没有成功写入图片，请重新生成。',
   OUTPUT_TEXT_VERIFY_FAILED: '系统无法确认文字替换效果，请人工检查图片。',
+  background_patch_visible: '背景修补痕迹明显。',
+  layout_not_natural: '排版不够自然。',
+  text_overflow: '部分文字超出推荐区域。',
+  text_not_applied: '翻译文字没有成功写入图片。',
+  commercial_usability_low: '商用评分偏低，不建议直接作为商品图使用。',
+  style_inherited: '已按商品图标题 / 标签模板继承原图样式。',
+  erase_area_too_large: '擦除区域过大，可能破坏背景。',
 };
 
 /** Map machine layout warning codes to user-friendly Chinese labels. */
@@ -518,7 +552,26 @@ export function translateTaskWarnings(output: TranslateTaskOutput | null): strin
   for (const w of output.quality?.layout?.warnings ?? []) {
     add(translateLayoutWarningLabel(w));
   }
+  for (const w of output.renderQuality?.warnings ?? []) {
+    add(translateLayoutWarningLabel(w));
+  }
   return out;
+}
+
+export function translateRenderQualityLevel(output: TranslateTaskOutput | null): {
+  text: string;
+  color: string;
+  recommendMain: boolean;
+} {
+  const rq = output?.renderQuality;
+  const score = rq?.commercialUsabilityScore ?? 0;
+  if (rq?.passed && score >= 75) {
+    return { text: '可直接使用', color: 'success', recommendMain: true };
+  }
+  if (score >= 60) {
+    return { text: '建议检查', color: 'warning', recommendMain: false };
+  }
+  return { text: '不建议使用', color: 'error', recommendMain: false };
 }
 
 export function parseTranslateTaskOutput(output: unknown): TranslateTaskOutput | null {
@@ -527,6 +580,6 @@ export function parseTranslateTaskOutput(output: unknown): TranslateTaskOutput |
 }
 
 export function isImageTaskSuccessStatus(status: string): boolean {
-  return status === 'success' || status === 'success_with_warnings';
+  return status === 'success' || status === 'success_with_warnings' || status === 'low_quality';
 }
 

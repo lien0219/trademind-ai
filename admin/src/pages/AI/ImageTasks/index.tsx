@@ -2,7 +2,7 @@ import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-co
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { CopyOutlined } from '@ant-design/icons';
-import { Button, Card, Descriptions, Drawer, Image, Space, Spin, Tag, message, Typography } from 'antd';
+import { Alert, Button, Card, Descriptions, Drawer, Image, Popconfirm, Space, Spin, Tag, message, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from '@umijs/max';
@@ -23,6 +23,7 @@ import {
   setImageTaskItemAsMain,
   taskTypeLabel,
   translateLangLabel,
+  translateRenderQualityLevel,
   translateRenderModeLabel,
   translateTaskWarnings,
   buildTranslateImageTextInput,
@@ -85,6 +86,8 @@ function TranslateResultPanel({ output }: { output: unknown }) {
   const layout = parsed.layout ?? parsed.quality?.layout;
   const translate = parsed.translate;
   const verification = parsed.verification;
+  const renderQuality = parsed.renderQuality;
+  const qualityLevel = translateRenderQualityLevel(parsed);
   const warnings = translateTaskWarnings(parsed);
   const hasOverflow = (layout?.overflowBlocks ?? 0) > 0;
   return (
@@ -94,6 +97,11 @@ function TranslateResultPanel({ output }: { output: unknown }) {
           {translateRenderModeLabel(parsed.renderMode ?? layout?.renderMode)}
         </Descriptions.Item>
         <Descriptions.Item label="擦除方式">{layout?.eraseMode ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="版式模板">{layout?.layoutTemplate ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="渲染质量">
+          <Tag color={qualityLevel.color}>{qualityLevel.text}</Tag>
+          {renderQuality?.commercialUsabilityScore != null ? ` ${renderQuality.commercialUsabilityScore}` : ''}
+        </Descriptions.Item>
         <Descriptions.Item label="源语言">
           {translateLangLabel(parsed.sourceLanguage || parsed.ocr?.detectedLanguage || '—')}
         </Descriptions.Item>
@@ -111,7 +119,46 @@ function TranslateResultPanel({ output }: { output: unknown }) {
         <Descriptions.Item label="自动精简文案数量">{layout?.simplifiedBlocks ?? 0}</Descriptions.Item>
         <Descriptions.Item label="文字溢出数量">{layout?.overflowBlocks ?? 0}</Descriptions.Item>
         <Descriptions.Item label="是否存在文字溢出">{hasOverflow ? '是' : '否'}</Descriptions.Item>
+        <Descriptions.Item label="擦除面积占比">
+          {layout?.eraseAreaRatio != null ? `${(layout.eraseAreaRatio * 100).toFixed(2)}%` : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="补丁面积占比">
+          {layout?.patchAreaRatio != null ? `${(layout.patchAreaRatio * 100).toFixed(2)}%` : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="背景破坏分">
+          {layout?.backgroundDeltaScore != null ? layout.backgroundDeltaScore.toFixed(2) : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="平铺填充占比">
+          {layout?.flatFillRatio != null ? `${(layout.flatFillRatio * 100).toFixed(1)}%` : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="检测到大背景块">
+          {layout?.largePatchDetected ? '是' : '否'}
+        </Descriptions.Item>
+        <Descriptions.Item label="自动重试策略">
+          {layout?.retryStrategies?.length ? layout.retryStrategies.join(' / ') : '—'}
+        </Descriptions.Item>
       </Descriptions>
+      {renderQuality ? (
+        <div style={{ marginTop: 12 }}>
+          <Typography.Text strong>质量评分</Typography.Text>
+          <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+            <Descriptions.Item label="文字写入">{renderQuality.textAppliedScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="原文清理">{renderQuality.sourceTextRemovedScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="排版自然度">{renderQuality.layoutScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="风格一致性">{renderQuality.styleConsistencyScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="可读性">{renderQuality.readabilityScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="商品保护">{renderQuality.productPreservationScore ?? '—'}</Descriptions.Item>
+          </Descriptions>
+          {!renderQuality.passed ? (
+            <Alert
+              style={{ marginTop: 8 }}
+              type="warning"
+              showIcon
+              message="当前结果排版一般，建议重新生成或人工检查。"
+            />
+          ) : null}
+        </div>
+      ) : null}
       {verification ? (
         <div style={{ marginTop: 12 }}>
           <Typography.Text strong>校验摘要</Typography.Text>
@@ -189,6 +236,11 @@ export default function ImageTasksPage() {
   const [taskItems, setTaskItems] = useState<ImageTaskItemRow[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<{ taskType?: string }>({});
+  const translateOutput = useMemo(
+    () => (detail?.taskType === 'translate_image_text' ? parseTranslateTaskOutput(detail.output) : null),
+    [detail?.taskType, detail?.output],
+  );
+  const translateQualityLevel = useMemo(() => translateRenderQualityLevel(translateOutput), [translateOutput]);
 
   useEffect(() => {
     const iv = window.setInterval(() => {
@@ -451,7 +503,10 @@ export default function ImageTasksPage() {
         footer={
           <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
             {detail?.taskType === 'translate_image_text' &&
-            (detail.status === 'failed' || detail.status === 'success_with_warnings') ? (
+            (detail.status === 'failed' ||
+              detail.status === 'success_with_warnings' ||
+              detail.status === 'low_quality' ||
+              detail.status === 'failed_render_validation') ? (
               <>
                 <Button
                   onClick={async () => {
@@ -510,6 +565,65 @@ export default function ImageTasksPage() {
                 >
                   降低字号重试
                 </Button>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: buildTranslateImageTextInput({
+                          ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                          renderMode: 'hybrid',
+                          layoutTemplate: 'preserve_original',
+                        }),
+                      });
+                      message.success('已提交保持原版式重试任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  保持原版式重试
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: buildTranslateImageTextInput({
+                          ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                          renderMode: 'deterministic',
+                          eraseMode: 'opencv_inpaint',
+                          layoutTemplate: 'title_badge',
+                          styleMode: 'recreate',
+                          maxFontSize: 36,
+                        }),
+                      });
+                      message.success('已提交商品图模板重试任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  使用商品图模板重试
+                </Button>
               </>
             ) : null}
             {detail?.status === 'failed' ? (
@@ -555,10 +669,14 @@ export default function ImageTasksPage() {
             ) : null}
             {detail && isImageTaskSuccessStatus(detail.status) && detail.productId && (detail.resultUrl || detail.resultFileId) ? (
               <>
-                <Button
-                  type="primary"
-                  ghost
-                  onClick={async () => {
+                <Popconfirm
+                  title="确认保存到商品图片？"
+                  description={
+                    detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
+                      ? '结果将追加为 AI 生成图，不覆盖原图。'
+                      : '当前渲染质量未通过，建议人工检查后再保存。'
+                  }
+                  onConfirm={async () => {
                     try {
                       await applyImageTaskResult(detail.id, {
                         productId: detail.productId!,
@@ -570,10 +688,18 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  保存到商品图片
-                </Button>
-                <Button
-                  onClick={async () => {
+                  <Button type="primary" ghost>
+                    保存到商品图片
+                  </Button>
+                </Popconfirm>
+                <Popconfirm
+                  title="确认设为主图？"
+                  description={
+                    detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
+                      ? '结果质量已通过，可以设为主图。'
+                      : '当前结果不建议直接设为主图，请确认已人工检查。'
+                  }
+                  onConfirm={async () => {
                     try {
                       await applyImageTaskResult(detail.id, {
                         productId: detail.productId!,
@@ -586,8 +712,10 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  设为主图
-                </Button>
+                  <Button danger={detail.taskType === 'translate_image_text' && !translateQualityLevel.recommendMain}>
+                    设为主图
+                  </Button>
+                </Popconfirm>
                 <Button
                   onClick={async () => {
                     try {

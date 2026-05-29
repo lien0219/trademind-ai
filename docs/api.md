@@ -58,6 +58,8 @@
 | `POST` | `/api/v1/ai/image/task-items/:id/set-as-main` | 将任务子项结果设为主图（`is_best_main`）。 |
 | `POST` | `/api/v1/ai/image/score` | 同步商品图评分（返回 overall/clarity/cleanliness 等维度）。 |
 
+`translate_image_text`（图片文字翻译）详情输出会包含 `ocr.blocks`、`ocr.groups`、`layout.layoutTemplate` 与 `renderQuality`。`layout` 还包含 `eraseMode`、`eraseAreaRatio`、`patchAreaRatio`、`flatFillRatio`、`largePatchDetected`、`retryStrategies` 等渲染诊断；顶层同步输出 `detected_source_blocks`、`translated_blocks`、`rendered_blocks`、`target_language_present`、`source_language_residue`、`overflow_blocks`、`style_mismatch_count`、`patch_area_ratio`、`render_quality_score`、`overall_confidence` 便于任务详情和批量排查。`renderQuality` 包含 `textAppliedScore`、`sourceTextRemovedScore`、`layoutScore`、`styleConsistencyScore`、`readabilityScore`、`productPreservationScore`、`commercialUsabilityScore`、`passed` 与 `warnings`；当排版、原文残留、背景修补或商用评分不达标时，任务会以 `success_with_warnings` 或 `low_quality` 返回，不应默认推荐设为主图。
+
 ## 文件
 
 | 方法 | 路径 | 说明 |
