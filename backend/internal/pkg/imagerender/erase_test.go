@@ -23,7 +23,7 @@ func TestSampleFillCoversDarkText(t *testing.T) {
 	for y := 20; y < 60; y++ {
 		for x := 20; x < 180; x++ {
 			c := img.RGBAAt(x, y)
-			lum := 0.299*float64(c.R)+0.587*float64(c.G)+0.114*float64(c.B)
+			lum := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
 			if lum < 150 {
 				t.Fatalf("dark pixel remains at %d,%d lum=%.0f", x, y, lum)
 			}
