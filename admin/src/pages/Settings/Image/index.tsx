@@ -1,9 +1,19 @@
+import { Link } from '@umijs/renderer-react';
+import {
+  ApiOutlined,
+  ExperimentOutlined,
+  PictureOutlined,
+  ReloadOutlined,
+  ScanOutlined,
+  ScissorOutlined,
+  SwapOutlined,
+} from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
-  Card,
   Col,
+  Divider,
   Form,
   Input,
   InputNumber,
@@ -14,6 +24,7 @@ import {
   Typography,
   message,
 } from 'antd';
+import type { ComponentType, CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ALL_IMAGE_FIELD_SPECS,
@@ -74,6 +85,13 @@ const TENCENT_OCR_API_OPTIONS = [
   { label: 'GeneralBasicOCR：通用印刷体识别，推荐默认', value: 'GeneralBasicOCR' },
   { label: 'GeneralFastOCR：通用印刷体识别高速版，可选', value: 'GeneralFastOCR' },
 ];
+
+const SCENARIO_ICONS: Record<ImageScenarioId, ComponentType<{ style?: CSSProperties }>> = {
+  remove_bg: ScissorOutlined,
+  generate_scene: PictureOutlined,
+  replace_bg: SwapOutlined,
+  comfyui_custom: ApiOutlined,
+};
 
 function hasSavedSecretValue(value?: string) {
   return Boolean((value ?? '').trim());
@@ -336,111 +354,86 @@ export default function ImageSettingsPage() {
     );
   };
 
-  return (
-    <PageContainer title="图片 AI 设置">
-      <ProCard bordered style={{ marginBottom: 16 }}>
+  const renderOCRProviderHint = () => {
+    if (ocrProvider === 'ai_vision') {
+      return (
         <Alert
           type="info"
           showIcon
-          message="图片 AI 用于商品图去背景、生成场景图、替换背景"
-          description="你可以选择云端服务，也可以选择本地 ComfyUI。所有请求由系统后端发起；API 密钥需自行到对应控制台申请。测试与生成可能产生费用。"
+          className="tm-image-settings__provider-alert"
+          message="使用当前 AI 设置中的视觉模型识别图片文字"
+          description="无需填写 OCR 服务地址。请确保「设置 → AI 设置」里配置的是支持图片输入的视觉模型，例如 qwen3-vl-plus、gpt-4o-mini 等。"
         />
-      </ProCard>
+      );
+    }
+    if (ocrProvider === 'paddleocr') {
+      return (
+        <Alert
+          type="info"
+          showIcon
+          className="tm-image-settings__provider-alert"
+          message="PaddleOCR 使用本地或内网服务"
+          description="请填写可由后端访问的服务地址，例如 http://127.0.0.1:xxxx。开启失败自动降级后，PaddleOCR 不可用时图片文字翻译会使用 AI 视觉 OCR 兜底。"
+        />
+      );
+    }
+    if (ocrProvider === 'aliyun') {
+      return (
+        <Alert
+          type="info"
+          showIcon
+          className="tm-image-settings__provider-alert"
+          message="阿里云 OCR 适合国内生产环境"
+          description="请在阿里云控制台开通 OCR 服务并创建 AccessKeyId / AccessKeySecret。"
+        />
+      );
+    }
+    if (ocrProvider === 'tencent') {
+      return (
+        <Alert
+          type="info"
+          showIcon
+          className="tm-image-settings__provider-alert"
+          message="腾讯云 OCR 适合国内生产环境"
+          description="请先在腾讯云控制台开通文字识别 OCR 服务，并创建 SecretId / SecretKey。"
+        />
+      );
+    }
+    return null;
+  };
 
-      <ProCard title="1. 选择使用场景" bordered style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]}>
-          {IMAGE_SCENARIOS.map((sc) => (
-            <Col xs={24} sm={12} key={sc.id}>
-              <Card
-                hoverable
-                size="small"
-                type={scenario === sc.id ? 'inner' : undefined}
-                style={{
-                  borderColor: scenario === sc.id ? 'var(--ant-color-primary)' : undefined,
-                  cursor: 'pointer',
-                }}
-                onClick={() => onScenarioPick(sc.id)}
-              >
-                <Typography.Text strong>{sc.title}</Typography.Text>
-                <div style={{ marginTop: 8, color: 'var(--ant-color-text-secondary)', fontSize: 13 }}>
-                  {sc.description}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    推荐：
-                  </Typography.Text>
-                  {sc.recommendedProviders.map((p) => {
-                    const c = caps.find((x) => x.provider === p);
-                    return (
-                      <Tag key={p} style={{ marginTop: 4 }}>
-                        {c?.displayName ?? p}
-                      </Tag>
-                    );
-                  })}
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </ProCard>
+  return (
+    <PageContainer
+      title="图片 AI 设置"
+      subTitle="配置去背景、场景图生成、图片文字翻译等能力；支持云端 API 与本地 ComfyUI"
+    >
+      <div className="tm-image-settings">
+        <ProCard bordered className="tm-image-settings__hero">
+          <div className="tm-image-settings__hero-inner">
+            <div className="tm-image-settings__hero-icon">
+              <PictureOutlined />
+            </div>
+            <div className="tm-image-settings__hero-body">
+              <Typography.Title level={5} className="tm-image-settings__hero-title">
+                商品图 AI 与 OCR
+              </Typography.Title>
+              <Typography.Paragraph type="secondary" className="tm-image-settings__hero-desc">
+                用于去背景、生成场景图、替换背景与图片文字翻译。所有请求由系统后端发起；API 密钥需自行到对应控制台申请，测试与生成可能产生费用。
+              </Typography.Paragraph>
+              <Space wrap size={[8, 8]}>
+                <Tag color="purple">去背景</Tag>
+                <Tag>场景图</Tag>
+                <Tag>文字翻译</Tag>
+                <Tag>ComfyUI</Tag>
+                <Link to="/settings/integrations">第三方集成总览 →</Link>
+              </Space>
+            </div>
+          </div>
+        </ProCard>
 
-      <ProCard
-        title="2. 选择图片处理服务"
-        bordered
-        style={{ marginBottom: 16 }}
-        extra={
-          <Button type="link" onClick={load} disabled={loading}>
-            重新加载
-          </Button>
-        }
-      >
-        <Form form={form} layout="vertical" style={{ maxWidth: 800 }}>
-          <Form.Item
-            label="默认图片服务"
-            name="provider"
-            rules={[
-              { required: true },
-              {
-                validator: async (_, v) => {
-                  const c = caps.find((x) => x.provider === v);
-                  if (c?.status === 'planned') {
-                    throw new Error('该图片服务尚未开放，不能设为默认');
-                  }
-                },
-              },
-            ]}
-            extra="请到对应服务商控制台申请 API 密钥；留空占位 **** 不会覆盖已保存的密钥"
-          >
-            <Select options={providerOptions} />
-          </Form.Item>
-          <Form.Item name="provider_preset" hidden>
-            <Input />
-          </Form.Item>
-          {currentCap ? (
-            <Alert
-              type={currentCap.status === 'planned' ? 'warning' : 'info'}
-              showIcon
-              style={{ marginBottom: 16 }}
-              message={currentCap.displayName}
-              description={
-                <>
-                  <div>{currentCap.description}</div>
-                  {currentCap.recommendedFor?.length ? (
-                    <div style={{ marginTop: 4 }}>适合：{currentCap.recommendedFor.join('、')}</div>
-                  ) : null}
-                  <ProviderMetaTags cap={currentCap} />
-                </>
-              }
-            />
-          ) : null}
-        </Form>
-      </ProCard>
-
-      <ProCard title="3. 填写当前图片服务配置" bordered>
         <Form
           form={form}
           layout="vertical"
-          style={{ maxWidth: 720 }}
           onFinish={async (values) => {
             try {
               const payload = {
@@ -465,68 +458,172 @@ export default function ImageSettingsPage() {
             }
           }}
         >
-          {currentCap?.status === 'planned' ? (
-            <Alert
-              type="warning"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="该图片服务为预留项"
-              description="可保存配置项，但无法创建真实图片任务，请等待后续版本。"
-            />
-          ) : null}
-          {visibleFieldKeys.map((k) => renderField(k))}
-          
-          <Typography.Title level={5} style={{ marginTop: 32, marginBottom: 16 }}>
-            OCR 配置（用于图片文字翻译）
-          </Typography.Title>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                label={ALL_IMAGE_FIELD_SPECS.ocr_provider.label}
-                name="ocr_provider"
-                extra="OCR 主要用于图片文字翻译、图片中文字识别和翻译后结果校验"
-                rules={[{ required: true, message: '请选择 OCR 服务' }]}
-              >
-                <Select options={OCR_PROVIDER_OPTIONS} />
-              </Form.Item>
+          <ProCard bordered title="使用场景" className="tm-image-settings__panel">
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+              选择最接近你需求的场景，系统将推荐合适的图片服务（可再手动调整）。
+            </Typography.Paragraph>
+            <div className="tm-image-scenario-grid">
+              {IMAGE_SCENARIOS.map((sc) => {
+                const Icon = SCENARIO_ICONS[sc.id];
+                const active = scenario === sc.id;
+                return (
+                  <div
+                    key={sc.id}
+                    role="button"
+                    tabIndex={0}
+                    className={`tm-image-scenario-card${active ? ' is-active' : ''}`}
+                    onClick={() => onScenarioPick(sc.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onScenarioPick(sc.id);
+                      }
+                    }}
+                  >
+                    <div className="tm-image-scenario-card__head">
+                      <span className="tm-image-scenario-card__icon">
+                        <Icon />
+                      </span>
+                      <div className="tm-image-scenario-card__text">
+                        <div className="tm-image-scenario-card__title">{sc.title}</div>
+                        <div className="tm-image-scenario-card__desc">{sc.description}</div>
+                      </div>
+                    </div>
+                    <div className="tm-image-scenario-card__tags">
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        推荐
+                      </Typography.Text>
+                      {sc.recommendedProviders.map((p) => {
+                        const c = caps.find((x) => x.provider === p);
+                        return (
+                          <Tag key={p} color={active ? 'blue' : 'default'}>
+                            {c?.displayName ?? p}
+                          </Tag>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ProCard>
+
+          <ProCard
+            bordered
+            title="图片处理服务"
+            className="tm-image-settings__panel"
+            extra={
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
+                重新加载
+              </Button>
+            }
+          >
+            <Form.Item
+              label="默认图片服务"
+              name="provider"
+              rules={[
+                { required: true },
+                {
+                  validator: async (_, v) => {
+                    const c = caps.find((x) => x.provider === v);
+                    if (c?.status === 'planned') {
+                      throw new Error('该图片服务尚未开放，不能设为默认');
+                    }
+                  },
+                },
+              ]}
+              extra="请到对应服务商控制台申请 API 密钥；留空占位 **** 不会覆盖已保存的密钥"
+            >
+              <Select options={providerOptions} size="large" />
+            </Form.Item>
+            <Form.Item name="provider_preset" hidden>
+              <Input />
+            </Form.Item>
+            {currentCap ? (
+              <Alert
+                type={currentCap.status === 'planned' ? 'warning' : 'info'}
+                showIcon
+                className="tm-image-settings__provider-alert"
+                message={currentCap.displayName}
+                description={
+                  <>
+                    <div>{currentCap.description}</div>
+                    {currentCap.recommendedFor?.length ? (
+                      <div style={{ marginTop: 4 }}>适合：{currentCap.recommendedFor.join('、')}</div>
+                    ) : null}
+                    <ProviderMetaTags cap={currentCap} />
+                  </>
+                }
+              />
+            ) : null}
+          </ProCard>
+
+          <Row gutter={[16, 16]} className="tm-image-settings__row">
+            <Col xs={24} lg={15}>
+              <ProCard bordered title="服务连接" className="tm-image-settings__panel tm-image-settings__panel--fill">
+                {currentCap?.status === 'planned' ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    className="tm-image-settings__provider-alert"
+                    message="该图片服务为预留项"
+                    description="可保存配置项，但无法创建真实图片任务，请等待后续版本。"
+                  />
+                ) : null}
+                <Row gutter={16}>
+                  {visibleFieldKeys.map((k) => {
+                    const spec = ALL_IMAGE_FIELD_SPECS[k];
+                    const isJson = spec?.valueType === 'json';
+                    const span = isJson ? 24 : 12;
+                    return (
+                      <Col xs={24} md={span} key={k}>
+                        {renderField(k)}
+                      </Col>
+                    );
+                  })}
+                </Row>
+              </ProCard>
+            </Col>
+            <Col xs={24} lg={9}>
+              <ProCard bordered title="说明与提示" className="tm-image-settings__panel tm-image-settings__panel--fill">
+                <div className="tm-image-settings__tips">
+                  <Typography.Text type="secondary" className="tm-image-settings__tips-title">
+                    配置建议
+                  </Typography.Text>
+                  <ul className="tm-image-settings__tips-list">
+                    <li>去背景：推荐 remove.bg，需单独申请 API Key</li>
+                    <li>场景图：通义万相、OpenAI Image 等按尺寸计费</li>
+                    <li>ComfyUI：需内网可访问实例与工作流 JSON</li>
+                    <li>图片文字翻译：须在本页配置 OCR 并测试通过</li>
+                  </ul>
+                </div>
+                <Divider style={{ margin: '16px 0' }} />
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+                  真实调用测试与图片生成可能产生费用；敏感密钥保存后不回显明文。
+                </Typography.Paragraph>
+              </ProCard>
             </Col>
           </Row>
-          {ocrProvider === 'ai_vision' ? (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="使用当前 AI 设置中的视觉模型识别图片文字"
-              description="无需填写 OCR 服务地址。请确保「设置 → AI 设置」里配置的是支持图片输入的视觉模型，例如 qwen3-vl-plus、gpt-4o-mini 等。"
-            />
-          ) : null}
-          {ocrProvider === 'paddleocr' ? (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="PaddleOCR 使用本地或内网服务"
-              description="请填写可由后端访问的服务地址，例如 http://127.0.0.1:xxxx。开启失败自动降级后，PaddleOCR 不可用时图片文字翻译会使用 AI 视觉 OCR 兜底。"
-            />
-          ) : null}
-          {ocrProvider === 'aliyun' ? (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="阿里云 OCR 适合国内生产环境"
-              description="请在阿里云控制台开通 OCR 服务并创建 AccessKeyId / AccessKeySecret。"
-            />
-          ) : null}
-          {ocrProvider === 'tencent' ? (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="腾讯云 OCR 适合国内生产环境"
-              description="请先在腾讯云控制台开通文字识别 OCR 服务，并创建 SecretId / SecretKey。"
-            />
-          ) : null}
+
+          <ProCard
+            bordered
+            title="OCR 配置"
+            subTitle="用于图片文字翻译与中英文识别"
+            className="tm-image-settings__panel"
+          >
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  label={ALL_IMAGE_FIELD_SPECS.ocr_provider.label}
+                  name="ocr_provider"
+                  extra="OCR 主要用于图片文字翻译、图片中文字识别和翻译后结果校验"
+                  rules={[{ required: true, message: '请选择 OCR 服务' }]}
+                >
+                  <Select options={OCR_PROVIDER_OPTIONS} />
+                </Form.Item>
+              </Col>
+            </Row>
+            {renderOCRProviderHint()}
           <Form.Item
             noStyle
             shouldUpdate={(prevValues, currentValues) => prevValues.ocr_provider !== currentValues.ocr_provider}
@@ -551,12 +648,16 @@ export default function ImageSettingsPage() {
               }
               if (selectedOCRProvider === 'aliyun') {
                 return (
-                  <>
+                  <div className="tm-image-settings__sub-panel">
+                    <div className="tm-image-settings__sub-panel-title">
+                      <ScanOutlined className="tm-image-settings__sub-panel-icon" />
+                      阿里云连接与凭证
+                    </div>
                     <Row gutter={16}>
-                      <Col span={12}>{renderField('ocr_aliyun_endpoint')}</Col>
-                      <Col span={12}>{renderField('ocr_aliyun_region')}</Col>
-                      <Col span={12}>{renderField('ocr_aliyun_api_name')}</Col>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>{renderField('ocr_aliyun_endpoint')}</Col>
+                      <Col xs={24} md={12}>{renderField('ocr_aliyun_region')}</Col>
+                      <Col xs={24} md={12}>{renderField('ocr_aliyun_api_name')}</Col>
+                      <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_aliyun_access_key_id.label}
                           name="ocr_aliyun_access_key_id"
@@ -581,7 +682,7 @@ export default function ImageSettingsPage() {
                           />
                         </Form.Item>
                       </Col>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_aliyun_access_key_secret.label}
                           name="ocr_aliyun_access_key_secret"
@@ -607,14 +708,18 @@ export default function ImageSettingsPage() {
                         </Form.Item>
                       </Col>
                     </Row>
-                  </>
+                  </div>
                 );
               }
               if (selectedOCRProvider === 'tencent') {
                 return (
-                  <>
+                  <div className="tm-image-settings__sub-panel">
+                    <div className="tm-image-settings__sub-panel-title">
+                      <ScanOutlined className="tm-image-settings__sub-panel-icon" />
+                      腾讯云连接与凭证
+                    </div>
                     <Row gutter={16}>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.label}
                           name="ocr_tencent_endpoint"
@@ -692,17 +797,20 @@ export default function ImageSettingsPage() {
                         </Form.Item>
                       </Col>
                     </Row>
-                  </>
+                  </div>
                 );
               }
-              return (
-                null
-              );
+              return null;
             }}
           </Form.Item>
-          <Row gutter={16}>
-            <Col span={8}>{renderField('ocr_timeout_sec')}</Col>
-            <Col span={8}>{renderField('ocr_min_confidence')}</Col>
+          <div className="tm-image-settings__sub-panel">
+            <div className="tm-image-settings__sub-panel-title">
+              <ExperimentOutlined className="tm-image-settings__sub-panel-icon" />
+              识别参数与限流
+            </div>
+            <Row gutter={16}>
+            <Col xs={24} sm={8}>{renderField('ocr_timeout_sec')}</Col>
+            <Col xs={24} sm={8}>{renderField('ocr_min_confidence')}</Col>
             <Col span={8} style={{ display: 'none' }}>
               <Form.Item
                 label={ALL_IMAGE_FIELD_SPECS.ocr_fallback_to_vision.label}
@@ -718,14 +826,17 @@ export default function ImageSettingsPage() {
               </Form.Item>
             </Col>
           </Row>
-          <Row gutter={16}>
-            <Col span={8}>{renderField('ocr_batch_concurrency')}</Col>
-            <Col span={8}>{renderField('ocr_request_interval_ms')}</Col>
-            <Col span={8}>{renderField('ocr_max_retries')}</Col>
-          </Row>
+            <Row gutter={16}>
+            <Col xs={24} sm={8}>{renderField('ocr_batch_concurrency')}</Col>
+            <Col xs={24} sm={8}>{renderField('ocr_request_interval_ms')}</Col>
+            <Col xs={24} sm={8}>{renderField('ocr_max_retries')}</Col>
+            </Row>
+          </div>
           {ocrProvider && ocrProvider !== 'ai_vision' ? (
-            <Form.Item style={{ marginTop: -8 }}>
+            <div className="tm-image-settings__ocr-test">
               <Button
+                type="default"
+                icon={<ExperimentOutlined />}
                 loading={ocrTesting}
                 onClick={async () => {
                   setOcrTesting(true);
@@ -794,14 +905,18 @@ export default function ImageSettingsPage() {
               >
                 真实测试 OCR 调用
               </Button>
-            </Form.Item>
+            </div>
           ) : null}
+          </ProCard>
 
-          <Typography.Title level={5} style={{ marginTop: 32, marginBottom: 16 }}>
-            局部擦除配置（用于图片文字翻译）
-          </Typography.Title>
+          <ProCard
+            bordered
+            title="局部擦除"
+            subTitle="用于图片文字翻译前去除原文字"
+            className="tm-image-settings__panel"
+          >
           <Row gutter={16}>
-            <Col span={12}>{renderField('erase_mode')}</Col>
+            <Col xs={24} md={12}>{renderField('erase_mode')}</Col>
           </Row>
           <Form.Item
             noStyle
@@ -826,13 +941,15 @@ export default function ImageSettingsPage() {
               );
             }}
           </Form.Item>
+          </ProCard>
 
-          <Form.Item style={{ marginTop: 16 }}>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={loading}>
+          <ProCard bordered className="tm-image-settings__footer">
+            <Space wrap className="tm-action-space">
+              <Button type="primary" htmlType="submit" loading={loading} size="large">
                 保存全部配置
               </Button>
               <Button
+                size="large"
                 loading={testing}
                 disabled={!provider || currentCap?.status === 'planned'}
                 onClick={async () => {
@@ -860,12 +977,9 @@ export default function ImageSettingsPage() {
                 检查图片服务配置
               </Button>
             </Space>
-          </Form.Item>
-          <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-            真实调用测试与图片生成可能产生费用；ComfyUI 需自行部署可访问实例。
-          </Typography.Paragraph>
+          </ProCard>
         </Form>
-      </ProCard>
+      </div>
     </PageContainer>
   );
 }
