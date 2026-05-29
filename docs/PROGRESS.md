@@ -3,7 +3,15 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-29 — **AI 图片任务新增「图片文字翻译」**：新增任务类型 **`translate_image_text`**（图片文字翻译）；支持 **中文 → 英文**、**英文 → 中文**、**自动识别源语言**；流水线为 AI OCR 识别 → 文本翻译 → 图片编辑（OpenAI / 通义万相 / ComfyUI）；翻译结果上传至当前 **Storage Provider**（`products/{productId}/ai/translate_image_text/{yyyy}/{mm}/{uuid}.webp`）；可自动回写 **`product_images`**（不覆盖原图）；商品详情 **图片管理** 每张图增加 **「AI 翻译图片文字」** 入口；AI 图片任务页增加模板与翻译结果摘要展示；**第一版仅支持单图**，批量后续增强。
+**最后更新**：2026-05-29 — **图片文字翻译防幻觉**：OCR 改为 **严格字面识别**（禁止编造限时抢购/价格等营销文案）；视觉 **二次校验** 过滤非原图文字；图片编辑 Prompt 改为 **仅替换 listed 文字块、禁止新增任何文字**；关闭 OCR 补检增块（易幻觉）。
+
+**此前**：2026-05-29 — **图片文字翻译 OCR 解析容错**：修复视觉 OCR 返回 ` ```json ` 包裹 / snake_case 字段导致 **`OCR_FAILED` 解析失败**；复用 `aimodelparse` 提取 JSON；支持 `original_text`/`text_blocks`/`bounding_box` 等别名；视觉请求失败时自动重试（去掉 `json_object` 约束）；优先 base64 + 公网 URL 双通道识图。
+
+**此前**：2026-05-29 — **图片文字翻译 OCR/视觉识别修复**：OCR 改为 **下载原图 + 视觉模型识图**（支持 `ImageURLs` 多模态 Chat）；增加 **二次补检** 遗漏文字块；强化编辑 Prompt「必须替换全部源语言文字」；优化排版 warning（精简成功且未溢出时不重复提示「文字过长」）；大图仅识别 1 段文字时提示「可能未全部识别」。
+
+**此前**：2026-05-29 — **图片文字翻译自动排版增强**：`translate_image_text` 新增 **自动排版** 能力 — 支持翻译文字 **自动换行**、**自动调整字号**、文字区域 **轻微扩展**（≤30%）、过长文案 **自动精简**（`shortTranslatedText` + AI/规则）；`options` 增加 `autoLayout` / `autoWrap` / `autoFontSize` / `allowTextBoxExpand` / `allowTextSimplify` / `minFontSize` / `maxFontSize` / `lineHeightRatio` / `maxLines` / `layoutMode`（自动适配 / 尽量保持原图 / 优先清晰可读）；任务输出 **`quality.layout`** 摘要（换行/缩字号/精简/溢出计数与 warning 码）；前端 **「图片文字翻译」弹窗** 增加排版方式与处理选项；AI 图片任务详情 **翻译结果摘要** 展示排版统计与小白化警告；排版失败时 **`success_with_warnings`** 不阻断；结果图仍上传当前 **Storage Provider**、**不覆盖原图**。
+
+**此前**：2026-05-29 — **AI 图片任务新增「图片文字翻译」**：新增任务类型 **`translate_image_text`**（图片文字翻译）；支持 **中文 → 英文**、**英文 → 中文**、**自动识别源语言**；流水线为 AI OCR 识别 → 文本翻译 → 图片编辑（OpenAI / 通义万相 / ComfyUI）；翻译结果上传至当前 **Storage Provider**（`products/{productId}/ai/translate_image_text/{yyyy}/{mm}/{uuid}.webp`）；可自动回写 **`product_images`**（不覆盖原图）；商品详情 **图片管理** 每张图增加 **「AI 翻译图片文字」** 入口；AI 图片任务页增加模板与翻译结果摘要展示；**第一版仅支持单图**，批量后续增强。
 
 **此前**：2026-05-23 — **登录 / 注册页 UI 现代化**：`/user/login` 重构为响应式 SaaS 双栏布局（桌面 `grid: 1.1fr / minmax(420px,520px)`，平板/移动端单列）；左侧品牌区更新 slogan、简介与 6 项能力标签，背景装饰改为低透明度绝对定位卡片（`opacity 0.1–0.14`，不遮挡正文）；右侧登录卡片 `max-width 460px`、圆角阴影、Tab/输入框/渐变主按钮统一；`<1024px` 隐藏左侧宣传区并显示顶部 Logo；`<768px` 全宽卡片 + 16px 边距；**未改动**登录/注册接口与权限逻辑。
 

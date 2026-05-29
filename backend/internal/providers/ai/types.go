@@ -2,8 +2,9 @@ package ai
 
 // Message is one chat message for the provider.
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string   `json:"role"`
+	Content   string   `json:"content"`
+	ImageURLs []string `json:"-"` // optional vision attachments (http(s) or data: URLs)
 }
 
 // ResponseFormat enables JSON mode on compatible APIs (e.g. OpenAI response_format).
@@ -14,6 +15,7 @@ type ResponseFormat struct {
 // ChatRequest is a normalized chat completion request.
 type ChatRequest struct {
 	Model          string
+	VisionModel    string // optional override when messages include ImageURLs
 	Messages       []Message
 	Temperature    float64
 	MaxTokens      int

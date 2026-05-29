@@ -1,4 +1,4 @@
-import { ModalForm, ProFormCheckbox, ProFormSelect } from '@ant-design/pro-components';
+import { ModalForm, ProFormCheckbox, ProFormRadio, ProFormSelect } from '@ant-design/pro-components';
 import { Form, Image, Typography, message } from 'antd';
 import { useEffect, useMemo } from 'react';
 import { useImageProviders } from '@/hooks/useImageProviders';
@@ -6,8 +6,10 @@ import type { ProductImageRow } from '@/services/products';
 import {
   buildTranslateImageTextInput,
   createImageTask,
+  TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS,
   TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS,
   TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS,
+  type TranslateImageTextLayoutMode,
 } from '@/services/imageTasks';
 
 export type TranslateImageTextPrefill = {
@@ -22,8 +24,10 @@ export type TranslateImageTextPrefill = {
 type FormValues = {
   sourceLanguage: string;
   targetLanguage: string;
-  preserveLayout: boolean;
-  removeOriginalText: boolean;
+  layoutMode: TranslateImageTextLayoutMode;
+  autoWrap: boolean;
+  autoFontSize: boolean;
+  allowTextSimplify: boolean;
   keepProductUnchanged: boolean;
   autoSaveToProductImages: boolean;
   outputAsDetail: boolean;
@@ -67,8 +71,10 @@ export function TranslateImageTextModal({
     form.setFieldsValue({
       sourceLanguage: prefill?.sourceLanguage ?? 'auto',
       targetLanguage: prefill?.targetLanguage ?? 'en',
-      preserveLayout: true,
-      removeOriginalText: true,
+      layoutMode: 'auto',
+      autoWrap: true,
+      autoFontSize: true,
+      allowTextSimplify: true,
       keepProductUnchanged: true,
       autoSaveToProductImages: true,
       outputAsDetail: true,
@@ -80,7 +86,7 @@ export function TranslateImageTextModal({
   return (
     <ModalForm<FormValues>
       form={form}
-      title="AI 翻译图片文字"
+      title="图片文字翻译"
       open={open}
       onOpenChange={onOpenChange}
       width={560}
@@ -94,12 +100,16 @@ export function TranslateImageTextModal({
         const input = buildTranslateImageTextInput({
           sourceLanguage: values.sourceLanguage,
           targetLanguage: values.targetLanguage,
-          preserveLayout: values.preserveLayout,
-          removeOriginalText: values.removeOriginalText,
+          layoutMode: values.layoutMode,
+          autoWrap: values.autoWrap,
+          autoFontSize: values.autoFontSize,
+          allowTextSimplify: values.allowTextSimplify,
           keepProductUnchanged: values.keepProductUnchanged,
           autoSaveToProductImages: values.autoSaveToProductImages,
           outputAsDetail: values.outputAsDetail,
           autoSetAsMain: values.autoSetAsMain,
+          removeOriginalText: true,
+          preserveLayout: values.layoutMode !== 'readable',
         });
         try {
           const task = await createImageTask({
@@ -132,7 +142,7 @@ export function TranslateImageTextModal({
       }}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        任务类型：图片文字翻译 — 识别图片中的文字，翻译成目标语言，并生成替换文字后的新图片。原图不会被覆盖。
+        识别图片中的文字，翻译成目标语言，并自动排版后生成新图片。原图不会被覆盖。
       </Typography.Paragraph>
 
       {sourceImageUrl ? (
@@ -157,6 +167,13 @@ export function TranslateImageTextModal({
         rules={[{ required: true, message: '请选择目标语言' }]}
       />
 
+      <ProFormRadio.Group
+        name="layoutMode"
+        label="排版方式"
+        options={TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS}
+        rules={[{ required: true, message: '请选择排版方式' }]}
+      />
+
       {providerOptions.length > 1 ? (
         <ProFormSelect
           name="provider"
@@ -169,8 +186,9 @@ export function TranslateImageTextModal({
       <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
         处理选项
       </Typography.Text>
-      <ProFormCheckbox name="preserveLayout">保持原图排版</ProFormCheckbox>
-      <ProFormCheckbox name="removeOriginalText">擦除原文字后写入翻译</ProFormCheckbox>
+      <ProFormCheckbox name="autoWrap">自动换行</ProFormCheckbox>
+      <ProFormCheckbox name="autoFontSize">自动调整字号</ProFormCheckbox>
+      <ProFormCheckbox name="allowTextSimplify">文字太长时自动精简</ProFormCheckbox>
       <ProFormCheckbox name="keepProductUnchanged">尽量不改变商品主体</ProFormCheckbox>
       <ProFormCheckbox name="autoSaveToProductImages">自动保存到商品图片库</ProFormCheckbox>
       <ProFormCheckbox name="outputAsDetail">处理后设为详情图</ProFormCheckbox>

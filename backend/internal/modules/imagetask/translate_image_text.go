@@ -31,24 +31,28 @@ type translateTextBBox struct {
 }
 
 type translateTextBlock struct {
-	Text           string            `json:"text"`
-	TranslatedText string            `json:"translatedText"`
-	Confidence     float64           `json:"confidence"`
-	BBox           translateTextBBox `json:"bbox"`
+	Text                string            `json:"text"`
+	TranslatedText      string            `json:"translatedText"`
+	ShortTranslatedText string            `json:"shortTranslatedText,omitempty"`
+	Confidence          float64           `json:"confidence"`
+	BBox                translateTextBBox `json:"bbox"`
 }
 
 type translateOCRResult struct {
-	DetectedLanguage string               `json:"detectedLanguage"`
-	TextBlocksCount  int                  `json:"textBlocksCount"`
-	Blocks           []translateTextBlock `json:"blocks"`
+	DetectedLanguage    string               `json:"detectedLanguage"`
+	TextBlocksCount     int                  `json:"textBlocksCount"`
+	SupplementedBlocks  int                  `json:"supplementedBlocks,omitempty"`
+	FilteredBlocksCount int                  `json:"filteredBlocksCount,omitempty"`
+	Blocks              []translateTextBlock `json:"blocks"`
 }
 
 type translateQualitySummary struct {
-	TextBlocksCount          int      `json:"textBlocksCount"`
-	TranslatedBlocksCount    int      `json:"translatedBlocksCount"`
-	LowConfidenceBlocksCount int      `json:"lowConfidenceBlocksCount"`
-	LayoutPreserved          bool     `json:"layoutPreserved"`
-	Warnings                 []string `json:"warnings"`
+	TextBlocksCount          int                    `json:"textBlocksCount"`
+	TranslatedBlocksCount    int                    `json:"translatedBlocksCount"`
+	LowConfidenceBlocksCount int                    `json:"lowConfidenceBlocksCount"`
+	LayoutPreserved          bool                   `json:"layoutPreserved"`
+	Layout                   translateLayoutSummary `json:"layout"`
+	Warnings                 []string               `json:"warnings"`
 }
 
 type translateTaskError struct {
@@ -159,57 +163,6 @@ func verifyImageAccessible(ctx context.Context, imageURL string) error {
 	return nil
 }
 
-func (s *Service) runOCROnImage(ctx context.Context, imageURL, sourceLang, targetLang string) (*translateOCRResult, error) {
-	if s == nil || s.AIGateway == nil {
-		return nil, newTranslateErr(errCodeOCRFailed, "未配置 AI 服务，无法进行文字识别（请在「设置 → AI」配置）")
-	}
-	srcHint := "auto-detect the source language"
-	if sourceLang != "" && !strings.EqualFold(sourceLang, "auto") {
-		srcHint = fmt.Sprintf("assume source language is %s", langDisplayName(sourceLang))
-	}
-	targetName := langDisplayName(targetLang)
-	prompt := fmt.Sprintf(`You are an OCR engine for ecommerce product images.
-Analyze the product image at this URL: %s
-%s
-Detect ALL visible text overlays, labels, badges, and promotional text (not product packaging text printed on the physical product if possible to distinguish).
-For each text block return: original text, translated text in %s, confidence (0-1), bounding box (x, y, width, height in pixels relative to image top-left).
-
-Return ONLY valid JSON:
-{
-  "detectedLanguage": "zh|en|...",
-  "textBlocksCount": number,
-  "blocks": [
-    {
-      "text": "original",
-      "translatedText": "translated",
-      "confidence": 0.92,
-      "bbox": {"x": 0, "y": 0, "width": 100, "height": 40}
-    }
-  ]
-}
-If no readable text exists, return {"detectedLanguage":"","textBlocksCount":0,"blocks":[]}.`, imageURL, srcHint, targetName)
-
-	resp, err := s.AIGateway.Chat(ctx, aigate.ChatRequest{
-		Messages: []aigate.Message{{Role: "user", Content: prompt}},
-		ResponseFormat: &aigate.ResponseFormat{
-			Type: "json_object",
-		},
-		MaxTokens: 2000,
-	})
-	if err != nil {
-		return nil, newTranslateErr(errCodeOCRFailed, "文字识别失败，请稍后重试或更换图片")
-	}
-	content := strings.TrimSpace(resp.Content)
-	var ocr translateOCRResult
-	if err := json.Unmarshal([]byte(content), &ocr); err != nil {
-		return nil, newTranslateErr(errCodeOCRFailed, "文字识别结果解析失败，请稍后重试")
-	}
-	if ocr.TextBlocksCount <= 0 {
-		ocr.TextBlocksCount = len(ocr.Blocks)
-	}
-	return &ocr, nil
-}
-
 func (s *Service) ensureBlocksTranslated(ctx context.Context, ocr *translateOCRResult, targetLang string) error {
 	if s == nil || s.AIGateway == nil || ocr == nil {
 		return newTranslateErr(errCodeTranslateFailed, "未配置 AI 服务，无法翻译文字")
@@ -273,16 +226,114 @@ Lines:
 	return nil
 }
 
-func buildTranslateQuality(ocr *translateOCRResult, hints map[string]any) translateQualitySummary {
+func (s *Service) simplifyLongTranslations(ctx context.Context, blocks []translateTextBlock, targetLang string, allow bool) error {
+	if !allow || s == nil || s.AIGateway == nil {
+		for i := range blocks {
+			if needsShortText(blocks[i].Text, blocks[i].TranslatedText) && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
+				blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].TranslatedText, targetLang)
+			}
+		}
+		return nil
+	}
+	var need []translateTextBlock
+	for _, b := range blocks {
+		if needsShortText(b.Text, b.TranslatedText) && strings.TrimSpace(b.ShortTranslatedText) == "" {
+			need = append(need, b)
+		}
+	}
+	for i := range blocks {
+		if needsShortText(blocks[i].Text, blocks[i].TranslatedText) && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
+			blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].TranslatedText, targetLang)
+		}
+	}
+	if len(need) == 0 {
+		return nil
+	}
+	var lines []string
+	for _, b := range need {
+		lines = append(lines, fmt.Sprintf(`- original: %q translated: %q`, strings.TrimSpace(b.Text), strings.TrimSpace(b.TranslatedText)))
+	}
+	targetName := langDisplayName(targetLang)
+	prompt := fmt.Sprintf(`Shorten the following ecommerce product image marketing translations to fit small text overlays.
+Keep meaning but use concise marketing copy (2-4 words when possible, Title Case for English).
+Target language: %s
+Return ONLY valid JSON: {"items":[{"text":"original source","translatedText":"full translation","shortTranslatedText":"short version"}]}
+Items:
+%s`, targetName, strings.Join(lines, "\n"))
+
+	resp, err := s.AIGateway.Chat(ctx, aigate.ChatRequest{
+		Messages: []aigate.Message{{Role: "user", Content: prompt}},
+		ResponseFormat: &aigate.ResponseFormat{
+			Type: "json_object",
+		},
+		MaxTokens: 1200,
+	})
+	if err != nil {
+		return nil // fallback already applied via rules
+	}
+	var parsed struct {
+		Items []struct {
+			Text                string `json:"text"`
+			TranslatedText      string `json:"translatedText"`
+			ShortTranslatedText string `json:"shortTranslatedText"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(resp.Content)), &parsed); err != nil {
+		return nil
+	}
+	lookup := map[string]string{}
+	for _, it := range parsed.Items {
+		key := strings.TrimSpace(it.Text)
+		if key == "" {
+			key = strings.TrimSpace(it.TranslatedText)
+		}
+		short := strings.TrimSpace(it.ShortTranslatedText)
+		if key != "" && short != "" {
+			lookup[key] = short
+		}
+	}
+	for i := range blocks {
+		origKey := strings.TrimSpace(blocks[i].Text)
+		trKey := strings.TrimSpace(blocks[i].TranslatedText)
+		if short, ok := lookup[origKey]; ok && short != "" {
+			blocks[i].ShortTranslatedText = short
+		} else if short, ok := lookup[trKey]; ok && short != "" {
+			blocks[i].ShortTranslatedText = short
+		}
+	}
+	return nil
+}
+
+func applyLayoutPlansToBlocks(blocks []translateTextBlock, plans []translateBlockLayoutPlan) {
+	planIdx := 0
+	for i := range blocks {
+		if strings.TrimSpace(blocks[i].TranslatedText) == "" {
+			continue
+		}
+		if planIdx >= len(plans) {
+			break
+		}
+		plan := plans[planIdx]
+		planIdx++
+		if plan.DisplayText != "" {
+			blocks[i].TranslatedText = plan.DisplayText
+		}
+		if plan.UsedShortText && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
+			blocks[i].ShortTranslatedText = plan.DisplayText
+		}
+		blocks[i].BBox = plan.BBox
+	}
+}
+
+func buildTranslateQuality(ocr *translateOCRResult, hints map[string]any, layoutSummary translateLayoutSummary) translateQualitySummary {
 	q := translateQualitySummary{
 		TextBlocksCount:       len(ocr.Blocks),
 		TranslatedBlocksCount: 0,
 		LayoutPreserved:       boolFromHints(hints, "preserveLayout", true),
+		Layout:                layoutSummary,
 		Warnings:              []string{},
 	}
 	const lowConf = 0.70
-	const longRatio = 2.0
-	const longAbs = 80
 	for _, b := range ocr.Blocks {
 		if strings.TrimSpace(b.TranslatedText) != "" {
 			q.TranslatedBlocksCount++
@@ -290,88 +341,149 @@ func buildTranslateQuality(ocr *translateOCRResult, hints map[string]any) transl
 		if b.Confidence > 0 && b.Confidence < lowConf {
 			q.LowConfidenceBlocksCount++
 		}
-		origLen := len([]rune(strings.TrimSpace(b.Text)))
-		trLen := len([]rune(strings.TrimSpace(b.TranslatedText)))
-		if origLen > 0 && (trLen > int(float64(origLen)*longRatio) || trLen > longAbs) {
-			hasLong := false
-			for _, w := range q.Warnings {
-				if w == "部分翻译文字较长，可能影响图片排版。" {
-					hasLong = true
-					break
-				}
-			}
-			if !hasLong {
-				q.Warnings = append(q.Warnings, "部分翻译文字较长，可能影响图片排版。")
-			}
+	}
+	for _, w := range layoutSummary.Warnings {
+		switch w {
+		case layoutWarningTextTooLong:
+			q.Warnings = appendUniqueWarning(q.Warnings, "部分翻译文字较长，可能影响图片排版，请检查结果图。")
+		case layoutWarningFontAdjusted:
+			q.Warnings = appendUniqueWarning(q.Warnings, "系统已自动调整部分文字大小。")
+		case layoutWarningSimplified:
+			q.Warnings = appendUniqueWarning(q.Warnings, "系统已自动精简部分翻译文案以适配排版。")
+		case layoutWarningOverflow:
+			q.Warnings = appendUniqueWarning(q.Warnings, "部分翻译文字较长，可能影响图片排版，请检查结果图。")
+		case layoutWarningPartialOCR:
+			q.Warnings = appendUniqueWarning(q.Warnings, "部分图片文字可能未全部识别，请检查结果图是否仍有未翻译文字。")
+		case layoutWarningOCRFiltered:
+			q.Warnings = appendUniqueWarning(q.Warnings, "已过滤疑似非原图文字，仅翻译图片中真实可见的文字。")
 		}
 	}
 	if q.LowConfidenceBlocksCount > 0 {
-		q.Warnings = append(q.Warnings, "部分文字识别置信度较低，请人工检查翻译结果。")
+		q.Warnings = appendUniqueWarning(q.Warnings, "部分文字识别置信度较低，请人工检查翻译结果。")
 	}
 	return q
 }
 
-func translateEditPrompt(ocr *translateOCRResult, hints map[string]any, sourceLang, targetLang string) string {
+func appendUniqueWarning(warnings []string, msg string) []string {
+	for _, w := range warnings {
+		if w == msg {
+			return warnings
+		}
+	}
+	return append(warnings, msg)
+}
+
+func appendUniqueCodeWarning(warnings []string, code string) []string {
+	for _, w := range warnings {
+		if w == code {
+			return warnings
+		}
+	}
+	return append(warnings, code)
+}
+
+func translateEditPrompt(ocr *translateOCRResult, hints map[string]any, sourceLang, targetLang string, plans []translateBlockLayoutPlan) string {
 	preserveLayout := boolFromHints(hints, "preserveLayout", true)
 	removeOriginal := boolFromHints(hints, "removeOriginalText", true)
 	keepProduct := boolFromHints(hints, "keepProductUnchanged", true)
+	layoutOpts := parseTranslateLayoutOptions(hints, targetLang)
 
 	var pairs []string
+	var layoutInstructions []string
+	planIdx := 0
 	for _, b := range ocr.Blocks {
 		orig := strings.TrimSpace(b.Text)
 		tr := strings.TrimSpace(b.TranslatedText)
 		if orig == "" || tr == "" {
 			continue
 		}
-		pairs = append(pairs, fmt.Sprintf(`"%s" → "%s"`, orig, tr))
+		short := strings.TrimSpace(b.ShortTranslatedText)
+		display := tr
+		if short != "" && short != tr {
+			pairs = append(pairs, fmt.Sprintf(`"%s" → "%s" (preferred short: "%s")`, orig, tr, short))
+		} else {
+			pairs = append(pairs, fmt.Sprintf(`"%s" → "%s"`, orig, tr))
+		}
+
+		if layoutOpts.AutoLayout && planIdx < len(plans) {
+			plan := plans[planIdx]
+			planIdx++
+			if plan.DisplayText != "" {
+				display = plan.DisplayText
+			}
+			bb := plan.BBox
+			lineHint := strings.Join(plan.Lines, " | ")
+			if lineHint == "" {
+				lineHint = display
+			}
+			instr := fmt.Sprintf(
+				"- Region (%d,%d %dx%d): write %q at ~%dpx, lines: [%s], keep inside box, do not overlap product",
+				bb.X, bb.Y, bb.Width, bb.Height, display, plan.FontSize, lineHint,
+			)
+			if plan.Wrapped {
+				instr += ", word-wrap enabled"
+			}
+			if plan.FontResized {
+				instr += ", auto font size"
+			}
+			layoutInstructions = append(layoutInstructions, instr)
+		}
 	}
 
 	instruction := fmt.Sprintf(
-		"Translate all visible text in this product image from %s to %s.",
+		"STRICT image text translation task — replace existing overlay text only. This is NOT marketing image generation or poster design.",
+	)
+	if strings.EqualFold(sourceLang, "auto") && ocr != nil && strings.TrimSpace(ocr.DetectedLanguage) != "" {
+		sourceLang = ocr.DetectedLanguage
+	}
+	instruction += fmt.Sprintf(
+		" Translate ONLY the %d listed text block(s) from %s to %s. Do not translate or add any other text.",
+		len(pairs),
 		langDisplayName(sourceLang),
 		langDisplayName(targetLang),
 	)
-	if strings.EqualFold(sourceLang, "auto") && ocr != nil && strings.TrimSpace(ocr.DetectedLanguage) != "" {
-		instruction = fmt.Sprintf(
-			"Translate all visible text in this product image from %s to %s.",
-			langDisplayName(ocr.DetectedLanguage),
-			langDisplayName(targetLang),
-		)
-	}
 	if removeOriginal {
-		instruction += " Erase/remove the original text overlays completely before writing translated text."
+		instruction += " Erase/remove ONLY the original text at each listed region before writing the translated text."
 	}
 	if preserveLayout {
-		instruction += " Preserve the original text layout, position, size, and alignment as closely as possible."
+		instruction += " Keep the same position, alignment, font style, and layout as the original text for each region."
+	}
+	if layoutOpts.AutoLayout {
+		instruction += " Fit translated text inside each original text region; wrap or shrink font if needed."
 	}
 	if keepProduct {
-		instruction += " Do NOT alter the product itself, colors, shape, or background except where text overlays exist."
+		instruction += " Do NOT alter the product, props, colors, background, or any pixels outside the listed text regions."
 	}
+	instruction += " FORBIDDEN: adding new text, prices, flash sale, discount tags, promotional banners, stickers, watermarks, coupons, or any text not in the replacement list."
+	instruction += " The output must look like the same photo with only the listed texts translated — nothing added."
 	if len(pairs) > 0 {
-		instruction += " Text replacements:\n" + strings.Join(pairs, "\n")
+		instruction += "\nONLY these replacements are allowed (exact regions, no extras):\n" + strings.Join(pairs, "\n")
 	}
-	instruction += " Output a clean professional ecommerce product photo with translated text only."
-	userPrompt := strings.TrimSpace(stringFromMap(hints, "prompt"))
-	if userPrompt != "" {
-		instruction += " " + userPrompt
+	if len(layoutInstructions) > 0 {
+		instruction += "\nLayout per block:\n" + strings.Join(layoutInstructions, "\n")
 	}
 	neg := strings.TrimSpace(stringFromMap(hints, "negativePrompt"))
-	if neg != "" {
-		instruction += " Avoid: " + neg + "."
+	if neg == "" {
+		neg = translateDefaultNegativePrompt()
 	}
+	instruction += " Avoid: " + neg + "."
 	return instruction
 }
 
-func prepareTranslateHints(task *ImageTask, hints map[string]any, ocr *translateOCRResult) map[string]any {
+func prepareTranslateHints(task *ImageTask, hints map[string]any, ocr *translateOCRResult, plans []translateBlockLayoutPlan) map[string]any {
 	if hints == nil {
 		hints = map[string]any{}
 	}
 	sourceLang, targetLang := resolveTranslateLanguages(hints)
-	assembled := translateEditPrompt(ocr, hints, sourceLang, targetLang)
+	assembled := translateEditPrompt(ocr, hints, sourceLang, targetLang, plans)
 	hints["assembled_prompt"] = assembled
 	hints["prompt"] = assembled
 	hints["targetLanguage"] = targetLang
 	hints["sourceLanguage"] = sourceLang
+	if strings.TrimSpace(stringFromMap(hints, "negativePrompt")) == "" {
+		hints["negativePrompt"] = translateDefaultNegativePrompt()
+	}
+	hints["strictLiteralTranslation"] = true
 	return hints
 }
 
@@ -388,9 +500,20 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	}
 
 	sourceLang, targetLang := resolveTranslateLanguages(hints)
+	payload, _ := s.loadTranslateImagePayload(ctx, src)
 	ocr, err := s.runOCROnImage(ctx, src, sourceLang, targetLang)
 	if err != nil {
 		return err
+	}
+	if ocr == nil || len(ocr.Blocks) == 0 {
+		return newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
+	}
+	if payload != nil {
+		imgRef := payload.DataURL
+		if imgRef == "" {
+			imgRef = src
+		}
+		ocr = s.filterAndVerifyOCR(ctx, ocr, imgRef)
 	}
 	if ocr == nil || len(ocr.Blocks) == 0 {
 		return newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
@@ -399,12 +522,32 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		return err
 	}
 
-	quality := buildTranslateQuality(ocr, hints)
+	layoutOpts := parseTranslateLayoutOptions(hints, targetLang)
+	_ = s.simplifyLongTranslations(ctx, ocr.Blocks, targetLang, layoutOpts.AllowTextSimplify)
+
+	imageW, imageH := 0, 0
+	if payload != nil {
+		imageW, imageH = payload.Width, payload.Height
+	}
+	if hints != nil && imageW <= 0 {
+		imageW = intFromAny(hints["imageWidth"])
+		imageH = intFromAny(hints["imageHeight"])
+	}
+	layoutPlans, layoutSummary := computeTranslateLayouts(ocr.Blocks, layoutOpts, imageW, imageH)
+	if ocr.FilteredBlocksCount > 0 {
+		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningOCRFiltered)
+	}
+	if ocr.SupplementedBlocks > 0 || (len(ocr.Blocks) == 1 && imageW > 400 && imageH > 400) {
+		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningPartialOCR)
+	}
+	applyLayoutPlansToBlocks(ocr.Blocks, layoutPlans)
+
+	quality := buildTranslateQuality(ocr, hints, layoutSummary)
 	if quality.TranslatedBlocksCount == 0 {
 		return newTranslateErr(errCodeTranslateFailed, "文字翻译失败，未能生成有效翻译结果")
 	}
 
-	hints = prepareTranslateHints(task, hints, ocr)
+	hints = prepareTranslateHints(task, hints, ocr, layoutPlans)
 
 	provName := strings.TrimSpace(strings.ToLower(task.Provider))
 	prov, err := imgprov.NewForTask(ctx, provName, s.Settings)

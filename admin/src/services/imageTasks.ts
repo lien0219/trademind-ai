@@ -325,6 +325,8 @@ export function translateLangLabel(code: string): string {
   return all.find((o) => o.value === code)?.label ?? code;
 }
 
+export type TranslateImageTextLayoutMode = 'auto' | 'preserve' | 'readable';
+
 export type TranslateImageTextInputOpts = {
   sourceLanguage?: string;
   targetLanguage?: string;
@@ -335,10 +337,27 @@ export type TranslateImageTextInputOpts = {
   outputAsDetail?: boolean;
   autoSetAsMain?: boolean;
   outputFormat?: string;
+  layoutMode?: TranslateImageTextLayoutMode;
+  autoLayout?: boolean;
+  autoWrap?: boolean;
+  autoFontSize?: boolean;
+  allowTextBoxExpand?: boolean;
+  allowTextSimplify?: boolean;
+  minFontSize?: number;
+  maxFontSize?: number;
+  lineHeightRatio?: number;
+  maxLines?: number;
 };
+
+export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
+  { label: '自动适配，推荐', value: 'auto' as const },
+  { label: '尽量保持原图', value: 'preserve' as const },
+  { label: '优先清晰可读', value: 'readable' as const },
+];
 
 /** Build input JSON for translate_image_text tasks. */
 export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts): Record<string, unknown> {
+  const layoutMode = opts.layoutMode ?? 'auto';
   const outputImageType = opts.autoSetAsMain ? 'main' : opts.outputAsDetail !== false ? 'detail' : 'ai_generated';
   const input: Record<string, unknown> = {
     sourceLanguage: opts.sourceLanguage ?? 'auto',
@@ -350,7 +369,25 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
     autoSaveToProductImages: opts.autoSaveToProductImages !== false,
     autoSetAsMain: opts.autoSetAsMain === true,
     outputImageType,
+    layoutMode,
+    autoLayout: opts.autoLayout !== false,
+    autoWrap: opts.autoWrap !== false,
+    autoFontSize: opts.autoFontSize !== false,
+    allowTextBoxExpand: opts.allowTextBoxExpand !== false,
+    allowTextSimplify: opts.allowTextSimplify !== false,
+    minFontSize: opts.minFontSize ?? 14,
+    maxFontSize: opts.maxFontSize ?? 48,
+    lineHeightRatio: opts.lineHeightRatio ?? 1.15,
+    maxLines: opts.maxLines ?? 3,
   };
+  if (layoutMode === 'preserve') {
+    input.allowTextBoxExpand = opts.allowTextBoxExpand === true;
+    input.allowTextSimplify = opts.allowTextSimplify === true;
+  }
+  if (layoutMode === 'readable') {
+    input.minFontSize = opts.minFontSize ?? 16;
+    input.maxLines = opts.maxLines ?? 4;
+  }
   if (opts.autoSaveToProductImages !== false) {
     input.autoSaveToProduct = true;
     if (opts.autoSetAsMain) {
@@ -362,6 +399,17 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
   return input;
 }
 
+export type TranslateLayoutSummary = {
+  autoLayout?: boolean;
+  textBlocksCount?: number;
+  autoWrappedBlocks?: number;
+  fontResizedBlocks?: number;
+  simplifiedBlocks?: number;
+  overflowBlocks?: number;
+  minFontSizeUsed?: number;
+  warnings?: string[];
+};
+
 export type TranslateTaskOutput = {
   sourceLanguage?: string;
   targetLanguage?: string;
@@ -371,6 +419,7 @@ export type TranslateTaskOutput = {
     blocks?: Array<{
       text?: string;
       translatedText?: string;
+      shortTranslatedText?: string;
       confidence?: number;
     }>;
   };
@@ -379,9 +428,45 @@ export type TranslateTaskOutput = {
     translatedBlocksCount?: number;
     lowConfidenceBlocksCount?: number;
     layoutPreserved?: boolean;
+    layout?: TranslateLayoutSummary;
     warnings?: string[];
   };
 };
+
+const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
+  translated_text_too_long: '部分翻译文字较长，可能影响图片排版，请检查结果图。',
+  translated_text_overflow: '部分翻译文字较长，可能影响图片排版，请检查结果图。',
+  font_size_auto_adjusted: '系统已自动调整部分文字大小。',
+  translated_text_simplified: '系统已自动精简部分翻译文案以适配排版。',
+  partial_text_detected: '部分图片文字可能未全部识别，请检查结果图是否仍有未翻译文字。',
+  ocr_hallucination_filtered: '已过滤疑似非原图文字，仅翻译图片中真实可见的文字。',
+};
+
+/** Map machine layout warning codes to user-friendly Chinese labels. */
+export function translateLayoutWarningLabel(code: string): string {
+  const key = code?.trim() || '';
+  return TRANSLATE_LAYOUT_WARNING_LABELS[key] ?? code;
+}
+
+/** Merge quality.warnings (already humanized) with layout.warnings (machine codes). */
+export function translateTaskWarnings(output: TranslateTaskOutput | null): string[] {
+  if (!output) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (msg: string) => {
+    const m = msg?.trim();
+    if (!m || seen.has(m)) return;
+    seen.add(m);
+    out.push(m);
+  };
+  for (const w of output.quality?.warnings ?? []) {
+    add(w);
+  }
+  for (const w of output.quality?.layout?.warnings ?? []) {
+    add(translateLayoutWarningLabel(w));
+  }
+  return out;
+}
 
 export function parseTranslateTaskOutput(output: unknown): TranslateTaskOutput | null {
   if (!output || typeof output !== 'object') return null;

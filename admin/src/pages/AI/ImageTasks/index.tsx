@@ -23,6 +23,7 @@ import {
   setImageTaskItemAsMain,
   taskTypeLabel,
   translateLangLabel,
+  translateTaskWarnings,
 } from '@/services/imageTasks';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 
@@ -78,7 +79,9 @@ function TranslateResultPanel({ output }: { output: unknown }) {
   const parsed = parseTranslateTaskOutput(output);
   if (!parsed) return null;
   const blocks = parsed.ocr?.blocks ?? [];
-  const warnings = parsed.quality?.warnings ?? [];
+  const layout = parsed.quality?.layout;
+  const warnings = translateTaskWarnings(parsed);
+  const hasOverflow = (layout?.overflowBlocks ?? 0) > 0;
   return (
     <Card size="small" title="翻译结果摘要" style={{ marginBottom: 24 }}>
       <Descriptions column={2} size="small">
@@ -90,6 +93,10 @@ function TranslateResultPanel({ output }: { output: unknown }) {
           {parsed.quality?.textBlocksCount ?? parsed.ocr?.textBlocksCount ?? blocks.length}
         </Descriptions.Item>
         <Descriptions.Item label="已翻译数量">{parsed.quality?.translatedBlocksCount ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="自动换行数量">{layout?.autoWrappedBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="自动缩小字号数量">{layout?.fontResizedBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="自动精简文案数量">{layout?.simplifiedBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="是否存在文字溢出">{hasOverflow ? '是' : '否'}</Descriptions.Item>
       </Descriptions>
       {warnings.length > 0 ? (
         <div style={{ marginTop: 12 }}>
@@ -109,6 +116,12 @@ function TranslateResultPanel({ output }: { output: unknown }) {
                 <Typography.Text type="secondary">{b.text || '—'}</Typography.Text>
                 {' → '}
                 <Typography.Text>{b.translatedText || '—'}</Typography.Text>
+                {b.shortTranslatedText && b.shortTranslatedText !== b.translatedText ? (
+                  <>
+                    {' '}
+                    <Typography.Text type="secondary">（精简：{b.shortTranslatedText}）</Typography.Text>
+                  </>
+                ) : null}
               </li>
             ))}
           </ul>

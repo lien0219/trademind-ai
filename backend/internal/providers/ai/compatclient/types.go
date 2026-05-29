@@ -3,7 +3,19 @@ package compatclient
 // Message is one chat message for Chat Completions.
 type Message struct {
 	Role    string `json:"role"`
-	Content string `json:"content"`
+	Content any    `json:"content"`
+}
+
+// ContentPart is one multimodal message part (OpenAI-compatible).
+type ContentPart struct {
+	Type     string          `json:"type"`
+	Text     string          `json:"text,omitempty"`
+	ImageURL *ImageURLDetail `json:"image_url,omitempty"`
+}
+
+// ImageURLDetail wraps an image URL for vision models.
+type ImageURLDetail struct {
+	URL string `json:"url"`
 }
 
 // Request is a chat/completions payload.

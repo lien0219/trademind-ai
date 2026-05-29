@@ -70,10 +70,14 @@ func (g *Gateway) chatWithPlain(ctx context.Context, plain map[string]string, re
 	}
 
 	model := resolveModel(pname, req.Model, plain["model"])
+	if messagesHaveVision(req.Messages) {
+		model = resolveVisionModel(pname, req.VisionModel, req.Model, plain["model"], plain["vision_model"])
+	}
 	temp, maxTok := mergeChatParams(plain, req)
 
 	merged := ChatRequest{
 		Model:          model,
+		VisionModel:    req.VisionModel,
 		Messages:       req.Messages,
 		Temperature:    temp,
 		MaxTokens:      maxTok,

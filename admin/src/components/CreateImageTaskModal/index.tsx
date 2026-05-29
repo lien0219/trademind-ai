@@ -27,6 +27,7 @@ import {
   BEGINNER_IMAGE_TASK_TYPE_VALUES,
   IMAGE_TASK_RESULT_MODE_OPTIONS,
   IMAGE_TASK_TYPE_OPTIONS,
+  TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS,
   TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS,
   TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS,
   buildResultHandlingInput,
@@ -69,8 +70,10 @@ type FormValues = {
   rbSize?: string;
   sourceLanguage?: string;
   targetLanguage?: string;
-  translatePreserveLayout?: boolean;
-  translateRemoveOriginal?: boolean;
+  translateLayoutMode?: 'auto' | 'preserve' | 'readable';
+  translateAutoWrap?: boolean;
+  translateAutoFontSize?: boolean;
+  translateAllowSimplify?: boolean;
   translateKeepProduct?: boolean;
   translateAutoSave?: boolean;
   translateOutputDetail?: boolean;
@@ -326,12 +329,16 @@ export function CreateImageTaskModal({
             buildTranslateImageTextInput({
               sourceLanguage: values.sourceLanguage,
               targetLanguage: values.targetLanguage,
-              preserveLayout: values.translatePreserveLayout,
-              removeOriginalText: values.translateRemoveOriginal,
+              layoutMode: values.translateLayoutMode ?? 'auto',
+              autoWrap: values.translateAutoWrap,
+              autoFontSize: values.translateAutoFontSize,
+              allowTextSimplify: values.translateAllowSimplify,
               keepProductUnchanged: values.translateKeepProduct,
               autoSaveToProductImages: values.translateAutoSave,
               outputAsDetail: values.translateOutputDetail,
               autoSetAsMain: values.translateSetMain,
+              removeOriginalText: true,
+              preserveLayout: values.translateLayoutMode !== 'readable',
             }),
           );
         }
@@ -626,14 +633,23 @@ export function CreateImageTaskModal({
                 options={TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS}
                 rules={[{ required: true, message: '请选择目标语言' }]}
               />
+              <ProFormRadio.Group
+                name="translateLayoutMode"
+                label="排版方式"
+                initialValue="auto"
+                options={TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS}
+              />
               <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
                 处理选项
               </Typography.Text>
-              <Form.Item name="translatePreserveLayout" valuePropName="checked" initialValue>
-                <Checkbox>保持原图排版</Checkbox>
+              <Form.Item name="translateAutoWrap" valuePropName="checked" initialValue>
+                <Checkbox>自动换行</Checkbox>
               </Form.Item>
-              <Form.Item name="translateRemoveOriginal" valuePropName="checked" initialValue>
-                <Checkbox>擦除原文字后写入翻译</Checkbox>
+              <Form.Item name="translateAutoFontSize" valuePropName="checked" initialValue>
+                <Checkbox>自动调整字号</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateAllowSimplify" valuePropName="checked" initialValue>
+                <Checkbox>文字太长时自动精简</Checkbox>
               </Form.Item>
               <Form.Item name="translateKeepProduct" valuePropName="checked" initialValue>
                 <Checkbox>尽量不改变商品主体</Checkbox>

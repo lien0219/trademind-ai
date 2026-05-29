@@ -89,10 +89,57 @@ func mergeChatParams(plain map[string]string, req ChatRequest) (temp float64, ma
 	return temp, maxTok
 }
 
+func resolveVisionModel(pname, reqVision, reqModel, configured, plainVision string) string {
+	if m := strings.TrimSpace(reqVision); m != "" {
+		return m
+	}
+	if m := strings.TrimSpace(plainVision); m != "" {
+		return m
+	}
+	switch pname {
+	case "qwen":
+		return "qwen-vl-plus"
+	case "openai", "openai_compatible":
+		if m := strings.TrimSpace(configured); m != "" && strings.Contains(strings.ToLower(m), "gpt-4") {
+			return m
+		}
+		return "gpt-4o-mini"
+	default:
+		if m := strings.TrimSpace(reqModel); m != "" {
+			return m
+		}
+		return resolveModel(pname, "", configured)
+	}
+}
+
+func messagesHaveVision(msgs []Message) bool {
+	for _, m := range msgs {
+		if len(m.ImageURLs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func toCompatMessages(msgs []Message) []compatclient.Message {
 	out := make([]compatclient.Message, 0, len(msgs))
 	for _, m := range msgs {
-		out = append(out, compatclient.Message{Role: m.Role, Content: m.Content})
+		content := any(strings.TrimSpace(m.Content))
+		if len(m.ImageURLs) > 0 {
+			parts := []compatclient.ContentPart{{Type: "text", Text: strings.TrimSpace(m.Content)}}
+			for _, u := range m.ImageURLs {
+				u = strings.TrimSpace(u)
+				if u == "" {
+					continue
+				}
+				parts = append(parts, compatclient.ContentPart{
+					Type:     "image_url",
+					ImageURL: &compatclient.ImageURLDetail{URL: u},
+				})
+			}
+			content = parts
+		}
+		out = append(out, compatclient.Message{Role: m.Role, Content: content})
 	}
 	return out
 }
