@@ -224,7 +224,7 @@ export default function ImageTasksPage() {
     {
       title: '状态',
       dataIndex: 'status',
-      width: 100,
+      width: 148,
       valueType: 'select',
       valueEnum: Object.fromEntries(
         Object.entries(COLLECT_TASK_STATUS).map(([k, v]) => [k, { text: v.text }]),
@@ -269,18 +269,21 @@ export default function ImageTasksPage() {
     {
       title: '源图 URL',
       dataIndex: 'sourceImageUrl',
+      width: 240,
       ellipsis: true,
       search: false,
     },
     {
       title: '结果 URL',
       dataIndex: 'resultUrl',
+      width: 240,
       ellipsis: true,
       search: false,
     },
     {
       title: '错误信息',
       dataIndex: 'errorMessage',
+      width: 200,
       ellipsis: true,
       search: false,
     },
@@ -357,7 +360,8 @@ export default function ImageTasksPage() {
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         options={{ reload: true, density: true, setting: true }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1960 }}
+        tableStyle={{ width: '100%', minWidth: '100%' }}
         request={async (params) => {
           const res = await queryImageTasks({
             page: params.current,
