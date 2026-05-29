@@ -61,21 +61,22 @@ type translateSummaryMeta struct {
 }
 
 type translateLayoutMeta struct {
-	RenderMode         string   `json:"renderMode"`
-	EraseMode          string   `json:"eraseMode"`
-	LayoutTemplate     string   `json:"layoutTemplate,omitempty"`
-	EraseAreaRatio     float64  `json:"eraseAreaRatio,omitempty"`
-	PatchAreaRatio     float64  `json:"patchAreaRatio,omitempty"`
-	BackgroundDelta    float64  `json:"backgroundDeltaScore,omitempty"`
-	FlatFillRatio      float64  `json:"flatFillRatio,omitempty"`
-	LargePatchDetected bool     `json:"largePatchDetected,omitempty"`
-	RetryStrategies    []string `json:"retryStrategies,omitempty"`
-	AutoWrappedBlocks  int      `json:"autoWrappedBlocks"`
-	FontResizedBlocks  int      `json:"fontResizedBlocks"`
-	SimplifiedBlocks   int      `json:"simplifiedBlocks"`
-	OverflowBlocks     int      `json:"overflowBlocks"`
-	MinFontSizeUsed    int      `json:"minFontSizeUsed"`
-	Warnings           []string `json:"warnings"`
+	RenderMode         string                    `json:"renderMode"`
+	EraseMode          string                    `json:"eraseMode"`
+	LayoutTemplate     string                    `json:"layoutTemplate,omitempty"`
+	EraseAreaRatio     float64                   `json:"eraseAreaRatio,omitempty"`
+	PatchAreaRatio     float64                   `json:"patchAreaRatio,omitempty"`
+	BackgroundDelta    float64                   `json:"backgroundDeltaScore,omitempty"`
+	FlatFillRatio      float64                   `json:"flatFillRatio,omitempty"`
+	LargePatchDetected bool                      `json:"largePatchDetected,omitempty"`
+	RetryStrategies    []string                  `json:"retryStrategies,omitempty"`
+	AutoWrappedBlocks  int                       `json:"autoWrappedBlocks"`
+	FontResizedBlocks  int                       `json:"fontResizedBlocks"`
+	SimplifiedBlocks   int                       `json:"simplifiedBlocks"`
+	OverflowBlocks     int                       `json:"overflowBlocks"`
+	MinFontSizeUsed    int                       `json:"minFontSizeUsed"`
+	Simulation         translateLayoutSimulation `json:"simulation,omitempty"`
+	Warnings           []string                  `json:"warnings"`
 }
 
 type translateVerificationMeta struct {

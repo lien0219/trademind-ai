@@ -33,9 +33,28 @@ func buildTranslateRenderQuality(
 		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, verifyWarningSourceTextRemain)
 	}
 	if layout.OverflowBlocks > 0 {
-		rq.LayoutScore -= 28
-		rq.ReadabilityScore -= 18
+		rq.LayoutScore -= 42
+		rq.ReadabilityScore -= 28
 		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, "text_overflow")
+	}
+	if layout.Simulation.CollisionCount > 0 {
+		rq.LayoutScore -= 30
+		rq.ReadabilityScore -= 18
+		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, warningTextOverlap)
+	}
+	if layout.Simulation.ProductOverlapCount > 0 {
+		rq.ProductPreservationScore -= 30
+		rq.LayoutScore -= 18
+		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, layoutWarningProductSubjectOverlap)
+	}
+	if layout.Simulation.LayoutUnbalanced {
+		rq.LayoutScore -= 22
+		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, layoutWarningUnbalanced)
+	}
+	if detectBadgeShapeAbnormal(renderBlocks) {
+		rq.StyleConsistencyScore -= 35
+		rq.LayoutScore -= 20
+		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, warningBadgeShapeAbnormal)
 	}
 	if !renderBlocksHaveCommercialTemplate(renderBlocks) && layout.LayoutTemplate == layoutTemplateTitleBadge {
 		rq.LayoutScore -= 16
@@ -71,6 +90,9 @@ func buildTranslateRenderQuality(
 	rq.ReadabilityScore = clampScore(rq.ReadabilityScore)
 	rq.ProductPreservationScore = clampScore(rq.ProductPreservationScore)
 	rq.CommercialUsabilityScore = clampScore((rq.TextAppliedScore + rq.SourceTextRemovedScore + rq.LayoutScore + rq.StyleConsistencyScore + rq.ReadabilityScore + rq.ProductPreservationScore) / 6)
+	if layout.OverflowBlocks > 0 {
+		rq.CommercialUsabilityScore = minInt(rq.CommercialUsabilityScore, 52)
+	}
 	if rq.CommercialUsabilityScore < 70 {
 		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, "commercial_usability_low")
 	}
@@ -109,7 +131,10 @@ func blockingRenderWarnings(warnings []string) []string {
 	var out []string
 	for _, w := range warnings {
 		switch w {
-		case layoutWarningPatchVisible, layoutWarningNotNatural, verifyWarningSourceTextRemain, "text_overflow", "text_not_applied", "erase_area_too_large":
+		case layoutWarningPatchVisible, layoutWarningNotNatural, verifyWarningSourceTextRemain,
+			"text_overflow", "text_not_applied", "erase_area_too_large",
+			warningBadgeShapeAbnormal, warningTextOverlap, warningEraseFailed,
+			layoutWarningUnbalanced, layoutWarningProductSubjectOverlap:
 			out = append(out, w)
 		}
 	}
@@ -214,7 +239,10 @@ func cloneImageRenderBlocks(blocks []imagerender.TextBlock) []imagerender.TextBl
 func shouldRetryTranslateRender(warnings []string) bool {
 	for _, w := range warnings {
 		switch w {
-		case layoutWarningPatchVisible, layoutWarningNotNatural, verifyWarningSourceTextRemain, "text_overflow", "text_not_applied", "erase_area_too_large":
+		case layoutWarningPatchVisible, layoutWarningNotNatural, verifyWarningSourceTextRemain,
+			"text_overflow", "text_not_applied", "erase_area_too_large",
+			warningBadgeShapeAbnormal, warningTextOverlap, warningEraseFailed,
+			layoutWarningUnbalanced, layoutWarningProductSubjectOverlap:
 			return true
 		}
 	}

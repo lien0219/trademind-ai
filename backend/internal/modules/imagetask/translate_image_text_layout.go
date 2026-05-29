@@ -35,15 +35,16 @@ type translateBlockLayoutPlan struct {
 }
 
 type translateLayoutSummary struct {
-	AutoLayout        bool     `json:"autoLayout"`
-	LayoutTemplate    string   `json:"layoutTemplate,omitempty"`
-	TextBlocksCount   int      `json:"textBlocksCount"`
-	AutoWrappedBlocks int      `json:"autoWrappedBlocks"`
-	FontResizedBlocks int      `json:"fontResizedBlocks"`
-	SimplifiedBlocks  int      `json:"simplifiedBlocks"`
-	OverflowBlocks    int      `json:"overflowBlocks"`
-	MinFontSizeUsed   int      `json:"minFontSizeUsed"`
-	Warnings          []string `json:"warnings"`
+	AutoLayout        bool                      `json:"autoLayout"`
+	LayoutTemplate    string                    `json:"layoutTemplate,omitempty"`
+	TextBlocksCount   int                       `json:"textBlocksCount"`
+	AutoWrappedBlocks int                       `json:"autoWrappedBlocks"`
+	FontResizedBlocks int                       `json:"fontResizedBlocks"`
+	SimplifiedBlocks  int                       `json:"simplifiedBlocks"`
+	OverflowBlocks    int                       `json:"overflowBlocks"`
+	MinFontSizeUsed   int                       `json:"minFontSizeUsed"`
+	Simulation        translateLayoutSimulation `json:"simulation,omitempty"`
+	Warnings          []string                  `json:"warnings"`
 }
 
 const (
@@ -51,6 +52,7 @@ const (
 	layoutWarningFontAdjusted = "font_size_auto_adjusted"
 	layoutWarningSimplified   = "translated_text_simplified"
 	layoutWarningOverflow     = "translated_text_overflow"
+	layoutWarningUnbalanced   = "layout_unbalanced"
 	longTextRatioThreshold    = 1.8
 	maxBBoxExpandRatio        = 0.30
 )

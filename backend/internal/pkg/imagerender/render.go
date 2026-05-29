@@ -21,17 +21,58 @@ type Result struct {
 	FlatFillRatio        float64
 	LargePatchDetected   bool
 	RetryStrategies      []string
+	EraseBlocks          int
 }
 
-// RenderAndEncode erases original text regions, draws translated text, and encodes output.
-func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, opts Options, outputFormat string) (*Result, error) {
+func countEraseBlocks(blocks []TextBlock) int {
+	n := 0
+	for _, b := range blocks {
+		eb := b.EraseBBox
+		if eb.Width <= 0 || eb.Height <= 0 {
+			eb = b.BBox
+		}
+		if eb.Width > 0 && eb.Height > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// EraseRegions removes original text areas without drawing translations.
+func EraseRegions(src image.Image, blocks []TextBlock, opts Options) (*image.RGBA, EraseStats, string, error) {
 	if src == nil {
-		return nil, fmt.Errorf("imagerender: nil source")
+		return nil, EraseStats{}, "", fmt.Errorf("imagerender: nil source")
 	}
 	if len(blocks) == 0 {
-		return nil, fmt.Errorf("imagerender: no text blocks")
+		return nil, EraseStats{}, "", fmt.Errorf("imagerender: no text blocks")
 	}
 	rgba := ToRGBA(src)
+	stats, usedErase, err := eraseTextBlocks(rgba, blocks, opts)
+	return rgba, stats, usedErase, err
+}
+
+// DrawRegions draws translated text on an already-erased image.
+func DrawRegions(rgba *image.RGBA, blocks []TextBlock, opts Options) (int, error) {
+	if rgba == nil {
+		return 0, fmt.Errorf("imagerender: nil canvas")
+	}
+	drawn := 0
+	for _, block := range blocks {
+		if len(block.Lines) == 0 {
+			continue
+		}
+		if err := DrawText(rgba, block, opts); err != nil {
+			return drawn, fmt.Errorf("imagerender: draw block %s: %w", block.ID, err)
+		}
+		drawn++
+	}
+	if drawn == 0 {
+		return 0, fmt.Errorf("imagerender: nothing drawn")
+	}
+	return drawn, nil
+}
+
+func eraseTextBlocks(rgba *image.RGBA, blocks []TextBlock, opts Options) (EraseStats, string, error) {
 	b := rgba.Bounds()
 	maskPad := opts.MaskPadding
 	if maskPad <= 0 {
@@ -43,7 +84,6 @@ func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, op
 	}
 	usedErase := ""
 	var stats EraseStats
-	imageArea := max(1, b.Dx()*b.Dy())
 	for _, block := range blocks {
 		eraseBox := block.EraseBBox
 		if eraseBox.Width <= 0 || eraseBox.Height <= 0 {
@@ -69,19 +109,27 @@ func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, op
 		stats.FlatFillRatio += blockStats.FlatFillRatio * float64(blockStats.PatchPixels)
 		stats.LargePatchDetected = stats.LargePatchDetected || blockStats.LargePatchDetected
 	}
-	drawn := 0
-	for _, block := range blocks {
-		if len(block.Lines) == 0 {
-			continue
-		}
-		if err := DrawText(rgba, block, opts); err != nil {
-			return nil, fmt.Errorf("imagerender: draw block %s: %w", block.ID, err)
-		}
-		drawn++
+	return stats, usedErase, nil
+}
+
+// RenderAndEncode erases original text regions, draws translated text, and encodes output.
+func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, opts Options, outputFormat string) (*Result, error) {
+	if src == nil {
+		return nil, fmt.Errorf("imagerender: nil source")
 	}
-	if drawn == 0 {
-		return nil, fmt.Errorf("imagerender: nothing drawn")
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("imagerender: no text blocks")
 	}
+	rgba, stats, usedErase, err := EraseRegions(src, blocks, opts)
+	if err != nil {
+		return nil, err
+	}
+	drawn, err := DrawRegions(rgba, blocks, opts)
+	if err != nil {
+		return nil, err
+	}
+	b := rgba.Bounds()
+	imageArea := max(1, b.Dx()*b.Dy())
 	data, ct, err := Encode(rgba, outputFormat)
 	if err != nil {
 		return nil, err
@@ -91,6 +139,7 @@ func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, op
 		ContentType:          ct,
 		EraseMode:            usedErase,
 		BlocksDrawn:          drawn,
+		EraseBlocks:          countEraseBlocks(blocks),
 		SourceSHA256:         SHA256Hex(sourceBytes),
 		OutputSHA256:         SHA256Hex(data),
 		EraseAreaRatio:       float64(stats.ErasePixels) / float64(imageArea),

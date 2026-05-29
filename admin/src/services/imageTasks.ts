@@ -473,9 +473,12 @@ export type TranslateTaskOutput = {
     ocrBlocksCount?: number;
     blocks?: Array<{
       id?: string;
+      blockClass?: string;
       text?: string;
       translatedText?: string;
+      standardTranslation?: string;
       shortTranslatedText?: string;
+      compactTranslation?: string;
       drawText?: string;
       confidence?: number;
     }>;
@@ -484,6 +487,7 @@ export type TranslateTaskOutput = {
       groupType?: string;
       translatedLines?: string[];
     }>;
+    coordinateMeta?: TranslateTaskOutput['coordinateMeta'];
   };
   configuredOcrProvider?: string;
   actualOcrProvider?: string;
@@ -527,6 +531,39 @@ export type TranslateTaskOutput = {
     passed?: boolean;
     warnings?: string[];
   };
+  coordinateMeta?: {
+    ocrImageWidth?: number;
+    ocrImageHeight?: number;
+    renderImageWidth?: number;
+    renderImageHeight?: number;
+    scaleX?: number;
+    scaleY?: number;
+    coordScaleApplied?: boolean;
+    bboxCorrectionCount?: number;
+    coordMappingValid?: boolean;
+  };
+  eraseBlocks?: number;
+  eraseBBoxCount?: number;
+  layoutBBoxCount?: number;
+  eraseRetryCount?: number;
+  renderedTextCount?: number;
+  overflowTextCount?: number;
+  blockClassifications?: Array<{
+    id?: string;
+    text?: string;
+    blockClass?: string;
+    standard_translation?: string;
+    standardTranslation?: string;
+    compact_translation?: string;
+    compactTranslation?: string;
+  }>;
+  badgeCount?: number;
+  abnormalBadgeCount?: number;
+  backgroundPatchScore?: number;
+  overlapScore?: number;
+  finalQualityStatus?: string;
+  badgeShapeAbnormal?: boolean;
+  textOverlap?: boolean;
 };
 
 const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
@@ -547,6 +584,12 @@ const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
   commercial_usability_low: '商用评分偏低，不建议直接作为商品图使用。',
   style_inherited: '已按商品图标题 / 标签模板继承原图样式。',
   erase_area_too_large: '擦除区域过大，可能破坏背景。',
+  ocr_coord_scaled: 'OCR 坐标已按渲染图尺寸缩放。',
+  badge_shape_abnormal: '标签形状异常（如圆块过大）。',
+  text_overlap: '译文与原文或商品主体发生重叠。',
+  erase_failed: '原文擦除未通过校验。',
+  layout_unbalanced: '版面不均衡，译文位置或面积异常。',
+  product_subject_overlap: '译文可能遮挡商品主体。',
 };
 
 /** Map machine layout warning codes to user-friendly Chinese labels. */
@@ -578,13 +621,29 @@ export function translateTaskWarnings(output: TranslateTaskOutput | null): strin
   return out;
 }
 
-export function translateRenderQualityLevel(output: TranslateTaskOutput | null): {
+export function translateRenderQualityLevel(
+  output: TranslateTaskOutput | null,
+  taskStatus?: string,
+): {
   text: string;
   color: string;
   recommendMain: boolean;
 } {
+  if (taskStatus === 'low_quality' || taskStatus === 'failed_render_validation') {
+    return { text: '低质量（不建议商用）', color: 'error', recommendMain: false };
+  }
   const rq = output?.renderQuality;
   const score = rq?.commercialUsabilityScore ?? 0;
+  if (
+    output?.verification?.sourceTextMayRemain ||
+    output?.badgeShapeAbnormal ||
+    (output?.abnormalBadgeCount ?? 0) > 0 ||
+    (output?.overlapScore ?? 0) > 0.01 ||
+    output?.finalQualityStatus === 'low_quality' ||
+    (output?.overflowTextCount ?? 0) > 0
+  ) {
+    return { text: '低质量（不建议商用）', color: 'error', recommendMain: false };
+  }
   if (rq?.passed && score >= 75) {
     return { text: '可直接使用', color: 'success', recommendMain: true };
   }

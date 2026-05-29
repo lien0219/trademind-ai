@@ -39,9 +39,12 @@ type translateTextStyle struct {
 
 type translateTextBlock struct {
 	ID                  string               `json:"id,omitempty"`
+	BlockClass          string               `json:"blockClass,omitempty"`
 	Text                string               `json:"text"`
 	TranslatedText      string               `json:"translatedText"`
+	StandardTranslation string               `json:"standardTranslation,omitempty"`
 	ShortTranslatedText string               `json:"shortTranslatedText,omitempty"`
+	CompactTranslation  string               `json:"compactTranslation,omitempty"`
 	DrawText            string               `json:"drawText,omitempty"`
 	Confidence          float64              `json:"confidence"`
 	BBox                translateTextBBox    `json:"bbox"`
@@ -57,21 +60,22 @@ type translateTextPoint struct {
 }
 
 type translateOCRResult struct {
-	Provider            string               `json:"provider,omitempty"`
-	APIName             string               `json:"apiName,omitempty"`
-	ConfiguredProvider  string               `json:"configuredOcrProvider,omitempty"`
-	ActualProvider      string               `json:"actualOcrProvider,omitempty"`
-	Fallback            bool                 `json:"fallback,omitempty"`
-	FallbackReason      string               `json:"ocrFallbackReason,omitempty"`
-	FallbackErrorCode   string               `json:"ocrErrorCode,omitempty"`
-	DetectedLanguage    string               `json:"detectedLanguage"`
-	TextBlocksCount     int                  `json:"textBlocksCount"`
-	SupplementedBlocks  int                  `json:"supplementedBlocks,omitempty"`
-	FilteredBlocksCount int                  `json:"filteredBlocksCount,omitempty"`
-	AverageConfidence   float64              `json:"averageConfidence,omitempty"`
-	ErrorMessage        string               `json:"errorMessage,omitempty"`
-	Blocks              []translateTextBlock `json:"blocks"`
-	Groups              []translateTextGroup `json:"groups,omitempty"`
+	Provider            string                   `json:"provider,omitempty"`
+	APIName             string                   `json:"apiName,omitempty"`
+	ConfiguredProvider  string                   `json:"configuredOcrProvider,omitempty"`
+	ActualProvider      string                   `json:"actualOcrProvider,omitempty"`
+	Fallback            bool                     `json:"fallback,omitempty"`
+	FallbackReason      string                   `json:"ocrFallbackReason,omitempty"`
+	FallbackErrorCode   string                   `json:"ocrErrorCode,omitempty"`
+	DetectedLanguage    string                   `json:"detectedLanguage"`
+	TextBlocksCount     int                      `json:"textBlocksCount"`
+	SupplementedBlocks  int                      `json:"supplementedBlocks,omitempty"`
+	FilteredBlocksCount int                      `json:"filteredBlocksCount,omitempty"`
+	AverageConfidence   float64                  `json:"averageConfidence,omitempty"`
+	ErrorMessage        string                   `json:"errorMessage,omitempty"`
+	Blocks              []translateTextBlock     `json:"blocks"`
+	Groups              []translateTextGroup     `json:"groups,omitempty"`
+	CoordinateMeta      *translateCoordinateMeta `json:"coordinateMeta,omitempty"`
 }
 
 type translateQualitySummary struct {
@@ -262,16 +266,28 @@ Lines:
 				ocr.Blocks[i].TranslatedText = tr
 			}
 		}
+		if strings.TrimSpace(ocr.Blocks[i].StandardTranslation) == "" {
+			ocr.Blocks[i].StandardTranslation = strings.TrimSpace(ocr.Blocks[i].TranslatedText)
+		}
 	}
 	return nil
 }
 
 func (s *Service) simplifyLongTranslations(ctx context.Context, blocks []translateTextBlock, targetLang string, allow bool) error {
+	ensureRuleCompact := func(i int) {
+		if strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
+			blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].Text, blocks[i].TranslatedText, targetLang)
+		}
+		if strings.TrimSpace(blocks[i].CompactTranslation) == "" {
+			blocks[i].CompactTranslation = strings.TrimSpace(blocks[i].ShortTranslatedText)
+		}
+		if strings.TrimSpace(blocks[i].StandardTranslation) == "" {
+			blocks[i].StandardTranslation = strings.TrimSpace(blocks[i].TranslatedText)
+		}
+	}
 	if !allow || s == nil || s.AIGateway == nil {
 		for i := range blocks {
-			if needsShortText(blocks[i].Text, blocks[i].TranslatedText) && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
-				blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].Text, blocks[i].TranslatedText, targetLang)
-			}
+			ensureRuleCompact(i)
 		}
 		return nil
 	}
@@ -282,9 +298,7 @@ func (s *Service) simplifyLongTranslations(ctx context.Context, blocks []transla
 		}
 	}
 	for i := range blocks {
-		if needsShortText(blocks[i].Text, blocks[i].TranslatedText) && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
-			blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].Text, blocks[i].TranslatedText, targetLang)
-		}
+		ensureRuleCompact(i)
 	}
 	if len(need) == 0 {
 		return nil
@@ -337,8 +351,16 @@ Items:
 		trKey := strings.TrimSpace(blocks[i].TranslatedText)
 		if short, ok := lookup[origKey]; ok && short != "" {
 			blocks[i].ShortTranslatedText = short
+			blocks[i].CompactTranslation = short
 		} else if short, ok := lookup[trKey]; ok && short != "" {
 			blocks[i].ShortTranslatedText = short
+			blocks[i].CompactTranslation = short
+		}
+		if strings.TrimSpace(blocks[i].CompactTranslation) == "" {
+			blocks[i].CompactTranslation = strings.TrimSpace(blocks[i].ShortTranslatedText)
+		}
+		if strings.TrimSpace(blocks[i].StandardTranslation) == "" {
+			blocks[i].StandardTranslation = strings.TrimSpace(blocks[i].TranslatedText)
 		}
 	}
 	return nil
@@ -584,10 +606,18 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	}
 	assignOCRBlockIDs(ocr.Blocks)
 	imageW, imageH := payload.Width, payload.Height
+	if rw, rh, dErr := renderDimensionsFromBytes(sourceBytes); dErr == nil && rw > 0 && rh > 0 {
+		imageW, imageH = rw, rh
+	}
 	if imageW <= 0 {
 		imageW = intFromAny(hints["imageWidth"])
 		imageH = intFromAny(hints["imageHeight"])
 	}
+	coordMeta, coordErr := applyOCRCoordinateMapping(ocr, imageW, imageH)
+	if coordErr != nil {
+		return coordErr
+	}
+	ocr.CoordinateMeta = &coordMeta
 	bboxRepaired := false
 	if needsOCRBBoxRepair(ocr.Blocks) {
 		if repaired := s.repairOCRBlockBBoxes(ctx, imgRef, ocr.Blocks, imageW, imageH); len(repaired) > 0 {
@@ -598,6 +628,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		ocr.Blocks = clampOCRBlockBBoxes(ocr.Blocks, imageW, imageH)
 	}
 	inferBlockStyles(payload, ocr.Blocks)
+	classifyTranslateBlocks(ocr.Blocks, imageW, imageH)
 
 	s.logTranslateAudit(ctx, task, "ai_image.translate_text.ocr_done", "success",
 		translateAuditMsg(task, map[string]any{"textBlocksCount": len(ocr.Blocks)}))
@@ -617,8 +648,16 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	}
 	textGroups, layoutTemplate := buildTranslateTextGroups(ocr.Blocks, hints, imageW, imageH)
 	groupPlans, layoutSummary := computeTranslateGroupLayouts(textGroups, layoutOpts, imageW, imageH, layoutTemplate)
+	sim := simulateTranslateGroupLayouts(groupPlans, imageW, imageH)
+	layoutSummary.Simulation = sim
+	for _, w := range sim.Warnings {
+		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, w)
+	}
 	if bboxRepaired {
 		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningBBoxRepaired)
+	}
+	if ocr.CoordinateMeta != nil && ocr.CoordinateMeta.CoordScaleApplied {
+		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, warningOCRCoordScaled)
 	}
 	if ocr.FilteredBlocksCount > 0 {
 		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningOCRFiltered)

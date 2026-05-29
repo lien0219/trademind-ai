@@ -149,3 +149,75 @@ func TestBuildTranslateTextGroupsPhoneStandTemplate(t *testing.T) {
 		t.Fatalf("bottom badge group = %q", groups[2].GroupType)
 	}
 }
+
+func TestBuildTranslateTextGroupsRightTopTitleNotBadge(t *testing.T) {
+	blocks := []translateTextBlock{
+		{ID: "b1", Text: "炫酷黑", TranslatedText: "Cool Black", BBox: translateTextBBox{X: 610, Y: 80, Width: 180, Height: 70}, Style: titleGroupStyle()},
+		{ID: "b2", Text: "折叠伸缩版/通用手机", TranslatedText: "Foldable Universal", BBox: translateTextBBox{X: 550, Y: 180, Width: 330, Height: 48}, Style: badgeGroupStyle()},
+	}
+	groups, _ := buildTranslateTextGroups(blocks, map[string]any{"layoutTemplate": "auto"}, 900, 900)
+	if len(groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(groups))
+	}
+	if groups[0].GroupType != groupTypeMainTitle {
+		t.Fatalf("right-top title group = %q, want main_title", groups[0].GroupType)
+	}
+	if groups[1].GroupType != groupTypeBadge {
+		t.Fatalf("subtitle group = %q, want badge", groups[1].GroupType)
+	}
+	plans, _ := computeTranslateGroupLayouts(groups, parseTranslateLayoutOptions(nil, "en"), 900, 900, layoutTemplatePreserveOriginal)
+	if plans[0].ErasePadding < 6 {
+		t.Fatalf("main title erase padding too small: %d", plans[0].ErasePadding)
+	}
+}
+
+func TestBadgeRequiresStrictDarkSmallRegion(t *testing.T) {
+	title := translateTextBlock{
+		ID:             "b1",
+		Text:           "炫酷黑",
+		TranslatedText: "Cool Black",
+		BBox:           translateTextBBox{X: 610, Y: 80, Width: 180, Height: 70},
+		Style:          translateTextStyle{Color: "#ffffff", BackgroundColor: "#111111", FontWeight: "bold"},
+	}
+	if got := classifyTranslateBlock(title, 900, 900); got == blockClassBadge || got == blockClassColorBadge {
+		t.Fatalf("large dark title classified as badge: %s", got)
+	}
+
+	badge := translateTextBlock{
+		ID:                 "b2",
+		Text:               "手机 / 平板",
+		TranslatedText:     "Phone and Tablet Universal Stand",
+		CompactTranslation: "Phone/Tablet",
+		BBox:               translateTextBBox{X: 48, Y: 134, Width: 120, Height: 34},
+		Style:              badgeGroupStyle(),
+	}
+	if got := classifyTranslateBlock(badge, 800, 800); got != blockClassBadge {
+		t.Fatalf("small dark pill classified as %s, want badge", got)
+	}
+}
+
+func TestBadgeLayoutHardLimitAndCompactText(t *testing.T) {
+	block := translateTextBlock{
+		ID:                 "b1",
+		Text:               "手机 / 平板",
+		TranslatedText:     "Phone and Tablet Universal Stand",
+		CompactTranslation: "Phone/Tablet",
+		BBox:               translateTextBBox{X: 48, Y: 134, Width: 120, Height: 34},
+		Style:              badgeGroupStyle(),
+		BlockClass:         blockClassBadge,
+	}
+	group := makeTranslateGroup("g1", groupTypeBadge, []translateTextBlock{block}, badgeGroupStyle())
+	plan := layoutTranslateGroup(group, parseTranslateLayoutOptions(nil, "en"), 800, 800, layoutTemplateTitleBadge)
+	if plan.BBox.Width > int(float64(block.BBox.Width)*1.35)+1 {
+		t.Fatalf("badge width %d exceeds hard limit from %d", plan.BBox.Width, block.BBox.Width)
+	}
+	if plan.BBox.Height > int(float64(block.BBox.Height)*1.25)+1 {
+		t.Fatalf("badge height %d exceeds hard limit from %d", plan.BBox.Height, block.BBox.Height)
+	}
+	if strings.Join(plan.Lines, "") != "Phone/Tablet" {
+		t.Fatalf("badge did not use compact translation: %+v", plan.Lines)
+	}
+	if detectBadgeShapeAbnormal(buildRenderBlocksFromGroups([]translateTextGroup{group}, []translateGroupLayoutPlan{plan})) {
+		t.Fatalf("hard-limited badge should not be abnormal")
+	}
+}

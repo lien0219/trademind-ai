@@ -34,7 +34,7 @@ func inferBlockStyles(payload *translateImagePayload, blocks []translateTextBloc
 				blocks[i].Style.BackgroundColor = "#111111"
 				blocks[i].Style.Align = "center"
 				blocks[i].Style.FontWeight = "bold"
-				blocks[i].Style.BorderRadius = 999
+				blocks[i].Style.BorderRadius = 0
 				continue
 			}
 			if lum < 135 && strings.TrimSpace(blocks[i].Style.Color) == "" {

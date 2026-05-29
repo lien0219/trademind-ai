@@ -340,10 +340,18 @@ func clampOCRBlockBBoxes(blocks []translateTextBlock, imageW, imageH int) []tran
 		w := out[i].BBox.Width
 		h := out[i].BBox.Height
 		if h < minH {
-			h = minH
+			if out[i].BBox.Height >= 16 {
+				h = out[i].BBox.Height
+			} else {
+				h = minH
+			}
 		}
 		if w < 40 {
-			w = 40
+			if out[i].BBox.Width >= 20 {
+				w = out[i].BBox.Width
+			} else {
+				w = 40
+			}
 		}
 		x, y, w, h := clampTranslateBBox(out[i].BBox.X, out[i].BBox.Y, w, h, imageW, imageH)
 		if h < minH {

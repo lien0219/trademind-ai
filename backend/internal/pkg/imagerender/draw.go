@@ -20,10 +20,7 @@ func DrawText(dst *image.RGBA, block TextBlock, opts Options) error {
 	rect := image.Rect(x, y, x+w, y+h)
 	textColor := contrastTextColor(dst, rect, block.Style)
 	if bg := strings.TrimSpace(block.Style.BackgroundColor); bg != "" {
-		radius := block.Style.BorderRadius
-		if radius <= 0 {
-			radius = max(6, min(w, h)/2)
-		}
+		radius := effectiveBorderRadius(w, h, block.Style.BorderRadius)
 		fillRoundedRect(dst, rect, radius, parseHexColor(bg, color.RGBA{R: 17, G: 17, B: 17, A: 255}))
 		textColor = parseHexColor(block.Style.Color, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 	}
@@ -84,6 +81,34 @@ func DrawText(dst *image.RGBA, block TextBlock, opts Options) error {
 		d.DrawString(line)
 	}
 	return nil
+}
+
+// effectiveBorderRadius caps pill/capsule radius so wide badges do not become solid circles.
+func effectiveBorderRadius(w, h, requested int) int {
+	if w <= 0 || h <= 0 {
+		return 4
+	}
+	maxR := w
+	if h < maxR {
+		maxR = h
+	}
+	maxR /= 2
+	if maxR < 1 {
+		maxR = 1
+	}
+	if requested > 0 && requested < maxR {
+		return requested
+	}
+	if w >= h*2 {
+		return max(4, h/2)
+	}
+	if requested > maxR {
+		requested = maxR
+	}
+	if requested <= 0 {
+		return max(4, maxR)
+	}
+	return requested
 }
 
 func fillRoundedRect(dst *image.RGBA, rect image.Rectangle, radius int, c color.RGBA) {

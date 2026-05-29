@@ -412,8 +412,12 @@ func (s *Service) runExternalOCR(ctx context.Context, providerName string, m map
 	oCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
+	ocrURL := ""
+	if base64Data == "" {
+		ocrURL = firstNonEmptyString(imageURL, payload.DataURL)
+	}
 	res, err := prov.DetectText(oCtx, ocr.OCRRequest{
-		ImageURL:          firstNonEmptyString(imageURL, payload.DataURL),
+		ImageURL:          ocrURL,
 		ImageBase64:       base64Data,
 		SourceLanguage:    sourceLang,
 		TargetLanguage:    targetLang,

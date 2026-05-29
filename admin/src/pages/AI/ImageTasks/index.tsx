@@ -91,7 +91,7 @@ function ocrProviderLabel(provider?: string): string {
   return map[p] ?? p;
 }
 
-function TranslateResultPanel({ output }: { output: unknown }) {
+function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskStatus?: string }) {
   const parsed = parseTranslateTaskOutput(output);
   if (!parsed) return null;
   const blocks = parsed.ocr?.blocks ?? [];
@@ -99,7 +99,8 @@ function TranslateResultPanel({ output }: { output: unknown }) {
   const translate = parsed.translate;
   const verification = parsed.verification;
   const renderQuality = parsed.renderQuality;
-  const qualityLevel = translateRenderQualityLevel(parsed);
+  const coord = parsed.coordinateMeta ?? (parsed.ocr as { coordinateMeta?: typeof parsed.coordinateMeta })?.coordinateMeta;
+  const qualityLevel = translateRenderQualityLevel(parsed, taskStatus);
   const warnings = translateTaskWarnings(parsed);
   const hasOverflow = (layout?.overflowBlocks ?? 0) > 0;
   const ocrInfo = parsed.ocr;
@@ -161,6 +162,7 @@ function TranslateResultPanel({ output }: { output: unknown }) {
         <Descriptions.Item label="自动重试策略">
           {layout?.retryStrategies?.length ? layout.retryStrategies.join(' / ') : '—'}
         </Descriptions.Item>
+        <Descriptions.Item label="最终质量状态">{parsed.finalQualityStatus ?? taskStatus ?? '—'}</Descriptions.Item>
       </Descriptions>
       <div style={{ marginTop: 12 }}>
         <Typography.Text strong>OCR 配置与执行</Typography.Text>
@@ -177,6 +179,46 @@ function TranslateResultPanel({ output }: { output: unknown }) {
           </Descriptions.Item>
           <Descriptions.Item label="低置信度过滤数量">{ocrInfo?.filteredBlocksCount ?? 0}</Descriptions.Item>
           <Descriptions.Item label="OCR 错误">{ocrInfo?.errorMessage || fallbackReason || '—'}</Descriptions.Item>
+          <Descriptions.Item label="OCR 图片尺寸">
+            {coord?.ocrImageWidth && coord?.ocrImageHeight
+              ? `${coord.ocrImageWidth} × ${coord.ocrImageHeight}`
+              : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="渲染图片尺寸">
+            {coord?.renderImageWidth && coord?.renderImageHeight
+              ? `${coord.renderImageWidth} × ${coord.renderImageHeight}`
+              : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="scaleX / scaleY">
+            {coord?.scaleX != null && coord?.scaleY != null
+              ? `${coord.scaleX.toFixed(4)} / ${coord.scaleY.toFixed(4)}`
+              : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="是否坐标缩放">{coord?.coordScaleApplied ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="坐标修正数量">{coord?.bboxCorrectionCount ?? 0}</Descriptions.Item>
+        </Descriptions>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <Typography.Text strong>擦除与渲染</Typography.Text>
+        <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+          <Descriptions.Item label="eraseMode">{layout?.eraseMode ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="eraseBlocks">{parsed.eraseBlocks ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="erase_bbox 数量">{parsed.eraseBBoxCount ?? parsed.eraseBlocks ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="layout_bbox 数量">{parsed.layoutBBoxCount ?? parsed.renderedTextCount ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="eraseRetryCount">{parsed.eraseRetryCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="layoutTemplate">{layout?.layoutTemplate ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="renderedTextCount">{parsed.renderedTextCount ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="overflowTextCount">{parsed.overflowTextCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="badgeCount">{parsed.badgeCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="abnormalBadgeCount">{parsed.abnormalBadgeCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="backgroundPatchScore">
+            {parsed.backgroundPatchScore != null ? parsed.backgroundPatchScore.toFixed(2) : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="overlapScore">
+            {parsed.overlapScore != null ? parsed.overlapScore.toFixed(2) : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="badgeShapeAbnormal">{parsed.badgeShapeAbnormal ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="textOverlap">{parsed.textOverlap ? '是' : '否'}</Descriptions.Item>
         </Descriptions>
       </div>
       <div style={{ marginTop: 12 }}>
@@ -186,7 +228,18 @@ function TranslateResultPanel({ output }: { output: unknown }) {
           <Descriptions.Item label="背景补丁">{hasPatchVisible ? '是' : '否'}</Descriptions.Item>
           <Descriptions.Item label="擦除区域过大">{eraseAreaTooLarge ? '是' : '否'}</Descriptions.Item>
           <Descriptions.Item label="是否可商用">{qualityLevel.text}</Descriptions.Item>
+          <Descriptions.Item label="最终建议">
+            {qualityLevel.recommendMain ? '可作为商品图' : '不建议直接使用'}
+          </Descriptions.Item>
         </Descriptions>
+        {!qualityLevel.recommendMain ? (
+          <Alert
+            style={{ marginTop: 8 }}
+            type="error"
+            showIcon
+            message="当前结果排版异常，不建议直接使用，请重新生成或人工调整。"
+          />
+        ) : null}
       </div>
       {renderQuality ? (
         <div style={{ marginTop: 12 }}>
@@ -242,6 +295,12 @@ function TranslateResultPanel({ output }: { output: unknown }) {
             {blocks.slice(0, 12).map((b, i) => (
               <li key={`${b.text}-${i}`} style={{ marginBottom: 4 }}>
                 <Typography.Text type="secondary">{b.text || '—'}</Typography.Text>
+                {b.blockClass ? (
+                  <>
+                    {' '}
+                    <Tag>{b.blockClass}</Tag>
+                  </>
+                ) : null}
                 {' → '}
                 <Typography.Text>{b.translatedText || '—'}</Typography.Text>
                 {b.drawText && b.drawText !== b.translatedText ? (
@@ -253,7 +312,7 @@ function TranslateResultPanel({ output }: { output: unknown }) {
                 {b.shortTranslatedText && b.shortTranslatedText !== b.translatedText ? (
                   <>
                     {' '}
-                    <Typography.Text type="secondary">（精简：{b.shortTranslatedText}）</Typography.Text>
+                    <Typography.Text type="secondary">（精简：{b.compactTranslation || b.shortTranslatedText}）</Typography.Text>
                   </>
                 ) : null}
               </li>
@@ -263,6 +322,9 @@ function TranslateResultPanel({ output }: { output: unknown }) {
             <Typography.Text type="secondary">… 共 {blocks.length} 段文字</Typography.Text>
           ) : null}
         </div>
+      ) : null}
+      {parsed.blockClassifications?.length ? (
+        <JsonBlock title="block 分类结果 / compact_translation" value={parsed.blockClassifications} />
       ) : null}
     </Card>
   );
@@ -290,7 +352,11 @@ export default function ImageTasksPage() {
     () => (detail?.taskType === 'translate_image_text' ? parseTranslateTaskOutput(detail.output) : null),
     [detail?.taskType, detail?.output],
   );
-  const translateQualityLevel = useMemo(() => translateRenderQualityLevel(translateOutput), [translateOutput]);
+  const translateQualityLevel = useMemo(
+    () => translateRenderQualityLevel(translateOutput, detail?.status),
+    [translateOutput, detail?.status],
+  );
+  const isLowQualityTranslate = detail?.taskType === 'translate_image_text' && !translateQualityLevel.recommendMain;
 
   useEffect(() => {
     const iv = window.setInterval(() => {
@@ -724,7 +790,7 @@ export default function ImageTasksPage() {
                   description={
                     detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
                       ? '结果将追加为 AI 生成图，不覆盖原图。'
-                      : '当前渲染质量未通过，建议人工检查后再保存。'
+                      : '当前结果排版异常，不建议直接使用，请重新生成或人工调整。'
                   }
                   onConfirm={async () => {
                     try {
@@ -738,7 +804,7 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  <Button type="primary" ghost>
+                  <Button type="primary" ghost disabled={isLowQualityTranslate}>
                     保存到商品图片
                   </Button>
                 </Popconfirm>
@@ -747,7 +813,7 @@ export default function ImageTasksPage() {
                   description={
                     detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
                       ? '结果质量已通过，可以设为主图。'
-                      : '当前结果不建议直接设为主图，请确认已人工检查。'
+                      : '当前结果排版异常，不建议直接使用，请重新生成或人工调整。'
                   }
                   onConfirm={async () => {
                     try {
@@ -762,12 +828,18 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  <Button danger={detail.taskType === 'translate_image_text' && !translateQualityLevel.recommendMain}>
+                  <Button danger={isLowQualityTranslate} disabled={isLowQualityTranslate}>
                     设为主图
                   </Button>
                 </Popconfirm>
-                <Button
-                  onClick={async () => {
+                <Popconfirm
+                  title="确认设为详情图？"
+                  description={
+                    detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
+                      ? '结果将写入商品详情图。'
+                      : '当前结果排版异常，不建议直接使用，请重新生成或人工调整。'
+                  }
+                  onConfirm={async () => {
                     try {
                       await applyImageTaskResult(detail.id, {
                         productId: detail.productId!,
@@ -779,8 +851,10 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  设为详情图
-                </Button>
+                  <Button danger={isLowQualityTranslate} disabled={isLowQualityTranslate}>
+                    设为详情图
+                  </Button>
+                </Popconfirm>
               </>
             ) : null}
           </Space>
@@ -834,7 +908,7 @@ export default function ImageTasksPage() {
               </Space>
             )}
             {detail.taskType === 'translate_image_text' && detail.output ? (
-              <TranslateResultPanel output={detail.output} />
+              <TranslateResultPanel output={detail.output} taskStatus={detail.status} />
             ) : null}
             {taskItems.length > 0 ? (
               <div style={{ marginBottom: 24 }}>

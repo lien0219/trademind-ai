@@ -3,7 +3,15 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-29 — **图片文字翻译严格 OCR 模式**：图片文字翻译改为严格 OCR 模式，已取消默认 OCR 降级逻辑；使用 `translate_image_text` 必须先在「设置 → 图片 AI 设置」选择 OCR Provider 并通过真实 OCR 调用测试，AI 视觉 OCR 作为独立 Provider，不再作为隐藏兜底；OCR 未配置、配置不完整、调用失败或未识别到文字时任务直接失败并提示用户完成 OCR 配置，不再出现“备用识别方式完成任务”的生产文案；任务详情展示配置 OCR 与实际 OCR，二者应保持一致；新建图片文字翻译入口会实时检测 OCR 可用状态，未通过时禁用提交并引导去配置 OCR。
+**最后更新**：2026-05-29 — **图片文字翻译生产级排版质量收紧**：OCR block 先分类为 `title` / `subtitle` / `badge` / `color_badge` / `small_caption`，只有满足黑底白字、小高度和胶囊区域特征的块才按 badge 渲染；`erase_bbox` 与 `layout_bbox` 继续分离，badge 宽高硬限制为原框 `1.35x / 1.25x`，超限时优先使用 `compact_translation`、缩字号或降级普通文本；绘制前新增布局模拟（溢出、碰撞、疑似遮挡商品主体、版面失衡），绘制后把异常 badge、背景补丁、原文残留等统一打入 `low_quality`；任务详情输出 block 分类、精简文案、bbox 数量、badge/异常 badge、背景补丁分、重叠分和 `finalQualityStatus`，管理端对低质量结果禁用保存到商品图片 / 设主图 / 设详情图。
+
+**此前**：2026-05-29 — **图片文字翻译右上角标题与擦除修复**：修复商品图右上角标题（如「炫酷黑」）因包含“黑”被误判为黑底徽章的问题，单行大标题现在会进入 `main_title` 分组；徽章识别改为依赖暗色背景或斜杠标签，不再把普通颜色标题直接画成黑底胶囊；标题/普通文案擦除 padding 从过小的 2px 调整为 6–8px；二次加强擦除此前没有把 `opencv_inpaint` 结果写回画布，本次修复后才会真正生效，减少旧中文残留和英文叠旧文案。
+
+**此前**：2026-05-29 — **图片文字翻译擦除校验不再误杀任务**：擦除后 OCR 改为按「原文字块仍识别数量」判定（需达到半数以上才算未擦干净），擦除不足时自动加强 `opencv_inpaint` 二次擦除后仍继续绘制译文；任务不再因擦除校验直接 `failed`，改为产出结果并标记 `low_quality` / `erase_failed`；全部策略失败时增加 `opencv_inpaint` 兜底渲染。
+
+**此前**：2026-05-29 — **图片文字翻译 OCR 坐标映射与渲染质量收口**：修复 OCR 坐标与渲染图尺寸不一致时的统一缩放（`scaleX` / `scaleY`，任务详情展示 OCR/渲染尺寸与是否缩放）；外部 OCR 优先使用与渲染相同的 base64 原图，避免 URL 与本地解码尺寸不一致；渲染流程改为先擦除、二次 OCR 校验原文后再绘制译文；`erase_bbox` 与 `layout_bbox` 继续分离，标签圆角改为胶囊（修复 `BorderRadius:999` 导致的大黑圆块）；「牛奶白」识别为左下角 `bottom_badge`；`text_overflow` / `source_text_may_remain` / `badge_shape_abnormal` 等触发 `low_quality` 而非「成功（有警告）」；低质量结果不推荐保存/设主图/设详情图（需二次确认）；任务详情补充擦除/渲染诊断字段。
+
+**此前**：2026-05-29 — **图片文字翻译严格 OCR 模式**：图片文字翻译改为严格 OCR 模式，已取消默认 OCR 降级逻辑；使用 `translate_image_text` 必须先在「设置 → 图片 AI 设置」选择 OCR Provider 并通过真实 OCR 调用测试，AI 视觉 OCR 作为独立 Provider，不再作为隐藏兜底；OCR 未配置、配置不完整、调用失败或未识别到文字时任务直接失败并提示用户完成 OCR 配置，不再出现“备用识别方式完成任务”的生产文案；任务详情展示配置 OCR 与实际 OCR，二者应保持一致；新建图片文字翻译入口会实时检测 OCR 可用状态，未通过时禁用提交并引导去配置 OCR。
 
 **此前**：2026-05-29 — **图片文字翻译 OCR 执行一致性修复**：区分图片服务“配置检查”和 OCR“真实调用测试”，`POST /api/v1/settings/test-ocr` 对 AI 视觉、阿里云、腾讯云和 PaddleOCR 均执行真实 OCR 调用，只有返回 blocks 才提示“当前 OCR 服务可用”；图片文字翻译任务输出新增 `configuredOcrProvider`、`actualOcrProvider`、`ocrFallbackUsed`、`ocrFallbackReason`、`ocrErrorCode`、`ocrBlocksCount`、`ocrAverageConfidence`，阿里云 / 腾讯云失败会分类为 `SECRET_MISSING`、`AUTH_FAILED`、`SERVICE_NOT_OPEN`、`PERMISSION_DENIED`、`IMAGE_URL_NOT_ACCESSIBLE`、`TIMEOUT`、`EMPTY_BLOCKS` 等；任务详情页新增 OCR 配置与执行、渲染检查信息；检测到原文残留、背景补丁或擦除区域过大时标记 `low_quality`，并增加扩大擦除框与切换 `opencv_inpaint` / `background_sample` 的重试策略。
 
@@ -572,3 +580,4 @@ trademind-ai/
 | 2026-05-15 | **全局 AI 任务**：**`GET /api/v1/ai/tasks`**（分页筛选，列表无大体量 JSON）、**`GET /api/v1/ai/tasks/:id`**（详情 **input/output/rawResponse** + 敏感键脱敏）；管理端 **`/ai/tasks`**、**`services/aiTasks.ts`**；**PROGRESS** 更新下一步与遗留对齐 |
 | 2026-05-29 | **AI 图片任务配置统一**：AI 图片任务配置逻辑统一走设置页；新增 OCR 配置区（支持 PaddleOCR、AI 视觉 OCR 等）；新增局部擦除配置区（支持 ComfyUI 等）；图片文字翻译读取用户配置；未配置时提供友好提示和降级策略；简化任务弹窗，折叠高级选项。 |
 | 2026-05-29 | **图片 AI OCR 配置优化**：OCR 配置统一留在图片 AI 设置；图片文字翻译读取用户 OCR 配置；支持 PaddleOCR 与 AI 视觉 OCR 兜底，百度/阿里云/腾讯云 OCR 预留；新增 OCR 测试连接，校验连通、blocks 与 bbox。 |
+| 2026-05-29 | **图片文字翻译生产级排版质量收紧**：新增 OCR block 分类、`compact_translation`、badge 宽高硬限制、绘制前布局模拟与绘制后质量字段；异常 badge、文本重叠、背景补丁、原文残留和版面失衡统一标记 `low_quality`；管理端低质量结果不再推荐保存或设为主图/详情图。 |

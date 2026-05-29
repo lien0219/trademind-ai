@@ -76,7 +76,22 @@ func (s *Service) verifyTranslateOutput(
 	if sourceHits > 0 && targetHits == 0 {
 		return meta, newTranslateErr(errCodeImageTextNotApplied, "翻译文字没有成功写入图片，请重新生成")
 	}
-	if sourceHits > 0 || (sourceIsCJK && sourceScriptCount >= 2 && strings.EqualFold(targetLang, "en")) {
+	stillBlocks := 0
+	if resultText != "" {
+		payload := payloadFromImageBytes(resultBytes, http.DetectContentType(resultBytes), "")
+		if payload != nil {
+			if postOCR, ocrErr := s.runOCROnImage(ctx, payload.DataURL, sourceLang, targetLang, nil); ocrErr == nil && postOCR != nil {
+				stillBlocks = countSourceBlocksStillPresent(postOCR, ocr)
+			}
+		}
+	}
+	if stillBlocks >= sourceEraseRemainThreshold(ocr) {
+		meta.SourceTextMayRemain = true
+		meta.Confidence *= 0.85
+	} else if sourceHits > 0 && stillBlocks > 0 {
+		meta.SourceTextMayRemain = true
+		meta.Confidence *= 0.85
+	} else if sourceIsCJK && sourceScriptCount >= 4 && strings.EqualFold(targetLang, "en") && targetHits > 0 {
 		meta.SourceTextMayRemain = true
 		meta.Confidence *= 0.85
 	}
