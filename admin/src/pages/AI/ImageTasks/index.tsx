@@ -448,8 +448,8 @@ export default function ImageTasksPage() {
           setDetail(null);
         }}
         destroyOnHidden
-        extra={
-          <Space wrap>
+        footer={
+          <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
             {detail?.taskType === 'translate_image_text' &&
             (detail.status === 'failed' || detail.status === 'success_with_warnings') ? (
               <>
