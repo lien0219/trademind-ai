@@ -154,7 +154,7 @@ func (h *Handler) Get(c *gin.Context) {
 	switch batch.OperationType {
 	case OperationTitleOptimize, OperationDescriptionGenerate:
 		recentAI, _, _ = h.Svc.ListBatchAITasks(c, id, 1, 10)
-	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground:
+	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
 		recentImg, _, _ = h.Svc.ListBatchImageTasks(c, id, 1, 10)
 	}
 
@@ -196,7 +196,7 @@ func (h *Handler) Tasks(c *gin.Context) {
 			return
 		}
 		response.OK(c, gin.H{"kind": "ai_tasks", "list": items, "pagination": pageBlock(page, ps, total)})
-	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground:
+	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
 		items, total, err := h.Svc.ListBatchImageTasks(c, id, page, ps)
 		if err != nil {
 			response.HandleError(c, err)

@@ -34,6 +34,11 @@ func (s *Service) executeTranslateDeterministic(
 	}
 
 	eraseMode := effectiveEraseMode(renderOpts)
+
+	if eraseMode == "ai_inpaint" {
+		quality.Warnings = appendUniqueWarning(quality.Warnings, "AI 局部擦除服务未配置，已使用程序擦除方式处理。")
+	}
+
 	imOpts := imagerender.Options{
 		EraseMode:   eraseMode,
 		MaskPadding: renderOpts.MaskPadding,
@@ -135,7 +140,9 @@ func (s *Service) executeTranslateAIEdit(
 	if persistErr != nil {
 		return newTranslateErr(errCodeStorageUploadFailed, "翻译结果上传失败："+persistErr.Error())
 	}
-	renderOpts := parseTranslateRenderOptions(hints)
+	m, _ := s.Settings.PlainByGroup(ctx, 0, "image")
+	defaultEraseMode := strings.TrimSpace(m["erase_mode"])
+	renderOpts := parseTranslateRenderOptions(hints, defaultEraseMode)
 	renderOpts.RenderMode = RenderModeAIEdit
 	verifyMeta := translateVerificationMeta{ImageChanged: true, TargetTextDetected: true, Confidence: 0.5}
 	return s.finalizeTranslateSuccess(ctx, task, hints, ocr, quality, layoutSummary, renderOpts, nil, verifyMeta, sourceLang, targetLang, finalURL, finalFID, storageKey)

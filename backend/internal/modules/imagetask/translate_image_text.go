@@ -48,6 +48,8 @@ type translateTextBlock struct {
 }
 
 type translateOCRResult struct {
+	Provider            string               `json:"provider,omitempty"`
+	Fallback            bool                 `json:"fallback,omitempty"`
 	DetectedLanguage    string               `json:"detectedLanguage"`
 	TextBlocksCount     int                  `json:"textBlocksCount"`
 	SupplementedBlocks  int                  `json:"supplementedBlocks,omitempty"`
@@ -371,6 +373,17 @@ func buildTranslateQuality(ocr *translateOCRResult, hints map[string]any, layout
 	if q.LowConfidenceBlocksCount > 0 {
 		q.Warnings = appendUniqueWarning(q.Warnings, "部分文字识别置信度较低，请人工检查翻译结果。")
 	}
+
+	if ocr != nil {
+		if ocr.Fallback {
+			q.Warnings = appendUniqueWarning(q.Warnings, "原 OCR 服务不可用，系统已使用备用识别方式完成任务，请检查结果。")
+		} else if ocr.Provider == "ai_vision" {
+			q.Warnings = appendUniqueWarning(q.Warnings, "当前使用 AI 视觉识别文字，复杂图片可能需要人工检查。")
+		} else if ocr.Provider == "paddleocr" {
+			q.Warnings = appendUniqueWarning(q.Warnings, "当前使用本地 OCR 识别文字。")
+		}
+	}
+
 	return q
 }
 
@@ -509,7 +522,9 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		return err
 	}
 
-	renderOpts := parseTranslateRenderOptions(hints)
+	m, _ := s.Settings.PlainByGroup(ctx, 0, "image")
+	defaultEraseMode := strings.TrimSpace(m["erase_mode"])
+	renderOpts := parseTranslateRenderOptions(hints, defaultEraseMode)
 	sourceLang, targetLang := resolveTranslateLanguages(hints)
 	payload, loadErr := s.loadTranslateImagePayload(ctx, src)
 	if loadErr != nil || payload == nil {
@@ -523,7 +538,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	s.logTranslateAudit(ctx, task, "ai_image.translate_text.started", "success",
 		translateAuditMsg(task, map[string]any{"renderMode": renderOpts.RenderMode}))
 
-	ocr, err := s.runOCROnImage(ctx, src, sourceLang, targetLang)
+	ocr, err := s.runOCROnImage(ctx, src, sourceLang, targetLang, hints)
 	if err != nil {
 		return err
 	}

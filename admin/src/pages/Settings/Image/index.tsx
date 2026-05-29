@@ -41,6 +41,8 @@ const ENCRYPTED_KEYS = new Set([
   'volcengine_image_api_key',
   'siliconflow_image_api_key',
   'hunyuan_image_api_key',
+  'ocr_api_key',
+  'ocr_secret',
 ]);
 
 function buildFieldsSpec(): Record<string, FieldSpec> {
@@ -137,6 +139,20 @@ export default function ImageSettingsPage() {
         hunyuan_image_base_url: g.hunyuan_image_base_url || '',
         hunyuan_image_model: g.hunyuan_image_model || '',
         timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
+        ocr_provider: g.ocr_provider || 'paddleocr',
+        ocr_base_url: g.ocr_base_url || '',
+        ocr_api_key: g.ocr_api_key || '',
+        ocr_secret: g.ocr_secret || '',
+        ocr_timeout_sec: g.ocr_timeout_sec ? Number(g.ocr_timeout_sec) : 30,
+        ocr_min_confidence: g.ocr_min_confidence || '0.8',
+        ocr_fallback_to_vision: g.ocr_fallback_to_vision || 'true',
+        erase_mode: g.erase_mode || 'auto',
+        ai_inpaint_comfyui_base_url: g.ai_inpaint_comfyui_base_url || 'http://127.0.0.1:8188',
+        ai_inpaint_comfyui_workflow_json: g.ai_inpaint_comfyui_workflow_json || '',
+        ai_inpaint_comfyui_prompt_node_id: g.ai_inpaint_comfyui_prompt_node_id || '',
+        ai_inpaint_comfyui_image_node_id: g.ai_inpaint_comfyui_image_node_id || '',
+        ai_inpaint_comfyui_mask_node_id: g.ai_inpaint_comfyui_mask_node_id || '',
+        ai_inpaint_comfyui_output_node_id: g.ai_inpaint_comfyui_output_node_id || '',
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -347,6 +363,8 @@ export default function ImageSettingsPage() {
                 comfyui_poll_interval_seconds: String(values.comfyui_poll_interval_seconds ?? ''),
                 comfyui_max_poll_seconds: String(values.comfyui_max_poll_seconds ?? ''),
                 comfyui_workflow_json: String(values.comfyui_workflow_json ?? ''),
+                ocr_timeout_sec: String(values.ocr_timeout_sec ?? ''),
+                ai_inpaint_comfyui_workflow_json: String(values.ai_inpaint_comfyui_workflow_json ?? ''),
               };
               await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
               message.success('已保存');
@@ -366,10 +384,79 @@ export default function ImageSettingsPage() {
             />
           ) : null}
           {visibleFieldKeys.map((k) => renderField(k))}
-          <Form.Item>
+          
+          <Typography.Title level={5} style={{ marginTop: 32, marginBottom: 16 }}>
+            OCR 配置（用于图片文字翻译）
+          </Typography.Title>
+          <Row gutter={16}>
+            <Col span={12}>{renderField('ocr_provider')}</Col>
+            <Col span={12}>
+              <Form.Item
+                noStyle
+                shouldUpdate={(prevValues, currentValues) => prevValues.ocr_provider !== currentValues.ocr_provider}
+              >
+                {({ getFieldValue }) => {
+                  const ocrProvider = getFieldValue('ocr_provider');
+                  return ocrProvider !== 'ai_vision' ? renderField('ocr_base_url') : null;
+                }}
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.ocr_provider !== currentValues.ocr_provider}
+          >
+            {({ getFieldValue }) => {
+              const ocrProvider = getFieldValue('ocr_provider');
+              if (ocrProvider === 'ai_vision' || ocrProvider === 'paddleocr') return null;
+              return (
+                <Row gutter={16}>
+                  <Col span={12}>{renderField('ocr_api_key')}</Col>
+                  <Col span={12}>{renderField('ocr_secret')}</Col>
+                </Row>
+              );
+            }}
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={8}>{renderField('ocr_timeout_sec')}</Col>
+            <Col span={8}>{renderField('ocr_min_confidence')}</Col>
+            <Col span={8}>{renderField('ocr_fallback_to_vision')}</Col>
+          </Row>
+
+          <Typography.Title level={5} style={{ marginTop: 32, marginBottom: 16 }}>
+            局部擦除配置（用于图片文字翻译）
+          </Typography.Title>
+          <Row gutter={16}>
+            <Col span={12}>{renderField('erase_mode')}</Col>
+          </Row>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.erase_mode !== currentValues.erase_mode}
+          >
+            {({ getFieldValue }) => {
+              const eraseMode = getFieldValue('erase_mode');
+              if (eraseMode !== 'ai_inpaint') return null;
+              return (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>{renderField('ai_inpaint_comfyui_base_url')}</Col>
+                  </Row>
+                  {renderField('ai_inpaint_comfyui_workflow_json')}
+                  <Row gutter={16}>
+                    <Col span={12}>{renderField('ai_inpaint_comfyui_prompt_node_id')}</Col>
+                    <Col span={12}>{renderField('ai_inpaint_comfyui_image_node_id')}</Col>
+                    <Col span={12}>{renderField('ai_inpaint_comfyui_mask_node_id')}</Col>
+                    <Col span={12}>{renderField('ai_inpaint_comfyui_output_node_id')}</Col>
+                  </Row>
+                </>
+              );
+            }}
+          </Form.Item>
+
+          <Form.Item style={{ marginTop: 16 }}>
             <Space>
               <Button type="primary" htmlType="submit" loading={loading}>
-                保存
+                保存全部配置
               </Button>
               <Button
                 loading={testing}

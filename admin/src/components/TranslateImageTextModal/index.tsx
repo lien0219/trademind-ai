@@ -1,6 +1,6 @@
 import { ModalForm, ProFormCheckbox, ProFormRadio, ProFormSelect } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Alert, Form, Image, Typography, message } from 'antd';
+import { Alert, Collapse, Form, Image, Typography, message } from 'antd';
 import { useEffect, useMemo } from 'react';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import type { ProductImageRow } from '@/services/products';
@@ -45,16 +45,16 @@ export type TranslateImageTextPrefill = {
 type FormValues = {
   sourceLanguage: string;
   targetLanguage: string;
-  renderMode: TranslateRenderMode;
   layoutMode: TranslateImageTextLayoutMode;
-  autoWrap: boolean;
-  autoFontSize: boolean;
-  allowTextSimplify: boolean;
-  keepProductUnchanged: boolean;
   autoSaveToProductImages: boolean;
   outputAsDetail: boolean;
   autoSetAsMain: boolean;
+  // Advanced
   provider?: string;
+  ocrProvider?: string;
+  renderMode: TranslateRenderMode;
+  eraseMode?: string;
+  advancedJson?: string;
 };
 
 type Props = {
@@ -94,18 +94,17 @@ export function TranslateImageTextModal({
     form.setFieldsValue({
       sourceLanguage: prefill?.sourceLanguage ?? 'auto',
       targetLanguage: prefill?.targetLanguage ?? 'en',
-      renderMode: 'hybrid',
       layoutMode: 'auto',
-      autoWrap: true,
-      autoFontSize: true,
-      allowTextSimplify: true,
-      keepProductUnchanged: true,
       autoSaveToProductImages: true,
       outputAsDetail: true,
       autoSetAsMain: false,
-      provider: prefill?.provider ?? providerOptions[0]?.value ?? '',
+      renderMode: 'hybrid',
+      provider: prefill?.provider ?? '',
+      ocrProvider: '',
+      eraseMode: '',
+      advancedJson: '',
     });
-  }, [open, form, prefill, providerOptions]);
+  }, [open, form, prefill]);
 
   return (
     <ModalForm<FormValues>
@@ -126,15 +125,18 @@ export function TranslateImageTextModal({
           targetLanguage: values.targetLanguage,
           renderMode: values.renderMode,
           layoutMode: values.layoutMode,
-          autoWrap: values.autoWrap,
-          autoFontSize: values.autoFontSize,
-          allowTextSimplify: values.allowTextSimplify,
-          keepProductUnchanged: values.keepProductUnchanged,
+          autoWrap: true,
+          autoFontSize: true,
+          allowTextSimplify: true,
+          keepProductUnchanged: true,
           autoSaveToProductImages: values.autoSaveToProductImages,
           outputAsDetail: values.outputAsDetail,
           autoSetAsMain: values.autoSetAsMain,
           removeOriginalText: true,
           preserveLayout: values.layoutMode !== 'readable',
+          ocrProvider: values.ocrProvider || undefined,
+          eraseMode: values.eraseMode || undefined,
+          advancedJson: values.advancedJson || undefined,
         });
         try {
           const task = await createImageTask({
@@ -195,39 +197,75 @@ export function TranslateImageTextModal({
       />
 
       <ProFormRadio.Group
-        name="renderMode"
-        label="渲染方式"
-        options={TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS}
-        rules={[{ required: true, message: '请选择渲染方式' }]}
-      />
-
-      <ProFormRadio.Group
         name="layoutMode"
         label="排版方式"
         options={TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS}
         rules={[{ required: true, message: '请选择排版方式' }]}
       />
 
-      {renderMode === 'ai_edit' && providerOptions.length > 0 ? (
-        <ProFormSelect
-          name="provider"
-          label="图片 AI 服务"
-          options={providerOptions}
-          extra="实验模式：由图片模型尝试改图，结果可能不稳定"
-          rules={[{ required: true, message: '请选择图片 AI 服务' }]}
-        />
-      ) : null}
-
       <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
         处理选项
       </Typography.Text>
-      <ProFormCheckbox name="autoWrap">自动换行</ProFormCheckbox>
-      <ProFormCheckbox name="autoFontSize">自动调整字号</ProFormCheckbox>
-      <ProFormCheckbox name="allowTextSimplify">文字太长时自动精简</ProFormCheckbox>
-      <ProFormCheckbox name="keepProductUnchanged">尽量不改变商品主体</ProFormCheckbox>
       <ProFormCheckbox name="autoSaveToProductImages">自动保存到商品图片库</ProFormCheckbox>
       <ProFormCheckbox name="outputAsDetail">处理后设为详情图</ProFormCheckbox>
       <ProFormCheckbox name="autoSetAsMain">处理后设为主图</ProFormCheckbox>
+
+      <Collapse
+        ghost
+        items={[
+          {
+            key: 'advanced',
+            label: '高级设置',
+            children: (
+              <>
+                <ProFormRadio.Group
+                  name="renderMode"
+                  label="覆盖渲染方式"
+                  options={TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS}
+                />
+                <Form.Item
+                  noStyle
+                  shouldUpdate={(prevValues, currentValues) => prevValues.renderMode !== currentValues.renderMode}
+                >
+                  {({ getFieldValue }) => {
+                    const mode = getFieldValue('renderMode');
+                    if (mode !== 'ai_edit') return null;
+                    return (
+                      <ProFormSelect
+                        name="provider"
+                        label="覆盖图片 AI 服务"
+                        options={providerOptions}
+                        extra="仅在 AI 编辑实验模式下生效"
+                      />
+                    );
+                  }}
+                </Form.Item>
+                <ProFormSelect
+                  name="ocrProvider"
+                  label="覆盖 OCR 服务"
+                  options={[
+                    { label: '默认（读取设置）', value: '' },
+                    { label: 'PaddleOCR', value: 'paddleocr' },
+                    { label: 'AI 视觉模型', value: 'ai_vision' },
+                  ]}
+                />
+                <ProFormSelect
+                  name="eraseMode"
+                  label="覆盖擦除方式"
+                  options={[
+                    { label: '默认（读取设置）', value: '' },
+                    { label: '自动', value: 'auto' },
+                    { label: '背景采样', value: 'background_sample' },
+                    { label: '模糊填充', value: 'blur_fill' },
+                    { label: 'OpenCV 修复', value: 'opencv_inpaint' },
+                    { label: 'AI 局部擦除', value: 'ai_inpaint' },
+                  ]}
+                />
+              </>
+            ),
+          },
+        ]}
+      />
     </ModalForm>
   );
 }

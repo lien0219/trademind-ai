@@ -14,6 +14,7 @@ import (
 	"time"
 
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	"github.com/trademind-ai/trademind/backend/internal/providers/ocr"
 )
 
 const layoutWarningPartialOCR = "partial_text_detected"
@@ -266,62 +267,177 @@ func (s *Service) supplementOCRBlocks(ctx context.Context, imageDataURL string, 
 	return nil, nil
 }
 
-func (s *Service) runOCROnImage(ctx context.Context, imageURL, sourceLang, targetLang string) (*translateOCRResult, error) {
-	if s == nil || s.AIGateway == nil {
-		return nil, newTranslateErr(errCodeOCRFailed, "未配置 AI 服务，无法进行文字识别（请在「设置 → AI」配置）")
+func (s *Service) runOCROnImage(ctx context.Context, imageURL, sourceLang, targetLang string, hints map[string]any) (*translateOCRResult, error) {
+	if s == nil || s.Settings == nil {
+		return nil, newTranslateErr(errCodeOCRFailed, "服务配置异常，无法读取设置")
+	}
+
+	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	if err != nil {
+		return nil, newTranslateErr(errCodeOCRFailed, "无法读取图片配置，请检查系统设置")
+	}
+
+	providerName := strings.TrimSpace(stringFromMap(hints, "ocrProvider"))
+	if providerName == "" {
+		providerName = strings.TrimSpace(m["ocr_provider"])
+	}
+	if providerName == "" {
+		providerName = "paddleocr"
+	}
+	timeoutSec := comfyIntSetting(m["ocr_timeout_seconds"], 60, 5, 300)
+	minConfidenceRaw := strings.TrimSpace(m["ocr_min_confidence"])
+	if minConfidenceRaw == "" {
+		minConfidenceRaw = "0.55"
 	}
 
 	payload, loadErr := s.loadTranslateImagePayload(ctx, imageURL)
-	var ocr *translateOCRResult
-	var lastVisionContent string
-	var visionErr error
+	if loadErr != nil || payload == nil {
+		return nil, newTranslateErr(errCodeOCRFailed, "无法加载图片")
+	}
 
-	if loadErr == nil && payload != nil {
+	var ocrRes *translateOCRResult
+	var ocrErr error
+	fallbackOccurred := false
+
+	if providerName != "ai_vision" && providerName != "" {
+		ocrRes, ocrErr = s.runExternalOCR(ctx, providerName, m, payload, sourceLang, targetLang, timeoutSec)
+		if ocrErr != nil {
+			fallbackToVision := strings.TrimSpace(strings.ToLower(m["ocr_fallback_to_vision"]))
+			if fallbackToVision == "" || fallbackToVision == "true" || fallbackToVision == "1" || fallbackToVision == "yes" {
+				// Fallback to ai_vision
+				fallbackOccurred = true
+				providerName = "ai_vision"
+				ocrRes = nil
+			} else {
+				return nil, newTranslateErr(errCodeOCRFailed, "OCR 识别失败："+ocrErr.Error())
+			}
+		}
+	}
+
+	if ocrRes == nil || len(ocrRes.Blocks) == 0 {
+		if s.AIGateway == nil {
+			return nil, newTranslateErr(errCodeOCRFailed, "未配置 AI 服务，无法进行文字识别（请在「设置 → AI」配置）")
+		}
+
+		var lastVisionContent string
+		var visionErr error
+
 		prompt := ocrPromptBase(sourceLang, targetLang, payload.Width, payload.Height)
 		refs := visionImageRefs(imageURL, payload)
-		content, vErr := s.chatVisionJSONWithRefs(ctx, prompt, refs, 2500)
+
+		// Use a context with timeout for vision
+		vCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+		defer cancel()
+
+		content, vErr := s.chatVisionJSONWithRefs(vCtx, prompt, refs, 2500)
 		if vErr == nil {
 			lastVisionContent = content
-			ocr, visionErr = parseOCRJSON(content)
+			ocrRes, visionErr = parseOCRJSON(content)
 		} else {
 			visionErr = vErr
 		}
-	}
 
-	if (ocr == nil || len(ocr.Blocks) == 0) && strings.TrimSpace(lastVisionContent) != "" {
-		if parsed, pErr := parseOCRJSON(lastVisionContent); pErr == nil && len(parsed.Blocks) > 0 {
-			ocr = parsed
+		if (ocrRes == nil || len(ocrRes.Blocks) == 0) && strings.TrimSpace(lastVisionContent) != "" {
+			if parsed, pErr := parseOCRJSON(lastVisionContent); pErr == nil && len(parsed.Blocks) > 0 {
+				ocrRes = parsed
+			}
 		}
-	}
 
-	if (ocr == nil || len(ocr.Blocks) == 0) && payload != nil && strings.TrimSpace(payload.DataURL) != "" {
-		targetName := langDisplayName(targetLang)
-		srcHint := "auto-detect the source language"
-		if sourceLang != "" && !strings.EqualFold(sourceLang, "auto") {
-			srcHint = fmt.Sprintf("assume source language is %s", langDisplayName(sourceLang))
-		}
-		retryPrompt := fmt.Sprintf(`You are a strict literal OCR engine for ecommerce product images.
+		if (ocrRes == nil || len(ocrRes.Blocks) == 0) && payload != nil && strings.TrimSpace(payload.DataURL) != "" {
+			targetName := langDisplayName(targetLang)
+			srcHint := "auto-detect the source language"
+			if sourceLang != "" && !strings.EqualFold(sourceLang, "auto") {
+				srcHint = fmt.Sprintf("assume source language is %s", langDisplayName(sourceLang))
+			}
+			retryPrompt := fmt.Sprintf(`You are a strict literal OCR engine for ecommerce product images.
 %s
 %s
 Return ONLY valid JSON with blocks containing text, translatedText in %s, confidence, bbox.
 If no readable text exists, return {"detectedLanguage":"","textBlocksCount":0,"blocks":[]}.`, srcHint, ocrStrictRules(), targetName)
-		content, vErr2 := s.chatVisionJSON(ctx, retryPrompt, payload.DataURL, 2500)
-		if vErr2 == nil {
-			if parsed, pErr := parseOCRJSON(strings.TrimSpace(content)); pErr == nil {
-				ocr = parsed
-			} else if strings.TrimSpace(content) != "" {
-				return nil, newTranslateErr(errCodeOCRFailed, "文字识别结果解析失败，请检查 AI 模型是否支持 JSON 输出并重试")
+			content, vErr2 := s.chatVisionJSON(vCtx, retryPrompt, payload.DataURL, 2500)
+			if vErr2 == nil {
+				if parsed, pErr := parseOCRJSON(strings.TrimSpace(content)); pErr == nil {
+					ocrRes = parsed
+				} else if strings.TrimSpace(content) != "" {
+					return nil, newTranslateErr(errCodeOCRFailed, "文字识别结果解析失败，请检查 AI 模型是否支持 JSON 输出并重试")
+				}
+			} else if visionErr == nil {
+				visionErr = vErr2
 			}
-		} else if visionErr == nil {
-			visionErr = vErr2
+		}
+
+		if ocrRes == nil || len(ocrRes.Blocks) == 0 {
+			if visionErr != nil {
+				return nil, newTranslateErr(errCodeOCRFailed, "文字识别失败，请确认 AI 设置已配置支持视觉的模型（如 qwen3-vl-plus 或 gpt-4o-mini）")
+			}
+			return nil, newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
+		}
+
+		ocrRes.Provider = "ai_vision"
+	}
+
+	if ocrRes != nil {
+		ocrRes.Fallback = fallbackOccurred
+		if ocrRes.Provider == "" {
+			ocrRes.Provider = providerName
 		}
 	}
 
-	if ocr == nil || len(ocr.Blocks) == 0 {
-		if visionErr != nil {
-			return nil, newTranslateErr(errCodeOCRFailed, "文字识别失败，请确认 AI 设置已配置支持视觉的模型（如 qwen3-vl-plus 或 gpt-4o-mini）")
-		}
-		return nil, newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
+	return ocrRes, nil
+}
+
+func (s *Service) runExternalOCR(ctx context.Context, providerName string, m map[string]string, payload *translateImagePayload, sourceLang, targetLang string, timeoutSec int) (*translateOCRResult, error) {
+	prov, err := ocr.NewProvider(providerName, m)
+	if err != nil {
+		return nil, err
 	}
-	return ocr, nil
+
+	base64Data := ""
+	if len(payload.RawBytes) > 0 {
+		base64Data = base64.StdEncoding.EncodeToString(payload.RawBytes)
+	}
+
+	oCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+	defer cancel()
+
+	res, err := prov.DetectText(oCtx, ocr.OCRRequest{
+		ImageURL:       payload.DataURL,
+		ImageBase64:    base64Data,
+		SourceLanguage: sourceLang,
+		TargetLanguage: targetLang,
+		ImageWidth:     payload.Width,
+		ImageHeight:    payload.Height,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil || len(res.Blocks) == 0 {
+		return &translateOCRResult{
+			DetectedLanguage: "auto",
+			TextBlocksCount:  0,
+			Blocks:           []translateTextBlock{},
+		}, nil
+	}
+
+	blocks := make([]translateTextBlock, 0, len(res.Blocks))
+	for _, b := range res.Blocks {
+		blocks = append(blocks, translateTextBlock{
+			ID:         b.ID,
+			Text:       b.Text,
+			Confidence: b.Confidence,
+			BBox: translateTextBBox{
+				X:      b.BBox.X,
+				Y:      b.BBox.Y,
+				Width:  b.BBox.Width,
+				Height: b.BBox.Height,
+			},
+		})
+	}
+
+	return &translateOCRResult{
+		DetectedLanguage: res.DetectedLanguage,
+		TextBlocksCount:  len(blocks),
+		Blocks:           blocks,
+	}, nil
 }

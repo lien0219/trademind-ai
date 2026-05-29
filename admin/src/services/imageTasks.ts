@@ -331,7 +331,9 @@ export type TranslateImageTextInputOpts = {
   sourceLanguage?: string;
   targetLanguage?: string;
   renderMode?: TranslateRenderMode;
+  ocrProvider?: string;
   eraseMode?: string;
+  advancedJson?: string;
   verifyOutputText?: boolean;
   preserveLayout?: boolean;
   removeOriginalText?: boolean;
@@ -384,7 +386,9 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
     sourceLanguage: opts.sourceLanguage ?? 'auto',
     targetLanguage: opts.targetLanguage ?? 'en',
     renderMode: opts.renderMode ?? 'hybrid',
-    eraseMode: opts.eraseMode ?? 'auto',
+    ocrProvider: opts.ocrProvider ?? undefined,
+    eraseMode: opts.eraseMode ?? undefined,
+    advancedJson: opts.advancedJson ?? undefined,
     verifyOutputText: opts.verifyOutputText !== false,
     preserveLayout: opts.preserveLayout !== false,
     removeOriginalText: opts.removeOriginalText !== false,

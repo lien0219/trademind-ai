@@ -91,7 +91,7 @@ func (s *Service) extractResultText(ctx context.Context, resultBytes []byte) str
 		return ""
 	}
 	payload := payloadFromImageBytes(resultBytes, http.DetectContentType(resultBytes), "")
-	ocr, err := s.runOCROnImage(ctx, payload.DataURL, "auto", "en")
+	ocr, err := s.runOCROnImage(ctx, payload.DataURL, "auto", "en", nil)
 	if err != nil || ocr == nil {
 		return ""
 	}

@@ -58,6 +58,24 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 		{"hunyuan_image_base_url", "", false},
 		{"hunyuan_image_model", "", false},
 		{"timeout_sec", "60", false},
+
+		// OCR Settings
+		{"ocr_provider", "paddleocr", false},
+		{"ocr_base_url", "", false},
+		{"ocr_api_key", "", true},
+		{"ocr_secret", "", true},
+		{"ocr_timeout_sec", "30", false},
+		{"ocr_min_confidence", "0.8", false},
+		{"ocr_fallback_to_vision", "true", false},
+
+		// Inpaint Settings
+		{"erase_mode", "auto", false},
+		{"ai_inpaint_comfyui_base_url", "http://127.0.0.1:8188", false},
+		{"ai_inpaint_comfyui_workflow_json", "", false},
+		{"ai_inpaint_comfyui_prompt_node_id", "", false},
+		{"ai_inpaint_comfyui_image_node_id", "", false},
+		{"ai_inpaint_comfyui_mask_node_id", "", false},
+		{"ai_inpaint_comfyui_output_node_id", "", false},
 	}
 	for _, d := range defs {
 		var n int64
@@ -92,7 +110,7 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 			IsEncrypted: isEnc,
 			Remark:      "",
 		}
-		if d.key == "comfyui_workflow_json" {
+		if d.key == "comfyui_workflow_json" || d.key == "ai_inpaint_comfyui_workflow_json" {
 			row.ValueType = "json"
 		}
 		if d.key == "comfyui_api_key" {

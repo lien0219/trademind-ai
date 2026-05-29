@@ -3,13 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-29 — **图片文字翻译生产级链路**：`translate_image_text` 升级为 **OCR + 翻译 + 确定性排版渲染**；默认 `renderMode=hybrid`（程序擦除原文字 + 程序绘制译文），`ai_edit` 保留为实验模式；新增 `internal/pkg/imagerender`（字体/擦除/绘制/编码）；支持 `eraseMode` auto/background_sample/blur_fill/opencv_inpaint；输出 **二次校验**（hash 对比 + 结果 OCR），未改图则 **failed**（`IMAGE_NOT_CHANGED` / `IMAGE_TEXT_NOT_APPLIED`）；结果图仍走 **Storage Provider**、**不覆盖原图**；Docker 镜像安装 **Noto CJK** 字体；前端详情展示渲染/校验摘要与重试入口。
+**最后更新**：2026-05-29 — **图片文字翻译生产级链路与 OCR Provider 接入**：新增 `OCRProvider` 抽象层（支持 PaddleOCR 与 AI 视觉兜底）；PaddleOCR 支持本地服务调用（`POST /predict/ocr_system`）；系统设置新增 `ocr_provider`、`ocr_service_url`、`ocr_timeout_seconds` 等配置；`ai_inpaint` 设为增强项，未配置时无缝降级程序擦除并增加 warning；完善 `translate_image_text` 批量并发控制（默认并发 1、独立成功/失败、支持重试）；批量任务支持状态汇总（`success`, `partial_success`, `failed`）；任务详情增加 OCR 服务类型及降级提示（AI 视觉/本地 OCR/备用降级）。后续增强预留：百度/阿里云/腾讯云 OCR Provider 接入、ComfyUI/通义万相 ai_inpaint 擦除支持。
 
-**此前**：2026-05-29 — **图片文字翻译防幻觉**：OCR 改为 **严格字面识别**（禁止编造限时抢购/价格等营销文案）；视觉 **二次校验** 过滤非原图文字；图片编辑 Prompt 改为 **仅替换 listed 文字块、禁止新增任何文字**；关闭 OCR 补检增块（易幻觉）。
-
-**此前**：2026-05-29 — **图片文字翻译 OCR 解析容错**：修复视觉 OCR 返回 ` ```json ` 包裹 / snake_case 字段导致 **`OCR_FAILED` 解析失败**；复用 `aimodelparse` 提取 JSON；支持 `original_text`/`text_blocks`/`bounding_box` 等别名；视觉请求失败时自动重试（去掉 `json_object` 约束）；优先 base64 + 公网 URL 双通道识图。
-
-**此前**：2026-05-29 — **图片文字翻译 OCR/视觉识别修复**：OCR 改为 **下载原图 + 视觉模型识图**（支持 `ImageURLs` 多模态 Chat）；增加 **二次补检** 遗漏文字块；强化编辑 Prompt「必须替换全部源语言文字」；优化排版 warning（精简成功且未溢出时不重复提示「文字过长」）；大图仅识别 1 段文字时提示「可能未全部识别」。
+**此前**：2026-05-29 — **图片文字翻译生产级链路**：`translate_image_text` 升级为 **OCR + 翻译 + 确定性排版渲染**；默认 `renderMode=hybrid`（程序擦除原文字 + 程序绘制译文），`ai_edit` 保留为实验模式；新增 `internal/pkg/imagerender`（字体/擦除/绘制/编码）；支持 `eraseMode` auto/background_sample/blur_fill/opencv_inpaint；输出 **二次校验**（hash 对比 + 结果 OCR），未改图则 **failed**（`IMAGE_NOT_CHANGED` / `IMAGE_TEXT_NOT_APPLIED`）；结果图仍走 **Storage Provider**、**不覆盖原图**；Docker 镜像安装 **Noto CJK** 字体；前端详情展示渲染/校验摘要与重试入口。
 
 **此前**：2026-05-29 — **图片文字翻译自动排版增强**：`translate_image_text` 新增 **自动排版** 能力 — 支持翻译文字 **自动换行**、**自动调整字号**、文字区域 **轻微扩展**（≤30%）、过长文案 **自动精简**（`shortTranslatedText` + AI/规则）；`options` 增加 `autoLayout` / `autoWrap` / `autoFontSize` / `allowTextBoxExpand` / `allowTextSimplify` / `minFontSize` / `maxFontSize` / `lineHeightRatio` / `maxLines` / `layoutMode`（自动适配 / 尽量保持原图 / 优先清晰可读）；任务输出 **`quality.layout`** 摘要（换行/缩字号/精简/溢出计数与 warning 码）；前端 **「图片文字翻译」弹窗** 增加排版方式与处理选项；AI 图片任务详情 **翻译结果摘要** 展示排版统计与小白化警告；排版失败时 **`success_with_warnings`** 不阻断；结果图仍上传当前 **Storage Provider**、**不覆盖原图**。
 
@@ -564,3 +560,4 @@ trademind-ai/
 | 2026-05-15 | **AI 文本（第 3 阶段主线）**：`providers/ai` Gateway + **openai_compatible**；**`ai_prompts`/`ai_tasks`**、默认 **product_title_optimize**；商品 **optimize-title / apply-ai-title / ai/tasks** API；管理端 **`/ai/prompts`** 与详情页 **AI 标题**；操作日志 **ai.title_*** |
 | 2026-05-15 | **AI 描述**：默认 **`product_description_generate`**；**`POST .../ai/generate-description`**、**`POST .../apply-ai-description`**；**`ai_tasks.task_type=product_description_generate`**；商品详情 **AI 描述** 区块；操作日志 **`ai.description_generate.*` / `ai.description.apply`**；**PROGRESS** 同步遗留与下一步 |
 | 2026-05-15 | **全局 AI 任务**：**`GET /api/v1/ai/tasks`**（分页筛选，列表无大体量 JSON）、**`GET /api/v1/ai/tasks/:id`**（详情 **input/output/rawResponse** + 敏感键脱敏）；管理端 **`/ai/tasks`**、**`services/aiTasks.ts`**；**PROGRESS** 更新下一步与遗留对齐 |
+| 2026-05-29 | **AI 图片任务配置统一**：AI 图片任务配置逻辑统一走设置页；新增 OCR 配置区（支持 PaddleOCR、AI 视觉 OCR 等）；新增局部擦除配置区（支持 ComfyUI 等）；图片文字翻译读取用户配置；未配置时提供友好提示和降级策略；简化任务弹窗，折叠高级选项。 |

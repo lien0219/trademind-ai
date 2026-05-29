@@ -39,7 +39,7 @@ func renderModeFromHints(hints map[string]any) string {
 	}
 }
 
-func parseTranslateRenderOptions(hints map[string]any) translateRenderOptions {
+func parseTranslateRenderOptions(hints map[string]any, defaultEraseMode string) translateRenderOptions {
 	opts := translateRenderOptions{
 		RenderMode:       renderModeFromHints(hints),
 		EraseMode:        strings.TrimSpace(strings.ToLower(stringFromMap(hints, "eraseMode"))),
@@ -47,6 +47,9 @@ func parseTranslateRenderOptions(hints map[string]any) translateRenderOptions {
 		TextPadding:      intFromAny(hints["textPadding"]),
 		MaskPadding:      intFromAny(hints["maskPadding"]),
 		OutputFormat:     strings.TrimSpace(strings.ToLower(stringFromMap(hints, "outputFormat"))),
+	}
+	if opts.EraseMode == "" {
+		opts.EraseMode = defaultEraseMode
 	}
 	if opts.EraseMode == "" {
 		opts.EraseMode = "auto"
