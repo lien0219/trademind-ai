@@ -175,8 +175,8 @@ func (s *Service) isAIConfigured(ctx context.Context) bool {
 		return false
 	}
 	provider := strings.TrimSpace(m["provider"])
-	model := strings.TrimSpace(m["model"])
-	key := strings.TrimSpace(m["api_key"])
+	model := aigate.ResolveProviderModel(m, provider, "")
+	key := aigate.ResolveProviderAPIKey(m, provider)
 	return provider != "" && model != "" && key != ""
 }
 

@@ -451,6 +451,8 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-29 | **修复 AI 设置保存清空其他服务商密钥**：保存时仅 PUT 当前 provider 连接字段 + 全局参数；隐藏字段保留切换状态；后端对已存在加密项忽略空字符串提交 |
+| 2026-05-29 | **AI 文本设置按服务商独立密钥**：`settings.ai` 新增 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`**（openai、openai_compatible、deepseek、qwen）；管理端切换卡片自动带出对应配置；启动时 **`EnsureAIProviderDefaults`** 将 legacy **`api_key/base_url/model`** 迁移至当前 provider；Gateway 读取 provider 专属字段（legacy **`api_key`** 仍作回退） |
 | 2026-05-23 | **AI 图片清理任务走真实 Provider**：去水印/去 Logo/去二维码/综合清理等不再走 **noop 占位演示**；默认读取 **`settings.image.provider`**（或 **`image_task_default_provider`**）；**`dashscope_image`** 接入万相 2.7 **图像编辑** API；结果仍 **`persistProviderResult` 入库**；未配置 Key 返回「未配置通义万相 API Key」；**`score_image`** 走 **AI 视觉模型**（`ai_vision`），**`select_best_main`** 逻辑保留 |
 | 2026-05-23 | **通义万相默认模型更新**：默认模型 **`wan2.7-image-pro`**、默认尺寸 **`2K`**；**`dashscope_image`** 客户端切换至万相 2.7 **`multimodal-generation`** API；设置页 placeholder 同步 |
 | 2026-05-21 | **拼多多图片分类精细化**：区域分轨主图/详情图；SKU 图仅 **sku.imageUrl**；修复详情图误入主图；**imageSummary**；管理端图片类型排序与提示 |

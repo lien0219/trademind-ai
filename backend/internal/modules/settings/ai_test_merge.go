@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
+	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
 // TestAIOverrides carries optional form values for POST /settings/test-ai (test before save).
@@ -25,17 +26,24 @@ func MergeAIPlain(stored map[string]string, ov *TestAIOverrides) map[string]stri
 	if ov == nil {
 		return out
 	}
+	pname := aigate.NormalizeProviderName(ov.Provider)
+	if pname == "" {
+		pname = aigate.NormalizeProviderName(stored["provider"])
+	}
+	if pname == "" {
+		pname = "openai_compatible"
+	}
 	if s := strings.TrimSpace(ov.Provider); s != "" {
 		out["provider"] = s
 	}
 	if s := strings.TrimSpace(ov.BaseURL); s != "" {
-		out["base_url"] = s
+		out[aigate.ProviderBaseURLKey(pname)] = s
 	}
 	if s := strings.TrimSpace(ov.Model); s != "" {
-		out["model"] = s
+		out[aigate.ProviderModelKey(pname)] = s
 	}
 	if s := strings.TrimSpace(ov.APIKey); s != "" && !encrypt.LooksMasked(s) {
-		out["api_key"] = s
+		out[aigate.ProviderAPIKeyKey(pname)] = s
 	}
 	if s := strings.TrimSpace(ov.TimeoutSec); s != "" {
 		out["timeout_sec"] = s
