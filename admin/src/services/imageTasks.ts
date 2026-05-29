@@ -217,6 +217,7 @@ export const IMAGE_TASK_TYPE_OPTIONS: { label: string; value: string; group?: st
   { label: '综合清理', value: 'cleanup', group: '清理' },
   { label: '详情图增强', value: 'enhance_detail', group: '增强' },
   { label: '高清修复', value: 'upscale', group: '增强' },
+  { label: '图片文字翻译', value: 'translate_image_text', group: '翻译' },
   { label: '营销图生成', value: 'generate_marketing', group: '生成' },
   { label: '主图生成', value: 'generate_main_image', group: '生成' },
   { label: '批量主图生成', value: 'batch_generate_main', group: '生成' },
@@ -234,6 +235,11 @@ export const IMAGE_TASK_TEMPLATES: { title: string; taskType: string; descriptio
   { title: '综合清理', taskType: 'cleanup', description: '一次性清理水印/Logo/贴纸/二维码' },
   { title: '去背景', taskType: 'remove_background', description: '白底图 / 抠图（remove.bg）' },
   { title: '高清修复', taskType: 'upscale', description: '提升清晰度，适合模糊主图' },
+  {
+    title: '图片文字翻译',
+    taskType: 'translate_image_text',
+    description: '识别图中文字并翻译为目标语言，生成新图片',
+  },
   { title: '营销图生成', taskType: 'generate_marketing', description: '基于商品图生成营销图' },
   { title: '详情图增强', taskType: 'enhance_detail', description: '增强详情图清晰度并去杂' },
   { title: '批量主图生成', taskType: 'batch_generate_main', description: '为多商品批量生成主图候选' },
@@ -255,6 +261,7 @@ export const BEGINNER_IMAGE_TASK_TYPE_VALUES = [
   'generate_marketing',
   'enhance_detail',
   'upscale',
+  'translate_image_text',
   'score_image',
   'select_best_main',
 ] as const;
@@ -300,5 +307,88 @@ export function buildResultHandlingInput(mode: ImageTaskResultMode): Record<stri
 /** Task types that may omit a single source image when productId is set. */
 export function imageTaskAllowsNoSource(taskType: string): boolean {
   return taskType === 'select_best_main';
+}
+
+export const TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS = [
+  { label: '自动识别', value: 'auto' },
+  { label: '中文', value: 'zh' },
+  { label: '英文', value: 'en' },
+];
+
+export const TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS = [
+  { label: '英文', value: 'en' },
+  { label: '中文', value: 'zh' },
+];
+
+export function translateLangLabel(code: string): string {
+  const all = [...TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS, ...TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS];
+  return all.find((o) => o.value === code)?.label ?? code;
+}
+
+export type TranslateImageTextInputOpts = {
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  preserveLayout?: boolean;
+  removeOriginalText?: boolean;
+  keepProductUnchanged?: boolean;
+  autoSaveToProductImages?: boolean;
+  outputAsDetail?: boolean;
+  autoSetAsMain?: boolean;
+  outputFormat?: string;
+};
+
+/** Build input JSON for translate_image_text tasks. */
+export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts): Record<string, unknown> {
+  const outputImageType = opts.autoSetAsMain ? 'main' : opts.outputAsDetail !== false ? 'detail' : 'ai_generated';
+  const input: Record<string, unknown> = {
+    sourceLanguage: opts.sourceLanguage ?? 'auto',
+    targetLanguage: opts.targetLanguage ?? 'en',
+    preserveLayout: opts.preserveLayout !== false,
+    removeOriginalText: opts.removeOriginalText !== false,
+    keepProductUnchanged: opts.keepProductUnchanged !== false,
+    outputFormat: opts.outputFormat ?? 'webp',
+    autoSaveToProductImages: opts.autoSaveToProductImages !== false,
+    autoSetAsMain: opts.autoSetAsMain === true,
+    outputImageType,
+  };
+  if (opts.autoSaveToProductImages !== false) {
+    input.autoSaveToProduct = true;
+    if (opts.autoSetAsMain) {
+      input.autoSetMain = true;
+    } else if (opts.outputAsDetail !== false) {
+      input.autoSetDetail = true;
+    }
+  }
+  return input;
+}
+
+export type TranslateTaskOutput = {
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  ocr?: {
+    detectedLanguage?: string;
+    textBlocksCount?: number;
+    blocks?: Array<{
+      text?: string;
+      translatedText?: string;
+      confidence?: number;
+    }>;
+  };
+  quality?: {
+    textBlocksCount?: number;
+    translatedBlocksCount?: number;
+    lowConfidenceBlocksCount?: number;
+    layoutPreserved?: boolean;
+    warnings?: string[];
+  };
+};
+
+export function parseTranslateTaskOutput(output: unknown): TranslateTaskOutput | null {
+  if (!output || typeof output !== 'object') return null;
+  return output as TranslateTaskOutput;
+}
+
+export function isImageTaskSuccessStatus(status: string): boolean {
+  return status === 'success' || status === 'success_with_warnings';
 }
 

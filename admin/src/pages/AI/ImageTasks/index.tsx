@@ -14,12 +14,15 @@ import {
   applyImageTaskResult,
   getImageTask,
   IMAGE_TASK_TEMPLATES,
+  isImageTaskSuccessStatus,
   listImageTaskItems,
+  parseTranslateTaskOutput,
   queryImageTasks,
   retryImageTask,
   saveImageTaskItemToProduct,
   setImageTaskItemAsMain,
   taskTypeLabel,
+  translateLangLabel,
 } from '@/services/imageTasks';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 
@@ -68,6 +71,53 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
         {text}
       </pre>
     </div>
+  );
+}
+
+function TranslateResultPanel({ output }: { output: unknown }) {
+  const parsed = parseTranslateTaskOutput(output);
+  if (!parsed) return null;
+  const blocks = parsed.ocr?.blocks ?? [];
+  const warnings = parsed.quality?.warnings ?? [];
+  return (
+    <Card size="small" title="翻译结果摘要" style={{ marginBottom: 24 }}>
+      <Descriptions column={2} size="small">
+        <Descriptions.Item label="源语言">
+          {translateLangLabel(parsed.sourceLanguage || parsed.ocr?.detectedLanguage || '—')}
+        </Descriptions.Item>
+        <Descriptions.Item label="目标语言">{translateLangLabel(parsed.targetLanguage || '—')}</Descriptions.Item>
+        <Descriptions.Item label="识别文字数量">
+          {parsed.quality?.textBlocksCount ?? parsed.ocr?.textBlocksCount ?? blocks.length}
+        </Descriptions.Item>
+        <Descriptions.Item label="已翻译数量">{parsed.quality?.translatedBlocksCount ?? '—'}</Descriptions.Item>
+      </Descriptions>
+      {warnings.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          {warnings.map((w) => (
+            <Tag key={w} color="warning" style={{ marginBottom: 4 }}>
+              {w}
+            </Tag>
+          ))}
+        </div>
+      ) : null}
+      {blocks.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          <Typography.Text strong>翻译文本预览</Typography.Text>
+          <ul style={{ marginTop: 8, paddingLeft: 20, marginBottom: 0 }}>
+            {blocks.slice(0, 12).map((b, i) => (
+              <li key={`${b.text}-${i}`} style={{ marginBottom: 4 }}>
+                <Typography.Text type="secondary">{b.text || '—'}</Typography.Text>
+                {' → '}
+                <Typography.Text>{b.translatedText || '—'}</Typography.Text>
+              </li>
+            ))}
+          </ul>
+          {blocks.length > 12 ? (
+            <Typography.Text type="secondary">… 共 {blocks.length} 段文字</Typography.Text>
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
   );
 }
 
@@ -353,7 +403,9 @@ export default function ImageTasksPage() {
                   if (!detail?.id) return;
                   try {
                     await retryImageTask(detail.id);
-                    message.success('已提交重试，正在后台处理');
+                    message.success(
+                      detail.taskType === 'translate_image_text' ? '已重新提交翻译任务' : '已提交重试，正在后台处理',
+                    );
                     const row = await getImageTask(detail.id);
                     setDetail(row);
                     actionRef.current?.reload();
@@ -362,10 +414,11 @@ export default function ImageTasksPage() {
                   }
                 }}
               >
-                重试
+                {detail.taskType === 'translate_image_text' ? '重新翻译' : '重试'}
               </Button>
             ) : null}
-            {detail?.status === 'success' && detail.resultUrl ? (
+            {detail && isImageTaskSuccessStatus(detail.status) && detail.resultUrl ? (
+              <>
               <Button
                 icon={<CopyOutlined />}
                 onClick={() => {
@@ -375,8 +428,16 @@ export default function ImageTasksPage() {
               >
                 复制结果 URL
               </Button>
+              <Button
+                href={detail.resultUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                下载图片
+              </Button>
+              </>
             ) : null}
-            {detail?.status === 'success' && detail.productId && (detail.resultUrl || detail.resultFileId) ? (
+            {detail && isImageTaskSuccessStatus(detail.status) && detail.productId && (detail.resultUrl || detail.resultFileId) ? (
               <>
                 <Button
                   type="primary"
@@ -466,18 +527,21 @@ export default function ImageTasksPage() {
               <Space align="start" size={24} wrap style={{ marginBottom: 24 }}>
                 {detail.sourceImageUrl ? (
                   <div>
-                    <div style={{ marginBottom: 8, fontWeight: 600 }}>源图</div>
+                    <div style={{ marginBottom: 8, fontWeight: 600 }}>原图</div>
                     <Image src={detail.sourceImageUrl} width={200} style={{ objectFit: 'contain', borderRadius: 6 }} />
                   </div>
                 ) : null}
                 {detail.resultUrl ? (
                   <div>
-                    <div style={{ marginBottom: 8, fontWeight: 600 }}>结果图</div>
+                    <div style={{ marginBottom: 8, fontWeight: 600 }}>翻译后图片</div>
                     <Image src={detail.resultUrl} width={200} style={{ objectFit: 'contain', borderRadius: 6 }} />
                   </div>
                 ) : null}
               </Space>
             )}
+            {detail.taskType === 'translate_image_text' && detail.output ? (
+              <TranslateResultPanel output={detail.output} />
+            ) : null}
             {taskItems.length > 0 ? (
               <div style={{ marginBottom: 24 }}>
                 <div style={{ marginBottom: 8, fontWeight: 600 }}>子任务结果</div>

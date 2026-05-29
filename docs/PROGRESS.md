@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-23 — **登录 / 注册页 UI 现代化**：`/user/login` 重构为响应式 SaaS 双栏布局（桌面 `grid: 1.1fr / minmax(420px,520px)`，平板/移动端单列）；左侧品牌区更新 slogan、简介与 6 项能力标签，背景装饰改为低透明度绝对定位卡片（`opacity 0.1–0.14`，不遮挡正文）；右侧登录卡片 `max-width 460px`、圆角阴影、Tab/输入框/渐变主按钮统一；`<1024px` 隐藏左侧宣传区并显示顶部 Logo；`<768px` 全宽卡片 + 16px 边距；**未改动**登录/注册接口与权限逻辑。
+**最后更新**：2026-05-29 — **AI 图片任务新增「图片文字翻译」**：新增任务类型 **`translate_image_text`**（图片文字翻译）；支持 **中文 → 英文**、**英文 → 中文**、**自动识别源语言**；流水线为 AI OCR 识别 → 文本翻译 → 图片编辑（OpenAI / 通义万相 / ComfyUI）；翻译结果上传至当前 **Storage Provider**（`products/{productId}/ai/translate_image_text/{yyyy}/{mm}/{uuid}.webp`）；可自动回写 **`product_images`**（不覆盖原图）；商品详情 **图片管理** 每张图增加 **「AI 翻译图片文字」** 入口；AI 图片任务页增加模板与翻译结果摘要展示；**第一版仅支持单图**，批量后续增强。
+
+**此前**：2026-05-23 — **登录 / 注册页 UI 现代化**：`/user/login` 重构为响应式 SaaS 双栏布局（桌面 `grid: 1.1fr / minmax(420px,520px)`，平板/移动端单列）；左侧品牌区更新 slogan、简介与 6 项能力标签，背景装饰改为低透明度绝对定位卡片（`opacity 0.1–0.14`，不遮挡正文）；右侧登录卡片 `max-width 460px`、圆角阴影、Tab/输入框/渐变主按钮统一；`<1024px` 隐藏左侧宣传区并显示顶部 Logo；`<768px` 全宽卡片 + 16px 边距；**未改动**登录/注册接口与权限逻辑。
 
 **此前**：2026-05-23 — **看板 SQL 容错（ai_description / MAX 扫描）**：`operationdashboard` 改用 `information_schema` 检测 `products.ai_description` 是否存在（缺列时回退 `description` 长度口径）；`MAX(updated_at)` 改用 `sql.NullTime` 避免无失败任务时 Scan 报错；启动迁移增加 `migrateLegacyProductTextColumns` 补全 `products` AI 文本列。
 

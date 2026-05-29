@@ -127,6 +127,10 @@ func (s *Service) upsertPrimaryTaskItem(ctx context.Context, task *ImageTask, fi
 }
 
 func (s *Service) finalizeTaskSuccess(ctx context.Context, _ interface{}, task *ImageTask, finalURL string, fileID *uuid.UUID, storageKey string, outObj map[string]any, scoreJSON []byte, selectedBest bool) error {
+	return s.finalizeTaskSuccessWithStatus(ctx, task, finalURL, fileID, storageKey, outObj, scoreJSON, selectedBest, StatusSuccess)
+}
+
+func (s *Service) finalizeTaskSuccessWithStatus(ctx context.Context, task *ImageTask, finalURL string, fileID *uuid.UUID, storageKey string, outObj map[string]any, scoreJSON []byte, selectedBest bool, status string) error {
 	if outObj == nil {
 		outObj = map[string]any{}
 	}
@@ -138,10 +142,13 @@ func (s *Service) finalizeTaskSuccess(ctx context.Context, _ interface{}, task *
 	if len(scoreJSON) > 0 {
 		outObj["score"] = json.RawMessage(scoreJSON)
 	}
+	if strings.TrimSpace(status) == "" {
+		status = StatusSuccess
+	}
 	outBytes, _ := json.Marshal(outObj)
 	fin := time.Now().UTC()
 	updates := map[string]any{
-		"status":            StatusSuccess,
+		"status":            status,
 		"output":            outBytes,
 		"result_url":        finalURL,
 		"error_message":     "",

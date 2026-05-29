@@ -6,7 +6,7 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { Collapse, Form, Image, Space, Typography, Upload, message } from 'antd';
+import { Collapse, Form, Image, Space, Typography, Upload, message, Checkbox } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
@@ -27,7 +27,10 @@ import {
   BEGINNER_IMAGE_TASK_TYPE_VALUES,
   IMAGE_TASK_RESULT_MODE_OPTIONS,
   IMAGE_TASK_TYPE_OPTIONS,
+  TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS,
+  TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS,
   buildResultHandlingInput,
+  buildTranslateImageTextInput,
   createImageTask,
   imageTaskAllowsNoSource,
   taskTypeLabel,
@@ -64,6 +67,14 @@ type FormValues = {
   rbStyle?: string;
   rbPlatform?: string;
   rbSize?: string;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  translatePreserveLayout?: boolean;
+  translateRemoveOriginal?: boolean;
+  translateKeepProduct?: boolean;
+  translateAutoSave?: boolean;
+  translateOutputDetail?: boolean;
+  translateSetMain?: boolean;
   sourceImageId?: string;
   sourceImageUrl?: string;
   inputJson?: string;
@@ -304,9 +315,26 @@ export function CreateImageTaskModal({
 
         const input: Record<string, unknown> = {
           ...extra,
-          ...buildResultHandlingInput(values.resultMode),
         };
+        if (tt !== 'translate_image_text') {
+          Object.assign(input, buildResultHandlingInput(values.resultMode));
+        }
 
+        if (tt === 'translate_image_text') {
+          Object.assign(
+            input,
+            buildTranslateImageTextInput({
+              sourceLanguage: values.sourceLanguage,
+              targetLanguage: values.targetLanguage,
+              preserveLayout: values.translatePreserveLayout,
+              removeOriginalText: values.translateRemoveOriginal,
+              keepProductUnchanged: values.translateKeepProduct,
+              autoSaveToProductImages: values.translateAutoSave,
+              outputAsDetail: values.translateOutputDetail,
+              autoSetAsMain: values.translateSetMain,
+            }),
+          );
+        }
         if (tt === 'generate_scene') {
           Object.assign(input, {
             prompt: (values.prompt ?? '').trim(),
@@ -340,8 +368,10 @@ export function CreateImageTaskModal({
           });
           if (task.status === 'pending' || task.status === 'running') {
             message.success('图片任务已提交，正在后台处理');
-          } else if (task.status === 'success') {
-            message.success('任务已完成');
+          } else if (task.status === 'success' || task.status === 'success_with_warnings') {
+            message.success(
+              task.status === 'success_with_warnings' ? '任务完成（存在警告，请人工检查）' : '任务已完成',
+            );
           } else if (task.status === 'failed') {
             message.warning(task.errorMessage || '任务失败');
           } else {
@@ -532,7 +562,7 @@ export function CreateImageTaskModal({
       <ProFormDependency name={['taskType', 'productId']}>
         {({ taskType, productId }: { taskType?: string; productId?: string }) => {
           const pid = (fixedProductId || productId || '').trim();
-          if (!pid || taskType === 'score_image' || taskType === 'select_best_main') return null;
+          if (!pid || taskType === 'score_image' || taskType === 'select_best_main' || taskType === 'translate_image_text') return null;
           return (
             <>
               <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
@@ -573,6 +603,50 @@ export function CreateImageTaskModal({
                 <ProFormSelect name="background" label={AI_IMAGE_FIELD.background.label} options={AI_IMAGE_BACKGROUND_PRESETS} />
               </Space>
               <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
+            </>
+          ) : null
+        }
+      </ProFormDependency>
+
+      <ProFormDependency name={['taskType']}>
+        {({ taskType }: { taskType?: string }) =>
+          taskType === 'translate_image_text' ? (
+            <>
+              <ProFormSelect
+                name="sourceLanguage"
+                label="源语言"
+                initialValue="auto"
+                options={TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS}
+                rules={[{ required: true, message: '请选择源语言' }]}
+              />
+              <ProFormSelect
+                name="targetLanguage"
+                label="目标语言"
+                initialValue="en"
+                options={TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS}
+                rules={[{ required: true, message: '请选择目标语言' }]}
+              />
+              <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                处理选项
+              </Typography.Text>
+              <Form.Item name="translatePreserveLayout" valuePropName="checked" initialValue>
+                <Checkbox>保持原图排版</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateRemoveOriginal" valuePropName="checked" initialValue>
+                <Checkbox>擦除原文字后写入翻译</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateKeepProduct" valuePropName="checked" initialValue>
+                <Checkbox>尽量不改变商品主体</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateAutoSave" valuePropName="checked" initialValue>
+                <Checkbox>自动保存到商品图片库</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateOutputDetail" valuePropName="checked" initialValue>
+                <Checkbox>处理后设为详情图</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateSetMain" valuePropName="checked" initialValue={false}>
+                <Checkbox>处理后设为主图</Checkbox>
+              </Form.Item>
             </>
           ) : null
         }

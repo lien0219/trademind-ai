@@ -22,12 +22,13 @@ const (
 
 // Status constants.
 const (
-	StatusPending   = "pending"
-	StatusRunning   = "running"
-	StatusRetrying  = "retrying"
-	StatusSuccess   = "success"
-	StatusFailed    = "failed"
-	StatusCancelled = "cancelled"
+	StatusPending             = "pending"
+	StatusRunning             = "running"
+	StatusRetrying            = "retrying"
+	StatusSuccess             = "success"
+	StatusFailed              = "failed"
+	StatusCancelled           = "cancelled"
+	StatusSuccessWithWarnings = "success_with_warnings"
 )
 
 // ImageTask records one AI image processing job (ai_image_tasks in product docs).
@@ -111,7 +112,8 @@ func isValidTaskType(t string) bool {
 		TaskTypeBatchGenerateMain,
 		TaskTypeUpscale,
 		TaskTypeScoreImage,
-		TaskTypeSelectBestMain:
+		TaskTypeSelectBestMain,
+		TaskTypeTranslateImageText:
 		return true
 	default:
 		return false

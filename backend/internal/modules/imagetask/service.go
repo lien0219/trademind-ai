@@ -254,6 +254,11 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		if p.TaskType == TaskTypeRemoveBackground {
 			effectiveProv = "removebg"
 		}
+		if IsTranslateTaskType(p.TaskType) {
+			if s == nil || s.AIGateway == nil {
+				return nil, fmt.Errorf("未配置 AI 服务，无法进行图片文字翻译（请在「设置 → AI」配置）")
+			}
+		}
 		if !imgprov.IsRunnableProvider(effectiveProv) {
 			return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
 		}
@@ -413,6 +418,13 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 
 	if IsScoringTaskType(task.TaskType) {
 		if err := s.executeScoringTask(pctx, task, hints); err != nil {
+			return s.fail(ctx, httpCtx, task, err.Error())
+		}
+		return nil
+	}
+
+	if IsTranslateTaskType(task.TaskType) {
+		if err := s.executeTranslateImageTextTask(pctx, task, hints); err != nil {
 			return s.fail(ctx, httpCtx, task, err.Error())
 		}
 		return nil

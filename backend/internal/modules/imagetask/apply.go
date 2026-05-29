@@ -32,7 +32,7 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", opts.TaskID).Error; err != nil {
 		return nil, err
 	}
-	if task.Status != StatusSuccess {
+	if task.Status != StatusSuccess && task.Status != StatusSuccessWithWarnings {
 		return nil, fmt.Errorf("only successful tasks can be applied")
 	}
 	if task.ProductID == nil || *task.ProductID != opts.ProductID {
@@ -162,7 +162,7 @@ func (s *Service) maybeAutoApply(ctx context.Context, task *ImageTask, hints map
 	if !autoSaveFromHints(hints) && !autoSetMainFromHints(hints) && !autoSetDetailFromHints(hints) {
 		return
 	}
-	mode := "ai_generated"
+	mode := outputImageTypeFromHints(hints)
 	setBest := false
 	if autoSetMainFromHints(hints) {
 		mode = "main"

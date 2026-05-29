@@ -48,6 +48,7 @@ const IMAGE_TASK_RAW = new Set([
   'batch_generate_main',
   'score_image',
   'select_best_main',
+  'translate_image_text',
   'resize',
   'enhance',
 ]);
