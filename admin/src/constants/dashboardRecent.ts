@@ -1,6 +1,7 @@
 import type { DashboardRecentItem } from '@/services/dashboard';
 import { aiTaskTypeLabel } from '@/constants/aiPrompts';
-import { taskTypeLabel } from '@/services/imageTasks';
+import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { taskTypeLabel, translateLayoutWarningLabel } from '@/services/imageTasks';
 
 export const BATCH_OPERATION_LABEL: Record<string, string> = {
   title_optimize: '批量标题优化',
@@ -25,12 +26,41 @@ export const RECENT_SOURCE_LABEL: Record<string, string> = {
 
 export const RECENT_STATUS_COLOR: Record<string, string> = {
   已完成: 'success',
+  '成功（有警告）': 'warning',
+  部分成功: 'warning',
   失败: 'error',
   处理中: 'processing',
   等待中: 'default',
   重试中: 'warning',
   已取消: 'default',
 };
+
+/** Map backend recent status (Chinese label or raw code) to display label. */
+export function recentStatusLabel(status: string | undefined): string {
+  const s = status?.trim() || '';
+  if (!s) return '—';
+  const mapped = COLLECT_TASK_STATUS[s as keyof typeof COLLECT_TASK_STATUS];
+  if (mapped) return mapped.text;
+  return s;
+}
+
+/** Map recent status to Ant Design Tag color. */
+export function recentStatusColor(status: string | undefined): string | undefined {
+  const s = status?.trim() || '';
+  if (!s) return undefined;
+  if (RECENT_STATUS_COLOR[s]) return RECENT_STATUS_COLOR[s];
+  const mapped = COLLECT_TASK_STATUS[s as keyof typeof COLLECT_TASK_STATUS];
+  if (mapped) return mapped.color;
+  return 'default';
+}
+
+/** Map translate warning subtitle (machine code or human text) for recent activity rows. */
+export function recentTranslateWarningSubtitle(subtitle: string | undefined): string | undefined {
+  const s = subtitle?.trim();
+  if (!s) return undefined;
+  const mapped = translateLayoutWarningLabel(s);
+  return mapped !== s ? mapped : s;
+}
 
 const IMAGE_TASK_RAW = new Set([
   'remove_background',

@@ -9,6 +9,7 @@ import {
 import { Collapse, Form, Image, Space, Typography, Upload, message, Checkbox } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TranslateImageTextAiSettingsHint } from '@/components/TranslateImageTextModal';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import {
   AI_IMAGE_BACKGROUND_PRESETS,
@@ -619,6 +620,7 @@ export function CreateImageTaskModal({
         {({ taskType }: { taskType?: string }) =>
           taskType === 'translate_image_text' ? (
             <>
+              <TranslateImageTextAiSettingsHint />
               <ProFormSelect
                 name="sourceLanguage"
                 label="源语言"

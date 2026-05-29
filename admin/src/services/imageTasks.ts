@@ -355,6 +355,10 @@ export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
   { label: '优先清晰可读', value: 'readable' as const },
 ];
 
+/** User-facing hint: OCR/translate vs image edit provider split. */
+export const TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT =
+  '文字识别与翻译走「设置 → AI 设置」里的大模型（需支持视觉识图，如 qwen-vl-plus、gpt-4o-mini）；下方「图片 AI 服务」仅负责把译文写回图片。';
+
 /** Build input JSON for translate_image_text tasks. */
 export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts): Record<string, unknown> {
   const layoutMode = opts.layoutMode ?? 'auto';

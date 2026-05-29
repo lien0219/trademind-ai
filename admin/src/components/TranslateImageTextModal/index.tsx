@@ -1,16 +1,35 @@
 import { ModalForm, ProFormCheckbox, ProFormRadio, ProFormSelect } from '@ant-design/pro-components';
-import { Form, Image, Typography, message } from 'antd';
+import { history } from '@umijs/max';
+import { Alert, Form, Image, Typography, message } from 'antd';
 import { useEffect, useMemo } from 'react';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import type { ProductImageRow } from '@/services/products';
 import {
   buildTranslateImageTextInput,
   createImageTask,
+  TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT,
   TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS,
   TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS,
   TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS,
   type TranslateImageTextLayoutMode,
 } from '@/services/imageTasks';
+
+export function TranslateImageTextAiSettingsHint() {
+  return (
+    <Alert
+      type="info"
+      showIcon
+      style={{ marginBottom: 16 }}
+      message="识别与翻译使用 AI 设置"
+      description={
+        <>
+          {TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT}{' '}
+          <Typography.Link onClick={() => history.push('/settings/ai')}>前往 AI 设置</Typography.Link>
+        </>
+      }
+    />
+  );
+}
 
 export type TranslateImageTextPrefill = {
   productId?: string;
@@ -145,6 +164,8 @@ export function TranslateImageTextModal({
         识别图片中的文字，翻译成目标语言，并自动排版后生成新图片。原图不会被覆盖。
       </Typography.Paragraph>
 
+      <TranslateImageTextAiSettingsHint />
+
       {sourceImageUrl ? (
         <div style={{ marginBottom: 16 }}>
           <Typography.Text type="secondary">待翻译图片</Typography.Text>
@@ -179,6 +200,7 @@ export function TranslateImageTextModal({
           name="provider"
           label="图片 AI 服务"
           options={providerOptions}
+          extra="将译文写回图片；默认可跟随「设置 → 图片 AI」中的默认服务"
           rules={[{ required: true, message: '请选择图片 AI 服务' }]}
         />
       ) : null}
