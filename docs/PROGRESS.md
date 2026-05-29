@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-29 — **图片文字翻译防幻觉**：OCR 改为 **严格字面识别**（禁止编造限时抢购/价格等营销文案）；视觉 **二次校验** 过滤非原图文字；图片编辑 Prompt 改为 **仅替换 listed 文字块、禁止新增任何文字**；关闭 OCR 补检增块（易幻觉）。
+**最后更新**：2026-05-29 — **图片文字翻译生产级链路**：`translate_image_text` 升级为 **OCR + 翻译 + 确定性排版渲染**；默认 `renderMode=hybrid`（程序擦除原文字 + 程序绘制译文），`ai_edit` 保留为实验模式；新增 `internal/pkg/imagerender`（字体/擦除/绘制/编码）；支持 `eraseMode` auto/background_sample/blur_fill/opencv_inpaint；输出 **二次校验**（hash 对比 + 结果 OCR），未改图则 **failed**（`IMAGE_NOT_CHANGED` / `IMAGE_TEXT_NOT_APPLIED`）；结果图仍走 **Storage Provider**、**不覆盖原图**；Docker 镜像安装 **Noto CJK** 字体；前端详情展示渲染/校验摘要与重试入口。
+
+**此前**：2026-05-29 — **图片文字翻译防幻觉**：OCR 改为 **严格字面识别**（禁止编造限时抢购/价格等营销文案）；视觉 **二次校验** 过滤非原图文字；图片编辑 Prompt 改为 **仅替换 listed 文字块、禁止新增任何文字**；关闭 OCR 补检增块（易幻觉）。
 
 **此前**：2026-05-29 — **图片文字翻译 OCR 解析容错**：修复视觉 OCR 返回 ` ```json ` 包裹 / snake_case 字段导致 **`OCR_FAILED` 解析失败**；复用 `aimodelparse` 提取 JSON；支持 `original_text`/`text_blocks`/`bounding_box` 等别名；视觉请求失败时自动重试（去掉 `json_object` 约束）；优先 base64 + 公网 URL 双通道识图。
 

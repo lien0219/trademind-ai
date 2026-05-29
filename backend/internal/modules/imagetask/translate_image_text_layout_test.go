@@ -81,7 +81,7 @@ func TestLayoutLongEnglishToChinese(t *testing.T) {
 	bbox := translateTextBBox{X: 5, Y: 5, Width: 100, Height: 48}
 	longEN := "Professional high quality stainless steel kitchen knife set with ergonomic handle"
 	cnText := "专业高品质不锈钢厨房刀具套装人体工学手柄"
-	plan := layoutTranslateBlock(cnText, ruleBasedShortText(cnText, "zh"), bbox, opts, 800, 800)
+	plan := layoutTranslateBlock(cnText, ruleBasedShortText(cnText, cnText, "zh"), bbox, opts, 800, 800)
 
 	if plan.FontSize < opts.MinFontSize {
 		t.Fatalf("font below min: %d", plan.FontSize)
@@ -119,7 +119,7 @@ func TestComputeTranslateLayoutsSummary(t *testing.T) {
 }
 
 func TestRuleBasedShortText(t *testing.T) {
-	got := ruleBasedShortText("Free shipping nationwide", "en")
+	got := ruleBasedShortText("", "Free shipping nationwide", "en")
 	if got != "Free Shipping" {
 		t.Fatalf("got %q want Free Shipping", got)
 	}

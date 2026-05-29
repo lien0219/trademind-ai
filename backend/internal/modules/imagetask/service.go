@@ -258,20 +258,26 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 			if s == nil || s.AIGateway == nil {
 				return nil, fmt.Errorf("未配置 AI 服务，无法进行图片文字翻译（请在「设置 → AI」配置）")
 			}
-		}
-		if !imgprov.IsRunnableProvider(effectiveProv) {
-			return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
-		}
-		if !imgprov.SupportsTask(effectiveProv, p.TaskType) {
-			return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
-		}
-		if s.Settings != nil {
-			m, err := s.Settings.PlainByGroup(ctx, 0, "image")
-			if err != nil {
-				return nil, err
+			rm := renderModeFromHints(inputHints(p.Input))
+			if rm != RenderModeAIEdit {
+				effectiveProv = "local_render"
 			}
-			if err := imgprov.ValidateSettingsForProvider(effectiveProv, m); err != nil {
-				return nil, err
+		}
+		if effectiveProv != "local_render" {
+			if !imgprov.IsRunnableProvider(effectiveProv) {
+				return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
+			}
+			if !imgprov.SupportsTask(effectiveProv, p.TaskType) {
+				return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
+			}
+			if s.Settings != nil {
+				m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+				if err != nil {
+					return nil, err
+				}
+				if err := imgprov.ValidateSettingsForProvider(effectiveProv, m); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

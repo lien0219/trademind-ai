@@ -9,9 +9,11 @@ import {
   createImageTask,
   TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT,
   TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS,
+  TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS,
   TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS,
   TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS,
   type TranslateImageTextLayoutMode,
+  type TranslateRenderMode,
 } from '@/services/imageTasks';
 
 export function TranslateImageTextAiSettingsHint() {
@@ -43,6 +45,7 @@ export type TranslateImageTextPrefill = {
 type FormValues = {
   sourceLanguage: string;
   targetLanguage: string;
+  renderMode: TranslateRenderMode;
   layoutMode: TranslateImageTextLayoutMode;
   autoWrap: boolean;
   autoFontSize: boolean;
@@ -73,6 +76,7 @@ export function TranslateImageTextModal({
 }: Props) {
   const [form] = Form.useForm<FormValues>();
   const { optionsForTask } = useImageProviders();
+  const renderMode = Form.useWatch('renderMode', form) ?? 'hybrid';
 
   const productId = (fixedProductId || prefill?.productId || '').trim();
   const sourceImageId = (prefill?.sourceImageId || sourceImage?.id || '').trim();
@@ -90,6 +94,7 @@ export function TranslateImageTextModal({
     form.setFieldsValue({
       sourceLanguage: prefill?.sourceLanguage ?? 'auto',
       targetLanguage: prefill?.targetLanguage ?? 'en',
+      renderMode: 'hybrid',
       layoutMode: 'auto',
       autoWrap: true,
       autoFontSize: true,
@@ -119,6 +124,7 @@ export function TranslateImageTextModal({
         const input = buildTranslateImageTextInput({
           sourceLanguage: values.sourceLanguage,
           targetLanguage: values.targetLanguage,
+          renderMode: values.renderMode,
           layoutMode: values.layoutMode,
           autoWrap: values.autoWrap,
           autoFontSize: values.autoFontSize,
@@ -133,7 +139,7 @@ export function TranslateImageTextModal({
         try {
           const task = await createImageTask({
             taskType: 'translate_image_text',
-            provider: values.provider?.trim() || undefined,
+            provider: values.renderMode === 'ai_edit' ? values.provider?.trim() || undefined : undefined,
             productId: productId || undefined,
             sourceImageId: sourceImageId || undefined,
             sourceImageUrl: sourceImageUrl || undefined,
@@ -161,7 +167,7 @@ export function TranslateImageTextModal({
       }}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        识别图片中的文字，翻译成目标语言，并自动排版后生成新图片。原图不会被覆盖。
+        识别图片中的文字，翻译成目标语言，并通过程序排版将译文绘制到新图片上。原图不会被覆盖。
       </Typography.Paragraph>
 
       <TranslateImageTextAiSettingsHint />
@@ -189,18 +195,25 @@ export function TranslateImageTextModal({
       />
 
       <ProFormRadio.Group
+        name="renderMode"
+        label="渲染方式"
+        options={TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS}
+        rules={[{ required: true, message: '请选择渲染方式' }]}
+      />
+
+      <ProFormRadio.Group
         name="layoutMode"
         label="排版方式"
         options={TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS}
         rules={[{ required: true, message: '请选择排版方式' }]}
       />
 
-      {providerOptions.length > 1 ? (
+      {renderMode === 'ai_edit' && providerOptions.length > 0 ? (
         <ProFormSelect
           name="provider"
           label="图片 AI 服务"
           options={providerOptions}
-          extra="将译文写回图片；默认可跟随「设置 → 图片 AI」中的默认服务"
+          extra="实验模式：由图片模型尝试改图，结果可能不稳定"
           rules={[{ required: true, message: '请选择图片 AI 服务' }]}
         />
       ) : null}

@@ -176,6 +176,10 @@ var translateLayoutWarningLabels = map[string]string{
 	"translated_text_simplified": "系统已自动精简部分翻译文案以适配排版。",
 	"partial_text_detected":      "部分图片文字可能未全部识别，请检查结果图是否仍有未翻译文字。",
 	"ocr_hallucination_filtered": "已过滤疑似非原图文字，仅翻译图片中真实可见的文字。",
+	"source_text_may_remain":     "图片中可能仍有部分原文字，请检查结果图。",
+	"IMAGE_NOT_CHANGED":          "生成图片没有变化，请重新生成或切换处理方式。",
+	"IMAGE_TEXT_NOT_APPLIED":     "翻译文字没有成功写入图片，请重新生成。",
+	"OUTPUT_TEXT_VERIFY_FAILED":  "系统无法确认文字替换效果，请人工检查图片。",
 }
 
 func humanizeTranslateWarningCode(code string) string {

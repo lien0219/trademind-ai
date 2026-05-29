@@ -19,9 +19,10 @@ import (
 const layoutWarningPartialOCR = "partial_text_detected"
 
 type translateImagePayload struct {
-	DataURL string
-	Width   int
-	Height  int
+	DataURL  string
+	RawBytes []byte
+	Width    int
+	Height   int
 }
 
 func (s *Service) loadTranslateImagePayload(ctx context.Context, imageURL string) (*translateImagePayload, error) {
@@ -59,9 +60,10 @@ func (s *Service) loadTranslateImagePayload(ctx context.Context, imageURL string
 	}
 	b64 := base64.StdEncoding.EncodeToString(data)
 	return &translateImagePayload{
-		DataURL: fmt.Sprintf("data:%s;base64,%s", ct, b64),
-		Width:   w,
-		Height:  h,
+		DataURL:  fmt.Sprintf("data:%s;base64,%s", ct, b64),
+		RawBytes: data,
+		Width:    w,
+		Height:   h,
 	}, nil
 }
 

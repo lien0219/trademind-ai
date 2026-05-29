@@ -330,6 +330,9 @@ export type TranslateImageTextLayoutMode = 'auto' | 'preserve' | 'readable';
 export type TranslateImageTextInputOpts = {
   sourceLanguage?: string;
   targetLanguage?: string;
+  renderMode?: TranslateRenderMode;
+  eraseMode?: string;
+  verifyOutputText?: boolean;
   preserveLayout?: boolean;
   removeOriginalText?: boolean;
   keepProductUnchanged?: boolean;
@@ -347,6 +350,8 @@ export type TranslateImageTextInputOpts = {
   maxFontSize?: number;
   lineHeightRatio?: number;
   maxLines?: number;
+  textPadding?: number;
+  maskPadding?: number;
 };
 
 export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
@@ -355,9 +360,21 @@ export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
   { label: '优先清晰可读', value: 'readable' as const },
 ];
 
-/** User-facing hint: OCR/translate vs image edit provider split. */
+/** User-facing hint: OCR/translate uses AI settings; production path uses deterministic render. */
 export const TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT =
-  '文字识别与翻译走「设置 → AI 设置」里的大模型（需支持视觉识图，如 qwen-vl-plus、gpt-4o-mini）；下方「图片 AI 服务」仅负责把译文写回图片。';
+  '文字识别与翻译走「设置 → AI 设置」里的大模型（需支持视觉识图）；默认使用「AI 擦除 + 程序排版」将译文确定性绘制到图片上，不依赖图片模型写字。';
+
+export type TranslateRenderMode = 'hybrid' | 'deterministic' | 'ai_edit';
+
+export const TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS = [
+  { label: 'AI 擦除 + 程序排版（推荐）', value: 'hybrid' as const },
+  { label: '程序排版渲染', value: 'deterministic' as const },
+  { label: 'AI 编辑实验模式', value: 'ai_edit' as const },
+];
+
+export function translateRenderModeLabel(mode?: string): string {
+  return TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS.find((o) => o.value === mode)?.label ?? mode ?? '—';
+}
 
 /** Build input JSON for translate_image_text tasks. */
 export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts): Record<string, unknown> {
@@ -366,6 +383,9 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
   const input: Record<string, unknown> = {
     sourceLanguage: opts.sourceLanguage ?? 'auto',
     targetLanguage: opts.targetLanguage ?? 'en',
+    renderMode: opts.renderMode ?? 'hybrid',
+    eraseMode: opts.eraseMode ?? 'auto',
+    verifyOutputText: opts.verifyOutputText !== false,
     preserveLayout: opts.preserveLayout !== false,
     removeOriginalText: opts.removeOriginalText !== false,
     keepProductUnchanged: opts.keepProductUnchanged !== false,
@@ -380,9 +400,11 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
     allowTextBoxExpand: opts.allowTextBoxExpand !== false,
     allowTextSimplify: opts.allowTextSimplify !== false,
     minFontSize: opts.minFontSize ?? 14,
-    maxFontSize: opts.maxFontSize ?? 48,
+    maxFontSize: opts.maxFontSize ?? 52,
     lineHeightRatio: opts.lineHeightRatio ?? 1.15,
     maxLines: opts.maxLines ?? 3,
+    textPadding: opts.textPadding ?? 6,
+    maskPadding: opts.maskPadding ?? 8,
   };
   if (layoutMode === 'preserve') {
     input.allowTextBoxExpand = opts.allowTextBoxExpand === true;
@@ -417,15 +439,34 @@ export type TranslateLayoutSummary = {
 export type TranslateTaskOutput = {
   sourceLanguage?: string;
   targetLanguage?: string;
+  renderMode?: string;
   ocr?: {
     detectedLanguage?: string;
     textBlocksCount?: number;
     blocks?: Array<{
+      id?: string;
       text?: string;
       translatedText?: string;
       shortTranslatedText?: string;
+      drawText?: string;
       confidence?: number;
     }>;
+  };
+  translate?: {
+    sourceLanguage?: string;
+    targetLanguage?: string;
+    textBlocksCount?: number;
+    translatedBlocksCount?: number;
+    renderedBlocksCount?: number;
+    verifiedBlocksCount?: number;
+  };
+  layout?: TranslateLayoutSummary & { renderMode?: string; eraseMode?: string };
+  verification?: {
+    imageChanged?: boolean;
+    targetTextDetected?: boolean;
+    sourceTextMayRemain?: boolean;
+    confidence?: number;
+    outputTextVerifyFailed?: boolean;
   };
   quality?: {
     textBlocksCount?: number;
@@ -444,6 +485,10 @@ const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
   translated_text_simplified: '系统已自动精简部分翻译文案以适配排版。',
   partial_text_detected: '部分图片文字可能未全部识别，请检查结果图是否仍有未翻译文字。',
   ocr_hallucination_filtered: '已过滤疑似非原图文字，仅翻译图片中真实可见的文字。',
+  source_text_may_remain: '图片中可能仍有部分原文字，请检查结果图。',
+  IMAGE_NOT_CHANGED: '生成图片没有变化，请重新生成或切换处理方式。',
+  IMAGE_TEXT_NOT_APPLIED: '翻译文字没有成功写入图片，请重新生成。',
+  OUTPUT_TEXT_VERIFY_FAILED: '系统无法确认文字替换效果，请人工检查图片。',
 };
 
 /** Map machine layout warning codes to user-friendly Chinese labels. */

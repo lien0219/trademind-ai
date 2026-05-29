@@ -9,7 +9,6 @@ import (
 	"time"
 
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
-	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 )
 
 const (
@@ -30,12 +29,22 @@ type translateTextBBox struct {
 	Height int `json:"height"`
 }
 
+type translateTextStyle struct {
+	Color           string `json:"color,omitempty"`
+	BackgroundColor string `json:"backgroundColor,omitempty"`
+	FontWeight      string `json:"fontWeight,omitempty"`
+	Align           string `json:"align,omitempty"`
+}
+
 type translateTextBlock struct {
-	Text                string            `json:"text"`
-	TranslatedText      string            `json:"translatedText"`
-	ShortTranslatedText string            `json:"shortTranslatedText,omitempty"`
-	Confidence          float64           `json:"confidence"`
-	BBox                translateTextBBox `json:"bbox"`
+	ID                  string             `json:"id,omitempty"`
+	Text                string             `json:"text"`
+	TranslatedText      string             `json:"translatedText"`
+	ShortTranslatedText string             `json:"shortTranslatedText,omitempty"`
+	DrawText            string             `json:"drawText,omitempty"`
+	Confidence          float64            `json:"confidence"`
+	BBox                translateTextBBox  `json:"bbox"`
+	Style               translateTextStyle `json:"style,omitempty"`
 }
 
 type translateOCRResult struct {
@@ -230,7 +239,7 @@ func (s *Service) simplifyLongTranslations(ctx context.Context, blocks []transla
 	if !allow || s == nil || s.AIGateway == nil {
 		for i := range blocks {
 			if needsShortText(blocks[i].Text, blocks[i].TranslatedText) && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
-				blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].TranslatedText, targetLang)
+				blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].Text, blocks[i].TranslatedText, targetLang)
 			}
 		}
 		return nil
@@ -243,7 +252,7 @@ func (s *Service) simplifyLongTranslations(ctx context.Context, blocks []transla
 	}
 	for i := range blocks {
 		if needsShortText(blocks[i].Text, blocks[i].TranslatedText) && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
-			blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].TranslatedText, targetLang)
+			blocks[i].ShortTranslatedText = ruleBasedShortText(blocks[i].Text, blocks[i].TranslatedText, targetLang)
 		}
 	}
 	if len(need) == 0 {
@@ -317,6 +326,7 @@ func applyLayoutPlansToBlocks(blocks []translateTextBlock, plans []translateBloc
 		planIdx++
 		if plan.DisplayText != "" {
 			blocks[i].TranslatedText = plan.DisplayText
+			blocks[i].DrawText = plan.DisplayText
 		}
 		if plan.UsedShortText && strings.TrimSpace(blocks[i].ShortTranslatedText) == "" {
 			blocks[i].ShortTranslatedText = plan.DisplayText
@@ -499,8 +509,20 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		return err
 	}
 
+	renderOpts := parseTranslateRenderOptions(hints)
 	sourceLang, targetLang := resolveTranslateLanguages(hints)
-	payload, _ := s.loadTranslateImagePayload(ctx, src)
+	payload, loadErr := s.loadTranslateImagePayload(ctx, src)
+	if loadErr != nil || payload == nil {
+		return newTranslateErr(errCodeImageFetchFailed, "无法下载原图用于翻译")
+	}
+	sourceBytes, err := decodePayloadBytes(payload)
+	if err != nil {
+		return newTranslateErr(errCodeImageFetchFailed, "无法读取原图数据："+err.Error())
+	}
+
+	s.logTranslateAudit(ctx, task, "ai_image.translate_text.started", "success",
+		translateAuditMsg(task, map[string]any{"renderMode": renderOpts.RenderMode}))
+
 	ocr, err := s.runOCROnImage(ctx, src, sourceLang, targetLang)
 	if err != nil {
 		return err
@@ -508,28 +530,31 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	if ocr == nil || len(ocr.Blocks) == 0 {
 		return newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
 	}
-	if payload != nil {
-		imgRef := payload.DataURL
-		if imgRef == "" {
-			imgRef = src
-		}
-		ocr = s.filterAndVerifyOCR(ctx, ocr, imgRef)
+	imgRef := payload.DataURL
+	if imgRef == "" {
+		imgRef = src
 	}
+	ocr = s.filterAndVerifyOCR(ctx, ocr, imgRef)
 	if ocr == nil || len(ocr.Blocks) == 0 {
 		return newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
 	}
+	assignOCRBlockIDs(ocr.Blocks)
+	inferBlockStyles(payload, ocr.Blocks)
+
+	s.logTranslateAudit(ctx, task, "ai_image.translate_text.ocr_done", "success",
+		translateAuditMsg(task, map[string]any{"textBlocksCount": len(ocr.Blocks)}))
+
 	if err := s.ensureBlocksTranslated(ctx, ocr, targetLang); err != nil {
 		return err
 	}
+	s.logTranslateAudit(ctx, task, "ai_image.translate_text.translated", "success",
+		translateAuditMsg(task, map[string]any{"translatedBlocksCount": len(ocr.Blocks)}))
 
 	layoutOpts := parseTranslateLayoutOptions(hints, targetLang)
 	_ = s.simplifyLongTranslations(ctx, ocr.Blocks, targetLang, layoutOpts.AllowTextSimplify)
 
-	imageW, imageH := 0, 0
-	if payload != nil {
-		imageW, imageH = payload.Width, payload.Height
-	}
-	if hints != nil && imageW <= 0 {
+	imageW, imageH := payload.Width, payload.Height
+	if imageW <= 0 {
 		imageW = intFromAny(hints["imageWidth"])
 		imageH = intFromAny(hints["imageHeight"])
 	}
@@ -547,79 +572,12 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		return newTranslateErr(errCodeTranslateFailed, "文字翻译失败，未能生成有效翻译结果")
 	}
 
-	hints = prepareTranslateHints(task, hints, ocr, layoutPlans)
-
-	provName := strings.TrimSpace(strings.ToLower(task.Provider))
-	prov, err := imgprov.NewForTask(ctx, provName, s.Settings)
-	if err != nil {
-		return newTranslateErr(errCodeImageEditFailed, "图片编辑服务不可用："+err.Error())
+	if renderOpts.RenderMode == RenderModeAIEdit {
+		return s.executeTranslateAIEdit(ctx, task, hints, ocr, layoutPlans, layoutSummary, quality, sourceLang, targetLang)
 	}
-
-	var res *imgprov.ImageResult
-	switch provName {
-	case "openai_image", "dashscope_image":
-		rb, rbErr := s.resolveOpenAIEditSource(ctx, task)
-		if rbErr != nil {
-			return newTranslateErr(errCodeImageFetchFailed, "无法读取原图用于编辑："+rbErr.Error())
-		}
-		if rb.File != nil {
-			defer rb.File.Close()
-		}
-		res, err = prov.ReplaceBackground(ctx, imgprov.ReplaceBackgroundRequest{
-			ImageRequest: imgprov.ImageRequest{
-				SourceURL:         rb.PublicURL,
-				SourceFile:        rb.File,
-				SourceFilename:    rb.Filename,
-				SourceContentType: rb.ContentType,
-				Input:             hints,
-			},
-		})
-	case "comfyui":
-		res, err = prov.ReplaceBackground(ctx, imgprov.ReplaceBackgroundRequest{
-			ImageRequest: imgprov.ImageRequest{SourceURL: src, Input: hints},
-		})
-	default:
-		return imgprov.UnsupportedTaskError(task.Provider, task.TaskType)
+	if renderOpts.RenderMode == RenderModeDeterministic || renderOpts.RenderMode == RenderModeHybrid {
+		return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, layoutPlans, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
 	}
-	if err != nil {
-		return newTranslateErr(errCodeImageEditFailed, "图片文字替换失败："+err.Error())
-	}
-	if res == nil {
-		return newTranslateErr(errCodeImageEditFailed, "图片编辑未返回结果")
-	}
-
-	finalURL, finalFID, storageKey, persistErr := s.persistProviderResult(ctx, task, res, hints)
-	if persistErr != nil {
-		return newTranslateErr(errCodeStorageUploadFailed, "翻译结果上传失败："+persistErr.Error())
-	}
-
-	detectedLang := strings.TrimSpace(ocr.DetectedLanguage)
-	if detectedLang == "" && !strings.EqualFold(sourceLang, "auto") {
-		detectedLang = sourceLang
-	}
-
-	ocrSummary := map[string]any{
-		"detectedLanguage": detectedLang,
-		"textBlocksCount":  len(ocr.Blocks),
-		"blocks":           ocr.Blocks,
-	}
-	outObj := map[string]any{
-		"resultUrl":      finalURL,
-		"storageKey":     storageKey,
-		"provider":       task.Provider,
-		"taskType":       task.TaskType,
-		"sourceLanguage": sourceLang,
-		"targetLanguage": targetLang,
-		"ocr":            ocrSummary,
-		"quality":        quality,
-	}
-	if finalFID != nil {
-		outObj["resultFileId"] = finalFID.String()
-	}
-
-	status := StatusSuccess
-	if len(quality.Warnings) > 0 {
-		status = StatusSuccessWithWarnings
-	}
-	return s.finalizeTaskSuccessWithStatus(ctx, task, finalURL, finalFID, storageKey, outObj, nil, false, status)
+	renderOpts.RenderMode = RenderModeHybrid
+	return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, layoutPlans, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
 }

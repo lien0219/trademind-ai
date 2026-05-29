@@ -23,7 +23,10 @@ import {
   setImageTaskItemAsMain,
   taskTypeLabel,
   translateLangLabel,
+  translateRenderModeLabel,
   translateTaskWarnings,
+  buildTranslateImageTextInput,
+  createImageTask,
 } from '@/services/imageTasks';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 
@@ -79,25 +82,53 @@ function TranslateResultPanel({ output }: { output: unknown }) {
   const parsed = parseTranslateTaskOutput(output);
   if (!parsed) return null;
   const blocks = parsed.ocr?.blocks ?? [];
-  const layout = parsed.quality?.layout;
+  const layout = parsed.layout ?? parsed.quality?.layout;
+  const translate = parsed.translate;
+  const verification = parsed.verification;
   const warnings = translateTaskWarnings(parsed);
   const hasOverflow = (layout?.overflowBlocks ?? 0) > 0;
   return (
     <Card size="small" title="翻译结果摘要" style={{ marginBottom: 24 }}>
       <Descriptions column={2} size="small">
+        <Descriptions.Item label="渲染方式">
+          {translateRenderModeLabel(parsed.renderMode ?? layout?.renderMode)}
+        </Descriptions.Item>
+        <Descriptions.Item label="擦除方式">{layout?.eraseMode ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="源语言">
           {translateLangLabel(parsed.sourceLanguage || parsed.ocr?.detectedLanguage || '—')}
         </Descriptions.Item>
         <Descriptions.Item label="目标语言">{translateLangLabel(parsed.targetLanguage || '—')}</Descriptions.Item>
         <Descriptions.Item label="识别文字数量">
-          {parsed.quality?.textBlocksCount ?? parsed.ocr?.textBlocksCount ?? blocks.length}
+          {translate?.textBlocksCount ?? parsed.quality?.textBlocksCount ?? parsed.ocr?.textBlocksCount ?? blocks.length}
         </Descriptions.Item>
-        <Descriptions.Item label="已翻译数量">{parsed.quality?.translatedBlocksCount ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="已翻译数量">
+          {translate?.translatedBlocksCount ?? parsed.quality?.translatedBlocksCount ?? '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="已绘制数量">{translate?.renderedBlocksCount ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="校验通过数量">{translate?.verifiedBlocksCount ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="自动换行数量">{layout?.autoWrappedBlocks ?? 0}</Descriptions.Item>
         <Descriptions.Item label="自动缩小字号数量">{layout?.fontResizedBlocks ?? 0}</Descriptions.Item>
         <Descriptions.Item label="自动精简文案数量">{layout?.simplifiedBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="文字溢出数量">{layout?.overflowBlocks ?? 0}</Descriptions.Item>
         <Descriptions.Item label="是否存在文字溢出">{hasOverflow ? '是' : '否'}</Descriptions.Item>
       </Descriptions>
+      {verification ? (
+        <div style={{ marginTop: 12 }}>
+          <Typography.Text strong>校验摘要</Typography.Text>
+          <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+            <Descriptions.Item label="图片已更新">{verification.imageChanged ? '是' : '否'}</Descriptions.Item>
+            <Descriptions.Item label="检测到目标语言文字">
+              {verification.targetTextDetected ? '是' : '否'}
+            </Descriptions.Item>
+            <Descriptions.Item label="可能仍有原文字残留">
+              {verification.sourceTextMayRemain ? '是' : '否'}
+            </Descriptions.Item>
+            <Descriptions.Item label="校验置信度">
+              {verification.confidence != null ? verification.confidence.toFixed(2) : '—'}
+            </Descriptions.Item>
+          </Descriptions>
+        </div>
+      ) : null}
       {warnings.length > 0 ? (
         <div style={{ marginTop: 12 }}>
           {warnings.map((w) => (
@@ -116,6 +147,12 @@ function TranslateResultPanel({ output }: { output: unknown }) {
                 <Typography.Text type="secondary">{b.text || '—'}</Typography.Text>
                 {' → '}
                 <Typography.Text>{b.translatedText || '—'}</Typography.Text>
+                {b.drawText && b.drawText !== b.translatedText ? (
+                  <>
+                    {' '}
+                    <Typography.Text type="secondary">（实际绘制：{b.drawText}）</Typography.Text>
+                  </>
+                ) : null}
                 {b.shortTranslatedText && b.shortTranslatedText !== b.translatedText ? (
                   <>
                     {' '}
@@ -413,6 +450,68 @@ export default function ImageTasksPage() {
         destroyOnHidden
         extra={
           <Space wrap>
+            {detail?.taskType === 'translate_image_text' &&
+            (detail.status === 'failed' || detail.status === 'success_with_warnings') ? (
+              <>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: buildTranslateImageTextInput({
+                          ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                          renderMode: 'hybrid',
+                        }),
+                      });
+                      message.success('已提交程序排版翻译任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  程序排版重新生成
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: {
+                          ...buildTranslateImageTextInput({
+                            ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                            renderMode: 'hybrid',
+                          }),
+                          minFontSize: 12,
+                        },
+                      });
+                      message.success('已提交低字号重试任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  降低字号重试
+                </Button>
+              </>
+            ) : null}
             {detail?.status === 'failed' ? (
               <Button
                 type="primary"

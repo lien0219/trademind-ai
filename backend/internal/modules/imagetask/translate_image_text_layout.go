@@ -91,7 +91,7 @@ func parseTranslateLayoutOptions(hints map[string]any, targetLang string) transl
 		opts.MinFontSize = 14
 	}
 	if opts.MaxFontSize <= 0 {
-		opts.MaxFontSize = 48
+		opts.MaxFontSize = 52
 	}
 	if opts.LineHeightRatio <= 0 {
 		opts.LineHeightRatio = 1.15
@@ -555,8 +555,11 @@ func computeTranslateLayouts(blocks []translateTextBlock, opts translateLayoutOp
 	return plans, summary
 }
 
-func ruleBasedShortText(text, targetLang string) string {
-	t := strings.TrimSpace(text)
+func ruleBasedShortText(orig, translated, targetLang string) string {
+	t := strings.TrimSpace(translated)
+	if t == "" {
+		t = strings.TrimSpace(orig)
+	}
 	if t == "" {
 		return t
 	}
@@ -571,12 +574,22 @@ func ruleBasedShortText(text, targetLang string) string {
 		"全国包邮":                             "Free Shipping",
 		"包邮":                               "Free Ship",
 		"高品质耐用材质":                          "Durable",
+		"金属底座":                             "Metal Base",
+		"折叠支架":                             "Foldable Stand",
+		"手机/平板":                            "Phone/Tablet",
+		"手机 / 平板":                          "Phone/Tablet",
+		"暗夜黑":                              "Midnight Black",
 		"金属底座 折叠支架":                        "Metal Folding Stand",
 		"金属底座折叠支架":                         "Metal Folding Stand",
 		"柔韧耐折 防滑减震":                        "Flexible Anti-Slip",
 		"柔韧耐折防滑减震":                         "Flexible Anti-Slip",
+		"超值实惠装100片":                        "100 pcs Value Pack",
+		"新款十二生肖":                           "New Zodiac Series",
 	}
 	if v, ok := known[lower]; ok {
+		return v
+	}
+	if v, ok := known[strings.TrimSpace(orig)]; ok {
 		return v
 	}
 	if isCJKLang(targetLang) {

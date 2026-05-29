@@ -52,6 +52,14 @@ type ProviderCapability struct {
 func AllProviderCapabilities() []ProviderCapability {
 	return []ProviderCapability{
 		{
+			Provider: "local_render", DisplayName: "程序排版渲染", Status: ProviderStatusAvailable,
+			Difficulty: DifficultyEasy, RegionFriendly: RegionBoth,
+			RequiresAPIKey: false, RequiresSelfHosted: false,
+			SupportedTasks: []string{"translate_image_text"},
+			RecommendedFor: []string{"图片文字翻译", "确定性排版"},
+			Description:    "OCR + 程序擦除原文字 + 确定性绘制译文，不依赖图片生成模型写字。",
+		},
+		{
 			Provider: "noop", DisplayName: "占位 / 演示", Status: ProviderStatusAvailable,
 			Difficulty: DifficultyEasy, RegionFriendly: RegionBoth,
 			RequiresAPIKey: false, RequiresSelfHosted: false,
