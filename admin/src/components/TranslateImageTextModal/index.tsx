@@ -1,7 +1,7 @@
 import { ModalForm, ProFormCheckbox, ProFormRadio, ProFormSelect } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Alert, Collapse, Form, Image, Typography, message } from 'antd';
-import { useEffect, useMemo } from 'react';
+import { Alert, Button, Collapse, Form, Image, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import type { ProductImageRow } from '@/services/products';
 import {
@@ -15,6 +15,7 @@ import {
   type TranslateImageTextLayoutMode,
   type TranslateRenderMode,
 } from '@/services/imageTasks';
+import { testOCRConnection } from '@/services/settings';
 
 export function TranslateImageTextAiSettingsHint() {
   return (
@@ -26,7 +27,7 @@ export function TranslateImageTextAiSettingsHint() {
       description={
         <>
           {TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT}{' '}
-          <Typography.Link onClick={() => history.push('/settings/ai')}>前往 AI 设置</Typography.Link>
+          <Typography.Link onClick={() => history.push('/settings/image')}>前往 OCR 配置</Typography.Link>
         </>
       }
     />
@@ -77,6 +78,9 @@ export function TranslateImageTextModal({
   const [form] = Form.useForm<FormValues>();
   const { optionsForTask } = useImageProviders();
   const renderMode = Form.useWatch('renderMode', form) ?? 'hybrid';
+  const [ocrChecking, setOcrChecking] = useState(false);
+  const [ocrReady, setOcrReady] = useState(false);
+  const [ocrMessage, setOcrMessage] = useState('');
 
   const productId = (fixedProductId || prefill?.productId || '').trim();
   const sourceImageId = (prefill?.sourceImageId || sourceImage?.id || '').trim();
@@ -106,6 +110,29 @@ export function TranslateImageTextModal({
     });
   }, [open, form, prefill]);
 
+  const checkOCRReady = useCallback(async () => {
+    setOcrChecking(true);
+    try {
+      const res = await testOCRConnection();
+      setOcrReady(Boolean(res.ok));
+      setOcrMessage(res.message || '当前 OCR 服务可用');
+    } catch (e: unknown) {
+      setOcrReady(false);
+      setOcrMessage((e as Error)?.message || '图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
+    } finally {
+      setOcrChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setOcrReady(false);
+      setOcrMessage('');
+      return;
+    }
+    void checkOCRReady();
+  }, [open, checkOCRReady]);
+
   return (
     <ModalForm<FormValues>
       form={form}
@@ -114,10 +141,29 @@ export function TranslateImageTextModal({
       onOpenChange={onOpenChange}
       width={560}
       modalProps={{ destroyOnHidden: true }}
-      submitter={{ searchConfig: { submitText: '开始翻译图片' } }}
+      submitter={{
+        render: (props) => [
+          <Button key="cancel" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={ocrChecking || props.submitButtonProps?.loading}
+            disabled={!ocrReady}
+            onClick={() => props.submit?.()}
+          >
+            开始翻译图片
+          </Button>,
+        ],
+      }}
       onFinish={async (values) => {
         if (!sourceImageId && !sourceImageUrl) {
           message.error('请选择要翻译的商品图片');
+          return false;
+        }
+        if (!ocrReady) {
+          message.error('图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
           return false;
         }
         const input = buildTranslateImageTextInput({
@@ -134,7 +180,6 @@ export function TranslateImageTextModal({
           autoSetAsMain: values.autoSetAsMain,
           removeOriginalText: true,
           preserveLayout: values.layoutMode !== 'readable',
-          ocrProvider: values.ocrProvider || undefined,
           eraseMode: values.eraseMode || undefined,
           advancedJson: values.advancedJson || undefined,
         });
@@ -173,6 +218,23 @@ export function TranslateImageTextModal({
       </Typography.Paragraph>
 
       <TranslateImageTextAiSettingsHint />
+      <Alert
+        type={ocrReady ? 'success' : 'warning'}
+        showIcon
+        style={{ marginBottom: 16 }}
+        message={ocrReady ? '当前 OCR 服务可用' : '图片文字翻译需要 OCR 服务'}
+        description={
+          <>
+            {ocrMessage || '请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。'}{' '}
+            <Typography.Link onClick={() => history.push('/settings/image')}>去配置 OCR</Typography.Link>
+          </>
+        }
+        action={
+          <Button size="small" loading={ocrChecking} onClick={() => void checkOCRReady()}>
+            重新检测
+          </Button>
+        }
+      />
 
       {sourceImageUrl ? (
         <div style={{ marginBottom: 16 }}>
@@ -240,15 +302,6 @@ export function TranslateImageTextModal({
                     );
                   }}
                 </Form.Item>
-                <ProFormSelect
-                  name="ocrProvider"
-                  label="覆盖 OCR 服务"
-                  options={[
-                    { label: '默认（读取设置）', value: '' },
-                    { label: 'PaddleOCR', value: 'paddleocr' },
-                    { label: 'AI 视觉模型', value: 'ai_vision' },
-                  ]}
-                />
                 <ProFormSelect
                   name="eraseMode"
                   label="覆盖擦除方式"

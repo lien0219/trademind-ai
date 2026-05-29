@@ -3,6 +3,7 @@ package imagetask
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -15,6 +16,7 @@ import (
 
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr"
+	"github.com/trademind-ai/trademind/backend/internal/providers/ocr/ocrerror"
 )
 
 const layoutWarningPartialOCR = "partial_text_detected"
@@ -277,14 +279,16 @@ func (s *Service) runOCROnImage(ctx context.Context, imageURL, sourceLang, targe
 		return nil, newTranslateErr(errCodeOCRFailed, "无法读取图片配置，请检查系统设置")
 	}
 
-	providerName := strings.TrimSpace(stringFromMap(hints, "ocrProvider"))
+	providerName := strings.TrimSpace(m["ocr_provider"])
 	if providerName == "" {
-		providerName = strings.TrimSpace(m["ocr_provider"])
+		return nil, newTranslateErr("OCR_NOT_CONFIGURED", "图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过")
 	}
-	if providerName == "" {
-		providerName = "paddleocr"
+	configuredProvider := providerName
+	timeoutRaw := strings.TrimSpace(m["ocr_timeout_sec"])
+	if timeoutRaw == "" {
+		timeoutRaw = strings.TrimSpace(m["ocr_timeout_seconds"])
 	}
-	timeoutSec := comfyIntSetting(m["ocr_timeout_seconds"], 60, 5, 300)
+	timeoutSec := comfyIntSetting(timeoutRaw, 60, 5, 300)
 	minConfidenceRaw := strings.TrimSpace(m["ocr_min_confidence"])
 	if minConfidenceRaw == "" {
 		minConfidenceRaw = "0.55"
@@ -296,27 +300,31 @@ func (s *Service) runOCROnImage(ctx context.Context, imageURL, sourceLang, targe
 	}
 
 	var ocrRes *translateOCRResult
-	var ocrErr error
-	fallbackOccurred := false
-
-	if providerName != "ai_vision" && providerName != "" {
-		ocrRes, ocrErr = s.runExternalOCR(ctx, providerName, m, payload, sourceLang, targetLang, timeoutSec)
+	if providerName != "ai_vision" {
+		var ocrErr error
+		ocrRes, ocrErr = s.runExternalOCR(ctx, providerName, m, imageURL, payload, sourceLang, targetLang, timeoutSec)
+		if ocrErr == nil && (ocrRes == nil || len(ocrRes.Blocks) == 0) {
+			ocrErr = ocrerror.New(ocrerror.CodeEmptyBlocks, "OCR 未识别到文字，请更换图片或降低最低置信度")
+		}
 		if ocrErr != nil {
-			fallbackToVision := strings.TrimSpace(strings.ToLower(m["ocr_fallback_to_vision"]))
-			if fallbackToVision == "" || fallbackToVision == "true" || fallbackToVision == "1" || fallbackToVision == "yes" {
-				// Fallback to ai_vision
-				fallbackOccurred = true
-				providerName = "ai_vision"
-				ocrRes = nil
-			} else {
-				return nil, newTranslateErr(errCodeOCRFailed, "OCR 识别失败："+ocrErr.Error())
+			failureCode, failureReason := classifyOCRError(ocrErr)
+			taskCode := "OCR_DETECT_FAILED"
+			switch failureCode {
+			case ocrerror.CodeSecretMissing:
+				taskCode = "OCR_PROVIDER_NOT_CONFIGURED"
+			case ocrerror.CodeEmptyBlocks:
+				taskCode = "OCR_EMPTY_BLOCKS"
 			}
+			return nil, newTranslateErr(taskCode, "当前 OCR 服务不可用，任务已停止。请先到「设置 → 图片 AI 设置」完成 OCR 配置并测试通过。"+failureCode+" / "+failureReason)
 		}
 	}
 
 	if ocrRes == nil || len(ocrRes.Blocks) == 0 {
+		if providerName != "ai_vision" {
+			return nil, newTranslateErr("OCR_EMPTY_BLOCKS", "当前 OCR 服务未识别到文字，任务已停止。请更换图片或降低最低置信度")
+		}
 		if s.AIGateway == nil {
-			return nil, newTranslateErr(errCodeOCRFailed, "未配置 AI 服务，无法进行文字识别（请在「设置 → AI」配置）")
+			return nil, newTranslateErr("OCR_PROVIDER_NOT_CONFIGURED", "当前 AI 视觉 OCR 未配置，请先到「设置 → AI 设置」配置可用视觉模型")
 		}
 
 		var lastVisionContent string
@@ -373,20 +381,24 @@ If no readable text exists, return {"detectedLanguage":"","textBlocksCount":0,"b
 			return nil, newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
 		}
 
-		ocrRes.Provider = "ai_vision"
+		if ocrRes.Provider == "" {
+			ocrRes.Provider = "ai_vision"
+		}
 	}
 
 	if ocrRes != nil {
-		ocrRes.Fallback = fallbackOccurred
+		ocrRes.Fallback = false
+		ocrRes.ConfiguredProvider = configuredProvider
 		if ocrRes.Provider == "" {
 			ocrRes.Provider = providerName
 		}
+		ocrRes.ActualProvider = ocrRes.Provider
 	}
 
 	return ocrRes, nil
 }
 
-func (s *Service) runExternalOCR(ctx context.Context, providerName string, m map[string]string, payload *translateImagePayload, sourceLang, targetLang string, timeoutSec int) (*translateOCRResult, error) {
+func (s *Service) runExternalOCR(ctx context.Context, providerName string, m map[string]string, imageURL string, payload *translateImagePayload, sourceLang, targetLang string, timeoutSec int) (*translateOCRResult, error) {
 	prov, err := ocr.NewProvider(providerName, m)
 	if err != nil {
 		return nil, err
@@ -401,12 +413,14 @@ func (s *Service) runExternalOCR(ctx context.Context, providerName string, m map
 	defer cancel()
 
 	res, err := prov.DetectText(oCtx, ocr.OCRRequest{
-		ImageURL:       payload.DataURL,
-		ImageBase64:    base64Data,
-		SourceLanguage: sourceLang,
-		TargetLanguage: targetLang,
-		ImageWidth:     payload.Width,
-		ImageHeight:    payload.Height,
+		ImageURL:          firstNonEmptyString(imageURL, payload.DataURL),
+		ImageBase64:       base64Data,
+		SourceLanguage:    sourceLang,
+		TargetLanguage:    targetLang,
+		Languages:         []string{sourceLang, targetLang},
+		DetectOrientation: true,
+		ImageWidth:        payload.Width,
+		ImageHeight:       payload.Height,
 	})
 	if err != nil {
 		return nil, err
@@ -421,7 +435,17 @@ func (s *Service) runExternalOCR(ctx context.Context, providerName string, m map
 	}
 
 	blocks := make([]translateTextBlock, 0, len(res.Blocks))
+	confSum := 0.0
+	confCount := 0
 	for _, b := range res.Blocks {
+		polygon := make([]translateTextPoint, 0, len(b.Polygon))
+		for _, p := range b.Polygon {
+			polygon = append(polygon, translateTextPoint{X: p.X, Y: p.Y})
+		}
+		if b.Confidence > 0 {
+			confSum += b.Confidence
+			confCount++
+		}
 		blocks = append(blocks, translateTextBlock{
 			ID:         b.ID,
 			Text:       b.Text,
@@ -432,12 +456,68 @@ func (s *Service) runExternalOCR(ctx context.Context, providerName string, m map
 				Width:  b.BBox.Width,
 				Height: b.BBox.Height,
 			},
+			Polygon:   polygon,
+			Angle:     b.Angle,
+			Direction: b.Direction,
 		})
+	}
+	avgConfidence := 0.0
+	if confCount > 0 {
+		avgConfidence = confSum / float64(confCount)
 	}
 
 	return &translateOCRResult{
-		DetectedLanguage: res.DetectedLanguage,
-		TextBlocksCount:  len(blocks),
-		Blocks:           blocks,
+		Provider:            res.Provider,
+		APIName:             res.APIName,
+		DetectedLanguage:    res.DetectedLanguage,
+		TextBlocksCount:     len(blocks),
+		FilteredBlocksCount: res.FilteredBlocksCount,
+		AverageConfidence:   avgConfidence,
+		Blocks:              blocks,
 	}, nil
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func classifyOCRError(err error) (code, message string) {
+	if err == nil {
+		return "", ""
+	}
+	var oe *ocrerror.Error
+	if errors.As(err, &oe) && oe != nil {
+		code = strings.TrimSpace(oe.Code)
+		message = strings.TrimSpace(oe.Message)
+		if code == "" {
+			code = ocrerror.CodeUnknown
+		}
+		if message == "" {
+			message = err.Error()
+		}
+		return code, message
+	}
+	msg := strings.TrimSpace(err.Error())
+	lower := strings.ToLower(msg)
+	switch {
+	case strings.Contains(lower, "timeout") || strings.Contains(lower, "deadline exceeded") || strings.Contains(lower, "i/o timeout"):
+		return ocrerror.CodeTimeout, msg
+	case strings.Contains(lower, "secret") && (strings.Contains(lower, "空") || strings.Contains(lower, "未配置") || strings.Contains(lower, "required")):
+		return ocrerror.CodeSecretMissing, msg
+	case strings.Contains(lower, "auth") || strings.Contains(lower, "signature") || strings.Contains(lower, "invalidaccesskey"):
+		return ocrerror.CodeAuthFailed, msg
+	case strings.Contains(lower, "permission") || strings.Contains(lower, "unauthorized") || strings.Contains(lower, "forbidden"):
+		return ocrerror.CodePermissionDenied, msg
+	case strings.Contains(lower, "not open") || strings.Contains(lower, "not enabled") || strings.Contains(lower, "未开通"):
+		return ocrerror.CodeServiceNotOpen, msg
+	case strings.Contains(lower, "image") && (strings.Contains(lower, "access") || strings.Contains(lower, "访问")):
+		return ocrerror.CodeImageURLInaccessible, msg
+	default:
+		return ocrerror.CodeUnknown, msg
+	}
 }

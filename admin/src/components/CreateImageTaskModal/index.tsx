@@ -6,7 +6,7 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { Collapse, Form, Image, Space, Typography, Upload, message, Checkbox } from 'antd';
+import { Alert, Button, Collapse, Form, Image, Space, Typography, Upload, message, Checkbox } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TranslateImageTextAiSettingsHint } from '@/components/TranslateImageTextModal';
@@ -23,6 +23,7 @@ import {
 } from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import { uploadFile } from '@/services/files';
+import { testOCRConnection } from '@/services/settings';
 import { fetchProductDetail, type ProductImageRow } from '@/services/products';
 import {
   BEGINNER_IMAGE_TASK_TYPE_VALUES,
@@ -126,7 +127,11 @@ export function CreateImageTaskModal({
   const [loadedImages, setLoadedImages] = useState<ProductImageRow[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
   const [showMoreTaskTypes, setShowMoreTaskTypes] = useState(false);
+  const [ocrChecking, setOcrChecking] = useState(false);
+  const [ocrReady, setOcrReady] = useState(false);
+  const [ocrMessage, setOcrMessage] = useState('');
   const watchedProductId = Form.useWatch('productId', form);
+  const watchedTaskType = Form.useWatch('taskType', form);
   const effectiveProductId = (fixedProductId || watchedProductId || prefill?.productId || '').trim();
 
   const productImages = useMemo(() => {
@@ -200,6 +205,29 @@ export function CreateImageTaskModal({
     if (!open) return;
     applyPrefill();
   }, [open, applyPrefill]);
+
+  const checkOCRReady = useCallback(async () => {
+    setOcrChecking(true);
+    try {
+      const res = await testOCRConnection();
+      setOcrReady(Boolean(res.ok));
+      setOcrMessage(res.message || '当前 OCR 服务可用');
+    } catch (e: unknown) {
+      setOcrReady(false);
+      setOcrMessage((e as Error)?.message || '图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
+    } finally {
+      setOcrChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open || watchedTaskType !== 'translate_image_text') {
+      setOcrReady(false);
+      setOcrMessage('');
+      return;
+    }
+    void checkOCRReady();
+  }, [open, watchedTaskType, checkOCRReady]);
 
   useEffect(() => {
     if (!open || productImagesProp?.length) return;
@@ -291,7 +319,22 @@ export function CreateImageTaskModal({
       }}
       width={640}
       modalProps={{ destroyOnHidden: true }}
-      submitter={{ searchConfig: { submitText: '创建任务' } }}
+      submitter={{
+        render: (props) => [
+          <Button key="cancel" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={ocrChecking || props.submitButtonProps?.loading}
+            disabled={watchedTaskType === 'translate_image_text' && !ocrReady}
+            onClick={() => props.submit?.()}
+          >
+            创建任务
+          </Button>,
+        ],
+      }}
       onFinish={async (values) => {
         const tt = (values.taskType ?? '').trim();
         const productId = (fixedProductId || values.productId || '').trim();
@@ -303,6 +346,10 @@ export function CreateImageTaskModal({
         }
         if (tt === 'select_best_main' && !productId) {
           message.error('自动选最佳主图需要关联商品，请填写商品 ID');
+          return false;
+        }
+        if (tt === 'translate_image_text' && !ocrReady) {
+          message.error('图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
           return false;
         }
 
@@ -621,6 +668,23 @@ export function CreateImageTaskModal({
           taskType === 'translate_image_text' ? (
             <>
               <TranslateImageTextAiSettingsHint />
+              <Alert
+                type={ocrReady ? 'success' : 'warning'}
+                showIcon
+                style={{ marginBottom: 16 }}
+                message={ocrReady ? '当前 OCR 服务可用' : '图片文字翻译需要 OCR 服务'}
+                description={
+                  <>
+                    {ocrMessage || '请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。'}{' '}
+                    <Typography.Link onClick={() => window.location.assign('/settings/image')}>去配置 OCR</Typography.Link>
+                  </>
+                }
+                action={
+                  <Button size="small" loading={ocrChecking} onClick={() => void checkOCRReady()}>
+                    重新检测
+                  </Button>
+                }
+              />
               <ProFormSelect
                 name="sourceLanguage"
                 label="源语言"

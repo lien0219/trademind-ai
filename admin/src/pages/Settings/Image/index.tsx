@@ -28,7 +28,7 @@ import {
 } from '@/constants/imageProviders';
 import { fetchImageProviders, testImageProvider } from '@/services/imageProviders';
 import { taskTypeLabel } from '@/services/imageTasks';
-import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
+import { fetchSettingsList, saveSettingsItems, testOCRConnection } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
 const GROUP = 'image';
@@ -43,6 +43,10 @@ const ENCRYPTED_KEYS = new Set([
   'hunyuan_image_api_key',
   'ocr_api_key',
   'ocr_secret',
+  'ocr_aliyun_access_key_id',
+  'ocr_aliyun_access_key_secret',
+  'ocr_tencent_secret_id',
+  'ocr_tencent_secret_key',
 ]);
 
 function buildFieldsSpec(): Record<string, FieldSpec> {
@@ -58,6 +62,26 @@ function buildFieldsSpec(): Record<string, FieldSpec> {
 }
 
 const FIELDS = buildFieldsSpec();
+
+const OCR_PROVIDER_OPTIONS = [
+  { label: 'AI 视觉 OCR', value: 'ai_vision' },
+  { label: '本地 PaddleOCR', value: 'paddleocr' },
+  { label: '阿里云 OCR', value: 'aliyun' },
+  { label: '腾讯云 OCR', value: 'tencent' },
+];
+
+const TENCENT_OCR_API_OPTIONS = [
+  { label: 'GeneralBasicOCR：通用印刷体识别，推荐默认', value: 'GeneralBasicOCR' },
+  { label: 'GeneralFastOCR：通用印刷体识别高速版，可选', value: 'GeneralFastOCR' },
+];
+
+function hasSavedSecretValue(value?: string) {
+  return Boolean((value ?? '').trim());
+}
+
+function currentOrSaved(values: Record<string, unknown>, key: string, savedKeys: Set<string>) {
+  return String(values[key] ?? '').trim() || (savedKeys.has(key) ? '__saved__' : '');
+}
 
 function ProviderMetaTags({ cap }: { cap: ImageProviderCapability }) {
   return (
@@ -80,9 +104,12 @@ export default function ImageSettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [ocrTesting, setOcrTesting] = useState(false);
   const [caps, setCaps] = useState<ImageProviderCapability[]>([]);
   const [scenario, setScenario] = useState<ImageScenarioId | ''>('');
+  const [savedEncryptedKeys, setSavedEncryptedKeys] = useState<Set<string>>(new Set());
   const provider = Form.useWatch('provider', form) as string | undefined;
+  const ocrProvider = Form.useWatch('ocr_provider', form) as string | undefined;
 
   const loadCaps = useCallback(async () => {
     try {
@@ -98,6 +125,7 @@ export default function ImageSettingsPage() {
     try {
       const { items } = await fetchSettingsList();
       const g = pickGroup(items, GROUP);
+      setSavedEncryptedKeys(new Set([...ENCRYPTED_KEYS].filter((key) => hasSavedSecretValue(g[key]))));
       form.setFieldsValue({
         provider: g.provider || 'noop',
         provider_preset: g.provider_preset || '',
@@ -141,11 +169,25 @@ export default function ImageSettingsPage() {
         timeout_sec: g.timeout_sec ? Number(g.timeout_sec) : 60,
         ocr_provider: g.ocr_provider || 'paddleocr',
         ocr_base_url: g.ocr_base_url || '',
-        ocr_api_key: g.ocr_api_key || '',
-        ocr_secret: g.ocr_secret || '',
+        ocr_api_key: '',
+        ocr_secret: '',
+        ocr_paddleocr_service_url: g.ocr_paddleocr_service_url || g.ocr_base_url || 'http://127.0.0.1:3101',
+        ocr_aliyun_endpoint: g.ocr_aliyun_endpoint || 'ocr-api.cn-hangzhou.aliyuncs.com',
+        ocr_aliyun_region: g.ocr_aliyun_region || 'cn-hangzhou',
+        ocr_aliyun_api_name: g.ocr_aliyun_api_name || 'RecognizeGeneral',
+        ocr_aliyun_access_key_id: '',
+        ocr_aliyun_access_key_secret: '',
+        ocr_tencent_endpoint: g.ocr_tencent_endpoint || 'ocr.tencentcloudapi.com',
+        ocr_tencent_region: g.ocr_tencent_region || 'ap-guangzhou',
+        ocr_tencent_api_name: g.ocr_tencent_api_name || 'GeneralBasicOCR',
+        ocr_tencent_secret_id: '',
+        ocr_tencent_secret_key: '',
         ocr_timeout_sec: g.ocr_timeout_sec ? Number(g.ocr_timeout_sec) : 30,
-        ocr_min_confidence: g.ocr_min_confidence || '0.8',
-        ocr_fallback_to_vision: g.ocr_fallback_to_vision || 'true',
+        ocr_min_confidence: g.ocr_min_confidence || '0.75',
+        ocr_fallback_to_vision: g.ocr_fallback_to_vision || 'false',
+        ocr_batch_concurrency: g.ocr_batch_concurrency ? Number(g.ocr_batch_concurrency) : 1,
+        ocr_request_interval_ms: g.ocr_request_interval_ms ? Number(g.ocr_request_interval_ms) : 500,
+        ocr_max_retries: g.ocr_max_retries ? Number(g.ocr_max_retries) : 1,
         erase_mode: g.erase_mode || 'auto',
         ai_inpaint_comfyui_base_url: g.ai_inpaint_comfyui_base_url || 'http://127.0.0.1:8188',
         ai_inpaint_comfyui_workflow_json: g.ai_inpaint_comfyui_workflow_json || '',
@@ -202,6 +244,42 @@ export default function ImageSettingsPage() {
     return out;
   };
 
+  const buildOCRTestSettingsPayload = (values: Record<string, unknown>): Record<string, string> => {
+    const keys = [
+      'ocr_provider',
+      'ocr_base_url',
+      'ocr_api_key',
+      'ocr_secret',
+      'ocr_paddleocr_service_url',
+      'ocr_aliyun_endpoint',
+      'ocr_aliyun_region',
+      'ocr_aliyun_api_name',
+      'ocr_aliyun_access_key_id',
+      'ocr_aliyun_access_key_secret',
+      'ocr_tencent_endpoint',
+      'ocr_tencent_region',
+      'ocr_tencent_api_name',
+      'ocr_tencent_secret_id',
+      'ocr_tencent_secret_key',
+      'ocr_timeout_sec',
+      'ocr_min_confidence',
+      'ocr_fallback_to_vision',
+      'ocr_batch_concurrency',
+      'ocr_request_interval_ms',
+      'ocr_max_retries',
+    ];
+    const out: Record<string, string> = {};
+    for (const key of keys) {
+      const raw = values[key];
+      if (raw == null) continue;
+      const val = String(raw).trim();
+      if (val === '') continue;
+      if (ENCRYPTED_KEYS.has(key) && val.includes('****')) continue;
+      out[key] = String(raw);
+    }
+    return out;
+  };
+
   const onScenarioPick = (id: ImageScenarioId) => {
     setScenario(id);
     const sc = IMAGE_SCENARIOS.find((s) => s.id === id);
@@ -219,7 +297,7 @@ export default function ImageSettingsPage() {
     if (!spec) return null;
     const isJson = spec.valueType === 'json';
     const isEnc = ENCRYPTED_KEYS.has(key);
-    const isNum = key.includes('_sec') || key === 'timeout_sec' || key.includes('poll') || key.includes('interval');
+    const isNum = key.includes('_sec') || key === 'timeout_sec' || key.includes('poll') || key.includes('interval') || key.includes('concurrency') || key.includes('retries');
 
     if (isNum) {
       return (
@@ -236,9 +314,18 @@ export default function ImageSettingsPage() {
       );
     }
     if (isEnc) {
+      const saved = savedEncryptedKeys.has(key);
       return (
-        <Form.Item key={key} label={spec.label} name={key} extra={spec.extra}>
-          <Input.Password placeholder="留空不修改；填写新 Key 保存" autoComplete="new-password" />
+        <Form.Item
+          key={key}
+          label={spec.label}
+          name={key}
+          extra={saved ? `${spec.extra ?? ''} 已加密保存；为安全起见不回显明文，留空不会覆盖。` : spec.extra}
+        >
+          <Input.Password
+            placeholder={saved ? '已保存，留空不修改；填写新 Key 才会覆盖' : '填写后保存'}
+            autoComplete="new-password"
+          />
         </Form.Item>
       );
     }
@@ -364,10 +451,14 @@ export default function ImageSettingsPage() {
                 comfyui_max_poll_seconds: String(values.comfyui_max_poll_seconds ?? ''),
                 comfyui_workflow_json: String(values.comfyui_workflow_json ?? ''),
                 ocr_timeout_sec: String(values.ocr_timeout_sec ?? ''),
+                ocr_fallback_to_vision: 'false',
                 ai_inpaint_comfyui_workflow_json: String(values.ai_inpaint_comfyui_workflow_json ?? ''),
+                ocr_batch_concurrency: String(values.ocr_batch_concurrency ?? ''),
+                ocr_request_interval_ms: String(values.ocr_request_interval_ms ?? ''),
+                ocr_max_retries: String(values.ocr_max_retries ?? ''),
               };
               await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
-              message.success('已保存');
+              message.success('已保存。敏感密钥已加密保存，页面不会回显明文。');
               await load();
             } catch (e: unknown) {
               message.error((e as Error)?.message || '保存失败');
@@ -389,39 +480,322 @@ export default function ImageSettingsPage() {
             OCR 配置（用于图片文字翻译）
           </Typography.Title>
           <Row gutter={16}>
-            <Col span={12}>{renderField('ocr_provider')}</Col>
             <Col span={12}>
               <Form.Item
-                noStyle
-                shouldUpdate={(prevValues, currentValues) => prevValues.ocr_provider !== currentValues.ocr_provider}
+                label={ALL_IMAGE_FIELD_SPECS.ocr_provider.label}
+                name="ocr_provider"
+                extra="OCR 主要用于图片文字翻译、图片中文字识别和翻译后结果校验"
+                rules={[{ required: true, message: '请选择 OCR 服务' }]}
               >
-                {({ getFieldValue }) => {
-                  const ocrProvider = getFieldValue('ocr_provider');
-                  return ocrProvider !== 'ai_vision' ? renderField('ocr_base_url') : null;
-                }}
+                <Select options={OCR_PROVIDER_OPTIONS} />
               </Form.Item>
             </Col>
           </Row>
+          {ocrProvider === 'ai_vision' ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="使用当前 AI 设置中的视觉模型识别图片文字"
+              description="无需填写 OCR 服务地址。请确保「设置 → AI 设置」里配置的是支持图片输入的视觉模型，例如 qwen3-vl-plus、gpt-4o-mini 等。"
+            />
+          ) : null}
+          {ocrProvider === 'paddleocr' ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="PaddleOCR 使用本地或内网服务"
+              description="请填写可由后端访问的服务地址，例如 http://127.0.0.1:xxxx。开启失败自动降级后，PaddleOCR 不可用时图片文字翻译会使用 AI 视觉 OCR 兜底。"
+            />
+          ) : null}
+          {ocrProvider === 'aliyun' ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="阿里云 OCR 适合国内生产环境"
+              description="请在阿里云控制台开通 OCR 服务并创建 AccessKeyId / AccessKeySecret。"
+            />
+          ) : null}
+          {ocrProvider === 'tencent' ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="腾讯云 OCR 适合国内生产环境"
+              description="请先在腾讯云控制台开通文字识别 OCR 服务，并创建 SecretId / SecretKey。"
+            />
+          ) : null}
           <Form.Item
             noStyle
             shouldUpdate={(prevValues, currentValues) => prevValues.ocr_provider !== currentValues.ocr_provider}
           >
             {({ getFieldValue }) => {
-              const ocrProvider = getFieldValue('ocr_provider');
-              if (ocrProvider === 'ai_vision' || ocrProvider === 'paddleocr') return null;
+              const selectedOCRProvider = getFieldValue('ocr_provider');
+              if (selectedOCRProvider === 'paddleocr') {
+                return (
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        label={ALL_IMAGE_FIELD_SPECS.ocr_paddleocr_service_url.label}
+                        name="ocr_paddleocr_service_url"
+                        extra={ALL_IMAGE_FIELD_SPECS.ocr_paddleocr_service_url.extra}
+                        rules={[{ required: true, message: '请填写 PaddleOCR 服务地址' }]}
+                      >
+                        <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_paddleocr_service_url.placeholder} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                );
+              }
+              if (selectedOCRProvider === 'aliyun') {
+                return (
+                  <>
+                    <Row gutter={16}>
+                      <Col span={12}>{renderField('ocr_aliyun_endpoint')}</Col>
+                      <Col span={12}>{renderField('ocr_aliyun_region')}</Col>
+                      <Col span={12}>{renderField('ocr_aliyun_api_name')}</Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label={ALL_IMAGE_FIELD_SPECS.ocr_aliyun_access_key_id.label}
+                          name="ocr_aliyun_access_key_id"
+                          extra={
+                            savedEncryptedKeys.has('ocr_aliyun_access_key_id')
+                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              : undefined
+                          }
+                          rules={
+                            savedEncryptedKeys.has('ocr_aliyun_access_key_id')
+                              ? []
+                              : [{ required: true, message: '请填写阿里云 AccessKeyId' }]
+                          }
+                        >
+                          <Input.Password
+                            placeholder={
+                              savedEncryptedKeys.has('ocr_aliyun_access_key_id')
+                                ? '已保存，留空不修改；填写新 AccessKeyId 才会覆盖'
+                                : '填写 AccessKeyId 后保存或直接测试'
+                            }
+                            autoComplete="new-password"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label={ALL_IMAGE_FIELD_SPECS.ocr_aliyun_access_key_secret.label}
+                          name="ocr_aliyun_access_key_secret"
+                          extra={
+                            savedEncryptedKeys.has('ocr_aliyun_access_key_secret')
+                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              : undefined
+                          }
+                          rules={
+                            savedEncryptedKeys.has('ocr_aliyun_access_key_secret')
+                              ? []
+                              : [{ required: true, message: '请填写阿里云 AccessKeySecret' }]
+                          }
+                        >
+                          <Input.Password
+                            placeholder={
+                              savedEncryptedKeys.has('ocr_aliyun_access_key_secret')
+                                ? '已保存，留空不修改；填写新 AccessKeySecret 才会覆盖'
+                                : '填写 AccessKeySecret 后保存或直接测试'
+                            }
+                            autoComplete="new-password"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </>
+                );
+              }
+              if (selectedOCRProvider === 'tencent') {
+                return (
+                  <>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.label}
+                          name="ocr_tencent_endpoint"
+                          rules={[{ required: true, message: '请填写腾讯云 OCR Endpoint' }]}
+                        >
+                          <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.placeholder} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_region.label}
+                          name="ocr_tencent_region"
+                          rules={[{ required: true, message: '请填写腾讯云 OCR Region' }]}
+                        >
+                          <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_tencent_region.placeholder} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_secret_id.label}
+                          name="ocr_tencent_secret_id"
+                          extra={
+                            savedEncryptedKeys.has('ocr_tencent_secret_id')
+                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              : undefined
+                          }
+                          rules={
+                            savedEncryptedKeys.has('ocr_tencent_secret_id')
+                              ? []
+                              : [{ required: true, message: '请填写腾讯云 SecretId' }]
+                          }
+                        >
+                          <Input.Password
+                            placeholder={
+                              savedEncryptedKeys.has('ocr_tencent_secret_id')
+                                ? '已保存，留空不修改；填写新 SecretId 才会覆盖'
+                                : '填写 SecretId 后保存'
+                            }
+                            autoComplete="new-password"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_secret_key.label}
+                          name="ocr_tencent_secret_key"
+                          extra={
+                            savedEncryptedKeys.has('ocr_tencent_secret_key')
+                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              : undefined
+                          }
+                          rules={
+                            savedEncryptedKeys.has('ocr_tencent_secret_key')
+                              ? []
+                              : [{ required: true, message: '请填写腾讯云 SecretKey' }]
+                          }
+                        >
+                          <Input.Password
+                            placeholder={
+                              savedEncryptedKeys.has('ocr_tencent_secret_key')
+                                ? '已保存，留空不修改；填写新 SecretKey 才会覆盖'
+                                : '填写 SecretKey 后保存'
+                            }
+                            autoComplete="new-password"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_api_name.label}
+                          name="ocr_tencent_api_name"
+                          rules={[{ required: true, message: '请选择腾讯云 OCR 接口类型' }]}
+                        >
+                          <Select options={TENCENT_OCR_API_OPTIONS} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </>
+                );
+              }
               return (
-                <Row gutter={16}>
-                  <Col span={12}>{renderField('ocr_api_key')}</Col>
-                  <Col span={12}>{renderField('ocr_secret')}</Col>
-                </Row>
+                null
               );
             }}
           </Form.Item>
           <Row gutter={16}>
             <Col span={8}>{renderField('ocr_timeout_sec')}</Col>
             <Col span={8}>{renderField('ocr_min_confidence')}</Col>
-            <Col span={8}>{renderField('ocr_fallback_to_vision')}</Col>
+            <Col span={8} style={{ display: 'none' }}>
+              <Form.Item
+                label={ALL_IMAGE_FIELD_SPECS.ocr_fallback_to_vision.label}
+                name="ocr_fallback_to_vision"
+                extra="生产模式不使用 OCR 降级；保留该字段仅用于历史兼容"
+              >
+                <Select
+                  options={[
+                    { label: '开启', value: 'true' },
+                    { label: '关闭', value: 'false' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
           </Row>
+          <Row gutter={16}>
+            <Col span={8}>{renderField('ocr_batch_concurrency')}</Col>
+            <Col span={8}>{renderField('ocr_request_interval_ms')}</Col>
+            <Col span={8}>{renderField('ocr_max_retries')}</Col>
+          </Row>
+          {ocrProvider && ocrProvider !== 'ai_vision' ? (
+            <Form.Item style={{ marginTop: -8 }}>
+              <Button
+                loading={ocrTesting}
+                onClick={async () => {
+                  setOcrTesting(true);
+                  try {
+                    const values = await form.validateFields([
+                      'ocr_provider',
+                      'ocr_base_url',
+                      'ocr_api_key',
+                      'ocr_secret',
+                      'ocr_paddleocr_service_url',
+                      'ocr_aliyun_endpoint',
+                      'ocr_aliyun_region',
+                      'ocr_aliyun_api_name',
+                      'ocr_aliyun_access_key_id',
+                      'ocr_aliyun_access_key_secret',
+                      'ocr_tencent_endpoint',
+                      'ocr_tencent_region',
+                      'ocr_tencent_api_name',
+                      'ocr_tencent_secret_id',
+                      'ocr_tencent_secret_key',
+                      'ocr_timeout_sec',
+                      'ocr_min_confidence',
+                      'ocr_fallback_to_vision',
+                      'ocr_batch_concurrency',
+                      'ocr_request_interval_ms',
+                      'ocr_max_retries',
+                    ]);
+                    const selectedProvider = String(values.ocr_provider ?? '').trim();
+                    if (selectedProvider === 'aliyun') {
+                      if (!currentOrSaved(values, 'ocr_aliyun_access_key_id', savedEncryptedKeys)) {
+                        message.error('请先填写阿里云 AccessKeyId，或保存后再测试 OCR。');
+                        return;
+                      }
+                      if (!currentOrSaved(values, 'ocr_aliyun_access_key_secret', savedEncryptedKeys)) {
+                        message.error('请先填写阿里云 AccessKeySecret，或保存后再测试 OCR。');
+                        return;
+                      }
+                    }
+                    if (selectedProvider === 'tencent') {
+                      if (!currentOrSaved(values, 'ocr_tencent_secret_id', savedEncryptedKeys)) {
+                        message.error('请先填写腾讯云 SecretId，或保存后再测试 OCR。');
+                        return;
+                      }
+                      if (!currentOrSaved(values, 'ocr_tencent_secret_key', savedEncryptedKeys)) {
+                        message.error('请先填写腾讯云 SecretKey，或保存后再测试 OCR。');
+                        return;
+                      }
+                    }
+                    const res = await testOCRConnection({
+                      provider: values.ocr_provider || undefined,
+                      settings: buildOCRTestSettingsPayload(values),
+                    });
+                    const latency = res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
+                    const blocks = res.blocks !== undefined ? `，识别到 ${res.blocks} 个文字块` : '';
+                    const avg =
+                      res.averageConfidence !== undefined
+                        ? `，平均置信度 ${(res.averageConfidence * 100).toFixed(1)}%`
+                        : '';
+                    message.success(`${res.message || '当前 OCR 服务可用'}${blocks}${avg}${latency}`);
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || 'OCR 配置测试失败');
+                  } finally {
+                    setOcrTesting(false);
+                  }
+                }}
+              >
+                真实测试 OCR 调用
+              </Button>
+            </Form.Item>
+          ) : null}
 
           <Typography.Title level={5} style={{ marginTop: 32, marginBottom: 16 }}>
             局部擦除配置（用于图片文字翻译）
@@ -472,7 +846,7 @@ export default function ImageSettingsPage() {
                     });
                     const latency = res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
                     if (res.ok) {
-                      message.success(`${res.message || '配置检查通过'}${latency}`);
+                      message.success(`${res.message || '图片服务配置检查通过'}${latency}`);
                     } else {
                       message.warning(`${res.message || '配置不完整'}${latency}`);
                     }
@@ -483,7 +857,7 @@ export default function ImageSettingsPage() {
                   }
                 }}
               >
-                测试配置
+                检查图片服务配置
               </Button>
             </Space>
           </Form.Item>

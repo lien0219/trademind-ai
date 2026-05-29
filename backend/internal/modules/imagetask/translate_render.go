@@ -256,15 +256,35 @@ func (s *Service) finalizeTranslateSuccess(
 		quality.Warnings = appendUniqueCodeWarning(quality.Warnings, w)
 	}
 	ocrSummary := map[string]any{
-		"detectedLanguage": detectedLang,
-		"textBlocksCount":  len(ocr.Blocks),
-		"blocks":           ocr.Blocks,
+		"provider":              ocr.Provider,
+		"apiName":               ocr.APIName,
+		"configuredOcrProvider": ocr.ConfiguredProvider,
+		"actualOcrProvider":     firstNonEmptyString(ocr.ActualProvider, ocr.Provider),
+		"ocrFallbackUsed":       ocr.Fallback,
+		"ocrFallbackReason":     ocr.FallbackReason,
+		"ocrErrorCode":          ocr.FallbackErrorCode,
+		"fallback":              ocr.Fallback,
+		"detectedLanguage":      detectedLang,
+		"textBlocksCount":       len(ocr.Blocks),
+		"ocrBlocksCount":        len(ocr.Blocks),
+		"averageConfidence":     ocr.AverageConfidence,
+		"ocrAverageConfidence":  ocr.AverageConfidence,
+		"filteredBlocksCount":   ocr.FilteredBlocksCount,
+		"errorMessage":          ocr.ErrorMessage,
+		"blocks":                ocr.Blocks,
 	}
 	outObj := map[string]any{
 		"resultUrl":               finalURL,
 		"storageKey":              storageKey,
 		"provider":                task.Provider,
 		"taskType":                task.TaskType,
+		"configuredOcrProvider":   ocr.ConfiguredProvider,
+		"actualOcrProvider":       firstNonEmptyString(ocr.ActualProvider, ocr.Provider),
+		"ocrFallbackUsed":         ocr.Fallback,
+		"ocrFallbackReason":       ocr.FallbackReason,
+		"ocrErrorCode":            ocr.FallbackErrorCode,
+		"ocrBlocksCount":          len(ocr.Blocks),
+		"ocrAverageConfidence":    ocr.AverageConfidence,
 		"sourceLanguage":          sourceLang,
 		"targetLanguage":          targetLang,
 		"renderMode":              renderOpts.RenderMode,
@@ -291,6 +311,8 @@ func (s *Service) finalizeTranslateSuccess(
 	status := StatusSuccess
 	if !verifyMeta.TargetTextDetected {
 		status = StatusFailedValidation
+	} else if hasSevereTranslateQualityWarning(quality.Warnings, renderQuality.Warnings) {
+		status = StatusLowQuality
 	} else if renderQuality.CommercialUsabilityScore > 0 && renderQuality.CommercialUsabilityScore < 60 {
 		status = StatusLowQuality
 	} else if len(quality.Warnings) > 0 || verifyMeta.SourceTextMayRemain || !renderQuality.Passed {
@@ -298,6 +320,18 @@ func (s *Service) finalizeTranslateSuccess(
 	}
 	scoreJSON, _ := json.Marshal(meta)
 	return s.finalizeTaskSuccessWithStatus(ctx, task, finalURL, finalFID, storageKey, outObj, scoreJSON, false, status)
+}
+
+func hasSevereTranslateQualityWarning(groups ...[]string) bool {
+	for _, warnings := range groups {
+		for _, w := range warnings {
+			switch w {
+			case verifyWarningSourceTextRemain, layoutWarningPatchVisible, "erase_area_too_large":
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func layoutSummaryEraseMode(opts translateRenderOptions, res *imagerender.Result) string {

@@ -173,6 +173,16 @@ func translateRenderAttempts(blocks []imagerender.TextBlock, opts imagerender.Op
 		Options: opts,
 		Modes:   []string{"precise_mask", "opencv_inpaint"},
 	})
+	expanded := cloneImageRenderBlocks(blocks)
+	for i := range expanded {
+		expanded[i].ErasePadding = maxInt(expanded[i].ErasePadding+2, int(float64(expanded[i].ErasePadding)*1.10))
+	}
+	out = append(out, translateRenderAttempt{
+		Name:    "expanded_erase_bbox",
+		Blocks:  expanded,
+		Options: opts,
+		Modes:   []string{"opencv_inpaint", "background_sample"},
+	})
 	compact := cloneImageRenderBlocks(blocks)
 	for i := range compact {
 		if compact[i].FontSize > 10 {

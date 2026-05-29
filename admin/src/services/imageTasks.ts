@@ -366,7 +366,7 @@ export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
 
 /** User-facing hint: OCR/translate uses AI settings; production path uses deterministic render. */
 export const TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT =
-  '文字识别与翻译走「设置 → AI 设置」里的大模型（需支持视觉识图）；默认使用「AI 擦除 + 程序排版」将译文确定性绘制到图片上，不依赖图片模型写字。';
+  '图片文字翻译必须先在「设置 → 图片 AI 设置」配置并测试 OCR 服务；系统不会自动切换 OCR。翻译走「设置 → AI 设置」里的文本模型，默认用程序排版将译文确定性绘制到图片上。';
 
 export type TranslateRenderMode = 'hybrid' | 'deterministic' | 'ai_edit';
 
@@ -456,8 +456,21 @@ export type TranslateTaskOutput = {
   targetLanguage?: string;
   renderMode?: string;
   ocr?: {
+    provider?: string;
+    apiName?: string;
+    configuredOcrProvider?: string;
+    actualOcrProvider?: string;
+    fallback?: boolean;
+    ocrFallbackUsed?: boolean;
+    ocrFallbackReason?: string;
+    ocrErrorCode?: string;
+    averageConfidence?: number;
+    ocrAverageConfidence?: number;
+    filteredBlocksCount?: number;
+    errorMessage?: string;
     detectedLanguage?: string;
     textBlocksCount?: number;
+    ocrBlocksCount?: number;
     blocks?: Array<{
       id?: string;
       text?: string;
@@ -472,6 +485,13 @@ export type TranslateTaskOutput = {
       translatedLines?: string[];
     }>;
   };
+  configuredOcrProvider?: string;
+  actualOcrProvider?: string;
+  ocrFallbackUsed?: boolean;
+  ocrFallbackReason?: string;
+  ocrErrorCode?: string;
+  ocrBlocksCount?: number;
+  ocrAverageConfidence?: number;
   translate?: {
     sourceLanguage?: string;
     targetLanguage?: string;

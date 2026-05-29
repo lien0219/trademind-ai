@@ -79,6 +79,18 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   );
 }
 
+function ocrProviderLabel(provider?: string): string {
+  const p = provider?.trim();
+  if (!p) return '—';
+  const map: Record<string, string> = {
+    ai_vision: 'AI 视觉 OCR',
+    paddleocr: '本地 PaddleOCR',
+    aliyun: '阿里云 OCR',
+    tencent: '腾讯云 OCR',
+  };
+  return map[p] ?? p;
+}
+
 function TranslateResultPanel({ output }: { output: unknown }) {
   const parsed = parseTranslateTaskOutput(output);
   if (!parsed) return null;
@@ -90,6 +102,18 @@ function TranslateResultPanel({ output }: { output: unknown }) {
   const qualityLevel = translateRenderQualityLevel(parsed);
   const warnings = translateTaskWarnings(parsed);
   const hasOverflow = (layout?.overflowBlocks ?? 0) > 0;
+  const ocrInfo = parsed.ocr;
+  const configuredOcr = parsed.configuredOcrProvider ?? ocrInfo?.configuredOcrProvider;
+  const actualOcr = parsed.actualOcrProvider ?? ocrInfo?.actualOcrProvider ?? ocrInfo?.provider;
+  const fallbackUsed = parsed.ocrFallbackUsed ?? ocrInfo?.ocrFallbackUsed ?? ocrInfo?.fallback;
+  const fallbackReason = parsed.ocrFallbackReason ?? ocrInfo?.ocrFallbackReason ?? ocrInfo?.errorMessage;
+  const ocrErrorCode = parsed.ocrErrorCode ?? ocrInfo?.ocrErrorCode;
+  const ocrBlocksCount =
+    parsed.ocrBlocksCount ?? ocrInfo?.ocrBlocksCount ?? ocrInfo?.textBlocksCount ?? blocks.length;
+  const ocrAverageConfidence = parsed.ocrAverageConfidence ?? ocrInfo?.ocrAverageConfidence ?? ocrInfo?.averageConfidence;
+  const hasSourceRemain = verification?.sourceTextMayRemain || warnings.some((w) => w.includes('原文字'));
+  const hasPatchVisible = warnings.some((w) => w.includes('背景修补') || w.includes('补丁'));
+  const eraseAreaTooLarge = warnings.some((w) => w.includes('擦除区域过大')) || (layout?.eraseAreaRatio ?? 0) > 0.12;
   return (
     <Card size="small" title="翻译结果摘要" style={{ marginBottom: 24 }}>
       <Descriptions column={2} size="small">
@@ -138,6 +162,32 @@ function TranslateResultPanel({ output }: { output: unknown }) {
           {layout?.retryStrategies?.length ? layout.retryStrategies.join(' / ') : '—'}
         </Descriptions.Item>
       </Descriptions>
+      <div style={{ marginTop: 12 }}>
+        <Typography.Text strong>OCR 配置与执行</Typography.Text>
+        <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+          <Descriptions.Item label="配置 OCR">{ocrProviderLabel(configuredOcr)}</Descriptions.Item>
+          <Descriptions.Item label="实际 OCR">{ocrProviderLabel(actualOcr)}</Descriptions.Item>
+          <Descriptions.Item label="接口类型">{ocrInfo?.apiName ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="是否降级">{fallbackUsed ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="降级原因">{fallbackReason || '—'}</Descriptions.Item>
+          <Descriptions.Item label="OCR 错误码">{ocrErrorCode || '—'}</Descriptions.Item>
+          <Descriptions.Item label="识别文字数量">{ocrBlocksCount ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="平均置信度">
+            {ocrAverageConfidence != null ? ocrAverageConfidence.toFixed(2) : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="低置信度过滤数量">{ocrInfo?.filteredBlocksCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="OCR 错误">{ocrInfo?.errorMessage || fallbackReason || '—'}</Descriptions.Item>
+        </Descriptions>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <Typography.Text strong>渲染检查</Typography.Text>
+        <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+          <Descriptions.Item label="原文残留">{hasSourceRemain ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="背景补丁">{hasPatchVisible ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="擦除区域过大">{eraseAreaTooLarge ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="是否可商用">{qualityLevel.text}</Descriptions.Item>
+        </Descriptions>
+      </div>
       {renderQuality ? (
         <div style={{ marginTop: 12 }}>
           <Typography.Text strong>质量评分</Typography.Text>

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -33,13 +34,15 @@ func New(opts Options) *Client {
 }
 
 type paddleOCRRequest struct {
-	Images []string `json:"images"`
+	Images      []string `json:"images,omitempty"`
+	ImageBase64 string   `json:"imageBase64,omitempty"`
 }
 
 type paddleOCRResponse struct {
-	Code int                     `json:"code"`
-	Msg  string                  `json:"msg"`
-	Data [][]paddleOCRResultItem `json:"data"`
+	Code   int                     `json:"code"`
+	Msg    string                  `json:"msg"`
+	Data   [][]paddleOCRResultItem `json:"data"`
+	Blocks []paddleOCRResultItem   `json:"blocks"`
 }
 
 type paddleOCRResultItem struct {
@@ -81,16 +84,14 @@ func (c *Client) DetectText(ctx context.Context, req DetectRequest) (*DetectResu
 		return nil, fmt.Errorf("paddleocr requires image base64 data")
 	}
 
-	apiReq := paddleOCRRequest{
-		Images: []string{base64Data},
-	}
+	apiReq := paddleOCRRequest{ImageBase64: base64Data}
 
 	reqBody, err := json.Marshal(apiReq)
 	if err != nil {
 		return nil, fmt.Errorf("paddleocr encode request: %w", err)
 	}
 
-	endpoint := c.opts.BaseURL + "/predict/ocr_system"
+	endpoint := strings.TrimRight(c.opts.BaseURL, "/") + "/ocr/detect"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("paddleocr create request: %w", err)
@@ -125,23 +126,36 @@ func (c *Client) DetectText(ctx context.Context, req DetectRequest) (*DetectResu
 		}
 	}
 
-	if len(apiResp.Data) == 0 {
+	items := apiResp.Blocks
+	if len(items) == 0 && len(apiResp.Data) > 0 {
+		items = apiResp.Data[0]
+	}
+	if len(items) == 0 {
 		return &DetectResult{
 			Blocks: []DetectBlock{},
 		}, nil
 	}
 
-	blocks := make([]DetectBlock, 0, len(apiResp.Data[0]))
-	for i, item := range apiResp.Data[0] {
+	blocks := make([]DetectBlock, 0, len(items))
+	for i, item := range items {
 		// Calculate BBox from TextRegion which is [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
 		if len(item.TextRegion) < 4 {
 			continue
 		}
+		validPoints := make([][]float64, 0, len(item.TextRegion))
+		for _, point := range item.TextRegion {
+			if len(point) >= 2 {
+				validPoints = append(validPoints, point)
+			}
+		}
+		if len(validPoints) < 4 {
+			continue
+		}
 
-		minX, minY := item.TextRegion[0][0], item.TextRegion[0][1]
-		maxX, maxY := item.TextRegion[0][0], item.TextRegion[0][1]
+		minX, minY := validPoints[0][0], validPoints[0][1]
+		maxX, maxY := validPoints[0][0], validPoints[0][1]
 
-		for _, point := range item.TextRegion[1:] {
+		for _, point := range validPoints[1:] {
 			if point[0] < minX {
 				minX = point[0]
 			}
@@ -154,6 +168,9 @@ func (c *Client) DetectText(ctx context.Context, req DetectRequest) (*DetectResu
 			if point[1] > maxY {
 				maxY = point[1]
 			}
+		}
+		if maxX <= minX || maxY <= minY {
+			continue
 		}
 
 		blocks = append(blocks, DetectBlock{

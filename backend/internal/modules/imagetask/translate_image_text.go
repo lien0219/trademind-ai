@@ -38,23 +38,38 @@ type translateTextStyle struct {
 }
 
 type translateTextBlock struct {
-	ID                  string             `json:"id,omitempty"`
-	Text                string             `json:"text"`
-	TranslatedText      string             `json:"translatedText"`
-	ShortTranslatedText string             `json:"shortTranslatedText,omitempty"`
-	DrawText            string             `json:"drawText,omitempty"`
-	Confidence          float64            `json:"confidence"`
-	BBox                translateTextBBox  `json:"bbox"`
-	Style               translateTextStyle `json:"style,omitempty"`
+	ID                  string               `json:"id,omitempty"`
+	Text                string               `json:"text"`
+	TranslatedText      string               `json:"translatedText"`
+	ShortTranslatedText string               `json:"shortTranslatedText,omitempty"`
+	DrawText            string               `json:"drawText,omitempty"`
+	Confidence          float64              `json:"confidence"`
+	BBox                translateTextBBox    `json:"bbox"`
+	Polygon             []translateTextPoint `json:"polygon,omitempty"`
+	Angle               float64              `json:"angle,omitempty"`
+	Direction           string               `json:"direction,omitempty"`
+	Style               translateTextStyle   `json:"style,omitempty"`
+}
+
+type translateTextPoint struct {
+	X int `json:"x"`
+	Y int `json:"y"`
 }
 
 type translateOCRResult struct {
 	Provider            string               `json:"provider,omitempty"`
+	APIName             string               `json:"apiName,omitempty"`
+	ConfiguredProvider  string               `json:"configuredOcrProvider,omitempty"`
+	ActualProvider      string               `json:"actualOcrProvider,omitempty"`
 	Fallback            bool                 `json:"fallback,omitempty"`
+	FallbackReason      string               `json:"ocrFallbackReason,omitempty"`
+	FallbackErrorCode   string               `json:"ocrErrorCode,omitempty"`
 	DetectedLanguage    string               `json:"detectedLanguage"`
 	TextBlocksCount     int                  `json:"textBlocksCount"`
 	SupplementedBlocks  int                  `json:"supplementedBlocks,omitempty"`
 	FilteredBlocksCount int                  `json:"filteredBlocksCount,omitempty"`
+	AverageConfidence   float64              `json:"averageConfidence,omitempty"`
+	ErrorMessage        string               `json:"errorMessage,omitempty"`
 	Blocks              []translateTextBlock `json:"blocks"`
 	Groups              []translateTextGroup `json:"groups,omitempty"`
 }
@@ -389,12 +404,12 @@ func buildTranslateQuality(ocr *translateOCRResult, hints map[string]any, layout
 	}
 
 	if ocr != nil {
-		if ocr.Fallback {
-			q.Warnings = appendUniqueWarning(q.Warnings, "原 OCR 服务不可用，系统已使用备用识别方式完成任务，请检查结果。")
-		} else if ocr.Provider == "ai_vision" {
+		if ocr.Provider == "ai_vision" {
 			q.Warnings = appendUniqueWarning(q.Warnings, "当前使用 AI 视觉识别文字，复杂图片可能需要人工检查。")
 		} else if ocr.Provider == "paddleocr" {
 			q.Warnings = appendUniqueWarning(q.Warnings, "当前使用本地 OCR 识别文字。")
+		} else if ocr.Provider == "tencent" {
+			q.Warnings = appendUniqueWarning(q.Warnings, "当前使用腾讯云 OCR 识别文字。")
 		}
 	}
 
