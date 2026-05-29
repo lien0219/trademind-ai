@@ -46,23 +46,47 @@ const (
 )
 
 func clampRect(x, y, w, h, imgW, imgH int) (int, int, int, int) {
-	if x < 0 {
+	minH := 24
+	minW := 40
+	if w < minW {
+		w = minW
+	}
+	if h < minH {
+		h = minH
+	}
+	if imgW > 0 {
+		if x < 0 {
+			x = 0
+		}
+		if x+w > imgW {
+			if w > imgW {
+				w = imgW
+				x = 0
+			} else {
+				x = imgW - w
+			}
+		}
+		if x < 0 {
+			x = 0
+		}
+	} else if x < 0 {
 		x = 0
 	}
-	if y < 0 {
+	if imgH > 0 {
+		if y < 0 {
+			y = 0
+		}
+		if y+h > imgH {
+			y = imgH - h
+		}
+		if y < 0 {
+			y = 0
+			if h > imgH {
+				h = imgH
+			}
+		}
+	} else if y < 0 {
 		y = 0
-	}
-	if w < 1 {
-		w = 1
-	}
-	if h < 1 {
-		h = 1
-	}
-	if imgW > 0 && x+w > imgW {
-		w = imgW - x
-	}
-	if imgH > 0 && y+h > imgH {
-		h = imgH - y
 	}
 	if w < 1 {
 		w = 1

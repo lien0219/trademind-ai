@@ -37,6 +37,7 @@ func ocrPromptBase(sourceLang, targetLang string, imageW, imageH int) string {
 %s
 Detect each DISTINCT visible text overlay (title lines, small labels, badges with readable text).
 For each block return: original text exactly as shown, faithful translated text in %s, confidence (0-1), bounding box (x, y, width, height).
+Each block must have a distinct y coordinate matching its on-image vertical position (do not return y=0 for every block).
 
 Return ONLY valid JSON:
 {

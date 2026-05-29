@@ -44,6 +44,20 @@ func TestRenderAndEncodeDrawsText(t *testing.T) {
 	}
 }
 
+func TestChooseEraseMode(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			img.Set(x, y, color.RGBA{250, 250, 250, 255})
+		}
+	}
+	rect := image.Rect(20, 20, 80, 60)
+	mode := chooseEraseMode(EraseAuto, img, rect)
+	if mode != EraseBackgroundSample {
+		t.Fatalf("expected background_sample, got %s", mode)
+	}
+}
+
 func TestImagesEqual(t *testing.T) {
 	a := []byte{1, 2, 3}
 	b := []byte{1, 2, 3}
@@ -56,16 +70,33 @@ func TestImagesEqual(t *testing.T) {
 	}
 }
 
-func TestChooseEraseMode(t *testing.T) {
-	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	for y := 0; y < 100; y++ {
-		for x := 0; x < 100; x++ {
-			img.Set(x, y, color.RGBA{250, 250, 250, 255})
+func TestClampRectOutOfBoundsX(t *testing.T) {
+	x, _, w, _ := clampRect(877, 10, 50, 40, 800, 800)
+	if x+w > 800 || x < 0 {
+		t.Fatalf("rect still out of bounds: x=%d w=%d", x, w)
+	}
+	if w < 40 {
+		t.Fatalf("width too small: %d", w)
+	}
+}
+
+func TestRenderAndEncodeOutOfBoundsBBoxDoesNotPanic(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 800, 800))
+	for y := 0; y < 800; y++ {
+		for x := 0; x < 800; x++ {
+			src.Set(x, y, color.RGBA{240, 240, 240, 255})
 		}
 	}
-	rect := image.Rect(20, 20, 80, 60)
-	mode := chooseEraseMode(EraseAuto, img, rect)
-	if mode != EraseBackgroundSample {
-		t.Fatalf("expected background_sample, got %s", mode)
+	raw := make([]byte, len(src.Pix))
+	copy(raw, src.Pix)
+	_, err := RenderAndEncode(src, raw, []TextBlock{{
+		ID:       "block_1",
+		Lines:    []string{"Metal Base"},
+		FontSize: 22,
+		BBox:     BBox{X: 877, Y: 0, Width: 420, Height: 120},
+		Style:    TextStyle{Color: "#111111", Align: "left"},
+	}}, Options{EraseMode: EraseOpenCVInpaint, MaskPadding: 8, TextPadding: 4, LineHeight: 1.15}, "png")
+	if err != nil {
+		t.Fatalf("render should not panic or fail: %v", err)
 	}
 }

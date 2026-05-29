@@ -9,7 +9,8 @@ import (
 
 func chooseEraseMode(mode string, region *image.RGBA, rect image.Rectangle) string {
 	m := trimLower(mode)
-	if m != "" && m != EraseAuto {
+	switch m {
+	case EraseBackgroundSample, EraseBlurFill, EraseOpenCVInpaint, EraseAIInpaint:
 		return m
 	}
 	variance := borderColorVariance(region, rect)
@@ -17,9 +18,9 @@ func chooseEraseMode(mode string, region *image.RGBA, rect image.Rectangle) stri
 	case variance < 120:
 		return EraseBackgroundSample
 	case variance < 800:
-		return EraseBlurFill
+		return EraseBackgroundSample
 	default:
-		return EraseOpenCVInpaint
+		return EraseBackgroundSample
 	}
 }
 
@@ -66,6 +67,10 @@ func borderColorVariance(img *image.RGBA, rect image.Rectangle) float64 {
 }
 
 func eraseRegion(img *image.RGBA, rect image.Rectangle, mode string) {
+	rect = rect.Intersect(img.Bounds())
+	if rect.Empty() {
+		return
+	}
 	switch chooseEraseMode(mode, img, rect) {
 	case EraseBlurFill:
 		blurFillRegion(img, rect)
@@ -77,12 +82,66 @@ func eraseRegion(img *image.RGBA, rect image.Rectangle, mode string) {
 }
 
 func sampleFillRegion(img *image.RGBA, rect image.Rectangle) {
-	fill := averageBorderColor(img, rect)
+	fill := textOverlayBackgroundColor(img, rect)
 	for y := rect.Min.Y; y < rect.Max.Y; y++ {
 		for x := rect.Min.X; x < rect.Max.X; x++ {
 			img.Set(x, y, fill)
 		}
 	}
+}
+
+// textOverlayBackgroundColor estimates the background behind a text overlay by sampling
+// border pixels and preferring lighter (non-text) colors.
+func textOverlayBackgroundColor(img *image.RGBA, rect image.Rectangle) color.RGBA {
+	b := img.Bounds()
+	var lightR, lightG, lightB, lightN float64
+	var allR, allG, allB, allN float64
+	add := func(x, y int) {
+		if x < b.Min.X || y < b.Min.Y || x >= b.Max.X || y >= b.Max.Y {
+			return
+		}
+		c := img.RGBAAt(x, y)
+		lum := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
+		allR += float64(c.R)
+		allG += float64(c.G)
+		allB += float64(c.B)
+		allN++
+		if lum >= 110 {
+			lightR += float64(c.R)
+			lightG += float64(c.G)
+			lightB += float64(c.B)
+			lightN++
+		}
+	}
+	for x := rect.Min.X; x < rect.Max.X; x++ {
+		add(x, rect.Min.Y-1)
+		add(x, rect.Min.Y-2)
+		add(x, rect.Max.Y)
+		add(x, rect.Max.Y+1)
+	}
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		add(rect.Min.X-1, y)
+		add(rect.Min.X-2, y)
+		add(rect.Max.X, y)
+		add(rect.Max.X+1, y)
+	}
+	if lightN > 0 {
+		return color.RGBA{
+			R: uint8(lightR / lightN),
+			G: uint8(lightG / lightN),
+			B: uint8(lightB / lightN),
+			A: 255,
+		}
+	}
+	if allN > 0 {
+		return color.RGBA{
+			R: uint8(allR / allN),
+			G: uint8(allG / allN),
+			B: uint8(allB / allN),
+			A: 255,
+		}
+	}
+	return color.RGBA{240, 240, 240, 255}
 }
 
 func averageBorderColor(img *image.RGBA, rect image.Rectangle) color.RGBA {
@@ -168,12 +227,19 @@ func blurFillRegion(img *image.RGBA, rect image.Rectangle) {
 
 func inpaintRegion(img *image.RGBA, rect image.Rectangle, iterations int) {
 	b := img.Bounds()
+	rect = rect.Intersect(b)
+	if rect.Empty() {
+		return
+	}
 	mask := make([][]bool, b.Dy())
 	for i := range mask {
 		mask[i] = make([]bool, b.Dx())
 	}
 	for y := rect.Min.Y; y < rect.Max.Y; y++ {
 		for x := rect.Min.X; x < rect.Max.X; x++ {
+			if x < b.Min.X || y < b.Min.Y || x >= b.Max.X || y >= b.Max.Y {
+				continue
+			}
 			mask[y-b.Min.Y][x-b.Min.X] = true
 		}
 	}

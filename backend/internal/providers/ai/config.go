@@ -89,6 +89,18 @@ func mergeChatParams(plain map[string]string, req ChatRequest) (temp float64, ma
 	return temp, maxTok
 }
 
+func isLikelyVisionModel(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if m == "" {
+		return false
+	}
+	return strings.Contains(m, "vl") ||
+		strings.Contains(m, "vision") ||
+		strings.Contains(m, "gpt-4") ||
+		strings.Contains(m, "gpt-4o") ||
+		strings.Contains(m, "ocr")
+}
+
 func resolveVisionModel(pname, reqVision, reqModel, configured, plainVision string) string {
 	if m := strings.TrimSpace(reqVision); m != "" {
 		return m
@@ -96,13 +108,14 @@ func resolveVisionModel(pname, reqVision, reqModel, configured, plainVision stri
 	if m := strings.TrimSpace(plainVision); m != "" {
 		return m
 	}
+	configured = strings.TrimSpace(configured)
+	if isLikelyVisionModel(configured) {
+		return configured
+	}
 	switch pname {
 	case "qwen":
 		return "qwen-vl-plus"
 	case "openai", "openai_compatible":
-		if m := strings.TrimSpace(configured); m != "" && strings.Contains(strings.ToLower(m), "gpt-4") {
-			return m
-		}
 		return "gpt-4o-mini"
 	default:
 		if m := strings.TrimSpace(reqModel); m != "" {

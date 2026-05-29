@@ -30,6 +30,9 @@ func (s *Service) loadTranslateImagePayload(ctx context.Context, imageURL string
 	if u == "" {
 		return nil, fmt.Errorf("empty image url")
 	}
+	if strings.HasPrefix(strings.ToLower(u), "data:") {
+		return payloadFromDataURL(u)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -47,10 +50,6 @@ func (s *Service) loadTranslateImagePayload(ctx context.Context, imageURL string
 	if err != nil {
 		return nil, err
 	}
-	w, h := 0, 0
-	if cfg, _, dErr := image.DecodeConfig(bytesReader(data)); dErr == nil {
-		w, h = cfg.Width, cfg.Height
-	}
 	ct := strings.TrimSpace(resp.Header.Get("Content-Type"))
 	if ct == "" {
 		ct = http.DetectContentType(data)
@@ -59,12 +58,67 @@ func (s *Service) loadTranslateImagePayload(ctx context.Context, imageURL string
 		ct = "image/jpeg"
 	}
 	b64 := base64.StdEncoding.EncodeToString(data)
+	return payloadFromImageBytes(data, ct, fmt.Sprintf("data:%s;base64,%s", ct, b64)), nil
+}
+
+func payloadFromDataURL(dataURL string) (*translateImagePayload, error) {
+	dataURL = strings.TrimSpace(dataURL)
+	comma := strings.Index(dataURL, ",")
+	if comma < 0 {
+		return nil, fmt.Errorf("invalid data url")
+	}
+	meta := strings.TrimSpace(dataURL[:comma])
+	payloadPart := strings.TrimSpace(dataURL[comma+1:])
+	if payloadPart == "" {
+		return nil, fmt.Errorf("empty data url payload")
+	}
+
+	var data []byte
+	var err error
+	if strings.Contains(strings.ToLower(meta), ";base64") {
+		data, err = base64.StdEncoding.DecodeString(payloadPart)
+	} else {
+		data = []byte(payloadPart)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("decode data url: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty data url payload")
+	}
+
+	ct := "image/jpeg"
+	if strings.HasPrefix(strings.ToLower(meta), "data:") {
+		rest := meta[5:]
+		if semi := strings.Index(rest, ";"); semi >= 0 {
+			ct = strings.TrimSpace(rest[:semi])
+		} else if rest != "" {
+			ct = strings.TrimSpace(rest)
+		}
+	}
+	if ct == "" || !strings.HasPrefix(strings.ToLower(ct), "image/") {
+		ct = http.DetectContentType(data)
+	}
+	if !strings.HasPrefix(strings.ToLower(ct), "image/") {
+		ct = "image/jpeg"
+	}
+	return payloadFromImageBytes(data, ct, dataURL), nil
+}
+
+func payloadFromImageBytes(data []byte, contentType, dataURL string) *translateImagePayload {
+	w, h := 0, 0
+	if cfg, _, dErr := image.DecodeConfig(bytesReader(data)); dErr == nil {
+		w, h = cfg.Width, cfg.Height
+	}
+	if strings.TrimSpace(dataURL) == "" {
+		dataURL = fmt.Sprintf("data:%s;base64,%s", contentType, base64.StdEncoding.EncodeToString(data))
+	}
 	return &translateImagePayload{
-		DataURL:  fmt.Sprintf("data:%s;base64,%s", ct, b64),
+		DataURL:  dataURL,
 		RawBytes: data,
 		Width:    w,
 		Height:   h,
-	}, nil
+	}
 }
 
 func (s *Service) chatVisionJSON(ctx context.Context, prompt, imageDataURL string, maxTokens int) (string, error) {
@@ -240,37 +294,33 @@ func (s *Service) runOCROnImage(ctx context.Context, imageURL, sourceLang, targe
 		}
 	}
 
-	if ocr == nil || len(ocr.Blocks) == 0 {
-		// Last resort: text-only (may work if model can fetch public URL).
+	if (ocr == nil || len(ocr.Blocks) == 0) && payload != nil && strings.TrimSpace(payload.DataURL) != "" {
 		targetName := langDisplayName(targetLang)
 		srcHint := "auto-detect the source language"
 		if sourceLang != "" && !strings.EqualFold(sourceLang, "auto") {
 			srcHint = fmt.Sprintf("assume source language is %s", langDisplayName(sourceLang))
 		}
-		prompt := fmt.Sprintf(`You are a strict literal OCR engine for ecommerce product images.
-Analyze the product image at this URL: %s
+		retryPrompt := fmt.Sprintf(`You are a strict literal OCR engine for ecommerce product images.
 %s
 %s
 Return ONLY valid JSON with blocks containing text, translatedText in %s, confidence, bbox.
-If no readable text exists, return {"detectedLanguage":"","textBlocksCount":0,"blocks":[]}.`, imageURL, srcHint, ocrStrictRules(), targetName)
-		resp, fErr := s.AIGateway.Chat(ctx, aigate.ChatRequest{
-			Messages:  []aigate.Message{{Role: "user", Content: prompt}},
-			MaxTokens: 2000,
-		})
-		if fErr != nil {
-			if visionErr != nil {
-				return nil, newTranslateErr(errCodeOCRFailed, "文字识别失败，请确认 AI 设置已配置支持视觉的模型（如 qwen-vl-plus 或 gpt-4o-mini）")
+If no readable text exists, return {"detectedLanguage":"","textBlocksCount":0,"blocks":[]}.`, srcHint, ocrStrictRules(), targetName)
+		content, vErr2 := s.chatVisionJSON(ctx, retryPrompt, payload.DataURL, 2500)
+		if vErr2 == nil {
+			if parsed, pErr := parseOCRJSON(strings.TrimSpace(content)); pErr == nil {
+				ocr = parsed
+			} else if strings.TrimSpace(content) != "" {
+				return nil, newTranslateErr(errCodeOCRFailed, "文字识别结果解析失败，请检查 AI 模型是否支持 JSON 输出并重试")
 			}
-			return nil, newTranslateErr(errCodeOCRFailed, "文字识别失败，请稍后重试或更换图片")
-		}
-		var parseErr error
-		ocr, parseErr = parseOCRJSON(strings.TrimSpace(resp.Content))
-		if parseErr != nil {
-			return nil, newTranslateErr(errCodeOCRFailed, "文字识别结果解析失败，请检查 AI 模型是否支持 JSON 输出并重试")
+		} else if visionErr == nil {
+			visionErr = vErr2
 		}
 	}
 
 	if ocr == nil || len(ocr.Blocks) == 0 {
+		if visionErr != nil {
+			return nil, newTranslateErr(errCodeOCRFailed, "文字识别失败，请确认 AI 设置已配置支持视觉的模型（如 qwen3-vl-plus 或 gpt-4o-mini）")
+		}
 		return nil, newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
 	}
 	return ocr, nil

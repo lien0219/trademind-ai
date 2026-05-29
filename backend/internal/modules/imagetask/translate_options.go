@@ -55,7 +55,7 @@ func parseTranslateRenderOptions(hints map[string]any) translateRenderOptions {
 		opts.TextPadding = 6
 	}
 	if opts.MaskPadding <= 0 {
-		opts.MaskPadding = 8
+		opts.MaskPadding = 12
 	}
 	if opts.OutputFormat == "" {
 		opts.OutputFormat = "webp"
@@ -67,7 +67,7 @@ func effectiveEraseMode(renderOpts translateRenderOptions) string {
 	if renderOpts.RenderMode == RenderModeHybrid {
 		em := renderOpts.EraseMode
 		if em == "" || em == "auto" {
-			return "opencv_inpaint"
+			return "background_sample"
 		}
 		return em
 	}

@@ -9,7 +9,18 @@ import (
 )
 
 func parseOCRJSON(content string) (*translateOCRResult, error) {
-	normalized := aimodelparse.NormalizeJSONContent(content)
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return nil, fmt.Errorf("empty ocr content")
+	}
+	if arr := extractOCRJSONArray(trimmed); arr != "" {
+		var blocks []translateTextBlock
+		if err := json.Unmarshal([]byte(arr), &blocks); err == nil {
+			return finalizeOCRResult(&translateOCRResult{Blocks: blocks}), nil
+		}
+	}
+
+	normalized := aimodelparse.NormalizeJSONContent(trimmed)
 	if normalized == "" {
 		return nil, fmt.Errorf("empty ocr content")
 	}
@@ -20,10 +31,56 @@ func parseOCRJSON(content string) (*translateOCRResult, error) {
 	}
 
 	flex, err := parseOCRFlexible(normalized)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		return finalizeOCRResult(flex), nil
 	}
-	return finalizeOCRResult(flex), nil
+
+	if err := json.Unmarshal([]byte(normalized), &ocr); err == nil {
+		return finalizeOCRResult(&ocr), nil
+	}
+	return nil, err
+}
+
+func extractOCRJSONArray(s string) string {
+	s = strings.TrimSpace(s)
+	if idx := strings.Index(s, "```"); idx >= 0 {
+		s = aimodelparse.NormalizeJSONContent(s)
+	}
+	if !strings.HasPrefix(s, "[") {
+		return ""
+	}
+	depth := 0
+	inStr := false
+	esc := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			if esc {
+				esc = false
+				continue
+			}
+			if c == '\\' {
+				esc = true
+				continue
+			}
+			if c == '"' {
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return s[:i+1]
+			}
+		}
+	}
+	return ""
 }
 
 func finalizeOCRResult(ocr *translateOCRResult) *translateOCRResult {
@@ -64,9 +121,6 @@ func parseOCRFlexible(content string) (*translateOCRResult, error) {
 		if b := parseOCRBlockItem(list); b != nil {
 			out.Blocks = append(out.Blocks, *b)
 		}
-	}
-	if len(out.Blocks) == 0 {
-		return nil, fmt.Errorf("no ocr blocks in response")
 	}
 	out.TextBlocksCount = len(out.Blocks)
 	return out, nil

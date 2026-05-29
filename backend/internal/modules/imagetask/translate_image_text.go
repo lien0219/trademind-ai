@@ -539,6 +539,20 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		return newTranslateErr(errCodeNoTextDetected, "未识别到可翻译文字，请确认图片中包含清晰可见的文字")
 	}
 	assignOCRBlockIDs(ocr.Blocks)
+	imageW, imageH := payload.Width, payload.Height
+	if imageW <= 0 {
+		imageW = intFromAny(hints["imageWidth"])
+		imageH = intFromAny(hints["imageHeight"])
+	}
+	bboxRepaired := false
+	if needsOCRBBoxRepair(ocr.Blocks) {
+		if repaired := s.repairOCRBlockBBoxes(ctx, imgRef, ocr.Blocks, imageW, imageH); len(repaired) > 0 {
+			ocr.Blocks = clampOCRBlockBBoxes(repaired, imageW, imageH)
+			bboxRepaired = true
+		}
+	} else {
+		ocr.Blocks = clampOCRBlockBBoxes(ocr.Blocks, imageW, imageH)
+	}
 	inferBlockStyles(payload, ocr.Blocks)
 
 	s.logTranslateAudit(ctx, task, "ai_image.translate_text.ocr_done", "success",
@@ -553,12 +567,14 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	layoutOpts := parseTranslateLayoutOptions(hints, targetLang)
 	_ = s.simplifyLongTranslations(ctx, ocr.Blocks, targetLang, layoutOpts.AllowTextSimplify)
 
-	imageW, imageH := payload.Width, payload.Height
 	if imageW <= 0 {
 		imageW = intFromAny(hints["imageWidth"])
 		imageH = intFromAny(hints["imageHeight"])
 	}
 	layoutPlans, layoutSummary := computeTranslateLayouts(ocr.Blocks, layoutOpts, imageW, imageH)
+	if bboxRepaired {
+		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningBBoxRepaired)
+	}
 	if ocr.FilteredBlocksCount > 0 {
 		layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, layoutWarningOCRFiltered)
 	}

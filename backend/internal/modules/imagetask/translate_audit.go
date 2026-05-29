@@ -71,11 +71,12 @@ type translateLayoutMeta struct {
 }
 
 type translateVerificationMeta struct {
-	ImageChanged           bool    `json:"imageChanged"`
-	TargetTextDetected     bool    `json:"targetTextDetected"`
-	SourceTextMayRemain    bool    `json:"sourceTextMayRemain"`
-	Confidence             float64 `json:"confidence"`
-	OutputTextVerifyFailed bool    `json:"outputTextVerifyFailed,omitempty"`
+	ImageChanged            bool    `json:"imageChanged"`
+	TargetTextDetected      bool    `json:"targetTextDetected"`
+	SourceTextMayRemain     bool    `json:"sourceTextMayRemain"`
+	Confidence              float64 `json:"confidence"`
+	OutputTextVerifyFailed  bool    `json:"outputTextVerifyFailed,omitempty"`
+	OutputTextVerifySkipped bool    `json:"outputTextVerifySkipped,omitempty"`
 }
 
 func buildRenderBlocks(ocr *translateOCRResult, plans []translateBlockLayoutPlan) []imagerender.TextBlock {

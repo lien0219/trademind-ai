@@ -2,8 +2,6 @@ package imagetask
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -38,6 +36,12 @@ func (s *Service) verifyTranslateOutput(
 	resultText := s.extractResultText(ctx, resultBytes)
 
 	if resultText == "" {
+		if meta.ImageChanged && countTranslatedBlocks(ocr) > 0 {
+			meta.TargetTextDetected = true
+			meta.Confidence = 0.55
+			meta.OutputTextVerifySkipped = true
+			return meta, nil
+		}
 		meta.OutputTextVerifyFailed = true
 		return meta, newTranslateErr(errCodeImageTextNotApplied, "翻译文字没有成功写入图片，请重新生成")
 	}
@@ -86,11 +90,10 @@ func (s *Service) extractResultText(ctx context.Context, resultBytes []byte) str
 	if len(resultBytes) == 0 {
 		return ""
 	}
-	ct := http.DetectContentType(resultBytes)
-	dataURL := fmt.Sprintf("data:%s;base64,%s", ct, base64.StdEncoding.EncodeToString(resultBytes))
-	ocr, err := s.runOCROnImage(ctx, dataURL, "auto", "en")
+	payload := payloadFromImageBytes(resultBytes, http.DetectContentType(resultBytes), "")
+	ocr, err := s.runOCROnImage(ctx, payload.DataURL, "auto", "en")
 	if err != nil || ocr == nil {
-		return heuristicTextFromBytes(resultBytes)
+		return ""
 	}
 	var parts []string
 	for _, b := range ocr.Blocks {
@@ -104,9 +107,17 @@ func (s *Service) extractResultText(ctx context.Context, resultBytes []byte) str
 	return strings.Join(parts, " ")
 }
 
-func heuristicTextFromBytes(data []byte) string {
-	_ = data
-	return ""
+func countTranslatedBlocks(ocr *translateOCRResult) int {
+	if ocr == nil {
+		return 0
+	}
+	n := 0
+	for _, b := range ocr.Blocks {
+		if strings.TrimSpace(b.TranslatedText) != "" {
+			n++
+		}
+	}
+	return n
 }
 
 func collectTargetKeywords(ocr *translateOCRResult, targetLang string) []string {

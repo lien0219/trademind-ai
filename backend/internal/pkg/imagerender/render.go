@@ -46,7 +46,7 @@ func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, op
 		if usedErase == "" {
 			usedErase = chosen
 		}
-		eraseRegion(rgba, rect, eraseMode)
+		eraseRegion(rgba, rect, chosen)
 	}
 	drawn := 0
 	for _, block := range blocks {
