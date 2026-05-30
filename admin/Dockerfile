@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile
 
 RUN pnpm --filter @trademind/admin build
 
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 
 COPY admin/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /workspace/admin/dist /usr/share/nginx/html
