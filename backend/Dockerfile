@@ -1,5 +1,5 @@
 # TradeMind API — multi-stage build (do not COPY .env into the image; inject at runtime).
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 WORKDIR /src
 
