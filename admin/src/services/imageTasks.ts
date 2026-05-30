@@ -354,7 +354,9 @@ export type TranslateImageTextInputOpts = {
   maxLines?: number;
   textPadding?: number;
   maskPadding?: number;
-  layoutTemplate?: 'preserve_original' | 'ecommerce_clean' | 'title_badge' | 'auto';
+  layoutTemplate?: 'preserve_original' | 'ecommerce_clean' | 'title_badge' | 'product_relayout' | 'auto';
+  compactTranslation?: boolean;
+  allowTextOverflow?: boolean;
   styleMode?: 'preserve' | 'recreate';
 };
 
@@ -366,12 +368,19 @@ export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
 
 /** User-facing hint: OCR/translate uses AI settings; production path uses deterministic render. */
 export const TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT =
-  '图片文字翻译必须先在「设置 → 图片 AI 设置」配置并测试 OCR 服务；系统不会自动切换 OCR。翻译走「设置 → AI 设置」里的文本模型，默认用程序排版将译文确定性绘制到图片上。';
+  '图片文字翻译必须先在「设置 → 图片 AI 设置」配置并测试 OCR 服务；系统不会自动切换 OCR。翻译走「设置 → AI 设置」里的文本模型，默认使用纯文字替换（先擦除原字再绘制译文，不添加白底/气泡）。';
 
-export type TranslateRenderMode = 'hybrid' | 'deterministic' | 'ai_edit';
+export type TranslateRenderMode =
+  | 'pure_text_replace'
+  | 'remove_text_then_render'
+  | 'hybrid'
+  | 'deterministic'
+  | 'ai_edit';
 
 export const TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS = [
-  { label: 'AI 擦除 + 程序排版（推荐）', value: 'hybrid' as const },
+  { label: '纯文字替换（推荐）', value: 'pure_text_replace' as const },
+  { label: '去字后绘制', value: 'remove_text_then_render' as const },
+  { label: 'AI 擦除 + 程序排版', value: 'hybrid' as const },
   { label: '程序排版渲染', value: 'deterministic' as const },
   { label: 'AI 编辑实验模式', value: 'ai_edit' as const },
 ];
@@ -387,9 +396,9 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
   const input: Record<string, unknown> = {
     sourceLanguage: opts.sourceLanguage ?? 'auto',
     targetLanguage: opts.targetLanguage ?? 'en',
-    renderMode: opts.renderMode ?? 'hybrid',
+    renderMode: opts.renderMode ?? 'pure_text_replace',
     ocrProvider: opts.ocrProvider ?? undefined,
-    eraseMode: opts.eraseMode ?? undefined,
+    eraseMode: opts.eraseMode ?? 'text_pixel_mask',
     advancedJson: opts.advancedJson ?? undefined,
     verifyOutputText: opts.verifyOutputText !== false,
     preserveLayout: opts.preserveLayout !== false,
@@ -403,15 +412,19 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
     autoLayout: opts.autoLayout !== false,
     autoWrap: opts.autoWrap !== false,
     autoFontSize: opts.autoFontSize !== false,
-    allowTextBoxExpand: opts.allowTextBoxExpand !== false,
+    allowTextBoxExpand: opts.allowTextBoxExpand === true,
     allowTextSimplify: opts.allowTextSimplify !== false,
+    compactTranslation: opts.compactTranslation !== false,
+    allowTextOverflow: opts.allowTextOverflow === true,
     minFontSize: opts.minFontSize ?? 14,
     maxFontSize: opts.maxFontSize ?? 52,
     lineHeightRatio: opts.lineHeightRatio ?? 1.15,
     maxLines: opts.maxLines ?? 3,
     textPadding: opts.textPadding ?? 6,
-    maskPadding: opts.maskPadding ?? 8,
-    layoutTemplate: opts.layoutTemplate ?? 'auto',
+    maskPadding: opts.maskPadding ?? 2,
+    layoutTemplate: opts.layoutTemplate ?? 'preserve_original',
+    compactTranslation: opts.compactTranslation !== false,
+    allowTextOverflow: opts.allowTextOverflow === true,
     styleMode: opts.styleMode ?? undefined,
   };
   if (layoutMode === 'preserve') {
@@ -562,6 +575,27 @@ export type TranslateTaskOutput = {
   backgroundPatchScore?: number;
   overlapScore?: number;
   finalQualityStatus?: string;
+  qualityAutoRetried?: boolean;
+  debugOriginalUrl?: string;
+  debugMaskUrl?: string;
+  debugErasedUrl?: string;
+  debugFinalUrl?: string;
+  pureTextReplaceMode?: boolean;
+  validationMode?: string;
+  pureTextValidation?: {
+    validationMode?: string;
+    sourceTextRemainDetected?: boolean;
+    targetTextDetected?: boolean;
+    textOverflowCount?: number;
+    productOcclusionRatio?: number;
+    extraBackgroundLayerDetected?: boolean;
+    translatedTextOverlapOldText?: boolean;
+    hardFailures?: string[];
+    softWarnings?: string[];
+    overallScore?: number;
+    hardPassed?: boolean;
+  };
+  validationFailureReasons?: string[];
   badgeShapeAbnormal?: boolean;
   textOverlap?: boolean;
 };
@@ -590,7 +624,24 @@ const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
   erase_failed: '原文擦除未通过校验。',
   layout_unbalanced: '版面不均衡，译文位置或面积异常。',
   product_subject_overlap: '译文可能遮挡商品主体。',
+  pure_text_source_not_erased: '旧文字未删除干净，请重新生成。',
+  pure_text_extra_background: '检测到额外背景层（白底/气泡/标签补片），纯文字替换模式不允许。',
+  pure_text_overlap: '英文译文与未擦除的中文发生重叠，请重新生成。',
+  pure_text_font_size_off: '字号与原图略有偏差，建议人工检查。',
 };
+
+const PURE_TEXT_HARD_FAILURE_LABELS: Record<string, string> = {
+  source_text_remain: '原中文残留',
+  target_text_missing: '新英文未渲染',
+  text_overflow: '英文溢出',
+  product_occlusion: '遮挡商品主体',
+  extra_background_layer: '出现额外背景层',
+  translated_overlap_old_text: '英文与旧中文重叠',
+};
+
+export function pureTextHardFailureLabel(code: string): string {
+  return PURE_TEXT_HARD_FAILURE_LABELS[code?.trim() || ''] ?? code;
+}
 
 /** Map machine layout warning codes to user-friendly Chinese labels. */
 export function translateLayoutWarningLabel(code: string): string {
@@ -630,16 +681,36 @@ export function translateRenderQualityLevel(
   recommendMain: boolean;
 } {
   if (taskStatus === 'low_quality' || taskStatus === 'failed_render_validation') {
-    return { text: '低质量（不建议商用）', color: 'error', recommendMain: false };
+    return { text: '失败：质量不达标', color: 'error', recommendMain: false };
+  }
+  if (taskStatus === 'success_with_review') {
+    return { text: '结果可用，建议人工检查排版', color: 'warning', recommendMain: true };
+  }
+  if (taskStatus === 'need_manual_review') {
+    return { text: '需人工检查', color: 'warning', recommendMain: false };
   }
   const rq = output?.renderQuality;
   const score = rq?.commercialUsabilityScore ?? 0;
+  if (
+    output?.pureTextReplaceMode ||
+    output?.renderMode === 'pure_text_replace' ||
+    output?.validationMode === 'validatePureTextReplace'
+  ) {
+    const pv = output?.pureTextValidation;
+    if (pv?.hardPassed === false && (output?.validationFailureReasons?.length || pv?.hardFailures?.length)) {
+      return { text: '失败：渲染校验未通过', color: 'error', recommendMain: false };
+    }
+    if (taskStatus === 'success_with_review' || (pv?.hardPassed && (pv?.overallScore ?? score) >= 60 && (pv?.overallScore ?? score) < 75)) {
+      return { text: '结果可用，建议人工检查排版', color: 'warning', recommendMain: true };
+    }
+  }
   if (
     output?.verification?.sourceTextMayRemain ||
     output?.badgeShapeAbnormal ||
     (output?.abnormalBadgeCount ?? 0) > 0 ||
     (output?.overlapScore ?? 0) > 0.01 ||
     output?.finalQualityStatus === 'low_quality' ||
+    output?.resultUnavailable === true ||
     (output?.overflowTextCount ?? 0) > 0
   ) {
     return { text: '低质量（不建议商用）', color: 'error', recommendMain: false };
@@ -659,6 +730,14 @@ export function parseTranslateTaskOutput(output: unknown): TranslateTaskOutput |
 }
 
 export function isImageTaskSuccessStatus(status: string): boolean {
-  return status === 'success' || status === 'success_with_warnings' || status === 'low_quality';
+  return status === 'success' || status === 'success_with_warnings' || status === 'success_with_review';
+}
+
+export function isImageTaskUsableForProduct(status: string): boolean {
+  return status === 'success' || status === 'success_with_warnings';
+}
+
+export function isImageTaskReviewBeforeProduct(status: string): boolean {
+  return status === 'success_with_review';
 }
 

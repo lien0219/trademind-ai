@@ -83,9 +83,14 @@ type translateVerificationMeta struct {
 	ImageChanged            bool    `json:"imageChanged"`
 	TargetTextDetected      bool    `json:"targetTextDetected"`
 	SourceTextMayRemain     bool    `json:"sourceTextMayRemain"`
+	TranslatedTextOverflow  bool    `json:"translatedTextOverflow,omitempty"`
+	TextOverlapDetected     bool    `json:"textOverlapDetected,omitempty"`
+	ProductOverlapDetected  bool    `json:"productOverlapDetected,omitempty"`
+	CommercialUsabilityLow  bool    `json:"commercialUsabilityLow,omitempty"`
 	Confidence              float64 `json:"confidence"`
 	OutputTextVerifyFailed  bool    `json:"outputTextVerifyFailed,omitempty"`
 	OutputTextVerifySkipped bool    `json:"outputTextVerifySkipped,omitempty"`
+	SourceTextRemainNearBox bool    `json:"sourceTextRemainNearBox,omitempty"`
 }
 
 func buildRenderBlocks(ocr *translateOCRResult, plans []translateBlockLayoutPlan) []imagerender.TextBlock {
@@ -141,9 +146,10 @@ func buildImageRenderBlocks(blocks []translateRenderBlock) []imagerender.TextBlo
 			align = "left"
 		}
 		out = append(out, imagerender.TextBlock{
-			ID:       b.ID,
-			Lines:    append([]string(nil), b.Lines...),
-			FontSize: b.FontSize,
+			ID:         b.ID,
+			BlockClass: b.BlockClass,
+			Lines:      append([]string(nil), b.Lines...),
+			FontSize:   b.FontSize,
 			BBox: imagerender.BBox{
 				X: b.BBox.X, Y: b.BBox.Y,
 				Width: b.BBox.Width, Height: b.BBox.Height,
@@ -162,6 +168,8 @@ func buildImageRenderBlocks(blocks []translateRenderBlock) []imagerender.TextBlo
 			Align:        align,
 			Bold:         strings.EqualFold(b.Style.FontWeight, "bold"),
 			ErasePadding: b.ErasePadding,
+			MaskDilate:   b.MaskDilate,
+			TextPolarity: b.TextPolarity,
 		})
 	}
 	return out

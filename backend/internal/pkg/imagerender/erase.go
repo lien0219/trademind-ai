@@ -1,10 +1,17 @@
 package imagerender
 
 import (
+	"errors"
 	"image"
 	"image/color"
 	"math"
 	"strings"
+)
+
+var (
+	ErrEraseMaskTooLarge      = errors.New("imagerender: erase mask area exceeds limit")
+	ErrEraseMaskEmpty         = errors.New("imagerender: text pixel mask empty")
+	ErrEraseMaskGenerationBad = errors.New("imagerender: text pixel mask generation failed")
 )
 
 type EraseStats struct {
@@ -18,13 +25,13 @@ type EraseStats struct {
 func chooseEraseMode(mode string, region *image.RGBA, rect image.Rectangle) string {
 	m := trimLower(mode)
 	switch m {
-	case ErasePreciseMask, EraseBackgroundSample, EraseBlurFill, EraseOpenCVInpaint, EraseAIInpaint:
+	case EraseTextPixelMask, ErasePreciseMask, EraseBackgroundSample, EraseBlurFill, EraseOpenCVInpaint, EraseAIInpaint:
 		return m
 	}
 	variance := borderColorVariance(region, rect)
 	switch {
 	case variance < 1600:
-		return ErasePreciseMask
+		return EraseBackgroundSample
 	default:
 		return EraseOpenCVInpaint
 	}
@@ -78,13 +85,15 @@ func eraseRegion(img *image.RGBA, rect image.Rectangle, mode string) EraseStats 
 		return EraseStats{}
 	}
 	chosen := chooseEraseMode(mode, img, rect)
-	switch chooseEraseMode(mode, img, rect) {
+	switch chosen {
+	case EraseTextPixelMask:
+		return textPixelMaskEraseRegion(img, rect, TextBlock{MaskDilate: 1}, false)
 	case ErasePreciseMask:
 		return preciseMaskEraseRegion(img, rect)
 	case EraseBlurFill:
 		blurFillRegion(img, rect)
 	case EraseOpenCVInpaint:
-		inpaintRegion(img, rect, 6)
+		inpaintRegion(img, rect, 3)
 	default:
 		sampleFillRegion(img, rect)
 	}
@@ -95,6 +104,492 @@ func eraseRegion(img *image.RGBA, rect image.Rectangle, mode string) EraseStats 
 		stats.FlatFillRatio = 1
 	}
 	return stats
+}
+
+func eraseTextBlockPixelMask(img *image.RGBA, block TextBlock, imageArea int) (EraseStats, error) {
+	stats, _, err := eraseTextBlockPixelMaskWithMask(img, block, imageArea)
+	return stats, err
+}
+
+func perBlockEraseImageLimit(regionArea, imageArea int) float64 {
+	if imageArea <= 0 {
+		return MaxEraseMaskRatioPerBlock
+	}
+	regionFrac := float64(regionArea) / float64(imageArea)
+	adaptive := regionFrac * MaxEraseMaskRegionCoverage
+	if adaptive > MaxEraseMaskRatioPerBlockCap {
+		adaptive = MaxEraseMaskRatioPerBlockCap
+	}
+	if adaptive > MaxEraseMaskRatioPerBlock {
+		return adaptive
+	}
+	return MaxEraseMaskRatioPerBlock
+}
+
+func isCapsuleBlockClass(class string) bool {
+	switch strings.TrimSpace(strings.ToLower(class)) {
+	case "subtitle", "badge", "color_badge", "pill":
+		return true
+	default:
+		return false
+	}
+}
+
+func textPixelMaskEraseRegion(img *image.RGBA, rect image.Rectangle, block TextBlock, _ bool) EraseStats {
+	rect = rect.Intersect(img.Bounds())
+	if rect.Empty() {
+		return EraseStats{}
+	}
+	block.EraseBBox = BBox{X: rect.Min.X, Y: rect.Min.Y, Width: rect.Dx(), Height: rect.Dy()}
+	b := img.Bounds()
+	stats, err := eraseTextBlockPixelMask(img, block, max(1, b.Dx()*b.Dy()))
+	if err != nil {
+		return EraseStats{LargePatchDetected: true}
+	}
+	return stats
+}
+
+func inferTextPolarity(block TextBlock, bg color.RGBA) string {
+	if isWhiteTextStyle(block.Style) && isDarkLabelStyle(block.Style) {
+		return "light"
+	}
+	if isDarkTextStyle(block.Style) {
+		return "dark"
+	}
+	if isWhiteTextStyle(block.Style) {
+		return "light"
+	}
+	if luminance(bg) < 128 {
+		return "light"
+	}
+	return "dark"
+}
+
+func isDarkTextStyle(style TextStyle) bool {
+	c := strings.TrimSpace(strings.ToLower(style.Color))
+	switch c {
+	case "#111111", "#111", "#000000", "#000", "#1f1f1f", "black":
+		return true
+	default:
+		return false
+	}
+}
+
+func isDarkLabelStyle(style TextStyle) bool {
+	bg := strings.TrimSpace(strings.ToLower(style.BackgroundColor))
+	switch bg {
+	case "#111111", "#111", "#000000", "#000", "#1f1f1f":
+		return true
+	default:
+		return false
+	}
+}
+
+func isWhiteTextStyle(style TextStyle) bool {
+	c := strings.TrimSpace(strings.ToLower(style.Color))
+	return c == "#ffffff" || c == "#fff" || c == "white"
+}
+
+func buildTextPixelMask(img *image.RGBA, rect image.Rectangle, polarity string) []bool {
+	w, h := rect.Dx(), rect.Dy()
+	mask := make([]bool, w*h)
+	bgColor, bgLum := estimateRegionBackgroundColor(img, rect)
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			c := img.RGBAAt(x, y)
+			lum := luminance(c)
+			delta := colorDistance(c, bgColor)
+			if delta < 30 {
+				continue
+			}
+			switch polarity {
+			case "light":
+				if lum > bgLum+22 && lum >= 125 {
+					mask[(y-rect.Min.Y)*w+x-rect.Min.X] = true
+				}
+			default:
+				if lum < bgLum-22 && lum <= 160 {
+					mask[(y-rect.Min.Y)*w+x-rect.Min.X] = true
+				}
+			}
+		}
+	}
+	return mask
+}
+
+func estimateRegionBackgroundColor(img *image.RGBA, rect image.Rectangle) (color.RGBA, float64) {
+	rect = rect.Intersect(img.Bounds())
+	if rect.Empty() {
+		return color.RGBA{255, 255, 255, 255}, 255
+	}
+	var darkR, darkG, darkB, darkN float64
+	var lightR, lightG, lightB, lightN float64
+	var midR, midG, midB, midN float64
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			c := img.RGBAAt(x, y)
+			lum := luminance(c)
+			switch {
+			case lum < 85:
+				darkR += float64(c.R)
+				darkG += float64(c.G)
+				darkB += float64(c.B)
+				darkN++
+			case lum > 175:
+				lightR += float64(c.R)
+				lightG += float64(c.G)
+				lightB += float64(c.B)
+				lightN++
+			default:
+				midR += float64(c.R)
+				midG += float64(c.G)
+				midB += float64(c.B)
+				midN++
+			}
+		}
+	}
+	var bg color.RGBA
+	switch {
+	case darkN >= lightN && darkN >= midN && darkN > 0:
+		bg = color.RGBA{R: uint8(darkR / darkN), G: uint8(darkG / darkN), B: uint8(darkB / darkN), A: 255}
+	case lightN >= darkN && lightN >= midN && lightN > 0:
+		bg = color.RGBA{R: uint8(lightR / lightN), G: uint8(lightG / lightN), B: uint8(lightB / lightN), A: 255}
+	case midN > 0:
+		bg = color.RGBA{R: uint8(midR / midN), G: uint8(midG / midN), B: uint8(midB / midN), A: 255}
+	default:
+		bg = averageBorderColor(img, rect)
+	}
+	return bg, luminance(bg)
+}
+
+func resolveTextPolarity(img *image.RGBA, rect image.Rectangle, block TextBlock) string {
+	detected := detectTextPolarityFromImage(img, rect)
+	hinted := strings.TrimSpace(strings.ToLower(block.TextPolarity))
+	if hinted == "" {
+		hinted = detectTextPolarityFromImage(img, rect)
+	}
+	if hinted == detected {
+		return hinted
+	}
+	hintRatio := maskRatio(img, rect, hinted, block.MaskDilate)
+	detRatio := maskRatio(img, rect, detected, block.MaskDilate)
+	if hintRatio > 0.45 && detRatio <= hintRatio {
+		return detected
+	}
+	if detRatio > 0.45 && hintRatio < detRatio {
+		return hinted
+	}
+	return detected
+}
+
+func maskRatio(img *image.RGBA, rect image.Rectangle, polarity string, dilate int) float64 {
+	mask := buildTextPixelMask(img, rect, polarity)
+	if dilate <= 0 {
+		dilate = 1
+	}
+	mask = dilateMask(mask, rect.Dx(), rect.Dy(), dilate)
+	area := rect.Dx() * rect.Dy()
+	if area <= 0 {
+		return 0
+	}
+	return float64(countMaskPixels(mask)) / float64(area)
+}
+
+func detectTextPolarityFromImage(img *image.RGBA, rect image.Rectangle) string {
+	bgLum := medianBorderLuminance(img, rect)
+	if bgLum <= 0 {
+		bgLum = luminance(averageBorderColor(img, rect))
+	}
+	dark, light := 0, 0
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			lum := luminance(img.RGBAAt(x, y))
+			if lum < bgLum-32 {
+				dark++
+			} else if lum > bgLum+32 {
+				light++
+			}
+		}
+	}
+	if dark == 0 && light > 0 {
+		return "light"
+	}
+	if light == 0 && dark > 0 {
+		return "dark"
+	}
+	if dark == 0 && light == 0 {
+		return "dark"
+	}
+	if dark <= light {
+		return "dark"
+	}
+	return "light"
+}
+
+func buildBestTextPixelMask(img *image.RGBA, rect image.Rectangle, preferred string, dilate int) ([]bool, bool) {
+	if dilate <= 0 {
+		dilate = 1
+	}
+	if dilate > 3 {
+		dilate = 3
+	}
+	regionArea := max(1, rect.Dx()*rect.Dy())
+	candidates := []string{preferred, invertPolarity(preferred), "dark", "light"}
+	seen := map[string]bool{}
+	var best []bool
+	bestRatio := 1.0
+	for _, pol := range candidates {
+		pol = strings.TrimSpace(strings.ToLower(pol))
+		if pol == "" || seen[pol] {
+			continue
+		}
+		seen[pol] = true
+		mask := buildTextPixelMask(img, rect, pol)
+		mask = dilateMask(mask, rect.Dx(), rect.Dy(), dilate)
+		n := countMaskPixels(mask)
+		if n < 4 {
+			continue
+		}
+		ratio := float64(n) / float64(regionArea)
+		if ratio > 0.45 {
+			continue
+		}
+		if ratio < bestRatio {
+			bestRatio = ratio
+			best = mask
+		}
+	}
+	if len(best) == 0 {
+		fallbackPol := detectTextPolarityFromImage(img, rect)
+		if strict, ok := buildStrictTextPixelMask(img, rect, fallbackPol, dilate); ok {
+			return strict, true
+		}
+		mask := buildTextPixelMask(img, rect, fallbackPol)
+		mask = dilateMask(mask, rect.Dx(), rect.Dy(), dilate)
+		n := countMaskPixels(mask)
+		if n >= 4 && float64(n)/float64(regionArea) <= 0.45 {
+			return mask, true
+		}
+	}
+	if len(best) == 0 {
+		return nil, false
+	}
+	return best, true
+}
+
+func buildStrictTextPixelMask(img *image.RGBA, rect image.Rectangle, preferred string, dilate int) ([]bool, bool) {
+	if dilate <= 0 {
+		dilate = 1
+	}
+	candidates := []string{preferred, invertPolarity(preferred), detectTextPolarityFromImage(img, rect)}
+	seen := map[string]bool{}
+	var best []bool
+	bestRatio := 1.0
+	regionArea := max(1, rect.Dx()*rect.Dy())
+	for _, pol := range candidates {
+		pol = strings.TrimSpace(strings.ToLower(pol))
+		if pol == "" || seen[pol] {
+			continue
+		}
+		seen[pol] = true
+		mask := buildStrictTextPixelMaskForPolarity(img, rect, pol)
+		mask = dilateMask(mask, rect.Dx(), rect.Dy(), dilate)
+		n := countMaskPixels(mask)
+		if n < 4 {
+			continue
+		}
+		ratio := float64(n) / float64(regionArea)
+		if ratio > 0.45 {
+			continue
+		}
+		if ratio < bestRatio {
+			bestRatio = ratio
+			best = mask
+		}
+	}
+	if len(best) == 0 {
+		return nil, false
+	}
+	return best, true
+}
+
+func buildStrictTextPixelMaskForPolarity(img *image.RGBA, rect image.Rectangle, polarity string) []bool {
+	w, h := rect.Dx(), rect.Dy()
+	mask := make([]bool, w*h)
+	bgColor, bgLum := estimateRegionBackgroundColor(img, rect)
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			c := img.RGBAAt(x, y)
+			lum := luminance(c)
+			delta := colorDistance(c, bgColor)
+			if delta < 42 {
+				continue
+			}
+			switch polarity {
+			case "light":
+				if lum > bgLum+38 && lum >= 140 {
+					mask[(y-rect.Min.Y)*w+x-rect.Min.X] = true
+				}
+			default:
+				if lum < bgLum-38 && lum <= 145 {
+					mask[(y-rect.Min.Y)*w+x-rect.Min.X] = true
+				}
+			}
+		}
+	}
+	return mask
+}
+
+func invertPolarity(p string) string {
+	if p == "light" {
+		return "dark"
+	}
+	return "light"
+}
+
+func shouldCapsuleFill(block TextBlock, polarity string) bool {
+	return polarity == "light" || isCapsuleBlockClass(block.BlockClass)
+}
+
+func medianBorderLuminance(img *image.RGBA, rect image.Rectangle) float64 {
+	b := img.Bounds()
+	var lums []float64
+	add := func(x, y int) {
+		if x < b.Min.X || y < b.Min.Y || x >= b.Max.X || y >= b.Max.Y {
+			return
+		}
+		lums = append(lums, luminance(img.RGBAAt(x, y)))
+	}
+	for x := rect.Min.X; x < rect.Max.X; x++ {
+		add(x, rect.Min.Y)
+		add(x, rect.Max.Y-1)
+	}
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		add(rect.Min.X, y)
+		add(rect.Max.X-1, y)
+	}
+	if len(lums) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, v := range lums {
+		sum += v
+	}
+	return sum / float64(len(lums))
+}
+
+func countMaskPixels(mask []bool) int {
+	n := 0
+	for _, v := range mask {
+		if v {
+			n++
+		}
+	}
+	return n
+}
+
+func capsuleFillColor(img *image.RGBA, rect image.Rectangle, block TextBlock, borderBg color.RGBA, polarity string) color.RGBA {
+	if bg := strings.TrimSpace(block.Style.BackgroundColor); bg != "" {
+		return parseHexColor(bg, borderBg)
+	}
+	if polarity == "dark" {
+		return sampleLightCapsuleBackgroundColor(img, rect, borderBg)
+	}
+	return sampleCapsuleBackgroundColor(img, rect, borderBg)
+}
+
+func sampleLightCapsuleBackgroundColor(img *image.RGBA, rect image.Rectangle, fallback color.RGBA) color.RGBA {
+	b := img.Bounds()
+	var r, g, bl, n float64
+	add := func(x, y int) {
+		if x < b.Min.X || y < b.Min.Y || x >= b.Max.X || y >= b.Max.Y {
+			return
+		}
+		c := img.RGBAAt(x, y)
+		lum := luminance(c)
+		if lum < 150 {
+			return
+		}
+		r += float64(c.R)
+		g += float64(c.G)
+		bl += float64(c.B)
+		n++
+	}
+	midY := (rect.Min.Y + rect.Max.Y) / 2
+	for x := rect.Min.X; x < rect.Max.X; x++ {
+		add(x, rect.Min.Y)
+		add(x, rect.Max.Y-1)
+		add(x, midY)
+	}
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		add(rect.Min.X, y)
+		add(rect.Max.X-1, y)
+	}
+	if n == 0 {
+		return fallback
+	}
+	return color.RGBA{
+		R: uint8(r / n),
+		G: uint8(g / n),
+		B: uint8(bl / n),
+		A: 255,
+	}
+}
+
+func sampleCapsuleBackgroundColor(img *image.RGBA, rect image.Rectangle, fallback color.RGBA) color.RGBA {
+	b := img.Bounds()
+	var r, g, bl, n float64
+	add := func(x, y int) {
+		if x < b.Min.X || y < b.Min.Y || x >= b.Max.X || y >= b.Max.Y {
+			return
+		}
+		c := img.RGBAAt(x, y)
+		lum := luminance(c)
+		if lum > 180 {
+			return
+		}
+		r += float64(c.R)
+		g += float64(c.G)
+		bl += float64(c.B)
+		n++
+	}
+	midY := (rect.Min.Y + rect.Max.Y) / 2
+	for x := rect.Min.X; x < rect.Max.X; x++ {
+		add(x, rect.Min.Y)
+		add(x, rect.Max.Y-1)
+		add(x, midY)
+	}
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		add(rect.Min.X, y)
+		add(rect.Max.X-1, y)
+	}
+	if n == 0 {
+		return fallback
+	}
+	return color.RGBA{
+		R: uint8(r / n),
+		G: uint8(g / n),
+		B: uint8(bl / n),
+		A: 255,
+	}
+}
+
+func applyMaskFill(img *image.RGBA, rect image.Rectangle, mask []bool, fill color.RGBA) int {
+	w, h := rect.Dx(), rect.Dy()
+	if len(mask) != w*h {
+		return 0
+	}
+	changed := 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if !mask[y*w+x] {
+				continue
+			}
+			img.SetRGBA(rect.Min.X+x, rect.Min.Y+y, fill)
+			changed++
+		}
+	}
+	return changed
 }
 
 func preciseMaskEraseRegion(img *image.RGBA, rect image.Rectangle) EraseStats {
@@ -283,28 +778,35 @@ func textOverlayBackgroundColor(img *image.RGBA, rect image.Rectangle) color.RGB
 }
 
 func averageBorderColor(img *image.RGBA, rect image.Rectangle) color.RGBA {
-	b := img.Bounds()
+	rect = rect.Intersect(img.Bounds())
+	if rect.Empty() {
+		return color.RGBA{255, 255, 255, 255}
+	}
 	var r, g, bl, n float64
 	add := func(x, y int) {
-		if x < b.Min.X || y < b.Min.Y || x >= b.Max.X || y >= b.Max.Y {
+		if x < rect.Min.X || y < rect.Min.Y || x >= rect.Max.X || y >= rect.Max.Y {
 			return
 		}
 		c := img.RGBAAt(x, y)
+		lum := luminance(c)
+		if lum > 245 {
+			return
+		}
 		r += float64(c.R)
 		g += float64(c.G)
 		bl += float64(c.B)
 		n++
 	}
 	for x := rect.Min.X; x < rect.Max.X; x++ {
-		add(x, rect.Min.Y-1)
-		add(x, rect.Max.Y)
+		add(x, rect.Min.Y)
+		add(x, rect.Max.Y-1)
 	}
 	for y := rect.Min.Y; y < rect.Max.Y; y++ {
-		add(rect.Min.X-1, y)
-		add(rect.Max.X, y)
+		add(rect.Min.X, y)
+		add(rect.Max.X-1, y)
 	}
 	if n == 0 {
-		return color.RGBA{255, 255, 255, 255}
+		return sampleInteriorBackgroundColor(img, rect)
 	}
 	return color.RGBA{
 		R: uint8(r / n),
@@ -312,6 +814,49 @@ func averageBorderColor(img *image.RGBA, rect image.Rectangle) color.RGBA {
 		B: uint8(bl / n),
 		A: 255,
 	}
+}
+
+func sampleInteriorBackgroundColor(img *image.RGBA, rect image.Rectangle) color.RGBA {
+	b := img.Bounds()
+	rect = rect.Intersect(b)
+	var lightR, lightG, lightB, lightN float64
+	var allR, allG, allB, allN float64
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			c := img.RGBAAt(x, y)
+			lum := luminance(c)
+			if lum < 70 || lum > 245 {
+				continue
+			}
+			allR += float64(c.R)
+			allG += float64(c.G)
+			allB += float64(c.B)
+			allN++
+			if lum >= 145 {
+				lightR += float64(c.R)
+				lightG += float64(c.G)
+				lightB += float64(c.B)
+				lightN++
+			}
+		}
+	}
+	if lightN > 0 {
+		return color.RGBA{
+			R: uint8(lightR / lightN),
+			G: uint8(lightG / lightN),
+			B: uint8(lightB / lightN),
+			A: 255,
+		}
+	}
+	if allN > 0 {
+		return color.RGBA{
+			R: uint8(allR / allN),
+			G: uint8(allG / allN),
+			B: uint8(allB / allN),
+			A: 255,
+		}
+	}
+	return color.RGBA{255, 255, 255, 255}
 }
 
 func blurFillRegion(img *image.RGBA, rect image.Rectangle) {

@@ -35,7 +35,7 @@ func buildTranslateRenderQuality(
 	if layout.OverflowBlocks > 0 {
 		rq.LayoutScore -= 42
 		rq.ReadabilityScore -= 28
-		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, "text_overflow")
+		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, layoutWarningOverflow)
 	}
 	if layout.Simulation.CollisionCount > 0 {
 		rq.LayoutScore -= 30
@@ -65,12 +65,17 @@ func buildTranslateRenderQuality(
 		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, layoutWarningPatchVisible)
 	}
 	if renderRes != nil {
-		if renderRes.LargePatchDetected || renderRes.PatchAreaRatio > 0.08 || renderRes.FlatFillRatio > 0.72 {
-			rq.ProductPreservationScore -= 24
-			rq.StyleConsistencyScore -= 18
+		if renderRes.LargePatchDetected || renderRes.PatchAreaRatio > 0.06 || renderRes.FlatFillRatio > 0.72 {
+			if renderRes.EraseAreaRatio <= 0.04 {
+				rq.ProductPreservationScore -= 8
+				rq.StyleConsistencyScore -= 6
+			} else {
+				rq.ProductPreservationScore -= 24
+				rq.StyleConsistencyScore -= 18
+			}
 			rq.Warnings = appendUniqueCodeWarning(rq.Warnings, layoutWarningPatchVisible)
 		}
-		if renderRes.EraseAreaRatio > 0.12 {
+		if renderRes.EraseAreaRatio > imagerender.MaxEraseMaskRatioTotal {
 			rq.ProductPreservationScore -= 18
 			rq.Warnings = appendUniqueCodeWarning(rq.Warnings, "erase_area_too_large")
 		}
@@ -96,14 +101,15 @@ func buildTranslateRenderQuality(
 	if rq.CommercialUsabilityScore < 70 {
 		rq.Warnings = appendUniqueCodeWarning(rq.Warnings, "commercial_usability_low")
 	}
-	rq.Passed = rq.TextAppliedScore >= 70 &&
-		rq.SourceTextRemovedScore >= 70 &&
-		rq.LayoutScore >= 70 &&
-		rq.StyleConsistencyScore >= 70 &&
-		rq.ReadabilityScore >= 70 &&
-		rq.ProductPreservationScore >= 70 &&
-		rq.CommercialUsabilityScore >= 75 &&
-		len(blockingRenderWarnings(rq.Warnings)) == 0
+	if isPureTextReplaceMode(opts.RenderMode) {
+		imageW, imageH := imageDimensionsFromRenderBlocks(renderBlocks)
+		return buildPureTextRenderQuality(quality, layout, verify, opts, renderBlocks, renderRes, imageW, imageH)
+	}
+	blocking := blockingRenderWarnings(rq.Warnings)
+	rq.Passed = rq.CommercialUsabilityScore >= 75 &&
+		len(blocking) == 0 &&
+		verify.TargetTextDetected &&
+		!verify.SourceTextMayRemain
 	return rq
 }
 
@@ -132,13 +138,39 @@ func blockingRenderWarnings(warnings []string) []string {
 	for _, w := range warnings {
 		switch w {
 		case layoutWarningPatchVisible, layoutWarningNotNatural, verifyWarningSourceTextRemain,
-			"text_overflow", "text_not_applied", "erase_area_too_large",
+			layoutWarningOverflow, "text_overflow", "text_not_applied", "erase_area_too_large",
 			warningBadgeShapeAbnormal, warningTextOverlap, warningEraseFailed,
-			layoutWarningUnbalanced, layoutWarningProductSubjectOverlap:
+			layoutWarningUnbalanced, layoutWarningProductSubjectOverlap, "commercial_usability_low",
+			warningPureTextSourceNotErased, warningPureTextExtraBackground, warningPureTextOverlap:
 			out = append(out, w)
 		}
 	}
 	return out
+}
+
+func imageDimensionsFromRenderBlocks(blocks []translateRenderBlock) (int, int) {
+	maxX, maxY := 0, 0
+	for _, b := range blocks {
+		if x := b.BBox.X + b.BBox.Width; x > maxX {
+			maxX = x
+		}
+		if y := b.BBox.Y + b.BBox.Height; y > maxY {
+			maxY = y
+		}
+		if x := b.OriginalBBox.X + b.OriginalBBox.Width; x > maxX {
+			maxX = x
+		}
+		if y := b.OriginalBBox.Y + b.OriginalBBox.Height; y > maxY {
+			maxY = y
+		}
+	}
+	if maxX <= 0 {
+		maxX = 900
+	}
+	if maxY <= 0 {
+		maxY = 900
+	}
+	return maxX, maxY
 }
 
 func clampScore(v int) int {
@@ -165,6 +197,7 @@ func translateRenderAttemptModes(first, requested string) []string {
 	add(first)
 	if requested == "" || requested == "auto" || requested == "background_sample" || requested == "precise_mask" {
 		add("precise_mask")
+		add("background_sample")
 		add("blur_fill")
 		add("opencv_inpaint")
 	}
@@ -179,6 +212,14 @@ type translateRenderAttempt struct {
 }
 
 func translateRenderAttempts(blocks []imagerender.TextBlock, opts imagerender.Options, first, requested string) []translateRenderAttempt {
+	if strings.EqualFold(first, imagerender.EraseTextPixelMask) || strings.EqualFold(requested, imagerender.EraseTextPixelMask) {
+		return []translateRenderAttempt{{
+			Name:    "text_pixel_mask",
+			Blocks:  cloneImageRenderBlocks(blocks),
+			Options: opts,
+			Modes:   []string{imagerender.EraseTextPixelMask},
+		}}
+	}
 	modes := translateRenderAttemptModes(first, requested)
 	out := []translateRenderAttempt{{
 		Name:    "normal_program_layout",
@@ -240,9 +281,10 @@ func shouldRetryTranslateRender(warnings []string) bool {
 	for _, w := range warnings {
 		switch w {
 		case layoutWarningPatchVisible, layoutWarningNotNatural, verifyWarningSourceTextRemain,
-			"text_overflow", "text_not_applied", "erase_area_too_large",
+			layoutWarningOverflow, "text_overflow", "text_not_applied", "erase_area_too_large",
 			warningBadgeShapeAbnormal, warningTextOverlap, warningEraseFailed,
-			layoutWarningUnbalanced, layoutWarningProductSubjectOverlap:
+			layoutWarningUnbalanced, layoutWarningProductSubjectOverlap, "commercial_usability_low",
+			warningPureTextSourceNotErased, warningPureTextExtraBackground, warningPureTextOverlap:
 			return true
 		}
 	}

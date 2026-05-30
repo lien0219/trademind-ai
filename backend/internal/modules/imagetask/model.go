@@ -31,6 +31,9 @@ const (
 	StatusSuccessWithWarnings = "success_with_warnings"
 	StatusLowQuality          = "low_quality"
 	StatusFailedValidation    = "failed_render_validation"
+	StatusNeedManualReview    = "need_manual_review"
+	StatusSuccessWithReview   = "success_with_review"
+	StatusObsolete            = "obsolete"
 )
 
 // ImageTask records one AI image processing job (ai_image_tasks in product docs).

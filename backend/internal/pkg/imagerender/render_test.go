@@ -53,8 +53,8 @@ func TestChooseEraseMode(t *testing.T) {
 	}
 	rect := image.Rect(20, 20, 80, 60)
 	mode := chooseEraseMode(EraseAuto, img, rect)
-	if mode != ErasePreciseMask {
-		t.Fatalf("expected precise_mask, got %s", mode)
+	if mode != EraseBackgroundSample {
+		t.Fatalf("expected background_sample for flat region, got %s", mode)
 	}
 }
 

@@ -22,6 +22,7 @@ type TextStyle struct {
 // TextBlock is one region to erase and redraw.
 type TextBlock struct {
 	ID           string
+	BlockClass   string
 	Lines        []string
 	FontSize     int
 	BBox         BBox
@@ -30,23 +31,32 @@ type TextBlock struct {
 	Align        string
 	Bold         bool
 	ErasePadding int
+	MaskDilate   int
+	TextPolarity string // "dark" or "light"
 }
 
 // Options controls erase and padding behavior.
 type Options struct {
-	EraseMode   string
-	MaskPadding int
-	TextPadding int
-	LineHeight  float64
+	EraseMode       string
+	MaskPadding     int
+	TextPadding     int
+	LineHeight      float64
+	PureTextReplace bool // when true, never draw badge/panel backgrounds on top of the image
 }
 
 const (
+	EraseTextPixelMask    = "text_pixel_mask"
 	ErasePreciseMask      = "precise_mask"
 	EraseBackgroundSample = "background_sample"
 	EraseBlurFill         = "blur_fill"
 	EraseOpenCVInpaint    = "opencv_inpaint"
 	EraseAIInpaint        = "ai_inpaint"
 	EraseAuto             = "auto"
+
+	MaxEraseMaskRatioPerBlock    = 0.02
+	MaxEraseMaskRatioPerBlockCap = 0.035
+	MaxEraseMaskRatioTotal       = 0.06
+	MaxEraseMaskRegionCoverage   = 0.45
 )
 
 func clampRect(x, y, w, h, imgW, imgH int) (int, int, int, int) {

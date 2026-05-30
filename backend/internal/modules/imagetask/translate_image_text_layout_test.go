@@ -150,24 +150,24 @@ func TestBuildTranslateTextGroupsPhoneStandTemplate(t *testing.T) {
 	}
 }
 
-func TestBuildTranslateTextGroupsRightTopTitleNotBadge(t *testing.T) {
+func TestBuildTranslateTextGroupsRightTopTitleSeparateBlocks(t *testing.T) {
 	blocks := []translateTextBlock{
-		{ID: "b1", Text: "炫酷黑", TranslatedText: "Cool Black", BBox: translateTextBBox{X: 610, Y: 80, Width: 180, Height: 70}, Style: titleGroupStyle()},
-		{ID: "b2", Text: "折叠伸缩版/通用手机", TranslatedText: "Foldable Universal", BBox: translateTextBBox{X: 550, Y: 180, Width: 330, Height: 48}, Style: badgeGroupStyle()},
+		{ID: "b1", Text: "炫酷黑", TranslatedText: "Cool Black", CompactTranslation: "Cool Black", BBox: translateTextBBox{X: 610, Y: 80, Width: 180, Height: 70}, Style: titleGroupStyle()},
+		{ID: "b2", Text: "折叠伸缩版/通用手机", TranslatedText: "Foldable Universal", CompactTranslation: "Universal Phone Stand", BadgeTranslation: "Universal Phone Stand", BBox: translateTextBBox{X: 550, Y: 180, Width: 330, Height: 48}, Style: badgeGroupStyle()},
 	}
-	groups, _ := buildTranslateTextGroups(blocks, map[string]any{"layoutTemplate": "auto"}, 900, 900)
-	if len(groups) != 2 {
-		t.Fatalf("groups = %d, want 2", len(groups))
+	groups, tpl := buildTranslateTextGroups(blocks, applyRemoveTextThenRenderHints(map[string]any{"layoutTemplate": "auto"}), 900, 900)
+	if tpl == layoutTemplateProductRelayout {
+		t.Fatalf("template = %q, should not use product_relayout", tpl)
 	}
-	if groups[0].GroupType != groupTypeMainTitle {
-		t.Fatalf("right-top title group = %q, want main_title", groups[0].GroupType)
+	if len(groups) < 2 {
+		t.Fatalf("expected separate groups/blocks, got %+v", groups)
 	}
-	if groups[1].GroupType != groupTypeBadge {
-		t.Fatalf("subtitle group = %q, want badge", groups[1].GroupType)
+	renderBlocks, _ := computeRemoveTextRenderBlocks(blocks, parseTranslateLayoutOptions(applyRemoveTextThenRenderHints(nil), "en"), 900, 900)
+	if len(renderBlocks) != 2 {
+		t.Fatalf("render blocks = %d, want 2 per-block erase", len(renderBlocks))
 	}
-	plans, _ := computeTranslateGroupLayouts(groups, parseTranslateLayoutOptions(nil, "en"), 900, 900, layoutTemplatePreserveOriginal)
-	if plans[0].ErasePadding < 6 {
-		t.Fatalf("main title erase padding too small: %d", plans[0].ErasePadding)
+	if renderBlocks[0].ErasePadding > 2 {
+		t.Fatalf("erase padding too large: %d", renderBlocks[0].ErasePadding)
 	}
 }
 

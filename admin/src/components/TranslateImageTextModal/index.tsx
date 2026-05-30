@@ -77,7 +77,7 @@ export function TranslateImageTextModal({
 }: Props) {
   const [form] = Form.useForm<FormValues>();
   const { optionsForTask } = useImageProviders();
-  const renderMode = Form.useWatch('renderMode', form) ?? 'hybrid';
+  const renderMode = Form.useWatch('renderMode', form) ?? 'pure_text_replace';
   const [ocrChecking, setOcrChecking] = useState(false);
   const [ocrReady, setOcrReady] = useState(false);
   const [ocrMessage, setOcrMessage] = useState('');
@@ -102,10 +102,10 @@ export function TranslateImageTextModal({
       autoSaveToProductImages: true,
       outputAsDetail: true,
       autoSetAsMain: false,
-      renderMode: 'hybrid',
+      renderMode: 'pure_text_replace',
       provider: prefill?.provider ?? '',
       ocrProvider: '',
-      eraseMode: '',
+      eraseMode: 'text_pixel_mask',
       advancedJson: '',
     });
   }, [open, form, prefill]);

@@ -38,20 +38,22 @@ type translateTextStyle struct {
 }
 
 type translateTextBlock struct {
-	ID                  string               `json:"id,omitempty"`
-	BlockClass          string               `json:"blockClass,omitempty"`
-	Text                string               `json:"text"`
-	TranslatedText      string               `json:"translatedText"`
-	StandardTranslation string               `json:"standardTranslation,omitempty"`
-	ShortTranslatedText string               `json:"shortTranslatedText,omitempty"`
-	CompactTranslation  string               `json:"compactTranslation,omitempty"`
-	DrawText            string               `json:"drawText,omitempty"`
-	Confidence          float64              `json:"confidence"`
-	BBox                translateTextBBox    `json:"bbox"`
-	Polygon             []translateTextPoint `json:"polygon,omitempty"`
-	Angle               float64              `json:"angle,omitempty"`
-	Direction           string               `json:"direction,omitempty"`
-	Style               translateTextStyle   `json:"style,omitempty"`
+	ID                    string               `json:"id,omitempty"`
+	BlockClass            string               `json:"blockClass,omitempty"`
+	Text                  string               `json:"text"`
+	TranslatedText        string               `json:"translatedText"`
+	StandardTranslation   string               `json:"standardTranslation,omitempty"`
+	ShortTranslatedText   string               `json:"shortTranslatedText,omitempty"`
+	CompactTranslation    string               `json:"compactTranslation,omitempty"`
+	BadgeTranslation      string               `json:"badgeTranslation,omitempty"`
+	FixedShortTranslation string               `json:"fixedShortTranslation,omitempty"`
+	DrawText              string               `json:"drawText,omitempty"`
+	Confidence            float64              `json:"confidence"`
+	BBox                  translateTextBBox    `json:"bbox"`
+	Polygon               []translateTextPoint `json:"polygon,omitempty"`
+	Angle                 float64              `json:"angle,omitempty"`
+	Direction             string               `json:"direction,omitempty"`
+	Style                 translateTextStyle   `json:"style,omitempty"`
 }
 
 type translateTextPoint struct {
@@ -299,6 +301,7 @@ func (s *Service) simplifyLongTranslations(ctx context.Context, blocks []transla
 	}
 	for i := range blocks {
 		ensureRuleCompact(i)
+		populateBlockTranslationVersions(&blocks[i], targetLang)
 	}
 	if len(need) == 0 {
 		return nil
@@ -311,7 +314,7 @@ func (s *Service) simplifyLongTranslations(ctx context.Context, blocks []transla
 	prompt := fmt.Sprintf(`Shorten the following ecommerce product image marketing translations to fit small text overlays.
 Keep meaning but use concise marketing copy (2-4 words when possible, Title Case for English).
 Target language: %s
-Return ONLY valid JSON: {"items":[{"text":"original source","translatedText":"full translation","shortTranslatedText":"short version"}]}
+Return ONLY valid JSON: {"items":[{"text":"original source","translatedText":"full translation","shortTranslatedText":"short version","badgeTranslation":"shortest badge label"}]}
 Items:
 %s`, targetName, strings.Join(lines, "\n"))
 
@@ -330,38 +333,39 @@ Items:
 			Text                string `json:"text"`
 			TranslatedText      string `json:"translatedText"`
 			ShortTranslatedText string `json:"shortTranslatedText"`
+			BadgeTranslation    string `json:"badgeTranslation"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(resp.Content)), &parsed); err != nil {
 		return nil
 	}
-	lookup := map[string]string{}
+	lookup := map[string]struct {
+		short string
+		badge string
+	}{}
 	for _, it := range parsed.Items {
 		key := strings.TrimSpace(it.Text)
 		if key == "" {
 			key = strings.TrimSpace(it.TranslatedText)
 		}
 		short := strings.TrimSpace(it.ShortTranslatedText)
-		if key != "" && short != "" {
-			lookup[key] = short
+		badge := strings.TrimSpace(it.BadgeTranslation)
+		if key != "" && (short != "" || badge != "") {
+			lookup[key] = struct{ short, badge string }{short: short, badge: badge}
 		}
 	}
 	for i := range blocks {
 		origKey := strings.TrimSpace(blocks[i].Text)
-		trKey := strings.TrimSpace(blocks[i].TranslatedText)
-		if short, ok := lookup[origKey]; ok && short != "" {
-			blocks[i].ShortTranslatedText = short
-			blocks[i].CompactTranslation = short
-		} else if short, ok := lookup[trKey]; ok && short != "" {
-			blocks[i].ShortTranslatedText = short
-			blocks[i].CompactTranslation = short
+		if item, ok := lookup[origKey]; ok {
+			if item.short != "" {
+				blocks[i].ShortTranslatedText = item.short
+				blocks[i].CompactTranslation = item.short
+			}
+			if item.badge != "" {
+				blocks[i].BadgeTranslation = item.badge
+			}
 		}
-		if strings.TrimSpace(blocks[i].CompactTranslation) == "" {
-			blocks[i].CompactTranslation = strings.TrimSpace(blocks[i].ShortTranslatedText)
-		}
-		if strings.TrimSpace(blocks[i].StandardTranslation) == "" {
-			blocks[i].StandardTranslation = strings.TrimSpace(blocks[i].TranslatedText)
-		}
+		populateBlockTranslationVersions(&blocks[i], targetLang)
 	}
 	return nil
 }
@@ -565,6 +569,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	if s == nil || task == nil {
 		return fmt.Errorf("imagetask: invalid translate task")
 	}
+	hints = applyTranslateRenderHints(hints)
 	src := strings.TrimSpace(task.SourceImageURL)
 	if src == "" {
 		return newTranslateErr(errCodeImageFetchFailed, "缺少源图地址，无法读取原图")
@@ -577,6 +582,9 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	defaultEraseMode := strings.TrimSpace(m["erase_mode"])
 	renderOpts := parseTranslateRenderOptions(hints, defaultEraseMode)
 	sourceLang, targetLang := resolveTranslateLanguages(hints)
+	if task.SourceImageID != nil {
+		_ = s.supersedePriorTranslateResults(ctx, task, targetLang, task.ID)
+	}
 	payload, loadErr := s.loadTranslateImagePayload(ctx, src)
 	if loadErr != nil || payload == nil {
 		return newTranslateErr(errCodeImageFetchFailed, "无法下载原图用于翻译")
@@ -613,13 +621,26 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		imageW = intFromAny(hints["imageWidth"])
 		imageH = intFromAny(hints["imageHeight"])
 	}
-	coordMeta, coordErr := applyOCRCoordinateMapping(ocr, imageW, imageH)
+	if payload.Width > 0 {
+		hints["ocrImageWidth"] = payload.Width
+	}
+	if payload.Height > 0 {
+		hints["ocrImageHeight"] = payload.Height
+	}
+	coordMeta, coordErr := applyOCRCoordinateMapping(ocr, imageW, imageH, payload.Width, payload.Height, hints)
 	if coordErr != nil {
 		return coordErr
 	}
 	ocr.CoordinateMeta = &coordMeta
+	logTranslateCoordMapping(ctx, s, task, ocr, coordMeta)
+	if coordMeta.GroupRelayoutFallback {
+		hints["coordGroupRelayoutFallback"] = true
+	}
+	ocr.Blocks = scaleOCRBlocksToRenderPixels(ocr.Blocks, imageW, imageH)
 	bboxRepaired := false
-	if needsOCRBBoxRepair(ocr.Blocks) {
+	needsRepair := needsOCRBBoxRepair(ocr.Blocks) ||
+		(isPureTextReplaceMode(renderOpts.RenderMode) && ocrBlocksSuspiciousLeftCluster(ocr.Blocks))
+	if needsRepair {
 		if repaired := s.repairOCRBlockBBoxes(ctx, imgRef, ocr.Blocks, imageW, imageH); len(repaired) > 0 {
 			ocr.Blocks = clampOCRBlockBBoxes(repaired, imageW, imageH)
 			bboxRepaired = true
@@ -640,7 +661,10 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		translateAuditMsg(task, map[string]any{"translatedBlocksCount": len(ocr.Blocks)}))
 
 	layoutOpts := parseTranslateLayoutOptions(hints, targetLang)
+	layoutOpts.CoordGroupRelayoutFallback = boolFromHints(hints, "coordGroupRelayoutFallback", false)
+	populateTranslationVersions(ocr.Blocks, targetLang)
 	_ = s.simplifyLongTranslations(ctx, ocr.Blocks, targetLang, layoutOpts.AllowTextSimplify)
+	populateTranslationVersions(ocr.Blocks, targetLang)
 
 	if imageW <= 0 {
 		imageW = intFromAny(hints["imageWidth"])
@@ -648,6 +672,11 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	}
 	textGroups, layoutTemplate := buildTranslateTextGroups(ocr.Blocks, hints, imageW, imageH)
 	groupPlans, layoutSummary := computeTranslateGroupLayouts(textGroups, layoutOpts, imageW, imageH, layoutTemplate)
+	if isPureTextReplaceMode(renderOpts.RenderMode) || isRemoveTextThenRenderMode(renderOpts.RenderMode) {
+		// Per-block flexible layout is computed later; skip strict group overflow gate.
+	} else if layoutSummaryOverflowFails(hints) && layoutSummary.OverflowBlocks > 0 {
+		return newTranslateErr(errCodeTranslateRenderFail, "翻译文字无法适配排版区域，请缩短文案或调整图片")
+	}
 	sim := simulateTranslateGroupLayouts(groupPlans, imageW, imageH)
 	layoutSummary.Simulation = sim
 	for _, w := range sim.Warnings {
@@ -676,11 +705,32 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		layoutPlans, _ := computeTranslateLayouts(ocr.Blocks, layoutOpts, imageW, imageH)
 		return s.executeTranslateAIEdit(ctx, task, hints, ocr, layoutPlans, layoutSummary, quality, sourceLang, targetLang)
 	}
-	if renderOpts.RenderMode == RenderModeDeterministic || renderOpts.RenderMode == RenderModeHybrid {
-		renderBlocks := buildRenderBlocksFromGroups(textGroups, groupPlans)
-		return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, renderBlocks, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
+	var renderBlocks []translateRenderBlock
+	if isPureTextReplaceMode(renderOpts.RenderMode) {
+		renderBlocks, layoutSummary = computePureTextRenderBlocks(ocr.Blocks, layoutOpts, imageW, imageH)
+		sim := simulateTranslateGroupLayouts(toGroupPlansFromRenderBlocks(renderBlocks), imageW, imageH)
+		layoutSummary.Simulation = sim
+		for _, w := range sim.Warnings {
+			layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, w)
+		}
+		if layoutSummary.OverflowBlocks > 0 {
+			return newTranslateErr(errCodeTranslateRenderFail, "纯文字替换模式下译文无法放入原文字区域，请缩短文案或调整图片")
+		}
+	} else if isRemoveTextThenRenderMode(renderOpts.RenderMode) {
+		renderBlocks, layoutSummary = computeRemoveTextRenderBlocks(ocr.Blocks, layoutOpts, imageW, imageH)
+		sim := simulateTranslateGroupLayouts(toGroupPlansFromRenderBlocks(renderBlocks), imageW, imageH)
+		layoutSummary.Simulation = sim
+		for _, w := range sim.Warnings {
+			layoutSummary.Warnings = appendUniqueCodeWarning(layoutSummary.Warnings, w)
+		}
+		if layoutSummaryOverflowFails(hints) && layoutSummary.OverflowBlocks > 0 {
+			return newTranslateErr(errCodeTranslateRenderFail, "翻译文字无法适配排版区域，请缩短文案或调整图片")
+		}
+	} else if renderOpts.RenderMode == RenderModeDeterministic || renderOpts.RenderMode == RenderModeHybrid {
+		renderBlocks = buildRenderBlocksFromGroups(textGroups, groupPlans)
+	} else {
+		renderOpts.RenderMode = RenderModeRemoveTextThenRender
+		renderBlocks, layoutSummary = computeRemoveTextRenderBlocks(ocr.Blocks, layoutOpts, imageW, imageH)
 	}
-	renderOpts.RenderMode = RenderModeHybrid
-	renderBlocks := buildRenderBlocksFromGroups(textGroups, groupPlans)
 	return s.executeTranslateDeterministic(ctx, task, hints, renderOpts, ocr, renderBlocks, layoutSummary, quality, sourceLang, targetLang, sourceBytes)
 }

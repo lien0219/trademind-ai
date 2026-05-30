@@ -2,16 +2,242 @@ package imagetask
 
 import (
 	"context"
+	"image"
 	"strings"
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/imagerender"
 )
 
-const (
-	warningBadgeShapeAbnormal = "badge_shape_abnormal"
-	warningTextOverlap        = "text_overlap"
-	warningEraseFailed        = "erase_failed"
-)
+const maxQualityScoreRetries = 1
+
+type translateRenderPipelineResult struct {
+	Result            *imagerender.Result
+	VerifyMeta        translateVerificationMeta
+	RenderQuality     translateRenderQuality
+	RenderBlocks      []translateRenderBlock
+	ImageBlocks       []imagerender.TextBlock
+	DebugArtifacts    map[string]any
+	QualityRetried    bool
+	RetryStrategies   []string
+	EraseSourceRemain bool
+}
+
+func (s *Service) runTranslateRenderPipeline(
+	ctx context.Context,
+	task *ImageTask,
+	sourceBytes []byte,
+	renderBlocks []translateRenderBlock,
+	imageBlocks []imagerender.TextBlock,
+	imOpts imagerender.Options,
+	outputFormat string,
+	ocr *translateOCRResult,
+	sourceLang, targetLang string,
+	renderOpts translateRenderOptions,
+	quality translateQualitySummary,
+	layoutSummary translateLayoutSummary,
+) (*translateRenderPipelineResult, error) {
+	img, _, err := imagerender.Decode(sourceBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	attempt := func(blocks []imagerender.TextBlock, drawBlocks []translateRenderBlock, label string) (*translateRenderAttemptResult, translateVerificationMeta, translateRenderQuality, error) {
+		attemptOpts := imOpts
+		attemptOpts.PureTextReplace = isPureTextReplaceMode(renderOpts.RenderMode)
+		attemptOut, aErr := renderTranslateWithEraseVerify(
+			s, ctx, sourceBytes, blocks, attemptOpts, outputFormat,
+			ocr, sourceLang, renderOpts.VerifyOutputText,
+		)
+		if aErr != nil {
+			return nil, translateVerificationMeta{}, translateRenderQuality{}, aErr
+		}
+		if attemptOut != nil && attemptOut.Result != nil && label != "" {
+			attemptOut.Result.RetryStrategies = append(attemptOut.Result.RetryStrategies, label)
+		}
+		verifyMeta, vErr := s.verifyTranslateOutputWithLayout(ctx, sourceBytes, attemptOut.Result.Data, ocr, targetLang, sourceLang, renderOpts.VerifyOutputText, layoutSummary)
+		if vErr != nil {
+			return attemptOut, verifyMeta, translateRenderQuality{}, vErr
+		}
+		rq := buildTranslateRenderQuality(quality, layoutSummary, verifyMeta, renderOpts, drawBlocks, attemptOut.Result)
+		return attemptOut, verifyMeta, rq, nil
+	}
+
+	currentImageBlocks := cloneImageRenderBlocks(imageBlocks)
+	currentRenderBlocks := renderBlocks
+	var best *translateRenderPipelineResult
+	bestScore := -1
+
+	runAndTrack := func(blocks []imagerender.TextBlock, drawBlocks []translateRenderBlock, label string) error {
+		attemptOut, verifyMeta, rq, aErr := attempt(blocks, drawBlocks, label)
+		if aErr != nil || attemptOut == nil || attemptOut.Result == nil {
+			return aErr
+		}
+		score := rq.CommercialUsabilityScore
+		if score > bestScore {
+			bestScore = score
+			best = &translateRenderPipelineResult{
+				Result:            attemptOut.Result,
+				VerifyMeta:        verifyMeta,
+				RenderQuality:     rq,
+				RenderBlocks:      drawBlocks,
+				ImageBlocks:       blocks,
+				RetryStrategies:   append([]string(nil), attemptOut.Result.RetryStrategies...),
+				EraseSourceRemain: attemptOut.EraseSourceRemain,
+			}
+		}
+		return nil
+	}
+
+	_ = runAndTrack(currentImageBlocks, currentRenderBlocks, "text_pixel_mask")
+
+	if best != nil {
+		imageW, imageH := imageDimensionsFromRenderBlocks(currentRenderBlocks)
+		validation := validatePureTextReplace(
+			best.VerifyMeta, layoutSummary, best.RenderQuality, currentRenderBlocks, best.Result, imageW, imageH,
+		)
+		if shouldQualityAutoRetry(
+			best.RenderQuality.CommercialUsabilityScore, best.VerifyMeta, layoutSummary, best.RenderQuality,
+			renderOpts.RenderMode, validation, best.QualityRetried,
+		) {
+			var plan translateQualityRetryPlan
+			if isPureTextReplaceMode(renderOpts.RenderMode) {
+				plan = buildPureTextQualityRetryPlan(best.VerifyMeta, layoutSummary, best.RenderQuality, validation)
+			} else {
+				plan = buildQualityRetryPlan(best.VerifyMeta, layoutSummary, best.RenderQuality)
+			}
+			retryImageBlocks := applyQualityRetryToImageBlocks(currentImageBlocks, plan)
+			retryRenderBlocks := applyQualityRetryToRenderBlocks(currentRenderBlocks, ocr, plan)
+			if plan.UseShorterText || plan.ReduceFontSize {
+				retryImageBlocks = buildImageRenderBlocks(retryRenderBlocks)
+			}
+			label := "quality_auto_retry"
+			if plan.DrawTextOnlyRetry {
+				label = "draw_text_only_retry"
+			}
+			if plan.ForcePureTextReplace {
+				label = "force_pure_text_replace"
+			}
+			_ = runAndTrack(retryImageBlocks, retryRenderBlocks, label)
+			best.QualityRetried = true
+		}
+	}
+
+	if best == nil {
+		return nil, imagerender.ErrEraseMaskEmpty
+	}
+
+	// Debug artifacts from last best result path
+	rgba, stats, usedErase, debugArt, dbgErr := imagerender.EraseRegionsWithDebug(img, best.ImageBlocks, imOpts)
+	if dbgErr == nil {
+		drawn, _ := imagerender.DrawRegions(rgba, best.ImageBlocks, imOpts)
+		_ = drawn
+		finalData, _, _ := imagerender.Encode(rgba, outputFormat)
+		var debugMap map[string]any
+		if task != nil {
+			debugMap = buildTranslateDebugOutput(ctx, s, task, debugArt.OriginalPNG, debugArt.MaskPNG, debugArt.ErasedPNG, finalData)
+		}
+		best.DebugArtifacts = debugMap
+		if best.Result != nil {
+			best.Result.EraseMode = usedErase
+			best.Result.EraseAreaRatio = float64(stats.ErasePixels) / float64(maxInt(1, rgba.Bounds().Dx()*rgba.Bounds().Dy()))
+		}
+	}
+
+	return best, nil
+}
+
+func renderTranslateWithEraseVerify(
+	s *Service,
+	ctx context.Context,
+	sourceBytes []byte,
+	blocks []imagerender.TextBlock,
+	opts imagerender.Options,
+	outputFormat string,
+	ocr *translateOCRResult,
+	sourceLang string,
+	verifyErase bool,
+) (*translateRenderAttemptResult, error) {
+	img, _, err := imagerender.Decode(sourceBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	currentBlocks := cloneImageRenderBlocks(blocks)
+	eraseSourceRemain := false
+	var rgba *image.RGBA
+	var stats imagerender.EraseStats
+	var usedErase string
+
+	maxRetries := maxEraseResidueRetries
+	if opts.PureTextReplace {
+		maxRetries = maxPureTextEraseRetries
+	}
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		attemptBlocks := currentBlocks
+		if attempt > 0 {
+			attemptBlocks = expandMaskDilateBlocks(currentBlocks, 1)
+		}
+		attemptOpts := opts
+		rgba, stats, usedErase, err = imagerender.EraseRegions(img, attemptBlocks, attemptOpts)
+		if err != nil {
+			return nil, err
+		}
+		if !verifyErase || s == nil || attempt >= maxRetries {
+			break
+		}
+		preview, _, encErr := imagerender.Encode(rgba, outputFormat)
+		if encErr != nil {
+			break
+		}
+		if !s.checkSourceTextAfterErase(ctx, preview, ocr, sourceLang) {
+			break
+		}
+		eraseSourceRemain = true
+		currentBlocks = attemptBlocks
+	}
+
+	drawn, err := imagerender.DrawRegions(rgba, blocks, opts)
+	if err != nil {
+		return nil, err
+	}
+	data, ct, err := imagerender.Encode(rgba, outputFormat)
+	if err != nil {
+		return nil, err
+	}
+	b := rgba.Bounds()
+	imageArea := maxInt(1, b.Dx()*b.Dy())
+	return &translateRenderAttemptResult{
+		Result: &imagerender.Result{
+			Data:                 data,
+			ContentType:          ct,
+			EraseMode:            usedErase,
+			BlocksDrawn:          drawn,
+			EraseBlocks:          countEraseBlocksFromImage(blocks),
+			SourceSHA256:         imagerender.SHA256Hex(sourceBytes),
+			OutputSHA256:         imagerender.SHA256Hex(data),
+			EraseAreaRatio:       float64(stats.ErasePixels) / float64(imageArea),
+			PatchAreaRatio:       float64(stats.PatchPixels) / float64(imageArea),
+			BackgroundDeltaScore: stats.BackgroundDeltaScore,
+			FlatFillRatio:        stats.FlatFillRatio / float64(maxInt(1, stats.PatchPixels)),
+			LargePatchDetected:   stats.LargePatchDetected || float64(stats.PatchPixels)/float64(imageArea) > imagerender.MaxEraseMaskRatioTotal,
+		},
+		EraseSourceRemain: eraseSourceRemain,
+	}, nil
+}
+
+func secondaryInpaintOnMaskOnly(
+	rgba *image.RGBA,
+	blocks []imagerender.TextBlock,
+	imageArea int,
+) {
+	for _, block := range blocks {
+		class := strings.TrimSpace(strings.ToLower(block.BlockClass))
+		if isCapsuleBlockClassForRender(class) {
+			continue
+		}
+		_, _ = imagerender.SecondaryInpaintTextMask(rgba, block, imageArea, 2)
+	}
+}
 
 // countSourceBlocksStillPresent counts how many original OCR text blocks still appear after erase.
 func countSourceBlocksStillPresent(postOCR *translateOCRResult, original *translateOCRResult) int {
@@ -80,17 +306,6 @@ func (s *Service) checkSourceTextAfterErase(
 	return still >= sourceEraseRemainThreshold(ocr)
 }
 
-func strengthenEraseBlocks(blocks []imagerender.TextBlock) []imagerender.TextBlock {
-	out := cloneImageRenderBlocks(blocks)
-	for i := range out {
-		out[i].ErasePadding = maxInt(out[i].ErasePadding+4, 8)
-		if out[i].ErasePadding > 14 {
-			out[i].ErasePadding = 14
-		}
-	}
-	return out
-}
-
 func detectBadgeShapeAbnormal(blocks []translateRenderBlock) bool {
 	return countAbnormalBadgeRenderBlocks(blocks) > 0
 }
@@ -137,82 +352,6 @@ func badgeRenderExceedsHardLimit(b translateRenderBlock) bool {
 type translateRenderAttemptResult struct {
 	Result            *imagerender.Result
 	EraseSourceRemain bool
-}
-
-func renderTranslateWithEraseVerify(
-	s *Service,
-	ctx context.Context,
-	sourceBytes []byte,
-	blocks []imagerender.TextBlock,
-	opts imagerender.Options,
-	outputFormat string,
-	ocr *translateOCRResult,
-	sourceLang string,
-	verifyErase bool,
-) (*translateRenderAttemptResult, error) {
-	img, _, err := imagerender.Decode(sourceBytes)
-	if err != nil {
-		return nil, err
-	}
-	rgba, stats, usedErase, err := imagerender.EraseRegions(img, blocks, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	eraseSourceRemain := false
-	if verifyErase && s != nil {
-		preview, _, encErr := imagerender.Encode(rgba, outputFormat)
-		if encErr == nil && s.checkSourceTextAfterErase(ctx, preview, ocr, sourceLang) {
-			eraseSourceRemain = true
-			strongOpts := opts
-			strongOpts.EraseMode = imagerender.EraseOpenCVInpaint
-			strongBlocks := strengthenEraseBlocks(blocks)
-			if strongRGBA, strongStats, strongUsed, reErr := imagerender.EraseRegions(rgba, strongBlocks, strongOpts); reErr == nil {
-				rgba = strongRGBA
-				stats.ErasePixels += strongStats.ErasePixels
-				stats.PatchPixels += strongStats.PatchPixels
-				stats.BackgroundDeltaScore += strongStats.BackgroundDeltaScore
-				stats.LargePatchDetected = stats.LargePatchDetected || strongStats.LargePatchDetected
-				preview2, _, enc2 := imagerender.Encode(rgba, outputFormat)
-				if enc2 == nil && !s.checkSourceTextAfterErase(ctx, preview2, ocr, sourceLang) {
-					eraseSourceRemain = false
-				}
-				if strings.TrimSpace(strongUsed) != "" {
-					usedErase = strongUsed
-				} else {
-					usedErase = imagerender.EraseOpenCVInpaint
-				}
-			}
-		}
-	}
-
-	drawn, err := imagerender.DrawRegions(rgba, blocks, opts)
-	if err != nil {
-		return nil, err
-	}
-	data, ct, err := imagerender.Encode(rgba, outputFormat)
-	if err != nil {
-		return nil, err
-	}
-	b := rgba.Bounds()
-	imageArea := maxInt(1, b.Dx()*b.Dy())
-	return &translateRenderAttemptResult{
-		Result: &imagerender.Result{
-			Data:                 data,
-			ContentType:          ct,
-			EraseMode:            usedErase,
-			BlocksDrawn:          drawn,
-			EraseBlocks:          countEraseBlocksFromImage(blocks),
-			SourceSHA256:         imagerender.SHA256Hex(sourceBytes),
-			OutputSHA256:         imagerender.SHA256Hex(data),
-			EraseAreaRatio:       float64(stats.ErasePixels) / float64(imageArea),
-			PatchAreaRatio:       float64(stats.PatchPixels) / float64(imageArea),
-			BackgroundDeltaScore: stats.BackgroundDeltaScore,
-			FlatFillRatio:        stats.FlatFillRatio / float64(maxInt(1, stats.PatchPixels)),
-			LargePatchDetected:   stats.LargePatchDetected || float64(stats.PatchPixels)/float64(imageArea) > 0.08,
-		},
-		EraseSourceRemain: eraseSourceRemain,
-	}, nil
 }
 
 func countRenderBlocksByGroup(blocks []translateRenderBlock, types ...string) int {
@@ -279,15 +418,37 @@ func buildBlockClassificationSummary(ocr *translateOCRResult) []map[string]any {
 	out := make([]map[string]any, 0, len(ocr.Blocks))
 	for _, b := range ocr.Blocks {
 		out = append(out, map[string]any{
-			"id":                   b.ID,
-			"text":                 b.Text,
-			"blockClass":           b.BlockClass,
-			"standard_translation": b.StandardTranslation,
-			"standardTranslation":  b.StandardTranslation,
-			"compact_translation":  firstNonEmptyString(b.CompactTranslation, b.ShortTranslatedText),
-			"compactTranslation":   firstNonEmptyString(b.CompactTranslation, b.ShortTranslatedText),
-			"erase_bbox":           b.BBox,
+			"id":                    b.ID,
+			"text":                  b.Text,
+			"blockClass":            b.BlockClass,
+			"standard_translation":  b.StandardTranslation,
+			"standardTranslation":   b.StandardTranslation,
+			"compact_translation":   firstNonEmptyString(b.CompactTranslation, b.ShortTranslatedText),
+			"compactTranslation":    firstNonEmptyString(b.CompactTranslation, b.ShortTranslatedText),
+			"badge_translation":     b.BadgeTranslation,
+			"badgeTranslation":      b.BadgeTranslation,
+			"fixedShortTranslation": b.FixedShortTranslation,
+			"erase_bbox":            b.BBox,
 		})
+	}
+	return out
+}
+
+const (
+	warningBadgeShapeAbnormal = "badge_shape_abnormal"
+	warningTextOverlap        = "text_overlap"
+	warningEraseFailed        = "erase_failed"
+	maxEraseResidueRetries    = 2
+	maxPureTextEraseRetries   = 3
+)
+
+func expandMaskDilateBlocks(blocks []imagerender.TextBlock, extra int) []imagerender.TextBlock {
+	out := cloneImageRenderBlocks(blocks)
+	for i := range out {
+		out[i].MaskDilate = maxInt(1, out[i].MaskDilate+extra)
+		if out[i].MaskDilate > 2 {
+			out[i].MaskDilate = 2
+		}
 	}
 	return out
 }

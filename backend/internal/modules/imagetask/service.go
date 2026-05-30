@@ -326,6 +326,9 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
 	}
+	if IsTranslateTaskType(p.TaskType) && imgID != nil {
+		_ = s.supersedePriorTranslateResults(ctx, row, translateTargetLanguageFromHints(inputHints(p.Input)), row.ID)
+	}
 	return row, nil
 }
 
@@ -431,7 +434,7 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 
 	if IsTranslateTaskType(task.TaskType) {
 		if err := s.executeTranslateImageTextTask(pctx, task, hints); err != nil {
-			return s.fail(ctx, httpCtx, task, err.Error())
+			return s.handleTranslateTaskFailure(ctx, task, hints, err)
 		}
 		return nil
 	}
@@ -844,6 +847,9 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 	}
 	if res.RowsAffected == 0 {
 		return fmt.Errorf("only failed tasks can be retried")
+	}
+	if IsTranslateTaskType(task.TaskType) {
+		_ = s.supersedePriorTranslateResults(ctx, &task, translateTargetLanguageFromHints(inputHints(task.Input)), task.ID)
 	}
 
 	if s.OpLog != nil {

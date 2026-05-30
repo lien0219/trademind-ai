@@ -8,17 +8,19 @@ import (
 )
 
 type translateLayoutOptions struct {
-	AutoLayout         bool
-	AutoWrap           bool
-	AutoFontSize       bool
-	AllowTextBoxExpand bool
-	AllowTextSimplify  bool
-	MinFontSize        int
-	MaxFontSize        int
-	LineHeightRatio    float64
-	MaxLines           int
-	LayoutMode         string
-	TargetLang         string
+	AutoLayout                 bool
+	AutoWrap                   bool
+	AutoFontSize               bool
+	AllowTextBoxExpand         bool
+	AllowTextSimplify          bool
+	AllowTextOverflow          bool
+	MinFontSize                int
+	MaxFontSize                int
+	LineHeightRatio            float64
+	MaxLines                   int
+	LayoutMode                 string
+	TargetLang                 string
+	CoordGroupRelayoutFallback bool
 }
 
 type translateBlockLayoutPlan struct {
@@ -35,16 +37,17 @@ type translateBlockLayoutPlan struct {
 }
 
 type translateLayoutSummary struct {
-	AutoLayout        bool                      `json:"autoLayout"`
-	LayoutTemplate    string                    `json:"layoutTemplate,omitempty"`
-	TextBlocksCount   int                       `json:"textBlocksCount"`
-	AutoWrappedBlocks int                       `json:"autoWrappedBlocks"`
-	FontResizedBlocks int                       `json:"fontResizedBlocks"`
-	SimplifiedBlocks  int                       `json:"simplifiedBlocks"`
-	OverflowBlocks    int                       `json:"overflowBlocks"`
-	MinFontSizeUsed   int                       `json:"minFontSizeUsed"`
-	Simulation        translateLayoutSimulation `json:"simulation,omitempty"`
-	Warnings          []string                  `json:"warnings"`
+	AutoLayout                 bool                      `json:"autoLayout"`
+	LayoutTemplate             string                    `json:"layoutTemplate,omitempty"`
+	TextBlocksCount            int                       `json:"textBlocksCount"`
+	AutoWrappedBlocks          int                       `json:"autoWrappedBlocks"`
+	FontResizedBlocks          int                       `json:"fontResizedBlocks"`
+	SimplifiedBlocks           int                       `json:"simplifiedBlocks"`
+	OverflowBlocks             int                       `json:"overflowBlocks"`
+	MinFontSizeUsed            int                       `json:"minFontSizeUsed"`
+	Simulation                 translateLayoutSimulation `json:"simulation,omitempty"`
+	CoordGroupRelayoutFallback bool                      `json:"coordGroupRelayoutFallback,omitempty"`
+	Warnings                   []string                  `json:"warnings"`
 }
 
 const (
@@ -81,8 +84,9 @@ func parseTranslateLayoutOptions(hints map[string]any, targetLang string) transl
 		AutoLayout:         boolFromHints(hints, "autoLayout", true),
 		AutoWrap:           boolFromHints(hints, "autoWrap", true),
 		AutoFontSize:       boolFromHints(hints, "autoFontSize", true),
-		AllowTextBoxExpand: boolFromHints(hints, "allowTextBoxExpand", true),
+		AllowTextBoxExpand: boolFromHints(hints, "allowTextBoxExpand", false),
 		AllowTextSimplify:  boolFromHints(hints, "allowTextSimplify", true),
+		AllowTextOverflow:  boolFromHints(hints, "allowTextOverflow", false),
 		MinFontSize:        intFromAny(hints["minFontSize"]),
 		MaxFontSize:        intFromAny(hints["maxFontSize"]),
 		LineHeightRatio:    floatFromAny(hints["lineHeightRatio"]),
@@ -579,6 +583,8 @@ func ruleBasedShortText(orig, translated, targetLang string) string {
 		"高品质耐用材质":                          "Durable",
 		"金属底座":                             "Metal Base",
 		"折叠支架":                             "Foldable Stand",
+		"雪花白":                              "Snow White",
+		"炫酷黑":                              "Cool Black",
 		"手机/平板":                            "Phone/Tablet",
 		"手机 / 平板":                          "Phone/Tablet",
 		"暗夜黑":                              "Midnight Black",

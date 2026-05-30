@@ -19,10 +19,14 @@ func DrawText(dst *image.RGBA, block TextBlock, opts Options) error {
 	x, y, w, h := clampRect(block.BBox.X, block.BBox.Y, block.BBox.Width, block.BBox.Height, b.Dx(), b.Dy())
 	rect := image.Rect(x, y, x+w, y+h)
 	textColor := contrastTextColor(dst, rect, block.Style)
-	if bg := strings.TrimSpace(block.Style.BackgroundColor); bg != "" {
-		radius := effectiveBorderRadius(w, h, block.Style.BorderRadius)
-		fillRoundedRect(dst, rect, radius, parseHexColor(bg, color.RGBA{R: 17, G: 17, B: 17, A: 255}))
-		textColor = parseHexColor(block.Style.Color, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	if !opts.PureTextReplace {
+		if bg := strings.TrimSpace(block.Style.BackgroundColor); bg != "" {
+			radius := effectiveBorderRadius(w, h, block.Style.BorderRadius)
+			fillRoundedRect(dst, rect, radius, parseHexColor(bg, color.RGBA{R: 17, G: 17, B: 17, A: 255}))
+			textColor = parseHexColor(block.Style.Color, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+		}
+	} else if strings.TrimSpace(block.Style.Color) != "" {
+		textColor = parseHexColor(block.Style.Color, textColor)
 	}
 	align := strings.TrimSpace(strings.ToLower(block.Align))
 	if align == "" {

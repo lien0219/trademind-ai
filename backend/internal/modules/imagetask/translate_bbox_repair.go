@@ -26,11 +26,45 @@ func needsOCRBBoxRepair(blocks []translateTextBlock) bool {
 	if invalidY >= 2 {
 		return true
 	}
+	if ocrBlocksSuspiciousLeftCluster(blocks) {
+		return true
+	}
 	for i := 0; i < len(blocks); i++ {
 		for j := i + 1; j < len(blocks); j++ {
 			if bboxOverlapAreaRatio(blocks[i].BBox, blocks[j].BBox) > 0.35 {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+// ocrBlocksSuspiciousLeftCluster detects OCR boxes stuck at the origin (common vision OCR bug).
+func ocrBlocksSuspiciousLeftCluster(blocks []translateTextBlock) bool {
+	if len(blocks) < 2 {
+		return false
+	}
+	stuck := 0
+	for _, b := range blocks {
+		if b.BBox.X <= 12 && b.BBox.Y <= 12 {
+			stuck++
+		}
+	}
+	return stuck >= 2
+}
+
+func productMarketingTextRepairPlacement(blocks []translateTextBlock) bool {
+	for _, b := range blocks {
+		t := strings.TrimSpace(b.Text)
+		if t == "" {
+			continue
+		}
+		if isColorBadgeText(t) {
+			return true
+		}
+		if strings.Contains(t, "折叠") || strings.Contains(t, "通用") ||
+			strings.Contains(t, "/") || strings.Contains(t, "／") {
+			return true
 		}
 	}
 	return false
@@ -278,6 +312,13 @@ func heuristicRepairOCRBlockBBoxes(blocks []translateTextBlock, imageW, imageH i
 	if len(blocks) == 0 || imageH <= 0 {
 		return blocks
 	}
+	if productMarketingTextRepairPlacement(blocks) {
+		return heuristicRepairOCRBlockBBoxesTopRight(blocks, imageW, imageH)
+	}
+	return heuristicRepairOCRBlockBBoxesTopLeft(blocks, imageW, imageH)
+}
+
+func heuristicRepairOCRBlockBBoxesTopLeft(blocks []translateTextBlock, imageW, imageH int) []translateTextBlock {
 	out := append([]translateTextBlock{}, blocks...)
 	startY := maxInt(int(float64(imageH)*0.04), 8)
 	gap := maxInt(int(float64(imageH)*0.015), 4)
@@ -302,6 +343,79 @@ func heuristicRepairOCRBlockBBoxes(blocks []translateTextBlock, imageW, imageH i
 		}
 		out[i].BBox = translateTextBBox{X: x, Y: curY, Width: w, Height: h}
 		curY += h + gap
+	}
+	return out
+}
+
+func heuristicRepairOCRBlockBBoxesTopRight(blocks []translateTextBlock, imageW, imageH int) []translateTextBlock {
+	out := append([]translateTextBlock{}, blocks...)
+	startY := maxInt(int(float64(imageH)*0.04), 8)
+	gap := maxInt(int(float64(imageH)*0.012), 4)
+	curY := startY
+	defaultW := imageW * 38 / 100
+	if defaultW < 180 {
+		defaultW = 180
+	}
+	if defaultW > imageW*7/10 {
+		defaultW = imageW * 7 / 10
+	}
+	anchorX := maxInt(8, imageW-defaultW-12)
+	for i := range out {
+		h := out[i].BBox.Height
+		if h <= 0 || h > imageH/5 {
+			h = estimateSingleLineBBoxHeight(out[i].Text, imageH)
+		}
+		w := out[i].BBox.Width
+		if w <= 0 || w > imageW*8/10 {
+			w = defaultW
+		}
+		if w > defaultW {
+			w = defaultW
+		}
+		out[i].BBox = translateTextBBox{X: anchorX, Y: curY, Width: w, Height: h}
+		curY += h + gap
+	}
+	return out
+}
+
+func scaleOCRBlocksToRenderPixels(blocks []translateTextBlock, imageW, imageH int) []translateTextBlock {
+	if len(blocks) == 0 || imageW <= 0 || imageH <= 0 {
+		return blocks
+	}
+	maxX, maxY := inferOCRImageExtents(blocks)
+	if maxX <= 0 || maxY <= 0 {
+		return blocks
+	}
+	// Vision OCR sometimes returns 0–1 normalized coords as integers.
+	if maxX <= 1 && maxY <= 1 {
+		out := append([]translateTextBlock{}, blocks...)
+		for i := range out {
+			out[i].BBox = translateTextBBox{
+				X:      int(float64(out[i].BBox.X) * float64(imageW)),
+				Y:      int(float64(out[i].BBox.Y) * float64(imageH)),
+				Width:  maxInt(1, int(float64(out[i].BBox.Width)*float64(imageW))),
+				Height: maxInt(1, int(float64(out[i].BBox.Height)*float64(imageH))),
+			}
+		}
+		return out
+	}
+	if maxX >= imageW/3 && maxY >= imageH/3 {
+		return blocks
+	}
+	sx := float64(imageW) / float64(maxInt(maxX, 1))
+	sy := float64(imageH) / float64(maxInt(maxY, 1))
+	if sx < 1.35 || sy < 1.35 || sx > 24 || sy > 24 {
+		return blocks
+	}
+	out := append([]translateTextBlock{}, blocks...)
+	for i := range out {
+		bb := out[i].BBox
+		out[i].BBox = translateTextBBox{
+			X:      int(float64(bb.X) * sx),
+			Y:      int(float64(bb.Y) * sy),
+			Width:  maxInt(1, int(float64(bb.Width)*sx)),
+			Height: maxInt(1, int(float64(bb.Height)*sy)),
+		}
 	}
 	return out
 }

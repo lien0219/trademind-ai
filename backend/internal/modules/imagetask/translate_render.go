@@ -3,6 +3,7 @@ package imagetask
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"unicode"
 
@@ -40,10 +41,11 @@ func (s *Service) executeTranslateDeterministic(
 	}
 
 	imOpts := imagerender.Options{
-		EraseMode:   eraseMode,
-		MaskPadding: renderOpts.MaskPadding,
-		TextPadding: renderOpts.TextPadding,
-		LineHeight:  floatFromAny(hints["lineHeightRatio"]),
+		EraseMode:       eraseMode,
+		MaskPadding:     renderOpts.MaskPadding,
+		TextPadding:     renderOpts.TextPadding,
+		LineHeight:      floatFromAny(hints["lineHeightRatio"]),
+		PureTextReplace: isPureTextReplaceMode(renderOpts.RenderMode),
 	}
 	if imOpts.LineHeight <= 0 {
 		imOpts.LineHeight = 1.15
@@ -54,50 +56,80 @@ func (s *Service) executeTranslateDeterministic(
 	var renderQuality translateRenderQuality
 	var lastRenderErr error
 	var lastVerifyErr error
-	bestScore := -1
-	for _, attempt := range translateRenderAttempts(imageBlocks, imOpts, eraseMode, renderOpts.EraseMode) {
-		for _, mode := range attempt.Modes {
-			attemptOpts := attempt.Options
-			attemptOpts.EraseMode = mode
-			attemptOut, err := renderTranslateWithEraseVerify(
-				s, ctx, sourceBytes, attempt.Blocks, attemptOpts, renderOpts.OutputFormat,
-				ocr, sourceLang, renderOpts.VerifyOutputText,
-			)
-			if err != nil {
-				lastRenderErr = err
-				continue
+	var debugArtifacts map[string]any
+	var qualityRetried bool
+
+	pipelineRes, pipeErr := s.runTranslateRenderPipeline(
+		ctx, task, sourceBytes, renderBlocks, imageBlocks, imOpts, renderOpts.OutputFormat,
+		ocr, sourceLang, targetLang, renderOpts, quality, layoutSummary,
+	)
+	if pipeErr == nil && pipelineRes != nil && pipelineRes.Result != nil {
+		res = pipelineRes.Result
+		verifyMeta = pipelineRes.VerifyMeta
+		renderQuality = pipelineRes.RenderQuality
+		debugArtifacts = pipelineRes.DebugArtifacts
+		qualityRetried = pipelineRes.QualityRetried
+		if pipelineRes.EraseSourceRemain {
+			quality.Warnings = appendUniqueCodeWarning(quality.Warnings, warningEraseFailed)
+			if isPureTextReplaceMode(renderOpts.RenderMode) {
+				quality.Warnings = appendUniqueCodeWarning(quality.Warnings, warningPureTextSourceNotErased)
+				renderQuality.SourceTextRemovedScore = minInt(renderQuality.SourceTextRemovedScore, 35)
+				renderQuality.Warnings = appendUniqueCodeWarning(renderQuality.Warnings, warningPureTextSourceNotErased)
+				renderQuality.Passed = false
 			}
-			attemptRes := attemptOut.Result
-			attemptRes.RetryStrategies = append(attemptRes.RetryStrategies, attempt.Name, mode)
-			if attemptOut.EraseSourceRemain {
-				quality.Warnings = appendUniqueCodeWarning(quality.Warnings, warningEraseFailed)
+		}
+	} else {
+		lastRenderErr = pipeErr
+		bestScore := -1
+		for _, attempt := range translateRenderAttempts(imageBlocks, imOpts, eraseMode, renderOpts.EraseMode) {
+			for _, mode := range attempt.Modes {
+				attemptOpts := attempt.Options
+				attemptOpts.EraseMode = mode
+				attemptOut, err := renderTranslateWithEraseVerify(
+					s, ctx, sourceBytes, attempt.Blocks, attemptOpts, renderOpts.OutputFormat,
+					ocr, sourceLang, renderOpts.VerifyOutputText,
+				)
+				if err != nil {
+					lastRenderErr = err
+					continue
+				}
+				attemptRes := attemptOut.Result
+				attemptRes.RetryStrategies = append(attemptRes.RetryStrategies, attempt.Name, mode)
+				if attemptOut.EraseSourceRemain {
+					quality.Warnings = appendUniqueCodeWarning(quality.Warnings, warningEraseFailed)
+				}
+				attemptVerify, verifyErr := s.verifyTranslateOutputWithLayout(ctx, sourceBytes, attemptRes.Data, ocr, targetLang, sourceLang, renderOpts.VerifyOutputText, layoutSummary)
+				if verifyErr != nil {
+					lastVerifyErr = verifyErr
+					continue
+				}
+				attemptQuality := buildTranslateRenderQuality(quality, layoutSummary, attemptVerify, renderOpts, renderBlocks, attemptRes)
+				score := attemptQuality.CommercialUsabilityScore
+				if score > bestScore {
+					bestScore = score
+					res, verifyMeta, renderQuality = attemptRes, attemptVerify, attemptQuality
+				}
+				if attemptQuality.Passed {
+					break
+				}
 			}
-			attemptVerify, verifyErr := s.verifyTranslateOutput(ctx, sourceBytes, attemptRes.Data, ocr, targetLang, sourceLang, renderOpts.VerifyOutputText)
-			if verifyErr != nil {
-				lastVerifyErr = verifyErr
-				continue
-			}
-			attemptQuality := buildTranslateRenderQuality(quality, layoutSummary, attemptVerify, renderOpts, renderBlocks, attemptRes)
-			score := attemptQuality.CommercialUsabilityScore
-			if score > bestScore {
-				bestScore = score
-				res, verifyMeta, renderQuality = attemptRes, attemptVerify, attemptQuality
-			}
-			if attemptQuality.Passed {
+			if res != nil && renderQuality.Passed {
 				break
 			}
 		}
-		if res != nil && renderQuality.Passed {
-			break
-		}
 	}
 	if res == nil {
+		if lastRenderErr != nil {
+			if errors.Is(lastRenderErr, imagerender.ErrEraseMaskTooLarge) {
+				return newTranslateErr(errCodeTranslateEraseFail, "擦除区域过大，mask 生成异常："+lastRenderErr.Error())
+			}
+		}
 		img, _, decErr := imagerender.Decode(sourceBytes)
-		if decErr == nil {
+		if decErr == nil && !strings.EqualFold(effectiveEraseMode(renderOpts), imagerender.EraseTextPixelMask) {
 			fallbackOpts := imOpts
 			fallbackOpts.EraseMode = imagerender.EraseOpenCVInpaint
 			if fallbackRes, fbErr := imagerender.RenderAndEncode(img, sourceBytes, imageBlocks, fallbackOpts, renderOpts.OutputFormat); fbErr == nil {
-				fallbackVerify, _ := s.verifyTranslateOutput(ctx, sourceBytes, fallbackRes.Data, ocr, targetLang, sourceLang, renderOpts.VerifyOutputText)
+				fallbackVerify, _ := s.verifyTranslateOutputWithLayout(ctx, sourceBytes, fallbackRes.Data, ocr, targetLang, sourceLang, renderOpts.VerifyOutputText, layoutSummary)
 				fallbackQuality := buildTranslateRenderQuality(quality, layoutSummary, fallbackVerify, renderOpts, renderBlocks, fallbackRes)
 				quality.Warnings = appendUniqueCodeWarning(quality.Warnings, warningEraseFailed)
 				res, verifyMeta, renderQuality = fallbackRes, fallbackVerify, fallbackQuality
@@ -147,7 +179,7 @@ func (s *Service) executeTranslateDeterministic(
 		return newTranslateErr(errCodeStorageUploadFailed, "翻译结果上传失败："+persistErr.Error())
 	}
 
-	return s.finalizeTranslateSuccess(ctx, task, hints, ocr, quality, renderQuality, layoutSummary, renderOpts, renderBlocks, res, verifyMeta, sourceLang, targetLang, finalURL, finalFID, storageKey)
+	return s.finalizeTranslateSuccess(ctx, task, hints, ocr, quality, renderQuality, layoutSummary, renderOpts, renderBlocks, res, verifyMeta, sourceLang, targetLang, finalURL, finalFID, storageKey, debugArtifacts, qualityRetried)
 }
 
 func (s *Service) executeTranslateAIEdit(
@@ -209,7 +241,7 @@ func (s *Service) executeTranslateAIEdit(
 	renderOpts.RenderMode = RenderModeAIEdit
 	verifyMeta := translateVerificationMeta{ImageChanged: true, TargetTextDetected: true, Confidence: 0.5}
 	renderQuality := buildTranslateRenderQuality(quality, layoutSummary, verifyMeta, renderOpts, nil, nil)
-	return s.finalizeTranslateSuccess(ctx, task, hints, ocr, quality, renderQuality, layoutSummary, renderOpts, nil, nil, verifyMeta, sourceLang, targetLang, finalURL, finalFID, storageKey)
+	return s.finalizeTranslateSuccess(ctx, task, hints, ocr, quality, renderQuality, layoutSummary, renderOpts, nil, nil, verifyMeta, sourceLang, targetLang, finalURL, finalFID, storageKey, nil, false)
 }
 
 func (s *Service) finalizeTranslateSuccess(
@@ -227,6 +259,8 @@ func (s *Service) finalizeTranslateSuccess(
 	sourceLang, targetLang, finalURL string,
 	finalFID *uuid.UUID,
 	storageKey string,
+	debugArtifacts map[string]any,
+	qualityRetried bool,
 ) error {
 	detectedLang := strings.TrimSpace(ocr.DetectedLanguage)
 	if detectedLang == "" && !strings.EqualFold(sourceLang, "auto") {
@@ -281,15 +315,29 @@ func (s *Service) finalizeTranslateSuccess(
 	coordMeta := map[string]any{}
 	if ocr.CoordinateMeta != nil {
 		coordMeta = map[string]any{
-			"ocrImageWidth":       ocr.CoordinateMeta.OCRImageWidth,
-			"ocrImageHeight":      ocr.CoordinateMeta.OCRImageHeight,
-			"renderImageWidth":    ocr.CoordinateMeta.RenderImageWidth,
-			"renderImageHeight":   ocr.CoordinateMeta.RenderImageHeight,
-			"scaleX":              ocr.CoordinateMeta.ScaleX,
-			"scaleY":              ocr.CoordinateMeta.ScaleY,
-			"coordScaleApplied":   ocr.CoordinateMeta.CoordScaleApplied,
-			"bboxCorrectionCount": ocr.CoordinateMeta.BBoxCorrectionCount,
-			"coordMappingValid":   ocr.CoordinateMeta.CoordMappingValid,
+			"originalImageWidth":    ocr.CoordinateMeta.OriginalImageWidth,
+			"originalImageHeight":   ocr.CoordinateMeta.OriginalImageHeight,
+			"ocrImageWidth":         ocr.CoordinateMeta.OCRImageWidth,
+			"ocrImageHeight":        ocr.CoordinateMeta.OCRImageHeight,
+			"renderImageWidth":      ocr.CoordinateMeta.RenderImageWidth,
+			"renderImageHeight":     ocr.CoordinateMeta.RenderImageHeight,
+			"cropOffsetX":           ocr.CoordinateMeta.CropOffsetX,
+			"cropOffsetY":           ocr.CoordinateMeta.CropOffsetY,
+			"cropRenderWidth":       ocr.CoordinateMeta.CropRenderWidth,
+			"cropRenderHeight":      ocr.CoordinateMeta.CropRenderHeight,
+			"cropScaleX":            ocr.CoordinateMeta.CropScaleX,
+			"cropScaleY":            ocr.CoordinateMeta.CropScaleY,
+			"scaleX":                ocr.CoordinateMeta.ScaleX,
+			"scaleY":                ocr.CoordinateMeta.ScaleY,
+			"aspectRatioDiff":       ocr.CoordinateMeta.AspectRatioDiff,
+			"mappingMode":           ocr.CoordinateMeta.MappingMode,
+			"mappingTier":           ocr.CoordinateMeta.MappingTier,
+			"groupRelayoutFallback": ocr.CoordinateMeta.GroupRelayoutFallback,
+			"fallback":              ocr.CoordinateMeta.Fallback,
+			"coordScaleApplied":     ocr.CoordinateMeta.CoordScaleApplied,
+			"bboxCorrectionCount":   ocr.CoordinateMeta.BBoxCorrectionCount,
+			"coordMappingValid":     ocr.CoordinateMeta.CoordMappingValid,
+			"finalMappedBoxes":      ocr.CoordinateMeta.FinalMappedBoxes,
 		}
 	}
 	ocrSummary := map[string]any{
@@ -338,6 +386,7 @@ func (s *Service) finalizeTranslateSuccess(
 		"sourceLanguage":          sourceLang,
 		"targetLanguage":          targetLang,
 		"renderMode":              renderOpts.RenderMode,
+		"pureTextReplaceMode":     isPureTextReplaceMode(renderOpts.RenderMode),
 		"ocr":                     ocrSummary,
 		"coordinateMeta":          coordMeta,
 		"eraseBlocks":             eraseBlocks,
@@ -372,20 +421,42 @@ func (s *Service) finalizeTranslateSuccess(
 	if finalFID != nil {
 		outObj["resultFileId"] = finalFID.String()
 	}
-	status := StatusSuccess
-	if !verifyMeta.TargetTextDetected {
-		status = StatusFailedValidation
-	} else if hasSevereTranslateQualityWarning(quality.Warnings, renderQuality.Warnings, layoutSummary.Warnings) ||
-		verifyMeta.SourceTextMayRemain ||
-		layoutSummary.OverflowBlocks > 0 ||
-		!renderQuality.Passed ||
-		(renderQuality.CommercialUsabilityScore > 0 && renderQuality.CommercialUsabilityScore < 75) {
-		status = StatusLowQuality
-	} else if len(quality.Warnings) > 0 {
-		status = StatusSuccessWithWarnings
+	imageW, imageH := imageDimensionsFromRenderBlocks(renderBlocks)
+	status := resolveTranslateFinalStatusForMode(
+		renderQuality.CommercialUsabilityScore, verifyMeta, layoutSummary, renderQuality, qualityRetried, renderOpts.RenderMode,
+		renderBlocks, renderRes, imageW, imageH,
+	)
+	pureValidation := validatePureTextReplace(verifyMeta, layoutSummary, renderQuality, renderBlocks, renderRes, imageW, imageH)
+	if isPureTextReplaceMode(renderOpts.RenderMode) {
+		outObj["validationMode"] = pureValidation.ValidationMode
+		outObj["pureTextValidation"] = pureValidation
+		if len(pureValidation.HardFailures) > 0 {
+			labels := make([]string, 0, len(pureValidation.HardFailures))
+			for _, f := range pureValidation.HardFailures {
+				labels = append(labels, pureTextHardFailureReasonLabel(f))
+			}
+			outObj["validationFailureReasons"] = labels
+		}
 	}
+	if qualityRetried {
+		outObj["qualityAutoRetried"] = true
+	}
+	attachDebugToOutput(outObj, debugArtifacts)
 	outObj["finalQualityStatus"] = status
 	scoreJSON, _ := json.Marshal(meta)
+	attachTranslateArtifactPaths(outObj, storageKey, finalURL)
+	arts := translateArtifactsFromPersist(storageKey, finalFID, finalURL)
+	if status == StatusFailedValidation {
+		s.discardUnusableTranslateOutput(ctx, task, arts, status)
+		outObj["resultUrl"] = ""
+		outObj["previewPath"] = ""
+		outObj["outputPath"] = ""
+		outObj["tempOutputPath"] = ""
+		delete(outObj, "resultFileId")
+		outObj["resultUnavailable"] = true
+		scoreJSON, _ = json.Marshal(meta)
+		return s.finalizeTaskSuccessWithStatus(ctx, task, "", nil, "", outObj, scoreJSON, false, status)
+	}
 	return s.finalizeTaskSuccessWithStatus(ctx, task, finalURL, finalFID, storageKey, outObj, scoreJSON, false, status)
 }
 
@@ -395,7 +466,8 @@ func hasSevereTranslateQualityWarning(groups ...[]string) bool {
 			switch w {
 			case verifyWarningSourceTextRemain, layoutWarningPatchVisible, "erase_area_too_large",
 				"text_overflow", warningBadgeShapeAbnormal, warningTextOverlap, warningEraseFailed,
-				layoutWarningOverflow, layoutWarningUnbalanced, layoutWarningProductSubjectOverlap:
+				layoutWarningOverflow, layoutWarningUnbalanced, layoutWarningProductSubjectOverlap,
+				warningPureTextSourceNotErased, warningPureTextExtraBackground, warningPureTextOverlap:
 				return true
 			}
 		}

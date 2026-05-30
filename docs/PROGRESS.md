@@ -3,7 +3,19 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-29 — **图片文字翻译生产级排版质量收紧**：OCR block 先分类为 `title` / `subtitle` / `badge` / `color_badge` / `small_caption`，只有满足黑底白字、小高度和胶囊区域特征的块才按 badge 渲染；`erase_bbox` 与 `layout_bbox` 继续分离，badge 宽高硬限制为原框 `1.35x / 1.25x`，超限时优先使用 `compact_translation`、缩字号或降级普通文本；绘制前新增布局模拟（溢出、碰撞、疑似遮挡商品主体、版面失衡），绘制后把异常 badge、背景补丁、原文残留等统一打入 `low_quality`；任务详情输出 block 分类、精简文案、bbox 数量、badge/异常 badge、背景补丁分、重叠分和 `finalQualityStatus`，管理端对低质量结果禁用保存到商品图片 / 设主图 / 设详情图。
+**最后更新**：2026-05-30 — **pure_text_replace 坐标与擦除修复**：OCR 框落在左上角时改为右上角商品文案堆叠修复；支持归一化坐标缩放；白字标题保留 `#ffffff` 绘制；浅色胶囊按 `pill` 只擦黑字；擦除重试增至 3 次；质量分 68 且无硬错误时标记 `success_with_review` 而非渲染失败。
+
+**此前**：2026-05-30 — **图片文字翻译 pure_text_replace 生产模式**：新增默认渲染模式 `pure_text_replace`（先擦除原字再绘制译文，禁止白底/气泡/标签补片）；title 仅重绘文字；badge/pill 保留原胶囊背景、只替换内部白字；固定短文案映射（炫酷黑→Cool Black、雪花白→Snow White 等）与 capsule 放不下时自动降级 Universal Stand/For Phones；质量校验原文残留/额外背景层/重叠则 failed 或自动重试；输出 original/erased/final 调试图；管理端展示「纯文字替换」与对应失败提示。
+
+**此前**：2026-05-30 — **图片文字翻译 mask 空失败修复**：`text_pixel_mask` 去字 mask 在 dilate 后易因稀疏笔画合并成超大块（>45% 区域）被误判为空；新增 `dilateMaskWithinLimits` 自适应 dilate（必要时 dilate=0）、`cleanBorderBackgroundColor` 排除边框文字污染；修复 `[TRANSLATE_RENDER_FAILED] imagerender: text pixel mask empty`。
+
+**此前**：2026-05-30 — **图片文字翻译 text_pixel_mask 生产级去字与质量分级**：固定流程 OCR → 文字像素 mask → 按 `blockClass` 分类去字（title/normal Telea inpaint radius=2；badge/pill `pillTextErase` 中位色填充白字、禁止整胶囊 inpaint）→ 短英文重绘 → 二次 OCR；mask 连通域过滤 + 单块≤2%/总计≤6%；质量分≥85 success、75–84 `success_with_review`（可下载、保存商品前提示）、65–74 同任务自动重试一次（maskDilate+1/更短文案/二次 inpaint）、<65 或中文残留/溢出/遮挡主体 failed；输出 `debugOriginalUrl`/`debugMaskUrl`/`debugErasedUrl`/`debugFinalUrl` 调试图；验收「雪花白 / 折叠伸缩版/通用手机」→ `Snow White` + `Universal Phone Stand`/`Universal Stand`。
+
+**此前**：2026-05-30 — **图片文字翻译安全坐标映射与失败清理**：新增安全坐标映射器（normalized / crop 优先，禁止 ocrBox 硬映射）；小误差自动映射（aspectRatioDiff≤0.03、scale 0.5~2.0）、中等误差降级为 group 整体擦除重排（aspectRatioDiff≤0.08、scale 0.3~3.0）、大误差才 failed；完整输出 original/ocr/render/crop/scale/aspectRatioDiff/mappingMode/finalMappedBox 诊断；render 失败或 low_quality 时删除 temp/preview/output 文件并清空 DB resultUrl/output，重试前 supersede 同 sourceId+taskType+targetLanguage 旧结果为 obsolete；错误文案 `[TRANSLATE_RENDER_FAILED] OCR 图与渲染图尺寸差异超过安全映射阈值…`；单测覆盖同比例缩放、crop 局部 OCR、中等降级、大误差失败、失败清理与重试 supersede。
+
+**此前**：2026-05-30 — **图片文字翻译 product_relayout 生产级落地**：默认布局改为 `product_relayout`（强制 `removeOriginalText` / `compactTranslation` / `allowTextOverflow=false`）；OCR block 按 proximity 合并为 `top_right_badge` 等 group 统一擦除重排；OCR 坐标映射支持 `cropOffset` + scale 并输出诊断日志；擦除 padding 按 title/badge/普通分级（16/14/8px），中文残留自动 1.5x mask 重试最多 2 次，纯色/渐变背景优先 `background_sample`；翻译输出 literal/compact/short/badge 四档并按 box 自动选型；渲染前 `measureText` 适配，溢出则任务 failed；二次 OCR 校验原文残留/溢出/重叠/遮挡商品主体，问题结果标记 `low_quality` 或 `need_manual_review`；前端低质量不再显示「成功」，禁用保存/设主图/设详情图，保留重试与下载预览。验收样例「炫酷黑 / 折叠伸缩版/通用手机」→ `Cool Black` + `Foldable Universal Stand` / `Universal Phone Stand`。
+
+**此前**：2026-05-29 — **图片文字翻译生产级排版质量收紧**：OCR block 先分类为 `title` / `subtitle` / `badge` / `color_badge` / `small_caption`，只有满足黑底白字、小高度和胶囊区域特征的块才按 badge 渲染；`erase_bbox` 与 `layout_bbox` 继续分离，badge 宽高硬限制为原框 `1.35x / 1.25x`，超限时优先使用 `compact_translation`、缩字号或降级普通文本；绘制前新增布局模拟（溢出、碰撞、疑似遮挡商品主体、版面失衡），绘制后把异常 badge、背景补丁、原文残留等统一打入 `low_quality`；任务详情输出 block 分类、精简文案、bbox 数量、badge/异常 badge、背景补丁分、重叠分和 `finalQualityStatus`，管理端对低质量结果禁用保存到商品图片 / 设主图 / 设详情图。
 
 **此前**：2026-05-29 — **图片文字翻译右上角标题与擦除修复**：修复商品图右上角标题（如「炫酷黑」）因包含“黑”被误判为黑底徽章的问题，单行大标题现在会进入 `main_title` 分组；徽章识别改为依赖暗色背景或斜杠标签，不再把普通颜色标题直接画成黑底胶囊；标题/普通文案擦除 padding 从过小的 2px 调整为 6–8px；二次加强擦除此前没有把 `opencv_inpaint` 结果写回画布，本次修复后才会真正生效，减少旧中文残留和英文叠旧文案。
 

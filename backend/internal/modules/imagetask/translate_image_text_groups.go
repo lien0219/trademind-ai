@@ -58,7 +58,7 @@ type translateGroupLayoutPlan struct {
 func layoutTemplateFromHints(hints map[string]any) string {
 	tpl := strings.TrimSpace(strings.ToLower(stringFromMap(hints, "layoutTemplate")))
 	switch tpl {
-	case layoutTemplatePreserveOriginal, layoutTemplateEcommerceClean, layoutTemplateTitleBadge:
+	case layoutTemplatePreserveOriginal, layoutTemplateEcommerceClean, layoutTemplateTitleBadge, layoutTemplateProductRelayout:
 		return tpl
 	case "", layoutTemplateAuto:
 		return layoutTemplateAuto
@@ -102,11 +102,15 @@ func buildTranslateTextGroups(blocks []translateTextBlock, hints map[string]any,
 		used[i] = true
 	}
 
-	if tpl == layoutTemplateAuto && looksLikeTitleBadge(groups) {
-		tpl = layoutTemplateTitleBadge
-	}
 	if tpl == layoutTemplateAuto {
-		tpl = layoutTemplatePreserveOriginal
+		if looksLikeTitleBadge(groups) {
+			tpl = layoutTemplateTitleBadge
+		} else {
+			tpl = layoutTemplatePreserveOriginal
+		}
+	}
+	if tpl != layoutTemplatePreserveOriginal {
+		groups = mergeProximityTextGroups(groups, imageW, imageH)
 	}
 	sort.SliceStable(groups, func(i, j int) bool {
 		return groupOrder(groups[i].GroupType) < groupOrder(groups[j].GroupType)
@@ -129,7 +133,7 @@ func findMainTitleIndexes(blocks []translateTextBlock, imageW, imageH int) []int
 		if !top || (!left && !prominent) || isDarkLabelStyle(b.Style) || looksLikeBadgeText(text) {
 			continue
 		}
-		if text == "金属底座" || text == "折叠支架" {
+		if text == "金属底座" || text == "折叠支架" || text == "炫酷黑" {
 			out = append(out, i)
 			continue
 		}
@@ -164,14 +168,17 @@ func classifyTranslateBlocks(blocks []translateTextBlock, imageW, imageH int) {
 }
 
 func classifyTranslateBlock(b translateTextBlock, imageW, imageH int) string {
+	if isProminentTitleCandidate(b, imageW, imageH) {
+		return blockClassTitle
+	}
+	if isLightCapsuleCandidate(b, imageW, imageH) {
+		return blockClassPill
+	}
 	if isStrictBadgeCandidate(b, imageW, imageH) {
 		if isColorBadgeText(b.Text) {
 			return blockClassColorBadge
 		}
 		return blockClassBadge
-	}
-	if isProminentTitleCandidate(b, imageW, imageH) {
-		return blockClassTitle
 	}
 	if imageH > 0 && b.BBox.Height > 0 && b.BBox.Height <= int(float64(imageH)*0.045) {
 		return blockClassSmallCaption
@@ -238,11 +245,12 @@ func makeTranslateGroup(id, gt string, blocks []translateTextBlock, style transl
 
 func computeTranslateGroupLayouts(groups []translateTextGroup, opts translateLayoutOptions, imageW, imageH int, template string) ([]translateGroupLayoutPlan, translateLayoutSummary) {
 	summary := translateLayoutSummary{
-		AutoLayout:      opts.AutoLayout,
-		TextBlocksCount: len(groups),
-		MinFontSizeUsed: opts.MaxFontSize,
-		Warnings:        []string{},
-		LayoutTemplate:  template,
+		AutoLayout:                 opts.AutoLayout,
+		TextBlocksCount:            len(groups),
+		MinFontSizeUsed:            opts.MaxFontSize,
+		Warnings:                   []string{},
+		LayoutTemplate:             template,
+		CoordGroupRelayoutFallback: opts.CoordGroupRelayoutFallback,
 	}
 	plans := make([]translateGroupLayoutPlan, 0, len(groups))
 	for _, g := range groups {
@@ -273,8 +281,8 @@ func layoutTranslateGroup(g translateTextGroup, opts translateLayoutOptions, ima
 	if origBBox.Width <= 0 || origBBox.Height <= 0 {
 		origBBox = g.BBox
 	}
-	eraseBBox := tightEraseBBoxForGroup(g, imageW, imageH)
-	erasePad := 6
+	eraseBBox := tightEraseBBoxForGroup(g, imageW, imageH, opts.CoordGroupRelayoutFallback)
+	erasePad := erasePaddingForGroup(g)
 	downgraded := false
 	blockClass := groupBlockClass(g)
 	switch g.GroupType {
@@ -286,52 +294,51 @@ func layoutTranslateGroup(g translateTextGroup, opts translateLayoutOptions, ima
 			opts.MaxFontSize = minInt(opts.MaxFontSize, maxInt(28, imageW/18))
 		}
 		style = titleGroupStyle()
-		erasePad = 8
+	case groupTypeTopRightBadge:
+		bb = layoutTopRightBadgeBBox(g, imageW, imageH)
+		style = titleGroupStyle()
+		if len(g.Blocks) >= 2 && isDarkLabelStyle(g.Blocks[len(g.Blocks)-1].Style) {
+			style = badgeGroupStyle()
+		}
 	case groupTypeBadge, groupTypeBottomBadge:
 		lines = []string{compactBadgeLine(g, strings.Join(lines, " / "))}
 		bb = layoutBadgeBBox(g, lines[0], opts, imageW, imageH, template)
 		style = badgeGroupStyle()
-		erasePad = 6
-	default:
-		erasePad = 6
 	}
 	if len(lines) == 0 {
 		lines = []string{""}
 	}
 	fontSize := fontSizeForGroup(g.GroupType, lines, bb, opts, imageW)
 	overflow := false
-	for attempt := 0; attempt < 4; attempt++ {
-		overflow = false
-		for _, line := range lines {
-			if estimateTextWidth(line, fontSize, false) > float64(bb.Width) {
-				overflow = true
-				break
-			}
-		}
-		if !overflow || fontSize <= opts.MinFontSize+1 {
-			break
-		}
-		fontSize = maxInt(opts.MinFontSize, int(float64(fontSize)*0.88))
+	adaptedLines, adaptedFS, adaptedOverflow, _ := adaptGroupLines(g, bb, opts, template)
+	if len(adaptedLines) > 0 {
+		lines = adaptedLines
 	}
-	if (g.GroupType == groupTypeBadge || g.GroupType == groupTypeBottomBadge) && overflow {
+	if adaptedFS > 0 {
+		fontSize = adaptedFS
+	}
+	overflow = adaptedOverflow
+	if !opts.AllowTextBoxExpand && overflow {
+		// strict mode: do not downgrade badge to plain text
+	} else if (g.GroupType == groupTypeBadge || g.GroupType == groupTypeBottomBadge) && overflow {
 		compact := compactBadgeLine(g, strings.Join(normalizeGroupLines(g), " / "))
 		if compact != strings.Join(lines, " / ") && compact != "" {
 			lines = []string{compact}
 			fontSize = badgeFontSize(opts, imageW)
-			for estimateTextWidth(compact, fontSize, false) > float64(bb.Width) && fontSize > maxInt(10, opts.MinFontSize-2) {
+			for measureTextWidth(compact, fontSize, false) > float64(bb.Width) && fontSize > maxInt(10, opts.MinFontSize-2) {
 				fontSize--
 			}
-			overflow = estimateTextWidth(compact, fontSize, false) > float64(bb.Width)
+			overflow = measureTextWidth(compact, fontSize, false) > float64(bb.Width)
 		}
 	}
-	if (g.GroupType == groupTypeBadge || g.GroupType == groupTypeBottomBadge) && overflow {
+	if (g.GroupType == groupTypeBadge || g.GroupType == groupTypeBottomBadge) && overflow && opts.AllowTextBoxExpand {
 		downgraded = true
 		style = translateTextStyle{Color: defaultTranslateTextColor, Align: "left"}
 		bb = origBBox
 		blockClass = blockClassSmallCaption
 		overflow = false
 		for _, line := range lines {
-			if estimateTextWidth(line, fontSize, false) > float64(bb.Width)*1.05 {
+			if measureTextWidth(line, fontSize, false) > float64(bb.Width)*1.05 {
 				overflow = true
 				break
 			}
@@ -353,10 +360,14 @@ func layoutTranslateGroup(g translateTextGroup, opts translateLayoutOptions, ima
 	}
 }
 
-func tightEraseBBoxForGroup(g translateTextGroup, imageW, imageH int) translateTextBBox {
+func tightEraseBBoxForGroup(g translateTextGroup, imageW, imageH int, groupRelayoutFallback bool) translateTextBBox {
 	bb := unionTextBBox(g.Blocks)
 	if bb.Width <= 0 || bb.Height <= 0 {
 		bb = g.BBox
+	}
+	if groupRelayoutFallback {
+		bb = expandEraseBBoxWithFactor(bb, 1.08, imageW, imageH)
+		return clampGroupBBox(bb, imageW, imageH)
 	}
 	if g.GroupType == groupTypeMainTitle {
 		bb.Width = int(math.Round(float64(bb.Width) * 1.12))
@@ -369,23 +380,7 @@ func normalizeGroupLines(g translateTextGroup) []string {
 	if len(g.TranslatedLines) > 0 {
 		return append([]string(nil), g.TranslatedLines...)
 	}
-	var out []string
-	for _, b := range g.Blocks {
-		t := strings.TrimSpace(b.DrawText)
-		if t == "" {
-			t = strings.TrimSpace(b.CompactTranslation)
-		}
-		if t == "" {
-			t = strings.TrimSpace(b.ShortTranslatedText)
-		}
-		if t == "" {
-			t = strings.TrimSpace(b.TranslatedText)
-		}
-		if t != "" {
-			out = append(out, t)
-		}
-	}
-	return out
+	return buildGroupTranslatedLines(g.Blocks)
 }
 
 func layoutMainTitleBBox(g translateTextGroup, imageW, imageH int, template string) translateTextBBox {
@@ -435,7 +430,7 @@ func layoutBadgeBBox(g translateTextGroup, text string, opts translateLayoutOpti
 
 func fontSizeForGroup(gt string, lines []string, bb translateTextBBox, opts translateLayoutOptions, imageW int) int {
 	switch gt {
-	case groupTypeMainTitle:
+	case groupTypeMainTitle, groupTypeTopRightBadge:
 		fs := int(math.Floor(float64(bb.Height) / (float64(maxInt(1, len(lines))) * 1.10)))
 		if imageW > 0 {
 			fs = minInt(fs, imageW/18)
@@ -522,6 +517,8 @@ type translateRenderBlock struct {
 	OriginalBBox translateTextBBox
 	Style        translateTextStyle
 	ErasePadding int
+	MaskDilate   int
+	TextPolarity string
 }
 
 func renderBlocksHaveCommercialTemplate(blocks []translateRenderBlock) bool {
@@ -609,6 +606,16 @@ func isWhiteTextStyle(style translateTextStyle) bool {
 	return c == "#ffffff" || c == "#fff" || c == "white"
 }
 
+func isDarkTextStyle(style translateTextStyle) bool {
+	c := strings.TrimSpace(strings.ToLower(style.Color))
+	switch c {
+	case "#111111", "#111", "#000000", "#000", "#1f1f1f", "black":
+		return true
+	default:
+		return false
+	}
+}
+
 func isStrictBadgeCandidate(b translateTextBlock, imageW, imageH int) bool {
 	if !isDarkLabelStyle(b.Style) || !isWhiteTextStyle(b.Style) {
 		return false
@@ -626,10 +633,31 @@ func isStrictBadgeCandidate(b translateTextBlock, imageW, imageH int) bool {
 	return ratio >= 1.45 && ratio <= 8.5
 }
 
+func isLightCapsuleCandidate(b translateTextBlock, imageW, imageH int) bool {
+	if b.BBox.Width <= 0 || b.BBox.Height <= 0 {
+		return false
+	}
+	if isDarkLabelStyle(b.Style) && isWhiteTextStyle(b.Style) {
+		return false
+	}
+	ratio := float64(b.BBox.Width) / float64(maxInt(1, b.BBox.Height))
+	if ratio < 2.2 || ratio > 14 {
+		return false
+	}
+	if imageH > 0 && b.BBox.Y > int(float64(imageH)*0.45) {
+		return false
+	}
+	text := strings.TrimSpace(b.Text)
+	if strings.Contains(text, "/") || strings.Contains(text, "／") {
+		return true
+	}
+	return isDarkTextStyle(b.Style) && !isWhiteTextStyle(b.Style)
+}
+
 func isColorBadgeText(s string) bool {
 	s = strings.TrimSpace(s)
 	switch s {
-	case "牛奶白", "暗夜黑", "炫酷黑", "珍珠白", "曜石黑":
+	case "牛奶白", "雪花白", "暗夜黑", "炫酷黑", "珍珠白", "曜石黑":
 		return true
 	default:
 		return false
@@ -679,6 +707,8 @@ func groupOrder(gt string) int {
 	switch gt {
 	case groupTypeMainTitle:
 		return 10
+	case groupTypeTopRightBadge:
+		return 15
 	case groupTypeSubtitle:
 		return 20
 	case groupTypeBadge:
@@ -698,7 +728,10 @@ func groupOrder(gt string) int {
 
 func groupBlockClass(g translateTextGroup) string {
 	switch g.GroupType {
-	case groupTypeMainTitle:
+	case groupTypeMainTitle, groupTypeTopRightBadge:
+		if g.GroupType == groupTypeTopRightBadge && len(g.Blocks) > 1 {
+			return blockClassTitle
+		}
 		return blockClassTitle
 	case groupTypeSubtitle:
 		return blockClassSubtitle
@@ -718,6 +751,9 @@ func groupBlockClass(g translateTextGroup) string {
 
 func compactBadgeLine(g translateTextGroup, fallback string) string {
 	for _, b := range g.Blocks {
+		if s := strings.TrimSpace(b.BadgeTranslation); s != "" {
+			return s
+		}
 		if s := strings.TrimSpace(b.CompactTranslation); s != "" {
 			return s
 		}

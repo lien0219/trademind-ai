@@ -12,6 +12,16 @@ func TestNeedsOCRBBoxRepairAllZeroY(t *testing.T) {
 	}
 }
 
+func TestNeedsOCRBBoxRepairLeftCluster(t *testing.T) {
+	blocks := []translateTextBlock{
+		{BBox: translateTextBBox{X: 0, Y: 0, Width: 100, Height: 40}, Text: "雪花白"},
+		{BBox: translateTextBBox{X: 5, Y: 2, Width: 200, Height: 36}, Text: "折叠伸缩版/通用手机"},
+	}
+	if !needsOCRBBoxRepair(blocks) {
+		t.Fatal("expected repair for left-cluster blocks")
+	}
+}
+
 func TestNeedsOCRBBoxRepairValidBoxes(t *testing.T) {
 	blocks := []translateTextBlock{
 		{BBox: translateTextBBox{Y: 34, Width: 100, Height: 40}, Text: "A"},
@@ -19,6 +29,23 @@ func TestNeedsOCRBBoxRepairValidBoxes(t *testing.T) {
 	}
 	if needsOCRBBoxRepair(blocks) {
 		t.Fatal("expected no repair for valid boxes")
+	}
+}
+
+func TestHeuristicRepairOCRBlockBBoxesTopRightProductLabels(t *testing.T) {
+	blocks := []translateTextBlock{
+		{BBox: translateTextBBox{Y: 0, Width: 120, Height: 50}, Text: "雪花白"},
+		{BBox: translateTextBBox{Y: 0, Width: 280, Height: 40}, Text: "折叠伸缩版/通用手机"},
+	}
+	out := heuristicRepairOCRBlockBBoxes(blocks, 900, 900)
+	if len(out) != 2 {
+		t.Fatalf("expected 2 blocks, got %d", len(out))
+	}
+	if out[0].BBox.X < 500 {
+		t.Fatalf("title should be placed top-right, got x=%d", out[0].BBox.X)
+	}
+	if out[1].BBox.X < 500 {
+		t.Fatalf("pill should be placed top-right, got x=%d", out[1].BBox.X)
 	}
 }
 

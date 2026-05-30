@@ -15,10 +15,30 @@ func (s *Service) verifyTranslateOutput(
 	targetLang, sourceLang string,
 	enabled bool,
 ) (translateVerificationMeta, error) {
+	return s.verifyTranslateOutputWithLayout(ctx, sourceBytes, resultBytes, ocr, targetLang, sourceLang, enabled, translateLayoutSummary{})
+}
+
+func (s *Service) verifyTranslateOutputWithLayout(
+	ctx context.Context,
+	sourceBytes, resultBytes []byte,
+	ocr *translateOCRResult,
+	targetLang, sourceLang string,
+	enabled bool,
+	layout translateLayoutSummary,
+) (translateVerificationMeta, error) {
 	meta := translateVerificationMeta{
 		ImageChanged:       !imagerender.ImagesEqual(sourceBytes, resultBytes),
 		TargetTextDetected: false,
 		Confidence:         0,
+	}
+	if layout.OverflowBlocks > 0 {
+		meta.TranslatedTextOverflow = true
+	}
+	if layout.Simulation.CollisionCount > 0 {
+		meta.TextOverlapDetected = true
+	}
+	if layout.Simulation.ProductOverlapCount > 0 {
+		meta.ProductOverlapDetected = true
 	}
 	if !enabled {
 		meta.ImageChanged = len(sourceBytes) > 0 && len(resultBytes) > 0 && !imagerender.ImagesEqual(sourceBytes, resultBytes)
@@ -49,13 +69,8 @@ func (s *Service) verifyTranslateOutput(
 	targetHits := countKeywordHits(resultText, targetKeywords)
 	sourceHits := countKeywordHits(resultText, sourceKeywords)
 	targetIsCJK := isCJKLang(targetLang)
-	sourceIsCJK := isCJKLang(sourceLang)
-	if strings.EqualFold(sourceLang, "auto") {
-		sourceIsCJK = true
-	}
 
 	targetScriptCount := countRunesByScript(resultText, targetIsCJK)
-	sourceScriptCount := countRunesByScript(resultText, sourceIsCJK)
 
 	meta.TargetTextDetected = targetHits > 0 ||
 		(!targetIsCJK && targetScriptCount >= 2) ||
@@ -82,21 +97,27 @@ func (s *Service) verifyTranslateOutput(
 		if payload != nil {
 			if postOCR, ocrErr := s.runOCROnImage(ctx, payload.DataURL, sourceLang, targetLang, nil); ocrErr == nil && postOCR != nil {
 				stillBlocks = countSourceBlocksStillPresent(postOCR, ocr)
+				if detectSourceKeywordsNearOriginalBoxes(postOCR, ocr) {
+					meta.SourceTextRemainNearBox = true
+				}
 			}
 		}
 	}
 	if stillBlocks >= sourceEraseRemainThreshold(ocr) {
 		meta.SourceTextMayRemain = true
 		meta.Confidence *= 0.85
-	} else if sourceHits > 0 && stillBlocks > 0 {
+	} else if meta.SourceTextRemainNearBox {
 		meta.SourceTextMayRemain = true
 		meta.Confidence *= 0.85
-	} else if sourceIsCJK && sourceScriptCount >= 4 && strings.EqualFold(targetLang, "en") && targetHits > 0 {
+	} else if sourceHits > 0 && stillBlocks > 0 {
 		meta.SourceTextMayRemain = true
 		meta.Confidence *= 0.85
 	}
 	if meta.Confidence <= 0 {
 		meta.Confidence = 0.6
+	}
+	if meta.SourceTextMayRemain || meta.TranslatedTextOverflow || meta.TextOverlapDetected || meta.ProductOverlapDetected {
+		meta.CommercialUsabilityLow = true
 	}
 	return meta, nil
 }
@@ -199,6 +220,68 @@ func countAllSourceText(ocr *translateOCRResult) int {
 		n += len([]rune(strings.TrimSpace(b.Text)))
 	}
 	return maxInt(1, n)
+}
+
+var knownSourceRemainKeywords = []string{
+	"雪花白", "炫酷黑", "折叠", "通用手机", "伸缩版",
+}
+
+func detectSourceKeywordsNearOriginalBoxes(postOCR, original *translateOCRResult) bool {
+	if postOCR == nil || original == nil {
+		return false
+	}
+	keywords := append([]string(nil), knownSourceRemainKeywords...)
+	for _, b := range original.Blocks {
+		if t := strings.TrimSpace(b.Text); t != "" {
+			keywords = append(keywords, t)
+		}
+	}
+	for _, orig := range original.Blocks {
+		origText := strings.TrimSpace(orig.Text)
+		if len([]rune(origText)) < 2 {
+			continue
+		}
+		expanded := expandBBoxForNearCheck(orig.BBox, 0.35)
+		for _, det := range postOCR.Blocks {
+			if det.Confidence > 0 && det.Confidence < 0.5 {
+				continue
+			}
+			detected := strings.TrimSpace(det.Text)
+			if detected == "" {
+				continue
+			}
+			if bboxOverlapRatio(expanded, det.BBox) < 0.08 {
+				continue
+			}
+			for _, kw := range keywords {
+				kw = strings.TrimSpace(kw)
+				if kw == "" {
+					continue
+				}
+				if strings.Contains(detected, kw) || strings.Contains(kw, detected) {
+					return true
+				}
+			}
+			if strings.EqualFold(detected, origText) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func expandBBoxForNearCheck(bb translateTextBBox, padRatio float64) translateTextBBox {
+	if bb.Width <= 0 || bb.Height <= 0 {
+		return bb
+	}
+	padX := int(float64(bb.Width) * padRatio)
+	padY := int(float64(bb.Height) * padRatio)
+	return translateTextBBox{
+		X:      bb.X - padX,
+		Y:      bb.Y - padY,
+		Width:  bb.Width + padX*2,
+		Height: bb.Height + padY*2,
+	}
 }
 
 func maxInt(a, b int) int {

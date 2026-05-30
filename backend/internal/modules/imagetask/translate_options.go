@@ -2,12 +2,16 @@ package imagetask
 
 import (
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/imagerender"
 )
 
 const (
-	RenderModeDeterministic = "deterministic"
-	RenderModeHybrid        = "hybrid"
-	RenderModeAIEdit        = "ai_edit"
+	RenderModeDeterministic        = "deterministic"
+	RenderModeHybrid               = "hybrid"
+	RenderModeAIEdit               = "ai_edit"
+	RenderModeRemoveTextThenRender = "remove_text_then_render"
+	RenderModePureTextReplace      = "pure_text_replace"
 
 	errCodeImageNotChanged     = "IMAGE_NOT_CHANGED"
 	errCodeImageTextNotApplied = "IMAGE_TEXT_NOT_APPLIED"
@@ -30,12 +34,12 @@ type translateRenderOptions struct {
 func renderModeFromHints(hints map[string]any) string {
 	mode := strings.TrimSpace(strings.ToLower(stringFromMap(hints, "renderMode")))
 	switch mode {
-	case RenderModeDeterministic, RenderModeHybrid, RenderModeAIEdit:
+	case RenderModeDeterministic, RenderModeHybrid, RenderModeAIEdit, RenderModeRemoveTextThenRender, RenderModePureTextReplace:
 		return mode
 	case "":
-		return RenderModeHybrid
+		return RenderModePureTextReplace
 	default:
-		return RenderModeHybrid
+		return RenderModePureTextReplace
 	}
 }
 
@@ -58,7 +62,7 @@ func parseTranslateRenderOptions(hints map[string]any, defaultEraseMode string) 
 		opts.TextPadding = 6
 	}
 	if opts.MaskPadding <= 0 {
-		opts.MaskPadding = 12
+		opts.MaskPadding = 2
 	}
 	if opts.OutputFormat == "" {
 		opts.OutputFormat = "webp"
@@ -67,15 +71,22 @@ func parseTranslateRenderOptions(hints map[string]any, defaultEraseMode string) 
 }
 
 func effectiveEraseMode(renderOpts translateRenderOptions) string {
+	if isPureTextReplaceMode(renderOpts.RenderMode) || isRemoveTextThenRenderMode(renderOpts.RenderMode) {
+		em := strings.TrimSpace(strings.ToLower(renderOpts.EraseMode))
+		if em == "" || em == "auto" {
+			return imagerender.EraseTextPixelMask
+		}
+		return em
+	}
 	if renderOpts.RenderMode == RenderModeHybrid {
 		em := renderOpts.EraseMode
 		if em == "" || em == "auto" {
-			return "precise_mask"
+			return imagerender.ErasePreciseMask
 		}
 		return em
 	}
 	if renderOpts.EraseMode == "" {
-		return "precise_mask"
+		return imagerender.ErasePreciseMask
 	}
 	return renderOpts.EraseMode
 }
@@ -112,6 +123,10 @@ func renderModeLabel(mode string) string {
 		return "程序排版渲染"
 	case RenderModeHybrid:
 		return "AI 擦除 + 程序排版"
+	case RenderModeRemoveTextThenRender:
+		return "去字后绘制"
+	case RenderModePureTextReplace:
+		return "纯文字替换"
 	case RenderModeAIEdit:
 		return "AI 编辑实验模式"
 	default:

@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"image"
+	"image/color"
+	"strings"
 )
 
 // Result holds rendered image bytes and metadata.
@@ -38,17 +40,140 @@ func countEraseBlocks(blocks []TextBlock) int {
 	return n
 }
 
-// EraseRegions removes original text areas without drawing translations.
-func EraseRegions(src image.Image, blocks []TextBlock, opts Options) (*image.RGBA, EraseStats, string, error) {
+// EraseDebugArtifacts holds intermediate PNG bytes for translate debug UI.
+type EraseDebugArtifacts struct {
+	OriginalPNG []byte
+	MaskPNG     []byte
+	ErasedPNG   []byte
+}
+
+// EraseRegionsWithDebug removes text and returns debug overlays.
+func EraseRegionsWithDebug(src image.Image, blocks []TextBlock, opts Options) (*image.RGBA, EraseStats, string, *EraseDebugArtifacts, error) {
 	if src == nil {
-		return nil, EraseStats{}, "", fmt.Errorf("imagerender: nil source")
+		return nil, EraseStats{}, "", nil, fmt.Errorf("imagerender: nil source")
 	}
 	if len(blocks) == 0 {
-		return nil, EraseStats{}, "", fmt.Errorf("imagerender: no text blocks")
+		return nil, EraseStats{}, "", nil, fmt.Errorf("imagerender: no text blocks")
 	}
-	rgba := ToRGBA(src)
-	stats, usedErase, err := eraseTextBlocks(rgba, blocks, opts)
+	original := ToRGBA(src)
+	rgba := cloneRGBA(original)
+	combinedMask := image.NewRGBA(rgba.Bounds())
+	stats, usedErase, err := eraseTextBlocksWithMask(rgba, blocks, opts, combinedMask)
+	if err != nil {
+		return rgba, stats, usedErase, nil, err
+	}
+	debug := &EraseDebugArtifacts{}
+	if origPNG, _, encErr := Encode(original, "png"); encErr == nil {
+		debug.OriginalPNG = origPNG
+	}
+	if maskPNG, _, encErr := Encode(combinedMask, "png"); encErr == nil {
+		debug.MaskPNG = maskPNG
+	}
+	if erasedPNG, _, encErr := Encode(rgba, "png"); encErr == nil {
+		debug.ErasedPNG = erasedPNG
+	}
+	return rgba, stats, usedErase, debug, nil
+}
+
+// EraseRegions removes original text areas without drawing translations.
+func EraseRegions(src image.Image, blocks []TextBlock, opts Options) (*image.RGBA, EraseStats, string, error) {
+	rgba, stats, usedErase, _, err := EraseRegionsWithDebug(src, blocks, opts)
 	return rgba, stats, usedErase, err
+}
+
+func eraseTextBlocksWithMask(rgba *image.RGBA, blocks []TextBlock, opts Options, combinedMask *image.RGBA) (EraseStats, string, error) {
+	b := rgba.Bounds()
+	maskPad := opts.MaskPadding
+	if maskPad <= 0 {
+		maskPad = 8
+	}
+	eraseMode := opts.EraseMode
+	if eraseMode == "" {
+		eraseMode = EraseAuto
+	}
+	usedErase := ""
+	var stats EraseStats
+	imageArea := max(1, b.Dx()*b.Dy())
+	usePixelMask := strings.EqualFold(eraseMode, EraseTextPixelMask)
+	for _, block := range blocks {
+		if usePixelMask {
+			blockStats, blockMask, err := eraseTextBlockPixelMaskWithMask(rgba, block, imageArea)
+			if err != nil {
+				return stats, usedErase, err
+			}
+			paintBlockMask(combinedMask, block, blockMask)
+			if usedErase == "" {
+				usedErase = EraseTextPixelMask
+			}
+			stats.ErasePixels += blockStats.ErasePixels
+			stats.PatchPixels += blockStats.PatchPixels
+			stats.BackgroundDeltaScore += blockStats.BackgroundDeltaScore
+			stats.FlatFillRatio += blockStats.FlatFillRatio * float64(blockStats.PatchPixels)
+			stats.LargePatchDetected = stats.LargePatchDetected || blockStats.LargePatchDetected
+			continue
+		}
+		eraseBox := block.EraseBBox
+		if eraseBox.Width <= 0 || eraseBox.Height <= 0 {
+			eraseBox = block.BBox
+		}
+		if eraseBox.Width <= 0 || eraseBox.Height <= 0 {
+			continue
+		}
+		pad := maskPad
+		if block.ErasePadding > 0 {
+			pad = block.ErasePadding
+		}
+		expanded := expandEraseRect(eraseBox, pad, b.Dx(), b.Dy())
+		rect := image.Rect(expanded.X, expanded.Y, expanded.X+expanded.Width, expanded.Y+expanded.Height)
+		chosen := chooseEraseMode(eraseMode, rgba, rect)
+		if usedErase == "" {
+			usedErase = chosen
+		}
+		blockStats := eraseRegion(rgba, rect, chosen)
+		stats.ErasePixels += blockStats.ErasePixels
+		stats.PatchPixels += blockStats.PatchPixels
+		stats.BackgroundDeltaScore += blockStats.BackgroundDeltaScore
+		stats.FlatFillRatio += blockStats.FlatFillRatio * float64(blockStats.PatchPixels)
+		stats.LargePatchDetected = stats.LargePatchDetected || blockStats.LargePatchDetected
+	}
+	if usePixelMask && stats.ErasePixels > 0 {
+		totalRatio := float64(stats.ErasePixels) / float64(imageArea)
+		if totalRatio > MaxEraseMaskRatioTotal {
+			return stats, usedErase, fmt.Errorf("%w: total ratio %.4f", ErrEraseMaskTooLarge, totalRatio)
+		}
+	}
+	return stats, usedErase, nil
+}
+
+func paintBlockMask(combined *image.RGBA, block TextBlock, mask []bool) {
+	if combined == nil || len(mask) == 0 {
+		return
+	}
+	eraseBox := block.EraseBBox
+	if eraseBox.Width <= 0 || eraseBox.Height <= 0 {
+		eraseBox = block.BBox
+	}
+	pad := block.ErasePadding
+	if pad <= 0 {
+		pad = 1
+	}
+	if pad > 2 {
+		pad = 2
+	}
+	expanded := expandEraseRect(eraseBox, pad, combined.Bounds().Dx(), combined.Bounds().Dy())
+	rect := image.Rect(expanded.X, expanded.Y, expanded.X+expanded.Width, expanded.Y+expanded.Height)
+	w, h := rect.Dx(), rect.Dy()
+	if len(mask) != w*h {
+		return
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if !mask[y*w+x] {
+				continue
+			}
+			combined.SetRGBA(rect.Min.X+x, rect.Min.Y+y, color.RGBA{R: 255, G: 40, B: 40, A: 255})
+		}
+	}
 }
 
 // DrawRegions draws translated text on an already-erased image.
@@ -84,7 +209,24 @@ func eraseTextBlocks(rgba *image.RGBA, blocks []TextBlock, opts Options) (EraseS
 	}
 	usedErase := ""
 	var stats EraseStats
+	imageArea := max(1, b.Dx()*b.Dy())
+	usePixelMask := strings.EqualFold(eraseMode, EraseTextPixelMask)
 	for _, block := range blocks {
+		if usePixelMask {
+			blockStats, err := eraseTextBlockPixelMask(rgba, block, imageArea)
+			if err != nil {
+				return stats, usedErase, err
+			}
+			if usedErase == "" {
+				usedErase = EraseTextPixelMask
+			}
+			stats.ErasePixels += blockStats.ErasePixels
+			stats.PatchPixels += blockStats.PatchPixels
+			stats.BackgroundDeltaScore += blockStats.BackgroundDeltaScore
+			stats.FlatFillRatio += blockStats.FlatFillRatio * float64(blockStats.PatchPixels)
+			stats.LargePatchDetected = stats.LargePatchDetected || blockStats.LargePatchDetected
+			continue
+		}
 		eraseBox := block.EraseBBox
 		if eraseBox.Width <= 0 || eraseBox.Height <= 0 {
 			eraseBox = block.BBox
@@ -108,6 +250,12 @@ func eraseTextBlocks(rgba *image.RGBA, blocks []TextBlock, opts Options) (EraseS
 		stats.BackgroundDeltaScore += blockStats.BackgroundDeltaScore
 		stats.FlatFillRatio += blockStats.FlatFillRatio * float64(blockStats.PatchPixels)
 		stats.LargePatchDetected = stats.LargePatchDetected || blockStats.LargePatchDetected
+	}
+	if usePixelMask && stats.ErasePixels > 0 {
+		totalRatio := float64(stats.ErasePixels) / float64(imageArea)
+		if totalRatio > MaxEraseMaskRatioTotal {
+			return stats, usedErase, fmt.Errorf("%w: total ratio %.4f", ErrEraseMaskTooLarge, totalRatio)
+		}
 	}
 	return stats, usedErase, nil
 }
@@ -146,7 +294,7 @@ func RenderAndEncode(src image.Image, sourceBytes []byte, blocks []TextBlock, op
 		PatchAreaRatio:       float64(stats.PatchPixels) / float64(imageArea),
 		BackgroundDeltaScore: stats.BackgroundDeltaScore,
 		FlatFillRatio:        stats.FlatFillRatio / float64(max(1, stats.PatchPixels)),
-		LargePatchDetected:   stats.LargePatchDetected || float64(stats.PatchPixels)/float64(imageArea) > 0.08,
+		LargePatchDetected:   stats.LargePatchDetected || float64(stats.PatchPixels)/float64(imageArea) > MaxEraseMaskRatioTotal,
 	}
 	return res, nil
 }
