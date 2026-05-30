@@ -101,6 +101,14 @@ func main() {
 	}
 	aiBatchSeedCancel()
 
+	aiProvSeedCtx, aiProvSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureAIProviderDefaults(aiProvSeedCtx, db, enc); err != nil {
+		aiProvSeedCancel()
+		log.Error("ai_provider_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	aiProvSeedCancel()
+
 	stSeedCtx, stSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	if err := settings.EnsureStorageDefaults(stSeedCtx, db); err != nil {
 		stSeedCancel()

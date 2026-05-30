@@ -2,7 +2,7 @@ import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-co
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { CopyOutlined } from '@ant-design/icons';
-import { Button, Card, Descriptions, Drawer, Image, Space, Spin, Tag, message, Typography } from 'antd';
+import { Alert, Button, Card, Descriptions, Drawer, Image, Popconfirm, Space, Spin, Tag, message, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from '@umijs/max';
@@ -14,12 +14,22 @@ import {
   applyImageTaskResult,
   getImageTask,
   IMAGE_TASK_TEMPLATES,
+  isImageTaskSuccessStatus,
+  isImageTaskUsableForProduct,
   listImageTaskItems,
+  parseTranslateTaskOutput,
   queryImageTasks,
   retryImageTask,
   saveImageTaskItemToProduct,
   setImageTaskItemAsMain,
   taskTypeLabel,
+  translateLangLabel,
+  translateRenderQualityLevel,
+  translateRenderModeLabel,
+  translateTaskWarnings,
+  pureTextHardFailureLabel,
+  buildTranslateImageTextInput,
+  createImageTask,
 } from '@/services/imageTasks';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 
@@ -71,6 +81,334 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
   );
 }
 
+function ocrProviderLabel(provider?: string): string {
+  const p = provider?.trim();
+  if (!p) return '—';
+  const map: Record<string, string> = {
+    ai_vision: 'AI 视觉 OCR',
+    paddleocr: '本地 PaddleOCR',
+    aliyun: '阿里云 OCR',
+    tencent: '腾讯云 OCR',
+  };
+  return map[p] ?? p;
+}
+
+function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskStatus?: string }) {
+  const parsed = parseTranslateTaskOutput(output);
+  if (!parsed) return null;
+  const blocks = parsed.ocr?.blocks ?? [];
+  const layout = parsed.layout ?? parsed.quality?.layout;
+  const translate = parsed.translate;
+  const verification = parsed.verification;
+  const renderQuality = parsed.renderQuality;
+  const coord = parsed.coordinateMeta ?? (parsed.ocr as { coordinateMeta?: typeof parsed.coordinateMeta })?.coordinateMeta;
+  const qualityLevel = translateRenderQualityLevel(parsed, taskStatus);
+  const warnings = translateTaskWarnings(parsed);
+  const hasOverflow = (layout?.overflowBlocks ?? 0) > 0;
+  const ocrInfo = parsed.ocr;
+  const configuredOcr = parsed.configuredOcrProvider ?? ocrInfo?.configuredOcrProvider;
+  const actualOcr = parsed.actualOcrProvider ?? ocrInfo?.actualOcrProvider ?? ocrInfo?.provider;
+  const fallbackUsed = parsed.ocrFallbackUsed ?? ocrInfo?.ocrFallbackUsed ?? ocrInfo?.fallback;
+  const fallbackReason = parsed.ocrFallbackReason ?? ocrInfo?.ocrFallbackReason ?? ocrInfo?.errorMessage;
+  const ocrErrorCode = parsed.ocrErrorCode ?? ocrInfo?.ocrErrorCode;
+  const ocrBlocksCount =
+    parsed.ocrBlocksCount ?? ocrInfo?.ocrBlocksCount ?? ocrInfo?.textBlocksCount ?? blocks.length;
+  const ocrAverageConfidence = parsed.ocrAverageConfidence ?? ocrInfo?.ocrAverageConfidence ?? ocrInfo?.averageConfidence;
+  const pureValidation = parsed.pureTextValidation;
+  const validationMode = parsed.validationMode ?? pureValidation?.validationMode;
+  const failureReasons =
+    parsed.validationFailureReasons ??
+    (pureValidation?.hardFailures ?? []).map((c) => pureTextHardFailureLabel(c));
+  const hasSourceRemain =
+    pureValidation?.sourceTextRemainDetected ||
+    verification?.sourceTextMayRemain ||
+    warnings.some((w) => w.includes('原文字') || w.includes('未删除干净'));
+  const hasExtraBackground =
+    pureValidation?.extraBackgroundLayerDetected ||
+    warnings.some((w) => w.includes('额外背景'));
+  const hasPureOverlap = warnings.some((w) => w.includes('重叠'));
+  const hasPatchVisible =
+    warnings.some((w) => w.includes('背景修补') || w.includes('补丁')) || hasExtraBackground;
+  const eraseAreaTooLarge = warnings.some((w) => w.includes('擦除区域过大')) || (layout?.eraseAreaRatio ?? 0) > 0.12;
+  return (
+    <Card size="small" title="翻译结果摘要" style={{ marginBottom: 24 }}>
+      <Descriptions column={2} size="small">
+        <Descriptions.Item label="渲染方式">
+          {translateRenderModeLabel(parsed.renderMode ?? layout?.renderMode)}
+          {parsed.pureTextReplaceMode || parsed.renderMode === 'pure_text_replace' ? (
+            <Tag color="blue" style={{ marginLeft: 8 }}>
+              纯文字替换
+            </Tag>
+          ) : null}
+        </Descriptions.Item>
+        <Descriptions.Item label="校验模式">
+          {validationMode === 'validatePureTextReplace' ? (
+            <Tag color="geekblue">validatePureTextReplace</Tag>
+          ) : (
+            validationMode ?? '—'
+          )}
+        </Descriptions.Item>
+        <Descriptions.Item label="擦除方式">{layout?.eraseMode ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="版式模板">{layout?.layoutTemplate ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="渲染质量">
+          <Tag color={qualityLevel.color}>{qualityLevel.text}</Tag>
+          {renderQuality?.commercialUsabilityScore != null ? ` ${renderQuality.commercialUsabilityScore}` : ''}
+        </Descriptions.Item>
+        <Descriptions.Item label="源语言">
+          {translateLangLabel(parsed.sourceLanguage || parsed.ocr?.detectedLanguage || '—')}
+        </Descriptions.Item>
+        <Descriptions.Item label="目标语言">{translateLangLabel(parsed.targetLanguage || '—')}</Descriptions.Item>
+        <Descriptions.Item label="识别文字数量">
+          {translate?.textBlocksCount ?? parsed.quality?.textBlocksCount ?? parsed.ocr?.textBlocksCount ?? blocks.length}
+        </Descriptions.Item>
+        <Descriptions.Item label="已翻译数量">
+          {translate?.translatedBlocksCount ?? parsed.quality?.translatedBlocksCount ?? '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="已绘制数量">{translate?.renderedBlocksCount ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="校验通过数量">{translate?.verifiedBlocksCount ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="自动换行数量">{layout?.autoWrappedBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="自动缩小字号数量">{layout?.fontResizedBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="自动精简文案数量">{layout?.simplifiedBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="文字溢出数量">{layout?.overflowBlocks ?? 0}</Descriptions.Item>
+        <Descriptions.Item label="是否存在文字溢出">{hasOverflow ? '是' : '否'}</Descriptions.Item>
+        <Descriptions.Item label="擦除面积占比">
+          {layout?.eraseAreaRatio != null ? `${(layout.eraseAreaRatio * 100).toFixed(2)}%` : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="补丁面积占比">
+          {layout?.patchAreaRatio != null ? `${(layout.patchAreaRatio * 100).toFixed(2)}%` : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="背景破坏分">
+          {layout?.backgroundDeltaScore != null ? layout.backgroundDeltaScore.toFixed(2) : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="平铺填充占比">
+          {layout?.flatFillRatio != null ? `${(layout.flatFillRatio * 100).toFixed(1)}%` : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="检测到大背景块">
+          {layout?.largePatchDetected ? '是' : '否'}
+        </Descriptions.Item>
+        <Descriptions.Item label="自动重试策略">
+          {layout?.retryStrategies?.length ? layout.retryStrategies.join(' / ') : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="最终质量状态">{parsed.finalQualityStatus ?? taskStatus ?? '—'}</Descriptions.Item>
+      </Descriptions>
+      <div style={{ marginTop: 12 }}>
+        <Typography.Text strong>OCR 配置与执行</Typography.Text>
+        <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+          <Descriptions.Item label="配置 OCR">{ocrProviderLabel(configuredOcr)}</Descriptions.Item>
+          <Descriptions.Item label="实际 OCR">{ocrProviderLabel(actualOcr)}</Descriptions.Item>
+          <Descriptions.Item label="接口类型">{ocrInfo?.apiName ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="是否降级">{fallbackUsed ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="降级原因">{fallbackReason || '—'}</Descriptions.Item>
+          <Descriptions.Item label="OCR 错误码">{ocrErrorCode || '—'}</Descriptions.Item>
+          <Descriptions.Item label="识别文字数量">{ocrBlocksCount ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="平均置信度">
+            {ocrAverageConfidence != null ? ocrAverageConfidence.toFixed(2) : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="低置信度过滤数量">{ocrInfo?.filteredBlocksCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="OCR 错误">{ocrInfo?.errorMessage || fallbackReason || '—'}</Descriptions.Item>
+          <Descriptions.Item label="OCR 图片尺寸">
+            {coord?.ocrImageWidth && coord?.ocrImageHeight
+              ? `${coord.ocrImageWidth} × ${coord.ocrImageHeight}`
+              : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="渲染图片尺寸">
+            {coord?.renderImageWidth && coord?.renderImageHeight
+              ? `${coord.renderImageWidth} × ${coord.renderImageHeight}`
+              : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="scaleX / scaleY">
+            {coord?.scaleX != null && coord?.scaleY != null
+              ? `${coord.scaleX.toFixed(4)} / ${coord.scaleY.toFixed(4)}`
+              : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="是否坐标缩放">{coord?.coordScaleApplied ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="坐标修正数量">{coord?.bboxCorrectionCount ?? 0}</Descriptions.Item>
+        </Descriptions>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <Typography.Text strong>擦除与渲染</Typography.Text>
+        <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+          <Descriptions.Item label="eraseMode">{layout?.eraseMode ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="eraseBlocks">{parsed.eraseBlocks ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="erase_bbox 数量">{parsed.eraseBBoxCount ?? parsed.eraseBlocks ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="layout_bbox 数量">{parsed.layoutBBoxCount ?? parsed.renderedTextCount ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="eraseRetryCount">{parsed.eraseRetryCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="layoutTemplate">{layout?.layoutTemplate ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="renderedTextCount">{parsed.renderedTextCount ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="overflowTextCount">{parsed.overflowTextCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="badgeCount">{parsed.badgeCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="abnormalBadgeCount">{parsed.abnormalBadgeCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="backgroundPatchScore">
+            {parsed.backgroundPatchScore != null ? parsed.backgroundPatchScore.toFixed(2) : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="overlapScore">
+            {parsed.overlapScore != null ? parsed.overlapScore.toFixed(2) : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="badgeShapeAbnormal">{parsed.badgeShapeAbnormal ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="textOverlap">{parsed.textOverlap ? '是' : '否'}</Descriptions.Item>
+        </Descriptions>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <Typography.Text strong>渲染检查</Typography.Text>
+        <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+          <Descriptions.Item label="原文残留">{hasSourceRemain ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="额外背景层">{hasExtraBackground ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="译文重叠">{hasPureOverlap ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="背景补丁">{hasPatchVisible ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="擦除区域过大">{eraseAreaTooLarge ? '是' : '否'}</Descriptions.Item>
+          <Descriptions.Item label="是否可商用">{qualityLevel.text}</Descriptions.Item>
+          <Descriptions.Item label="最终建议">
+            {qualityLevel.recommendMain ? '可作为商品图' : '不建议直接使用'}
+          </Descriptions.Item>
+        </Descriptions>
+        {!qualityLevel.recommendMain ? (
+          <Alert
+            style={{ marginTop: 8 }}
+            type="error"
+            showIcon
+            message={
+              failureReasons.length > 0
+                ? `渲染校验失败：${failureReasons.join('、')}`
+                : '当前结果排版异常，不建议直接使用，请重新生成或人工调整。'
+            }
+          />
+        ) : null}
+        {taskStatus === 'success_with_review' ? (
+          <Alert
+            style={{ marginTop: 8 }}
+            type="warning"
+            showIcon
+            message="结果可用，建议人工检查排版。"
+          />
+        ) : null}
+      </div>
+      {renderQuality ? (
+        <div style={{ marginTop: 12 }}>
+          <Typography.Text strong>质量评分</Typography.Text>
+          <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+            <Descriptions.Item label="文字写入">{renderQuality.textAppliedScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="原文清理">{renderQuality.sourceTextRemovedScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="排版自然度">{renderQuality.layoutScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="风格一致性">{renderQuality.styleConsistencyScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="可读性">{renderQuality.readabilityScore ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="商品保护">{renderQuality.productPreservationScore ?? '—'}</Descriptions.Item>
+          </Descriptions>
+          {!renderQuality.passed ? (
+            <Alert
+              style={{ marginTop: 8 }}
+              type="warning"
+              showIcon
+              message="当前结果排版一般，建议重新生成或人工检查。"
+            />
+          ) : null}
+        </div>
+      ) : null}
+      {(parsed.debugOriginalUrl || parsed.debugMaskUrl || parsed.debugErasedUrl || parsed.debugFinalUrl) ? (
+        <div style={{ marginTop: 16 }}>
+          <Typography.Text strong>查看修图过程</Typography.Text>
+          <Typography.Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 8 }}>
+            对比原图、文字 mask、擦除后背景与最终成图，定位 mask、擦除、背景或重绘问题。
+          </Typography.Paragraph>
+          <Space wrap size="middle">
+            {parsed.debugOriginalUrl ? (
+              <div>
+                <Typography.Text type="secondary">original.png</Typography.Text>
+                <br />
+                <Image src={parsed.debugOriginalUrl} width={160} style={{ marginTop: 4 }} />
+              </div>
+            ) : null}
+            {parsed.debugMaskUrl ? (
+              <div>
+                <Typography.Text type="secondary">mask.png</Typography.Text>
+                <br />
+                <Image src={parsed.debugMaskUrl} width={160} style={{ marginTop: 4 }} />
+              </div>
+            ) : null}
+            {parsed.debugErasedUrl ? (
+              <div>
+                <Typography.Text type="secondary">erased.png</Typography.Text>
+                <br />
+                <Image src={parsed.debugErasedUrl} width={160} style={{ marginTop: 4 }} />
+              </div>
+            ) : null}
+            {parsed.debugFinalUrl ? (
+              <div>
+                <Typography.Text type="secondary">final.png</Typography.Text>
+                <br />
+                <Image src={parsed.debugFinalUrl} width={160} style={{ marginTop: 4 }} />
+              </div>
+            ) : null}
+          </Space>
+        </div>
+      ) : null}
+      {verification ? (
+        <div style={{ marginTop: 12 }}>
+          <Typography.Text strong>校验摘要</Typography.Text>
+          <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+            <Descriptions.Item label="图片已更新">{verification.imageChanged ? '是' : '否'}</Descriptions.Item>
+            <Descriptions.Item label="检测到目标语言文字">
+              {verification.targetTextDetected ? '是' : '否'}
+            </Descriptions.Item>
+            <Descriptions.Item label="可能仍有原文字残留">
+              {verification.sourceTextMayRemain ? '是' : '否'}
+            </Descriptions.Item>
+            <Descriptions.Item label="校验置信度">
+              {verification.confidence != null ? verification.confidence.toFixed(2) : '—'}
+            </Descriptions.Item>
+          </Descriptions>
+        </div>
+      ) : null}
+      {warnings.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          {warnings.map((w) => (
+            <Tag key={w} color="warning" style={{ marginBottom: 4 }}>
+              {w}
+            </Tag>
+          ))}
+        </div>
+      ) : null}
+      {blocks.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          <Typography.Text strong>翻译文本预览</Typography.Text>
+          <ul style={{ marginTop: 8, paddingLeft: 20, marginBottom: 0 }}>
+            {blocks.slice(0, 12).map((b, i) => (
+              <li key={`${b.text}-${i}`} style={{ marginBottom: 4 }}>
+                <Typography.Text type="secondary">{b.text || '—'}</Typography.Text>
+                {b.blockClass ? (
+                  <>
+                    {' '}
+                    <Tag>{b.blockClass}</Tag>
+                  </>
+                ) : null}
+                {' → '}
+                <Typography.Text>{b.translatedText || '—'}</Typography.Text>
+                {b.drawText && b.drawText !== b.translatedText ? (
+                  <>
+                    {' '}
+                    <Typography.Text type="secondary">（实际绘制：{b.drawText}）</Typography.Text>
+                  </>
+                ) : null}
+                {b.shortTranslatedText && b.shortTranslatedText !== b.translatedText ? (
+                  <>
+                    {' '}
+                    <Typography.Text type="secondary">（精简：{b.compactTranslation || b.shortTranslatedText}）</Typography.Text>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          {blocks.length > 12 ? (
+            <Typography.Text type="secondary">… 共 {blocks.length} 段文字</Typography.Text>
+          ) : null}
+        </div>
+      ) : null}
+      {parsed.blockClassifications?.length ? (
+        <JsonBlock title="block 分类结果 / compact_translation" value={parsed.blockClassifications} />
+      ) : null}
+    </Card>
+  );
+}
+
 export default function ImageTasksPage() {
   const location = useLocation();
   const { caps } = useImageProviders();
@@ -89,6 +427,15 @@ export default function ImageTasksPage() {
   const [taskItems, setTaskItems] = useState<ImageTaskItemRow[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<{ taskType?: string }>({});
+  const translateOutput = useMemo(
+    () => (detail?.taskType === 'translate_image_text' ? parseTranslateTaskOutput(detail.output) : null),
+    [detail?.taskType, detail?.output],
+  );
+  const translateQualityLevel = useMemo(
+    () => translateRenderQualityLevel(translateOutput, detail?.status),
+    [translateOutput, detail?.status],
+  );
+  const isLowQualityTranslate = detail?.taskType === 'translate_image_text' && !translateQualityLevel.recommendMain;
 
   useEffect(() => {
     const iv = window.setInterval(() => {
@@ -161,7 +508,7 @@ export default function ImageTasksPage() {
     {
       title: '状态',
       dataIndex: 'status',
-      width: 100,
+      width: 148,
       valueType: 'select',
       valueEnum: Object.fromEntries(
         Object.entries(COLLECT_TASK_STATUS).map(([k, v]) => [k, { text: v.text }]),
@@ -206,18 +553,21 @@ export default function ImageTasksPage() {
     {
       title: '源图 URL',
       dataIndex: 'sourceImageUrl',
+      width: 240,
       ellipsis: true,
       search: false,
     },
     {
       title: '结果 URL',
       dataIndex: 'resultUrl',
+      width: 240,
       ellipsis: true,
       search: false,
     },
     {
       title: '错误信息',
       dataIndex: 'errorMessage',
+      width: 200,
       ellipsis: true,
       search: false,
     },
@@ -294,7 +644,8 @@ export default function ImageTasksPage() {
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         options={{ reload: true, density: true, setting: true }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1960 }}
+        tableStyle={{ width: '100%', minWidth: '100%' }}
         request={async (params) => {
           const res = await queryImageTasks({
             page: params.current,
@@ -344,8 +695,133 @@ export default function ImageTasksPage() {
           setDetail(null);
         }}
         destroyOnHidden
-        extra={
-          <Space wrap>
+        footer={
+          <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
+            {detail?.taskType === 'translate_image_text' &&
+            (detail.status === 'failed' ||
+              detail.status === 'success_with_warnings' ||
+              detail.status === 'low_quality' ||
+              detail.status === 'need_manual_review' ||
+              detail.status === 'failed_render_validation') ? (
+              <>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: buildTranslateImageTextInput({
+                          ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                          renderMode: 'pure_text_replace',
+                        }),
+                      });
+                      message.success('已提交程序排版翻译任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  程序排版重新生成
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: {
+                          ...buildTranslateImageTextInput({
+                            ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                            renderMode: 'pure_text_replace',
+                          }),
+                          minFontSize: 12,
+                        },
+                      });
+                      message.success('已提交低字号重试任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  降低字号重试
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: buildTranslateImageTextInput({
+                          ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                          renderMode: 'pure_text_replace',
+                          layoutTemplate: 'preserve_original',
+                        }),
+                      });
+                      message.success('已提交保持原版式重试任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  保持原版式重试
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!detail?.id) return;
+                    try {
+                      const base =
+                        detail.input && typeof detail.input === 'object'
+                          ? (detail.input as Record<string, unknown>)
+                          : {};
+                      await createImageTask({
+                        taskType: 'translate_image_text',
+                        productId: detail.productId,
+                        sourceImageId: detail.sourceImageId,
+                        sourceImageUrl: detail.sourceImageUrl,
+                        input: buildTranslateImageTextInput({
+                          ...(base as Parameters<typeof buildTranslateImageTextInput>[0]),
+                          renderMode: 'deterministic',
+                          eraseMode: 'opencv_inpaint',
+                          layoutTemplate: 'title_badge',
+                          styleMode: 'recreate',
+                          maxFontSize: 36,
+                        }),
+                      });
+                      message.success('已提交商品图模板重试任务');
+                      actionRef.current?.reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '提交失败');
+                    }
+                  }}
+                >
+                  使用商品图模板重试
+                </Button>
+              </>
+            ) : null}
             {detail?.status === 'failed' ? (
               <Button
                 type="primary"
@@ -353,7 +829,9 @@ export default function ImageTasksPage() {
                   if (!detail?.id) return;
                   try {
                     await retryImageTask(detail.id);
-                    message.success('已提交重试，正在后台处理');
+                    message.success(
+                      detail.taskType === 'translate_image_text' ? '已重新提交翻译任务' : '已提交重试，正在后台处理',
+                    );
                     const row = await getImageTask(detail.id);
                     setDetail(row);
                     actionRef.current?.reload();
@@ -362,10 +840,15 @@ export default function ImageTasksPage() {
                   }
                 }}
               >
-                重试
+                {detail.taskType === 'translate_image_text' ? '重新翻译' : '重试'}
               </Button>
             ) : null}
-            {detail?.status === 'success' && detail.resultUrl ? (
+            {detail?.resultUrl &&
+            (isImageTaskSuccessStatus(detail.status) ||
+              detail.status === 'low_quality' ||
+              detail.status === 'need_manual_review' ||
+              detail.status === 'failed_render_validation') ? (
+              <>
               <Button
                 icon={<CopyOutlined />}
                 onClick={() => {
@@ -375,13 +858,25 @@ export default function ImageTasksPage() {
               >
                 复制结果 URL
               </Button>
+              <Button
+                href={detail.resultUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                下载图片
+              </Button>
+              </>
             ) : null}
-            {detail?.status === 'success' && detail.productId && (detail.resultUrl || detail.resultFileId) ? (
+            {detail && isImageTaskUsableForProduct(detail.status) && detail.productId && (detail.resultUrl || detail.resultFileId) ? (
               <>
-                <Button
-                  type="primary"
-                  ghost
-                  onClick={async () => {
+                <Popconfirm
+                  title="确认保存到商品图片？"
+                  description={
+                    detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
+                      ? '结果将追加为 AI 生成图，不覆盖原图。'
+                      : '当前结果排版异常，不建议直接使用，请重新生成或人工调整。'
+                  }
+                  onConfirm={async () => {
                     try {
                       await applyImageTaskResult(detail.id, {
                         productId: detail.productId!,
@@ -393,10 +888,18 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  保存到商品图片
-                </Button>
-                <Button
-                  onClick={async () => {
+                  <Button type="primary" ghost disabled={isLowQualityTranslate}>
+                    保存到商品图片
+                  </Button>
+                </Popconfirm>
+                <Popconfirm
+                  title="确认设为主图？"
+                  description={
+                    detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
+                      ? '结果质量已通过，可以设为主图。'
+                      : '当前结果排版异常，不建议直接使用，请重新生成或人工调整。'
+                  }
+                  onConfirm={async () => {
                     try {
                       await applyImageTaskResult(detail.id, {
                         productId: detail.productId!,
@@ -409,10 +912,18 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  设为主图
-                </Button>
-                <Button
-                  onClick={async () => {
+                  <Button danger={isLowQualityTranslate} disabled={isLowQualityTranslate}>
+                    设为主图
+                  </Button>
+                </Popconfirm>
+                <Popconfirm
+                  title="确认设为详情图？"
+                  description={
+                    detail.taskType !== 'translate_image_text' || translateQualityLevel.recommendMain
+                      ? '结果将写入商品详情图。'
+                      : '当前结果排版异常，不建议直接使用，请重新生成或人工调整。'
+                  }
+                  onConfirm={async () => {
                     try {
                       await applyImageTaskResult(detail.id, {
                         productId: detail.productId!,
@@ -424,8 +935,10 @@ export default function ImageTasksPage() {
                     }
                   }}
                 >
-                  设为详情图
-                </Button>
+                  <Button danger={isLowQualityTranslate} disabled={isLowQualityTranslate}>
+                    设为详情图
+                  </Button>
+                </Popconfirm>
               </>
             ) : null}
           </Space>
@@ -466,18 +979,21 @@ export default function ImageTasksPage() {
               <Space align="start" size={24} wrap style={{ marginBottom: 24 }}>
                 {detail.sourceImageUrl ? (
                   <div>
-                    <div style={{ marginBottom: 8, fontWeight: 600 }}>源图</div>
+                    <div style={{ marginBottom: 8, fontWeight: 600 }}>原图</div>
                     <Image src={detail.sourceImageUrl} width={200} style={{ objectFit: 'contain', borderRadius: 6 }} />
                   </div>
                 ) : null}
                 {detail.resultUrl ? (
                   <div>
-                    <div style={{ marginBottom: 8, fontWeight: 600 }}>结果图</div>
+                    <div style={{ marginBottom: 8, fontWeight: 600 }}>翻译后图片</div>
                     <Image src={detail.resultUrl} width={200} style={{ objectFit: 'contain', borderRadius: 6 }} />
                   </div>
                 ) : null}
               </Space>
             )}
+            {detail.taskType === 'translate_image_text' && detail.output ? (
+              <TranslateResultPanel output={detail.output} taskStatus={detail.status} />
+            ) : null}
             {taskItems.length > 0 ? (
               <div style={{ marginBottom: 24 }}>
                 <div style={{ marginBottom: 8, fontWeight: 600 }}>子任务结果</div>

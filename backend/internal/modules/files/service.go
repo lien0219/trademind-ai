@@ -304,24 +304,45 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 
 // Delete removes DB metadata and the stored object when using a supported provider.
 func (s *Service) Delete(c *gin.Context, id uuid.UUID) error {
+	return s.DeleteRecordByID(c.Request.Context(), id)
+}
+
+// DeleteRecordByID removes a file row and its storage object.
+func (s *Service) DeleteRecordByID(ctx context.Context, id uuid.UUID) error {
 	if s == nil || s.DB == nil || s.Settings == nil {
 		return fmt.Errorf("files: misconfigured")
 	}
 	var row FileRecord
-	if err := s.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&row).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id = ?", id).First(&row).Error; err != nil {
 		return err
 	}
-	plain, err := s.Settings.PlainByGroup(c.Request.Context(), 0, "storage")
+	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
 		return err
 	}
-	storedKind := strings.TrimSpace(row.StorageKind)
-	prov, _, err := storage.NewFromPlainForStoredKind(plain, storedKind)
+	prov, _, err := storage.NewFromPlainForStoredKind(plain, strings.TrimSpace(row.StorageKind))
 	if err != nil {
 		return err
 	}
-	if err := prov.Delete(c.Request.Context(), row.ObjectKey); err != nil {
+	if err := prov.Delete(ctx, row.ObjectKey); err != nil {
 		return err
 	}
-	return s.DB.WithContext(c.Request.Context()).Delete(&FileRecord{}, "id = ?", id).Error
+	return s.DB.WithContext(ctx).Delete(&FileRecord{}, "id = ?", id).Error
+}
+
+// DeleteStorageObject removes an object from configured storage (ignores empty keys).
+func (s *Service) DeleteStorageObject(ctx context.Context, objectKey string) error {
+	objectKey = strings.TrimSpace(objectKey)
+	if s == nil || s.Settings == nil || objectKey == "" {
+		return nil
+	}
+	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
+	if err != nil {
+		return err
+	}
+	prov, _, err := storage.NewFromPlain(plain)
+	if err != nil {
+		return err
+	}
+	return prov.Delete(ctx, objectKey)
 }

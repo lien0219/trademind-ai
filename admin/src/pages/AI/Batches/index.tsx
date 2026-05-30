@@ -29,6 +29,7 @@ const OP_LABEL: Record<string, string> = {
   image_generate_scene: '批量场景图',
   image_replace_background: '批量换背景',
   image_batch_generate_main: '批量主图生成',
+  image_translate_image_text: '批量图片文字翻译',
   image_score: '批量图片评分',
   image_select_best_main: '批量自动选主图',
 };

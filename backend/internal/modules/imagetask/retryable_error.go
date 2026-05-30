@@ -100,7 +100,9 @@ func imageTaskErrDefinitelyNonRetryable(msg string) bool {
 		"status 403",
 		"status 404",
 		"status 422",
-		"comfyui execution failed",
+		"安全映射阈值",
+		"translate_render_failed",
+		"ocr 图与渲染图尺寸差异",
 		"not implemented",
 	}
 	for _, p := range patterns {

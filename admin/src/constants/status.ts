@@ -15,6 +15,12 @@ export const COLLECT_TASK_STATUS = {
   failed: { text: '失败', color: 'error' as const },
   cancelled: { text: '已取消', color: 'default' as const },
   retrying: { text: '等待重试', color: 'warning' as const },
+  success_with_warnings: { text: '成功（有警告）', color: 'warning' as const },
+  success_with_review: { text: '成功（建议检查）', color: 'warning' as const },
+  low_quality: { text: '失败：质量不达标', color: 'error' as const },
+  need_manual_review: { text: '需人工检查', color: 'warning' as const },
+  failed_render_validation: { text: '渲染校验失败', color: 'error' as const },
+  obsolete: { text: '已过期', color: 'default' as const },
 };
 
 /** 采集批次聚合状态 */

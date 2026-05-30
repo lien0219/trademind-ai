@@ -22,6 +22,7 @@ func stripThinkBlocks(s string) string {
 		{"<" + "think" + ">", "</" + "think" + ">"},
 		{"<thinking>", "</thinking>"},
 		{"<reasoning>", "</reasoning>"},
+		{"<think>", "</think>"},
 	}
 	for _, p := range pairs {
 		s = stripTaggedBlock(s, p[0], p[1])

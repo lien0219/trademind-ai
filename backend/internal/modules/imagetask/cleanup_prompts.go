@@ -130,6 +130,9 @@ func autoSaveFromHints(hints map[string]any) bool {
 	if v, ok := hints["autoSaveToProduct"].(bool); ok {
 		return v
 	}
+	if v, ok := hints["autoSaveToProductImages"].(bool); ok {
+		return v
+	}
 	return false
 }
 
@@ -140,10 +143,29 @@ func autoSetMainFromHints(hints map[string]any) bool {
 	if v, ok := hints["autoSetMain"].(bool); ok {
 		return v
 	}
+	if v, ok := hints["autoSetAsMain"].(bool); ok {
+		return v
+	}
 	if v, ok := hints["autoSetBestMain"].(bool); ok {
 		return v
 	}
 	return false
+}
+
+func outputImageTypeFromHints(hints map[string]any) string {
+	if hints == nil {
+		return "ai_generated"
+	}
+	t := strings.TrimSpace(stringFromMap(hints, "outputImageType"))
+	if t == "" {
+		return "ai_generated"
+	}
+	switch strings.ToLower(t) {
+	case "main", "detail", "marketing", "ai_generated", "sku":
+		return strings.ToLower(t)
+	default:
+		return "ai_generated"
+	}
 }
 
 func autoSetDetailFromHints(hints map[string]any) bool {

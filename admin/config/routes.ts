@@ -275,14 +275,19 @@ export default [
     component: '@/layouts/SettingsGroupLayout',
     routes: [
       {
-        path: '/settings/integrations',
-        name: '第三方集成总览',
-        component: './Settings/Integrations',
-      },
-      {
         path: '/settings/system',
         name: '系统设置',
         component: './Settings/System',
+      },
+      {
+        path: '/settings/security',
+        name: '安全设置',
+        component: './Settings/Security',
+      },
+      {
+        path: '/settings/email',
+        name: '邮箱设置',
+        component: './Settings/Email',
       },
       {
         path: '/settings/alert-notify',
@@ -290,9 +295,9 @@ export default [
         component: './Settings/AlertNotify',
       },
       {
-        path: '/settings/email',
-        name: '邮箱设置',
-        component: './Settings/Email',
+        path: '/settings/storage',
+        name: '存储设置',
+        component: './Settings/Storage',
       },
       {
         path: '/settings/ai',
@@ -305,9 +310,9 @@ export default [
         component: './Settings/Image',
       },
       {
-        path: '/settings/storage',
-        name: '存储设置',
-        component: './Settings/Storage',
+        path: '/settings/collector',
+        name: '采集服务',
+        component: './Settings/Collector',
       },
       {
         path: '/settings/inventory',
@@ -330,14 +335,9 @@ export default [
         component: './Settings/PlatformPublish',
       },
       {
-        path: '/settings/collector',
-        name: '采集服务',
-        component: './Settings/Collector',
-      },
-      {
-        path: '/settings/security',
-        name: '安全设置',
-        component: './Settings/Security',
+        path: '/settings/integrations',
+        name: '第三方集成总览',
+        component: './Settings/Integrations',
       },
     ],
   },

@@ -1,6 +1,12 @@
 package operationdashboard
 
-import "strings"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+)
 
 // humanizeCollectorError maps collector error codes to user-facing Chinese labels.
 func humanizeCollectorError(code string) string {
@@ -43,6 +49,10 @@ func humanizeTaskStatus(status string) string {
 		return "处理中"
 	case "success":
 		return "已完成"
+	case "success_with_warnings":
+		return "成功（有警告）"
+	case "partial_success":
+		return "部分成功"
 	case "failed":
 		return "失败"
 	case "retrying":
@@ -100,6 +110,8 @@ func humanizeImageTaskType(taskType string) string {
 		return "商品图评分"
 	case "select_best_main":
 		return "自动选最佳主图"
+	case "translate_image_text":
+		return "图片文字翻译"
 	case "resize":
 		return "缩放"
 	case "enhance":
@@ -155,4 +167,80 @@ func humanizeProductSource(source string) string {
 	default:
 		return strings.TrimSpace(source)
 	}
+}
+
+var translateLayoutWarningLabels = map[string]string{
+	"translated_text_too_long":   "部分翻译文字较长，可能影响图片排版，请检查结果图。",
+	"translated_text_overflow":   "部分翻译文字较长，可能影响图片排版，请检查结果图。",
+	"font_size_auto_adjusted":    "系统已自动调整部分文字大小。",
+	"translated_text_simplified": "系统已自动精简部分翻译文案以适配排版。",
+	"partial_text_detected":      "部分图片文字可能未全部识别，请检查结果图是否仍有未翻译文字。",
+	"ocr_hallucination_filtered": "已过滤疑似非原图文字，仅翻译图片中真实可见的文字。",
+	"source_text_may_remain":     "图片中可能仍有部分原文字，请检查结果图。",
+	"IMAGE_NOT_CHANGED":          "生成图片没有变化，请重新生成或切换处理方式。",
+	"IMAGE_TEXT_NOT_APPLIED":     "翻译文字没有成功写入图片，请重新生成。",
+	"OUTPUT_TEXT_VERIFY_FAILED":  "系统无法确认文字替换效果，请人工检查图片。",
+	"background_patch_visible":   "背景修补痕迹明显。",
+	"layout_not_natural":         "排版不够自然。",
+	"text_overflow":              "部分文字超出推荐区域。",
+	"text_not_applied":           "翻译文字没有成功写入图片。",
+	"commercial_usability_low":   "商用评分偏低，不建议直接作为商品图使用。",
+}
+
+func humanizeTranslateWarningCode(code string) string {
+	key := strings.TrimSpace(code)
+	if key == "" {
+		return ""
+	}
+	if label, ok := translateLayoutWarningLabels[key]; ok {
+		return label
+	}
+	return key
+}
+
+func humanizeImageTaskSubtitle(taskType, status string, outputJSON []byte, errorMessage string) string {
+	if status == imagetask.StatusFailed {
+		return clip(errorMessage, 80)
+	}
+	if status != imagetask.StatusSuccessWithWarnings || taskType != imagetask.TaskTypeTranslateImageText {
+		return ""
+	}
+	if len(outputJSON) == 0 {
+		return ""
+	}
+	var out map[string]any
+	if err := json.Unmarshal(outputJSON, &out); err != nil {
+		return ""
+	}
+	quality, _ := out["quality"].(map[string]any)
+	if quality == nil {
+		return ""
+	}
+	seen := map[string]bool{}
+	addFirst := func(msg string) string {
+		msg = strings.TrimSpace(msg)
+		if msg == "" || seen[msg] {
+			return ""
+		}
+		seen[msg] = true
+		return clip(msg, 80)
+	}
+	if warnings, ok := quality["warnings"].([]any); ok {
+		for _, w := range warnings {
+			if s := addFirst(fmt.Sprint(w)); s != "" {
+				return s
+			}
+		}
+	}
+	layout, _ := quality["layout"].(map[string]any)
+	if layout != nil {
+		if warnings, ok := layout["warnings"].([]any); ok {
+			for _, w := range warnings {
+				if s := addFirst(humanizeTranslateWarningCode(fmt.Sprint(w))); s != "" {
+					return s
+				}
+			}
+		}
+	}
+	return ""
 }

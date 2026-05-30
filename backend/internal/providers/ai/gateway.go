@@ -60,20 +60,28 @@ func (g *Gateway) chatWithPlain(ctx context.Context, plain map[string]string, re
 		pname = "openai_compatible"
 	}
 
-	base := resolveBaseURL(pname, plain["base_url"])
+	base := ResolveProviderBaseURL(plain, pname)
 	if base == "" {
 		return nil, fmt.Errorf("请配置 base_url")
 	}
-	apiKey := strings.TrimSpace(plain["api_key"])
+	apiKey := ResolveProviderAPIKey(plain, pname)
 	if apiKey == "" {
 		return nil, fmt.Errorf("请配置 API Key")
 	}
 
-	model := resolveModel(pname, req.Model, plain["model"])
+	model := ResolveProviderModel(plain, pname, req.Model)
+	if messagesHaveVision(req.Messages) {
+		configuredModel := strings.TrimSpace(plain[ProviderModelKey(pname)])
+		if configuredModel == "" {
+			configuredModel = strings.TrimSpace(plain["model"])
+		}
+		model = resolveVisionModel(pname, req.VisionModel, req.Model, configuredModel, plain["vision_model"])
+	}
 	temp, maxTok := mergeChatParams(plain, req)
 
 	merged := ChatRequest{
 		Model:          model,
+		VisionModel:    req.VisionModel,
 		Messages:       req.Messages,
 		Temperature:    temp,
 		MaxTokens:      maxTok,
@@ -122,7 +130,7 @@ func (g *Gateway) TestConnectionWithPlain(ctx context.Context, plain map[string]
 	if pname == "" {
 		pname = "openai_compatible"
 	}
-	model := resolveModel(pname, "", plain["model"])
+	model := ResolveProviderModel(plain, pname, "")
 
 	start := time.Now()
 	_, err := g.chatWithPlain(ctx, plain, ChatRequest{

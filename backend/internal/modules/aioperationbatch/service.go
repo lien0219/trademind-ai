@@ -549,6 +549,8 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 		taskType = imagetask.TaskTypeReplaceBackground
 	case OperationImageBatchGenerateMain:
 		taskType = imagetask.TaskTypeBatchGenerateMain
+	case OperationImageTranslateImageText:
+		taskType = imagetask.TaskTypeTranslateImageText
 	case OperationImageScore:
 		taskType = imagetask.TaskTypeScoreImage
 	case OperationImageSelectBestMain:
@@ -664,11 +666,20 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 				Message:    fmt.Sprintf("taskType=%s provider=%s productId=%s batchNo=%s", row.TaskType, row.Provider, pid.String(), batchNo),
 			})
 		}
-		if ferr := s.Image.FinalizeNewImageTask(ctx, c, row); ferr != nil {
-			failN++
-			continue
+		if taskType == imagetask.TaskTypeTranslateImageText {
+			// For translate image text, we do NOT enqueue to the general image:tasks queue.
+			// We will process them via a dedicated background goroutine to enforce concurrency and delay.
+		} else {
+			if ferr := s.Image.FinalizeNewImageTask(ctx, c, row); ferr != nil {
+				failN++
+				continue
+			}
 		}
 		createN++
+	}
+
+	if taskType == imagetask.TaskTypeTranslateImageText && len(ids) > 0 {
+		go s.processTranslateImageBatchAsync(context.Background(), batchID, adminID)
 	}
 
 	_ = s.reconcileImageBatch(ctx, batchID)
@@ -692,6 +703,63 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 		})
 	}
 	return batch2, nil
+}
+
+func (s *Service) processTranslateImageBatchAsync(ctx context.Context, batchID uuid.UUID, adminID *uuid.UUID) {
+	concurrency := 1
+	delayMinMs := 1000
+	delayMaxMs := 3000
+
+	if s.Settings != nil {
+		if m, err := s.Settings.PlainByGroup(ctx, 0, "image"); err == nil {
+			if v := intFromAny(m["ocr_batch_concurrency"]); v > 0 {
+				concurrency = v
+			} else if v := intFromAny(m["translate_image_text_batch_concurrency"]); v > 0 {
+				concurrency = v
+			}
+			if v := intFromAny(m["ocr_request_interval_ms"]); v >= 0 {
+				delayMinMs = v
+				delayMaxMs = v
+			} else if v := intFromAny(m["translate_image_text_batch_delay_min_ms"]); v >= 0 {
+				delayMinMs = v
+			}
+			if v := intFromAny(m["translate_image_text_batch_delay_max_ms"]); v > 0 {
+				delayMaxMs = v
+			}
+		}
+	}
+
+	var tasks []imagetask.ImageTask
+	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND status = ?", batchID, "pending").Find(&tasks).Error; err != nil {
+		return
+	}
+
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+
+	for i, task := range tasks {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(taskID uuid.UUID) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			_ = s.Image.ProcessSyncAfterCreate(ctx, taskID, nil)
+		}(task.ID)
+
+		if i < len(tasks)-1 && delayMaxMs > 0 {
+			delay := delayMinMs
+			if delayMaxMs > delayMinMs {
+				// Simple pseudo-random delay without bringing in math/rand directly or just use average
+				delay = delayMinMs + (delayMaxMs-delayMinMs)/2
+			}
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+		}
+	}
+
+	wg.Wait()
+	_ = s.reconcileImageBatch(ctx, batchID)
 }
 
 func (s *Service) reconcileImageBatch(ctx context.Context, batchID uuid.UUID) error {
@@ -819,7 +887,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AIOperationBatch,
 		return nil, err
 	}
 	switch strings.TrimSpace(b.OperationType) {
-	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground:
+	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
 		_ = s.reconcileImageBatch(ctx, id)
 		_ = s.DB.WithContext(ctx).First(&b, "id = ?", id).Error
 	}
@@ -908,7 +976,7 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 	switch strings.TrimSpace(b.OperationType) {
 	case OperationTitleOptimize, OperationDescriptionGenerate:
 		return s.retryFailedText(c, b, adminID)
-	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground:
+	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
 		return s.retryFailedImage(c, b, adminID)
 	default:
 		return nil, fmt.Errorf("unsupported operation for retry")
@@ -1016,9 +1084,30 @@ func (s *Service) retryFailedImage(c *gin.Context, b *AIOperationBatch, adminID 
 		Pluck("id", &ids).Error; err != nil {
 		return nil, err
 	}
-	for _, id := range ids {
-		_ = s.Image.RetryEnqueue(c, id)
+
+	if b.OperationType == OperationImageTranslateImageText {
+		// Reset failed tasks manually to pending, then run async processor
+		for _, id := range ids {
+			_ = s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("id = ?", id).Updates(map[string]any{
+				"status":            imagetask.StatusPending,
+				"retry_count":       0,
+				"next_retry_at":     nil,
+				"retry_enqueued_at": nil,
+				"error_message":     "",
+				"started_at":        nil,
+				"finished_at":       nil,
+				"result_url":        "",
+				"result_file_id":    nil,
+				"output":            nil,
+			}).Error
+		}
+		go s.processTranslateImageBatchAsync(context.Background(), b.ID, adminID)
+	} else {
+		for _, id := range ids {
+			_ = s.Image.RetryEnqueue(c, id)
+		}
 	}
+
 	_ = s.reconcileImageBatch(ctx, b.ID)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{

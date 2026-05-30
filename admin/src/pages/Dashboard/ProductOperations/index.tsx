@@ -45,7 +45,9 @@ import {
 } from '@/constants/dashboardDefaults';
 import {
   formatRecentItem,
-  RECENT_STATUS_COLOR,
+  recentStatusColor,
+  recentStatusLabel,
+  recentTranslateWarningSubtitle,
 } from '@/constants/dashboardRecent';
 import {
   queryProductOperationDashboard,
@@ -99,7 +101,10 @@ function RecentActivityRow({
 }) {
   const meta = RECENT_TYPE_META[bucket] ?? RECENT_TYPE_META['AI 图片'];
   const { title, subtitle } = formatRecentItem(item);
-  const statusColor = item.status ? RECENT_STATUS_COLOR[item.status] ?? 'default' : undefined;
+  const statusLabel = recentStatusLabel(item.status);
+  const statusColor = recentStatusColor(item.status);
+  const displaySubtitle =
+    item.type === 'image_task' ? recentTranslateWarningSubtitle(subtitle) ?? subtitle : subtitle;
 
   return (
     <div
@@ -156,18 +161,18 @@ function RecentActivityRow({
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {formatDateTime(item.occurredAt)}
           </Typography.Text>
-          {item.status ? <Tag color={statusColor}>{item.status}</Tag> : null}
+          {item.status ? <Tag color={statusColor}>{statusLabel}</Tag> : null}
         </Space>
         <Typography.Text strong style={{ ...ellipsizedText, fontSize: 14 }} title={title}>
           {title}
         </Typography.Text>
-        {subtitle ? (
+        {displaySubtitle ? (
           <Typography.Text
             type="secondary"
             style={{ ...ellipsizedText, fontSize: 12, marginTop: 4 }}
-            title={subtitle}
+            title={displaySubtitle}
           >
-            {subtitle}
+            {displaySubtitle}
           </Typography.Text>
         ) : null}
       </div>

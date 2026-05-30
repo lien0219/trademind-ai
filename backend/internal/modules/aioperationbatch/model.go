@@ -10,14 +10,15 @@ import (
 
 // Batch operation kinds (persisted operation_type).
 const (
-	OperationTitleOptimize          = "title_optimize"
-	OperationDescriptionGenerate    = "description_generate"
-	OperationImageRemoveBackground  = "image_remove_background"
-	OperationImageGenerateScene     = "image_generate_scene"
-	OperationImageReplaceBackground = "image_replace_background"
-	OperationImageBatchGenerateMain = "image_batch_generate_main"
-	OperationImageScore             = "image_score"
-	OperationImageSelectBestMain    = "image_select_best_main"
+	OperationTitleOptimize           = "title_optimize"
+	OperationDescriptionGenerate     = "description_generate"
+	OperationImageRemoveBackground   = "image_remove_background"
+	OperationImageGenerateScene      = "image_generate_scene"
+	OperationImageReplaceBackground  = "image_replace_background"
+	OperationImageBatchGenerateMain  = "image_batch_generate_main"
+	OperationImageTranslateImageText = "image_translate_image_text"
+	OperationImageScore              = "image_score"
+	OperationImageSelectBestMain     = "image_select_best_main"
 )
 
 // Batch aggregate status values.

@@ -765,10 +765,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 		}
 		_ = tx.Find(&rows).Error
 		for _, r := range rows {
-			sub := ""
-			if r.Status == imagetask.StatusFailed {
-				sub = clip(r.ErrorMessage, 80)
-			}
+			sub := humanizeImageTaskSubtitle(r.TaskType, r.Status, r.Output, r.ErrorMessage)
 			b.ImageTasks = append(b.ImageTasks, RecentItem{
 				Type:       "image_task",
 				Title:      humanizeImageTaskType(r.TaskType),

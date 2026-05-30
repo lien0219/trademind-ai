@@ -6,9 +6,10 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { Collapse, Form, Image, Space, Typography, Upload, message } from 'antd';
+import { Alert, Button, Collapse, Form, Image, Space, Typography, Upload, message, Checkbox } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TranslateImageTextAiSettingsHint } from '@/components/TranslateImageTextModal';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import {
   AI_IMAGE_BACKGROUND_PRESETS,
@@ -22,12 +23,17 @@ import {
 } from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import { uploadFile } from '@/services/files';
+import { testOCRConnection } from '@/services/settings';
 import { fetchProductDetail, type ProductImageRow } from '@/services/products';
 import {
   BEGINNER_IMAGE_TASK_TYPE_VALUES,
   IMAGE_TASK_RESULT_MODE_OPTIONS,
   IMAGE_TASK_TYPE_OPTIONS,
+  TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS,
+  TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS,
+  TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS,
   buildResultHandlingInput,
+  buildTranslateImageTextInput,
   createImageTask,
   imageTaskAllowsNoSource,
   taskTypeLabel,
@@ -64,6 +70,16 @@ type FormValues = {
   rbStyle?: string;
   rbPlatform?: string;
   rbSize?: string;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  translateLayoutMode?: 'auto' | 'preserve' | 'readable';
+  translateAutoWrap?: boolean;
+  translateAutoFontSize?: boolean;
+  translateAllowSimplify?: boolean;
+  translateKeepProduct?: boolean;
+  translateAutoSave?: boolean;
+  translateOutputDetail?: boolean;
+  translateSetMain?: boolean;
   sourceImageId?: string;
   sourceImageUrl?: string;
   inputJson?: string;
@@ -111,7 +127,11 @@ export function CreateImageTaskModal({
   const [loadedImages, setLoadedImages] = useState<ProductImageRow[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
   const [showMoreTaskTypes, setShowMoreTaskTypes] = useState(false);
+  const [ocrChecking, setOcrChecking] = useState(false);
+  const [ocrReady, setOcrReady] = useState(false);
+  const [ocrMessage, setOcrMessage] = useState('');
   const watchedProductId = Form.useWatch('productId', form);
+  const watchedTaskType = Form.useWatch('taskType', form);
   const effectiveProductId = (fixedProductId || watchedProductId || prefill?.productId || '').trim();
 
   const productImages = useMemo(() => {
@@ -185,6 +205,29 @@ export function CreateImageTaskModal({
     if (!open) return;
     applyPrefill();
   }, [open, applyPrefill]);
+
+  const checkOCRReady = useCallback(async () => {
+    setOcrChecking(true);
+    try {
+      const res = await testOCRConnection();
+      setOcrReady(Boolean(res.ok));
+      setOcrMessage(res.message || '当前 OCR 服务可用');
+    } catch (e: unknown) {
+      setOcrReady(false);
+      setOcrMessage((e as Error)?.message || '图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
+    } finally {
+      setOcrChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open || watchedTaskType !== 'translate_image_text') {
+      setOcrReady(false);
+      setOcrMessage('');
+      return;
+    }
+    void checkOCRReady();
+  }, [open, watchedTaskType, checkOCRReady]);
 
   useEffect(() => {
     if (!open || productImagesProp?.length) return;
@@ -276,7 +319,22 @@ export function CreateImageTaskModal({
       }}
       width={640}
       modalProps={{ destroyOnHidden: true }}
-      submitter={{ searchConfig: { submitText: '创建任务' } }}
+      submitter={{
+        render: (props) => [
+          <Button key="cancel" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={ocrChecking || props.submitButtonProps?.loading}
+            disabled={watchedTaskType === 'translate_image_text' && !ocrReady}
+            onClick={() => props.submit?.()}
+          >
+            创建任务
+          </Button>,
+        ],
+      }}
       onFinish={async (values) => {
         const tt = (values.taskType ?? '').trim();
         const productId = (fixedProductId || values.productId || '').trim();
@@ -288,6 +346,10 @@ export function CreateImageTaskModal({
         }
         if (tt === 'select_best_main' && !productId) {
           message.error('自动选最佳主图需要关联商品，请填写商品 ID');
+          return false;
+        }
+        if (tt === 'translate_image_text' && !ocrReady) {
+          message.error('图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
           return false;
         }
 
@@ -304,9 +366,30 @@ export function CreateImageTaskModal({
 
         const input: Record<string, unknown> = {
           ...extra,
-          ...buildResultHandlingInput(values.resultMode),
         };
+        if (tt !== 'translate_image_text') {
+          Object.assign(input, buildResultHandlingInput(values.resultMode));
+        }
 
+        if (tt === 'translate_image_text') {
+          Object.assign(
+            input,
+            buildTranslateImageTextInput({
+              sourceLanguage: values.sourceLanguage,
+              targetLanguage: values.targetLanguage,
+              layoutMode: values.translateLayoutMode ?? 'auto',
+              autoWrap: values.translateAutoWrap,
+              autoFontSize: values.translateAutoFontSize,
+              allowTextSimplify: values.translateAllowSimplify,
+              keepProductUnchanged: values.translateKeepProduct,
+              autoSaveToProductImages: values.translateAutoSave,
+              outputAsDetail: values.translateOutputDetail,
+              autoSetAsMain: values.translateSetMain,
+              removeOriginalText: true,
+              preserveLayout: values.translateLayoutMode !== 'readable',
+            }),
+          );
+        }
         if (tt === 'generate_scene') {
           Object.assign(input, {
             prompt: (values.prompt ?? '').trim(),
@@ -340,8 +423,10 @@ export function CreateImageTaskModal({
           });
           if (task.status === 'pending' || task.status === 'running') {
             message.success('图片任务已提交，正在后台处理');
-          } else if (task.status === 'success') {
-            message.success('任务已完成');
+          } else if (task.status === 'success' || task.status === 'success_with_warnings') {
+            message.success(
+              task.status === 'success_with_warnings' ? '任务完成（存在警告，请人工检查）' : '任务已完成',
+            );
           } else if (task.status === 'failed') {
             message.warning(task.errorMessage || '任务失败');
           } else {
@@ -532,7 +617,7 @@ export function CreateImageTaskModal({
       <ProFormDependency name={['taskType', 'productId']}>
         {({ taskType, productId }: { taskType?: string; productId?: string }) => {
           const pid = (fixedProductId || productId || '').trim();
-          if (!pid || taskType === 'score_image' || taskType === 'select_best_main') return null;
+          if (!pid || taskType === 'score_image' || taskType === 'select_best_main' || taskType === 'translate_image_text') return null;
           return (
             <>
               <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
@@ -573,6 +658,77 @@ export function CreateImageTaskModal({
                 <ProFormSelect name="background" label={AI_IMAGE_FIELD.background.label} options={AI_IMAGE_BACKGROUND_PRESETS} />
               </Space>
               <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
+            </>
+          ) : null
+        }
+      </ProFormDependency>
+
+      <ProFormDependency name={['taskType']}>
+        {({ taskType }: { taskType?: string }) =>
+          taskType === 'translate_image_text' ? (
+            <>
+              <TranslateImageTextAiSettingsHint />
+              <Alert
+                type={ocrReady ? 'success' : 'warning'}
+                showIcon
+                style={{ marginBottom: 16 }}
+                message={ocrReady ? '当前 OCR 服务可用' : '图片文字翻译需要 OCR 服务'}
+                description={
+                  <>
+                    {ocrMessage || '请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。'}{' '}
+                    <Typography.Link onClick={() => window.location.assign('/settings/image')}>去配置 OCR</Typography.Link>
+                  </>
+                }
+                action={
+                  <Button size="small" loading={ocrChecking} onClick={() => void checkOCRReady()}>
+                    重新检测
+                  </Button>
+                }
+              />
+              <ProFormSelect
+                name="sourceLanguage"
+                label="源语言"
+                initialValue="auto"
+                options={TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS}
+                rules={[{ required: true, message: '请选择源语言' }]}
+              />
+              <ProFormSelect
+                name="targetLanguage"
+                label="目标语言"
+                initialValue="en"
+                options={TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS}
+                rules={[{ required: true, message: '请选择目标语言' }]}
+              />
+              <ProFormRadio.Group
+                name="translateLayoutMode"
+                label="排版方式"
+                initialValue="auto"
+                options={TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS}
+              />
+              <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                处理选项
+              </Typography.Text>
+              <Form.Item name="translateAutoWrap" valuePropName="checked" initialValue>
+                <Checkbox>自动换行</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateAutoFontSize" valuePropName="checked" initialValue>
+                <Checkbox>自动调整字号</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateAllowSimplify" valuePropName="checked" initialValue>
+                <Checkbox>文字太长时自动精简</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateKeepProduct" valuePropName="checked" initialValue>
+                <Checkbox>尽量不改变商品主体</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateAutoSave" valuePropName="checked" initialValue>
+                <Checkbox>自动保存到商品图片库</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateOutputDetail" valuePropName="checked" initialValue>
+                <Checkbox>处理后设为详情图</Checkbox>
+              </Form.Item>
+              <Form.Item name="translateSetMain" valuePropName="checked" initialValue={false}>
+                <Checkbox>处理后设为主图</Checkbox>
+              </Form.Item>
             </>
           ) : null
         }

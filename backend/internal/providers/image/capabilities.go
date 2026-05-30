@@ -52,6 +52,14 @@ type ProviderCapability struct {
 func AllProviderCapabilities() []ProviderCapability {
 	return []ProviderCapability{
 		{
+			Provider: "local_render", DisplayName: "程序排版渲染", Status: ProviderStatusAvailable,
+			Difficulty: DifficultyEasy, RegionFriendly: RegionBoth,
+			RequiresAPIKey: false, RequiresSelfHosted: false,
+			SupportedTasks: []string{"translate_image_text"},
+			RecommendedFor: []string{"图片文字翻译", "确定性排版"},
+			Description:    "OCR + 程序擦除原文字 + 确定性绘制译文，不依赖图片生成模型写字。",
+		},
+		{
 			Provider: "noop", DisplayName: "占位 / 演示", Status: ProviderStatusAvailable,
 			Difficulty: DifficultyEasy, RegionFriendly: RegionBoth,
 			RequiresAPIKey: false, RequiresSelfHosted: false,
@@ -76,6 +84,7 @@ func AllProviderCapabilities() []ProviderCapability {
 				"remove_watermark", "remove_logo", "remove_badge", "remove_qrcode", "cleanup",
 				"enhance_detail", "generate_marketing", "generate_main_image", "upscale",
 				"score_image", "select_best_main",
+				"translate_image_text",
 			},
 			RecommendedFor: []string{"场景图", "替换背景", "图片清理", "营销图"},
 			Description:    "OpenAI Images API 或兼容代理，支持去水印/去 Logo/营销图等编辑能力。",
@@ -88,6 +97,7 @@ func AllProviderCapabilities() []ProviderCapability {
 				"generate_scene", "replace_background",
 				"remove_watermark", "remove_logo", "remove_badge", "remove_qrcode", "cleanup",
 				"enhance_detail", "generate_marketing", "generate_main_image", "upscale",
+				"translate_image_text",
 			},
 			RecommendedFor: []string{"高级自定义", "本地工作流", "图片清理"},
 			Description:    "需自行部署 ComfyUI 并配置工作流 JSON。",
@@ -101,6 +111,7 @@ func AllProviderCapabilities() []ProviderCapability {
 				"remove_watermark", "remove_logo", "remove_badge", "remove_qrcode", "cleanup",
 				"enhance_detail", "upscale",
 				"generate_marketing", "generate_main_image", "batch_generate_main",
+				"translate_image_text",
 			},
 			RecommendedFor: []string{"国内场景图", "商品图清理", "去水印", "高清修复"},
 			Description:    "阿里云 DashScope 万相 2.7 文生图与图像编辑。",
@@ -186,6 +197,8 @@ func TaskTypeDisplayName(taskType string) string {
 		return "增强"
 	case "translate_image":
 		return "图片翻译"
+	case "translate_image_text":
+		return "图片文字翻译"
 	case "poster_generate":
 		return "海报生成"
 	case "remove_watermark":

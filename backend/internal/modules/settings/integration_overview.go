@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
+	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 )
@@ -144,9 +145,13 @@ func (s *Service) BuildIntegrationOverview(ctx context.Context) (*IntegrationsOv
 	if err != nil {
 		return nil, err
 	}
-	out.AI.Provider = strings.TrimSpace(ai["provider"])
-	out.AI.Model = strings.TrimSpace(ai["model"])
-	out.AI.Configured = strings.TrimSpace(ai["api_key"]) != "" && strings.TrimSpace(ai["base_url"]) != ""
+	pname := strings.TrimSpace(ai["provider"])
+	if pname == "" {
+		pname = "openai_compatible"
+	}
+	out.AI.Provider = pname
+	out.AI.Model = aigate.ResolveProviderModel(ai, pname, "")
+	out.AI.Configured = aigate.ResolveProviderAPIKey(ai, pname) != "" && aigate.ResolveProviderBaseURL(ai, pname) != ""
 
 	img, err := s.PlainByGroup(ctx, 0, "image")
 	if err != nil {

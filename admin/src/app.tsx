@@ -1,6 +1,6 @@
 import type { CSSProperties, KeyboardEvent, ReactElement } from 'react';
 import { LogoutOutlined } from '@ant-design/icons';
-import { Avatar, Dropdown, Space } from 'antd';
+import { Avatar, Dropdown, Space, Tooltip } from 'antd';
 import { history, useModel, type RequestConfig, type RunTimeLayoutConfig } from '@umijs/max';
 import AppMessageBridge from '@/components/AppMessageBridge';
 import BrandLogo from '@/components/BrandLogo';
@@ -96,12 +96,39 @@ async function logoutAndClear(
   history.push('/user/login');
 }
 
-/** 侧栏底部账号：悬停头像在右侧弹出菜单；勿把整行放进 Dropdown，便于「只在头像上触发」 */
-function SiderUserFooter({ collapsed }: { collapsed?: boolean }) {
-  const { setInitialState, initialState } = useModel('@@initialState');
-  const name = initialState?.currentUser?.displayName?.trim() || '管理员';
+function looksLikeEmail(value: string) {
+  return value.includes('@');
+}
 
-  const menu = {
+/** 侧栏/顶栏展示：邮箱账号优先显示 @ 前昵称，完整邮箱放副行 */
+function resolveUserLabels(user?: API.CurrentUser) {
+  const displayName = user?.displayName?.trim() || '管理员';
+  const email = user?.email?.trim() || '';
+  const username = user?.username?.trim() || '';
+  const loginId = email || username;
+
+  if (looksLikeEmail(displayName) && loginId && displayName === loginId) {
+    const local = displayName.split('@')[0]?.trim() || displayName;
+    return {
+      primary: local,
+      secondary: displayName,
+      initial: local.slice(0, 1).toUpperCase(),
+    };
+  }
+
+  return {
+    primary: displayName,
+    secondary: loginId && loginId !== displayName ? loginId : '',
+    initial: displayName.slice(0, 1).toUpperCase(),
+  };
+}
+
+function buildLogoutMenu(
+  setInitialState: (fn: (s: { currentUser?: API.CurrentUser }) => {
+    currentUser?: API.CurrentUser;
+  }) => Promise<unknown>,
+) {
+  return {
     items: [
       {
         key: 'logout',
@@ -111,81 +138,83 @@ function SiderUserFooter({ collapsed }: { collapsed?: boolean }) {
       },
     ],
   };
+}
+
+/** 侧栏底部账号：整行可点，向上弹出菜单；邮箱账号双行展示避免截断 */
+function SiderUserFooter({ collapsed }: { collapsed?: boolean }) {
+  const { setInitialState, initialState } = useModel('@@initialState');
+  const { primary, secondary, initial } = resolveUserLabels(initialState?.currentUser);
+  const menu = buildLogoutMenu(setInitialState);
+  const tooltipTitle = secondary ? `${primary}\n${secondary}` : primary;
+
+  const avatar = (
+    <Avatar size={32} style={TM_AVATAR_STYLE}>
+      {initial}
+    </Avatar>
+  );
+
+  const body = (
+    <div className="tm-sider-user">
+      {avatar}
+      <div className="tm-sider-user__meta">
+        <span className="tm-sider-user__name" title={primary}>
+          {primary}
+        </span>
+        {secondary ? (
+          <span className="tm-sider-user__sub" title={secondary}>
+            {secondary}
+          </span>
+        ) : (
+          <span className="tm-sider-user__sub">管理员</span>
+        )}
+      </div>
+    </div>
+  );
 
   return (
-    <div
-      className="tm-sider-user"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'flex-start',
-        gap: collapsed ? 0 : 10,
-        padding: collapsed ? '12px 0' : '10px 16px',
-        width: '100%',
-        minWidth: 0,
-      }}
+    <Dropdown
+      menu={menu}
+      trigger={['click']}
+      placement={collapsed ? 'rightTop' : 'topLeft'}
+      overlayStyle={{ minWidth: 140 }}
     >
-      <Dropdown
-        menu={menu}
-        trigger={['hover', 'click']}
-        mouseEnterDelay={0.12}
-        placement="rightTop"
-        overlayStyle={{ minWidth: 128 }}
+      <div
+        className="tm-sider-user-trigger"
+        role="button"
+        tabIndex={0}
+        aria-label={`当前用户 ${primary}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            (e.currentTarget as HTMLDivElement).click();
+          }
+        }}
       >
-        <span
-          style={{
-            display: 'inline-flex',
-            cursor: 'pointer',
-            lineHeight: 0,
-          }}
-        >
-          <Avatar size={collapsed ? 30 : 28} style={TM_AVATAR_STYLE}>
-            {name.slice(0, 1).toUpperCase()}
-          </Avatar>
-        </span>
-      </Dropdown>
-      {!collapsed ? (
-        <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            fontSize: 13,
-            color: 'rgba(0, 0, 0, 0.85)',
-          }}
-        >
-          {name}
-        </span>
-      ) : null}
-    </div>
+        {collapsed ? (
+          <Tooltip title={tooltipTitle} placement="right">
+            <span className="tm-sider-user tm-sider-user--collapsed">{avatar}</span>
+          </Tooltip>
+        ) : (
+          body
+        )}
+      </div>
+    </Dropdown>
   );
 }
 
 function RightActions() {
   const { setInitialState, initialState } = useModel('@@initialState');
-  const name = initialState?.currentUser?.displayName?.trim() || '管理员';
+  const { primary, initial } = resolveUserLabels(initialState?.currentUser);
 
   return (
-    <Dropdown
-      menu={{
-        items: [
-          {
-            key: 'logout',
-            icon: <LogoutOutlined />,
-            label: '退出登录',
-            onClick: () => void logoutAndClear(setInitialState),
-          },
-        ],
-      }}
-      placement="bottomRight"
-    >
-      <Space size={10} style={{ cursor: 'pointer', paddingInline: 4 }}>
+    <Dropdown menu={buildLogoutMenu(setInitialState)} placement="bottomRight" trigger={['click']}>
+      <Space size={10} className="tm-header-user" style={{ cursor: 'pointer', paddingInline: 4 }}>
         <Avatar size={32} style={{ ...TM_AVATAR_STYLE, fontSize: 14 }}>
-          {name.slice(0, 1).toUpperCase()}
+          {initial}
         </Avatar>
-        <span className="tm-layout-user-name">{name}</span>
+        <span className="tm-layout-user-name" title={primary}>
+          {primary}
+        </span>
       </Space>
     </Dropdown>
   );

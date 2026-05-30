@@ -376,6 +376,44 @@ api_key: <你的 DashScope API Key>
 | `siliconflow_image` | 硅基流动图像（beta） | 场景图 |
 | `hunyuan_image` | 腾讯混元（**预留**，暂不可真实调用） | 后续版本 |
 
+#### 图片文字翻译（OCR 与局部擦除）配置
+
+在 **系统设置 → 图片 AI 设置** 的下方，可以配置 OCR 与局部擦除：
+
+- **OCR 服务**：支持 `ai_vision`（AI 视觉大模型）、`paddleocr`（本地推荐）、`aliyun`（阿里云 OCR）、`tencent`（腾讯云 OCR）。百度 OCR 暂不显示，完整实现后再上线。
+- **PaddleOCR 配置**：选择 `paddleocr` 后，需填写本地部署的 OCR 服务地址（如 `http://127.0.0.1:3101`）。
+- **腾讯云 OCR 配置**：选择 `tencent` 后填写 Endpoint、Region、SecretId、SecretKey、接口类型、超时与最低置信度。SecretKey 只在后端加密保存，前端仅脱敏展示。
+- **严格 OCR 模式**：图片文字翻译必须先完成 OCR 配置并通过真实调用测试。系统不会自动降级或偷偷切换 OCR；选择阿里云 OCR 就真实使用阿里云，选择腾讯云 OCR 就真实使用腾讯云，选择 PaddleOCR 就真实使用本地服务，选择 AI 视觉 OCR 才会调用视觉模型。
+- **局部擦除方式**：支持 `auto`、`precise_mask`（默认优先，精细擦字）、`background_sample`、`blur_fill`、`opencv_inpaint`、`ai_inpaint`。
+- **ComfyUI 局部擦除**：若选择 `ai_inpaint`，可配置专用的 ComfyUI 地址与工作流 JSON（支持 `{{sourceImageUrl}}` 与 `{{maskImageUrl}}` 变量）。
+
+##### 腾讯云 OCR 配置教程
+
+1. 在腾讯云控制台搜索并开通 **文字识别 OCR** 服务，确认账号未欠费且有可用资源包或按量计费额度。
+2. 在 **访问管理 CAM → API 密钥管理** 创建 SecretId / SecretKey，并为当前账号或子用户授予 OCR 调用权限。
+3. 在 **设置 → 图片 AI 设置 → OCR 配置** 选择 **腾讯云 OCR**。
+4. Endpoint 默认填写 `ocr.tencentcloudapi.com`，Region 默认填写 `ap-guangzhou`。
+5. 接口类型默认选择 `GeneralBasicOCR`（通用印刷体识别）；需要更高吞吐时可选择 `GeneralFastOCR`，但建议配合较低并发与请求间隔使用。
+6. 保存后点击 **真实测试 OCR 调用**。测试会真实调用当前 OCR Provider，成功后会提示识别文字数量与平均置信度。
+7. 图片文字翻译任务会读取该配置；腾讯云 OCR 成功后转换为统一 OCR blocks，后续翻译、擦除、排版和渲染继续走统一链路。若 OCR 未配置、测试未通过、调用失败或未识别到文字，任务会停止并提示修复 OCR 配置。
+
+腾讯云 OCR 常见失败原因：服务未开通、CAM 权限不足、SecretId / SecretKey 无效、账号欠费、资源包耗尽、图片 URL 无法公网访问、调用频率过高、图片未检测到文字。
+
+#### 小白推荐配置
+
+- **文本 AI**：通义千问 / DeepSeek / OpenAI Compatible
+- **图片 AI**：通义万相 / OpenAI Image
+- **OCR**：PaddleOCR
+- **存储**：本地磁盘或腾讯云 COS
+
+#### 未配置时的处理策略
+
+- **OCR 未配置或测试未通过**：图片文字翻译不会执行。请先到 **设置 → 图片 AI 设置** 选择 AI 视觉 OCR、本地 PaddleOCR、阿里云 OCR 或腾讯云 OCR，并通过真实 OCR 调用测试。
+- **不自动降级 OCR**：为了保证文字坐标准确、避免原文残留、避免中英文重叠并提升商用可用性，系统不会把失败的云 OCR 自动切换为 AI 视觉 OCR。
+- **局部擦除未配置**：若选择了 `ai_inpaint` 但未配置 ComfyUI，将自动降级使用程序擦除方式（优先 `precise_mask`，再按质量重试 `blur_fill` / `opencv_inpaint`）。
+- **图片服务未配置**：图片任务将提示“图片处理服务未配置，请先到「设置 → 图片 AI 设置」选择图片处理服务”。
+- **存储未配置**：图片任务将提示“图片存储未配置，请先到「设置 → 存储设置」配置图片保存位置”。
+
 - 能力矩阵：`GET /api/v1/image/providers`（不含密钥）
 - 配置测试：`POST /api/v1/settings/test-image`（默认 `config_only`，不产生图片费用）
 - **live** 测试与真实图片生成可能产生费用；ComfyUI 需自行部署可访问实例

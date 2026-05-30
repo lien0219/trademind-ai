@@ -95,6 +95,7 @@ import {
 import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
 import PricingApplyModal from '@/components/PricingApplyModal';
 import { CreateImageTaskModal, type CreateImageTaskPrefill } from '@/components/CreateImageTaskModal';
+import { TranslateImageTextModal, type TranslateImageTextPrefill } from '@/components/TranslateImageTextModal';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
   adjustSkuStock,
@@ -416,6 +417,9 @@ export default function ProductDraftDetailPage() {
   const [lastUpload, setLastUpload] = useState<{ id: string; url: string; objectKey: string } | null>(null);
   const [createImageOpen, setCreateImageOpen] = useState(false);
   const [createImagePrefill, setCreateImagePrefill] = useState<CreateImageTaskPrefill>({});
+  const [translateImageOpen, setTranslateImageOpen] = useState(false);
+  const [translateImagePrefill, setTranslateImagePrefill] = useState<TranslateImageTextPrefill>({});
+  const [translateSourceImage, setTranslateSourceImage] = useState<ProductImageRow | undefined>();
 
   const [pubRows, setPubRows] = useState<ProductPublicationRow[]>([]);
   const [pubCtxLoading, setPubCtxLoading] = useState(false);
@@ -482,6 +486,16 @@ export default function ProductDraftDetailPage() {
     },
     [id],
   );
+
+  const openTranslateImageText = useCallback((image: ProductImageRow) => {
+    setTranslateSourceImage(image);
+    setTranslateImagePrefill({
+      productId: id,
+      sourceImageId: image.id,
+      sourceImageUrl: (image.publicUrl || image.originUrl || '').trim(),
+    });
+    setTranslateImageOpen(true);
+  }, [id]);
 
   const openQuickImageTask = useCallback(
     (image: ProductImageRow, taskType: string, provider?: string) => {
@@ -791,6 +805,9 @@ export default function ProductDraftDetailPage() {
         width: 520,
         render: (_, r) => (
           <Space wrap size={[8, 4]} style={{ padding: '4px 0' }}>
+            <Button type="link" size="small" onClick={() => openTranslateImageText(r)}>
+              AI 翻译图片文字
+            </Button>
             <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_watermark')}>
               AI 去水印
             </Button>
@@ -874,7 +891,7 @@ export default function ProductDraftDetailPage() {
         ),
       },
     ],
-    [id, reloadDetail, openQuickImageTask, openCreateImageTask],
+    [id, reloadDetail, openQuickImageTask, openCreateImageTask, openTranslateImageText],
   );
 
   const skuColumns = useMemo(
@@ -2627,6 +2644,15 @@ export default function ProductDraftDetailPage() {
         prefill={createImagePrefill}
         fixedProductId={id}
         productImages={sortedImages}
+        onSuccess={() => void reloadDetail()}
+      />
+
+      <TranslateImageTextModal
+        open={translateImageOpen}
+        onOpenChange={setTranslateImageOpen}
+        prefill={translateImagePrefill}
+        fixedProductId={id}
+        sourceImage={translateSourceImage}
         onSuccess={() => void reloadDetail()}
       />
     </PageContainer>

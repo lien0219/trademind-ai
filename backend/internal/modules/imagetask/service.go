@@ -254,19 +254,30 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		if p.TaskType == TaskTypeRemoveBackground {
 			effectiveProv = "removebg"
 		}
-		if !imgprov.IsRunnableProvider(effectiveProv) {
-			return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
-		}
-		if !imgprov.SupportsTask(effectiveProv, p.TaskType) {
-			return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
-		}
-		if s.Settings != nil {
-			m, err := s.Settings.PlainByGroup(ctx, 0, "image")
-			if err != nil {
-				return nil, err
+		if IsTranslateTaskType(p.TaskType) {
+			if s == nil || s.AIGateway == nil {
+				return nil, fmt.Errorf("未配置 AI 服务，无法进行图片文字翻译（请在「设置 → AI」配置）")
 			}
-			if err := imgprov.ValidateSettingsForProvider(effectiveProv, m); err != nil {
-				return nil, err
+			rm := renderModeFromHints(inputHints(p.Input))
+			if rm != RenderModeAIEdit {
+				effectiveProv = "local_render"
+			}
+		}
+		if effectiveProv != "local_render" {
+			if !imgprov.IsRunnableProvider(effectiveProv) {
+				return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
+			}
+			if !imgprov.SupportsTask(effectiveProv, p.TaskType) {
+				return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
+			}
+			if s.Settings != nil {
+				m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+				if err != nil {
+					return nil, err
+				}
+				if err := imgprov.ValidateSettingsForProvider(effectiveProv, m); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -314,6 +325,9 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	}
 	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
+	}
+	if IsTranslateTaskType(p.TaskType) && imgID != nil {
+		_ = s.supersedePriorTranslateResults(ctx, row, translateTargetLanguageFromHints(inputHints(p.Input)), row.ID)
 	}
 	return row, nil
 }
@@ -414,6 +428,13 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if IsScoringTaskType(task.TaskType) {
 		if err := s.executeScoringTask(pctx, task, hints); err != nil {
 			return s.fail(ctx, httpCtx, task, err.Error())
+		}
+		return nil
+	}
+
+	if IsTranslateTaskType(task.TaskType) {
+		if err := s.executeTranslateImageTextTask(pctx, task, hints); err != nil {
+			return s.handleTranslateTaskFailure(ctx, task, hints, err)
 		}
 		return nil
 	}
@@ -826,6 +847,9 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 	}
 	if res.RowsAffected == 0 {
 		return fmt.Errorf("only failed tasks can be retried")
+	}
+	if IsTranslateTaskType(task.TaskType) {
+		_ = s.supersedePriorTranslateResults(ctx, &task, translateTargetLanguageFromHints(inputHints(task.Input)), task.ID)
 	}
 
 	if s.OpLog != nil {

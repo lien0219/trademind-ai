@@ -42,7 +42,9 @@ export async function testPlatformTikTokConfig() {
 
 export type TestAIConnectionResult = {
   ok: boolean;
+  available?: boolean;
   message?: string;
+  errorCode?: string;
   provider?: string;
   model?: string;
   latencyMs?: number;
@@ -60,6 +62,32 @@ export type TestAIConnectionPayload = {
 export async function testAIConnection(payload?: TestAIConnectionPayload) {
   return postJSON<TestAIConnectionResult, TestAIConnectionPayload | Record<string, never>>(
     '/api/v1/settings/test-ai',
+    payload ?? {},
+  );
+}
+
+export type TestOCRConnectionResult = {
+  ok: boolean;
+  message?: string;
+  provider?: string;
+  latencyMs?: number;
+  blocks?: number;
+  blocksCount?: number;
+  averageConfidence?: number;
+  bboxOk?: boolean;
+  testMode?: string;
+  configHint?: string;
+};
+
+export type TestOCRConnectionPayload = {
+  provider?: string;
+  settings?: Record<string, string>;
+};
+
+/** POST /api/v1/settings/test-ocr — optional settings tests current image OCR form without saving */
+export async function testOCRConnection(payload?: TestOCRConnectionPayload) {
+  return postJSON<TestOCRConnectionResult, TestOCRConnectionPayload | Record<string, never>>(
+    '/api/v1/settings/test-ocr',
     payload ?? {},
   );
 }

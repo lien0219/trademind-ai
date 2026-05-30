@@ -58,6 +58,41 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 		{"hunyuan_image_base_url", "", false},
 		{"hunyuan_image_model", "", false},
 		{"timeout_sec", "60", false},
+
+		// OCR Settings
+		{"ocr_provider", "paddleocr", false},
+		{"ocr_base_url", "", false},
+		{"ocr_api_key", "", true},
+		{"ocr_secret", "", true},
+		{"ocr_endpoint", "", false},
+		{"ocr_region", "", false},
+		{"ocr_api_name", "", false},
+		{"ocr_paddleocr_service_url", "http://127.0.0.1:3101", false},
+		{"ocr_aliyun_endpoint", "ocr-api.cn-hangzhou.aliyuncs.com", false},
+		{"ocr_aliyun_region", "cn-hangzhou", false},
+		{"ocr_aliyun_api_name", "RecognizeGeneral", false},
+		{"ocr_aliyun_access_key_id", "", true},
+		{"ocr_aliyun_access_key_secret", "", true},
+		{"ocr_tencent_endpoint", "ocr.tencentcloudapi.com", false},
+		{"ocr_tencent_region", "ap-guangzhou", false},
+		{"ocr_tencent_api_name", "GeneralBasicOCR", false},
+		{"ocr_tencent_secret_id", "", true},
+		{"ocr_tencent_secret_key", "", true},
+		{"ocr_timeout_sec", "30", false},
+		{"ocr_min_confidence", "0.75", false},
+		{"ocr_fallback_to_vision", "false", false},
+		{"ocr_batch_concurrency", "1", false},
+		{"ocr_request_interval_ms", "500", false},
+		{"ocr_max_retries", "1", false},
+
+		// Inpaint Settings
+		{"erase_mode", "auto", false},
+		{"ai_inpaint_comfyui_base_url", "http://127.0.0.1:8188", false},
+		{"ai_inpaint_comfyui_workflow_json", "", false},
+		{"ai_inpaint_comfyui_prompt_node_id", "", false},
+		{"ai_inpaint_comfyui_image_node_id", "", false},
+		{"ai_inpaint_comfyui_mask_node_id", "", false},
+		{"ai_inpaint_comfyui_output_node_id", "", false},
 	}
 	for _, d := range defs {
 		var n int64
@@ -92,7 +127,7 @@ func EnsureImageDefaults(ctx context.Context, db *gorm.DB, enc *encrypt.Service)
 			IsEncrypted: isEnc,
 			Remark:      "",
 		}
-		if d.key == "comfyui_workflow_json" {
+		if d.key == "comfyui_workflow_json" || d.key == "ai_inpaint_comfyui_workflow_json" {
 			row.ValueType = "json"
 		}
 		if d.key == "comfyui_api_key" {

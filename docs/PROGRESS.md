@@ -3,7 +3,45 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-23 — **登录 / 注册页 UI 现代化**：`/user/login` 重构为响应式 SaaS 双栏布局（桌面 `grid: 1.1fr / minmax(420px,520px)`，平板/移动端单列）；左侧品牌区更新 slogan、简介与 6 项能力标签，背景装饰改为低透明度绝对定位卡片（`opacity 0.1–0.14`，不遮挡正文）；右侧登录卡片 `max-width 460px`、圆角阴影、Tab/输入框/渐变主按钮统一；`<1024px` 隐藏左侧宣传区并显示顶部 Logo；`<768px` 全宽卡片 + 16px 边距；**未改动**登录/注册接口与权限逻辑。
+**最后更新**：2026-05-30 — **pure_text_replace 坐标与擦除修复**：OCR 框落在左上角时改为右上角商品文案堆叠修复；支持归一化坐标缩放；白字标题保留 `#ffffff` 绘制；浅色胶囊按 `pill` 只擦黑字；擦除重试增至 3 次；质量分 68 且无硬错误时标记 `success_with_review` 而非渲染失败。
+
+**此前**：2026-05-30 — **图片文字翻译 pure_text_replace 生产模式**：新增默认渲染模式 `pure_text_replace`（先擦除原字再绘制译文，禁止白底/气泡/标签补片）；title 仅重绘文字；badge/pill 保留原胶囊背景、只替换内部白字；固定短文案映射（炫酷黑→Cool Black、雪花白→Snow White 等）与 capsule 放不下时自动降级 Universal Stand/For Phones；质量校验原文残留/额外背景层/重叠则 failed 或自动重试；输出 original/erased/final 调试图；管理端展示「纯文字替换」与对应失败提示。
+
+**此前**：2026-05-30 — **图片文字翻译 mask 空失败修复**：`text_pixel_mask` 去字 mask 在 dilate 后易因稀疏笔画合并成超大块（>45% 区域）被误判为空；新增 `dilateMaskWithinLimits` 自适应 dilate（必要时 dilate=0）、`cleanBorderBackgroundColor` 排除边框文字污染；修复 `[TRANSLATE_RENDER_FAILED] imagerender: text pixel mask empty`。
+
+**此前**：2026-05-30 — **图片文字翻译 text_pixel_mask 生产级去字与质量分级**：固定流程 OCR → 文字像素 mask → 按 `blockClass` 分类去字（title/normal Telea inpaint radius=2；badge/pill `pillTextErase` 中位色填充白字、禁止整胶囊 inpaint）→ 短英文重绘 → 二次 OCR；mask 连通域过滤 + 单块≤2%/总计≤6%；质量分≥85 success、75–84 `success_with_review`（可下载、保存商品前提示）、65–74 同任务自动重试一次（maskDilate+1/更短文案/二次 inpaint）、<65 或中文残留/溢出/遮挡主体 failed；输出 `debugOriginalUrl`/`debugMaskUrl`/`debugErasedUrl`/`debugFinalUrl` 调试图；验收「雪花白 / 折叠伸缩版/通用手机」→ `Snow White` + `Universal Phone Stand`/`Universal Stand`。
+
+**此前**：2026-05-30 — **图片文字翻译安全坐标映射与失败清理**：新增安全坐标映射器（normalized / crop 优先，禁止 ocrBox 硬映射）；小误差自动映射（aspectRatioDiff≤0.03、scale 0.5~2.0）、中等误差降级为 group 整体擦除重排（aspectRatioDiff≤0.08、scale 0.3~3.0）、大误差才 failed；完整输出 original/ocr/render/crop/scale/aspectRatioDiff/mappingMode/finalMappedBox 诊断；render 失败或 low_quality 时删除 temp/preview/output 文件并清空 DB resultUrl/output，重试前 supersede 同 sourceId+taskType+targetLanguage 旧结果为 obsolete；错误文案 `[TRANSLATE_RENDER_FAILED] OCR 图与渲染图尺寸差异超过安全映射阈值…`；单测覆盖同比例缩放、crop 局部 OCR、中等降级、大误差失败、失败清理与重试 supersede。
+
+**此前**：2026-05-30 — **图片文字翻译 product_relayout 生产级落地**：默认布局改为 `product_relayout`（强制 `removeOriginalText` / `compactTranslation` / `allowTextOverflow=false`）；OCR block 按 proximity 合并为 `top_right_badge` 等 group 统一擦除重排；OCR 坐标映射支持 `cropOffset` + scale 并输出诊断日志；擦除 padding 按 title/badge/普通分级（16/14/8px），中文残留自动 1.5x mask 重试最多 2 次，纯色/渐变背景优先 `background_sample`；翻译输出 literal/compact/short/badge 四档并按 box 自动选型；渲染前 `measureText` 适配，溢出则任务 failed；二次 OCR 校验原文残留/溢出/重叠/遮挡商品主体，问题结果标记 `low_quality` 或 `need_manual_review`；前端低质量不再显示「成功」，禁用保存/设主图/设详情图，保留重试与下载预览。验收样例「炫酷黑 / 折叠伸缩版/通用手机」→ `Cool Black` + `Foldable Universal Stand` / `Universal Phone Stand`。
+
+**此前**：2026-05-29 — **图片文字翻译生产级排版质量收紧**：OCR block 先分类为 `title` / `subtitle` / `badge` / `color_badge` / `small_caption`，只有满足黑底白字、小高度和胶囊区域特征的块才按 badge 渲染；`erase_bbox` 与 `layout_bbox` 继续分离，badge 宽高硬限制为原框 `1.35x / 1.25x`，超限时优先使用 `compact_translation`、缩字号或降级普通文本；绘制前新增布局模拟（溢出、碰撞、疑似遮挡商品主体、版面失衡），绘制后把异常 badge、背景补丁、原文残留等统一打入 `low_quality`；任务详情输出 block 分类、精简文案、bbox 数量、badge/异常 badge、背景补丁分、重叠分和 `finalQualityStatus`，管理端对低质量结果禁用保存到商品图片 / 设主图 / 设详情图。
+
+**此前**：2026-05-29 — **图片文字翻译右上角标题与擦除修复**：修复商品图右上角标题（如「炫酷黑」）因包含“黑”被误判为黑底徽章的问题，单行大标题现在会进入 `main_title` 分组；徽章识别改为依赖暗色背景或斜杠标签，不再把普通颜色标题直接画成黑底胶囊；标题/普通文案擦除 padding 从过小的 2px 调整为 6–8px；二次加强擦除此前没有把 `opencv_inpaint` 结果写回画布，本次修复后才会真正生效，减少旧中文残留和英文叠旧文案。
+
+**此前**：2026-05-29 — **图片文字翻译擦除校验不再误杀任务**：擦除后 OCR 改为按「原文字块仍识别数量」判定（需达到半数以上才算未擦干净），擦除不足时自动加强 `opencv_inpaint` 二次擦除后仍继续绘制译文；任务不再因擦除校验直接 `failed`，改为产出结果并标记 `low_quality` / `erase_failed`；全部策略失败时增加 `opencv_inpaint` 兜底渲染。
+
+**此前**：2026-05-29 — **图片文字翻译 OCR 坐标映射与渲染质量收口**：修复 OCR 坐标与渲染图尺寸不一致时的统一缩放（`scaleX` / `scaleY`，任务详情展示 OCR/渲染尺寸与是否缩放）；外部 OCR 优先使用与渲染相同的 base64 原图，避免 URL 与本地解码尺寸不一致；渲染流程改为先擦除、二次 OCR 校验原文后再绘制译文；`erase_bbox` 与 `layout_bbox` 继续分离，标签圆角改为胶囊（修复 `BorderRadius:999` 导致的大黑圆块）；「牛奶白」识别为左下角 `bottom_badge`；`text_overflow` / `source_text_may_remain` / `badge_shape_abnormal` 等触发 `low_quality` 而非「成功（有警告）」；低质量结果不推荐保存/设主图/设详情图（需二次确认）；任务详情补充擦除/渲染诊断字段。
+
+**此前**：2026-05-29 — **图片文字翻译严格 OCR 模式**：图片文字翻译改为严格 OCR 模式，已取消默认 OCR 降级逻辑；使用 `translate_image_text` 必须先在「设置 → 图片 AI 设置」选择 OCR Provider 并通过真实 OCR 调用测试，AI 视觉 OCR 作为独立 Provider，不再作为隐藏兜底；OCR 未配置、配置不完整、调用失败或未识别到文字时任务直接失败并提示用户完成 OCR 配置，不再出现“备用识别方式完成任务”的生产文案；任务详情展示配置 OCR 与实际 OCR，二者应保持一致；新建图片文字翻译入口会实时检测 OCR 可用状态，未通过时禁用提交并引导去配置 OCR。
+
+**此前**：2026-05-29 — **图片文字翻译 OCR 执行一致性修复**：区分图片服务“配置检查”和 OCR“真实调用测试”，`POST /api/v1/settings/test-ocr` 对 AI 视觉、阿里云、腾讯云和 PaddleOCR 均执行真实 OCR 调用，只有返回 blocks 才提示“当前 OCR 服务可用”；图片文字翻译任务输出新增 `configuredOcrProvider`、`actualOcrProvider`、`ocrFallbackUsed`、`ocrFallbackReason`、`ocrErrorCode`、`ocrBlocksCount`、`ocrAverageConfidence`，阿里云 / 腾讯云失败会分类为 `SECRET_MISSING`、`AUTH_FAILED`、`SERVICE_NOT_OPEN`、`PERMISSION_DENIED`、`IMAGE_URL_NOT_ACCESSIBLE`、`TIMEOUT`、`EMPTY_BLOCKS` 等；任务详情页新增 OCR 配置与执行、渲染检查信息；检测到原文残留、背景补丁或擦除区域过大时标记 `low_quality`，并增加扩大擦除框与切换 `opencv_inpaint` / `background_sample` 的重试策略。
+
+**此前**：2026-05-29 — **腾讯云 OCR Provider 正式接入**：OCR 配置新增腾讯云 OCR Provider，设置页下拉只显示生产可用的 `ai_vision`、`paddleocr`、`aliyun`、`tencent`，不再展示百度 OCR；已支持 AI 视觉 OCR、本地 PaddleOCR、阿里云 OCR 与腾讯云 OCR 真实调用；腾讯云 OCR 支持 `GeneralBasicOCR` 与可选 `GeneralFastOCR`，读取 Endpoint、Region、SecretId、SecretKey、接口类型、超时、最低置信度和失败降级设置；腾讯云 `TextDetections` 已转换为统一 OCR blocks，低置信度文字会被过滤并记录数量；`POST /api/v1/settings/test-ocr` 支持腾讯云真实测试并返回文字数量与平均置信度；图片文字翻译任务可使用腾讯云 OCR，失败且开启降级时自动切换到 AI 视觉 OCR，任务输出记录 OCR 服务、接口类型、是否降级、识别数量、平均置信度、过滤数量和错误信息。百度 OCR 暂不显示，后续完整实现后再上线。
+
+**此前**：2026-05-29 — **图片文字翻译生产级擦除与校验增强**：`translate_image_text` 明确拆分 `erase_bbox` 与 `layout_bbox`，擦除使用 OCR 原始文字紧框，排版使用 group/template 布局框，避免为了放下译文而擦大块背景；默认擦除从 `background_sample` 切换为 `precise_mask` 精细擦字，`background_sample` 仅作为显式/兜底策略，质量不过时按 `tighter_erase_bbox`、`compact_font_layout` 与 `blur_fill` / `opencv_inpaint` 自动重试；输出 `eraseAreaRatio`、`patchAreaRatio`、`flatFillRatio`、`largePatchDetected`、`retryStrategies` 等诊断指标，强补丁/大擦除会拉低 `renderQuality` 并标记 `success_with_warnings` 或 `low_quality`；任务详情页补充擦除面积、补丁面积、背景破坏、自动重试策略等信息，并支持对低质量结果重新套用商品图模板。固定验收样例仍为手机支架图目标英文 `Metal Base` / `Foldable Stand` / `Phone/Tablet` / `Midnight Black`，主标题禁止浅色补丁，标签保持黑底胶囊。
+
+**此前**：2026-05-29 — **图片文字翻译商用渲染整改**：`translate_image_text` 增加文字区域分组能力（`main_title` / `badge` / `bottom_badge` 等），手机支架样例会将「金属底座 / 折叠支架」合并为主标题组，并将「手机 / 平板」「暗夜黑」识别为标签组；新增 `layoutTemplate`（`auto` / `title_badge` / `preserve_original` / `ecommerce_clean`），当前手机支架图自动走 `title_badge` 商品图模板；样式继承增强，主标题保留黑色粗体层级，黑底标签重绘圆角胶囊背景；文字擦除改为按 group 控制 padding 并支持 warning 触发 `blur_fill` / `opencv_inpaint` 重试，降低突兀白底块；新增 `renderQuality` 评分（文字写入、原文清理、排版、风格一致性、可读性、商品保护、商用可用性），不合格结果标记 `success_with_warnings` 并输出 `background_patch_visible` / `layout_not_natural` / `source_text_may_remain` 等 warning；管理端详情页展示渲染质量、问题提示和多种重试入口，低分结果保存/设主图需确认。固定验收样例：手机支架图目标英文 `Metal Base` / `Foldable Stand` / `Phone/Tablet` / `Midnight Black`，要求商用评分 `commercialUsabilityScore >= 75` 才作为纯成功。
+
+**此前**：2026-05-29 — **图片文字翻译生产级链路与 OCR Provider 接入**：新增 `OCRProvider` 抽象层（支持 PaddleOCR 与 AI 视觉兜底）；PaddleOCR 支持本地服务调用（`POST /predict/ocr_system`）；系统设置新增 `ocr_provider`、`ocr_service_url`、`ocr_timeout_seconds` 等配置；`ai_inpaint` 设为增强项，未配置时无缝降级程序擦除并增加 warning；完善 `translate_image_text` 批量并发控制（默认并发 1、独立成功/失败、支持重试）；批量任务支持状态汇总（`success`, `partial_success`, `failed`）；任务详情增加 OCR 服务类型及降级提示（AI 视觉/本地 OCR/备用降级）。后续增强预留：百度/阿里云/腾讯云 OCR Provider 接入、ComfyUI/通义万相 ai_inpaint 擦除支持。
+
+**此前**：2026-05-29 — **图片文字翻译生产级链路**：`translate_image_text` 升级为 **OCR + 翻译 + 确定性排版渲染**；默认 `renderMode=hybrid`（程序擦除原文字 + 程序绘制译文），`ai_edit` 保留为实验模式；新增 `internal/pkg/imagerender`（字体/擦除/绘制/编码）；支持 `eraseMode` auto/background_sample/blur_fill/opencv_inpaint；输出 **二次校验**（hash 对比 + 结果 OCR），未改图则 **failed**（`IMAGE_NOT_CHANGED` / `IMAGE_TEXT_NOT_APPLIED`）；结果图仍走 **Storage Provider**、**不覆盖原图**；Docker 镜像安装 **Noto CJK** 字体；前端详情展示渲染/校验摘要与重试入口。
+
+**此前**：2026-05-29 — **图片文字翻译自动排版增强**：`translate_image_text` 新增 **自动排版** 能力 — 支持翻译文字 **自动换行**、**自动调整字号**、文字区域 **轻微扩展**（≤30%）、过长文案 **自动精简**（`shortTranslatedText` + AI/规则）；`options` 增加 `autoLayout` / `autoWrap` / `autoFontSize` / `allowTextBoxExpand` / `allowTextSimplify` / `minFontSize` / `maxFontSize` / `lineHeightRatio` / `maxLines` / `layoutMode`（自动适配 / 尽量保持原图 / 优先清晰可读）；任务输出 **`quality.layout`** 摘要（换行/缩字号/精简/溢出计数与 warning 码）；前端 **「图片文字翻译」弹窗** 增加排版方式与处理选项；AI 图片任务详情 **翻译结果摘要** 展示排版统计与小白化警告；排版失败时 **`success_with_warnings`** 不阻断；结果图仍上传当前 **Storage Provider**、**不覆盖原图**。
+
+**此前**：2026-05-29 — **AI 图片任务新增「图片文字翻译」**：新增任务类型 **`translate_image_text`**（图片文字翻译）；支持 **中文 → 英文**、**英文 → 中文**、**自动识别源语言**；流水线为 AI OCR 识别 → 文本翻译 → 图片编辑（OpenAI / 通义万相 / ComfyUI）；翻译结果上传至当前 **Storage Provider**（`products/{productId}/ai/translate_image_text/{yyyy}/{mm}/{uuid}.webp`）；可自动回写 **`product_images`**（不覆盖原图）；商品详情 **图片管理** 每张图增加 **「AI 翻译图片文字」** 入口；AI 图片任务页增加模板与翻译结果摘要展示；**第一版仅支持单图**，批量后续增强。
+
+**此前**：2026-05-23 — **登录 / 注册页 UI 现代化**：`/user/login` 重构为响应式 SaaS 双栏布局（桌面 `grid: 1.1fr / minmax(420px,520px)`，平板/移动端单列）；左侧品牌区更新 slogan、简介与 6 项能力标签，背景装饰改为低透明度绝对定位卡片（`opacity 0.1–0.14`，不遮挡正文）；右侧登录卡片 `max-width 460px`、圆角阴影、Tab/输入框/渐变主按钮统一；`<1024px` 隐藏左侧宣传区并显示顶部 Logo；`<768px` 全宽卡片 + 16px 边距；**未改动**登录/注册接口与权限逻辑。
 
 **此前**：2026-05-23 — **看板 SQL 容错（ai_description / MAX 扫描）**：`operationdashboard` 改用 `information_schema` 检测 `products.ai_description` 是否存在（缺列时回退 `description` 长度口径）；`MAX(updated_at)` 改用 `sql.NullTime` 避免无失败任务时 Scan 报错；启动迁移增加 `migrateLegacyProductTextColumns` 补全 `products` AI 文本列。
 
@@ -441,6 +479,8 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-29 | **修复 AI 设置保存清空其他服务商密钥**：保存时仅 PUT 当前 provider 连接字段 + 全局参数；隐藏字段保留切换状态；后端对已存在加密项忽略空字符串提交 |
+| 2026-05-29 | **AI 文本设置按服务商独立密钥**：`settings.ai` 新增 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`**（openai、openai_compatible、deepseek、qwen）；管理端切换卡片自动带出对应配置；启动时 **`EnsureAIProviderDefaults`** 将 legacy **`api_key/base_url/model`** 迁移至当前 provider；Gateway 读取 provider 专属字段（legacy **`api_key`** 仍作回退） |
 | 2026-05-23 | **AI 图片清理任务走真实 Provider**：去水印/去 Logo/去二维码/综合清理等不再走 **noop 占位演示**；默认读取 **`settings.image.provider`**（或 **`image_task_default_provider`**）；**`dashscope_image`** 接入万相 2.7 **图像编辑** API；结果仍 **`persistProviderResult` 入库**；未配置 Key 返回「未配置通义万相 API Key」；**`score_image`** 走 **AI 视觉模型**（`ai_vision`），**`select_best_main`** 逻辑保留 |
 | 2026-05-23 | **通义万相默认模型更新**：默认模型 **`wan2.7-image-pro`**、默认尺寸 **`2K`**；**`dashscope_image`** 客户端切换至万相 2.7 **`multimodal-generation`** API；设置页 placeholder 同步 |
 | 2026-05-21 | **拼多多图片分类精细化**：区域分轨主图/详情图；SKU 图仅 **sku.imageUrl**；修复详情图误入主图；**imageSummary**；管理端图片类型排序与提示 |
@@ -550,3 +590,6 @@ trademind-ai/
 | 2026-05-15 | **AI 文本（第 3 阶段主线）**：`providers/ai` Gateway + **openai_compatible**；**`ai_prompts`/`ai_tasks`**、默认 **product_title_optimize**；商品 **optimize-title / apply-ai-title / ai/tasks** API；管理端 **`/ai/prompts`** 与详情页 **AI 标题**；操作日志 **ai.title_*** |
 | 2026-05-15 | **AI 描述**：默认 **`product_description_generate`**；**`POST .../ai/generate-description`**、**`POST .../apply-ai-description`**；**`ai_tasks.task_type=product_description_generate`**；商品详情 **AI 描述** 区块；操作日志 **`ai.description_generate.*` / `ai.description.apply`**；**PROGRESS** 同步遗留与下一步 |
 | 2026-05-15 | **全局 AI 任务**：**`GET /api/v1/ai/tasks`**（分页筛选，列表无大体量 JSON）、**`GET /api/v1/ai/tasks/:id`**（详情 **input/output/rawResponse** + 敏感键脱敏）；管理端 **`/ai/tasks`**、**`services/aiTasks.ts`**；**PROGRESS** 更新下一步与遗留对齐 |
+| 2026-05-29 | **AI 图片任务配置统一**：AI 图片任务配置逻辑统一走设置页；新增 OCR 配置区（支持 PaddleOCR、AI 视觉 OCR 等）；新增局部擦除配置区（支持 ComfyUI 等）；图片文字翻译读取用户配置；未配置时提供友好提示和降级策略；简化任务弹窗，折叠高级选项。 |
+| 2026-05-29 | **图片 AI OCR 配置优化**：OCR 配置统一留在图片 AI 设置；图片文字翻译读取用户 OCR 配置；支持 PaddleOCR 与 AI 视觉 OCR 兜底，百度/阿里云/腾讯云 OCR 预留；新增 OCR 测试连接，校验连通、blocks 与 bbox。 |
+| 2026-05-29 | **图片文字翻译生产级排版质量收紧**：新增 OCR block 分类、`compact_translation`、badge 宽高硬限制、绘制前布局模拟与绘制后质量字段；异常 badge、文本重叠、背景补丁、原文残留和版面失衡统一标记 `low_quality`；管理端低质量结果不再推荐保存或设为主图/详情图。 |

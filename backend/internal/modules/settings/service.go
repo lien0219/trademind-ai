@@ -121,6 +121,17 @@ func (s *Service) putOne(tx *gorm.DB, it PutItem) error {
 		}
 		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
 	}
+	// Empty encrypted payload on an existing row means "leave secret unchanged" (e.g. partial settings form save).
+	if it.IsEncrypted && strings.TrimSpace(val) == "" && exists && strings.TrimSpace(cur.ItemValue) != "" {
+		upd := map[string]any{
+			"is_encrypted": it.IsEncrypted,
+			"remark":       strings.TrimSpace(it.Remark),
+		}
+		if vt := strings.TrimSpace(it.ValueType); vt != "" {
+			upd["value_type"] = vt
+		}
+		return tx.Model(&Setting{}).Where("id = ?", cur.ID).Updates(upd).Error
+	}
 
 	if it.IsEncrypted {
 		if s.Encrypter == nil {
