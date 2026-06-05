@@ -5,7 +5,7 @@ export type CollectSettingsProviderKey =
   | '1688'
   | 'aliexpress'
   | 'pinduoduo'
-  | 'taobao'
+  | 'taobao_tmall'
   | 'shein_temu'
   | 'custom';
 
@@ -21,7 +21,7 @@ export const COLLECT_SETTINGS_PROVIDER_OPTIONS: CollectSettingsProviderOption[] 
   { key: '1688', label: '1688 采集器', source: '1688' },
   { key: 'aliexpress', label: '速卖通采集器', source: 'aliexpress' },
   { key: 'pinduoduo', label: '拼多多采集器', source: 'pinduoduo' },
-  { key: 'taobao', label: '淘宝/天猫采集器', source: 'taobao', planned: true },
+  { key: 'taobao_tmall', label: '淘宝/天猫采集器', source: 'taobao_tmall' },
   { key: 'shein_temu', label: 'SHEIN/Temu 采集器', source: 'shein_temu', planned: true },
   { key: 'custom', label: '自定义链接采集器', source: 'custom' },
 ];
@@ -39,8 +39,9 @@ export function collectSourceToSettingsProvider(source: string): CollectSettings
     case 'pdd':
     case 'pinduoduo':
       return 'pinduoduo';
+    case 'taobao_tmall':
     case 'taobao':
-      return 'taobao';
+      return 'taobao_tmall';
     case 'shein_temu':
       return 'shein_temu';
     case 'custom':

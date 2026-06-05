@@ -51,6 +51,7 @@ import {
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
+import { isTaobaoTmallSource } from '@/utils/taobaoTmallCollectAlerts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import {
@@ -194,6 +195,10 @@ function isCustomCollectIncomplete(data: ProductDetail | null): boolean {
 
 function isPinduoduoProduct(data: ProductDetail | null): boolean {
   return !!data && isPinduoduoSource(data.source);
+}
+
+function isTaobaoTmallProduct(data: ProductDetail | null): boolean {
+  return !!data && isTaobaoTmallSource(data.source);
 }
 
 function formatInventorySyncTaskCreateError(e: unknown): string {
@@ -1043,7 +1048,9 @@ export default function ProductDraftDetailPage() {
               label: '基础信息',
               children: (
                 <Card variant="borderless">
-                  {isPinduoduoProduct(data) ? <ProductCollectQualityAlert product={data} /> : null}
+                  {(isPinduoduoProduct(data) || isTaobaoTmallProduct(data)) ? (
+                    <ProductCollectQualityAlert product={data} />
+                  ) : null}
                   {showCustomIncompleteHint ? (
                     <Alert
                       type="info"

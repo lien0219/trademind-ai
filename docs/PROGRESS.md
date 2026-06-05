@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最新补充**：2026-06-05 — **跨 AI 工具工作流优化**：新增 `docs/ai-workflow.md`，为 Codex、Cursor、Claude Code、Copilot、Continue、Windsurf、Trae 等 AI 工具提供通用 vibe coding 流程；明确最小上下文包、任务分流、token 节约策略、标准执行流程、多工具协作入口和自我成长机制。同步 `AGENTS.md`、`docs/ai-coding-rules.md`、`docs/module-map.md`、`docs/task-checklist.md`、`docs/README.md`、`docs/cursor-rules-usage.md`、`.cursor/rules/13-ai-workflow.mdc`、`.cursor/rules/README.md`、`.cursorrules`、README / README.en、CONTRIBUTING 与 PR 模板，让长期规则留在仓库可审计文档中。
+**最新补充**：2026-06-05 — **淘宝/天猫专用采集器 Beta**：新增 Provider **`taobao_tmall`**（`source=taobao_tmall`），支持 `item.taobao.com` / `detail.tmall.com` / `detail.tmall.hk` / `world.taobao.com`；独立浏览器 Profile **`taobao_tmall`**（与 1688 / 拼多多 / custom 隔离）；单品采集（标题、价格、主图、详情图、参数、SKU 尽力识别）；登录检测 **`logged_in` / `login_required` / `verify_required` / `unknown`**；错误码含 **`LOGIN_REQUIRED` / `VERIFY_REQUIRED` / `ITEM_NOT_FOUND` / `PAGE_LOAD_TIMEOUT` / `MAIN_IMAGES_EMPTY` / `PRICE_NOT_FOUND` / `SKU_INCOMPLETE` / `DETAIL_IMAGES_INCOMPLETE`**；采集中心状态 **测试中（beta）**，**批量采集暂未开放**；设置页 **淘宝/天猫专属配置**；失败任务中心支持打开采集浏览器与重试；商品草稿页来源提示与发布前检查。**边界**：不保存密码、不绕过验证码、SKU/库存需人工复核。
+
+**此前**：2026-06-05 — **跨 AI 工具工作流优化**：新增 `docs/ai-workflow.md`，为 Codex、Cursor、Claude Code、Copilot、Continue、Windsurf、Trae 等 AI 工具提供通用 vibe coding 流程；明确最小上下文包、任务分流、token 节约策略、标准执行流程、多工具协作入口和自我成长机制。同步 `AGENTS.md`、`docs/ai-coding-rules.md`、`docs/module-map.md`、`docs/task-checklist.md`、`docs/README.md`、`docs/cursor-rules-usage.md`、`.cursor/rules/13-ai-workflow.mdc`、`.cursor/rules/README.md`、`.cursorrules`、README / README.en、CONTRIBUTING 与 PR 模板，让长期规则留在仓库可审计文档中。
 
 **此前**：2026-06-05 — **图片文字翻译人工可编辑兜底**：`translate_image_text` 在 OCR + 翻译 + Mask 擦除 + 背景修复 + 规则排版重绘 + 二次 OCR 质检之外，新增任务级人工编辑闭环；后端提供 `GET /image/tasks/:id/translate-edit-state` / `POST /image/tasks/:id/manual-render`（AI 路由同名），可读取原图、已擦除底图、结果图、可编辑文字块、排版框、擦除框与样式，人工修改文案/位置/字号/颜色/是否清原文后，使用程序擦除与规则重绘重新生成结果并上传 Storage Provider；任务输出记录 `manualEdit` 审计信息，状态回写 `success_with_review`，管理端「AI 图片任务」详情新增「人工编辑译图」弹窗。该兜底不使用“AI 直接生成翻译图”作为主链路。
 

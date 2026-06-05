@@ -60,6 +60,12 @@ func collectFailureContextExtras(sourceURL, errMsg, failureCategory, classifierS
 			urlType = "未识别"
 		}
 	}
+	if strings.Contains(src, "taobao") || strings.Contains(src, "tmall") {
+		urlType = taobaoTmallURLTypeLabel(sourceURL)
+		if urlType == "" {
+			urlType = "淘宝/天猫商品页"
+		}
+	}
 	accessStatus = accessStatusLabelFromFailure(failureCategory, errMsg)
 	if accessStatus == "" && strings.Contains(strings.ToLower(errMsg), "login") {
 		accessStatus = "需要登录"
@@ -73,6 +79,34 @@ func collectFailureContextExtras(sourceURL, errMsg, failureCategory, classifierS
 		suggested = "请打开拼多多采集浏览器，在弹出的微信授权页面完成扫码登录后，再重试采集任务。"
 	} else if urlType == "拼多多批发页" && accessStatus == "需要登录" {
 		suggested = "请打开采集浏览器登录拼多多后重试，或换用普通商品详情页链接。"
+	} else if urlType == "淘宝商品页" && accessStatus == "需要登录" {
+		suggested = "请打开淘宝/天猫采集浏览器完成登录后重试采集任务。"
+	} else if accessStatus == "需要验证" && strings.Contains(strings.ToLower(errMsg), "taobao") {
+		suggested = "请在淘宝/天猫采集浏览器中手动完成安全验证后重试。"
 	}
 	return urlType, accessStatus, suggested
+}
+
+func taobaoTmallURLTypeLabel(sourceURL string) string {
+	u, err := url.Parse(strings.TrimSpace(sourceURL))
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	switch host {
+	case "item.taobao.com":
+		return "淘宝商品页"
+	case "detail.tmall.com", "detail.tmall.hk":
+		return "天猫商品页"
+	case "world.taobao.com":
+		return "淘宝全球购商品页"
+	default:
+		if strings.Contains(host, "taobao") {
+			return "淘宝商品页"
+		}
+		if strings.Contains(host, "tmall") {
+			return "天猫商品页"
+		}
+	}
+	return ""
 }

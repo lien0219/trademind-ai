@@ -323,3 +323,64 @@ func (h *Handler) OpenPinduoduoLoginBrowser(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+// CheckTaobaoTmallLogin POST /api/v1/collector/providers/taobao_tmall/check-login
+func (h *Handler) CheckTaobaoTmallLogin(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	var body TaobaoTmallCheckLoginBody
+	_ = c.ShouldBindJSON(&body)
+	contextURL, settingsTestURL := h.Svc.ResolveTaobaoTmallAuthCheckInputs(c.Request.Context(), body.URL)
+	if t := strings.TrimSpace(body.TestURL); t != "" {
+		settingsTestURL = t
+	}
+	out, err := h.Svc.Client.CheckTaobaoTmallLogin(c.Request.Context(), contextURL, settingsTestURL)
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		msg := "source=taobao_tmall"
+		if out != nil {
+			msg += " status=" + strings.TrimSpace(out.Status)
+		}
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: collectAdminUUID(c),
+			Action:      "collect.taobao_tmall.login_check",
+			Resource:    "collector_provider",
+			ResourceID:  "taobao_tmall",
+			Status:      "success",
+			Message:     msg,
+		})
+	}
+	response.OK(c, out)
+}
+
+// OpenTaobaoTmallLoginBrowser POST /api/v1/collector/providers/taobao_tmall/open-login-browser
+func (h *Handler) OpenTaobaoTmallLoginBrowser(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.Client == nil {
+		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
+		return
+	}
+	var body TaobaoTmallOpenLoginBody
+	_ = c.ShouldBindJSON(&body)
+	loginURL := strings.TrimSpace(body.URL)
+	out, err := h.Svc.Client.OpenTaobaoTmallLoginBrowser(c.Request.Context(), loginURL)
+	if err != nil {
+		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: collectAdminUUID(c),
+			Action:      "collect.taobao_tmall.open_login",
+			Resource:    "collector_provider",
+			ResourceID:  "taobao_tmall",
+			Status:      "success",
+			Message:     "source=taobao_tmall opened login browser",
+		})
+	}
+	response.OK(c, out)
+}

@@ -74,8 +74,8 @@ func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolic
 	code = strings.ToUpper(strings.TrimSpace(code))
 	switch code {
 	case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
-		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "UNSUPPORTED_URL", "UNSUPPORTED_PINDUODUO_URL",
-		"LOGIN_REQUIRED", "WECHAT_AUTH_REQUIRED", "APP_REDIRECT",
+		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "ITEM_NOT_FOUND", "UNSUPPORTED_URL", "UNSUPPORTED_PINDUODUO_URL",
+		"LOGIN_REQUIRED", "WECHAT_AUTH_REQUIRED", "APP_REDIRECT", "MAIN_IMAGES_EMPTY", "ACCESS_DENIED",
 		"CUSTOM_RULE_MISSING", "CUSTOM_RULE_INVALID",
 		"PARSE_FAILED_TITLE_MISSING", "PARSE_FAILED_IMAGE_MISSING":
 		return false
@@ -100,6 +100,7 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	src := strings.TrimSpace(strings.ToLower(source))
 	isPdd := src == "pinduoduo" || src == "pdd"
+	isTb := src == "taobao_tmall" || src == "taobao"
 	if sameURLSucceeded {
 		return "该链接单独采集成功，批量失败可能由并发、访问频率或目标站点风控导致。建议降低批量并发或稍后重试。"
 	}
@@ -108,7 +109,30 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 		if isPdd {
 			return "该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用公开商品详情页链接。"
 		}
+		if isTb {
+			return "该淘宝/天猫商品页需要登录后才能采集。请打开淘宝/天猫采集浏览器完成登录后重试。"
+		}
 		return "该商品页需要登录后才能访问，请稍后重试或使用登录状态采集。"
+	case "VERIFY_REQUIRED":
+		if isTb {
+			return "淘宝/天猫页面出现安全验证或滑块，请在采集浏览器中手动完成验证后重试。"
+		}
+		return "目标网站可能出现验证码或安全验证，请稍后重试，或在采集浏览器中手动完成验证。"
+	case "ITEM_NOT_FOUND":
+		return "商品不存在、已下架或链接无效。"
+	case "MAIN_IMAGES_EMPTY":
+		if isTb {
+			return "未能识别到商品主图，请确认页面是否完整加载，或在登录/验证完成后重试。"
+		}
+		return "未能识别到商品主图，请重试采集或手动补充主图。"
+	case "PRICE_NOT_FOUND":
+		return "未能识别商品价格，草稿已创建，请发布前手动填写价格。"
+	case "SKU_INCOMPLETE":
+		return "商品规格识别不完整，草稿已创建，请发布前人工核对规格与库存。"
+	case "DETAIL_IMAGES_INCOMPLETE":
+		return "详情图可能未完全加载，草稿已创建，请发布前核对详情图片。"
+	case "ACCESS_DENIED":
+		return "页面访问被拒绝，请确认链接是否有效或是否需登录。"
 	case "UNSUPPORTED_PINDUODUO_URL":
 		if isPdd {
 			return "当前链接不是拼多多批发商品详情页。请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；移动端商品页暂未完整支持。"
@@ -128,7 +152,10 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 		return "没有找到可用采集规则，请先创建采集规则，或使用「AI 帮我生成规则」。"
 	case "CUSTOM_RULE_INVALID":
 		return "采集规则内容有误，建议使用「AI 帮我生成规则」重新生成。"
-	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "VERIFY_REQUIRED", "CAPTCHA":
+	case "PAGE_BLOCKED_OR_VERIFY_REQUIRED", "PAGE_BLOCKED", "CAPTCHA":
+		if isTb {
+			return "淘宝/天猫页面出现安全验证或滑块，请在采集浏览器中手动完成验证后重试。"
+		}
 		return "目标网站可能出现验证码或安全验证，请稍后重试，或在采集浏览器中手动完成验证。"
 	case "PARSE_FAILED_TITLE_MISSING":
 		return "没有识别到商品标题，请检查规则或重新使用 AI 生成规则。"

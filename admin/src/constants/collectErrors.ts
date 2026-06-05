@@ -53,7 +53,20 @@ export function mapCollectorErrorCodeLabel(code?: string | null): string {
     case 'AI_RULE_INVALID':
       return 'AI 生成的规则未通过校验';
     case 'PRODUCT_NOT_FOUND':
+    case 'ITEM_NOT_FOUND':
       return '商品不存在或已下架';
+    case 'MAIN_IMAGES_EMPTY':
+      return '未识别到商品主图';
+    case 'ACCESS_DENIED':
+      return '页面访问被拒绝';
+    case 'PRICE_NOT_FOUND':
+      return '未识别到商品价格';
+    case 'SKU_INCOMPLETE':
+      return '商品规格不完整';
+    case 'DETAIL_IMAGES_INCOMPLETE':
+      return '详情图可能不完整';
+    case 'UNKNOWN_COLLECT_ERROR':
+      return '采集失败';
     case 'INVALID_URL':
       return '链接无效';
     case 'UNSUPPORTED_PINDUODUO_URL':
@@ -72,21 +85,40 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
   const c = (code ?? '').trim().toUpperCase();
   const src = (source ?? '').trim().toLowerCase();
   const isPdd = src === 'pinduoduo' || src === 'pdd';
+  const isTb = src === 'taobao_tmall' || src === 'taobao';
 
   switch (c) {
     case 'LOGIN_REQUIRED':
       return isPdd
         ? '该页面需要登录后才能采集。请打开拼多多采集浏览器完成登录或微信扫码授权后重试。'
-        : '当前商品页跳转到了登录页面，请先使用采集浏览器登录后再测试。';
+        : isTb
+          ? '该淘宝/天猫商品页需要登录后才能采集。请打开淘宝/天猫采集浏览器完成登录后重试。'
+          : '当前商品页跳转到了登录页面，请先使用采集浏览器登录后再测试。';
     case 'WECHAT_AUTH_REQUIRED':
       return '拼多多登录需要微信扫码授权，请在采集浏览器中完成扫码后再重试。';
+    case 'VERIFY_REQUIRED':
     case 'PAGE_BLOCKED_OR_VERIFY_REQUIRED':
     case 'PAGE_BLOCKED':
-    case 'VERIFY_REQUIRED':
     case 'CAPTCHA':
-      return isPdd
-        ? '拼多多页面可能触发验证或风控，请稍后重试，或在采集浏览器中手动完成验证。'
-        : '目标网站可能出现验证码或安全验证，请稍后重试，或在采集浏览器中手动完成验证。';
+      return isTb
+        ? '淘宝/天猫页面可能出现验证码或安全验证，请在采集浏览器中手动完成验证后重试。'
+        : isPdd
+          ? '拼多多页面可能触发验证或风控，请稍后重试，或在采集浏览器中手动完成验证。'
+          : '目标网站可能出现验证码或安全验证，请稍后重试，或在采集浏览器中手动完成验证。';
+    case 'ITEM_NOT_FOUND':
+      return '商品不存在、已下架或链接无效。';
+    case 'MAIN_IMAGES_EMPTY':
+      return isTb
+        ? '未能识别到商品主图。请确认页面是否完整加载，或在登录/验证完成后重试。'
+        : '系统未识别到商品主图，请重试采集或手动添加主图。';
+    case 'PRICE_NOT_FOUND':
+      return '未能识别商品价格，草稿可创建，但发布前请手动填写价格。';
+    case 'SKU_INCOMPLETE':
+      return '商品规格识别不完整，请发布前人工核对规格与库存。';
+    case 'DETAIL_IMAGES_INCOMPLETE':
+      return '详情图可能未完全加载，请发布前核对详情图片。';
+    case 'ACCESS_DENIED':
+      return '页面访问被拒绝，请确认链接是否有效或是否需登录。';
     case 'CUSTOM_RULE_MISSING':
       return '请先创建采集规则，或使用「AI 帮我生成规则」。';
     case 'CUSTOM_RULE_INVALID':
@@ -141,7 +173,8 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
     upper.includes('CUSTOM_COLLECT_PROVIDER_CONFLICT') ||
     raw.includes('请使用「1688 采集器」') ||
     raw.includes('请使用「速卖通采集器」') ||
-    raw.includes('请使用「拼多多采集器」')
+    raw.includes('请使用「拼多多采集器」') ||
+    raw.includes('请使用「淘宝/天猫采集器」')
   ) {
     return raw.includes('请使用') ? raw : '该链接已有专用采集器，请使用对应专用采集器。';
   }

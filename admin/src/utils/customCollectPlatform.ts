@@ -32,9 +32,17 @@ function hostMatchesAliExpress(host: string): boolean {
 }
 
 function hostMatchesTaobaoTmall(host: string): boolean {
+  if (
+    host === 'item.taobao.com' ||
+    host === 'detail.tmall.com' ||
+    host === 'detail.tmall.hk' ||
+    host === 'world.taobao.com'
+  ) {
+    return true;
+  }
   if (host === 'taobao.com' || host.endsWith('.taobao.com')) return true;
   if (host === 'tmall.com' || host.endsWith('.tmall.com')) return true;
-  return host === 'item.taobao.com' || host === 'detail.tmall.com';
+  return false;
 }
 
 function hostMatchesPdd(host: string): boolean {
@@ -86,11 +94,12 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
 
   if (hostMatchesTaobaoTmall(host)) {
     return {
-      kind: 'planned',
+      kind: 'blocked',
+      source: 'taobao_tmall',
       platformLabel: '淘宝 / 天猫',
       message:
-        '该链接属于淘宝 / 天猫平台，专用采集器暂未开放。当前不建议使用自定义链接采集器采集该平台，可能因为登录、风控或页面结构导致失败。',
-      actionLabel: '我知道了',
+        '该链接属于淘宝/天猫平台，请使用「淘宝/天猫采集器」。专用采集器字段识别更稳定，请勿使用自定义链接采集器。',
+      actionLabel: '去使用淘宝/天猫采集器',
     };
   }
 

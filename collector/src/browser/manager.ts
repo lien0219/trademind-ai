@@ -35,6 +35,10 @@ export class BrowserManager {
     return this.sessions.withProviderPage('pinduoduo', fn);
   }
 
+  async withTaobaoTmallPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+    return this.sessions.withProviderPage('taobao_tmall', fn);
+  }
+
   async withCustomProfilePage<T>(profileKey: string, fn: (page: Page) => Promise<T>): Promise<T> {
     return this.customProfiles.withProfilePage(profileKey, fn);
   }

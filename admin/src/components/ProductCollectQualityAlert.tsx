@@ -7,6 +7,10 @@ import {
   type CollectAlertItem,
   type CollectStatusTag,
 } from '@/utils/pinduoduoCollectAlerts';
+import {
+  buildTaobaoTmallCollectAlertState,
+  isTaobaoTmallSource,
+} from '@/utils/taobaoTmallCollectAlerts';
 
 const MAX_VISIBLE_WARNINGS = 5;
 
@@ -96,10 +100,44 @@ function PinduoduoCollectAlerts({ product }: { product: ProductDetail }) {
   );
 }
 
+function TaobaoTmallCollectAlerts({ product }: { product: ProductDetail }) {
+  const [warnExpanded, setWarnExpanded] = useState(false);
+  const [errExpanded, setErrExpanded] = useState(false);
+  const state = useMemo(() => buildTaobaoTmallCollectAlertState(product), [product]);
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%', marginBottom: 16 }}>
+      <Alert type="info" showIcon message={state.infoMessage} />
+      {state.errors.length > 0 ? (
+        <Alert
+          type="error"
+          showIcon
+          message="发布前必须处理"
+          description={
+            <WarningList items={state.errors} expanded={errExpanded} onExpand={() => setErrExpanded(true)} />
+          }
+        />
+      ) : null}
+      {state.warnings.length > 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          message="采集结果需要补充"
+          description={
+            <WarningList items={state.warnings} expanded={warnExpanded} onExpand={() => setWarnExpanded(true)} />
+          }
+        />
+      ) : null}
+    </Space>
+  );
+}
+
 /** Unified collect-quality alerts on product draft detail (per-source). */
 export function ProductCollectQualityAlert({ product }: Props) {
   if (isPinduoduoSource(product.source)) {
     return <PinduoduoCollectAlerts product={product} />;
+  }
+  if (isTaobaoTmallSource(product.source)) {
+    return <TaobaoTmallCollectAlerts product={product} />;
   }
   return null;
 }

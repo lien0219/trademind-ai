@@ -35,6 +35,11 @@ export function getPinduoduoUserDataDir(): string {
   return path.join(getBrowserProfileRoot(), 'pinduoduo');
 }
 
+/** 淘宝/天猫专用 Profile：BROWSER_PROFILE_ROOT/taobao_tmall */
+export function getTaobaoTmallUserDataDir(): string {
+  return path.join(getBrowserProfileRoot(), 'taobao_tmall');
+}
+
 /** Custom collect browser profile: BROWSER_PROFILE_ROOT/custom/{profileKey} */
 export function getCustomProfileUserDataDir(profileKey: string): string {
   const safe = sanitizeProfileKey(profileKey);
@@ -54,6 +59,7 @@ export function ensureBrowserDataDirs(): void {
     getBrowserProfileRoot(),
     get1688UserDataDir(),
     getPinduoduoUserDataDir(),
+    getTaobaoTmallUserDataDir(),
     getStorageStateRoot(),
   ]) {
     fs.mkdirSync(dir, { recursive: true });

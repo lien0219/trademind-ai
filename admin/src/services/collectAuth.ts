@@ -104,3 +104,52 @@ export async function openPinduoduoLoginBrowser(url?: string) {
     body,
   );
 }
+
+export type ProviderTaobaoTmallAuthStatusValue =
+  | 'logged_in'
+  | 'login_required'
+  | 'verify_required'
+  | 'unknown';
+
+export type ProviderTaobaoTmallAuthStatus = {
+  provider: string;
+  profileKey?: string;
+  status: ProviderTaobaoTmallAuthStatusValue;
+  loginStatus?: ProviderTaobaoTmallAuthStatusValue;
+  loggedIn: boolean;
+  needVerification: boolean;
+  message: string;
+  lastCheckedAt: string;
+  checkedUrl?: string;
+  finalUrl?: string;
+};
+
+export type ProviderTaobaoTmallOpenLoginResult = {
+  message: string;
+  alreadyOpen: boolean;
+};
+
+export type TaobaoTmallCheckLoginParams = {
+  url?: string;
+  testUrl?: string;
+};
+
+export async function checkTaobaoTmallLogin(params?: TaobaoTmallCheckLoginParams) {
+  const body: Record<string, string> = {};
+  const u = params?.url?.trim();
+  const t = params?.testUrl?.trim();
+  if (u) body.url = u;
+  if (t) body.testUrl = t;
+  return postJSON<ProviderTaobaoTmallAuthStatus>(
+    '/api/collector/providers/taobao_tmall/check-login',
+    body,
+  );
+}
+
+export async function openTaobaoTmallLoginBrowser(url?: string) {
+  const body = url?.trim() ? { url: url.trim() } : {};
+  return postJSON<ProviderTaobaoTmallOpenLoginResult>(
+    '/api/collector/providers/taobao_tmall/open-login-browser',
+    body,
+  );
+}

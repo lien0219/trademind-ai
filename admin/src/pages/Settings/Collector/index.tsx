@@ -24,14 +24,18 @@ import { queryCollectProviders } from '@/services/collectProviders';
 import { collectProviderStatusPresentation } from '@/utils/collectProviderStatus';
 import {
   checkPinduoduoLogin,
+  checkTaobaoTmallLogin,
   fetch1688AuthStatus,
   open1688LoginBrowser,
   openPinduoduoLoginBrowser,
+  openTaobaoTmallLoginBrowser,
   type Provider1688AuthStatus,
   type Provider1688AuthStatusValue,
   type ProviderPinduoduoAuthStatus,
   type ProviderPinduoduoAuthStatusValue,
+  type ProviderTaobaoTmallAuthStatus,
 } from '@/services/collectAuth';
+import { CollectorTaobaoTmallSection } from '@/pages/Settings/Collector/TaobaoTmallSection';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import {
   COLLECT_SETTINGS_PROVIDER_OPTIONS,
@@ -72,13 +76,18 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_pinduoduo_batch_delay_min_ms: {},
   collect_pinduoduo_batch_delay_max_ms: {},
   collect_pinduoduo_batch_max_retries: {},
+  collect_taobao_tmall_timeout_ms: {},
+  collect_taobao_tmall_auth_check_url: {},
+  collect_taobao_tmall_access_check_enabled: {},
+  collect_taobao_tmall_retry_on_failure: {},
+  collect_taobao_tmall_max_retries: {},
 };
 
 const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
   '1688': '登录态检测与批量采集节流',
   aliexpress: 'Beta 单条采集与重试策略',
   pinduoduo: '拼多多登录态、访问检测与批量限速',
-  taobao: '暂未开放，预留配置入口',
+  taobao_tmall: '淘宝/天猫登录态、访问检测与单品采集（Beta）',
   shein_temu: '暂未开放，预留配置入口',
   custom: '登录状态、采集规则与页面访问检测',
 };
@@ -731,6 +740,10 @@ export default function CollectorSettingsPage() {
   const [pddAuthChecking, setPddAuthChecking] = useState(false);
   const [pddAuthLoaded, setPddAuthLoaded] = useState(false);
   const [pddLoginOpening, setPddLoginOpening] = useState(false);
+  const [tbAuthStatus, setTbAuthStatus] = useState<ProviderTaobaoTmallAuthStatus | null>(null);
+  const [tbAuthChecking, setTbAuthChecking] = useState(false);
+  const [tbAuthLoaded, setTbAuthLoaded] = useState(false);
+  const [tbLoginOpening, setTbLoginOpening] = useState(false);
 
   const providerKey = useMemo(
     () => resolveCollectSettingsProvider(new URLSearchParams(location.search || '').get('provider')),
@@ -778,6 +791,21 @@ export default function CollectorSettingsPage() {
     } finally {
       setPddAuthChecking(false);
       setPddAuthLoaded(true);
+    }
+  }, [form]);
+
+  const loadTbAuthStatus = useCallback(async () => {
+    const testUrl = String(form.getFieldValue('collect_taobao_tmall_auth_check_url') ?? '').trim();
+    setTbAuthChecking(true);
+    try {
+      const data = await checkTaobaoTmallLogin({ testUrl: testUrl || undefined });
+      setTbAuthStatus(data);
+    } catch (e: unknown) {
+      setTbAuthStatus(null);
+      message.error((e as Error)?.message || '淘宝/天猫登录态检测失败');
+    } finally {
+      setTbAuthChecking(false);
+      setTbAuthLoaded(true);
     }
   }, [form]);
 
@@ -836,6 +864,17 @@ export default function CollectorSettingsPage() {
         collect_pinduoduo_batch_max_retries: g.collect_pinduoduo_batch_max_retries
           ? Number(g.collect_pinduoduo_batch_max_retries)
           : 2,
+        collect_taobao_tmall_timeout_ms: g.collect_taobao_tmall_timeout_ms
+          ? Number(g.collect_taobao_tmall_timeout_ms)
+          : 45000,
+        collect_taobao_tmall_auth_check_url: g.collect_taobao_tmall_auth_check_url || '',
+        collect_taobao_tmall_access_check_enabled: parseBoolSetting(
+          g.collect_taobao_tmall_access_check_enabled,
+        ),
+        collect_taobao_tmall_retry_on_failure: parseBoolSetting(g.collect_taobao_tmall_retry_on_failure),
+        collect_taobao_tmall_max_retries: g.collect_taobao_tmall_max_retries
+          ? Number(g.collect_taobao_tmall_max_retries)
+          : 2,
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -858,7 +897,10 @@ export default function CollectorSettingsPage() {
     if (providerKey === 'pinduoduo') {
       void loadPddAuthStatus();
     }
-  }, [providerKey, loadAuthStatus, loadPddAuthStatus]);
+    if (providerKey === 'taobao_tmall') {
+      void loadTbAuthStatus();
+    }
+  }, [providerKey, loadAuthStatus, loadPddAuthStatus, loadTbAuthStatus]);
 
   const handleProviderChange = (key: CollectSettingsProviderKey) => {
     history.replace(`/settings/collector?provider=${encodeURIComponent(key)}`);
@@ -889,6 +931,20 @@ export default function CollectorSettingsPage() {
       message.error((e as Error)?.message || '打开拼多多采集浏览器失败');
     } finally {
       setPddLoginOpening(false);
+    }
+  };
+
+  const handleOpenTbLoginBrowser = async () => {
+    setTbLoginOpening(true);
+    try {
+      const testUrl = String(form.getFieldValue('collect_taobao_tmall_auth_check_url') ?? '').trim();
+      const result = await openTaobaoTmallLoginBrowser(testUrl || undefined);
+      message.success(result.message || '已打开淘宝/天猫采集浏览器');
+      await loadTbAuthStatus();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '打开采集浏览器失败');
+    } finally {
+      setTbLoginOpening(false);
     }
   };
 
@@ -927,6 +983,13 @@ export default function CollectorSettingsPage() {
         collect_pinduoduo_batch_delay_min_ms: String(values.collect_pinduoduo_batch_delay_min_ms ?? 4000),
         collect_pinduoduo_batch_delay_max_ms: String(values.collect_pinduoduo_batch_delay_max_ms ?? 9000),
         collect_pinduoduo_batch_max_retries: String(values.collect_pinduoduo_batch_max_retries ?? 2),
+        collect_taobao_tmall_timeout_ms: String(values.collect_taobao_tmall_timeout_ms ?? 45000),
+        collect_taobao_tmall_auth_check_url: String(values.collect_taobao_tmall_auth_check_url ?? ''),
+        collect_taobao_tmall_access_check_enabled: values.collect_taobao_tmall_access_check_enabled
+          ? '1'
+          : '0',
+        collect_taobao_tmall_retry_on_failure: values.collect_taobao_tmall_retry_on_failure ? '1' : '0',
+        collect_taobao_tmall_max_retries: String(values.collect_taobao_tmall_max_retries ?? 2),
       };
       await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
       message.success('已保存');
@@ -959,6 +1022,16 @@ export default function CollectorSettingsPage() {
       loginOpening={pddLoginOpening}
       onRecheck={loadPddAuthStatus}
       onOpenLogin={handleOpenPddLoginBrowser}
+    />
+  ) : providerKey === 'taobao_tmall' ? (
+    <CollectorTaobaoTmallSection
+      providerRow={providerRow}
+      authStatus={tbAuthStatus}
+      authChecking={tbAuthChecking}
+      authLoaded={tbAuthLoaded}
+      loginOpening={tbLoginOpening}
+      onRecheck={loadTbAuthStatus}
+      onOpenLogin={handleOpenTbLoginBrowser}
     />
   ) : null;
 

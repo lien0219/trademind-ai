@@ -123,6 +123,42 @@ export function createCollectorServer(browser: BrowserManager) {
         return;
       }
 
+      if (req.method === 'POST' && req.url === '/v1/providers/taobao_tmall/check-login') {
+        let body: unknown = {};
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'body must be valid JSON' },
+          });
+          return;
+        }
+        const checkUrl = String((body as { url?: string; testUrl?: string }).url ?? '').trim()
+          || String((body as { testUrl?: string }).testUrl ?? '').trim()
+          || undefined;
+        const status = await browser.sessions.checkTaobaoTmallAuthStatus(checkUrl);
+        json(res, 200, { ok: true, data: status });
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/v1/providers/taobao_tmall/open-login-browser') {
+        let body: unknown = {};
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          json(res, 400, {
+            ok: false,
+            error: { code: 'INVALID_REQUEST', message: 'body must be valid JSON' },
+          });
+          return;
+        }
+        const loginUrl = String((body as { url?: string }).url ?? '').trim();
+        const result = await browser.sessions.openTaobaoTmallLoginBrowser(loginUrl || undefined);
+        json(res, 200, { ok: true, data: result });
+        return;
+      }
+
       const profileRoute = matchBrowserProfileRoute(req.method ?? '', req.url ?? '');
       if (profileRoute) {
         let body: unknown = {};

@@ -4,6 +4,7 @@ import { Alert, Button, Col, Empty, message, Row, Space, Spin, Tag, Tooltip, Typ
 import { useEffect, useMemo, useState } from 'react';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import { PinduoduoCollectModal } from '@/pages/Collect/components/PinduoduoCollectModal';
+import { TaobaoTmallCollectModal } from '@/pages/Collect/components/TaobaoTmallCollectModal';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { queryCollectRules } from '@/services/collectRules';
@@ -51,6 +52,9 @@ function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefine
     if (p.source === 'pinduoduo' || p.source === 'pdd') {
       return '拼多多批量采集会自动限速，建议先少量测试。部分页面可能需要登录或触发验证。';
     }
+    if (p.source === 'taobao_tmall' || p.source === 'taobao') {
+      return '批量采集暂未开放';
+    }
     return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
   }
   return undefined;
@@ -63,6 +67,11 @@ function providerCardFeatures(p: CollectProviderRow): string[] {
     return [...CUSTOM_COLLECT_DISPLAY_FEATURES];
   }
   if (p.source === 'pinduoduo' || p.source === 'pdd') {
+    const fromApi = p.features ?? [];
+    if (fromApi.length > 0) return fromApi;
+    return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes', 'skus'];
+  }
+  if (p.source === 'taobao_tmall' || p.source === 'taobao') {
     const fromApi = p.features ?? [];
     if (fromApi.length > 0) return fromApi;
     return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes', 'skus'];
@@ -81,6 +90,10 @@ const DEDICATED_HUB_DESCRIPTION: Record<string, string> = {
   '1688': '采集 1688 商品详情，支持标题、主图、详情图、属性与 SKU。',
   pinduoduo: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
   pdd: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
+  taobao_tmall:
+    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数。部分商品可能需要登录后采集。',
+  taobao:
+    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数。部分商品可能需要登录后采集。',
   aliexpress: '采集速卖通商品详情，支持标题、图片、属性与 SKU（测试中）。',
 };
 
@@ -123,6 +136,7 @@ export default function CollectHubPage() {
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [customModalOpen, setCustomModalOpen] = useState(false);
   const [pddModalOpen, setPddModalOpen] = useState(false);
+  const [tbModalOpen, setTbModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +157,7 @@ export default function CollectHubPage() {
   }, []);
 
   const sorted = useMemo(() => {
-    const order = ['1688', 'pinduoduo', 'pdd', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
+    const order = ['1688', 'pinduoduo', 'pdd', 'taobao_tmall', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
     return [...providers].sort(
       (a, b) => order.indexOf(a.source) - order.indexOf(b.source) || a.name.localeCompare(b.name),
     );
@@ -245,6 +259,8 @@ export default function CollectHubPage() {
                             void openCustomCollectModal(setCustomModalOpen);
                           } else if (p.source === 'pinduoduo' || p.source === 'pdd') {
                             setPddModalOpen(true);
+                          } else if (p.source === 'taobao_tmall' || p.source === 'taobao') {
+                            setTbModalOpen(true);
                           } else {
                             history.push(`/collect/tasks?source=${encodeURIComponent(p.source)}`);
                           }
@@ -279,6 +295,7 @@ export default function CollectHubPage() {
       )}
       <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} />
       <PinduoduoCollectModal open={pddModalOpen} onClose={() => setPddModalOpen(false)} />
+      <TaobaoTmallCollectModal open={tbModalOpen} onClose={() => setTbModalOpen(false)} />
     </PageContainer>
   );
 }
