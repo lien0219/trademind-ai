@@ -65,7 +65,7 @@ func computeRemoveTextRenderBlocks(
 			blockClass = blockClassSmallCaption
 		}
 		anchorBBox := clampGroupBBox(b.BBox, imageW, imageH)
-		detectBBox := anchorBBox
+		detectBBox := clampGroupBBox(sourceBBoxForBlock(b), imageW, imageH)
 		baseStyle := drawStyleForBlock(b, blockClass)
 		maxLines := maxLinesForBlockClass(blockClass, opts)
 		wrapWidth := wrapWidthForBlock(anchorBBox, blockClass, imageW)
@@ -94,7 +94,7 @@ func computeRemoveTextRenderBlocks(
 			FontSize:     fontSize,
 			BBox:         drawBBox,
 			EraseBBox:    detectBBox,
-			OriginalBBox: clampGroupBBox(b.BBox, imageW, imageH),
+			OriginalBBox: detectBBox,
 			Style:        renderStyle,
 			ErasePadding: erasePaddingForBlockClass(blockClass),
 			MaskDilate:   1,

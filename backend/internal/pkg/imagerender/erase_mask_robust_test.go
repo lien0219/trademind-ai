@@ -61,3 +61,38 @@ func TestEnhancedMaskAdaptiveDilate(t *testing.T) {
 		t.Fatalf("filtered mask should succeed with adaptive dilate, ok=%v n=%d", ok, countMaskPixels(mask))
 	}
 }
+
+func TestForceEraseTextMaskBoundsLocalizesWideOCRBox(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 900, 900))
+	bg := color.RGBA{205, 214, 210, 255}
+	for y := 0; y < 900; y++ {
+		for x := 0; x < 900; x++ {
+			img.Set(x, y, bg)
+		}
+	}
+	for y := 64; y < 92; y++ {
+		for x := 690; x < 820; x++ {
+			if (x+y)%7 < 3 {
+				img.Set(x, y, color.RGBA{245, 245, 245, 255})
+			}
+		}
+	}
+	leftBefore := img.RGBAAt(60, 70)
+	textBefore := img.RGBAAt(700, 70)
+	stats := ForceEraseTextMaskBounds(img, []TextBlock{{
+		ID:           "wide-title",
+		BlockClass:   "title",
+		EraseBBox:    BBox{X: 48, Y: 45, Width: 840, Height: 90},
+		ErasePadding: 1,
+		TextPolarity: "light",
+	}}, 900*900)
+	if stats.ErasePixels <= 0 {
+		t.Fatal("expected localized cleanup to erase pixels")
+	}
+	if got := img.RGBAAt(60, 70); got != leftBefore {
+		t.Fatalf("cleanup should not repaint the far-left part of a wide OCR box: before=%+v after=%+v", leftBefore, got)
+	}
+	if got := img.RGBAAt(700, 70); got == textBefore {
+		t.Fatal("expected text pixel inside localized mask bounds to be cleaned")
+	}
+}

@@ -59,6 +59,24 @@ func (s *Service) runTranslateRenderPipeline(
 			return attemptOut, verifyMeta, translateRenderQuality{}, vErr
 		}
 		rq := buildTranslateRenderQuality(quality, layoutSummary, verifyMeta, renderOpts, drawBlocks, attemptOut.Result)
+		if attemptOpts.PureTextReplace && verifyMeta.SourceTextMayRemain && !attemptOpts.ForceTextBoundsCleanup {
+			cleanupOpts := attemptOpts
+			cleanupOpts.ForceTextBoundsCleanup = true
+			cleanupOut, cleanupErr := renderTranslateWithEraseVerify(
+				s, ctx, sourceBytes, blocks, cleanupOpts, outputFormat,
+				ocr, sourceLang, false,
+			)
+			if cleanupErr == nil && cleanupOut != nil && cleanupOut.Result != nil {
+				cleanupOut.Result.RetryStrategies = append(cleanupOut.Result.RetryStrategies, "localized_source_cleanup")
+				cleanupVerify, cleanupVerifyErr := s.verifyTranslateOutputWithLayout(ctx, sourceBytes, cleanupOut.Result.Data, ocr, targetLang, sourceLang, renderOpts.VerifyOutputText, layoutSummary)
+				if cleanupVerifyErr == nil {
+					cleanupQuality := buildTranslateRenderQuality(quality, layoutSummary, cleanupVerify, renderOpts, drawBlocks, cleanupOut.Result)
+					if cleanupQuality.CommercialUsabilityScore >= rq.CommercialUsabilityScore || !cleanupVerify.SourceTextMayRemain {
+						return cleanupOut, cleanupVerify, cleanupQuality, nil
+					}
+				}
+			}
+		}
 		return attemptOut, verifyMeta, rq, nil
 	}
 
@@ -129,9 +147,7 @@ func (s *Service) runTranslateRenderPipeline(
 	// Debug artifacts from last best result path
 	rgba, stats, usedErase, debugArt, dbgErr := imagerender.EraseRegionsWithDebug(img, best.ImageBlocks, imOpts)
 	if dbgErr == nil {
-		drawn, _ := imagerender.DrawRegions(rgba, best.ImageBlocks, imOpts)
-		_ = drawn
-		finalData, _, _ := imagerender.Encode(rgba, outputFormat)
+		finalData := best.Result.Data
 		var debugMap map[string]any
 		if task != nil {
 			debugMap = buildTranslateDebugOutput(ctx, s, task, debugArt.OriginalPNG, debugArt.MaskPNG, debugArt.ErasedPNG, finalData)
@@ -182,6 +198,18 @@ func renderTranslateWithEraseVerify(
 		if err != nil {
 			return nil, err
 		}
+		if opts.PureTextReplace {
+			b := rgba.Bounds()
+			boundsCleanup := imagerender.ForceEraseSourceBlockBounds(rgba, attemptBlocks, maxInt(1, b.Dx()*b.Dy()))
+			if boundsCleanup.ErasePixels > 0 {
+				stats = mergeEraseStats(stats, boundsCleanup)
+				if usedErase == "" {
+					usedErase = "source_bounds_cleanup"
+				} else if !strings.Contains(usedErase, "source_bounds_cleanup") {
+					usedErase += "+source_bounds_cleanup"
+				}
+			}
+		}
 		if !verifyErase || s == nil || attempt >= maxRetries {
 			break
 		}
@@ -194,6 +222,18 @@ func renderTranslateWithEraseVerify(
 		}
 		eraseSourceRemain = true
 		currentBlocks = attemptBlocks
+	}
+	if opts.PureTextReplace && (eraseSourceRemain || opts.ForceTextBoundsCleanup) {
+		b := rgba.Bounds()
+		cleanup := imagerender.ForceEraseTextMaskBounds(rgba, currentBlocks, maxInt(1, b.Dx()*b.Dy()))
+		if cleanup.ErasePixels > 0 {
+			stats = mergeEraseStats(stats, cleanup)
+			if usedErase == "" {
+				usedErase = "localized_cleanup"
+			} else if !strings.Contains(usedErase, "localized_cleanup") {
+				usedErase += "+localized_cleanup"
+			}
+		}
 	}
 
 	drawn, err := imagerender.DrawRegions(rgba, blocks, opts)
@@ -223,6 +263,18 @@ func renderTranslateWithEraseVerify(
 		},
 		EraseSourceRemain: eraseSourceRemain,
 	}, nil
+}
+
+func mergeEraseStats(a, b imagerender.EraseStats) imagerender.EraseStats {
+	out := a
+	out.ErasePixels += b.ErasePixels
+	out.PatchPixels += b.PatchPixels
+	out.BackgroundDeltaScore += b.BackgroundDeltaScore
+	if out.FlatFillRatio == 0 {
+		out.FlatFillRatio = b.FlatFillRatio
+	}
+	out.LargePatchDetected = out.LargePatchDetected || b.LargePatchDetected
+	return out
 }
 
 func secondaryInpaintOnMaskOnly(
@@ -428,7 +480,8 @@ func buildBlockClassificationSummary(ocr *translateOCRResult) []map[string]any {
 			"badge_translation":     b.BadgeTranslation,
 			"badgeTranslation":      b.BadgeTranslation,
 			"fixedShortTranslation": b.FixedShortTranslation,
-			"erase_bbox":            b.BBox,
+			"erase_bbox":            sourceBBoxForBlock(b),
+			"layout_bbox":           b.BBox,
 		})
 	}
 	return out

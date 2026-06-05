@@ -3,7 +3,11 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最后更新**：2026-05-30 — **pure_text_replace 坐标与擦除修复**：OCR 框落在左上角时改为右上角商品文案堆叠修复；支持归一化坐标缩放；白字标题保留 `#ffffff` 绘制；浅色胶囊按 `pill` 只擦黑字；擦除重试增至 3 次；质量分 68 且无硬错误时标记 `success_with_review` 而非渲染失败。
+**最新补充**：2026-06-05 — **图片文字翻译人工可编辑兜底**：`translate_image_text` 在 OCR + 翻译 + Mask 擦除 + 背景修复 + 规则排版重绘 + 二次 OCR 质检之外，新增任务级人工编辑闭环；后端提供 `GET /image/tasks/:id/translate-edit-state` / `POST /image/tasks/:id/manual-render`（AI 路由同名），可读取原图、已擦除底图、结果图、可编辑文字块、排版框、擦除框与样式，人工修改文案/位置/字号/颜色/是否清原文后，使用程序擦除与规则重绘重新生成结果并上传 Storage Provider；任务输出记录 `manualEdit` 审计信息，状态回写 `success_with_review`，管理端「AI 图片任务」详情新增「人工编辑译图」弹窗。该兜底不使用“AI 直接生成翻译图”作为主链路。
+
+**最后更新**：2026-06-05 — **图片文字翻译渲染校验与旧底清理修复**：二次 OCR 校验目标关键词覆盖 `fixedShortTranslation`、`badgeTranslation`、`compactTranslation`、`standardTranslation` 等实际绘制文案，避免 `Cool Black` / `Universal Stand` 已写入却被低估命中率；目标英文已命中、未溢出、未遮挡商品且商用分≥60 时，单个疑似原文残留、单字 OCR 碎片或局部补丁痕迹不再直接触发 `failed_render_validation`，改为 `success_with_review` 并保留复核提示；`pure_text_replace` 对 badge/pill 等标签块会先清理原胶囊/标签底和旧中文，再用黑色译文绘制，避免英文叠在旧中文和多余背景上。
+
+**此前**：2026-05-30 — **pure_text_replace 坐标与擦除修复**：OCR 框落在左上角时改为右上角商品文案堆叠修复；支持归一化坐标缩放；白字标题保留 `#ffffff` 绘制；浅色胶囊按 `pill` 只擦黑字；擦除重试增至 3 次；质量分 68 且无硬错误时标记 `success_with_review` 而非渲染失败。
 
 **此前**：2026-05-30 — **图片文字翻译 pure_text_replace 生产模式**：新增默认渲染模式 `pure_text_replace`（先擦除原字再绘制译文，禁止白底/气泡/标签补片）；title 仅重绘文字；badge/pill 保留原胶囊背景、只替换内部白字；固定短文案映射（炫酷黑→Cool Black、雪花白→Snow White 等）与 capsule 放不下时自动降级 Universal Stand/For Phones；质量校验原文残留/额外背景层/重叠则 failed 或自动重试；输出 original/erased/final 调试图；管理端展示「纯文字替换」与对应失败提示。
 

@@ -420,6 +420,72 @@ func scaleOCRBlocksToRenderPixels(blocks []translateTextBlock, imageW, imageH in
 	return out
 }
 
+func preferPolygonBBoxesForRotatedOCR(blocks []translateTextBlock, imageW, imageH int) []translateTextBlock {
+	if len(blocks) == 0 {
+		return blocks
+	}
+	out := append([]translateTextBlock{}, blocks...)
+	for i := range out {
+		polyBox, ok := bboxFromTranslatePolygon(out[i].Polygon, imageW, imageH)
+		if !ok {
+			continue
+		}
+		if shouldPreferPolygonBBox(out[i], polyBox) {
+			out[i].BBox = polyBox
+		}
+	}
+	return out
+}
+
+func bboxFromTranslatePolygon(points []translateTextPoint, imageW, imageH int) (translateTextBBox, bool) {
+	if len(points) < 4 {
+		return translateTextBBox{}, false
+	}
+	minX, minY := points[0].X, points[0].Y
+	maxX, maxY := minX, minY
+	for _, p := range points[1:] {
+		if p.X < minX {
+			minX = p.X
+		}
+		if p.Y < minY {
+			minY = p.Y
+		}
+		if p.X > maxX {
+			maxX = p.X
+		}
+		if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+	w, h := maxX-minX, maxY-minY
+	if w <= 0 || h <= 0 {
+		return translateTextBBox{}, false
+	}
+	x, y, w, h := clampTranslateBBox(minX, minY, w, h, imageW, imageH)
+	return translateTextBBox{X: x, Y: y, Width: w, Height: h}, true
+}
+
+func shouldPreferPolygonBBox(b translateTextBlock, poly translateTextBBox) bool {
+	if poly.Width <= 0 || poly.Height <= 0 {
+		return false
+	}
+	bb := b.BBox
+	if bb.Width <= 0 || bb.Height <= 0 {
+		return true
+	}
+	polyArea := poly.Width * poly.Height
+	bbArea := bb.Width * bb.Height
+	if bbArea <= 0 {
+		return true
+	}
+	textLen := len([]rune(strings.TrimSpace(b.Text)))
+	angleRotated := b.Angle > 45 || b.Angle < -45
+	narrowTall := bb.Height > bb.Width*2 && poly.Width > poly.Height
+	longTextNarrow := textLen >= 6 && bb.Width < maxInt(80, poly.Width/3) && poly.Width > bb.Width*2
+	polyMuchWider := poly.Width > bb.Width*2 && polyArea > bbArea
+	return angleRotated || narrowTall || longTextNarrow || polyMuchWider
+}
+
 func estimateSingleLineBBoxHeight(text string, imageH int) int {
 	fs := 56
 	switch {

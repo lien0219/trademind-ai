@@ -65,6 +65,62 @@ export async function getImageTask(id: string): Promise<ImageTaskDetail> {
   return getJSON<ImageTaskDetail>(`/api/v1/ai/image/tasks/${id}`);
 }
 
+export type TranslateManualBBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type TranslateManualEditBlock = {
+  id: string;
+  sourceText?: string;
+  text: string;
+  lines?: string[];
+  blockClass?: string;
+  bbox: TranslateManualBBox;
+  eraseBBox: TranslateManualBBox;
+  fontSize: number;
+  color?: string;
+  backgroundColor?: string;
+  fontWeight?: string;
+  align?: string;
+  borderRadius?: number;
+  erasePadding?: number;
+  maskDilate?: number;
+  removeSourceBackground: boolean;
+  hidden?: boolean;
+};
+
+export type TranslateManualEditState = {
+  taskId: string;
+  originalImageUrl?: string;
+  erasedImageUrl?: string;
+  resultImageUrl?: string;
+  baseImageUrl?: string;
+  imageWidth: number;
+  imageHeight: number;
+  blocks: TranslateManualEditBlock[];
+  warnings?: string[];
+};
+
+export async function getTranslateManualEditState(id: string): Promise<TranslateManualEditState> {
+  return getJSON<TranslateManualEditState>(`/api/v1/ai/image/tasks/${id}/translate-edit-state`);
+}
+
+export async function manualRenderTranslateImageTask(
+  id: string,
+  payload: {
+    baseImage?: 'original' | 'erased' | 'result';
+    outputFormat?: string;
+    note?: string;
+    verifyOutputText?: boolean;
+    blocks: TranslateManualEditBlock[];
+  },
+): Promise<ImageTaskDetail> {
+  return postJSON<ImageTaskDetail>(`/api/v1/ai/image/tasks/${id}/manual-render`, payload);
+}
+
 export async function createImageTask(payload: {
   taskType: string;
   provider?: string;
@@ -569,6 +625,12 @@ export type TranslateTaskOutput = {
     standardTranslation?: string;
     compact_translation?: string;
     compactTranslation?: string;
+    badge_translation?: string;
+    badgeTranslation?: string;
+    fixedShortTranslation?: string;
+    erase_bbox?: TranslateManualBBox;
+    layout_bbox?: TranslateManualBBox;
+    bbox?: TranslateManualBBox;
   }>;
   badgeCount?: number;
   abnormalBadgeCount?: number;

@@ -37,11 +37,12 @@ type TextBlock struct {
 
 // Options controls erase and padding behavior.
 type Options struct {
-	EraseMode       string
-	MaskPadding     int
-	TextPadding     int
-	LineHeight      float64
-	PureTextReplace bool // when true, never draw badge/panel backgrounds on top of the image
+	EraseMode              string
+	MaskPadding            int
+	TextPadding            int
+	LineHeight             float64
+	PureTextReplace        bool // when true, never draw badge/panel backgrounds on top of the image
+	ForceTextBoundsCleanup bool // force a localized source-text cleanup before drawing translated text
 }
 
 const (

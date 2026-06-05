@@ -50,6 +50,7 @@ type translateTextBlock struct {
 	DrawText              string               `json:"drawText,omitempty"`
 	Confidence            float64              `json:"confidence"`
 	BBox                  translateTextBBox    `json:"bbox"`
+	SourceBBox            translateTextBBox    `json:"sourceBBox,omitempty"`
 	Polygon               []translateTextPoint `json:"polygon,omitempty"`
 	Angle                 float64              `json:"angle,omitempty"`
 	Direction             string               `json:"direction,omitempty"`
@@ -392,6 +393,22 @@ func applyLayoutPlansToBlocks(blocks []translateTextBlock, plans []translateBloc
 	}
 }
 
+func ensureSourceBBoxes(blocks []translateTextBlock) {
+	for i := range blocks {
+		if blocks[i].SourceBBox.Width > 0 && blocks[i].SourceBBox.Height > 0 {
+			continue
+		}
+		blocks[i].SourceBBox = blocks[i].BBox
+	}
+}
+
+func sourceBBoxForBlock(b translateTextBlock) translateTextBBox {
+	if b.SourceBBox.Width > 0 && b.SourceBBox.Height > 0 {
+		return b.SourceBBox
+	}
+	return b.BBox
+}
+
 func buildTranslateQuality(ocr *translateOCRResult, hints map[string]any, layoutSummary translateLayoutSummary) translateQualitySummary {
 	q := translateQualitySummary{
 		TextBlocksCount:       len(ocr.Blocks),
@@ -637,6 +654,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 		hints["coordGroupRelayoutFallback"] = true
 	}
 	ocr.Blocks = scaleOCRBlocksToRenderPixels(ocr.Blocks, imageW, imageH)
+	ocr.Blocks = preferPolygonBBoxesForRotatedOCR(ocr.Blocks, imageW, imageH)
 	bboxRepaired := false
 	needsRepair := needsOCRBBoxRepair(ocr.Blocks) ||
 		(isPureTextReplaceMode(renderOpts.RenderMode) && ocrBlocksSuspiciousLeftCluster(ocr.Blocks))
@@ -650,6 +668,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	}
 	inferBlockStyles(payload, ocr.Blocks)
 	classifyTranslateBlocks(ocr.Blocks, imageW, imageH)
+	ensureSourceBBoxes(ocr.Blocks)
 
 	s.logTranslateAudit(ctx, task, "ai_image.translate_text.ocr_done", "success",
 		translateAuditMsg(task, map[string]any{"textBlocksCount": len(ocr.Blocks)}))

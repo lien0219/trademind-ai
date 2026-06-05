@@ -63,6 +63,9 @@ func TestComputePureTextRenderBlocksNoBackground(t *testing.T) {
 	if renderBlocks[0].Style.Color != "#ffffff" {
 		t.Fatalf("white title should draw white text, got %q", renderBlocks[0].Style.Color)
 	}
+	if renderBlocks[1].Style.Color != "#111111" {
+		t.Fatalf("pure text badge should draw dark text after source decoration cleanup, got %q", renderBlocks[1].Style.Color)
+	}
 	for _, rb := range renderBlocks {
 		if strings.TrimSpace(rb.Style.BackgroundColor) != "" {
 			t.Fatalf("block %s must not draw background, got %+v", rb.ID, rb.Style)
@@ -73,6 +76,35 @@ func TestComputePureTextRenderBlocksNoBackground(t *testing.T) {
 	}
 	if !validatePureTextRenderStyles(renderBlocks) {
 		t.Fatal("validatePureTextRenderStyles failed")
+	}
+}
+
+func TestComputePureTextRenderBlocksEraseUsesSourceBBox(t *testing.T) {
+	blocks := []translateTextBlock{
+		{
+			ID:                    "b1",
+			Text:                  "雪花白",
+			BlockClass:            blockClassTitle,
+			TranslatedText:        "Snow White",
+			FixedShortTranslation: "Snow White",
+			SourceBBox:            translateTextBBox{X: 690, Y: 54, Width: 170, Height: 62},
+			BBox:                  translateTextBBox{X: 48, Y: 62, Width: 320, Height: 70},
+			Style:                 translateTextStyle{Color: "#ffffff", FontWeight: "bold"},
+		},
+	}
+	opts := parseTranslateLayoutOptions(applyPureTextReplaceHints(nil), "en")
+	renderBlocks, _ := computePureTextRenderBlocks(blocks, opts, 989, 989)
+	if len(renderBlocks) != 1 {
+		t.Fatalf("render blocks = %d, want 1", len(renderBlocks))
+	}
+	if renderBlocks[0].BBox.X != 48 {
+		t.Fatalf("draw bbox x = %d, want layout x 48", renderBlocks[0].BBox.X)
+	}
+	if renderBlocks[0].EraseBBox.X != 690 {
+		t.Fatalf("erase bbox x = %d, want source x 690", renderBlocks[0].EraseBBox.X)
+	}
+	if renderBlocks[0].OriginalBBox != renderBlocks[0].EraseBBox {
+		t.Fatalf("original bbox should track source erase bbox: %+v vs %+v", renderBlocks[0].OriginalBBox, renderBlocks[0].EraseBBox)
 	}
 }
 

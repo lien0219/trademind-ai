@@ -119,6 +119,87 @@ func TestValidatePureTextReplaceExtraBackgroundFails(t *testing.T) {
 	t.Fatalf("expected extra background hard fail, got %v", got.HardFailures)
 }
 
+func TestValidatePureTextReplacePatchOnlyExtraBackgroundReviews(t *testing.T) {
+	verify := translateVerificationMeta{TargetTextDetected: true}
+	layout := translateLayoutSummary{}
+	rq := translateRenderQuality{CommercialUsabilityScore: 79}
+	blocks := []translateRenderBlock{
+		{
+			ID: "b1", BlockClass: blockClassTitle, Lines: []string{"Cool Black"}, FontSize: 26,
+			BBox:         translateTextBBox{X: 685, Y: 70, Width: 266, Height: 92},
+			OriginalBBox: translateTextBBox{X: 685, Y: 70, Width: 266, Height: 92},
+			Style:        titleGroupStyle(),
+		},
+		{
+			ID: "b2", BlockClass: blockClassBadge, Lines: []string{"Universal Phone Stand"}, FontSize: 18,
+			BBox:         translateTextBBox{X: 601, Y: 185, Width: 357, Height: 67},
+			OriginalBBox: translateTextBBox{X: 601, Y: 185, Width: 357, Height: 67},
+			EraseBBox:    translateTextBBox{X: 601, Y: 185, Width: 357, Height: 67},
+			Style:        translateTextStyle{Color: "#111111", FontWeight: "bold", Align: "center"},
+		},
+	}
+	got := validatePureTextReplace(verify, layout, rq, blocks, &imagerender.Result{PatchAreaRatio: 0.055}, 989, 989)
+	if !got.HardPassed {
+		t.Fatalf("patch-only extra background should not hard fail, got %v", got.HardFailures)
+	}
+	if !got.ExtraBackgroundLayerDetected {
+		t.Fatal("expected extra background warning to be retained")
+	}
+	if status := resolvePureTextFinalStatus(got); status != StatusSuccessWithReview {
+		t.Fatalf("status = %q, want success_with_review", status)
+	}
+}
+
+func TestValidatePureTextReplaceReviewableResidueAndPatch(t *testing.T) {
+	verify := translateVerificationMeta{
+		TargetTextDetected:      true,
+		SourceTextMayRemain:     true,
+		SourceTextRemainNearBox: true,
+		Confidence:              0.20,
+	}
+	layout := translateLayoutSummary{}
+	rq := translateRenderQuality{
+		TextAppliedScore:         82,
+		SourceTextRemovedScore:   40,
+		LayoutScore:              84,
+		StyleConsistencyScore:    42,
+		ReadabilityScore:         86,
+		ProductPreservationScore: 90,
+		CommercialUsabilityScore: 70,
+	}
+	blocks := []translateRenderBlock{
+		{
+			ID: "b1", BlockClass: blockClassTitle, GroupType: groupTypeMainTitle,
+			Lines: []string{"Cool Black"}, FontSize: 26,
+			BBox:         translateTextBBox{X: 685, Y: 70, Width: 266, Height: 92},
+			OriginalBBox: translateTextBBox{X: 685, Y: 70, Width: 266, Height: 92},
+			Style:        titleGroupStyle(),
+		},
+		{
+			ID: "b2", BlockClass: blockClassPill, GroupType: groupTypeBadge,
+			Lines: []string{"Universal Phone Stand"}, FontSize: 18,
+			BBox:         translateTextBBox{X: 601, Y: 185, Width: 357, Height: 67},
+			OriginalBBox: translateTextBBox{X: 601, Y: 185, Width: 357, Height: 67},
+			EraseBBox:    translateTextBBox{X: 601, Y: 185, Width: 357, Height: 67},
+			Style:        translateTextStyle{Color: "#ffffff", FontWeight: "bold", Align: "center"},
+		},
+	}
+	got := validatePureTextReplace(
+		verify, layout, rq, blocks,
+		&imagerender.Result{PatchAreaRatio: 0.0599, BlocksDrawn: 2},
+		987, 987,
+	)
+	if !got.SourceTextRemainDetected || !got.ExtraBackgroundLayerDetected {
+		t.Fatalf("expected review warnings to be retained, got %+v", got)
+	}
+	if !got.HardPassed {
+		t.Fatalf("reviewable residue and patch should not hard fail, got %v", got.HardFailures)
+	}
+	if status := resolvePureTextFinalStatus(got); status != StatusSuccessWithReview {
+		t.Fatalf("status = %q, want success_with_review", status)
+	}
+}
+
 func TestDetectSourceKeywordsNearOriginalBoxes(t *testing.T) {
 	orig := &translateOCRResult{
 		Blocks: []translateTextBlock{

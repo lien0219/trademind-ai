@@ -45,10 +45,7 @@ func pillTextErase(img *image.RGBA, block TextBlock, imageArea int) (EraseStats,
 	if !ok || countMaskPixels(mask) < 4 {
 		return EraseStats{}, ErrEraseMaskEmpty
 	}
-	fill := sampleNonWhiteMedianColor(img, rect, mask)
-	if strings.TrimSpace(block.Style.BackgroundColor) != "" {
-		fill = parseHexColor(block.Style.BackgroundColor, fill)
-	}
+	fill := pillEraseFillColor(img, rect, block, polarity, mask)
 	changed := applyMaskFill(img, rect, mask, fill)
 	regionArea := rect.Dx() * rect.Dy()
 	limit := perBlockEraseImageLimit(regionArea, imageArea)
@@ -66,26 +63,44 @@ func pillTextErase(img *image.RGBA, block TextBlock, imageArea int) (EraseStats,
 	return stats, nil
 }
 
+func pillEraseFillColor(img *image.RGBA, rect image.Rectangle, block TextBlock, polarity string, mask []bool) color.RGBA {
+	fallback := sampleNonWhiteMedianColor(img, rect, mask)
+	if strings.TrimSpace(block.Style.BackgroundColor) != "" {
+		return parseHexColor(block.Style.BackgroundColor, fallback)
+	}
+	if strings.TrimSpace(strings.ToLower(polarity)) == "dark" || isDarkTextStyle(block.Style) {
+		return sampleLightCapsuleBackgroundColor(img, rect, fallback)
+	}
+	return fallback
+}
+
 func buildPillTextMask(img *image.RGBA, rect image.Rectangle, polarity string, dilate, imageArea int) ([]bool, bool) {
 	w, h := rect.Dx(), rect.Dy()
 	regionArea := max(1, w*h)
-	mask := buildEnhancedTextPixelMask(img, rect, polarity)
-	if polarity != "light" {
-		mask = buildEnhancedTextPixelMask(img, rect, "light")
+	candidates := []string{polarity, invertPolarity(polarity)}
+	seen := map[string]bool{}
+	for _, pol := range candidates {
+		pol = strings.TrimSpace(strings.ToLower(pol))
+		if pol == "" || seen[pol] {
+			continue
+		}
+		seen[pol] = true
+		mask := buildEnhancedTextPixelMask(img, rect, pol)
+		mask = filterMaskConnectedComponents(mask, w, h, regionArea, imageArea)
+		mask = dilateMask(mask, w, h, dilate)
+		n := countMaskPixels(mask)
+		if n < 4 {
+			continue
+		}
+		if float64(n)/float64(regionArea) > MaxEraseMaskRegionCoverage {
+			continue
+		}
+		if imageArea > 0 && float64(n)/float64(imageArea) > MaxEraseMaskRatioPerBlock {
+			continue
+		}
+		return mask, true
 	}
-	mask = filterMaskConnectedComponents(mask, w, h, regionArea, imageArea)
-	mask = dilateMask(mask, w, h, dilate)
-	n := countMaskPixels(mask)
-	if n < 4 {
-		return nil, false
-	}
-	if float64(n)/float64(regionArea) > MaxEraseMaskRegionCoverage {
-		return nil, false
-	}
-	if imageArea > 0 && float64(n)/float64(imageArea) > MaxEraseMaskRatioPerBlock {
-		return nil, false
-	}
-	return mask, true
+	return nil, false
 }
 
 func buildWhiteTextMaskOnly(img *image.RGBA, rect image.Rectangle, dilate, imageArea int) ([]bool, bool) {

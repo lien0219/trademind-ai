@@ -103,15 +103,18 @@ func (s *Service) verifyTranslateOutputWithLayout(
 			}
 		}
 	}
-	if stillBlocks >= sourceEraseRemainThreshold(ocr) {
+	finalRemainThreshold := finalSourceRemainThreshold(ocr, meta.TargetTextDetected, targetHits)
+	if stillBlocks >= finalRemainThreshold {
 		meta.SourceTextMayRemain = true
 		meta.Confidence *= 0.85
-	} else if meta.SourceTextRemainNearBox {
+	} else if meta.SourceTextRemainNearBox && sourceHits > 0 && stillBlocks > 0 {
 		meta.SourceTextMayRemain = true
 		meta.Confidence *= 0.85
 	} else if sourceHits > 0 && stillBlocks > 0 {
 		meta.SourceTextMayRemain = true
 		meta.Confidence *= 0.85
+	} else if meta.SourceTextRemainNearBox || stillBlocks > 0 {
+		meta.Confidence *= 0.93
 	}
 	if meta.Confidence <= 0 {
 		meta.Confidence = 0.6
@@ -171,11 +174,24 @@ func collectTargetKeywords(ocr *translateOCRResult, targetLang string) []string 
 		out = append(out, s)
 	}
 	for _, b := range ocr.Blocks {
+		add(b.FixedShortTranslation)
+		add(b.BadgeTranslation)
+		add(b.CompactTranslation)
+		add(b.StandardTranslation)
 		add(b.TranslatedText)
 		add(b.ShortTranslatedText)
-		for _, w := range strings.Fields(b.TranslatedText) {
-			if len(w) >= 3 {
-				add(w)
+		for _, text := range []string{
+			b.FixedShortTranslation,
+			b.BadgeTranslation,
+			b.CompactTranslation,
+			b.StandardTranslation,
+			b.TranslatedText,
+			b.ShortTranslatedText,
+		} {
+			for _, w := range strings.Fields(text) {
+				if len(w) >= 3 {
+					add(w)
+				}
 			}
 		}
 	}
@@ -222,8 +238,29 @@ func countAllSourceText(ocr *translateOCRResult) int {
 	return maxInt(1, n)
 }
 
+func comparableSourceBlockCount(ocr *translateOCRResult) int {
+	if ocr == nil {
+		return 0
+	}
+	n := 0
+	for _, b := range ocr.Blocks {
+		if len([]rune(strings.TrimSpace(b.Text))) >= 2 {
+			n++
+		}
+	}
+	return n
+}
+
 var knownSourceRemainKeywords = []string{
 	"雪花白", "炫酷黑", "折叠", "通用手机", "伸缩版",
+}
+
+func finalSourceRemainThreshold(original *translateOCRResult, targetDetected bool, targetHits int) int {
+	base := sourceEraseRemainThreshold(original)
+	if targetDetected && targetHits > 0 && comparableSourceBlockCount(original) > 1 && base < 2 {
+		return 2
+	}
+	return base
 }
 
 func detectSourceKeywordsNearOriginalBoxes(postOCR, original *translateOCRResult) bool {
@@ -258,13 +295,42 @@ func detectSourceKeywordsNearOriginalBoxes(postOCR, original *translateOCRResult
 				if kw == "" {
 					continue
 				}
-				if strings.Contains(detected, kw) || strings.Contains(kw, detected) {
+				if sourceTextLikelyRemains(detected, kw) {
 					return true
 				}
 			}
-			if strings.EqualFold(detected, origText) {
+			if sourceTextLikelyRemains(detected, origText) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func sourceTextLikelyRemains(detected, source string) bool {
+	detected = strings.TrimSpace(detected)
+	source = strings.TrimSpace(source)
+	if detected == "" || source == "" {
+		return false
+	}
+	if strings.EqualFold(detected, source) || strings.Contains(detected, source) {
+		return true
+	}
+	if !strings.Contains(source, detected) {
+		return false
+	}
+	detectedRunes := len([]rune(detected))
+	sourceRunes := len([]rune(source))
+	if detectedRunes < 2 || sourceRunes <= 0 {
+		return false
+	}
+	if float64(detectedRunes)/float64(sourceRunes) >= 0.6 ||
+		(detectedRunes >= 3 && float64(detectedRunes)/float64(sourceRunes) >= 0.35) {
+		return true
+	}
+	for _, kw := range knownSourceRemainKeywords {
+		if detected == kw {
+			return true
 		}
 	}
 	return false
