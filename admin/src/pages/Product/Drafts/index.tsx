@@ -10,6 +10,7 @@ import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, mes
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
 import { PRODUCT_STATUS } from '@/constants/status';
+import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
 import { createProduct, fetchProducts, type ProductListRow } from '@/services/products';
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
@@ -85,13 +86,23 @@ export default function ProductDraftsPage() {
     {
       title: '来源',
       dataIndex: 'source',
-      width: 96,
+      width: 110,
+      ellipsis: true,
       valueType: 'select',
-      valueEnum: {
-        manual: { text: 'manual' },
-        '1688': { text: '1688' },
+      valueEnum: Object.fromEntries(
+        Object.entries(PRODUCT_SOURCE_LABEL).map(([k, v]) => [k, { text: v }]),
+      ),
+      render: (_, row) => {
+        const label = productSourceLabel(row.source);
+        return (
+          <Tag
+            style={{ margin: 0, whiteSpace: 'nowrap' }}
+            title={label !== row.source ? row.source : undefined}
+          >
+            {label}
+          </Tag>
+        );
       },
-      render: (_, row) => <Typography.Text code>{row.source}</Typography.Text>,
     },
     {
       title: '状态',

@@ -54,6 +54,26 @@ export function platformLabel(platform?: string): string {
   return PLATFORM_LABEL[k] || platform || '—';
 }
 
+/** 商品草稿来源（products.source）显示名 */
+export const PRODUCT_SOURCE_LABEL: Record<string, string> = {
+  '1688': '1688',
+  pinduoduo: '拼多多',
+  pdd: '拼多多',
+  taobao_tmall: '淘宝/天猫',
+  taobao: '淘宝',
+  aliexpress: '速卖通',
+  shein_temu: 'SHEIN/Temu',
+  custom: '自定义链接',
+  manual: '手动创建',
+};
+
+export function productSourceLabel(source?: string): string {
+  const raw = (source || '').trim();
+  if (!raw) return '—';
+  const k = raw.toLowerCase();
+  return PRODUCT_SOURCE_LABEL[k] ?? PRODUCT_SOURCE_LABEL[raw] ?? raw;
+}
+
 export const PLATFORM_OPTIONS = Object.entries(PLATFORM_LABEL).map(([value, label]) => ({
   value,
   label,
