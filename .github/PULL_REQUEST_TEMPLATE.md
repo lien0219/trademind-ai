@@ -31,6 +31,7 @@
 
 请按 [docs/module-map.md](docs/module-map.md) 检查本次改动的关联内容：
 
+- [ ] AI 工作流 / Agent 规则变化已同步 `AGENTS.md`、`docs/ai-workflow.md`、`docs/ai-coding-rules.md`、`.cursorrules`、`.cursor/rules/README.md` 和 `docs/cursor-rules-usage.md`。
 - [ ] 环境变量变化已同步 `.env.example`、`.env.docker.example`、`docs/env.md` 和 Docker / 部署文档。
 - [ ] API / DTO 变化已同步 `docs/api.md`、前端 `services`、前端 `types` 和相关页面。
 - [ ] Provider 变化已按 `docs/provider-template.md` 检查配置、超时、错误处理、安全和文档。
@@ -51,6 +52,7 @@
 - [ ] 我已确认没有提交 `.env`、密钥、Token、Cookie 或真实平台凭证。
 - [ ] 涉及 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。
 - [ ] 我已阅读并遵守 `docs/ai-coding-rules.md`。
+- [ ] 使用 AI 工具协作时，我已参考 `docs/ai-workflow.md` 控制上下文并沉淀可复用经验。
 - [ ] 我已按 `docs/task-checklist.md` 完成收尾自查。
 - [ ] 涉及接口、环境变量、配置文件、部署或 Provider 机制时已更新文档。
 - [ ] 新增或修改环境变量时已同步 `.env.example`；Docker 部署需要时也已同步 `.env.docker.example` 与 `docker-compose.full.yml`。

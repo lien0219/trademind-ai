@@ -1,6 +1,6 @@
 # AI 编程规则与文档同步要求
 
-本文用于约束使用 AI Agent、Cursor、Copilot 或人工协作开发 TradeMind 时的基本工程规则。核心原则是：**代码、配置、文档、示例和 CI 必须保持同步**。
+本文用于约束使用 AI Agent、Cursor、Copilot 或人工协作开发 TradeMind 时的基本工程规则。核心原则是：**代码、配置、文档、示例和 CI 必须保持同步**。更完整的跨工具执行流程、最小上下文包、token 节约和经验沉淀机制见 [ai-workflow.md](ai-workflow.md)。
 
 ## 基本原则
 
@@ -54,17 +54,21 @@ AI Agent 处理任务时必须先判断改动类型，并按 [module-map.md](mod
 
 AI Agent 修改代码时应遵循：
 
-1. 先读取相关代码、配置和文档，不凭空假设脚本、端口、路径或变量。
-2. 只修改与任务相关的文件，不顺手重构无关模块。
-3. 业务能力走既有分层：handler → service → provider / repository / queue。
-4. 涉及 AI、存储、图片、平台、采集能力时，优先通过 Provider 接口扩展。
-5. 涉及耗时任务时，使用任务状态和队列，不在请求中长时间同步阻塞。
-6. 涉及密钥时，走加密、脱敏和日志保护。
-7. 完成后按 [task-checklist.md](task-checklist.md) 执行与改动匹配的检查，并说明未执行的原因。
+1. 先按 [ai-workflow.md](ai-workflow.md) 形成最小上下文包：任务目标、改动类型、关联入口、已有实现、验证方式和风险。
+2. 先读取相关代码、配置和文档，不凭空假设脚本、端口、路径或变量。
+3. 只修改与任务相关的文件，不顺手重构无关模块。
+4. 业务能力走既有分层：handler → service → provider / repository / queue。
+5. 涉及 AI、存储、图片、平台、采集能力时，优先通过 Provider 接口扩展。
+6. 涉及耗时任务时，使用任务状态和队列，不在请求中长时间同步阻塞。
+7. 涉及密钥时，走加密、脱敏和日志保护。
+8. 优先使用搜索和局部读取确认事实，避免把大文件、大日志和无关上下文直接塞给模型。
+9. 完成后按 [task-checklist.md](task-checklist.md) 执行与改动匹配的检查，并说明未执行的原因。
+10. 对重复问题、架构决策、工具约定或质量门槛，按 [ai-workflow.md](ai-workflow.md) 写回对应文档，让后续 AI 工具可复用。
 
 ## 提交前检查清单
 
 - [ ] 代码与现有架构一致。
+- [ ] 已按 `docs/ai-workflow.md` 控制上下文范围，并沉淀必要经验。
 - [ ] 没有提交 `.env`、密钥、Token、Cookie 或真实平台凭证。
 - [ ] 新增 / 修改配置已同步 `.env.example`、`.env.docker.example` 和相关文档。
 - [ ] 新增 / 修改命令已同步 README 和开发文档。

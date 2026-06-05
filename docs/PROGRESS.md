@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最新补充**：2026-06-05 — **图片文字翻译人工可编辑兜底**：`translate_image_text` 在 OCR + 翻译 + Mask 擦除 + 背景修复 + 规则排版重绘 + 二次 OCR 质检之外，新增任务级人工编辑闭环；后端提供 `GET /image/tasks/:id/translate-edit-state` / `POST /image/tasks/:id/manual-render`（AI 路由同名），可读取原图、已擦除底图、结果图、可编辑文字块、排版框、擦除框与样式，人工修改文案/位置/字号/颜色/是否清原文后，使用程序擦除与规则重绘重新生成结果并上传 Storage Provider；任务输出记录 `manualEdit` 审计信息，状态回写 `success_with_review`，管理端「AI 图片任务」详情新增「人工编辑译图」弹窗。该兜底不使用“AI 直接生成翻译图”作为主链路。
+**最新补充**：2026-06-05 — **跨 AI 工具工作流优化**：新增 `docs/ai-workflow.md`，为 Codex、Cursor、Claude Code、Copilot、Continue、Windsurf、Trae 等 AI 工具提供通用 vibe coding 流程；明确最小上下文包、任务分流、token 节约策略、标准执行流程、多工具协作入口和自我成长机制。同步 `AGENTS.md`、`docs/ai-coding-rules.md`、`docs/module-map.md`、`docs/task-checklist.md`、`docs/README.md`、`docs/cursor-rules-usage.md`、`.cursor/rules/13-ai-workflow.mdc`、`.cursor/rules/README.md`、`.cursorrules`、README / README.en、CONTRIBUTING 与 PR 模板，让长期规则留在仓库可审计文档中。
+
+**此前**：2026-06-05 — **图片文字翻译人工可编辑兜底**：`translate_image_text` 在 OCR + 翻译 + Mask 擦除 + 背景修复 + 规则排版重绘 + 二次 OCR 质检之外，新增任务级人工编辑闭环；后端提供 `GET /image/tasks/:id/translate-edit-state` / `POST /image/tasks/:id/manual-render`（AI 路由同名），可读取原图、已擦除底图、结果图、可编辑文字块、排版框、擦除框与样式，人工修改文案/位置/字号/颜色/是否清原文后，使用程序擦除与规则重绘重新生成结果并上传 Storage Provider；任务输出记录 `manualEdit` 审计信息，状态回写 `success_with_review`，管理端「AI 图片任务」详情新增「人工编辑译图」弹窗。该兜底不使用“AI 直接生成翻译图”作为主链路。
 
 **最后更新**：2026-06-05 — **图片文字翻译渲染校验与旧底清理修复**：二次 OCR 校验目标关键词覆盖 `fixedShortTranslation`、`badgeTranslation`、`compactTranslation`、`standardTranslation` 等实际绘制文案，避免 `Cool Black` / `Universal Stand` 已写入却被低估命中率；目标英文已命中、未溢出、未遮挡商品且商用分≥60 时，单个疑似原文残留、单字 OCR 碎片或局部补丁痕迹不再直接触发 `failed_render_validation`，改为 `success_with_review` 并保留复核提示；`pure_text_replace` 对 badge/pill 等标签块会先清理原胶囊/标签底和旧中文，再用黑色译文绘制，避免英文叠在旧中文和多余背景上。
 

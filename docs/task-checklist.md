@@ -5,8 +5,10 @@
 ## 通用检查
 
 - [ ] 修改范围聚焦，没有混入无关重构。
+- [ ] 已按 `docs/ai-workflow.md` 使用最小上下文包，未把无关大文件、大日志或敏感信息塞入 AI 上下文。
 - [ ] 没有提交 `.env`、真实密钥、Token、Cookie、平台凭证或生产数据。
 - [ ] 代码、配置、示例、Docker、CI、文档已按 `docs/module-map.md` 同步。
+- [ ] 可复用经验、重复问题或新协作规则已沉淀到对应文档 / pitfalls / rules。
 - [ ] 涉及较大模块、阶段性能力或公共契约时已更新 `docs/PROGRESS.md`。
 
 ## 后端 Go
@@ -61,5 +63,6 @@
 
 - [ ] README 与 README.en 链接和结构保持一致。
 - [ ] 新文档已加入 `docs/README.md`。
+- [ ] 新增 AI 工作流或 Agent 规则已同步 `AGENTS.md`、`docs/ai-coding-rules.md`、`docs/module-map.md`、`.cursorrules`、`.cursor/rules/README.md` 和 `docs/cursor-rules-usage.md`。
 - [ ] 分支或协作规则变化已同步 `CONTRIBUTING.md` 和 PR 模板。
 - [ ] 用户可见版本变化已更新 `CHANGELOG.md`。

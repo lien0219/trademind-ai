@@ -398,7 +398,7 @@ The full documentation index is available at [docs/README.md](docs/README.md).
 | --- | --- |
 | Quick Start | [Local Development](docs/development.md) · [Docker Deployment](docs/docker-deployment.md) · [Environment Variables](docs/env.md) |
 | Architecture | [Architecture](docs/architecture.md) · [API Contract](docs/api.md) · [Provider Extension](docs/provider.md) · [Roadmap](docs/roadmap.md) |
-| Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
+| Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [AI Workflow](docs/ai-workflow.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
 | Community | [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Sponsor](docs/sponsor.md) · [NOTICE](NOTICE) |
 | Languages | [简体中文 README](README.md) |
 

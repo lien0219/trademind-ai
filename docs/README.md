@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | [development.md](development.md) | 本地开发、常用命令、端口、环境变量 | 开发者 |
 | [docker-deployment.md](docker-deployment.md) | Docker Compose 完整部署、端口、日志、数据卷 | 试用者 / 部署者 |
+| [ai-workflow.md](ai-workflow.md) | 跨 AI 工具通用工作流、最小上下文包、token 节约和经验沉淀 | 开发者 / AI Agent |
 | [env.md](env.md) | 环境变量清单、敏感配置、安全规则与同步要求 | 开发者 / 部署者 / AI Agent |
 | [api.md](api.md) | API 公共约定、主要路由与前后端契约同步要求 | 前后端开发者 |
 | [architecture.md](architecture.md) | 总体架构、分层、数据与队列、安全原则 | 开发者 / 架构维护者 |
@@ -41,6 +42,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [branching.md](branching.md) | `main` / `dev` / `feat/*` / `fix/*` / `release/*` 分支策略与 PR 规则 |
+| [ai-workflow.md](ai-workflow.md) | Codex、Cursor 等 AI 工具的通用执行流程、上下文控制和自我成长机制 |
 | [ai-coding-rules.md](ai-coding-rules.md) | AI 编程规则、配置文件与文档同步要求 |
 | [module-map.md](module-map.md) | 模块关联索引，避免代码、配置、文档、CI 漏同步 |
 | [task-checklist.md](task-checklist.md) | 按任务类型收尾自查：Go、Admin、Collector、环境变量、API、Provider、Docker、CI |
