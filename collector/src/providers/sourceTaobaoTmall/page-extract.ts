@@ -167,16 +167,27 @@ export async function extractTaobaoPagePayload(page: Page): Promise<TaobaoPagePa
 
     const skus: ProductSku[] = [];
     if (skuGroups.length) {
-      const props: Record<string, string> = {};
-      for (const g of skuGroups) {
-        const sel = g.options.find((o) => o.selected)?.label ?? g.options[0]?.label;
-        if (sel) props[g.name] = sel;
+      skus.push(...cartesianFromDomGroups(skuGroups));
+    }
+
+    function cartesianFromDomGroups(groups: TaobaoPagePayload['skuGroups']): ProductSku[] {
+      if (!groups.length) return [];
+      let combos: Record<string, string>[] = [{}];
+      for (const g of groups) {
+        const opts = g.options.filter((o) => o.label && !o.disabled);
+        if (!opts.length) continue;
+        const next: Record<string, string>[] = [];
+        for (const combo of combos) {
+          for (const opt of opts) {
+            next.push({ ...combo, [g.name]: opt.label });
+          }
+        }
+        combos = next.length ? next : combos;
       }
-      skus.push({
-        properties: props,
-        price: undefined,
-        raw: { skuGroups, incomplete: true },
-      });
+      return combos.slice(0, 200).map((properties) => ({
+        properties,
+        raw: { skuGroups, fromDomGroups: true },
+      }));
     }
 
     return {

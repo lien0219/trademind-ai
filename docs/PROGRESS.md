@@ -3,7 +3,11 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最新补充**：2026-06-05 — **淘宝/天猫专用采集器 Beta**：新增 Provider **`taobao_tmall`**（`source=taobao_tmall`），支持 `item.taobao.com` / `detail.tmall.com` / `detail.tmall.hk` / `world.taobao.com`；独立浏览器 Profile **`taobao_tmall`**（与 1688 / 拼多多 / custom 隔离）；单品采集（标题、价格、主图、详情图、参数、SKU 尽力识别）；登录检测 **`logged_in` / `login_required` / `verify_required` / `unknown`**；错误码含 **`LOGIN_REQUIRED` / `VERIFY_REQUIRED` / `ITEM_NOT_FOUND` / `PAGE_LOAD_TIMEOUT` / `MAIN_IMAGES_EMPTY` / `PRICE_NOT_FOUND` / `SKU_INCOMPLETE` / `DETAIL_IMAGES_INCOMPLETE`**；采集中心状态 **测试中（beta）**，**批量采集暂未开放**；设置页 **淘宝/天猫专属配置**；失败任务中心支持打开采集浏览器与重试；商品草稿页来源提示与发布前检查。**边界**：不保存密码、不绕过验证码、SKU/库存需人工复核。
+**最新补充**：2026-06-05 — **淘宝/天猫采集图片与 SKU 修复**：修正主图 URL 尾部 `_.jpg` 导致 404、预览空白；过滤 `s.gif` 占位图；新增页面 JSON 解析 `skuBase/skuCore` 补全规格；DOM 规格组展开为多条 SKU（不再仅默认一条）。
+
+**此前**：2026-06-05 — **淘宝/天猫采集 HTTP 超时对齐**：修复后端 `COLLECTOR_TIMEOUT_SECONDS=60` 短于 Playwright 实际耗时（典型 ~100s）导致 `context deadline exceeded`；淘宝/天猫 Worker 按 `gotoTimeoutMs + 90s` 自动放宽单次 collector HTTP 超时（上限 300s）；默认 `COLLECTOR_TIMEOUT_SECONDS` 调整为 **120**。
+
+**此前**：2026-06-05 — **淘宝/天猫专用采集器 Beta**：新增 Provider **`taobao_tmall`**（`source=taobao_tmall`），支持 `item.taobao.com` / `detail.tmall.com` / `detail.tmall.hk` / `world.taobao.com`；独立浏览器 Profile **`taobao_tmall`**（与 1688 / 拼多多 / custom 隔离）；单品采集（标题、价格、主图、详情图、参数、SKU 尽力识别）；登录检测 **`logged_in` / `login_required` / `verify_required` / `unknown`**；错误码含 **`LOGIN_REQUIRED` / `VERIFY_REQUIRED` / `ITEM_NOT_FOUND` / `PAGE_LOAD_TIMEOUT` / `MAIN_IMAGES_EMPTY` / `PRICE_NOT_FOUND` / `SKU_INCOMPLETE` / `DETAIL_IMAGES_INCOMPLETE`**；采集中心状态 **测试中（beta）**，**批量采集暂未开放**；设置页 **淘宝/天猫专属配置**；失败任务中心支持打开采集浏览器与重试；商品草稿页来源提示与发布前检查。**边界**：不保存密码、不绕过验证码、SKU/库存需人工复核。
 
 **此前**：2026-06-05 — **跨 AI 工具工作流优化**：新增 `docs/ai-workflow.md`，为 Codex、Cursor、Claude Code、Copilot、Continue、Windsurf、Trae 等 AI 工具提供通用 vibe coding 流程；明确最小上下文包、任务分流、token 节约策略、标准执行流程、多工具协作入口和自我成长机制。同步 `AGENTS.md`、`docs/ai-coding-rules.md`、`docs/module-map.md`、`docs/task-checklist.md`、`docs/README.md`、`docs/cursor-rules-usage.md`、`.cursor/rules/13-ai-workflow.mdc`、`.cursor/rules/README.md`、`.cursorrules`、README / README.en、CONTRIBUTING 与 PR 模板，让长期规则留在仓库可审计文档中。
 

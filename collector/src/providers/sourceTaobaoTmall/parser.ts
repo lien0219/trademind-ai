@@ -8,6 +8,7 @@ import {
   scrollAndCollectDetailImages,
   type TaobaoPagePayload,
 } from './page-extract.js';
+import { extractTaobaoJsonPatch, mergeTaobaoPayload } from './json-extract.js';
 
 export type TaobaoAssembled = {
   title: string;
@@ -60,7 +61,7 @@ export async function assembleTaobaoProduct(
 
   const skus: ProductSku[] = payload.skus.map((s) => ({
     ...s,
-    price: price && price > 0 ? price : s.price,
+    price: s.price && s.price > 0 ? s.price : price && price > 0 ? price : s.price,
   }));
 
   return {
@@ -111,6 +112,14 @@ export async function extractAndAssembleTaobao(
   page: Page,
   sourceUrl: string,
 ): Promise<TaobaoAssembled> {
-  const payload = await extractTaobaoPagePayload(page);
+  const domPayload = await extractTaobaoPagePayload(page);
+  const jsonPatch = await extractTaobaoJsonPatch(page).catch(() => ({
+    mainImages: [] as string[],
+    descriptionImages: [] as string[],
+    attributes: {} as Record<string, string>,
+    skuGroups: [] as TaobaoPagePayload['skuGroups'],
+    skus: [] as TaobaoAssembled['skus'],
+  }));
+  const payload = mergeTaobaoPayload(domPayload, jsonPatch);
   return assembleTaobaoProduct(page, sourceUrl, payload);
 }

@@ -170,7 +170,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	fileH := &files.Handler{Svc: fileSvc}
 	staticH := &files.StaticHandler{Settings: settingsSvc}
 
-	collectorTimeout := 60 * time.Second
+	collectorTimeout := 120 * time.Second
 	if dep.Config != nil && dep.Config.CollectorTimeoutSeconds > 0 {
 		collectorTimeout = time.Duration(dep.Config.CollectorTimeoutSeconds) * time.Second
 	}

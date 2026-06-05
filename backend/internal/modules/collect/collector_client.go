@@ -308,6 +308,11 @@ func (c *CollectorClient) CheckBrowserProfileAccess(ctx context.Context, profile
 }
 
 func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string, options map[string]any) (*CollectOutcome, error) {
+	return c.CollectWithTimeout(ctx, source, rawURL, options, 0)
+}
+
+// CollectWithTimeout invokes POST /v1/collect. When timeout > 0 it overrides the client default.
+func (c *CollectorClient) CollectWithTimeout(ctx context.Context, source, rawURL string, options map[string]any, timeout time.Duration) (*CollectOutcome, error) {
 	if c == nil || c.Client == nil {
 		return nil, fmt.Errorf("collector client unavailable")
 	}
@@ -333,7 +338,12 @@ func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string, op
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.Client.Do(req)
+	httpClient := c.Client
+	if timeout > 0 {
+		httpClient = &http.Client{Timeout: timeout}
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("collector request: %w", err)
 	}

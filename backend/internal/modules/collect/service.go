@@ -360,7 +360,8 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 		collectorOpts["batchMode"] = true
 	}
 
-	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL, collectorOpts)
+	collectTimeout := s.collectorHTTPTimeoutForTask(ctx, task, collectorOpts)
+	outcome, err := s.Client.CollectWithTimeout(ctx, task.Source, task.SourceURL, collectorOpts, collectTimeout)
 	if err != nil {
 		s.handleCollectJobError(ctx, task, err)
 		return
