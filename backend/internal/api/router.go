@@ -480,6 +480,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)
 	collectorAlias.POST("/providers/pinduoduo/check-login", collectH.CheckPinduoduoLogin)
 	collectorAlias.POST("/providers/pinduoduo/open-login-browser", collectH.OpenPinduoduoLoginBrowser)
+	collectorAlias.POST("/providers/taobao_tmall/check-login", collectH.CheckTaobaoTmallLogin)
+	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
