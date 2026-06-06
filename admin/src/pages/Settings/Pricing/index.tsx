@@ -31,6 +31,12 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
     { key: 'default_markup_type', val: String(values.default_markup_type ?? 'percent') },
     { key: 'default_markup_percent', val: String(parseNum(values.default_markup_percent, 30)) },
     { key: 'default_markup_amount', val: String(parseNum(values.default_markup_amount, 0)) },
+    { key: 'default_markup_multiplier', val: String(parseNum(values.default_markup_multiplier, 1.5)) },
+    { key: 'default_shipping_cost', val: String(parseNum(values.default_shipping_cost, 0)) },
+    { key: 'default_shipping_cost_per_weight', val: String(parseNum(values.default_shipping_cost_per_weight, 0)) },
+    { key: 'default_platform_commission_percent', val: String(parseNum(values.default_platform_commission_percent, 0)) },
+    { key: 'default_min_profit', val: String(parseNum(values.default_min_profit, 0)) },
+    { key: 'default_exchange_rate', val: String(parseNum(values.default_exchange_rate, 1)) },
     { key: 'default_rounding_mode', val: String(values.default_rounding_mode ?? '.99') },
     { key: 'default_min_margin_percent', val: String(parseNum(values.default_min_margin_percent, 10)) },
     { key: 'default_currency', val: String(values.default_currency ?? 'CNY') },
@@ -65,6 +71,12 @@ export default function PricingSettingsPage() {
         default_markup_type: g.default_markup_type ?? 'percent',
         default_markup_percent: parseNum(g.default_markup_percent, 30),
         default_markup_amount: parseNum(g.default_markup_amount, 0),
+        default_markup_multiplier: parseNum(g.default_markup_multiplier, 1.5),
+        default_shipping_cost: parseNum(g.default_shipping_cost, 0),
+        default_shipping_cost_per_weight: parseNum(g.default_shipping_cost_per_weight, 0),
+        default_platform_commission_percent: parseNum(g.default_platform_commission_percent, 0),
+        default_min_profit: parseNum(g.default_min_profit, 0),
+        default_exchange_rate: parseNum(g.default_exchange_rate, 1),
         default_rounding_mode: g.default_rounding_mode ?? '.99',
         default_min_margin_percent: parseNum(g.default_min_margin_percent, 10),
         default_currency: g.default_currency ?? 'CNY',
@@ -183,6 +195,22 @@ export default function PricingSettingsPage() {
                     </Col>
                     <Col xs={24} md={12} lg={8}>
                       <Form.Item
+                        label="加价倍率"
+                        name="default_markup_multiplier"
+                        extra={markupType === 'multiplier' ? '例如 1.5 表示成本 x 1.5' : '仅「倍率加价」时生效'}
+                      >
+                        <InputNumber
+                          min={0}
+                          step={0.1}
+                          precision={2}
+                          style={{ width: '100%' }}
+                          placeholder="1.5"
+                          disabled={markupType !== 'multiplier'}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12} lg={8}>
+                      <Form.Item
                         label="最低利润率（%）"
                         name="default_min_margin_percent"
                         tooltip="用于校验或提示；具体行为取决于定价引擎实现"
@@ -194,6 +222,34 @@ export default function PricingSettingsPage() {
                 );
               }}
             </Form.Item>
+            <Divider plain>成本、佣金与汇率</Divider>
+            <Row gutter={[24, 0]}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item label="固定运费成本" name="default_shipping_cost">
+                  <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item label="按重量运费单价（预留）" name="default_shipping_cost_per_weight">
+                  <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item label="平台佣金（%）" name="default_platform_commission_percent">
+                  <InputNumber min={0} max={95} precision={2} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item label="最低利润保护" name="default_min_profit">
+                  <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="0" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item label="汇率（CNY → 目标币种）" name="default_exchange_rate">
+                  <InputNumber min={0.0001} precision={6} style={{ width: '100%' }} placeholder="1" />
+                </Form.Item>
+              </Col>
+            </Row>
           </ProCard>
 
           <ProCard bordered title="平台覆盖规则" className="tm-system-settings__panel">

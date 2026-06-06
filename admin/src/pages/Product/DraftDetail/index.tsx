@@ -362,6 +362,7 @@ const READINESS_GROUP_LABEL: Record<string, string> = {
   sku: '商品规格',
   image: '图片',
   inventory: '库存',
+  collect: '采集提示',
   platform: '平台配置',
 };
 
@@ -476,8 +477,40 @@ export default function ProductDraftDetailPage() {
   );
 
   const collectQualityWarnings = useMemo(
-    () => collectQualityWarningsFromRaw(data?.rawData),
-    [data?.rawData],
+    () => {
+      const fromDetail = (data?.collectWarnings ?? []).filter((x) => String(x).trim());
+      const fromRaw = collectQualityWarningsFromRaw(data?.rawData);
+      return Array.from(new Set([...fromDetail, ...fromRaw]));
+    },
+    [data?.collectWarnings, data?.rawData],
+  );
+
+  const imageSyncSummary = useMemo(() => {
+    const rows = data?.images ?? [];
+    const external = rows.filter((img) => {
+      const url = String(img.originUrl || img.publicUrl || '').trim();
+      return /^https?:\/\//i.test(url) && !String(img.objectKey || img.storageKey || '').trim();
+    });
+    return {
+      total: rows.length,
+      external: external.length,
+      synced: rows.filter((img) => String(img.objectKey || img.storageKey || '').trim()).length,
+      externalMain: external.filter((img) => img.imageType === 'main').length,
+      externalDetail: external.filter((img) => img.imageType === 'detail' || img.imageType === 'description').length,
+    };
+  }, [data?.images]);
+
+  const skuMappingPreview = useMemo(
+    () =>
+      (data?.skus ?? []).map((sku) => ({
+        id: sku.id,
+        skuCode: sku.skuCode || sku.id,
+        skuName: sku.skuName || '默认规格',
+        price: sku.price,
+        stock: sku.stock,
+        attrs: sku.attrs,
+      })),
+    [data?.skus],
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
@@ -1060,7 +1093,7 @@ export default function ProductDraftDetailPage() {
                       message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和 SKU 后再发布。"
                     />
                   ) : null}
-                  {!isPinduoduoProduct(data) && collectQualityWarnings.length > 0 ? (
+                  {collectQualityWarnings.length > 0 ? (
                     <Alert
                       type="warning"
                       showIcon
@@ -1910,8 +1943,8 @@ export default function ProductDraftDetailPage() {
                           <Descriptions.Item label="警告数">{readinessResult.warningCount}</Descriptions.Item>
                         </Descriptions>
                         <Collapse
-                          defaultActiveKey={['product', 'sku', 'image', 'inventory', 'platform']}
-                          items={['product', 'sku', 'image', 'inventory', 'platform'].map((g) => ({
+                          defaultActiveKey={['product', 'sku', 'image', 'inventory', 'collect', 'platform']}
+                          items={['product', 'sku', 'image', 'inventory', 'collect', 'platform'].map((g) => ({
                             key: g,
                             label: READINESS_GROUP_LABEL[g] || g,
                             children: (
@@ -1992,6 +2025,86 @@ export default function ProductDraftDetailPage() {
                             的类目、品牌、制造商、包裹重量尺寸、配送选项等）；队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
                           </>
                         }
+                      />
+                      <Descriptions bordered size="small" column={3}>
+                        <Descriptions.Item label="当前发布状态">
+                          <Tag color={data.publishStatus === 'success' ? 'green' : data.publishStatus === 'ready' ? 'blue' : 'default'}>
+                            {data.publishStatus || 'draft'}
+                          </Tag>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="定价结果">
+                          {typeof data.salePrice === 'number' ? `${data.salePrice.toFixed(2)} ${data.currency || ''}` : '未设置售价'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="SKU 数">{data.skus?.length ?? 0}</Descriptions.Item>
+                        <Descriptions.Item label="图片同步">
+                          已同步 {imageSyncSummary.synced} / {imageSyncSummary.total}，外链 {imageSyncSummary.external}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="主图外链">{imageSyncSummary.externalMain}</Descriptions.Item>
+                        <Descriptions.Item label="详情图外链">{imageSyncSummary.externalDetail}</Descriptions.Item>
+                      </Descriptions>
+                      {collectQualityWarnings.length > 0 ? (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="采集 warning 发布前需确认"
+                          description={collectQualityWarnings.slice(0, 6).join('；')}
+                        />
+                      ) : null}
+                      <Space wrap>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const res = await syncProductImages(id, { scope: 'main' });
+                              message.success(`已同步 ${res.synced} 张主图`);
+                              await reloadDetail();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '同步失败');
+                            }
+                          }}
+                        >
+                          同步主图到平台存储
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const res = await syncProductImages(id, { scope: 'detail' });
+                              message.success(`已同步 ${res.synced} 张详情图`);
+                              await reloadDetail();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '同步失败');
+                            }
+                          }}
+                        >
+                          同步详情图到平台存储
+                        </Button>
+                        <Button
+                          type="primary"
+                          ghost
+                          onClick={async () => {
+                            try {
+                              const res = await syncProductImages(id, { scope: 'all' });
+                              message.success(`已同步 ${res.synced} 张图片到平台存储`);
+                              await reloadDetail();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '同步失败');
+                            }
+                          }}
+                        >
+                          一键同步全部图片
+                        </Button>
+                        <Button onClick={() => setPricingOpen(true)}>应用定价规则</Button>
+                      </Space>
+                      <Table
+                        size="small"
+                        rowKey="id"
+                        pagination={false}
+                        dataSource={skuMappingPreview}
+                        columns={[
+                          { title: 'SKU', dataIndex: 'skuName', ellipsis: true },
+                          { title: '编码', dataIndex: 'skuCode', width: 160, ellipsis: true },
+                          { title: '售价', dataIndex: 'price', width: 100, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
+                          { title: '库存', dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
+                        ]}
                       />
                       {publishReadiness ? (
                         <Alert
@@ -2080,6 +2193,30 @@ export default function ProductDraftDetailPage() {
                               });
                               return;
                             }
+                            if ((r.warningCount ?? 0) > 0) {
+                              await new Promise<void>((resolve, reject) => {
+                                Modal.confirm({
+                                  title: '发布检查存在警告，确认继续？',
+                                  width: 640,
+                                  okText: '确认创建刊登任务',
+                                  cancelText: '返回处理',
+                                  content: (
+                                    <div>
+                                      {(r.checks || [])
+                                        .filter((c) => c.level !== 'error')
+                                        .slice(0, 10)
+                                        .map((c, i) => (
+                                          <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
+                                            <Tag color="orange">warning</Tag> {c.message}
+                                          </div>
+                                        ))}
+                                    </div>
+                                  ),
+                                  onOk: () => resolve(),
+                                  onCancel: () => reject(new Error('cancelled')),
+                                });
+                              });
+                            }
                             const task = await publishProduct(id, { shopId, options: {} });
                             if (task.readiness) setPublishReadiness(task.readiness);
                             message.success('已提交刊登任务');
@@ -2088,6 +2225,7 @@ export default function ProductDraftDetailPage() {
                             await reloadPublishContext();
                           } catch (e: unknown) {
                             const ex = e as Error & { data?: unknown };
+                            if (ex.message === 'cancelled') return;
                             if (ex.message === 'product readiness check failed' && ex.data && typeof ex.data === 'object') {
                               const r = ex.data as ProductReadinessResult;
                               setPublishReadiness(r);

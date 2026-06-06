@@ -41,7 +41,8 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if prod.DeletedAt.Valid {
 		return nil, fmt.Errorf("deleted product cannot be published")
 	}
-	if _, err := BuildPlatformDraftFromProduct(prod); err != nil {
+	draft, err := BuildPlatformDraftFromProduct(prod)
+	if err != nil {
 		return nil, err
 	}
 
@@ -81,6 +82,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	}
 
 	var readinessSnap *productcheck.CheckProductReadinessResult
+	var readinessResult *productcheck.CheckProductReadinessResult
 	if s.Readiness != nil {
 		rres, err := s.Readiness.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
 			ProductID:      productID,
@@ -95,6 +97,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		if rres.ErrorCount > 0 {
 			return nil, &productcheck.BlockedError{Result: rres}
 		}
+		readinessResult = rres
 		if rres.WarningCount > 0 {
 			readinessSnap = rres
 		}
@@ -114,6 +117,9 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if err := validateMergedPublishAgainstSchema(pubSch, merged); err != nil {
 		return nil, err
 	}
+	imgSnap, skuSnap, minPrice := taskImagesAndSKUsSnapshot(draft)
+	checkSnap, _ := json.Marshal(readinessResult)
+	payloadSnap, _ := json.Marshal(platformPayloadSnapshot(draft, merged))
 
 	optsSnap := map[string]any{}
 	if body.Options != nil {
@@ -185,14 +191,25 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	}
 
 	task := ProductPublishTask{
-		ProductID: prod.ID,
-		ShopID:    sid,
-		Platform:  platKey,
-		TaskType:  TaskTypeProductPublish,
-		Status:    TaskPending,
-		Mode:      ModeManual,
-		Input:     rawIn,
-		CreatedBy: adminID,
+		ProductID:       prod.ID,
+		ShopID:          sid,
+		TargetStoreID:   sid,
+		Platform:        platKey,
+		TaskType:        TaskTypeProductPublish,
+		Status:          TaskPending,
+		PublishStatus:   StatusReady,
+		Mode:            ModeManual,
+		PublishMode:     ModeManual,
+		Title:           draft.Title,
+		Description:     draft.Description,
+		Images:          datatypes.JSON(imgSnap),
+		SKUs:            datatypes.JSON(skuSnap),
+		Price:           minPrice,
+		Currency:        draft.Currency,
+		CheckResult:     datatypes.JSON(checkSnap),
+		PlatformPayload: datatypes.JSON(payloadSnap),
+		Input:           rawIn,
+		CreatedBy:       adminID,
 	}
 	if err := s.DB.WithContext(ctx).Create(&task).Error; err != nil {
 		return nil, err

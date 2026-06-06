@@ -1,12 +1,20 @@
 import { postJSON } from './request';
 
 export type PricingRule = {
-  markupType?: 'percent' | 'fixed' | 'none';
+  costSource?: 'collected' | 'manual';
+  manualCostPrice?: number;
+  markupType?: 'percent' | 'fixed' | 'multiplier' | 'none';
   markupPercent?: number;
   markupAmount?: number;
+  markupMultiplier?: number;
+  shippingCost?: number;
+  weight?: number;
+  shippingCostPerWeight?: number;
+  platformCommissionPercent?: number;
+  minProfit?: number;
   minPublishPrice?: number;
   minMarginPercent?: number;
-  roundingMode?: 'none' | 'integer' | '.9' | '.99' | '.95';
+  roundingMode?: 'none' | 'integer' | '.9' | '.99' | '.95' | '9.99' | '19.90';
   exchangeRate?: number;
 };
 
@@ -14,7 +22,12 @@ export type PricingCalculateResult = {
   basePrice: number;
   costPrice?: number;
   currentPrice?: number;
+  landedCost?: number;
+  shippingCost?: number;
+  commissionFee?: number;
   calculatedPrice: number;
+  estimatedProfit?: number;
+  profitMarginPercent?: number;
   currency: string;
 };
 
@@ -25,7 +38,11 @@ export type PricingPreviewLine = {
   skuName: string;
   costPrice?: number;
   currentPrice?: number;
+  landedCost?: number;
+  commissionFee?: number;
   calculatedPrice: number;
+  estimatedProfit?: number;
+  profitMarginPercent?: number;
   delta: number;
 };
 

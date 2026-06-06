@@ -38,9 +38,25 @@
 - [ ] 1688 单链接 / 批量仍可用
 - [ ] 拼多多单链接 / 批量仍可用
 - [ ] 自定义采集器对淘宝/天猫链接提示使用专用采集器
+- [ ] 当前采集能力阶段性验收记录：1688 已可用、拼多多已可用、淘宝/天猫已可用、自定义链接基础可用、速卖通测试中、SHEIN/Temu 规划中
+
+## 发布刊登生产级闭环
+
+- [ ] 分别采集 1 个 1688、拼多多、淘宝/天猫商品，并进入对应商品草稿
+- [ ] 商品详情顶部显示采集 warning；普通用户不默认查看 raw，高级详情可展开原始调试数据
+- [ ] 统一草稿字段完整：`source`、`sourceUrl`、`title`、`originalTitle`、`aiTitle`、`description`、`aiDescription`、`mainImages`、`descriptionImages`、`attributes`、`skuGroups`、`skus`、`costPrice`、`salePrice`、`currency`、`stock`、`collectWarnings`、`publishStatus`、`raw`
+- [ ] 单商品应用定价规则：成本来源、加价方式、运费、佣金、汇率、利润、尾数规则均可预览
+- [ ] 批量应用定价规则后写入 SKU 销售价，并能在操作日志看到记录
+- [ ] AI 优化标题、AI 生成描述后可应用到草稿字段
+- [ ] 发布 Tab 可同步主图、详情图或全部外链图片到当前 Storage Provider
+- [ ] 发布前检查结果分为 `passed` / `warning` / `failed`；`failed` 不能创建刊登任务
+- [ ] `warning` 创建刊登任务前必须人工确认
+- [ ] 创建刊登任务后可查看任务状态、平台草稿快照、SKU 映射与刊登记录
+- [ ] 刊登失败进入失败任务中心，错误码可区分 `PUBLISH_CHECK_FAILED`、`PRICE_INVALID`、`IMAGE_MISSING`、`SKU_INVALID`、`STORE_NOT_CONFIGURED`、`PLATFORM_AUTH_REQUIRED`、`PLATFORM_API_ERROR`、`UNKNOWN_PUBLISH_ERROR`
+- [ ] 操作日志包含应用定价规则、修改售价、同步商品图片、执行发布前检查、创建刊登任务、刊登成功 / 失败、取消刊登任务（如有）
 
 ## 备注
 
 - 需要真实淘宝/天猫商品链接与可用登录态；部分商品遇风控需人工在采集浏览器完成验证。
-- SKU / 库存 / 详情图仍建议发布前人工复核。
+- SKU / 库存 / 详情图 / 平台必填类目仍建议发布前人工复核。
 - 批量采集默认低并发；超过 20 条请分批提交。

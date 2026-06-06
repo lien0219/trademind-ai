@@ -14,8 +14,11 @@ const (
 
 const (
 	StatusDraft           = "draft"
+	StatusChecking        = "checking"
+	StatusReady           = "ready"
 	StatusPublishing      = "publishing"
 	StatusPublishedRecord = "published"
+	StatusSuccess         = "success"
 	StatusPubFailed       = "failed"
 	StatusRejected        = "rejected"
 	StatusOffline         = "offline"

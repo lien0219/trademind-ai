@@ -8,12 +8,18 @@ import (
 // PricingRuleFromMap builds a pricing rule from settings.pricing map and optional platform override.
 func PricingRuleFromMap(m map[string]string, platform string) map[string]string {
 	out := map[string]string{
-		"markupType":       strings.TrimSpace(m["default_markup_type"]),
-		"markupPercent":    strings.TrimSpace(m["default_markup_percent"]),
-		"markupAmount":     strings.TrimSpace(m["default_markup_amount"]),
-		"roundingMode":     strings.TrimSpace(m["default_rounding_mode"]),
-		"minMarginPercent": strings.TrimSpace(m["default_min_margin_percent"]),
-		"currency":         strings.TrimSpace(m["default_currency"]),
+		"markupType":                strings.TrimSpace(m["default_markup_type"]),
+		"markupPercent":             strings.TrimSpace(m["default_markup_percent"]),
+		"markupAmount":              strings.TrimSpace(m["default_markup_amount"]),
+		"markupMultiplier":          strings.TrimSpace(m["default_markup_multiplier"]),
+		"shippingCost":              strings.TrimSpace(m["default_shipping_cost"]),
+		"shippingCostPerWeight":     strings.TrimSpace(m["default_shipping_cost_per_weight"]),
+		"platformCommissionPercent": strings.TrimSpace(m["default_platform_commission_percent"]),
+		"minProfit":                 strings.TrimSpace(m["default_min_profit"]),
+		"exchangeRate":              strings.TrimSpace(m["default_exchange_rate"]),
+		"roundingMode":              strings.TrimSpace(m["default_rounding_mode"]),
+		"minMarginPercent":          strings.TrimSpace(m["default_min_margin_percent"]),
+		"currency":                  strings.TrimSpace(m["default_currency"]),
 	}
 	if out["markupType"] == "" {
 		out["markupType"] = "percent"

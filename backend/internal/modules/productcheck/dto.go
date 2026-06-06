@@ -25,6 +25,7 @@ type CheckProductReadinessResult struct {
 	ShopID       *uuid.UUID  `json:"shopId,omitempty"`
 	Mode         string      `json:"mode,omitempty"`
 	Status       string      `json:"status"`
+	Result       string      `json:"result"`
 	Score        int         `json:"score"`
 	CanPublish   bool        `json:"canPublish"`
 	ErrorCount   int         `json:"errorCount"`

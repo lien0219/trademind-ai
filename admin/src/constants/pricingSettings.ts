@@ -2,6 +2,7 @@
 export const MARKUP_TYPE_OPTIONS = [
   { label: '百分比加价', value: 'percent' },
   { label: '固定金额加价', value: 'fixed' },
+  { label: '倍率加价', value: 'multiplier' },
   { label: '不加价', value: 'none' },
 ];
 
@@ -17,6 +18,8 @@ export const ROUNDING_MODE_OPTIONS = [
   { label: '尾数 .9', value: '.9' },
   { label: '尾数 .99', value: '.99' },
   { label: '尾数 .95', value: '.95' },
+  { label: '尾数 9.99', value: '9.99' },
+  { label: '尾数 19.90', value: '19.90' },
 ];
 
 /** 默认币种 */

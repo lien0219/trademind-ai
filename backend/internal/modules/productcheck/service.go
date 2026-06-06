@@ -2,6 +2,7 @@ package productcheck
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -64,10 +65,11 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	checks := make([]CheckItem, 0, 32)
 	checks = append(checks, checkProductBasics(prod)...)
 	checks = append(checks, checkSKUBasics(prod)...)
-	checks = append(checks, checkSKUPricing(prod)...)
+	checks = append(checks, s.checkSKUPricing(ctx, prod, plat)...)
 	checks = append(checks, checkPinduoduoCollectHints(prod)...)
 	checks = append(checks, checkTaobaoTmallCollectHints(prod)...)
 	checks = append(checks, checkTaobaoTmallExternalImages(prod)...)
+	checks = append(checks, checkCollectWarnings(prod)...)
 
 	imgChecks, mainURLs := checkImages(prod, plat)
 	checks = append(checks, imgChecks...)
@@ -99,10 +101,13 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	switch {
 	case errN > 0:
 		out.Status = statusBlocked
+		out.Result = "failed"
 	case warnN > 0:
 		out.Status = statusWarning
+		out.Result = "warning"
 	default:
 		out.Status = statusReady
+		out.Result = "passed"
 	}
 	out.Score = readinessScore(errN, warnN)
 	_ = mainURLs // reserved if we need cross-checks later
@@ -130,15 +135,24 @@ func checkProductBasics(p product.Product) []CheckItem {
 			Suggestion: "请填写商品标题或应用 AI 标题。",
 		})
 	}
+	if aiTitle == "" {
+		out = append(out, CheckItem{
+			Group:      "product",
+			Code:       "product.ai_title_missing",
+			Level:      levelWarning,
+			Message:    "AI 标题建议尚未生成",
+			Suggestion: "建议先生成 AI 标题并确认是否应用为平台标题。",
+		})
+	}
 	desc := strings.TrimSpace(p.Description)
 	aiDesc := strings.TrimSpace(p.AIDescription)
 	if desc == "" && aiDesc == "" {
 		out = append(out, CheckItem{
 			Group:      "product",
 			Code:       "product.description_missing",
-			Level:      levelWarning,
+			Level:      levelError,
 			Message:    "商品描述缺失",
-			Suggestion: "建议填写描述或生成并应用 AI 描述后再刊登。",
+			Suggestion: "请填写描述或生成并应用 AI 描述后再刊登。",
 		})
 	}
 	if strings.TrimSpace(p.Currency) == "" {
@@ -221,8 +235,9 @@ func checkSKUBasics(p product.Product) []CheckItem {
 	return out
 }
 
-func checkSKUPricing(p product.Product) []CheckItem {
+func (s *Service) checkSKUPricing(ctx context.Context, p product.Product, platform string) []CheckItem {
 	var out []CheckItem
+	minMargin, minProfit := s.pricingProtection(ctx, platform)
 	for _, s := range p.SKUs {
 		sid := s.ID.String()
 		if s.Price == nil {
@@ -253,20 +268,48 @@ func checkSKUPricing(p product.Product) []CheckItem {
 			out = append(out, CheckItem{
 				Group:               "pricing",
 				Code:                "pricing.price_below_cost",
-				Level:               levelWarning,
+				Level:               levelError,
 				Message:             "销售价低于成本价",
-				Suggestion:          "建议检查加价规则或手动调整销售价。",
+				Suggestion:          "请重新应用定价规则或手动提高销售价；低于成本价不允许发布。",
 				RelatedResourceType: "product_sku",
 				RelatedResourceID:   sid,
 			})
+		}
+		if s.CostPrice != nil && *s.CostPrice > 0 {
+			profit := pr - *s.CostPrice
+			if minProfit > 0 && profit < minProfit {
+				out = append(out, CheckItem{
+					Group:               "pricing",
+					Code:                "pricing.profit_below_min",
+					Level:               levelError,
+					Message:             "预估利润低于最低利润保护",
+					Suggestion:          "请提高售价、降低成本或调整最低利润保护后再发布。",
+					RelatedResourceType: "product_sku",
+					RelatedResourceID:   sid,
+				})
+			}
+			if minMargin > 0 && pr > 0 {
+				margin := profit / pr * 100
+				if margin < minMargin {
+					out = append(out, CheckItem{
+						Group:               "pricing",
+						Code:                "pricing.margin_below_min",
+						Level:               levelError,
+						Message:             "预估利润率低于最低利润率保护",
+						Suggestion:          "请重新应用定价规则或提高 SKU 销售价。",
+						RelatedResourceType: "product_sku",
+						RelatedResourceID:   sid,
+					})
+				}
+			}
 		}
 		if s.MinPublishPrice != nil && *s.MinPublishPrice > 0 && pr < *s.MinPublishPrice {
 			out = append(out, CheckItem{
 				Group:               "pricing",
 				Code:                "pricing.price_below_min_publish_price",
-				Level:               levelWarning,
+				Level:               levelError,
 				Message:             "销售价低于最低发布价保护",
-				Suggestion:          "请提高销售价或调整 SKU 最低发布价。",
+				Suggestion:          "请提高销售价或调整 SKU 最低发布价；低于保护价不允许发布。",
 				RelatedResourceType: "product_sku",
 				RelatedResourceID:   sid,
 			})
@@ -284,6 +327,31 @@ func checkSKUPricing(p product.Product) []CheckItem {
 		}
 	}
 	return out
+}
+
+func (s *Service) pricingProtection(ctx context.Context, platform string) (float64, float64) {
+	if s == nil || s.Settings == nil {
+		return 0, 0
+	}
+	m, err := s.Settings.PlainByGroup(ctx, 0, "pricing")
+	if err != nil {
+		return 0, 0
+	}
+	ruleMap := settings.PricingRuleFromMap(m, platform)
+	return parseFloatSetting(ruleMap["minMarginPercent"]), parseFloatSetting(ruleMap["minProfit"])
+}
+
+func parseFloatSetting(raw string) float64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	var v float64
+	_, _ = fmt.Sscanf(raw, "%f", &v)
+	if v < 0 {
+		return 0
+	}
+	return v
 }
 
 // checkImages returns findings and resolved main image URLs for optional reuse.
@@ -473,6 +541,73 @@ func checkInventoryHints(p product.Product) []CheckItem {
 				RelatedResourceType: "product_sku",
 				RelatedResourceID:   sid,
 			})
+		}
+	}
+	return out
+}
+
+func checkCollectWarnings(p product.Product) []CheckItem {
+	warnings := collectWarningsFromRaw(p.RawData)
+	if len(warnings) == 0 {
+		return nil
+	}
+	out := make([]CheckItem, 0, len(warnings))
+	for _, w := range warnings {
+		out = append(out, CheckItem{
+			Group:      "collect",
+			Code:       "collect.warning_requires_confirmation",
+			Level:      levelWarning,
+			Message:    "采集提示需人工确认：" + w,
+			Suggestion: "请在商品详情顶部确认采集提示，必要时补齐标题、图片、SKU、库存或价格后再发布。",
+		})
+	}
+	return out
+}
+
+func collectWarningsFromRaw(raw []byte) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var root map[string]any
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return nil
+	}
+	out := make([]string, 0)
+	seen := map[string]struct{}{}
+	addOne := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+		key := strings.ToLower(s)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, s)
+	}
+	addFrom := func(v any) {
+		switch xs := v.(type) {
+		case []any:
+			for _, x := range xs {
+				if s, ok := x.(string); ok {
+					addOne(s)
+				}
+			}
+		case []string:
+			for _, x := range xs {
+				addOne(x)
+			}
+		case string:
+			addOne(xs)
+		}
+	}
+	for _, k := range []string{"collectWarnings", "warnings", "qualityWarnings"} {
+		addFrom(root[k])
+	}
+	if rawObj, ok := root["raw"].(map[string]any); ok {
+		for _, k := range []string{"collectWarnings", "warnings", "qualityWarnings"} {
+			addFrom(rawObj[k])
 		}
 	}
 	return out

@@ -16,11 +16,16 @@ type CalculateBody struct {
 
 // CalculateResponse is returned by calculate endpoint.
 type CalculateResponse struct {
-	BasePrice       float64  `json:"basePrice"`
-	CostPrice       *float64 `json:"costPrice,omitempty"`
-	CurrentPrice    *float64 `json:"currentPrice,omitempty"`
-	CalculatedPrice float64  `json:"calculatedPrice"`
-	Currency        string   `json:"currency"`
+	BasePrice           float64  `json:"basePrice"`
+	CostPrice           *float64 `json:"costPrice,omitempty"`
+	CurrentPrice        *float64 `json:"currentPrice,omitempty"`
+	LandedCost          float64  `json:"landedCost"`
+	ShippingCost        float64  `json:"shippingCost"`
+	CommissionFee       float64  `json:"commissionFee"`
+	CalculatedPrice     float64  `json:"calculatedPrice"`
+	EstimatedProfit     float64  `json:"estimatedProfit"`
+	ProfitMarginPercent float64  `json:"profitMarginPercent"`
+	Currency            string   `json:"currency"`
 }
 
 // ProductApplyBody binds POST /api/v1/products/:id/pricing/apply.
@@ -50,14 +55,18 @@ type BatchApplyBody struct {
 
 // PreviewLine is one SKU row in apply preview.
 type PreviewLine struct {
-	ProductSkuID    string   `json:"productSkuId"`
-	ProductID       string   `json:"productId"`
-	SKUCode         string   `json:"skuCode"`
-	SKUName         string   `json:"skuName"`
-	CostPrice       *float64 `json:"costPrice,omitempty"`
-	CurrentPrice    *float64 `json:"currentPrice,omitempty"`
-	CalculatedPrice float64  `json:"calculatedPrice"`
-	Delta           float64  `json:"delta"`
+	ProductSkuID        string   `json:"productSkuId"`
+	ProductID           string   `json:"productId"`
+	SKUCode             string   `json:"skuCode"`
+	SKUName             string   `json:"skuName"`
+	CostPrice           *float64 `json:"costPrice,omitempty"`
+	CurrentPrice        *float64 `json:"currentPrice,omitempty"`
+	LandedCost          float64  `json:"landedCost"`
+	CommissionFee       float64  `json:"commissionFee"`
+	CalculatedPrice     float64  `json:"calculatedPrice"`
+	EstimatedProfit     float64  `json:"estimatedProfit"`
+	ProfitMarginPercent float64  `json:"profitMarginPercent"`
+	Delta               float64  `json:"delta"`
 }
 
 // ApplySummary is returned after apply operations.

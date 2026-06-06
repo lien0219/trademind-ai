@@ -16,6 +16,7 @@ export type ProductReadinessResult = {
   shopId?: string;
   mode?: string;
   status: string;
+  result?: 'passed' | 'warning' | 'failed' | string;
   score: number;
   canPublish: boolean;
   errorCount: number;

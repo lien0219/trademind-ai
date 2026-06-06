@@ -36,7 +36,10 @@ func isExternalCollectImageURL(url string) bool {
 	return strings.Contains(u, "alicdn.com") ||
 		strings.Contains(u, "tbcdn.cn") ||
 		strings.Contains(u, "taobaocdn.com") ||
-		strings.Contains(u, "1688.com")
+		strings.Contains(u, "1688.com") ||
+		strings.Contains(u, "pinduoduo.com") ||
+		strings.Contains(u, "yangkeduo.com") ||
+		strings.Contains(u, "pddpic.com")
 }
 
 func extFromImageBytes(data []byte, rawURL string) (string, string, error) {

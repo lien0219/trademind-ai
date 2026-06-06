@@ -105,6 +105,12 @@ var rules = []rule{
 	},
 	// Platform auth
 	{
+		id: "sub:publish_auth_code", substrs: []string{"PLATFORM_AUTH_REQUIRED", "STORE_NOT_CONFIGURED"},
+		category: CategoryPlatformAuth, severity: SeverityHigh,
+		reason:  "刊登任务缺少店铺授权或店铺配置。",
+		suggest: "请先完成店铺授权，并检查「设置 → 平台开放配置 / 平台刊登预设」。",
+	},
+	{
 		id: "sub:token_expired", substrs: []string{"token expired", "access token expired", "invalid access token", "unauthorized", "refresh token failed", "invalid refresh token"},
 		category: CategoryPlatformAuth, severity: SeverityHigh,
 		reason:  "鉴权失败或 Token 失效。",
@@ -319,6 +325,12 @@ var rules = []rule{
 		suggest: "请检查「设置 → 存储」与 Bucket/密钥/网络。",
 	},
 	// Validation
+	{
+		id: "sub:publish_validation_code", substrs: []string{"PUBLISH_CHECK_FAILED", "PRICE_INVALID", "IMAGE_MISSING", "SKU_INVALID"},
+		category: CategoryValidationError, severity: SeverityHigh,
+		reason:  "刊登前商品资料未达到发布要求。",
+		suggest: "请回到商品详情，按发布检查提示补齐标题、描述、主图、SKU、价格、库存或利润保护项后再提交。",
+	},
 	{
 		id: "sub:validation", substrs: []string{"invalid request", "validation", "bad request", "malformed", "422"},
 		category: CategoryValidationError, severity: SeverityLow,

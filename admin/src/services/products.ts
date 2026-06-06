@@ -92,6 +92,16 @@ export type ProductDetail = {
   currency: string;
   status: string;
   rawData?: unknown;
+  raw?: unknown;
+  mainImages?: string[];
+  descriptionImages?: string[];
+  attributes?: unknown;
+  skuGroups?: unknown;
+  costPrice?: number;
+  salePrice?: number;
+  stock?: number;
+  collectWarnings?: string[];
+  publishStatus?: string;
   createdAt: string;
   updatedAt: string;
   images: ProductImageRow[];

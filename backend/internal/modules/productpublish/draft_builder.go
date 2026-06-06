@@ -139,3 +139,40 @@ func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProduct
 		SourceProductRow: srcRow,
 	}, nil
 }
+
+func platformPayloadSnapshot(d platformp.PlatformProductDraft, merged map[string]string) map[string]any {
+	price := 0.0
+	stock := 0
+	for i, sku := range d.SKUs {
+		if i == 0 || (sku.Price > 0 && sku.Price < price) {
+			price = sku.Price
+		}
+		stock += sku.Stock
+	}
+	return platformp.TrimRawMap(map[string]any{
+		"platformTitle":       d.Title,
+		"platformDescription": d.Description,
+		"platformImages":      d.Images,
+		"platformSkus":        d.SKUs,
+		"platformPrice":       price,
+		"platformStock":       stock,
+		"platformCategory":    strings.TrimSpace(merged["category_id"]),
+		"platformAttributes":  d.Attributes,
+	}, 80, 500)
+}
+
+func taskImagesAndSKUsSnapshot(d platformp.PlatformProductDraft) ([]byte, []byte, *float64) {
+	imgs, _ := json.Marshal(d.Images)
+	skus, _ := json.Marshal(d.SKUs)
+	var price *float64
+	for i, sku := range d.SKUs {
+		if sku.Price <= 0 {
+			continue
+		}
+		if i == 0 || price == nil || sku.Price < *price {
+			v := sku.Price
+			price = &v
+		}
+	}
+	return imgs, skus, price
+}
