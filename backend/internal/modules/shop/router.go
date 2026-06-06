@@ -27,6 +27,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	s.POST("/:id/oauth/douyin/refresh", h.DouyinOAuthRefresh)
 	s.POST("/:id/oauth/douyin/revoke", h.DouyinOAuthRevoke)
 	s.POST("/:id/oauth/douyin/test", h.DouyinOAuthTest)
+	s.POST("/:id/oauth/douyin/sync-shop-info", h.DouyinSyncShopInfo)
 	s.GET("/:id/oauth/tiktok/authorize-url", h.TikTokOAuthAuthorizeURL)
 	s.POST("/:id/oauth/tiktok/callback", h.TikTokOAuthCallback)
 	s.GET("/:id/oauth/shopee/authorize-url", h.ShopeeOAuthAuthorizeURL)

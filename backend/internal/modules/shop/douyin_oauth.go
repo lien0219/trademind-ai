@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +34,18 @@ const (
 	DouyinPermissionDenied    = "DOUYIN_PERMISSION_DENIED"
 	UnknownDouyinAuthError    = "UNKNOWN_DOUYIN_AUTH_ERROR"
 )
+
+var douyinOAuthShopLocks sync.Map
+
+func douyinLockForShop(shopID uuid.UUID) *sync.Mutex {
+	key := shopID.String()
+	actual, _ := douyinOAuthShopLocks.LoadOrStore(key, &sync.Mutex{})
+	mu, _ := actual.(*sync.Mutex)
+	if mu == nil {
+		return &sync.Mutex{}
+	}
+	return mu
+}
 
 type DouyinAuthError struct {
 	Code    string
@@ -234,7 +247,7 @@ func (s *Service) DouyinOAuthCallback(c *gin.Context, q DouyinOAuthCallbackQuery
 		s.douyinLog(c, adminID, shopID, "douyin.auth.failed", "failed", authErr.Code, authErr.Message)
 		return nil, authErr
 	}
-	tok, err := platformdouyin.Client{Config: cfg}.ExchangeCode(ctx, code)
+	tok, err := (&platformdouyin.Client{Config: cfg}).ExchangeCode(ctx, code)
 	if err != nil {
 		authErr := douyinErr(DouyinTokenExchangeFailed, douyinFriendlyMessage(DouyinTokenExchangeFailed), err)
 		s.douyinLog(c, adminID, shopID, "douyin.auth.failed", "failed", authErr.Code, authErr.Message)
@@ -374,36 +387,176 @@ func (s *Service) persistDouyinOAuthBundle(c *gin.Context, ctx context.Context, 
 	return detail, nil
 }
 
-func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
-	defer cancel()
-	shopRow, _, auth, err := s.decryptedAuthCtx(ctx, shopID)
+func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformdouyin.Client, *Shop, *ShopAuthToken, error) {
+	shopRow, tok, auth, err := s.decryptedAuthCtx(ctx, shopID)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	if strings.TrimSpace(shopRow.Platform) != "douyin_shop" {
-		return nil, fmt.Errorf("shop platform must be douyin_shop")
+	if shopRow == nil || strings.TrimSpace(shopRow.Platform) != "douyin_shop" {
+		return nil, nil, nil, fmt.Errorf("shop platform must be douyin_shop")
 	}
-	if strings.TrimSpace(auth.RefreshToken) == "" {
+	if tok == nil || strings.TrimSpace(auth.RefreshToken) == "" {
 		_ = s.setAuthStatusCtx(ctx, shopID, AuthExpired)
-		return nil, douyinErr(DouyinAuthExpired, douyinFriendlyMessage(DouyinAuthExpired), nil)
+		return nil, shopRow, tok, douyinErr(DouyinAuthExpired, douyinFriendlyMessage(DouyinAuthExpired), nil)
 	}
 	cfg, err := s.douyinGlobalConfig(ctx)
 	if err != nil {
-		return nil, err
+		return nil, shopRow, tok, err
 	}
-	tok, err := platformdouyin.Client{Config: cfg}.RefreshToken(ctx, auth.RefreshToken)
+	client := &platformdouyin.Client{
+		Config:                cfg,
+		AccessToken:           auth.AccessToken,
+		RefreshTokenValue:     auth.RefreshToken,
+		AccessTokenExpiresAt:  auth.AccessTokenExpiresAt,
+		RefreshTokenExpiresAt: auth.RefreshTokenExpiresAt,
+		PersistRefreshedToken: func(ctx context.Context, bundle *platformdouyin.TokenBundle) error {
+			if bundle == nil {
+				return nil
+			}
+			refresh := bundle.RefreshToken
+			if strings.TrimSpace(refresh) == "" {
+				refresh = auth.RefreshToken
+			}
+			return s.persistOAuthTokenRefresh(ctx, shopID, bundle.AccessToken, refresh, bundle.AccessExpiresAt, bundle.RefreshExpiresAt)
+		},
+		MarkAuthStatus: func(ctx context.Context, status string) error {
+			return s.setAuthStatusCtx(ctx, shopID, status)
+		},
+		Logger: platformdouyin.SafeLoggerFunc(func(ctx context.Context, entry platformdouyin.SafeRequestLog) {
+			action := "douyin.client.request"
+			status := "success"
+			code := ""
+			if !entry.Success {
+				action = "douyin.client.failed"
+				status = "failed"
+				code = entry.ErrorCode
+			}
+			msg := fmt.Sprintf("method=%s requestId=%s traceId=%s elapsedMs=%d platformCode=%s",
+				entry.Method, entry.RequestID, entry.TraceID, entry.ElapsedMs, entry.PlatformCode)
+			s.douyinLog(c, adminID, &shopID, action, status, code, msg)
+		}),
+	}
+	return client, shopRow, tok, nil
+}
+
+func (s *Service) persistDouyinShopInfo(ctx context.Context, shopID uuid.UUID, info *platformdouyin.ShopInfo) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("shop: no db")
+	}
+	if info == nil {
+		return fmt.Errorf("douyin shop info is empty")
+	}
+	status := AuthAuthorized
+	if strings.TrimSpace(info.PlatformShopID) == "" || strings.TrimSpace(info.ShopName) == "" {
+		status = AuthNeedCheck
+	}
+	updates := map[string]any{
+		"auth_status": status,
+		"currency":    "CNY",
+	}
+	if v := strings.TrimSpace(info.ShopName); v != "" {
+		updates["shop_name"] = v
+	}
+	if v := strings.TrimSpace(info.PlatformShopID); v != "" {
+		updates["external_shop_id"] = v
+		updates["shop_code"] = v
+	}
+	if err := s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ?", shopID).Updates(updates).Error; err != nil {
+		return err
+	}
+
+	var tok ShopAuthToken
+	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+		return err
+	}
+	authConfig := map[string]any{}
+	if len(tok.AuthConfig) > 0 {
+		_ = json.Unmarshal(tok.AuthConfig, &authConfig)
+	}
+	authConfig["shopLogo"] = info.ShopLogo
+	authConfig["shopStatus"] = info.ShopStatus
+	authConfig["authorityId"] = info.AuthorityID
+	authConfig["shopBizType"] = info.ShopBizType
+	authConfig["lastShopInfoSyncAt"] = time.Now().UTC().Format(time.RFC3339)
+	authConfigB, _ := json.Marshal(authConfig)
+
+	raw := info.Raw
+	if raw == nil {
+		raw = map[string]any{}
+	}
+	raw["provider"] = "douyin_shop"
+	raw["shop_info_status"] = "ok"
+	if status == AuthNeedCheck {
+		raw["shop_info_status"] = "need_check"
+	}
+	raw["last_shop_info_sync_at"] = time.Now().UTC().Format(time.RFC3339)
+	rawB, _ := json.Marshal(raw)
+
+	tokenUpdates := map[string]any{
+		"auth_config": datatypes.JSON(authConfigB),
+		"raw_data":    datatypes.JSON(rawB),
+	}
+	if info.ExpiresAt != nil {
+		tokenUpdates["expires_at"] = info.ExpiresAt
+	}
+	if info.RefreshExpiresAt != nil {
+		tokenUpdates["refresh_expires_at"] = info.RefreshExpiresAt
+	}
+	if info.AuthorizedScopes != nil {
+		scopesB, _ := json.Marshal(info.AuthorizedScopes)
+		tokenUpdates["scopes"] = datatypes.JSON(scopesB)
+	}
+	return s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).Updates(tokenUpdates).Error
+}
+
+func (s *Service) markDouyinShopInfoFailed(ctx context.Context, shopID uuid.UUID, code, msg, status string) {
+	st := strings.TrimSpace(status)
+	if st != "" {
+		_ = s.setAuthStatusCtx(ctx, shopID, st)
+	}
+	var tok ShopAuthToken
+	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+		return
+	}
+	raw := map[string]any{}
+	if len(tok.RawData) > 0 {
+		_ = json.Unmarshal(tok.RawData, &raw)
+	}
+	raw["provider"] = "douyin_shop"
+	raw["shop_info_status"] = "failed"
+	raw["last_error_code"] = strings.TrimSpace(code)
+	raw["last_error_message"] = douyinSafeText(msg)
+	raw["last_error_at"] = time.Now().UTC().Format(time.RFC3339)
+	rawB, _ := json.Marshal(raw)
+	_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).Update("raw_data", datatypes.JSON(rawB)).Error
+}
+
+func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+	mu := douyinLockForShop(shopID)
+	mu.Lock()
+	defer mu.Unlock()
+
+	client, _, _, err := s.douyinClientForShop(c, ctx, shopID, adminID)
 	if err != nil {
-		_ = s.setAuthStatusCtx(ctx, shopID, AuthExpired)
-		s.douyinLog(c, adminID, &shopID, "douyin.auth.refresh", "failed", DouyinTokenRefreshFailed, douyinFriendlyMessage(DouyinTokenRefreshFailed))
-		return nil, douyinErr(DouyinTokenRefreshFailed, douyinFriendlyMessage(DouyinTokenRefreshFailed), err)
-	}
-	refresh := tok.RefreshToken
-	if strings.TrimSpace(refresh) == "" {
-		refresh = auth.RefreshToken
-	}
-	if err := s.persistOAuthTokenRefresh(ctx, shopID, tok.AccessToken, refresh, tok.AccessExpiresAt, tok.RefreshExpiresAt); err != nil {
 		return nil, err
+	}
+	tok, err := client.RefreshAccessToken(ctx)
+	if err != nil {
+		authErr := douyinAuthErrFromProvider(err, DouyinTokenRefreshFailed)
+		status := AuthExpired
+		if authErr.Code == DouyinPermissionDenied {
+			status = AuthInvalid
+		}
+		s.markDouyinShopInfoFailed(ctx, shopID, authErr.Code, authErr.Message, status)
+		s.douyinLog(c, adminID, &shopID, "douyin.auth.refresh_failed", "failed", authErr.Code, authErr.Message)
+		return nil, authErr
+	}
+	if info := platformdouyin.ShopInfoFromTokenBundle(tok); info != nil {
+		if err := s.persistDouyinShopInfo(ctx, shopID, info); err != nil {
+			return nil, err
+		}
 	}
 	_ = s.setAuthStatusCtx(ctx, shopID, AuthAuthorized)
 	s.douyinLog(c, adminID, &shopID, "douyin.auth.refresh", "success", "", "token refreshed")
@@ -432,7 +585,7 @@ func (s *Service) DouyinOAuthRevoke(c *gin.Context, shopID uuid.UUID, adminID *u
 }
 
 func (s *Service) DouyinOAuthTest(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*TestShopConnectionResult, error) {
-	res, err := s.testDouyinShopConnection(c.Request.Context(), shopID)
+	res, err := s.testDouyinShopConnection(c, shopID, adminID)
 	st := "success"
 	code := ""
 	msg := "ok"
@@ -453,34 +606,78 @@ type platformTestResult struct {
 	ShopName       string `json:"shopName,omitempty"`
 	ExternalShopID string `json:"externalShopId,omitempty"`
 	Currency       string `json:"currency,omitempty"`
+	ExpiresAt      string `json:"expiresAt,omitempty"`
+	ShopStatus     string `json:"shopStatus,omitempty"`
+	LastTestAt     string `json:"lastTestAt,omitempty"`
+	ScopesSummary  string `json:"scopesSummary,omitempty"`
 }
 
-func (s *Service) testDouyinShopConnection(ctx context.Context, shopID uuid.UUID) (*platformTestResult, error) {
-	var row Shop
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", shopID).Error; err != nil {
+func (s *Service) testDouyinShopConnection(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformTestResult, error) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+	mu := douyinLockForShop(shopID)
+	mu.Lock()
+	defer mu.Unlock()
+
+	client, row, _, err := s.douyinClientForShop(c, ctx, shopID, adminID)
+	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(row.Platform) != "douyin_shop" {
-		return nil, fmt.Errorf("shop platform must be douyin_shop")
+	info, err := client.GetShopInfo(ctx, row.ExternalShopID)
+	if err != nil {
+		authErr := douyinAuthErrFromProvider(err, DouyinShopInfoFailed)
+		status := AuthNeedCheck
+		if authErr.Code == DouyinAuthExpired {
+			status = AuthExpired
+		}
+		if authErr.Code == DouyinPermissionDenied {
+			status = AuthInvalid
+		}
+		s.markDouyinShopInfoFailed(ctx, shopID, authErr.Code, authErr.Message, status)
+		s.douyinLog(c, adminID, &shopID, "douyin.shop.info.failed", "failed", authErr.Code, authErr.Message)
+		return nil, authErr
 	}
-	var tok ShopAuthToken
-	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
-		return nil, douyinErr(DouyinAuthExpired, douyinFriendlyMessage(DouyinAuthExpired), err)
+	if err := s.persistDouyinShopInfo(ctx, shopID, info); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(tok.AccessTokenEnc) == "" {
-		return nil, douyinErr(DouyinAuthExpired, douyinFriendlyMessage(DouyinAuthExpired), nil)
+	s.douyinLog(c, adminID, &shopID, "douyin.shop.info.sync", "success", "", "shop info synced")
+	detail, _ := s.GetDetail(c, shopID)
+	shopName := row.ShopName
+	externalID := row.ExternalShopID
+	currency := row.Currency
+	if detail != nil {
+		shopName = detail.ShopName
+		externalID = detail.ExternalShopID
+		currency = detail.Currency
 	}
-	if tok.ExpiresAt != nil && tok.ExpiresAt.Before(time.Now().UTC()) {
-		_ = s.setAuthStatusCtx(ctx, shopID, AuthExpired)
-		return nil, douyinErr(DouyinAuthExpired, douyinFriendlyMessage(DouyinAuthExpired), nil)
+	if shopName == "" {
+		shopName = info.ShopName
+	}
+	if externalID == "" {
+		externalID = info.PlatformShopID
+	}
+	expiresAt := ""
+	if info.ExpiresAt != nil {
+		expiresAt = info.ExpiresAt.Format(time.RFC3339)
 	}
 	return &platformTestResult{
 		OK:             true,
 		Message:        "店铺连接正常",
-		ShopName:       row.ShopName,
-		ExternalShopID: row.ExternalShopID,
-		Currency:       row.Currency,
+		ShopName:       shopName,
+		ExternalShopID: externalID,
+		Currency:       firstNonEmptyDouyin(currency, "CNY"),
+		ExpiresAt:      expiresAt,
+		ShopStatus:     info.ShopStatus,
+		LastTestAt:     time.Now().UTC().Format(time.RFC3339),
+		ScopesSummary:  summarizeDouyinScopes(info.AuthorizedScopes),
 	}, nil
+}
+
+func (s *Service) DouyinSyncShopInfo(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
+	if _, err := s.testDouyinShopConnection(c, shopID, adminID); err != nil {
+		return nil, err
+	}
+	return s.GetDetail(c, shopID)
 }
 
 func (s *Service) DouyinOAuthCallbackRedirect(c *gin.Context) {
@@ -504,6 +701,67 @@ func firstNonEmptyDouyin(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+func douyinAuthErrFromProvider(err error, fallback string) *DouyinAuthError {
+	var de *DouyinAuthError
+	if errors.As(err, &de) {
+		return de
+	}
+	var pe *platformdouyin.Error
+	if errors.As(err, &pe) {
+		switch pe.Code {
+		case platformdouyin.CodeDouyinAuthExpired:
+			return douyinErr(DouyinAuthExpired, douyinFriendlyMessage(DouyinAuthExpired), err)
+		case platformdouyin.CodeDouyinPermissionDenied:
+			return douyinErr(DouyinPermissionDenied, douyinFriendlyMessage(DouyinPermissionDenied), err)
+		case platformdouyin.CodeDouyinTokenRefreshFailed:
+			return douyinErr(DouyinTokenRefreshFailed, douyinFriendlyMessage(DouyinTokenRefreshFailed), err)
+		case platformdouyin.CodeDouyinShopInfoFailed:
+			return douyinErr(DouyinShopInfoFailed, douyinFriendlyMessage(DouyinShopInfoFailed), err)
+		}
+	}
+	code := strings.TrimSpace(fallback)
+	if code == "" {
+		code = UnknownDouyinAuthError
+	}
+	return douyinErr(code, douyinFriendlyMessage(code), err)
+}
+
+func douyinSafeText(raw string) string {
+	msg := strings.TrimSpace(raw)
+	if msg == "" {
+		return ""
+	}
+	for _, marker := range []string{"access_token", "refresh_token", "app_secret", "secret", "token"} {
+		if strings.Contains(strings.ToLower(msg), strings.ToLower(marker)) {
+			return douyinFriendlyMessage(UnknownDouyinAuthError)
+		}
+	}
+	if len(msg) > 500 {
+		msg = msg[:500] + "..."
+	}
+	return msg
+}
+
+func summarizeDouyinScopes(scopes []any) string {
+	if len(scopes) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(scopes))
+	for _, s := range scopes {
+		v := strings.TrimSpace(fmt.Sprint(s))
+		if v != "" {
+			parts = append(parts, v)
+		}
+		if len(parts) >= 5 {
+			break
+		}
+	}
+	if len(scopes) > len(parts) {
+		parts = append(parts, fmt.Sprintf("+%d", len(scopes)-len(parts)))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func asDouyinAuthError(err error, fallback string) *DouyinAuthError {

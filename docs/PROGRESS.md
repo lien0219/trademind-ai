@@ -1,5 +1,7 @@
 # TradeMind 开发进度记录
 
+**Latest update**: 2026-06-06 — **Douyin Shop Phase 3 OpenAPI Client, signing layer, and shop-info calibration are implemented**. `backend/internal/providers/platform/douyinshop` now has a reusable client structure (`client.go`, `sign.go`, `request.go`, `response.go`, `errors.go`, `token.go`, `shop.go`) plus reserved files for category/image/product/order/inventory. The client centralizes common parameters, HMAC-SHA256 signing, `param_json` POST bodies, response parsing, platform error mapping, safe request logs, token auto-refresh, and per-shop refresh locking. Douyin shop connection test now performs a real platform-side token refresh and uses the official token refresh response to calibrate `shops` and `shop_auth_tokens`; failures keep the authorization record and mark `need_check`, `expired`, or `invalid`. New API: `POST /api/v1/shops/:id/oauth/douyin/sync-shop-info`. New/expanded provider error codes: `DOUYIN_API_ERROR`, `DOUYIN_AUTH_EXPIRED`, `DOUYIN_TOKEN_REFRESH_FAILED`, `DOUYIN_PERMISSION_DENIED`, `DOUYIN_RATE_LIMITED`, `DOUYIN_REQUEST_TIMEOUT`, `DOUYIN_RESPONSE_PARSE_FAILED`, `DOUYIN_SHOP_INFO_FAILED`, `UNKNOWN_DOUYIN_ERROR`. Scope remains tight: no product publishing, order sync, inventory sync, category implementation, image upload, or product draft creation in Phase 3. Next phase: category / attribute sync.
+
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 

@@ -437,6 +437,25 @@ func (h *Handler) DouyinOAuthTest(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// DouyinSyncShopInfo POST /api/v1/shops/:id/oauth/douyin/sync-shop-info
+func (h *Handler) DouyinSyncShopInfo(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.DouyinSyncShopInfo(c, id, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // TikTokOAuthAuthorizeURL GET /api/v1/shops/:id/oauth/tiktok/authorize-url
 func (h *Handler) TikTokOAuthAuthorizeURL(c *gin.Context) {
 	if h == nil || h.Svc == nil {

@@ -65,6 +65,8 @@ Collector Provider
 
 用于接入跨境电商平台能力。
 
+Douyin Shop (`douyin_shop`) Phase 3 adds a reusable OpenAPI client under `backend/internal/providers/platform/douyinshop`. Signing, common request construction, `param_json` body handling, response parsing, error mapping, safe request logging, token auto-refresh, and shop-info calibration are centralized in the provider package. Business services should call this client instead of hand-writing signatures or raw OpenAPI requests. Store connection testing and manual shop-info sync now use a real platform-side token refresh response to update `shops` / `shop_auth_tokens`; App Secret, access token, refresh token, and full sensitive raw responses must never be returned to the frontend or written to logs. Phase 3 deliberately does not implement product publishing, order sync, inventory sync, image upload, or category business APIs.
+
 当前重点平台：
 
 - Douyin Shop（抖店，真实平台闭环优先）

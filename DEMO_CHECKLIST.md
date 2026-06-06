@@ -63,6 +63,9 @@
 - [x] 可发起抖店店铺授权，授权成功后店铺状态为已授权
 - [x] 支持抖店 token 加密保存、刷新授权、解除授权、店铺连接测试
 - [x] 授权过期时提示重新授权，不泄露 access token / refresh token
+- [x] Douyin Shop OpenAPI Client and signing layer are centralized; business code does not hand-write signatures
+- [x] Douyin Shop connection test performs a real token refresh and calibrates shop basic info
+- [x] 店铺管理页支持手动同步抖店店铺信息，失败时标记 need_check / expired / invalid
 - [ ] 可同步或搜索抖店类目，并读取类目必填属性
 - [ ] 商品刊登页可选择抖店店铺、抖店类目并补全必填属性
 - [ ] 必填类目 / 属性 / 店铺授权缺失时发布前检查失败

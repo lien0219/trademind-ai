@@ -94,7 +94,7 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 | SKU Candidate Recommendation | Candidate SKUs for order items, manual binding, match audit | Supported |
 | Image Management | Local / cloud file upload, product image management, storage providers | Supported |
 | AI Image Processing | remove.bg, OpenAI Image, ComfyUI Provider, async task queue | Supported |
-| Store Authorization | Douyin Shop OAuth loop, state protection, encrypted tokens, refresh / revoke / test connection; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 2 supported |
+| Store Authorization | Douyin Shop OAuth loop, OpenAPI client / signing layer, encrypted tokens with auto-refresh, refresh / revoke / real connection test; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 3 supported |
 | Multi-platform Configuration | Platform app config schema, Douyin Shop config, Service ID, encrypted and masked sensitive settings | Supported |
 | Order Sync | Multi-platform order sync framework, task queue, exception workspace | In progress |
 | Product Publishing | Multi-platform publishing tasks, readiness checks, publication snapshots | In progress |
@@ -113,7 +113,7 @@ AI Product Operation Tool
 └── Readiness checks and batch AI operations
 
 Multi-platform Cross-border ERP MVP
-├── First real platform loop: Douyin Shop first (OAuth done → API client / signing → categories and attributes → image upload → product draft → order sync → inventory sync)
+├── First real platform loop: Douyin Shop first (OAuth and API client / signing done → categories and attributes → image upload → product draft → order sync → inventory sync)
 ├── Store authorization: Douyin Shop OAuth supported; TikTok Shop / Shopee / Lazada / Amazon retained for later platform rollout
 ├── Order sync: platform order import, local orders, SKU matching
 ├── Inventory sync: stock alerts, platform inventory tasks, failure retry

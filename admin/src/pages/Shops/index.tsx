@@ -51,6 +51,7 @@ import {
   queryShops,
   refreshDouyinOAuth,
   revokeDouyinOAuth,
+  syncDouyinShopInfo,
   testDouyinOAuth,
   testShopConnection,
   updateShop,
@@ -290,6 +291,13 @@ export default function ShopsPage() {
     if (detail?.id === shopId) await refreshDetail(shopId);
   };
 
+  const syncDouyinInfoFor = async (shopId: string) => {
+    await syncDouyinShopInfo(shopId);
+    message.success('抖店店铺信息已同步');
+    actionRef.current?.reload();
+    if (detail?.id === shopId) await refreshDetail(shopId);
+  };
+
   const openCustomerMessageSyncModal = (platform: string, shopId: string) => {
     const p = providers.find((x) => x.platform === platform);
     if (platform === 'manual') {
@@ -393,6 +401,11 @@ export default function ShopsPage() {
           r.platform === 'douyin_shop' ? (
             <a key="dy-refresh" onClick={() => void refreshDouyinFor(r.id)}>
               刷新授权
+            </a>
+          ) : null,
+          r.platform === 'douyin_shop' ? (
+            <a key="dy-sync-shop" onClick={() => void syncDouyinInfoFor(r.id)}>
+              同步店铺信息
             </a>
           ) : null,
           r.platform === 'douyin_shop' ? (
@@ -716,6 +729,9 @@ export default function ShopsPage() {
               ) : null}
               {detail.platform === 'douyin_shop' ? (
                 <Button onClick={() => void refreshDouyinFor(detail.id)}>刷新授权</Button>
+              ) : null}
+              {detail.platform === 'douyin_shop' ? (
+                <Button onClick={() => void syncDouyinInfoFor(detail.id)}>同步店铺信息</Button>
               ) : null}
               {detail.platform === 'douyin_shop' ? (
                 <Popconfirm

@@ -160,8 +160,16 @@ export async function testDouyinOAuth(shopId: string): Promise<{
   shopName?: string;
   externalShopId?: string;
   currency?: string;
+  expiresAt?: string;
+  shopStatus?: string;
+  lastTestAt?: string;
+  scopesSummary?: string;
 }> {
   return postJSON(`/api/v1/shops/${shopId}/oauth/douyin/test`, {});
+}
+
+export async function syncDouyinShopInfo(shopId: string): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/douyin/sync-shop-info`, {});
 }
 
 export async function getTikTokOAuthAuthorizeUrl(
