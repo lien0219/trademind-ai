@@ -18,6 +18,8 @@ body,
 
 .ant-pro-layout .ant-pro-layout-content {
   margin-inline: 0;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .ant-pro-layout .ant-pro-layout-bg-list {
@@ -26,6 +28,74 @@ body,
 
 .ant-pro-page-container .ant-pro-page-container-children-content {
   margin-block-start: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ant-pro-page-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ant-pro-page-container-children-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* PageContainer 标题与右侧操作：窄屏自动换行 */
+.ant-pro-page-container-warp-page-header .ant-page-header-heading {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.ant-pro-page-container-warp-page-header .ant-page-header-heading-extra {
+  flex-wrap: wrap;
+  margin-inline-start: 0;
+
+  @media (min-width: 768px) {
+    margin-inline-start: auto;
+  }
+}
+
+.tm-page-header-extra.ant-space {
+  flex-wrap: wrap;
+}
+
+/* ProTable：表格区域内部横向滚动，不撑破页面 */
+.ant-pro-table {
+  min-width: 0;
+  max-width: 100%;
+
+  .ant-pro-card,
+  .ant-pro-card .ant-pro-card-body {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* 仅允许横向滚动：overflow-x:auto 时 overflow-y 不能为 visible（会被算成 auto 并出现竖条） */
+  .ant-table-wrapper {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  /* scroll.x 时 Ant Design 表体默认 overflow-y: scroll，分页表格不需要 */
+  .ant-table-container .ant-table-body,
+  .ant-table-container .ant-table-content {
+    overflow-y: hidden !important;
+  }
+}
+
+/* 采集任务提交区：窄屏表单项自动换行 */
+.tm-collect-task-form {
+  .ant-form-item {
+    margin-bottom: 12px;
+  }
+
+  .ant-form-item-control-input,
+  .ant-input,
+  .ant-select {
+    width: 100%;
+  }
 }
 
 .ant-pro-table .ant-pro-card {

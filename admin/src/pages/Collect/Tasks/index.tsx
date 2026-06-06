@@ -3,7 +3,20 @@ import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
-import { Alert, Button, Form, Input, Select, Space, Switch, Tag, Typography, message } from 'antd';
+import {
+  Alert,
+  Button,
+  Col,
+  Form,
+  Input,
+  Row,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
@@ -184,9 +197,24 @@ export default function CollectTasksPage() {
     {
       title: '来源链接',
       dataIndex: 'sourceUrl',
-      ellipsis: true,
-      copyable: true,
+      width: 240,
       search: false,
+      responsive: ['md'],
+      render: (_, row) => {
+        const url = row.sourceUrl?.trim();
+        if (!url) return '—';
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', maxWidth: 220 }}>
+            <Typography.Text ellipsis style={{ flex: 1, minWidth: 0 }}>
+              {url}
+            </Typography.Text>
+            <Typography.Text
+              copyable={{ text: url, tooltips: false }}
+              style={{ flexShrink: 0, margin: 0 }}
+            />
+          </div>
+        );
+      },
     },
     {
       title: '状态',
@@ -208,7 +236,8 @@ export default function CollectTasksPage() {
     {
       title: '重试',
       search: false,
-      width: 180,
+      width: 100,
+      responsive: ['lg'],
       render: (_, row) => (
         <span>
           {row.retryCount ?? 0}/{row.maxRetries ?? '—'}
@@ -220,14 +249,16 @@ export default function CollectTasksPage() {
       dataIndex: 'nextRetryAt',
       width: 172,
       search: false,
+      responsive: ['lg'],
       render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
       title: '商品草稿',
       dataIndex: 'resultProductId',
-      width: 280,
+      width: 200,
       search: false,
       ellipsis: true,
+      responsive: ['md'],
       render: (_, row) =>
         row.resultProductId ? (
           <Link to={`/product/drafts/${row.resultProductId}`}>{row.resultProductId}</Link>
@@ -240,6 +271,7 @@ export default function CollectTasksPage() {
       dataIndex: 'collectorErrorCode',
       width: 140,
       search: false,
+      responsive: ['md'],
       render: (_, row) => {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         return (
@@ -254,6 +286,7 @@ export default function CollectTasksPage() {
       dataIndex: 'failureHint',
       ellipsis: true,
       search: false,
+      responsive: ['xl'],
       render: (_, row) => {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         const hint =
@@ -268,6 +301,7 @@ export default function CollectTasksPage() {
       dataIndex: 'startedAt',
       width: 168,
       search: false,
+      responsive: ['xl'],
       render: (_, row) => formatDateTime(row.startedAt),
     },
     {
@@ -275,6 +309,7 @@ export default function CollectTasksPage() {
       dataIndex: 'finishedAt',
       width: 168,
       search: false,
+      responsive: ['xxl'],
       render: (_, row) => formatDateTime(row.finishedAt),
     },
     {
@@ -282,6 +317,7 @@ export default function CollectTasksPage() {
       dataIndex: 'createdAt',
       width: 168,
       search: false,
+      responsive: ['lg'],
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
@@ -350,7 +386,8 @@ export default function CollectTasksPage() {
         ) : null}
         <Form
           form={form}
-          layout="inline"
+          layout="vertical"
+          className="tm-collect-task-form"
           initialValues={{ source: '1688', url: '' }}
           onFinish={async (vals) => {
             const url = vals.url?.trim();
@@ -408,35 +445,49 @@ export default function CollectTasksPage() {
             }
           }}
         >
-          <Form.Item
-            label="采集平台"
-            name="source"
-            rules={[{ required: true, message: '请选择采集平台' }]}
-          >
-            <Select style={{ width: 220 }} options={providerSelectOptions} placeholder="选择采集器" />
-          </Form.Item>
-          {formSource === 'custom' ? (
-            <Form.Item label="规则" name="ruleId">
-              <Select
-                allowClear
-                placeholder={
-                  formUrl?.trim()
-                    ? rulesForUrl.length
-                      ? '可选：指定规则（已按链接过滤）'
-                      : '无匹配规则，请检查链接或规则域名'
-                    : '可选：指定 ruleId'
-                }
-                style={{ width: 320 }}
-                options={(formUrl?.trim() ? rulesForUrl : enabledRules).map((r) => ({
-                  label: `${r.name}（${r.domain} · p${r.priority}）`,
-                  value: r.id,
-                }))}
-              />
-            </Form.Item>
-          ) : null}
-          <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
-            <Input style={{ width: 480, maxWidth: '100%' }} placeholder={placeholderUrl} />
-          </Form.Item>
+          <Row gutter={[16, 0]} align="bottom">
+            <Col xs={24} sm={12} md={8} lg={6}>
+              <Form.Item
+                label="采集平台"
+                name="source"
+                rules={[{ required: true, message: '请选择采集平台' }]}
+              >
+                <Select options={providerSelectOptions} placeholder="选择采集器" />
+              </Form.Item>
+            </Col>
+            {formSource === 'custom' ? (
+              <Col xs={24} sm={12} md={8} lg={8}>
+                <Form.Item label="规则" name="ruleId">
+                  <Select
+                    allowClear
+                    placeholder={
+                      formUrl?.trim()
+                        ? rulesForUrl.length
+                          ? '可选：指定规则（已按链接过滤）'
+                          : '无匹配规则，请检查链接或规则域名'
+                        : '可选：指定 ruleId'
+                    }
+                    options={(formUrl?.trim() ? rulesForUrl : enabledRules).map((r) => ({
+                      label: `${r.name}（${r.domain} · p${r.priority}）`,
+                      value: r.id,
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+            ) : null}
+            <Col xs={24} md={16} lg={10} xl={12}>
+              <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
+                <Input placeholder={placeholderUrl} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm="auto">
+              <Form.Item label=" ">
+                <Button type="primary" htmlType="submit" loading={submitting}>
+                  提交
+                </Button>
+              </Form.Item>
+            </Col>
+          </Row>
           {isPddSource && pddUrlHint ? (
             <Alert
               type={
@@ -448,13 +499,13 @@ export default function CollectTasksPage() {
               }
               showIcon
               message={pddUrlHint}
-              style={{ marginTop: 16, marginBottom: 0, width: '100%' }}
+              style={{ marginTop: 4, marginBottom: 0 }}
             />
           ) : null}
           {isPddSource ? (
-            <div style={{ width: '100%', marginTop: 16, marginBottom: 12 }}>
+            <div style={{ marginTop: 16, marginBottom: 12 }}>
               <PinduoduoLoginPanel loginUrl={formUrl?.trim() || undefined} compact />
-              <Space style={{ marginTop: 16 }}>
+              <Space style={{ marginTop: 16 }} wrap>
                 <Switch
                   checked={pddUseBrowserProfile || pddUrlType === 'wholesale_detail'}
                   disabled={pddUrlType === 'wholesale_detail'}
@@ -464,11 +515,6 @@ export default function CollectTasksPage() {
               </Space>
             </div>
           ) : null}
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={submitting}>
-              提交
-            </Button>
-          </Form.Item>
         </Form>
       </ProCard>
 
