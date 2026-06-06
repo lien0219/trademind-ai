@@ -44,6 +44,7 @@ import (
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
+	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
@@ -284,6 +285,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	platformtiktok.BindShops(shopSvc.TikTokShopsBridge())
 	platformtiktok.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
+	platformdouyin.RegisterProvider()
 	platformtiktok.RegisterProvider()
 	platformshopee.BindShops(shopSvc.ShopeeShopsBridge())
 	platformshopee.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
@@ -490,6 +492,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	ordersync.Register(authed, orderSyncH)
 	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)
+	shop.RegisterPublic(v1, shopH)
 	shop.Register(authed, shopH)
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)

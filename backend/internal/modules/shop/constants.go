@@ -11,6 +11,8 @@ const (
 	AuthUnauthorized = "unauthorized"
 	AuthAuthorized   = "authorized"
 	AuthExpired      = "expired"
+	AuthInvalid      = "invalid"
+	AuthNeedCheck    = "need_check"
 	AuthError        = "error"
 	AuthUnsupported  = "unsupported"
 )

@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
+	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
@@ -149,6 +150,11 @@ func validateMergedAppSettings(platformSlug string, schema platformp.PlatformApp
 	plat := strings.TrimSpace(platformSlug)
 	mm := loweredMap(merged)
 	switch plat {
+	case "douyin_shop":
+		if _, err := platformdouyin.RuntimeFromMergedMap(mm); err != nil {
+			return err
+		}
+		return nil
 	case "tiktok":
 		if _, err := platformtiktok.RuntimeFromMergedMap(mm); err != nil {
 			return err
@@ -191,6 +197,86 @@ func (s *Service) snapshotMaskedApp(schema platformp.PlatformAppConfigSchema, pl
 		}
 	}
 	return out
+}
+
+func appTestRequestFromPlain(schema platformp.PlatformAppConfigSchema, plain map[string]string) platformp.TestConnectionRequest {
+	req := platformp.TestConnectionRequest{Extra: map[string]string{}}
+	for _, f := range schema.Fields {
+		key := strings.TrimSpace(f.Name)
+		val := getCurField(plain, key)
+		switch strings.TrimSpace(strings.ToLower(key)) {
+		case "app_key", "client_id", "partner_id":
+			req.AppKey = val
+		case "app_secret", "client_secret", "partner_key":
+			req.AppSecret = val
+		case "refresh_token":
+			req.RefreshToken = val
+		case "marketplace_id":
+			req.MarketplaceID = val
+			req.Extra[key] = val
+		default:
+			req.Extra[key] = val
+		}
+	}
+	return req
+}
+
+func (s *Service) TestPlatformAppSettings(c *gin.Context, platformSlug string) (*platformp.TestConnectionResult, error) {
+	if s == nil || s.Settings == nil || c == nil {
+		return nil, errors.New("shop: settings unavailable")
+	}
+	ctx := c.Request.Context()
+	plat := strings.TrimSpace(strings.ToLower(platformSlug))
+	p := platformp.Get(plat)
+	if p == nil {
+		return nil, fmt.Errorf("unknown platform %q", plat)
+	}
+	sch := p.AppConfigSchema()
+	gk := strings.TrimSpace(sch.GroupKey)
+	if gk == "" {
+		return nil, fmt.Errorf("platform %q has no deploy-level app settings schema", plat)
+	}
+	plain, err := s.Settings.PlainByGroup(ctx, 0, gk)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateMergedAppSettings(plat, sch, mergedFromCurrent(sch, plain)); err != nil {
+		if s.OpLog != nil {
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				Action:     "platform.settings.test.failed",
+				Resource:   "platform_app_settings",
+				ResourceID: plat,
+				Status:     "failed",
+				Message:    err.Error(),
+			})
+		}
+		return &platformp.TestConnectionResult{OK: false, Message: err.Error()}, nil
+	}
+	res, err := p.TestConnection(ctx, appTestRequestFromPlain(sch, plain))
+	if s.OpLog != nil {
+		status := "success"
+		action := "platform.settings.test.success"
+		msg := "ok"
+		if err != nil {
+			status = "failed"
+			action = "platform.settings.test.failed"
+			msg = err.Error()
+		} else if res != nil && !res.OK {
+			status = "failed"
+			action = "platform.settings.test.failed"
+			msg = res.Message
+		} else if res != nil && strings.TrimSpace(res.Message) != "" {
+			msg = res.Message
+		}
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     action,
+			Resource:   "platform_app_settings",
+			ResourceID: plat,
+			Status:     status,
+			Message:    msg,
+		})
+	}
+	return res, err
 }
 
 // GetPlatformAppSettings returns decrypted-then-masked snapshot for UI.

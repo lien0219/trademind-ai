@@ -94,8 +94,8 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 | SKU Candidate Recommendation | Candidate SKUs for order items, manual binding, match audit | Supported |
 | Image Management | Local / cloud file upload, product image management, storage providers | Supported |
 | AI Image Processing | remove.bg, OpenAI Image, ComfyUI Provider, async task queue | Supported |
-| Store Authorization | TikTok Shop / Shopee / Lazada / Amazon authorization foundation | In progress |
-| Multi-platform Configuration | Platform app config schema, encrypted and masked sensitive settings | Supported |
+| Store Authorization | Douyin Shop OAuth loop, state protection, encrypted tokens, refresh / revoke / test connection; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 2 supported |
+| Multi-platform Configuration | Platform app config schema, Douyin Shop config, Service ID, encrypted and masked sensitive settings | Supported |
 | Order Sync | Multi-platform order sync framework, task queue, exception workspace | In progress |
 | Product Publishing | Multi-platform publishing tasks, readiness checks, publication snapshots | In progress |
 | Inventory Sync | Local stock, platform stock mirror, inventory alerts, sync tasks | In progress |
@@ -113,7 +113,8 @@ AI Product Operation Tool
 └── Readiness checks and batch AI operations
 
 Multi-platform Cross-border ERP MVP
-├── Store authorization: TikTok Shop / Shopee / Lazada / Amazon
+├── First real platform loop: Douyin Shop first (OAuth done → API client / signing → categories and attributes → image upload → product draft → order sync → inventory sync)
+├── Store authorization: Douyin Shop OAuth supported; TikTok Shop / Shopee / Lazada / Amazon retained for later platform rollout
 ├── Order sync: platform order import, local orders, SKU matching
 ├── Inventory sync: stock alerts, platform inventory tasks, failure retry
 ├── Product publishing: publishing tasks, platform mappings, publication snapshots
@@ -354,6 +355,7 @@ Go Gin API
 │   ├── OpenAI Image
 │   └── ComfyUI
 ├── Platform Provider
+│   ├── Douyin Shop (next real-platform priority)
 │   ├── TikTok Shop
 │   ├── Shopee
 │   ├── Lazada
@@ -371,9 +373,9 @@ See [docs/architecture.md](docs/architecture.md) and [docs/provider.md](docs/pro
 1. **First priority: AI product operation tool**
    - Product collection, product drafts, AI titles, AI descriptions, image management, AI image processing, batch AI operations.
 2. **Second priority: multi-platform cross-border ERP MVP**
-   - Store authorization, order sync, SKU matching, inventory sync, product publishing, AI reply suggestions.
+   - First run a real Douyin Shop loop: store authorization, categories and attributes, image upload, product draft creation, order sync, and inventory sync. TikTok Shop / Shopee / Lazada / Amazon remain later platform rollouts instead of parallel work.
 3. **Later iteration: full ERP enhancement**
-   - Multi-warehouse, purchasing, after-sales, finance, WMS / OMS, complex BI, automation rules.
+   - Multi-warehouse, purchasing, complex after-sales refunds, complex finance settlement, WMS / OMS, complex BI, auto replenishment, and automatic direct listing are deferred.
 
 ## Roadmap
 

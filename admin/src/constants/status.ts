@@ -87,6 +87,8 @@ export const SHOP_AUTH_STATUS = {
   unauthorized: { text: '未授权', color: 'default' as const },
   authorized: { text: '已授权', color: 'success' as const },
   expired: { text: '已过期', color: 'warning' as const },
+  invalid: { text: '异常', color: 'error' as const },
+  need_check: { text: '待检查', color: 'warning' as const },
   error: { text: '异常', color: 'error' as const },
   unsupported: { text: '不支持', color: 'default' as const },
 };

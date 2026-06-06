@@ -60,6 +60,7 @@ ms-playwright/
 .turbo/
 
 # Go
+.cache/
 .gocache/
 .gomodcache/
 /backend/bin/

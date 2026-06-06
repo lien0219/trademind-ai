@@ -37,6 +37,7 @@ import {
 import {
   createShop,
   deleteShop,
+  getDouyinOAuthAuthorizeUrl,
   getShop,
   getTikTokOAuthAuthorizeUrl,
   postTikTokOAuthCallback,
@@ -48,6 +49,9 @@ import {
   postAmazonOAuthCallback,
   queryPlatformProviders,
   queryShops,
+  refreshDouyinOAuth,
+  revokeDouyinOAuth,
+  testDouyinOAuth,
   testShopConnection,
   updateShop,
   updateShopAuth,
@@ -262,6 +266,30 @@ export default function ShopsPage() {
     return payload;
   };
 
+  const redirectDouyinOAuth = async (shopId: string) => {
+    const res = await getDouyinOAuthAuthorizeUrl(shopId);
+    const target = res.redirectUrl || res.authorizeUrl;
+    if (!target) {
+      message.error('缺少抖店授权链接');
+      return;
+    }
+    window.location.href = target;
+  };
+
+  const refreshDouyinFor = async (shopId: string) => {
+    await refreshDouyinOAuth(shopId);
+    message.success('抖店授权已刷新');
+    actionRef.current?.reload();
+    if (detail?.id === shopId) await refreshDetail(shopId);
+  };
+
+  const revokeDouyinFor = async (shopId: string) => {
+    await revokeDouyinOAuth(shopId);
+    message.success('抖店店铺已解除授权，历史数据不会删除');
+    actionRef.current?.reload();
+    if (detail?.id === shopId) await refreshDetail(shopId);
+  };
+
   const openCustomerMessageSyncModal = (platform: string, shopId: string) => {
     const p = providers.find((x) => x.platform === platform);
     if (platform === 'manual') {
@@ -357,6 +385,26 @@ export default function ShopsPage() {
           <a key="a" onClick={() => void openAuthFor(r.id)}>
             授权配置
           </a>,
+          r.platform === 'douyin_shop' ? (
+            <a key="dy-oauth" onClick={() => void redirectDouyinOAuth(r.id)}>
+              重新授权
+            </a>
+          ) : null,
+          r.platform === 'douyin_shop' ? (
+            <a key="dy-refresh" onClick={() => void refreshDouyinFor(r.id)}>
+              刷新授权
+            </a>
+          ) : null,
+          r.platform === 'douyin_shop' ? (
+            <Popconfirm
+              key="dy-revoke"
+              title="解除抖店授权？"
+              description="解除授权后无法继续同步该店铺，历史数据不会删除。"
+              onConfirm={() => void revokeDouyinFor(r.id)}
+            >
+              <a>解除授权</a>
+            </Popconfirm>
+          ) : null,
           <a
             key="cmsync"
             onClick={() => {
@@ -383,7 +431,7 @@ export default function ShopsPage() {
             key="t"
             onClick={async () => {
               try {
-                const res = await testShopConnection(r.id);
+                const res = r.platform === 'douyin_shop' ? await testDouyinOAuth(r.id) : await testShopConnection(r.id);
                 message.success(summarizeShopTest(res));
               } catch (e: unknown) {
                 message.error(formatPlatformPartnerErr(e));
@@ -663,6 +711,21 @@ export default function ShopsPage() {
               <Button type="primary" onClick={() => detail && void openAuthFor(detail.id)}>
                 授权配置
               </Button>
+              {detail.platform === 'douyin_shop' ? (
+                <Button onClick={() => void redirectDouyinOAuth(detail.id)}>重新授权</Button>
+              ) : null}
+              {detail.platform === 'douyin_shop' ? (
+                <Button onClick={() => void refreshDouyinFor(detail.id)}>刷新授权</Button>
+              ) : null}
+              {detail.platform === 'douyin_shop' ? (
+                <Popconfirm
+                  title="解除抖店授权？"
+                  description="解除授权后无法继续同步该店铺，历史数据不会删除。"
+                  onConfirm={() => void revokeDouyinFor(detail.id)}
+                >
+                  <Button danger>解除授权</Button>
+                </Popconfirm>
+              ) : null}
               <Button
                 onClick={() => {
                   if (!detail) return;
@@ -688,7 +751,7 @@ export default function ShopsPage() {
               <Button
                 onClick={async () => {
                   try {
-                    const res = await testShopConnection(detail.id);
+                    const res = detail.platform === 'douyin_shop' ? await testDouyinOAuth(detail.id) : await testShopConnection(detail.id);
                     message.success(summarizeShopTest(res));
                   } catch (e: unknown) {
                     message.error(formatPlatformPartnerErr(e));
@@ -719,6 +782,23 @@ export default function ShopsPage() {
                 style={{ marginBottom: 12 }}
                 message="TikTok Shop（Beta）"
                 description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置」填写应用参数，再在此生成授权链接并完成授权。"
+              />
+            )}
+            {detail.platform === 'douyin_shop' && provForShop.status === 'beta' && (
+              <Alert
+                type={detail.authStatus === 'authorized' ? 'success' : detail.authStatus === 'expired' ? 'warning' : 'info'}
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={
+                  detail.authStatus === 'authorized'
+                    ? '店铺连接正常'
+                    : detail.authStatus === 'expired'
+                      ? '授权已过期，请重新授权'
+                      : detail.authStatus === 'invalid' || detail.authStatus === 'need_check'
+                        ? '店铺连接异常，请检查应用权限或重新授权'
+                        : '请先连接抖店店铺'
+                }
+                description="支持抖店 OAuth 授权、刷新授权、解除授权与连接测试；不会在前端返回 token 明文。"
               />
             )}
             {detail.platform === 'shopee' && provForShop.status === 'beta' && (

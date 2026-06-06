@@ -1,4 +1,4 @@
-import { ApiOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { ApiOutlined, LinkOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
   Alert,
@@ -32,6 +32,8 @@ import {
   getPlatformAppSettings,
   preferredPlatformTabOrder,
   putPlatformAppSettings,
+  startDouyinOAuth,
+  testPlatformAppSettings,
 } from '@/services/platformOpen';
 import { queryPlatformProviders } from '@/services/shops';
 
@@ -113,6 +115,8 @@ function renderFieldControl(f: AppConfigFieldDTO) {
 function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   const schema = meta.appConfigSchema;
   const fields = schema?.fields ?? [];
@@ -137,6 +141,37 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   }, [load]);
 
   const docUrl = externalDocUrlFor(meta.platform);
+
+  const testConnection = useCallback(async () => {
+    setTesting(true);
+    try {
+      const res = await testPlatformAppSettings(meta.platform);
+      if (res.ok) {
+        message.success(res.message || '测试连接通过');
+      } else {
+        message.warning(res.message || '测试连接未通过');
+      }
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '测试连接失败');
+    } finally {
+      setTesting(false);
+    }
+  }, [meta.platform]);
+
+  const connectDouyinShop = useCallback(async () => {
+    setConnecting(true);
+    try {
+      const res = await startDouyinOAuth();
+      const target = res.redirectUrl || res.authorizeUrl;
+      if (!target) {
+        throw new Error('missing douyin authorize url');
+      }
+      window.location.href = target;
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '发起抖店授权失败');
+      setConnecting(false);
+    }
+  }, []);
 
   return (
     <Spin spinning={loading}>
@@ -195,6 +230,14 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
               <Button icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
                 重新加载
               </Button>
+              <Button icon={<ApiOutlined />} onClick={() => void testConnection()} loading={testing} disabled={loading}>
+                测试连接
+              </Button>
+              {meta.platform === 'douyin_shop' ? (
+                <Button icon={<LinkOutlined />} onClick={() => void connectDouyinShop()} loading={connecting} disabled={loading}>
+                  连接店铺
+                </Button>
+              ) : null}
               {docUrl ? (
                 <Typography.Link href={docUrl} target="_blank" rel="noreferrer">
                   开放平台文档
@@ -236,9 +279,20 @@ export default function PlatformSettingsPage() {
   }, [loadProviders]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('platform') !== 'douyin_shop') return;
+    const auth = params.get('auth');
+    if (auth === 'success') {
+      message.success('抖店店铺授权成功');
+    } else if (auth === 'failed') {
+      message.error(`抖店店铺授权失败：${params.get('reason') || 'UNKNOWN_DOUYIN_AUTH_ERROR'}`);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!tab && withSchema.length > 0) {
-      const tiktok = withSchema.find((p) => p.platform === 'tiktok');
-      setTab((tiktok ?? withSchema[0]).platform);
+      const douyin = withSchema.find((p) => p.platform === 'douyin_shop');
+      setTab((douyin ?? withSchema[0]).platform);
     }
   }, [tab, withSchema]);
 

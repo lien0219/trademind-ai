@@ -1,4 +1,4 @@
-import { getJSON, putJSON } from '@/services/request';
+import { getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
 import type { AppConfigSchemaDTO } from '@/services/shops';
 
 export type PlatformAppSettingsResp = {
@@ -19,9 +19,27 @@ export async function putPlatformAppSettings(
   return putJSON(`/api/v1/platform/settings/${platform}`, { values });
 }
 
+export async function testPlatformAppSettings(
+  platform: string,
+): Promise<{
+  ok: boolean;
+  message?: string;
+  shopName?: string;
+  externalShopId?: string;
+  region?: string;
+  currency?: string;
+}> {
+  return postJSON(`/api/v1/platform/settings/${platform}/test-connection`, {});
+}
+
+export async function startDouyinOAuth(shopId?: string): Promise<{ redirectUrl: string; authorizeUrl: string; state: string }> {
+  return getWithParams('/api/v1/shops/oauth/douyin/start', { shopId: shopId || undefined });
+}
+
 /** Sort providers for Tabs (settingsGroupKey filtered by caller). */
 export function preferredPlatformTabOrder(platform: string): number {
   const order = [
+    'douyin_shop',
     'tiktok',
     'shopee',
     'lazada',
@@ -40,6 +58,7 @@ export function preferredPlatformTabOrder(platform: string): number {
 
 export function externalDocUrlFor(platform: string): string | undefined {
   const m: Record<string, string> = {
+    douyin_shop: 'https://op.jinritemai.com/docs/',
     tiktok: 'https://partner.tiktokshop.com/',
     shopee: 'https://open.shopee.com/',
     lazada: 'https://open.lazada.com/',
