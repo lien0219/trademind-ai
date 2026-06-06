@@ -9,45 +9,126 @@ import {
   type TaobaoPagePayload,
 } from './page-extract.js';
 import { extractTaobaoJsonPatch, mergeTaobaoPayload } from './json-extract.js';
+import { buildTaobaoQualityReport, validateTaobaoCollectQuality } from './quality.js';
+import {
+  collectSkuPricesByClick,
+  mergeSkuResults,
+  toTaobaoSkuGroups,
+  type TaobaoSkuCollectOptions,
+  type TaobaoSkuGroup,
+} from './sku-collect.js';
+import { cleanTaobaoTitle } from './title-utils.js';
+
+export type TaobaoPriceInfo = {
+  price?: number;
+  priceMin?: number;
+  priceMax?: number;
+  currency: string;
+  priceText: string;
+  priceSource: 'page_display' | 'sku' | 'json' | 'unknown';
+};
+
+export type TaobaoShopInfo = {
+  shopName: string;
+  shopUrl: string;
+  sellerName: string;
+};
 
 export type TaobaoAssembled = {
   title: string;
   originalTitle: string;
   price?: number;
+  priceMin?: number;
+  priceMax?: number;
   priceText: string;
   priceRange: string;
+  priceSource: TaobaoPriceInfo['priceSource'];
   currency: string;
   shopName: string;
+  shopUrl: string;
+  sellerName: string;
   mainImages: string[];
   descriptionImages: string[];
   attributes: Record<string, string>;
+  skuGroups: TaobaoSkuGroup[];
   skus: ProductSku[];
   warnings: string[];
   raw: Record<string, unknown>;
 };
 
-function skuLooksIncomplete(payload: TaobaoPagePayload): boolean {
-  if (payload.skuGroups.length === 0) return true;
-  return payload.skuGroups.some((g) => g.options.length === 0);
+function skuLooksIncomplete(groups: TaobaoSkuGroup[], skus: ProductSku[]): boolean {
+  if (groups.length === 0) return true;
+  if (groups.some((g) => g.options.length === 0)) return true;
+  if (skus.length === 0) return true;
+  return false;
+}
+
+function resolvePriceInfo(payload: TaobaoPagePayload, skus: ProductSku[]): TaobaoPriceInfo {
+  const base = resolvePriceFromPayload(payload);
+  const skuPrices = skus.map((s) => s.price).filter((p): p is number => !!p && p > 0);
+  let priceMin = base.price;
+  let priceMax = base.price;
+  let priceSource: TaobaoPriceInfo['priceSource'] = 'unknown';
+
+  if (base.price && base.price > 0) {
+    priceSource = 'page_display';
+  }
+  if (skuPrices.length) {
+    const min = Math.min(...skuPrices);
+    const max = Math.max(...skuPrices);
+    priceMin = min;
+    priceMax = max;
+    if (!base.price || base.price <= 0) {
+      priceSource = 'sku';
+    }
+  }
+
+  const rangeMatch = (payload.priceRange || payload.priceText || '').match(
+    /(\d+(?:\.\d{1,2})?)\s*[-–—~至]\s*(\d+(?:\.\d{1,2})?)/,
+  );
+  if (rangeMatch) {
+    priceMin = Number(rangeMatch[1]);
+    priceMax = Number(rangeMatch[2]);
+    if (!base.price) priceSource = 'page_display';
+  }
+
+  return {
+    price: base.price ?? (skuPrices.length === 1 ? skuPrices[0] : undefined),
+    priceMin,
+    priceMax,
+    currency: 'CNY',
+    priceText: payload.priceRange || payload.priceText,
+    priceSource,
+  };
 }
 
 export async function assembleTaobaoProduct(
   page: Page,
   sourceUrl: string,
   payload: TaobaoPagePayload,
+  skuOptions: TaobaoSkuCollectOptions,
+  detailWaitMs: number,
 ): Promise<TaobaoAssembled> {
   const warnings: string[] = [];
   const interactiveMain = await collectMainImagesInteractive(page);
-  const scrolledDetail = await scrollAndCollectDetailImages(page);
+  const scrolledDetail = await scrollAndCollectDetailImages(page, detailWaitMs);
 
   let mainImages = dedupeUrls([...payload.mainImages, ...interactiveMain]);
   let descriptionImages = dedupeUrls([...payload.descriptionImages, ...scrolledDetail]);
 
-  const title = payload.title.trim();
-  const originalTitle = (payload.originalTitle || title).trim();
-  const { price, priceText, priceRange } = resolvePriceFromPayload(payload);
+  const title = cleanTaobaoTitle(payload.title.trim());
+  const originalTitle = (payload.originalTitle || payload.title).trim();
+  let skuGroups = toTaobaoSkuGroups(payload);
+  let skus = payload.skus;
 
-  if (!price || price <= 0) {
+  if (skuOptions.enabled && skuGroups.length > 0) {
+    const clicked = await collectSkuPricesByClick(page, skuGroups, skuOptions);
+    const merged = mergeSkuResults(skus, clicked);
+    skus = merged.skus;
+  }
+
+  const priceInfo = resolvePriceInfo(payload, skus);
+  if (!priceInfo.price || priceInfo.price <= 0) {
     warnings.push('PRICE_NOT_FOUND');
   }
 
@@ -55,62 +136,93 @@ export async function assembleTaobaoProduct(
     warnings.push('DETAIL_IMAGES_INCOMPLETE');
   }
 
-  if (skuLooksIncomplete(payload)) {
+  if (skuLooksIncomplete(skuGroups, skus)) {
     warnings.push('SKU_INCOMPLETE');
   }
 
-  const skus: ProductSku[] = payload.skus.map((s) => ({
+  if (Object.keys(payload.attributes).length === 0) {
+    warnings.push('ATTRIBUTES_EMPTY');
+  }
+
+  const hasUnknownStock = skus.some((s) => s.stock == null);
+  if (skus.length > 0 && hasUnknownStock) {
+    warnings.push('STOCK_UNKNOWN');
+  }
+
+  const skusFinal: ProductSku[] = skus.map((s) => ({
     ...s,
-    price: s.price && s.price > 0 ? s.price : price && price > 0 ? price : s.price,
+    price:
+      s.price && s.price > 0
+        ? s.price
+        : priceInfo.price && priceInfo.price > 0
+          ? priceInfo.price
+          : s.price,
   }));
 
-  return {
+  const shopUrl = await page
+    .evaluate(() => {
+      const a =
+        document.querySelector('[class*="ShopHeader"] a[href*="shop"]') ??
+        document.querySelector('.tb-shop-name a') ??
+        document.querySelector('a[href*="shop.taobao.com"]');
+      return (a as HTMLAnchorElement | null)?.href ?? '';
+    })
+    .catch(() => '');
+
+  const assembled: TaobaoAssembled = {
     title,
     originalTitle,
-    price,
-    priceText,
-    priceRange,
+    price: priceInfo.price,
+    priceMin: priceInfo.priceMin,
+    priceMax: priceInfo.priceMax,
+    priceText: priceInfo.priceText,
+    priceRange: payload.priceRange || priceInfo.priceText,
+    priceSource: priceInfo.priceSource,
     currency: 'CNY',
     shopName: payload.shopName,
+    shopUrl: shopUrl.trim(),
+    sellerName: payload.shopName,
     mainImages,
     descriptionImages,
     attributes: payload.attributes,
-    skus,
+    skuGroups,
+    skus: skusFinal,
     warnings: [...new Set(warnings)],
-    raw: {
-      extractProvider: 'taobao_tmall',
-      warnings: [...new Set(warnings)],
-      productPrice: price,
-      priceText,
-      priceRange,
-      originalTitle,
-      shopName: payload.shopName,
-      skuGroups: payload.skuGroups,
-      debug: payload.debug,
-      finalUrl: page.url(),
-      sourceUrl,
-    },
+    raw: {},
   };
+
+  const quality = buildTaobaoQualityReport(assembled);
+  assembled.raw = {
+    extractProvider: 'taobao_tmall',
+    warnings: assembled.warnings,
+    qualityWarnings: assembled.warnings,
+    quality,
+    productPrice: priceInfo.price,
+    priceMin: priceInfo.priceMin,
+    priceMax: priceInfo.priceMax,
+    priceText: priceInfo.priceText,
+    priceRange: assembled.priceRange,
+    priceSource: priceInfo.priceSource,
+    originalTitle,
+    shopName: payload.shopName,
+    shopUrl: assembled.shopUrl,
+    sellerName: assembled.sellerName,
+    skuGroups: assembled.skuGroups,
+    debug: payload.debug,
+    finalUrl: page.url(),
+    sourceUrl,
+  };
+
+  return assembled;
 }
 
-export function validateTaobaoCollectQuality(assembled: TaobaoAssembled): {
-  ok: boolean;
-  partial: boolean;
-  error?: string;
-} {
-  if (!assembled.title.trim()) {
-    return { ok: false, partial: false, error: 'PARSE_FAILED:missing_title' };
-  }
-  if (assembled.mainImages.length === 0) {
-    return { ok: false, partial: false, error: 'MAIN_IMAGES_EMPTY:no_main_images' };
-  }
-  const partial = assembled.warnings.length > 0;
-  return { ok: true, partial };
-}
+export { validateTaobaoCollectQuality };
 
 export async function extractAndAssembleTaobao(
   page: Page,
   sourceUrl: string,
+  skuOptions: TaobaoSkuCollectOptions,
+  detailWaitMs: number,
 ): Promise<TaobaoAssembled> {
   const domPayload = await extractTaobaoPagePayload(page);
   const jsonPatch = await extractTaobaoJsonPatch(page).catch(() => ({
@@ -118,8 +230,8 @@ export async function extractAndAssembleTaobao(
     descriptionImages: [] as string[],
     attributes: {} as Record<string, string>,
     skuGroups: [] as TaobaoPagePayload['skuGroups'],
-    skus: [] as TaobaoAssembled['skus'],
+    skus: [] as ProductSku[],
   }));
   const payload = mergeTaobaoPayload(domPayload, jsonPatch);
-  return assembleTaobaoProduct(page, sourceUrl, payload);
+  return assembleTaobaoProduct(page, sourceUrl, payload, skuOptions, detailWaitMs);
 }

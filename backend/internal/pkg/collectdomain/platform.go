@@ -38,17 +38,7 @@ func hostMatchesAliExpress(host string) bool {
 }
 
 func hostMatchesTaobaoTmall(host string) bool {
-	switch host {
-	case "item.taobao.com", "detail.tmall.com", "detail.tmall.hk", "world.taobao.com":
-		return true
-	}
-	if host == "taobao.com" || strings.HasSuffix(host, ".taobao.com") {
-		return true
-	}
-	if host == "tmall.com" || strings.HasSuffix(host, ".tmall.com") {
-		return true
-	}
-	return false
+	return IsTaobaoEcosystemHost(host)
 }
 
 func hostMatchesPdd(host string) bool {

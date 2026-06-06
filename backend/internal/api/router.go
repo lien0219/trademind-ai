@@ -231,7 +231,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		AITasks:   aiTaskSvc,
 		AIGateway: aiGateway,
 	}
-	productH := &product.Handler{Svc: productSvc}
+	productH := &product.Handler{Svc: productSvc, Files: fileSvc}
 
 	aiBatchSvc := &aioperationbatch.Service{
 		DB:       dep.DB,

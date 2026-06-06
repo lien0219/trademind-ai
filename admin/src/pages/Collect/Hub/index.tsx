@@ -53,7 +53,7 @@ function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefine
       return '拼多多批量采集会自动限速，建议先少量测试。部分页面可能需要登录或触发验证。';
     }
     if (p.source === 'taobao_tmall' || p.source === 'taobao') {
-      return '批量采集暂未开放';
+      return '淘宝/天猫批量采集暂未开放，请先使用单个采集。';
     }
     return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
   }
@@ -91,9 +91,9 @@ const DEDICATED_HUB_DESCRIPTION: Record<string, string> = {
   pinduoduo: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
   pdd: '采集拼多多批发商品详情（pifa），支持标题、价格、主图、规格等；发布前请核对。',
   taobao_tmall:
-    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数。部分商品可能需要登录后采集。',
+    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品需要先登录后采集。',
   taobao:
-    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数。部分商品可能需要登录后采集。',
+    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品需要先登录后采集。',
   aliexpress: '采集速卖通商品详情，支持标题、图片、属性与 SKU（测试中）。',
 };
 

@@ -75,6 +75,7 @@ import {
   generateDescription,
   optimizeProductTitle,
   reorderProductImages,
+  syncProductImages,
   selectBestMainProductImages,
   updateProduct,
   updateProductImage,
@@ -1234,6 +1235,14 @@ export default function ProductDraftDetailPage() {
                       message="拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。"
                     />
                   ) : null}
+                  {isTaobaoTmallProduct(data) ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      message="淘宝/天猫采集图片默认为外链，发布前建议同步到平台存储，避免外链失效。"
+                    />
+                  ) : null}
                   <Card
                     size="small"
                     style={{
@@ -1294,6 +1303,49 @@ export default function ProductDraftDetailPage() {
                                 同步顺序
                               </Button>
                             </Tooltip>
+                            {isTaobaoTmallProduct(data) ? (
+                              <>
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await syncProductImages(id, { scope: 'all' });
+                                      message.success(`已同步 ${res.synced} 张图片到平台存储`);
+                                      await reloadDetail();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '同步失败');
+                                    }
+                                  }}
+                                >
+                                  同步图片到平台存储
+                                </Button>
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await syncProductImages(id, { scope: 'main' });
+                                      message.success(`已同步 ${res.synced} 张主图`);
+                                      await reloadDetail();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '同步失败');
+                                    }
+                                  }}
+                                >
+                                  批量同步主图
+                                </Button>
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await syncProductImages(id, { scope: 'detail' });
+                                      message.success(`已同步 ${res.synced} 张详情图`);
+                                      await reloadDetail();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '同步失败');
+                                    }
+                                  }}
+                                >
+                                  批量同步详情图
+                                </Button>
+                              </>
+                            ) : null}
                           </Space>
                         </Flex>
                         <Flex vertical gap={10} style={{ flex: '2 1 320px', minWidth: 280 }}>

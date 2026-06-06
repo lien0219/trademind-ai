@@ -4,7 +4,7 @@ import { TaobaoTmallLoginPanel } from '@/pages/Collect/components/TaobaoTmallLog
 import type { ProviderTaobaoTmallAuthStatus } from '@/services/collectAuth';
 import { createCollectTask } from '@/services/collectTasks';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
-import { taobaoTmallUrlHint, validateTaobaoTmallUrl } from '@/utils/taobaoTmallUrl';
+import { classifyTaobaoTmallUrl, taobaoTmallUrlHint, validateTaobaoTmallUrl } from '@/utils/taobaoTmallUrl';
 
 type Props = {
   open: boolean;
@@ -31,7 +31,8 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
     return taobaoTmallUrlHint(u);
   }, [url]);
 
-  const canSubmit = validateTaobaoTmallUrl(url?.trim() ?? '');
+  const urlType = url?.trim() ? classifyTaobaoTmallUrl(url.trim()) : null;
+  const canSubmit = urlType === 'product_detail';
 
   const handleSubmit = async () => {
     const vals = await form.validateFields();
@@ -74,7 +75,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
       }
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        当前为 Beta 单品采集。部分商品需要登录或手动完成安全验证；批量采集暂未开放。
+        当前为测试中单品采集。部分商品需要登录或手动完成安全验证；淘宝/天猫批量采集暂未开放，请先使用单个采集。
       </Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item
@@ -87,7 +88,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
       </Form>
       {urlHint ? (
         <Alert
-          type={canSubmit ? 'success' : 'warning'}
+          type={urlType === 'product_detail' ? 'success' : urlType === 'unsupported_taobao' ? 'error' : 'warning'}
           showIcon
           message={urlHint}
           style={{ marginBottom: 12 }}

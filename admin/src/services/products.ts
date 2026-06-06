@@ -218,6 +218,20 @@ export async function reorderProductImages(productId: string, body: ReorderProdu
   return postJSON<{ ok: boolean }>(`/api/v1/products/${productId}/images/reorder`, body);
 }
 
+export type SyncProductImagesResult = {
+  synced: number;
+  skipped: number;
+  failed: number;
+  errors?: string[];
+};
+
+export async function syncProductImages(
+  productId: string,
+  body: { scope?: 'all' | 'main' | 'detail' } = {},
+) {
+  return postJSON<SyncProductImagesResult>(`/api/v1/products/${productId}/sync-images`, body);
+}
+
 function attrsToJSON(attrs?: Record<string, unknown> | string | null): object | string | undefined {
   if (attrs === undefined) return undefined;
   if (attrs === null) return null;

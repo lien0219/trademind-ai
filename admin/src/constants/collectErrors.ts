@@ -71,6 +71,14 @@ export function mapCollectorErrorCodeLabel(code?: string | null): string {
       return '链接无效';
     case 'UNSUPPORTED_PINDUODUO_URL':
       return '链接类型暂未支持';
+    case 'UNSUPPORTED_TAOBAO_URL':
+      return '淘宝/天猫链接类型暂未支持';
+    case 'TITLE_NOT_FOUND':
+      return '没有识别到商品标题';
+    case 'ATTRIBUTES_EMPTY':
+      return '未识别到商品参数';
+    case 'STOCK_UNKNOWN':
+      return '库存状态未知';
     case 'WECHAT_AUTH_REQUIRED':
       return '需要微信授权';
     case 'APP_REDIRECT':
@@ -149,6 +157,16 @@ export function mapCollectorErrorCodeDetail(code?: string | null, source?: strin
       return isPdd
         ? '请使用拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。移动端商品页、批发首页等链接暂不支持直接采集。'
         : '当前链接类型暂未支持。';
+    case 'UNSUPPORTED_TAOBAO_URL':
+      return isTb
+        ? '当前链接不是标准淘宝/天猫商品详情页，请复制商品详情页链接后重试。'
+        : '当前链接类型暂未支持。';
+    case 'TITLE_NOT_FOUND':
+      return '未能识别商品标题，请检查链接是否为有效商品详情页。';
+    case 'ATTRIBUTES_EMPTY':
+      return '未识别到商品参数，草稿可创建，请发布前手动补充。';
+    case 'STOCK_UNKNOWN':
+      return '库存状态未知，请发布前人工确认各规格库存。';
     case 'APP_REDIRECT':
       return '当前为 App 引导页，请换用拼多多批发商品详情链接。';
     case 'PROFILE_NOT_FOUND':
@@ -210,6 +228,12 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null): st
   }
   if (upper.includes('UNSUPPORTED_PINDUODUO_URL')) {
     return mapCollectorErrorCodeDetail('UNSUPPORTED_PINDUODUO_URL', source);
+  }
+  if (upper.includes('UNSUPPORTED_TAOBAO_URL')) {
+    return mapCollectorErrorCodeDetail('UNSUPPORTED_TAOBAO_URL', source);
+  }
+  if (upper.includes('TITLE_NOT_FOUND')) {
+    return mapCollectorErrorCodeDetail('TITLE_NOT_FOUND', source);
   }
   if (upper.includes('PARSE_FAILED_TITLE_MISSING')) {
     return mapCollectorErrorCodeDetail('PARSE_FAILED_TITLE_MISSING', source);

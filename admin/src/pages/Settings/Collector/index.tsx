@@ -81,6 +81,10 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_taobao_tmall_access_check_enabled: {},
   collect_taobao_tmall_retry_on_failure: {},
   collect_taobao_tmall_max_retries: {},
+  collect_taobao_tmall_scroll_wait_enabled: {},
+  collect_taobao_tmall_detail_image_wait_ms: {},
+  collect_taobao_tmall_sku_click_enabled: {},
+  collect_taobao_tmall_sku_click_max: {},
 };
 
 const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {

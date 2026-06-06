@@ -21,6 +21,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.DELETE("/products/:id/skus/:skuId", h.DeleteSKU)
 
 	g.POST("/products/:id/images/reorder", h.PostImagesReorder)
+	g.POST("/products/:id/sync-images", h.SyncImages)
 	g.POST("/products/:id/images", h.PostImage)
 	g.PUT("/products/:id/images/:imageId", h.PutImage)
 	g.DELETE("/products/:id/images/:imageId", h.DeleteImage)

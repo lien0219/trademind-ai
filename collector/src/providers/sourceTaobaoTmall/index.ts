@@ -8,8 +8,14 @@ import type { NormalizedProduct } from '../../types/product.js';
 import { detectTaobaoAccessStatus, throwAccessError } from './access-detect.js';
 import { extractAndAssembleTaobao, validateTaobaoCollectQuality } from './parser.js';
 import { TAOBAO_TMALL_PROFILE_KEY, TAOBAO_TMALL_PROVIDER } from './profile.js';
-import { taobaoTmallUrlHint, validateTaobaoTmallUrl } from './validate-url.js';
+import {
+  classifyTaobaoTmallUrl,
+  taobaoTmallUrlHint,
+  UNSUPPORTED_TAOBAO_URL_MESSAGE,
+  validateTaobaoTmallUrl,
+} from './validate-url.js';
 import { waitForProductCore } from './page-extract.js';
+import type { TaobaoSkuCollectOptions } from './sku-collect.js';
 
 function resolveGotoTimeoutMs(options?: Record<string, unknown>): number {
   const raw = options?.gotoTimeoutMs ?? options?.timeoutMs;
@@ -26,12 +32,35 @@ function accessCheckEnabled(options?: Record<string, unknown>): boolean {
   return true;
 }
 
+function scrollWaitEnabled(options?: Record<string, unknown>): boolean {
+  if (options?.scrollWaitEnabled === false) return false;
+  if (options?.scrollWaitEnabled === '0' || options?.scrollWaitEnabled === 'false') {
+    return false;
+  }
+  return true;
+}
+
+function resolveDetailWaitMs(options?: Record<string, unknown>): number {
+  const raw = options?.detailImageWaitMs ?? options?.detailWaitMs;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (Number.isFinite(n) && n >= 0) return Math.min(n, 30_000);
+  return 3000;
+}
+
+function resolveSkuCollectOptions(options?: Record<string, unknown>): TaobaoSkuCollectOptions {
+  const enabled = options?.skuClickCollectEnabled !== false && options?.skuClickCollectEnabled !== '0';
+  const rawMax = options?.skuClickMaxCount ?? options?.skuMaxClicks;
+  const n = typeof rawMax === 'number' ? rawMax : Number(rawMax);
+  const maxClicks = Number.isFinite(n) && n > 0 ? Math.min(n, 48) : 24;
+  return { enabled, maxClicks };
+}
+
 class TaobaoTmallCollectorProvider implements CollectorProvider {
   readonly sourceId = TAOBAO_TMALL_PROVIDER;
   readonly meta = {
     name: '淘宝/天猫采集器',
     description:
-      '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数。部分商品可能需要登录后采集。',
+      '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品需要先登录后采集。',
     status: 'beta' as const,
     batchSupported: false,
     urlPatterns: [
@@ -39,6 +68,8 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
       'https://detail.tmall.com/item.htm?id=*',
       'https://detail.tmall.hk/item.htm?id=*',
       'https://world.taobao.com/item/*.htm',
+      'https://chaoshi.tmall.com/item.htm?id=*',
+      'https://ju.taobao.com/item.htm?id=*',
     ],
     features: [
       'title',
@@ -48,7 +79,7 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
       'attributes',
       'skus',
     ] satisfies CollectFeature[],
-    notes: '批量采集暂未开放。部分商品需要登录或手动完成安全验证。',
+    notes: '淘宝/天猫批量采集暂未开放，请先使用单个采集。',
   };
 
   canHandle(url: string): boolean {
@@ -57,6 +88,10 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
 
   async collect(browser: BrowserManager, input: CollectInput): Promise<NormalizedProduct> {
     const sourceUrl = input.url.trim();
+    const urlType = classifyTaobaoTmallUrl(sourceUrl);
+    if (urlType === 'unsupported_taobao') {
+      throw new Error(`UNSUPPORTED_TAOBAO_URL:${UNSUPPORTED_TAOBAO_URL_MESSAGE}`);
+    }
     if (!this.canHandle(sourceUrl)) {
       throw new Error(`INVALID_URL:${taobaoTmallUrlHint()}`);
     }
@@ -66,6 +101,9 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
       input.options?.useBrowserProfile === true && profileKey === TAOBAO_TMALL_PROFILE_KEY;
     const gotoTimeout = resolveGotoTimeoutMs(input.options);
     const runAccessCheck = accessCheckEnabled(input.options);
+    const scrollEnabled = scrollWaitEnabled(input.options);
+    const detailWaitMs = resolveDetailWaitMs(input.options);
+    const skuOptions = resolveSkuCollectOptions(input.options);
 
     const run = async (page: Page) => {
       try {
@@ -90,13 +128,19 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
 
       await waitForProductCore(page, gotoTimeout);
 
-      const assembled = await extractAndAssembleTaobao(page, sourceUrl);
+      if (scrollEnabled) {
+        await page.evaluate(() => window.scrollBy(0, 200)).catch(() => undefined);
+        await page.waitForTimeout(400);
+      }
+
+      const assembled = await extractAndAssembleTaobao(page, sourceUrl, skuOptions, detailWaitMs);
       const quality = validateTaobaoCollectQuality(assembled);
       if (!quality.ok && quality.error) {
         throw new Error(quality.error);
       }
 
-      const collectStatus = quality.partial || assembled.warnings.length > 0 ? 'partial_success' : 'success';
+      const collectStatus =
+        quality.partial || assembled.warnings.length > 0 ? 'partial_success' : 'success';
 
       return {
         source: this.sourceId,

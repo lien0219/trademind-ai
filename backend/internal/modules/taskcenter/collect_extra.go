@@ -83,6 +83,10 @@ func collectFailureContextExtras(sourceURL, errMsg, failureCategory, classifierS
 		suggested = "请打开淘宝/天猫采集浏览器完成登录后重试采集任务。"
 	} else if accessStatus == "需要验证" && strings.Contains(strings.ToLower(errMsg), "taobao") {
 		suggested = "请在淘宝/天猫采集浏览器中手动完成安全验证后重试。"
+	} else if strings.Contains(strings.ToLower(errMsg), "main_images_empty") {
+		suggested = "未获取到主图，请检查页面是否正常加载，或在登录/验证完成后重试。"
+	} else if strings.Contains(strings.ToLower(errMsg), "unsupported_taobao_url") {
+		suggested = "当前链接不是标准淘宝/天猫商品详情页，请复制商品详情页链接后重试。"
 	}
 	return urlType, accessStatus, suggested
 }
@@ -100,6 +104,10 @@ func taobaoTmallURLTypeLabel(sourceURL string) string {
 		return "天猫商品页"
 	case "world.taobao.com":
 		return "淘宝全球购商品页"
+	case "chaoshi.tmall.com":
+		return "天猫超市商品页"
+	case "ju.taobao.com":
+		return "聚划算商品页"
 	default:
 		if strings.Contains(host, "taobao") {
 			return "淘宝商品页"

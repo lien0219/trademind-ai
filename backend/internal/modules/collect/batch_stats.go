@@ -75,7 +75,8 @@ func isCollectorCodeRetryable(code string, inBatch bool, policy BatchSourcePolic
 	switch code {
 	case "INVALID_URL", "INVALID_REQUEST", "PROVIDER_NOT_FOUND", "PROVIDER_NOT_IMPLEMENTED",
 		"PROVIDER_NOT_AVAILABLE", "PRODUCT_NOT_FOUND", "ITEM_NOT_FOUND", "UNSUPPORTED_URL", "UNSUPPORTED_PINDUODUO_URL",
-		"LOGIN_REQUIRED", "WECHAT_AUTH_REQUIRED", "APP_REDIRECT", "MAIN_IMAGES_EMPTY", "ACCESS_DENIED",
+		"UNSUPPORTED_TAOBAO_URL", "LOGIN_REQUIRED", "WECHAT_AUTH_REQUIRED", "APP_REDIRECT", "MAIN_IMAGES_EMPTY",
+		"ACCESS_DENIED", "TITLE_NOT_FOUND",
 		"CUSTOM_RULE_MISSING", "CUSTOM_RULE_INVALID",
 		"PARSE_FAILED_TITLE_MISSING", "PARSE_FAILED_IMAGE_MISSING":
 		return false
@@ -138,6 +139,13 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 			return "当前链接不是拼多多批发商品详情页。请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；移动端商品页暂未完整支持。"
 		}
 		return "当前链接类型暂未支持。"
+	case "UNSUPPORTED_TAOBAO_URL":
+		if isTb {
+			return "当前链接不是标准淘宝/天猫商品详情页，请复制商品详情页链接后重试。"
+		}
+		return "当前链接类型暂未支持。"
+	case "TITLE_NOT_FOUND":
+		return "未能识别商品标题，请检查链接是否为有效商品详情页。"
 	case "WECHAT_AUTH_REQUIRED":
 		return "拼多多登录需要微信扫码授权，请在采集浏览器中完成扫码后再重试。"
 	case "APP_REDIRECT":
@@ -264,6 +272,8 @@ func inferCodeFromMessage(msg string) string {
 		"LOGIN_REQUIRED",
 		"PROFILE_LOGIN_REQUIRED",
 		"UNSUPPORTED_PINDUODUO_URL",
+		"UNSUPPORTED_TAOBAO_URL",
+		"TITLE_NOT_FOUND",
 		"PARSE_FAILED_TITLE_MISSING",
 		"PARSE_FAILED_IMAGE_MISSING",
 		"CUSTOM_RULE_MISSING",

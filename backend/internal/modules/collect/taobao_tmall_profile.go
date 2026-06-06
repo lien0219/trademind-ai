@@ -38,6 +38,30 @@ func (s *Service) buildTaobaoTmallRequestOptions(ctx context.Context, _sourceURL
 			} else {
 				opts["accessCheckEnabled"] = true
 			}
+			if v, ok := settingsBool(m, "collect_taobao_tmall_scroll_wait_enabled"); ok {
+				opts["scrollWaitEnabled"] = v
+			} else {
+				opts["scrollWaitEnabled"] = true
+			}
+			if v := strings.TrimSpace(m["collect_taobao_tmall_detail_image_wait_ms"]); v != "" {
+				if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+					opts["detailImageWaitMs"] = n
+				}
+			} else {
+				opts["detailImageWaitMs"] = 3000
+			}
+			if v, ok := settingsBool(m, "collect_taobao_tmall_sku_click_enabled"); ok {
+				opts["skuClickCollectEnabled"] = v
+			} else {
+				opts["skuClickCollectEnabled"] = true
+			}
+			if v := strings.TrimSpace(m["collect_taobao_tmall_sku_click_max"]); v != "" {
+				if n, err := strconv.Atoi(v); err == nil && n > 0 {
+					opts["skuClickMaxCount"] = n
+				}
+			} else {
+				opts["skuClickMaxCount"] = 24
+			}
 		}
 	}
 	if len(opts) == 0 {

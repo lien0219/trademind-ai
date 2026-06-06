@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -14,7 +15,8 @@ import (
 
 // Handler exposes product draft HTTP API.
 type Handler struct {
-	Svc *Service
+	Svc   *Service
+	Files *files.Service
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -307,6 +309,36 @@ func (h *Handler) ListAITasks(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"list": items})
+}
+
+// SyncImages POST /api/v1/products/:id/sync-images
+func (h *Handler) SyncImages(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body SyncImagesBody
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.SyncImages(c, id, body, adminUUID(c), h.Files)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
 }
 
 // SearchSKUs GET /api/v1/product-skus/search

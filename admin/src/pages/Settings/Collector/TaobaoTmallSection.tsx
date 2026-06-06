@@ -22,7 +22,7 @@ const AUTH_STATUS_LABEL: Record<
   AuthDisplayStatus,
   { text: string; badge: 'processing' | 'success' | 'error' | 'warning' | 'default' }
 > = {
-  unchecked: { text: '未检测', badge: 'default' },
+  unchecked: { text: '未确认', badge: 'default' },
   checking: { text: '检测中…', badge: 'processing' },
   logged_in: { text: '已登录', badge: 'success' },
   login_required: { text: '需要登录', badge: 'error' },
@@ -122,7 +122,11 @@ export function CollectorTaobaoTmallSection({
           </Space>
         </div>
 
-        <Alert type="warning" showIcon message="批量采集暂未开放，当前仅支持单品采集（Beta）。" />
+        <Alert
+          type="warning"
+          showIcon
+          message="淘宝/天猫批量采集暂未开放，请先使用单个采集，待单采稳定后再开放批量。"
+        />
 
         <Form.Item
           label="用于检测的商品链接（可选）"
@@ -165,6 +169,48 @@ export function CollectorTaobaoTmallSection({
           <Col xs={24} sm={12}>
             <Form.Item label="最大重试次数" name="collect_taobao_tmall_max_retries">
               <InputNumber min={0} max={10} style={{ width: '100%' }} placeholder="2" />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="页面滚动等待"
+              name="collect_taobao_tmall_scroll_wait_enabled"
+              valuePropName="checked"
+              tooltip="采集前轻微滚动页面，帮助主图与详情区域加载。"
+            >
+              <Switch defaultChecked />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="详情图加载等待（毫秒）"
+              name="collect_taobao_tmall_detail_image_wait_ms"
+              tooltip="滚动详情区域并等待懒加载图片，默认 3000ms。"
+            >
+              <InputNumber min={0} max={30000} style={{ width: '100%' }} placeholder="3000" />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="SKU 点击采集"
+              name="collect_taobao_tmall_sku_click_enabled"
+              valuePropName="checked"
+              tooltip="规格组合较少时点击采集价格；组合过多时自动限制点击次数。"
+            >
+              <Switch defaultChecked />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="SKU 最大点击次数"
+              name="collect_taobao_tmall_sku_click_max"
+              tooltip="避免规格组合过多导致采集卡死，默认 24。"
+            >
+              <InputNumber min={1} max={48} style={{ width: '100%' }} placeholder="24" />
             </Form.Item>
           </Col>
         </Row>

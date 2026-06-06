@@ -36,7 +36,9 @@ function hostMatchesTaobaoTmall(host: string): boolean {
     host === 'item.taobao.com' ||
     host === 'detail.tmall.com' ||
     host === 'detail.tmall.hk' ||
-    host === 'world.taobao.com'
+    host === 'world.taobao.com' ||
+    host === 'chaoshi.tmall.com' ||
+    host === 'ju.taobao.com'
   ) {
     return true;
   }

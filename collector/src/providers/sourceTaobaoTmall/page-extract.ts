@@ -1,6 +1,7 @@
 import type { Page } from 'playwright';
 import type { ProductSku } from '../../types/product.js';
 import { dedupeUrls, normalizeImageUrl } from './image-utils.js';
+import { cleanTaobaoTitle, extractTitleFromDocumentTitle } from './title-utils.js';
 
 export type TaobaoPagePayload = {
   title: string;
@@ -44,7 +45,7 @@ export async function waitForProductCore(page: Page, timeoutMs: number): Promise
 }
 
 export async function extractTaobaoPagePayload(page: Page): Promise<TaobaoPagePayload> {
-  return page.evaluate(() => {
+  const payload = await page.evaluate(() => {
     const pickText = (el: Element | null | undefined): string =>
       (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
@@ -65,7 +66,14 @@ export async function extractTaobaoPagePayload(page: Page): Promise<TaobaoPagePa
         if (t) titleCandidates.push(t);
       }
     }
-    const title = titleCandidates.find((t) => t.length > 2 && !/淘宝|天猫|登录/.test(t)) ?? titleCandidates[0] ?? '';
+    let title =
+      titleCandidates.find((t) => t.length > 2 && !/淘宝|天猫|登录/.test(t)) ?? titleCandidates[0] ?? '';
+    if (!title) {
+      const docTitle = (document.title ?? '').replace(/\s+/g, ' ').trim();
+      if (docTitle && !/^(淘宝网|天猫|登录|首页)$/i.test(docTitle)) {
+        title = docTitle;
+      }
+    }
     const originalTitle = titleCandidates[0] ?? title;
 
     const priceTexts: string[] = [];
@@ -208,9 +216,21 @@ export async function extractTaobaoPagePayload(page: Page): Promise<TaobaoPagePa
         detailImageCount: descriptionImages.length,
         skuGroupCount: skuGroups.length,
         pageUrl: location.href,
+        documentTitle: document.title ?? '',
       },
     };
   });
+
+  let title = cleanTaobaoTitle(payload.title.trim());
+  if (!title) {
+    const docTitle = String(payload.debug?.documentTitle ?? '');
+    title = extractTitleFromDocumentTitle(docTitle);
+  }
+  return {
+    ...payload,
+    title: title || payload.title,
+    originalTitle: payload.originalTitle || payload.title,
+  };
 }
 
 export async function collectMainImagesInteractive(page: Page): Promise<string[]> {
@@ -238,7 +258,10 @@ export async function collectMainImagesInteractive(page: Page): Promise<string[]
   return dedupeUrls(urls.map(normalizeImageUrl));
 }
 
-export async function scrollAndCollectDetailImages(page: Page): Promise<string[]> {
+export async function scrollAndCollectDetailImages(
+  page: Page,
+  detailWaitMs = 3000,
+): Promise<string[]> {
   const detailSel = '#J_Description, #description, [class*="desc-root"], [class*="DetailDesc"]';
   const root = page.locator(detailSel).first();
   if ((await root.count()) === 0) return [];
@@ -246,9 +269,12 @@ export async function scrollAndCollectDetailImages(page: Page): Promise<string[]
   await root.scrollIntoViewIfNeeded().catch(() => undefined);
   await page.waitForTimeout(500);
 
-  for (let i = 0; i < 6; i++) {
+  const scrollSteps = Math.max(4, Math.min(10, Math.ceil(detailWaitMs / 500)));
+  const stepWait = Math.max(300, Math.min(800, Math.floor(detailWaitMs / scrollSteps)));
+
+  for (let i = 0; i < scrollSteps; i++) {
     await page.evaluate(() => window.scrollBy(0, Math.max(window.innerHeight * 0.8, 400)));
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(stepWait);
   }
 
   const imgs = await page.evaluate((sel) => {
