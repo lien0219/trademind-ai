@@ -75,7 +75,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
       }
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        当前为测试中单品采集。部分商品需要登录或手动完成安全验证；淘宝/天猫批量采集暂未开放，请先使用单个采集。
+        部分淘宝/天猫商品需要登录后才能采集。如遇安全验证或滑块，请在采集浏览器中手动完成后再重试。批量采集已开放，建议每批不超过 20 条。
       </Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item

@@ -65,8 +65,10 @@ type BatchListResult struct {
 
 // CreateBatchResult is returned after creating a batch and tasks.
 type CreateBatchResult struct {
-	Batch     BatchDTO `json:"batch"`
-	TaskCount int      `json:"taskCount"`
+	Batch        BatchDTO `json:"batch"`
+	TaskCount    int      `json:"taskCount"`
+	SkippedCount int      `json:"skippedCount,omitempty"`
+	SkippedURLs  []string `json:"skippedUrls,omitempty"`
 }
 
 // RetryBatchFailedResult is returned from retry-failed.

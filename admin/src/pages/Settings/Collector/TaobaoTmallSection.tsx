@@ -74,6 +74,7 @@ export function CollectorTaobaoTmallSection({
   onOpenLogin,
 }: Props) {
   const authKey = resolveDisplayStatus(authStatus, authChecking, authLoaded);
+  const batchOpen = providerRow?.batchSupported && providerRow?.status === 'available';
 
   return (
     <ProCard
@@ -96,8 +97,8 @@ export function CollectorTaobaoTmallSection({
           <Space wrap>
             <Typography.Text strong>淘宝/天猫采集器状态</Typography.Text>
             <Badge
-              status={providerRow?.status === 'beta' ? 'processing' : 'success'}
-              text={providerRow?.status === 'beta' ? '测试中（Beta）' : '已可用'}
+              status={providerRow?.status === 'available' ? 'success' : 'processing'}
+              text={providerRow?.status === 'available' ? '已可用' : '测试中（Beta）'}
             />
           </Space>
         </div>
@@ -122,11 +123,14 @@ export function CollectorTaobaoTmallSection({
           </Space>
         </div>
 
-        <Alert
-          type="warning"
-          showIcon
-          message="淘宝/天猫批量采集暂未开放，请先使用单个采集，待单采稳定后再开放批量。"
-        />
+        {batchOpen ? (
+          <Alert
+            type="info"
+            showIcon
+            message="批量采集说明"
+            description="批量采集会逐条打开商品页面，默认每批最多 20 条。遇到登录或安全验证时，可先暂停批次、完成验证后再重试失败链接。"
+          />
+        ) : null}
 
         <Form.Item
           label="用于检测的商品链接（可选）"
@@ -214,6 +218,76 @@ export function CollectorTaobaoTmallSection({
             </Form.Item>
           </Col>
         </Row>
+
+        {batchOpen ? (
+          <>
+            <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 0 }}>
+              批量采集设置
+            </Typography.Title>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label="每批最多链接数"
+                  name="collect_taobao_tmall_batch_max_items"
+                  tooltip="建议不超过 20 条，过多请分批提交。"
+                >
+                  <InputNumber min={1} max={50} style={{ width: '100%' }} placeholder="20" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label="同时采集条数"
+                  name="collect_taobao_tmall_batch_concurrency"
+                  tooltip="建议保持 1，最多 2，避免触发平台风控。"
+                >
+                  <InputNumber min={1} max={2} style={{ width: '100%' }} placeholder="1" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label="每条间隔最小值（毫秒）"
+                  name="collect_taobao_tmall_batch_delay_min_ms"
+                >
+                  <InputNumber min={0} max={120000} style={{ width: '100%' }} placeholder="3500" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  label="每条间隔最大值（毫秒）"
+                  name="collect_taobao_tmall_batch_delay_max_ms"
+                >
+                  <InputNumber min={0} max={120000} style={{ width: '100%' }} placeholder="6000" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item label="批量失败重试次数" name="collect_taobao_tmall_batch_max_retries">
+                  <InputNumber min={0} max={5} style={{ width: '100%' }} placeholder="2" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item
+              label="启用淘宝/天猫批量采集"
+              name="collect_taobao_tmall_batch_enabled"
+              valuePropName="checked"
+            >
+              <Switch defaultChecked />
+            </Form.Item>
+            <Form.Item
+              label="遇到需要登录时暂停本批剩余任务"
+              name="collect_taobao_tmall_batch_pause_on_login"
+              valuePropName="checked"
+            >
+              <Switch defaultChecked />
+            </Form.Item>
+            <Form.Item
+              label="遇到安全验证时暂停本批剩余任务"
+              name="collect_taobao_tmall_batch_pause_on_verify"
+              valuePropName="checked"
+            >
+              <Switch defaultChecked />
+            </Form.Item>
+          </>
+        ) : null}
       </Space>
     </ProCard>
   );

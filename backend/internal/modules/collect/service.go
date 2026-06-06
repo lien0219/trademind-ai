@@ -172,9 +172,20 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, m
 			Status:      "failed",
 			Message:     truncateRunes(msg, 2000),
 		})
+		if task.BatchID != nil && isTaobaoTmallCollectSource(task.Source) {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "collect.taobao_tmall.batch.task_failed",
+				Resource:    "collect_task",
+				ResourceID:  tid.String(),
+				Status:      "failed",
+				Message:     truncateRunes(fmt.Sprintf("batchId=%s %s", task.BatchID.String(), msg), 2000),
+			})
+		}
 	}
 	if task.BatchID != nil {
-		s.reconcileCollectBatch(ctx, task.BatchID)
+		s.maybePauseTaobaoTmallBatchOnAuthFailure(ctx, task, payload)
+		s.reconcileCollectBatchWithTerminalLog(ctx, task.BatchID)
 	}
 }
 
@@ -227,7 +238,8 @@ func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask,
 		})
 	}
 	if task.BatchID != nil {
-		s.reconcileCollectBatch(ctx, task.BatchID)
+		s.maybePauseTaobaoTmallBatchOnAuthFailure(ctx, task, payload)
+		s.reconcileCollectBatchWithTerminalLog(ctx, task.BatchID)
 	}
 }
 
@@ -421,7 +433,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	if err := s.DB.WithContext(ctx).First(&refreshed, "id = ?", taskID).Error; err != nil {
 		return
 	}
-	s.reconcileCollectBatch(ctx, refreshed.BatchID)
+	s.reconcileCollectBatchWithTerminalLog(ctx, refreshed.BatchID)
 
 	s.RecordTaskEvent(ctx, &refreshed, TaskEventInput{
 		EventType:  EventTaskSuccess,
@@ -488,6 +500,24 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			Status:      "success",
 			Message:     msg,
 		})
+		if refreshed.BatchID != nil && isTaobaoTmallCollectSource(refreshed.Source) {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: refreshed.CreatedBy,
+				Action:      "collect.taobao_tmall.batch.task_success",
+				Resource:    "collect_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("batchId=%s productId=%s", refreshed.BatchID.String(), pid.String()),
+			})
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: refreshed.CreatedBy,
+				Action:      "collect.taobao_tmall.batch.draft_created",
+				Resource:    "product",
+				ResourceID:  pid.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("batchId=%s taskId=%s", refreshed.BatchID.String(), taskID.String()),
+			})
+		}
 	}
 }
 

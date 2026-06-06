@@ -183,7 +183,26 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	if isPinduoduoCollectSource(source) && !s.pinduoduoBatchEnabled(ctx) {
 		return zero, fmt.Errorf("pinduoduo batch collect is disabled in settings")
 	}
-	urls, err := normalizeDedupeURLs(body.URLs, s.batchMaxURLs())
+	if isTaobaoTmallCollectSource(source) && !s.taobaoTmallBatchEnabled(ctx) {
+		return zero, fmt.Errorf("taobao_tmall batch collect is disabled in settings")
+	}
+
+	var skippedURLs []string
+	rawURLs := body.URLs
+	if isTaobaoTmallCollectSource(source) {
+		filtered := filterTaobaoTmallBatchURLs(body.URLs)
+		skippedURLs = filtered.Skipped
+		rawURLs = filtered.Valid
+		if len(rawURLs) == 0 {
+			return zero, fmt.Errorf("no valid taobao_tmall product detail urls")
+		}
+		if err := s.ensureTaobaoTmallBatchReady(ctx, rawURLs[0]); err != nil {
+			return zero, err
+		}
+		s.logTaobaoTmallBatchSkippedURLs(ctx, adminID, skippedURLs)
+	}
+
+	urls, err := normalizeDedupeURLs(rawURLs, s.batchMaxURLsForSource(ctx, source))
 	if err != nil {
 		return zero, err
 	}
@@ -211,18 +230,25 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		taskIDs = make([]uuid.UUID, 0, len(urls))
 		batchPolicy := s.batchPolicyForSource(ctx, source)
 		maxRetries := s.defaultMaxRetriesForNewTask()
-		if (strings.EqualFold(strings.TrimSpace(source), "1688") || isPinduoduoCollectSource(source)) &&
-			batchPolicy.MaxRetries > 0 {
+		if (strings.EqualFold(strings.TrimSpace(source), "1688") || isPinduoduoCollectSource(source) ||
+			isTaobaoTmallCollectSource(source)) && batchPolicy.MaxRetries > 0 {
 			maxRetries = batchPolicy.MaxRetries
 		}
 		for _, u := range urls {
+			var reqOpts datatypes.JSON
+			if isPinduoduoCollectSource(source) {
+				reqOpts = s.buildPinduoduoRequestOptions(ctx, u, true)
+			} else if isTaobaoTmallCollectSource(source) {
+				reqOpts = s.buildTaobaoTmallRequestOptions(ctx, u, true)
+			}
 			task := CollectTask{
-				BatchID:    &bid,
-				Source:     source,
-				SourceURL:  u,
-				Status:     StatusPending,
-				MaxRetries: maxRetries,
-				CreatedBy:  adminID,
+				BatchID:        &bid,
+				Source:         source,
+				SourceURL:      u,
+				Status:         StatusPending,
+				MaxRetries:     maxRetries,
+				CreatedBy:      adminID,
+				RequestOptions: reqOpts,
 			}
 			if err := tx.Create(&task).Error; err != nil {
 				return err
@@ -270,21 +296,35 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		action := "collect.batch.create"
 		if isPinduoduoCollectSource(source) {
 			action = "collect.pinduoduo.batch"
+		} else if isTaobaoTmallCollectSource(source) {
+			action = "collect.taobao_tmall.batch.create"
 		}
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			Action:     action,
 			Resource:   "collect_batch",
 			ResourceID: batch.ID.String(),
 			Status:     "success",
-			Message:    fmt.Sprintf("source=%s task_count=%d", source, len(taskIDs)),
+			Message:    fmt.Sprintf("source=%s task_count=%d skipped=%d", source, len(taskIDs), len(skippedURLs)),
 		})
+		if isTaobaoTmallCollectSource(source) {
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminID,
+				Action:      "collect.taobao_tmall.batch.start",
+				Resource:    "collect_batch",
+				ResourceID:  batch.ID.String(),
+				Status:      BatchStatusRunning,
+				Message:     fmt.Sprintf("source=%s task_count=%d", source, len(taskIDs)),
+			})
+		}
 	}
 
 	var fresh CollectBatch
 	_ = s.DB.WithContext(ctx).First(&fresh, "id = ?", batch.ID)
 	return CreateBatchResult{
-		Batch:     batchToDTO(&fresh),
-		TaskCount: len(taskIDs),
+		Batch:        batchToDTO(&fresh),
+		TaskCount:    len(taskIDs),
+		SkippedCount: len(skippedURLs),
+		SkippedURLs:  skippedURLs,
 	}, nil
 }
 

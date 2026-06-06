@@ -3,7 +3,9 @@
 > **用途**：记录仓库当前真实进度，供后续会话（含 Cursor）快速对齐上下文，避免重复造轮子、偏离架构或漏掉已做决策。  
 > **维护规则**：每完成一个**阶段**、一个**独立模块**，或一次**较大的代码修改**后，须同步更新本文件（含日期与变更摘要）。
 
-**最新补充**：2026-06-06 — **淘宝/天猫专用采集器生产级完善（测试中）**：专用 Provider **`taobao_tmall`**（非 custom）；支持 `item.taobao.com` / `detail.tmall.com` / `detail.tmall.hk` / `world.taobao.com` / `chaoshi.tmall.com` / `ju.taobao.com`；非标准淘宝生态链接返回 **`UNSUPPORTED_TAOBAO_URL`**；独立登录浏览器 Profile **`taobao_tmall`**；单品采集含标题清洗、价格区间、主图/详情图、参数、SKU 点击采集（可配置）、质量评分；登录/验证/下架/访问受限检测；设置页新增滚动等待、详情图等待、SKU 点击配置；失败任务中心与发布前检查（含外链图片提示）；商品草稿支持 **同步图片到平台存储**；验收表见 [`docs/collector-taobao-tmall-test-links.md`](collector-taobao-tmall-test-links.md)。**批量采集暂未开放**；库存与部分 SKU 需人工复核。
+**最新补充**：2026-06-06 — **淘宝/天猫采集器生产可用收口（已可用 + 批量采集）**：采集中心状态 **`available`（已可用）**；**单品采集**与 **批量采集** 均已开放（`batchSupported=true`）。批量默认 **每批最多 20 条**、**并发 1**（最大 2）、**间隔 3500–6000ms**、**重试 2 次**；走 Redis 队列逐条执行，支持 **`partial_success`**；批量开始前校验采集服务、登录态与安全验证；无效淘宝/天猫链接自动跳过；遇 **LOGIN_REQUIRED / VERIFY_REQUIRED** 可暂停本批剩余任务（可配置）；失败子任务进入 **失败任务中心**；设置页新增 **淘宝/天猫批量配置**（开关、每批上限、并发、间隔、重试、登录/验证暂停）；操作日志 **`collect.taobao_tmall.batch.*`**。商品草稿 **`source=taobao_tmall`**、发布前检查与外链图片同步不变。**边界**：SKU / 库存 / 详情图仍建议发布前人工复核；不绕过验证码。
+
+**此前**：2026-06-06 — **淘宝/天猫专用采集器生产级完善（测试中）**：专用 Provider **`taobao_tmall`**（非 custom）；支持 `item.taobao.com` / `detail.tmall.com` / `detail.tmall.hk` / `world.taobao.com` / `chaoshi.tmall.com` / `ju.taobao.com`；非标准淘宝生态链接返回 **`UNSUPPORTED_TAOBAO_URL`**；独立登录浏览器 Profile **`taobao_tmall`**；单品采集含标题清洗、价格区间、主图/详情图、参数、SKU 点击采集（可配置）、质量评分；登录/验证/下架/访问受限检测；设置页新增滚动等待、详情图等待、SKU 点击配置；失败任务中心与发布前检查（含外链图片提示）；商品草稿支持 **同步图片到平台存储**；验收表见 [`docs/collector-taobao-tmall-test-links.md`](collector-taobao-tmall-test-links.md)。**批量采集暂未开放**；库存与部分 SKU 需人工复核。
 
 **此前**：2026-06-05 — **淘宝/天猫采集图片与 SKU 修复**：修正主图 URL 尾部 `_.jpg` 导致 404、预览空白；过滤 `s.gif` 占位图；新增页面 JSON 解析 `skuBase/skuCore` 补全规格；DOM 规格组展开为多条 SKU（不再仅默认一条）。
 
@@ -493,6 +495,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-06 | **淘宝/天猫采集器生产可用收口**：状态 **beta → available（已可用）**；开放 **批量采集**（默认每批 20 条、并发 1、间隔 3500–6000ms、重试 2）；批量前置登录/验证检查；无效链接跳过；**partial_success**；登录/验证失败可暂停批次；设置页 **collect_taobao_tmall_batch_***；操作日志 **collect.taobao_tmall.batch.***；README / DEMO_CHECKLIST 同步 |
 | 2026-05-29 | **修复 AI 设置保存清空其他服务商密钥**：保存时仅 PUT 当前 provider 连接字段 + 全局参数；隐藏字段保留切换状态；后端对已存在加密项忽略空字符串提交 |
 | 2026-05-29 | **AI 文本设置按服务商独立密钥**：`settings.ai` 新增 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`**（openai、openai_compatible、deepseek、qwen）；管理端切换卡片自动带出对应配置；启动时 **`EnsureAIProviderDefaults`** 将 legacy **`api_key/base_url/model`** 迁移至当前 provider；Gateway 读取 provider 专属字段（legacy **`api_key`** 仍作回退） |
 | 2026-05-23 | **AI 图片清理任务走真实 Provider**：去水印/去 Logo/去二维码/综合清理等不再走 **noop 占位演示**；默认读取 **`settings.image.provider`**（或 **`image_task_default_provider`**）；**`dashscope_image`** 接入万相 2.7 **图像编辑** API；结果仍 **`persistProviderResult` 入库**；未配置 Key 返回「未配置通义万相 API Key」；**`score_image`** 走 **AI 视觉模型**（`ai_vision`），**`select_best_main`** 逻辑保留 |

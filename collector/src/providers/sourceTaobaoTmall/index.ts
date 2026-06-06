@@ -60,9 +60,9 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
   readonly meta = {
     name: '淘宝/天猫采集器',
     description:
-      '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品需要先登录后采集。',
-    status: 'beta' as const,
-    batchSupported: false,
+      '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品可能需要登录或人工确认。',
+    status: 'available' as const,
+    batchSupported: true,
     urlPatterns: [
       'https://item.taobao.com/item.htm?id=*',
       'https://detail.tmall.com/item.htm?id=*',
@@ -79,7 +79,8 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
       'attributes',
       'skus',
     ] satisfies CollectFeature[],
-    notes: '淘宝/天猫批量采集暂未开放，请先使用单个采集。',
+    notes:
+      '淘宝/天猫批量采集已开放。为保证稳定性，系统会逐条采集商品，建议每批不超过 20 条。',
   };
 
   canHandle(url: string): boolean {

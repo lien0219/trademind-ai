@@ -54,9 +54,9 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 		{
 			Source:         "taobao_tmall",
 			Name:           "淘宝/天猫采集器",
-			Description:    "采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品需要先登录后采集。",
-			Status:         "beta",
-			BatchSupported: false,
+			Description:    "采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品可能需要登录或人工确认。",
+			Status:         "available",
+			BatchSupported: true,
 			URLPatterns: []string{
 				"https://item.taobao.com/item.htm?id=*",
 				"https://detail.tmall.com/item.htm?id=*",
@@ -66,7 +66,7 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 				"https://ju.taobao.com/item.htm?id=*",
 			},
 			Features: []string{"title", "price", "mainImages", "descriptionImages", "attributes", "skus"},
-			Notes:    "淘宝/天猫批量采集暂未开放，请先使用单个采集。",
+			Notes:    "淘宝/天猫批量采集已开放。为保证稳定性，系统会逐条采集商品，建议每批不超过 20 条。",
 		},
 		{
 			Source:         "aliexpress",

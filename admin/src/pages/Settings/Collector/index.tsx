@@ -85,13 +85,21 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_taobao_tmall_detail_image_wait_ms: {},
   collect_taobao_tmall_sku_click_enabled: {},
   collect_taobao_tmall_sku_click_max: {},
+  collect_taobao_tmall_batch_enabled: {},
+  collect_taobao_tmall_batch_max_items: {},
+  collect_taobao_tmall_batch_concurrency: {},
+  collect_taobao_tmall_batch_delay_min_ms: {},
+  collect_taobao_tmall_batch_delay_max_ms: {},
+  collect_taobao_tmall_batch_max_retries: {},
+  collect_taobao_tmall_batch_pause_on_login: {},
+  collect_taobao_tmall_batch_pause_on_verify: {},
 };
 
 const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
   '1688': '登录态检测与批量采集节流',
   aliexpress: 'Beta 单条采集与重试策略',
   pinduoduo: '拼多多登录态、访问检测与批量限速',
-  taobao_tmall: '淘宝/天猫登录态、访问检测与单品采集（Beta）',
+  taobao_tmall: '淘宝/天猫登录态、单品与批量采集限速',
   shein_temu: '暂未开放，预留配置入口',
   custom: '登录状态、采集规则与页面访问检测',
 };
@@ -879,6 +887,33 @@ export default function CollectorSettingsPage() {
         collect_taobao_tmall_max_retries: g.collect_taobao_tmall_max_retries
           ? Number(g.collect_taobao_tmall_max_retries)
           : 2,
+        collect_taobao_tmall_scroll_wait_enabled: parseBoolSetting(g.collect_taobao_tmall_scroll_wait_enabled),
+        collect_taobao_tmall_detail_image_wait_ms: g.collect_taobao_tmall_detail_image_wait_ms
+          ? Number(g.collect_taobao_tmall_detail_image_wait_ms)
+          : 3000,
+        collect_taobao_tmall_sku_click_enabled: parseBoolSetting(g.collect_taobao_tmall_sku_click_enabled),
+        collect_taobao_tmall_sku_click_max: g.collect_taobao_tmall_sku_click_max
+          ? Number(g.collect_taobao_tmall_sku_click_max)
+          : 24,
+        collect_taobao_tmall_batch_enabled:
+          g.collect_taobao_tmall_batch_enabled !== '0' && g.collect_taobao_tmall_batch_enabled !== 'false',
+        collect_taobao_tmall_batch_max_items: g.collect_taobao_tmall_batch_max_items
+          ? Number(g.collect_taobao_tmall_batch_max_items)
+          : 20,
+        collect_taobao_tmall_batch_concurrency: g.collect_taobao_tmall_batch_concurrency
+          ? Number(g.collect_taobao_tmall_batch_concurrency)
+          : 1,
+        collect_taobao_tmall_batch_delay_min_ms: g.collect_taobao_tmall_batch_delay_min_ms
+          ? Number(g.collect_taobao_tmall_batch_delay_min_ms)
+          : 3500,
+        collect_taobao_tmall_batch_delay_max_ms: g.collect_taobao_tmall_batch_delay_max_ms
+          ? Number(g.collect_taobao_tmall_batch_delay_max_ms)
+          : 6000,
+        collect_taobao_tmall_batch_max_retries: g.collect_taobao_tmall_batch_max_retries
+          ? Number(g.collect_taobao_tmall_batch_max_retries)
+          : 2,
+        collect_taobao_tmall_batch_pause_on_login: parseBoolSetting(g.collect_taobao_tmall_batch_pause_on_login),
+        collect_taobao_tmall_batch_pause_on_verify: parseBoolSetting(g.collect_taobao_tmall_batch_pause_on_verify),
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -994,6 +1029,28 @@ export default function CollectorSettingsPage() {
           : '0',
         collect_taobao_tmall_retry_on_failure: values.collect_taobao_tmall_retry_on_failure ? '1' : '0',
         collect_taobao_tmall_max_retries: String(values.collect_taobao_tmall_max_retries ?? 2),
+        collect_taobao_tmall_scroll_wait_enabled: values.collect_taobao_tmall_scroll_wait_enabled ? '1' : '0',
+        collect_taobao_tmall_detail_image_wait_ms: String(
+          values.collect_taobao_tmall_detail_image_wait_ms ?? 3000,
+        ),
+        collect_taobao_tmall_sku_click_enabled: values.collect_taobao_tmall_sku_click_enabled ? '1' : '0',
+        collect_taobao_tmall_sku_click_max: String(values.collect_taobao_tmall_sku_click_max ?? 24),
+        collect_taobao_tmall_batch_enabled: values.collect_taobao_tmall_batch_enabled ? '1' : '0',
+        collect_taobao_tmall_batch_max_items: String(values.collect_taobao_tmall_batch_max_items ?? 20),
+        collect_taobao_tmall_batch_concurrency: String(values.collect_taobao_tmall_batch_concurrency ?? 1),
+        collect_taobao_tmall_batch_delay_min_ms: String(
+          values.collect_taobao_tmall_batch_delay_min_ms ?? 3500,
+        ),
+        collect_taobao_tmall_batch_delay_max_ms: String(
+          values.collect_taobao_tmall_batch_delay_max_ms ?? 6000,
+        ),
+        collect_taobao_tmall_batch_max_retries: String(values.collect_taobao_tmall_batch_max_retries ?? 2),
+        collect_taobao_tmall_batch_pause_on_login: values.collect_taobao_tmall_batch_pause_on_login
+          ? '1'
+          : '0',
+        collect_taobao_tmall_batch_pause_on_verify: values.collect_taobao_tmall_batch_pause_on_verify
+          ? '1'
+          : '0',
       };
       await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
       message.success('已保存');

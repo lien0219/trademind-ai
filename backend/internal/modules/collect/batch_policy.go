@@ -68,6 +68,9 @@ func (s *Service) batchPolicyForSource(ctx context.Context, source string) Batch
 	if isPinduoduoCollectSource(src) {
 		return s.pinduoduoBatchPolicyFromSettings(ctx)
 	}
+	if isTaobaoTmallCollectSource(src) {
+		return s.taobaoTmallBatchPolicyFromSettings(ctx)
+	}
 	if !strings.EqualFold(src, "1688") {
 		return BatchSourcePolicy{Source: src}
 	}
