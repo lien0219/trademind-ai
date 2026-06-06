@@ -77,6 +77,8 @@ import {
   reorderProductImages,
   syncProductImages,
   selectBestMainProductImages,
+  getProductPlatformPublishConfig,
+  putProductPlatformPublishConfig,
   updateProduct,
   updateProductImage,
   updateProductSku,
@@ -100,6 +102,14 @@ import { CreateImageTaskModal, type CreateImageTaskPrefill } from '@/components/
 import { TranslateImageTextModal, type TranslateImageTextPrefill } from '@/components/TranslateImageTextModal';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
 import {
+  queryDouyinCategories,
+  queryDouyinCategoryAttributes,
+  syncDouyinCategories,
+  syncDouyinCategoryAttributes,
+  type DouyinCategoryAttribute,
+  type DouyinCategoryNode,
+} from '@/services/douyinCategories';
+import {
   adjustSkuStock,
   batchUpdateStockSettings,
   createInventorySyncBatch,
@@ -117,6 +127,7 @@ function inventorySyncRunnable(cap?: string): boolean {
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
+  douyin_shop: '抖店',
   tiktok: 'TikTok',
   shopee: 'Shopee',
   lazada: 'Lazada',
@@ -433,7 +444,19 @@ export default function ProductDraftDetailPage() {
   const [platformsMeta, setPlatformsMeta] = useState<PlatformProviderMeta[]>([]);
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
   const [publishForm] = Form.useForm();
+  const [douyinForm] = Form.useForm();
   const [publishSubmitting, setPublishSubmitting] = useState(false);
+  const [douyinSaving, setDouyinSaving] = useState(false);
+  const [douyinCategoryLoading, setDouyinCategoryLoading] = useState(false);
+  const [douyinAttrLoading, setDouyinAttrLoading] = useState(false);
+  const [douyinCategoryFlat, setDouyinCategoryFlat] = useState<DouyinCategoryNode[]>([]);
+  const [douyinAttrs, setDouyinAttrs] = useState<DouyinCategoryAttribute[]>([]);
+  const [douyinConfig, setDouyinConfig] = useState<{
+    shopId?: string;
+    categoryId?: string;
+    categoryPath?: string;
+    platformAttributes?: Record<string, unknown>;
+  }>({});
 
   const [draftTabKey, setDraftTabKey] = useState('basic');
   const [readinessPlat, setReadinessPlat] = useState<string>('tiktok');
@@ -588,20 +611,98 @@ export default function ProductDraftDetailPage() {
     if (!id) return;
     setPubCtxLoading(true);
     try {
-      const [pubs, prov, shops] = await Promise.all([
+      const [pubs, prov, shops, douyinCfg, douyinCats] = await Promise.all([
         listProductPublications(id),
         queryPlatformProviders(),
         queryShops({ page: 1, pageSize: 500, authStatus: 'authorized' }),
+        getProductPlatformPublishConfig(id, 'douyin_shop').catch(() => undefined),
+        queryDouyinCategories({ onlyLeaf: true }).catch(() => undefined),
       ]);
       setPubRows(Array.isArray(pubs.list) ? pubs.list : []);
       setPlatformsMeta(Array.isArray(prov.list) ? prov.list : []);
       setShopsList(Array.isArray(shops.list) ? shops.list : []);
+      if (douyinCats?.flat) setDouyinCategoryFlat(douyinCats.flat);
+      if (douyinCfg) {
+        const attrs = (douyinCfg.platformAttributes && typeof douyinCfg.platformAttributes === 'object'
+          ? douyinCfg.platformAttributes
+          : {}) as Record<string, unknown>;
+        setDouyinConfig({
+          shopId: douyinCfg.shopId,
+          categoryId: douyinCfg.categoryId,
+          categoryPath: douyinCfg.categoryPath,
+          platformAttributes: attrs,
+        });
+        douyinForm.setFieldsValue({
+          shopId: douyinCfg.shopId,
+          categoryId: douyinCfg.categoryId,
+          platformAttributes: attrs,
+        });
+        if (douyinCfg.categoryId) {
+          const ar = await queryDouyinCategoryAttributes(douyinCfg.categoryId).catch(() => undefined);
+          setDouyinAttrs(ar?.list ?? []);
+        }
+      }
     } catch {
       setPubRows([]);
     } finally {
       setPubCtxLoading(false);
     }
-  }, [id]);
+  }, [douyinForm, id]);
+
+  const reloadDouyinCategories = useCallback(
+    async (shopId?: string, refresh?: boolean) => {
+      setDouyinCategoryLoading(true);
+      try {
+        if (refresh) {
+          const sid = String(shopId || douyinConfig.shopId || '').trim();
+          if (!sid) {
+            message.warning('请先选择已授权抖店店铺');
+            return;
+          }
+          await syncDouyinCategories(sid);
+          message.success('抖店类目已刷新');
+        }
+        const res = await queryDouyinCategories({ onlyLeaf: true });
+        setDouyinCategoryFlat(res.flat ?? []);
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '加载抖店类目失败');
+      } finally {
+        setDouyinCategoryLoading(false);
+      }
+    },
+    [douyinConfig.shopId],
+  );
+
+  const reloadDouyinAttrs = useCallback(
+    async (categoryId?: string, shopId?: string, refresh?: boolean) => {
+      const cid = String(categoryId || douyinConfig.categoryId || '').trim();
+      if (!cid) {
+        setDouyinAttrs([]);
+        return;
+      }
+      setDouyinAttrLoading(true);
+      try {
+        if (refresh) {
+          const sid = String(shopId || douyinConfig.shopId || '').trim();
+          if (!sid) {
+            message.warning('请先选择已授权抖店店铺');
+            return;
+          }
+          const res = await syncDouyinCategoryAttributes(cid, sid);
+          setDouyinAttrs(res.list ?? []);
+          message.success('抖店属性已刷新');
+          return;
+        }
+        const res = await queryDouyinCategoryAttributes(cid);
+        setDouyinAttrs(res.list ?? []);
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '加载抖店属性失败');
+      } finally {
+        setDouyinAttrLoading(false);
+      }
+    },
+    [douyinConfig.categoryId, douyinConfig.shopId],
+  );
 
   const reloadPublicationSkus = useCallback(async () => {
     if (!id) return;
@@ -738,6 +839,16 @@ export default function ProductDraftDetailPage() {
       return st === 'available' || st === 'beta';
     });
   }, [shopsList, platformsMeta]);
+
+  const douyinShops = useMemo(
+    () => shopsList.filter((s) => (s.platform || '').toLowerCase() === 'douyin_shop' && s.authStatus === 'authorized'),
+    [shopsList],
+  );
+
+  const selectedDouyinCategory = useMemo(
+    () => douyinCategoryFlat.find((c) => c.categoryId === douyinConfig.categoryId),
+    [douyinCategoryFlat, douyinConfig.categoryId],
+  );
 
   const shopsForReadinessPlat = useMemo(() => {
     const p = readinessPlat.trim().toLowerCase();
@@ -1911,7 +2022,7 @@ export default function ProductDraftDetailPage() {
                         style={{ minWidth: 160 }}
                         value={readinessPlat}
                         onChange={(v) => setReadinessPlat(v)}
-                        options={['tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
+                        options={['douyin_shop', 'tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
                           label: p,
                           value: p,
                         }))}
@@ -2106,6 +2217,192 @@ export default function ProductDraftDetailPage() {
                           { title: '库存', dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
                         ]}
                       />
+                      <Card size="small" title="抖店类目与属性" variant="borderless">
+                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                          {douyinCategoryFlat.length === 0 ? (
+                            <Alert
+                              type="warning"
+                              showIcon
+                              message="暂无抖店类目数据，请先点击「刷新类目」。"
+                            />
+                          ) : null}
+                          <Form
+                            form={douyinForm}
+                            layout="vertical"
+                            onValuesChange={(changed, all) => {
+                              if (Object.prototype.hasOwnProperty.call(changed, 'categoryId')) {
+                                const cat = douyinCategoryFlat.find((x) => x.categoryId === all.categoryId);
+                                setDouyinConfig((cur) => ({
+                                  ...cur,
+                                  categoryId: all.categoryId,
+                                  categoryPath: cat?.path,
+                                  platformAttributes: {},
+                                }));
+                                douyinForm.setFieldValue('platformAttributes', {});
+                                void reloadDouyinAttrs(all.categoryId, all.shopId, false);
+                              } else {
+                                setDouyinConfig((cur) => ({
+                                  ...cur,
+                                  shopId: all.shopId,
+                                  categoryId: all.categoryId,
+                                  categoryPath: selectedDouyinCategory?.path || cur.categoryPath,
+                                  platformAttributes: all.platformAttributes ?? cur.platformAttributes ?? {},
+                                }));
+                              }
+                            }}
+                            onFinish={async (vals) => {
+                              const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
+                              if (vals.categoryId && !cat?.isLeaf) {
+                                message.error('只能选择抖店叶子类目');
+                                return;
+                              }
+                              setDouyinSaving(true);
+                              try {
+                                const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
+                                  shopId: vals.shopId,
+                                  categoryId: vals.categoryId,
+                                  categoryPath: cat?.path || douyinConfig.categoryPath,
+                                  platformAttributes: vals.platformAttributes ?? {},
+                                });
+                                setDouyinConfig({
+                                  shopId: saved.shopId,
+                                  categoryId: saved.categoryId,
+                                  categoryPath: saved.categoryPath,
+                                  platformAttributes: saved.platformAttributes ?? {},
+                                });
+                                message.success('抖店刊登配置已保存');
+                                if (readinessPlat === 'douyin_shop') {
+                                  void runReadinessForTab();
+                                }
+                              } catch (e: unknown) {
+                                message.error((e as Error)?.message || '保存失败');
+                              } finally {
+                                setDouyinSaving(false);
+                              }
+                            }}
+                          >
+                            <Form.Item name="shopId" label="抖店店铺" rules={[{ required: true, message: '请选择抖店店铺' }]}>
+                              <Select
+                                placeholder="选择已授权抖店店铺"
+                                allowClear
+                                showSearch
+                                optionFilterProp="label"
+                                options={douyinShops.map((s) => ({ label: s.shopName, value: s.id }))}
+                              />
+                            </Form.Item>
+                            <Space wrap style={{ marginBottom: 12 }}>
+                              <Button
+                                icon={<SyncOutlined />}
+                                loading={douyinCategoryLoading}
+                                onClick={() => void reloadDouyinCategories(douyinForm.getFieldValue('shopId'), true)}
+                              >
+                                刷新类目
+                              </Button>
+                              <Button
+                                loading={douyinAttrLoading}
+                                disabled={!douyinForm.getFieldValue('categoryId')}
+                                onClick={() =>
+                                  void reloadDouyinAttrs(
+                                    douyinForm.getFieldValue('categoryId'),
+                                    douyinForm.getFieldValue('shopId'),
+                                    true,
+                                  )
+                                }
+                              >
+                                刷新属性
+                              </Button>
+                            </Space>
+                            <Form.Item
+                              name="categoryId"
+                              label="抖店类目"
+                              rules={[{ required: true, message: '请先选择抖店商品类目' }]}
+                              extra={selectedDouyinCategory?.path}
+                            >
+                              <Select
+                                placeholder="搜索并选择叶子类目"
+                                loading={douyinCategoryLoading}
+                                showSearch
+                                allowClear
+                                optionFilterProp="label"
+                                options={douyinCategoryFlat
+                                  .filter((c) => c.isLeaf)
+                                  .map((c) => ({
+                                    label: `${c.path || c.name} (${c.categoryId})`,
+                                    value: c.categoryId,
+                                  }))}
+                              />
+                            </Form.Item>
+                            {douyinForm.getFieldValue('categoryId') && douyinAttrs.length === 0 ? (
+                              <Alert type="info" showIcon message="该类目暂无本地属性缓存，请点击「刷新属性」。" />
+                            ) : null}
+                            {douyinAttrs.length > 0 ? (
+                              <Spin spinning={douyinAttrLoading}>
+                                <Descriptions bordered size="small" column={1}>
+                                  <Descriptions.Item label="必填属性">
+                                    {douyinAttrs.filter((a) => a.required).length || 0} 项
+                                  </Descriptions.Item>
+                                  <Descriptions.Item label="可选属性">
+                                    {douyinAttrs.filter((a) => !a.required).length || 0} 项
+                                  </Descriptions.Item>
+                                </Descriptions>
+                                <Row gutter={16} style={{ marginTop: 12 }}>
+                                  {douyinAttrs.map((attr) => {
+                                    const opts = Array.isArray(attr.options) ? attr.options : [];
+                                    return (
+                                      <Col xs={24} md={12} key={attr.attrId}>
+                                        <Form.Item
+                                          name={['platformAttributes', attr.attrId]}
+                                          label={
+                                            <Space size={4}>
+                                              <span>{attr.name || attr.attrId}</span>
+                                              {attr.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>}
+                                            </Space>
+                                          }
+                                          rules={
+                                            attr.required
+                                              ? [{ required: true, message: `请填写${attr.name || attr.attrId}` }]
+                                              : undefined
+                                          }
+                                        >
+                                          {opts.length > 0 ? (
+                                            <Select
+                                              allowClear={!attr.required}
+                                              showSearch
+                                              optionFilterProp="label"
+                                              options={opts.map((o) => ({
+                                                label: o.name || o.id || '',
+                                                value: o.id || o.name,
+                                              }))}
+                                            />
+                                          ) : (
+                                            <Input placeholder={attr.valueType || '填写属性值'} />
+                                          )}
+                                        </Form.Item>
+                                      </Col>
+                                    );
+                                  })}
+                                </Row>
+                              </Spin>
+                            ) : null}
+                            <Form.Item>
+                              <Space wrap>
+                                <Button type="primary" htmlType="submit" loading={douyinSaving}>
+                                  保存抖店配置
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    setReadinessPlat('douyin_shop');
+                                    setReadinessShopId(String(douyinForm.getFieldValue('shopId') || ''));
+                                    setDraftTabKey('readiness');
+                                  }}
+                                >
+                                  查看抖店发布检查
+                                </Button>
+                              </Space>
+                            </Form.Item>
+                          </Form>
+                        </Space>
+                      </Card>
                       {publishReadiness ? (
                         <Alert
                           type={

@@ -13,6 +13,11 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/platform/settings/:platform/test-connection", h.TestPlatformAppSettings)
 	g.GET("/platform/publish-settings/:platform", h.GetPlatformPublishSettings)
 	g.PUT("/platform/publish-settings/:platform", h.PutPlatformPublishSettings)
+	g.GET("/platform/douyin/categories", h.ListDouyinCategories)
+	g.POST("/platform/douyin/categories/sync", h.SyncDouyinCategories)
+	g.GET("/platform/douyin/categories/stats", h.DouyinCategoryStats)
+	g.GET("/platform/douyin/categories/:categoryId/attributes", h.ListDouyinCategoryAttributes)
+	g.POST("/platform/douyin/categories/:categoryId/attributes/sync", h.SyncDouyinCategoryAttributes)
 
 	s := g.Group("/shops")
 	s.GET("", h.List)

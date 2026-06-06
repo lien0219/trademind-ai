@@ -321,12 +321,129 @@ func (h *Handler) TestConnection(c *gin.Context) {
 }
 
 func failDouyin(c *gin.Context, err error) {
+	var ce *DouyinCategoryError
+	if errors.As(err, &ce) {
+		response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
+		return
+	}
 	var de *DouyinAuthError
 	if errors.As(err, &de) {
 		response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, de.Message, gin.H{"errorCode": de.Code})
 		return
 	}
 	response.Fail(c, 400, response.CodeBadRequest, err.Error())
+}
+
+// ListDouyinCategories GET /api/v1/platform/douyin/categories
+func (h *Handler) ListDouyinCategories(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var shopID *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		shopID = &u
+	}
+	out, err := h.Svc.ListDouyinCategories(c, DouyinCategoryListQuery{
+		Keyword:  c.Query("keyword"),
+		ParentID: c.Query("parentId"),
+		OnlyLeaf: queryBoolShop(c, "onlyLeaf"),
+		Refresh:  queryBoolShop(c, "refresh"),
+		ShopID:   shopID,
+	}, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// SyncDouyinCategories POST /api/v1/platform/douyin/categories/sync
+func (h *Handler) SyncDouyinCategories(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var body struct {
+		ShopID string `json:"shopId"`
+	}
+	if c.Request.ContentLength > 0 {
+		_ = c.ShouldBindJSON(&body)
+	}
+	sid, err := uuid.Parse(strings.TrimSpace(firstNonEmptyDouyin(body.ShopID, c.Query("shopId"))))
+	if err != nil || sid == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	out, err := h.Svc.SyncDouyinCategories(c, sid, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// ListDouyinCategoryAttributes GET /api/v1/platform/douyin/categories/:categoryId/attributes
+func (h *Handler) ListDouyinCategoryAttributes(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	out, err := h.Svc.ListDouyinCategoryAttributes(c.Request.Context(), strings.TrimSpace(c.Param("categoryId")))
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+// SyncDouyinCategoryAttributes POST /api/v1/platform/douyin/categories/:categoryId/attributes/sync
+func (h *Handler) SyncDouyinCategoryAttributes(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var body struct {
+		ShopID string `json:"shopId"`
+	}
+	if c.Request.ContentLength > 0 {
+		_ = c.ShouldBindJSON(&body)
+	}
+	sid, err := uuid.Parse(strings.TrimSpace(firstNonEmptyDouyin(body.ShopID, c.Query("shopId"))))
+	if err != nil || sid == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	out, err := h.Svc.SyncDouyinCategoryAttributes(c, sid, strings.TrimSpace(c.Param("categoryId")), adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+// DouyinCategoryStats GET /api/v1/platform/douyin/categories/stats
+func (h *Handler) DouyinCategoryStats(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	out, err := h.Svc.DouyinCategoryStats(c.Request.Context())
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func queryBoolShop(c *gin.Context, key string) bool {
+	v := strings.TrimSpace(strings.ToLower(c.Query(key)))
+	return v == "1" || v == "true" || v == "yes"
 }
 
 // DouyinOAuthStart GET /api/v1/shops/oauth/douyin/start

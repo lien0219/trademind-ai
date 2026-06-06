@@ -94,6 +94,22 @@ func douyinFriendlyMessage(code string) string {
 		return "抖店授权已过期，请重新连接店铺。"
 	case DouyinPermissionDenied:
 		return "抖店权限不足，请检查应用权限或重新授权。"
+	case DouyinCategorySyncFailed:
+		return "抖店类目同步失败，请检查店铺授权或稍后重试。"
+	case DouyinCategoryEmpty:
+		return "暂无抖店类目数据，请先点击「刷新类目」。"
+	case DouyinCategoryNotSelected:
+		return "请先选择抖店商品类目。"
+	case DouyinCategoryNotLeaf:
+		return "请选择抖店叶子类目。"
+	case DouyinCategoryAttrSyncFailed:
+		return "抖店类目属性同步失败，请检查店铺授权或稍后重试。"
+	case DouyinRequiredAttrMissing:
+		return "请补全抖店要求的商品属性。"
+	case DouyinCategoryCacheStale:
+		return "抖店类目缓存较旧，建议刷新。"
+	case DouyinCategoryPermissionDenied:
+		return "当前抖店应用没有类目接口权限，请到抖店开放平台检查权限。"
 	default:
 		return "抖店授权异常，请稍后重试或重新发起授权。"
 	}

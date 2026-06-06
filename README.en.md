@@ -94,7 +94,7 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 | SKU Candidate Recommendation | Candidate SKUs for order items, manual binding, match audit | Supported |
 | Image Management | Local / cloud file upload, product image management, storage providers | Supported |
 | AI Image Processing | remove.bg, OpenAI Image, ComfyUI Provider, async task queue | Supported |
-| Store Authorization | Douyin Shop OAuth loop, OpenAPI client / signing layer, encrypted tokens with auto-refresh, refresh / revoke / real connection test; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 3 supported |
+| Store Authorization | Douyin Shop OAuth loop, OpenAPI client / signing layer, encrypted tokens with auto-refresh, refresh / revoke / real connection test, category / attribute cache; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 4 supported |
 | Multi-platform Configuration | Platform app config schema, Douyin Shop config, Service ID, encrypted and masked sensitive settings | Supported |
 | Order Sync | Multi-platform order sync framework, task queue, exception workspace | In progress |
 | Product Publishing | Multi-platform publishing tasks, readiness checks, publication snapshots | In progress |
@@ -113,7 +113,7 @@ AI Product Operation Tool
 └── Readiness checks and batch AI operations
 
 Multi-platform Cross-border ERP MVP
-├── First real platform loop: Douyin Shop first (OAuth and API client / signing done → categories and attributes → image upload → product draft → order sync → inventory sync)
+├── First real platform loop: Douyin Shop first (OAuth, API client / signing, and category / attribute cache done → field mapping and image upload → product draft → order sync → inventory sync)
 ├── Store authorization: Douyin Shop OAuth supported; TikTok Shop / Shopee / Lazada / Amazon retained for later platform rollout
 ├── Order sync: platform order import, local orders, SKU matching
 ├── Inventory sync: stock alerts, platform inventory tasks, failure retry
@@ -373,7 +373,7 @@ See [docs/architecture.md](docs/architecture.md) and [docs/provider.md](docs/pro
 1. **First priority: AI product operation tool**
    - Product collection, product drafts, AI titles, AI descriptions, image management, AI image processing, batch AI operations.
 2. **Second priority: multi-platform cross-border ERP MVP**
-   - First run a real Douyin Shop loop: store authorization, categories and attributes, image upload, product draft creation, order sync, and inventory sync. TikTok Shop / Shopee / Lazada / Amazon remain later platform rollouts instead of parallel work.
+   - First run a real Douyin Shop loop: store authorization and category / attribute cache are done; next comes product field mapping and image upload, then product draft creation, order sync, and inventory sync. TikTok Shop / Shopee / Lazada / Amazon remain later platform rollouts instead of parallel work.
 3. **Later iteration: full ERP enhancement**
    - Multi-warehouse, purchasing, complex after-sales refunds, complex finance settlement, WMS / OMS, complex BI, auto replenishment, and automatic direct listing are deferred.
 

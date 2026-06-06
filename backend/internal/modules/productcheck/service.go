@@ -766,6 +766,15 @@ func (s *Service) checkPlatform(ctx context.Context, plat string, shopID *uuid.U
 			Message:    "店铺未完成授权",
 			Suggestion: "请前往店铺管理完成 OAuth 授权。",
 		})
+		if plat == "douyin_shop" {
+			out = append(out, CheckItem{
+				Group:      "platform",
+				Code:       "DOUYIN_SHOP_NOT_AUTHORIZED",
+				Level:      levelError,
+				Message:    "抖店店铺未授权",
+				Suggestion: "请先完成抖店店铺授权。",
+			})
+		}
 	}
 	if plat != "mock" {
 		if strings.TrimSpace(plainAuth.AccessToken) == "" && strings.TrimSpace(plainAuth.RefreshToken) == "" {
@@ -777,6 +786,9 @@ func (s *Service) checkPlatform(ctx context.Context, plat string, shopID *uuid.U
 				Suggestion: "请重新授权店铺以写入 Access / Refresh Token。",
 			})
 		}
+	}
+	if plat == "douyin_shop" {
+		out = append(out, s.checkDouyinListingConfig(ctx, prod)...)
 	}
 	return out, nil
 }

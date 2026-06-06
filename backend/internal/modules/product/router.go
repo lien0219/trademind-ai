@@ -12,6 +12,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/products/:id", h.Get)
 	g.PUT("/products/:id", h.Put)
 	g.DELETE("/products/:id", h.Delete)
+	g.GET("/products/:id/platform-configs/:platform", h.GetPlatformPublishConfig)
+	g.PUT("/products/:id/platform-configs/:platform", h.PutPlatformPublishConfig)
 
 	g.GET("/product-skus/search", h.SearchSKUs)
 

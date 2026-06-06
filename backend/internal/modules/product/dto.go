@@ -33,6 +33,25 @@ type UpdateBody struct {
 	Status        *string `json:"status"`
 }
 
+// PlatformPublishConfigBody binds PUT /products/:id/platform-configs/:platform.
+type PlatformPublishConfigBody struct {
+	ShopID             string          `json:"shopId"`
+	CategoryID         string          `json:"categoryId"`
+	CategoryPath       string          `json:"categoryPath"`
+	PlatformAttributes json.RawMessage `json:"platformAttributes"`
+}
+
+type PlatformPublishConfigDTO struct {
+	ProductID          uuid.UUID       `json:"productId"`
+	Platform           string          `json:"platform"`
+	ShopID             *uuid.UUID      `json:"shopId,omitempty"`
+	CategoryID         string          `json:"categoryId,omitempty"`
+	CategoryPath       string          `json:"categoryPath,omitempty"`
+	PlatformAttributes json.RawMessage `json:"platformAttributes,omitempty"`
+	CreatedAt          time.Time       `json:"createdAt"`
+	UpdatedAt          time.Time       `json:"updatedAt"`
+}
+
 // UnmarshalJSON merges alternate snake_case keys with camelCase.
 func (b *UpdateBody) UnmarshalJSON(data []byte) error {
 	var raw map[string]json.RawMessage

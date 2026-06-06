@@ -1,6 +1,7 @@
 package product
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -17,6 +19,15 @@ import (
 type Handler struct {
 	Svc   *Service
 	Files *files.Service
+}
+
+func failProductPlatformConfig(c *gin.Context, err error) {
+	var ce *shop.DouyinCategoryError
+	if errors.As(err, &ce) {
+		response.JSON(c, 400, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
+		return
+	}
+	response.Fail(c, 400, response.CodeBadRequest, err.Error())
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -145,6 +156,57 @@ func (h *Handler) Put(c *gin.Context) {
 			return
 		}
 		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// GetPlatformPublishConfig GET /api/v1/products/:id/platform-configs/:platform
+func (h *Handler) GetPlatformPublishConfig(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetPlatformPublishConfig(c, id, c.Param("platform"))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.OK(c, gin.H{
+				"productId":          id,
+				"platform":           strings.TrimSpace(strings.ToLower(c.Param("platform"))),
+				"platformAttributes": gin.H{},
+			})
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// PutPlatformPublishConfig PUT /api/v1/products/:id/platform-configs/:platform
+func (h *Handler) PutPlatformPublishConfig(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body PlatformPublishConfigBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.PutPlatformPublishConfig(c, id, c.Param("platform"), body, adminUUID(c))
+	if err != nil {
+		failProductPlatformConfig(c, err)
 		return
 	}
 	response.OK(c, out)

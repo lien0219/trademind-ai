@@ -65,7 +65,9 @@ Collector Provider
 
 用于接入跨境电商平台能力。
 
-Douyin Shop (`douyin_shop`) Phase 3 adds a reusable OpenAPI client under `backend/internal/providers/platform/douyinshop`. Signing, common request construction, `param_json` body handling, response parsing, error mapping, safe request logging, token auto-refresh, and shop-info calibration are centralized in the provider package. Business services should call this client instead of hand-writing signatures or raw OpenAPI requests. Store connection testing and manual shop-info sync now use a real platform-side token refresh response to update `shops` / `shop_auth_tokens`; App Secret, access token, refresh token, and full sensitive raw responses must never be returned to the frontend or written to logs. Phase 3 deliberately does not implement product publishing, order sync, inventory sync, image upload, or category business APIs.
+Douyin Shop (`douyin_shop`) Phase 3 adds a reusable OpenAPI client under `backend/internal/providers/platform/douyinshop`. Signing, common request construction, `param_json` body handling, response parsing, error mapping, safe request logging, token auto-refresh, and shop-info calibration are centralized in the provider package. Business services should call this client instead of hand-writing signatures or raw OpenAPI requests. Store connection testing and manual shop-info sync now use a real platform-side token refresh response to update `shops` / `shop_auth_tokens`; App Secret, access token, refresh token, and full sensitive raw responses must never be returned to the frontend or written to logs.
+
+Douyin Shop Phase 4 adds category and category-attribute sync using official-doc-checked OpenAPI methods `shop.getShopCategory` (`/shop/getShopCategory`, recursive from `cid=0`) and `product.getCatePropertyV2` (`/product/getCatePropertyV2`, `category_leaf_id`). Category data is cached in `platform_categories` and attributes in `platform_category_attributes`; raw responses are stored for backend diagnostics but omitted from normal frontend views. Product Detail → Listing saves Douyin listing preparation to `product_platform_publish_configs` (`platform=douyin_shop`, `shopId`, `categoryId`, `categoryPath`, `platformAttributes`) instead of mutating collected raw data. Readiness checks validate store authorization, selected leaf category, required attributes, and stale cache warnings. Phase 4 deliberately does not implement Douyin product publishing, image upload, order sync, or inventory sync.
 
 当前重点平台：
 
@@ -75,7 +77,7 @@ Douyin Shop (`douyin_shop`) Phase 3 adds a reusable OpenAPI client under `backen
 - Lazada
 - Amazon
 
-当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1 平台配置与 Provider 注册，并完成 Phase 2 OAuth 店铺授权闭环：抖店开放平台应用配置使用 `settings.platform_douyin_shop`，App Secret 加密存储、前端脱敏展示；授权 state 存 Redis 10 分钟并绑定管理员和平台；`code` 换取 access token / refresh token 后加密保存到 `shop_auth_tokens`；管理端支持连接店铺、重新授权、刷新授权、解除授权和测试店铺连接。抖店后续 MVP 范围按阶段继续实现 API Client + 签名层、店铺信息校准、类目属性、图片上传、商品草稿创建、订单同步和库存同步；多平台并行接入、自动直接上架、绕过平台审核、复杂售后退款、复杂财务结算、多仓 WMS 与自动补货均后置。
+当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1 平台配置与 Provider 注册、Phase 2 OAuth 店铺授权闭环、Phase 3 OpenAPI Client / 签名层 / 店铺信息校准，以及 Phase 4 类目与属性缓存。抖店后续 MVP 范围按阶段继续实现商品字段映射、图片上传、商品草稿创建、订单同步和库存同步；多平台并行接入、自动直接上架、绕过平台审核、复杂售后退款、复杂财务结算、多仓 WMS 与自动补货均后置。
 
 主要能力：
 

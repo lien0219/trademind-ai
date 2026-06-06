@@ -66,9 +66,9 @@
 - [x] Douyin Shop OpenAPI Client and signing layer are centralized; business code does not hand-write signatures
 - [x] Douyin Shop connection test performs a real token refresh and calibrates shop basic info
 - [x] 店铺管理页支持手动同步抖店店铺信息，失败时标记 need_check / expired / invalid
-- [ ] 可同步或搜索抖店类目，并读取类目必填属性
-- [ ] 商品刊登页可选择抖店店铺、抖店类目并补全必填属性
-- [ ] 必填类目 / 属性 / 店铺授权缺失时发布前检查失败
+- [x] 可同步或搜索抖店类目，并读取类目必填属性
+- [x] 商品刊登页可选择抖店店铺、抖店类目并补全必填属性
+- [x] 必填类目 / 属性 / 店铺授权缺失时发布前检查失败
 - [ ] 商品图片先同步到 Storage Provider，再上传到抖店图片服务
 - [ ] 默认创建 **抖店商品草稿**，不默认直接上架
 - [ ] 如后续支持直接上架，必须二次人工确认，并保留平台审核提示

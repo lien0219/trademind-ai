@@ -108,8 +108,41 @@ export type ProductDetail = {
   skus: ProductSKURow[];
 };
 
+export type ProductPlatformPublishConfig = {
+  productId: string;
+  platform: string;
+  shopId?: string;
+  categoryId?: string;
+  categoryPath?: string;
+  platformAttributes?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export async function fetchProductDetail(id: string) {
   return getJSON<ProductDetail>(`/api/v1/products/${id}`);
+}
+
+export async function getProductPlatformPublishConfig(productId: string, platform: string) {
+  return getJSON<ProductPlatformPublishConfig>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/${encodeURIComponent(platform)}`,
+  );
+}
+
+export async function putProductPlatformPublishConfig(
+  productId: string,
+  platform: string,
+  body: {
+    shopId?: string;
+    categoryId?: string;
+    categoryPath?: string;
+    platformAttributes?: Record<string, unknown>;
+  },
+) {
+  return putJSON<ProductPlatformPublishConfig, typeof body>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/${encodeURIComponent(platform)}`,
+    body,
+  );
 }
 
 export type UpdateProductBody = {

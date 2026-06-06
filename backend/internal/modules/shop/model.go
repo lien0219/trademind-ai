@@ -51,3 +51,36 @@ type ShopAuthToken struct {
 }
 
 func (ShopAuthToken) TableName() string { return "shop_auth_tokens" }
+
+// PlatformCategory caches marketplace categories for listing preparation.
+type PlatformCategory struct {
+	model.Base
+	Platform   string         `gorm:"size:32;uniqueIndex:idx_platform_category;index;not null" json:"platform"`
+	CategoryID string         `gorm:"size:128;uniqueIndex:idx_platform_category;not null" json:"categoryId"`
+	ParentID   string         `gorm:"size:128;index" json:"parentId"`
+	Name       string         `gorm:"size:512;index" json:"name"`
+	Level      int            `gorm:"index" json:"level"`
+	IsLeaf     bool           `gorm:"index;not null;default:false" json:"isLeaf"`
+	Status     string         `gorm:"size:64;index" json:"status,omitempty"`
+	Raw        datatypes.JSON `gorm:"type:jsonb" json:"raw,omitempty"`
+	SyncedAt   *time.Time     `gorm:"index" json:"syncedAt,omitempty"`
+}
+
+func (PlatformCategory) TableName() string { return "platform_categories" }
+
+// PlatformCategoryAttribute caches marketplace-required category attributes.
+type PlatformCategoryAttribute struct {
+	model.Base
+	Platform    string         `gorm:"size:32;uniqueIndex:idx_platform_category_attr;index;not null" json:"platform"`
+	CategoryID  string         `gorm:"size:128;uniqueIndex:idx_platform_category_attr;index;not null" json:"categoryId"`
+	AttrID      string         `gorm:"size:128;uniqueIndex:idx_platform_category_attr;not null" json:"attrId"`
+	Name        string         `gorm:"size:512;index" json:"name"`
+	Required    bool           `gorm:"index;not null;default:false" json:"required"`
+	ValueType   string         `gorm:"size:128" json:"valueType,omitempty"`
+	Options     datatypes.JSON `gorm:"type:jsonb" json:"options,omitempty"`
+	UnitOptions datatypes.JSON `gorm:"type:jsonb" json:"unitOptions,omitempty"`
+	Raw         datatypes.JSON `gorm:"type:jsonb" json:"raw,omitempty"`
+	SyncedAt    *time.Time     `gorm:"index" json:"syncedAt,omitempty"`
+}
+
+func (PlatformCategoryAttribute) TableName() string { return "platform_category_attributes" }
