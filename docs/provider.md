@@ -69,6 +69,8 @@ Douyin Shop (`douyin_shop`) Phase 3 adds a reusable OpenAPI client under `backen
 
 Douyin Shop Phase 4 adds category and category-attribute sync using official-doc-checked OpenAPI methods `shop.getShopCategory` (`/shop/getShopCategory`, recursive from `cid=0`) and `product.getCatePropertyV2` (`/product/getCatePropertyV2`, `category_leaf_id`). Category data is cached in `platform_categories` and attributes in `platform_category_attributes`; raw responses are stored for backend diagnostics but omitted from normal frontend views. Product Detail → Listing saves Douyin listing preparation to `product_platform_publish_configs` (`platform=douyin_shop`, `shopId`, `categoryId`, `categoryPath`, `platformAttributes`) instead of mutating collected raw data. Readiness checks validate store authorization, selected leaf category, required attributes, and stale cache warnings. Phase 4 deliberately does not implement Douyin product publishing, image upload, order sync, or inventory sync.
 
+Douyin Shop Phase 5 adds internal product draft → Douyin listing draft mapping. Mapping is implemented in the product service layer and stored on `product_platform_publish_configs` as preview fields (`mappedTitle`, `mappedDescription`, `mappedImages`, `mappedSkus`, `mappedPrice`, `mappedStock`, `mappingWarnings`, `mappingErrors`, `lastMappedAt`). It supports AI title / AI description priority, main/detail image preview with `need_sync` status for external images, category attributes, SKU specs, price/profit checks, stock confirmation, manual adjustment, save, and readiness validation. Phase 5 still does not call Douyin product creation or image upload APIs; Phase 6 should handle Douyin image upload / image service sync through Provider abstractions.
+
 当前重点平台：
 
 - Douyin Shop（抖店，真实平台闭环优先）
@@ -77,7 +79,7 @@ Douyin Shop Phase 4 adds category and category-attribute sync using official-doc
 - Lazada
 - Amazon
 
-当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1 平台配置与 Provider 注册、Phase 2 OAuth 店铺授权闭环、Phase 3 OpenAPI Client / 签名层 / 店铺信息校准，以及 Phase 4 类目与属性缓存。抖店后续 MVP 范围按阶段继续实现商品字段映射、图片上传、商品草稿创建、订单同步和库存同步；多平台并行接入、自动直接上架、绕过平台审核、复杂售后退款、复杂财务结算、多仓 WMS 与自动补货均后置。
+当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1 平台配置与 Provider 注册、Phase 2 OAuth 店铺授权闭环、Phase 3 OpenAPI Client / 签名层 / 店铺信息校准、Phase 4 类目与属性缓存，以及 Phase 5 商品字段映射与刊登草稿预览。抖店后续 MVP 范围按阶段继续实现图片上传、商品草稿创建、订单同步和库存同步；多平台并行接入、自动直接上架、绕过平台审核、复杂售后退款、复杂财务结算、多仓 WMS 与自动补货均后置。
 
 主要能力：
 

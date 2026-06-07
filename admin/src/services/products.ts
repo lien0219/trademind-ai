@@ -115,8 +115,94 @@ export type ProductPlatformPublishConfig = {
   categoryId?: string;
   categoryPath?: string;
   platformAttributes?: Record<string, unknown>;
+  mapping?: DouyinDraftMapping;
+  lastMappedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type DouyinMappingIssue = {
+  code: string;
+  level: 'warning' | 'error' | string;
+  message: string;
+  suggestion?: string;
+  field?: string;
+  relatedResourceType?: string;
+  relatedResourceId?: string;
+};
+
+export type DouyinDraftImage = {
+  localImageId?: string;
+  imageType: string;
+  url: string;
+  originUrl?: string;
+  publicUrl?: string;
+  objectKey?: string;
+  storageKey?: string;
+  source?: string;
+  status: string;
+  needSync: boolean;
+};
+
+export type DouyinDraftAttribute = {
+  attrId: string;
+  name: string;
+  required?: boolean;
+  valueType?: string;
+  value?: unknown;
+  options?: unknown[];
+};
+
+export type DouyinDraftSku = {
+  localSkuId?: string;
+  name: string;
+  attrs?: Record<string, unknown>;
+  price: number;
+  stock?: number | null;
+  imageUrl?: string;
+  platformSkuDraft?: Record<string, unknown>;
+};
+
+export type DouyinDraftMapping = {
+  platform: 'douyin_shop' | string;
+  productId?: string;
+  source?: string;
+  shopId?: string;
+  categoryId?: string;
+  categoryPath?: string;
+  title?: string;
+  description?: string;
+  mainImages?: DouyinDraftImage[];
+  detailImages?: DouyinDraftImage[];
+  attributes?: DouyinDraftAttribute[];
+  skus?: DouyinDraftSku[];
+  price?: {
+    currency?: string;
+    min?: number;
+    max?: number;
+    costMin?: number;
+    source?: string;
+  };
+  stock?: {
+    total?: number;
+    min?: number;
+    unconfirmed?: boolean;
+  };
+  warnings?: DouyinMappingIssue[];
+  errors?: DouyinMappingIssue[];
+  lastMappedAt?: string;
+  platformDraftHint?: Record<string, unknown>;
+};
+
+export type DouyinMappingValidationResult = {
+  productId?: string;
+  platform: string;
+  status: string;
+  result: string;
+  canPublish: boolean;
+  errorCount: number;
+  warningCount: number;
+  checks: DouyinMappingIssue[];
 };
 
 export async function fetchProductDetail(id: string) {
@@ -141,6 +227,33 @@ export async function putProductPlatformPublishConfig(
 ) {
   return putJSON<ProductPlatformPublishConfig, typeof body>(
     `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/${encodeURIComponent(platform)}`,
+    body,
+  );
+}
+
+export async function buildDouyinDraftMapping(productId: string, body: { shopId?: string } = {}) {
+  return postJSON<DouyinDraftMapping>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/build-mapping`,
+    body,
+  );
+}
+
+export async function getDouyinDraftMapping(productId: string) {
+  return getJSON<DouyinDraftMapping>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/mapping`,
+  );
+}
+
+export async function saveDouyinDraftMapping(productId: string, body: DouyinDraftMapping) {
+  return putJSON<DouyinDraftMapping, DouyinDraftMapping>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/mapping`,
+    body,
+  );
+}
+
+export async function validateDouyinDraftMapping(productId: string, body?: DouyinDraftMapping) {
+  return postJSON<DouyinMappingValidationResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/validate`,
     body,
   );
 }

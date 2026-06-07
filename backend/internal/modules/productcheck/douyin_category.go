@@ -132,7 +132,38 @@ func (s *Service) checkDouyinListingConfig(ctx context.Context, p product.Produc
 			Suggestion: "商品参数与抖店属性匹配较少，建议人工检查。",
 		})
 	}
+	out = append(out, s.checkSavedDouyinMapping(ctx, p)...)
 	return out
+}
+
+func (s *Service) checkSavedDouyinMapping(ctx context.Context, p product.Product) []CheckItem {
+	var cfg product.ProductPlatformPublishConfig
+	if err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", p.ID, "douyin_shop").First(&cfg).Error; err != nil {
+		return nil
+	}
+	m := product.DouyinDraftMappingFromConfig(cfg)
+	m.Source = strings.TrimSpace(p.Source)
+	product.ApplyDouyinDraftValidation(m, s.douyinMinProfit(ctx))
+	issues := append([]product.DouyinMappingIssue{}, m.Errors...)
+	issues = append(issues, m.Warnings...)
+	out := make([]CheckItem, 0, len(issues))
+	for _, item := range issues {
+		out = append(out, CheckItem{
+			Group:               "platform",
+			Code:                item.Code,
+			Level:               item.Level,
+			Message:             item.Message,
+			Suggestion:          item.Suggestion,
+			RelatedResourceType: item.RelatedResourceType,
+			RelatedResourceID:   item.RelatedResourceID,
+		})
+	}
+	return out
+}
+
+func (s *Service) douyinMinProfit(ctx context.Context) float64 {
+	_, minProfit := s.pricingProtection(ctx, "douyin_shop")
+	return minProfit
 }
 
 func valuePresent(v any) bool {

@@ -105,6 +105,48 @@ func TestDouyinNonLeafCategoryBlocksReadiness(t *testing.T) {
 	}
 }
 
+func TestDouyinSavedMappingBlocksReadiness(t *testing.T) {
+	db := newDouyinCheckTestDB(t)
+	prodID, shopID := seedDouyinCheckBase(t, db)
+	now := time.Now().UTC()
+	if err := db.Create(&shop.PlatformCategory{
+		Platform:   "douyin_shop",
+		CategoryID: "leaf-1",
+		Name:       "Leaf",
+		IsLeaf:     true,
+		SyncedAt:   &now,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&product.ProductPlatformPublishConfig{
+		ProductID:    prodID,
+		Platform:     "douyin_shop",
+		ShopID:       &shopID,
+		CategoryID:   "leaf-1",
+		CategoryPath: "Leaf",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	platformdouyin.RegisterProvider()
+	svc := &Service{DB: db, Settings: &settings.Service{DB: db}, Shops: &shop.Service{DB: db}}
+	res, err := svc.CheckProductReadiness(context.Background(), CheckProductReadinessRequest{
+		ProductID: prodID,
+		Platform:  "douyin_shop",
+		ShopID:    &shopID,
+	})
+	if err != nil {
+		t.Fatalf("CheckProductReadiness() error = %v", err)
+	}
+	for _, code := range []string{product.DouyinTitleMissing, product.DouyinMainImageMissing, product.DouyinSKUMissing} {
+		if !hasCheckCode(res.Checks, code) {
+			t.Fatalf("expected saved mapping check %s in readiness: %+v", code, res.Checks)
+		}
+	}
+	if res.CanPublish {
+		t.Fatalf("expected saved mapping validation to block readiness: %+v", res.Checks)
+	}
+}
+
 func newDouyinCheckTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

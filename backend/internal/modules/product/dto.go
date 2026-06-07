@@ -42,14 +42,16 @@ type PlatformPublishConfigBody struct {
 }
 
 type PlatformPublishConfigDTO struct {
-	ProductID          uuid.UUID       `json:"productId"`
-	Platform           string          `json:"platform"`
-	ShopID             *uuid.UUID      `json:"shopId,omitempty"`
-	CategoryID         string          `json:"categoryId,omitempty"`
-	CategoryPath       string          `json:"categoryPath,omitempty"`
-	PlatformAttributes json.RawMessage `json:"platformAttributes,omitempty"`
-	CreatedAt          time.Time       `json:"createdAt"`
-	UpdatedAt          time.Time       `json:"updatedAt"`
+	ProductID          uuid.UUID           `json:"productId"`
+	Platform           string              `json:"platform"`
+	ShopID             *uuid.UUID          `json:"shopId,omitempty"`
+	CategoryID         string              `json:"categoryId,omitempty"`
+	CategoryPath       string              `json:"categoryPath,omitempty"`
+	PlatformAttributes json.RawMessage     `json:"platformAttributes,omitempty"`
+	Mapping            *DouyinDraftMapping `json:"mapping,omitempty"`
+	LastMappedAt       *time.Time          `json:"lastMappedAt,omitempty"`
+	CreatedAt          time.Time           `json:"createdAt"`
+	UpdatedAt          time.Time           `json:"updatedAt"`
 }
 
 // UnmarshalJSON merges alternate snake_case keys with camelCase.

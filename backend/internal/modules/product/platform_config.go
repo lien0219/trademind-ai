@@ -119,6 +119,8 @@ func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigD
 		CategoryID:         row.CategoryID,
 		CategoryPath:       row.CategoryPath,
 		PlatformAttributes: json.RawMessage(row.PlatformAttributes),
+		Mapping:            DouyinDraftMappingFromConfig(row),
+		LastMappedAt:       row.LastMappedAt,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}

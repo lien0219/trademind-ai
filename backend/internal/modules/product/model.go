@@ -117,6 +117,15 @@ type ProductPlatformPublishConfig struct {
 	CategoryID         string         `gorm:"size:128;index" json:"categoryId,omitempty"`
 	CategoryPath       string         `gorm:"size:1024" json:"categoryPath,omitempty"`
 	PlatformAttributes datatypes.JSON `gorm:"type:jsonb" json:"platformAttributes,omitempty"`
+	MappedTitle        string         `gorm:"size:512" json:"mappedTitle,omitempty"`
+	MappedDescription  string         `gorm:"type:text" json:"mappedDescription,omitempty"`
+	MappedImages       datatypes.JSON `gorm:"type:jsonb" json:"mappedImages,omitempty"`
+	MappedSKUs         datatypes.JSON `gorm:"column:mapped_skus;type:jsonb" json:"mappedSkus,omitempty"`
+	MappedPrice        datatypes.JSON `gorm:"type:jsonb" json:"mappedPrice,omitempty"`
+	MappedStock        datatypes.JSON `gorm:"type:jsonb" json:"mappedStock,omitempty"`
+	MappingWarnings    datatypes.JSON `gorm:"type:jsonb" json:"mappingWarnings,omitempty"`
+	MappingErrors      datatypes.JSON `gorm:"type:jsonb" json:"mappingErrors,omitempty"`
+	LastMappedAt       *time.Time     `gorm:"index" json:"lastMappedAt,omitempty"`
 }
 
 func (ProductPlatformPublishConfig) TableName() string { return "product_platform_publish_configs" }

@@ -16,6 +16,7 @@ import {
 import {
   Button,
   Card,
+  Col,
   Collapse,
   Descriptions,
   Drawer,
@@ -26,6 +27,7 @@ import {
   Modal,
   Popconfirm,
   Radio,
+  Row,
   Select,
   Space,
   Spin,
@@ -65,6 +67,7 @@ import { uploadFile } from '@/services/files';
 import {
   applyAiDescription,
   applyProductAITitle,
+  buildDouyinDraftMapping,
   createProductImage,
   createProductSku,
   deleteProduct,
@@ -78,7 +81,10 @@ import {
   syncProductImages,
   selectBestMainProductImages,
   getProductPlatformPublishConfig,
+  getDouyinDraftMapping,
   putProductPlatformPublishConfig,
+  saveDouyinDraftMapping,
+  validateDouyinDraftMapping,
   updateProduct,
   updateProductImage,
   updateProductSku,
@@ -87,6 +93,8 @@ import {
   type GenerateDescriptionResult,
   type OptimizeTitleResult,
   type ProductDetail,
+  type DouyinDraftMapping,
+  type DouyinMappingIssue,
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
@@ -388,6 +396,40 @@ function readinessStatusTag(r: ProductReadinessResult | null) {
   return <Tag color="green">可发布</Tag>;
 }
 
+function douyinIssueTag(level?: string) {
+  return <Tag color={level === 'error' ? 'red' : 'orange'}>{level === 'error' ? '校验失败' : '需要确认'}</Tag>;
+}
+
+function douyinMoney(v?: number, currency = 'CNY') {
+  return typeof v === 'number' ? `${currency} ${v.toFixed(2)}` : '未填写';
+}
+
+function douyinAttrValueText(v: unknown) {
+  if (v == null || v === '') return '未填写';
+  if (Array.isArray(v)) return v.join(', ');
+  if (typeof v === 'object') {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
+}
+
+function douyinIssueList(items?: DouyinMappingIssue[]) {
+  if (!items?.length) return null;
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={4}>
+      {items.map((x, i) => (
+        <div key={`${x.code}-${i}`}>
+          {douyinIssueTag(x.level)} <Typography.Text code>{x.code}</Typography.Text> {x.message}
+        </div>
+      ))}
+    </Space>
+  );
+}
+
 function fixLinkForReadinessCode(code: string): { tab?: string; href?: string; label: string } | null {
   const c = (code || '').toLowerCase();
   if (c.startsWith('product.title') || c === 'product.currency_missing' || c === 'product.archived') {
@@ -445,8 +487,13 @@ export default function ProductDraftDetailPage() {
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
   const [publishForm] = Form.useForm();
   const [douyinForm] = Form.useForm();
+  const [douyinMappingForm] = Form.useForm();
   const [publishSubmitting, setPublishSubmitting] = useState(false);
   const [douyinSaving, setDouyinSaving] = useState(false);
+  const [douyinMapping, setDouyinMapping] = useState<DouyinDraftMapping | null>(null);
+  const [douyinMappingLoading, setDouyinMappingLoading] = useState(false);
+  const [douyinMappingSaving, setDouyinMappingSaving] = useState(false);
+  const [douyinMappingValidating, setDouyinMappingValidating] = useState(false);
   const [douyinCategoryLoading, setDouyinCategoryLoading] = useState(false);
   const [douyinAttrLoading, setDouyinAttrLoading] = useState(false);
   const [douyinCategoryFlat, setDouyinCategoryFlat] = useState<DouyinCategoryNode[]>([]);
@@ -637,6 +684,22 @@ export default function ProductDraftDetailPage() {
           categoryId: douyinCfg.categoryId,
           platformAttributes: attrs,
         });
+        if (douyinCfg.mapping) {
+          setDouyinMapping(douyinCfg.mapping);
+          douyinMappingForm.setFieldsValue({
+            title: douyinCfg.mapping.title,
+            description: douyinCfg.mapping.description,
+          });
+        } else {
+          const mapped = await getDouyinDraftMapping(id).catch(() => undefined);
+          setDouyinMapping(mapped ?? null);
+          if (mapped) {
+            douyinMappingForm.setFieldsValue({
+              title: mapped.title,
+              description: mapped.description,
+            });
+          }
+        }
         if (douyinCfg.categoryId) {
           const ar = await queryDouyinCategoryAttributes(douyinCfg.categoryId).catch(() => undefined);
           setDouyinAttrs(ar?.list ?? []);
@@ -647,7 +710,7 @@ export default function ProductDraftDetailPage() {
     } finally {
       setPubCtxLoading(false);
     }
-  }, [douyinForm, id]);
+  }, [douyinForm, douyinMappingForm, id]);
 
   const reloadDouyinCategories = useCallback(
     async (shopId?: string, refresh?: boolean) => {
@@ -703,6 +766,114 @@ export default function ProductDraftDetailPage() {
     },
     [douyinConfig.categoryId, douyinConfig.shopId],
   );
+
+  const selectedDouyinCategory = useMemo(
+    () => douyinCategoryFlat.find((c) => c.categoryId === douyinConfig.categoryId),
+    [douyinCategoryFlat, douyinConfig.categoryId],
+  );
+
+  const currentDouyinMapping = useCallback((): DouyinDraftMapping => {
+    const text = douyinMappingForm.getFieldsValue() as { title?: string; description?: string };
+    const vals = douyinForm.getFieldsValue() as {
+      shopId?: string;
+      categoryId?: string;
+      platformAttributes?: Record<string, unknown>;
+    };
+    const attrValues = vals.platformAttributes ?? douyinConfig.platformAttributes ?? {};
+    const attrs = (douyinMapping?.attributes ?? douyinAttrs.map((a) => ({
+      attrId: a.attrId,
+      name: a.name,
+      required: a.required,
+      valueType: a.valueType,
+      options: a.options,
+    }))).map((a) => ({
+      ...a,
+      value: attrValues[a.attrId] ?? attrValues[a.name] ?? a.value,
+    }));
+    return {
+      ...(douyinMapping ?? { platform: 'douyin_shop' }),
+      platform: 'douyin_shop',
+      productId: id,
+      shopId: vals.shopId || douyinConfig.shopId || douyinMapping?.shopId,
+      categoryId: vals.categoryId || douyinConfig.categoryId || douyinMapping?.categoryId,
+      categoryPath: selectedDouyinCategory?.path || douyinConfig.categoryPath || douyinMapping?.categoryPath,
+      title: text.title ?? douyinMapping?.title ?? '',
+      description: text.description ?? douyinMapping?.description ?? '',
+      attributes: attrs,
+    };
+  }, [douyinAttrs, douyinConfig, douyinForm, douyinMapping, douyinMappingForm, id, selectedDouyinCategory?.path]);
+
+  const handleBuildDouyinMapping = useCallback(async () => {
+    setDouyinMappingLoading(true);
+    try {
+      const vals = await douyinForm.validateFields();
+      const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
+      const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
+        shopId: vals.shopId,
+        categoryId: vals.categoryId,
+        categoryPath: cat?.path || douyinConfig.categoryPath,
+        platformAttributes: vals.platformAttributes ?? {},
+      });
+      setDouyinConfig({
+        shopId: saved.shopId,
+        categoryId: saved.categoryId,
+        categoryPath: saved.categoryPath,
+        platformAttributes: saved.platformAttributes ?? {},
+      });
+      const mapped = await buildDouyinDraftMapping(id, { shopId: vals.shopId });
+      setDouyinMapping(mapped);
+      douyinMappingForm.setFieldsValue({ title: mapped.title, description: mapped.description });
+      message.success('抖店刊登草稿已生成');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '生成抖店刊登草稿失败');
+    } finally {
+      setDouyinMappingLoading(false);
+    }
+  }, [douyinCategoryFlat, douyinConfig.categoryPath, douyinForm, douyinMappingForm, id]);
+
+  const handleSaveDouyinMapping = useCallback(async () => {
+    if (!douyinMapping) {
+      message.warning('请先生成抖店刊登草稿');
+      return;
+    }
+    setDouyinMappingSaving(true);
+    try {
+      await douyinMappingForm.validateFields();
+      const saved = await saveDouyinDraftMapping(id, currentDouyinMapping());
+      setDouyinMapping(saved);
+      douyinMappingForm.setFieldsValue({ title: saved.title, description: saved.description });
+      message.success('抖店刊登草稿已保存');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '保存抖店刊登草稿失败');
+    } finally {
+      setDouyinMappingSaving(false);
+    }
+  }, [currentDouyinMapping, douyinMapping, douyinMappingForm, id]);
+
+  const handleValidateDouyinMapping = useCallback(async () => {
+    setDouyinMappingValidating(true);
+    try {
+      const res = await validateDouyinDraftMapping(id, douyinMapping ? currentDouyinMapping() : undefined);
+      setDouyinMapping((cur) => cur ? {
+        ...cur,
+        errors: res.checks.filter((x) => x.level === 'error'),
+        warnings: res.checks.filter((x) => x.level !== 'error'),
+      } : cur);
+      if (res.errorCount > 0) {
+        message.error('这些信息不完整，暂时不能创建抖店商品');
+      } else if (res.warningCount > 0) {
+        message.warning('抖店刊登草稿还有需要确认的信息');
+      } else {
+        message.success('抖店刊登草稿校验通过');
+      }
+      setReadinessPlat('douyin_shop');
+      setReadinessShopId(String(douyinForm.getFieldValue('shopId') || ''));
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '校验抖店刊登草稿失败');
+    } finally {
+      setDouyinMappingValidating(false);
+    }
+  }, [currentDouyinMapping, douyinForm, douyinMapping, id]);
 
   const reloadPublicationSkus = useCallback(async () => {
     if (!id) return;
@@ -843,11 +1014,6 @@ export default function ProductDraftDetailPage() {
   const douyinShops = useMemo(
     () => shopsList.filter((s) => (s.platform || '').toLowerCase() === 'douyin_shop' && s.authStatus === 'authorized'),
     [shopsList],
-  );
-
-  const selectedDouyinCategory = useMemo(
-    () => douyinCategoryFlat.find((c) => c.categoryId === douyinConfig.categoryId),
-    [douyinCategoryFlat, douyinConfig.categoryId],
   );
 
   const shopsForReadinessPlat = useMemo(() => {
@@ -2401,6 +2567,133 @@ export default function ProductDraftDetailPage() {
                               </Space>
                             </Form.Item>
                           </Form>
+                        </Space>
+                      </Card>
+                      <Card size="small" title="抖店刊登草稿预览" variant="borderless">
+                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="系统会根据商品标题、AI 文案、图片、SKU、定价和抖店要求填写的信息生成刊登草稿，发布前仍可人工修改。"
+                          />
+                          <Space wrap>
+                            <Button type="primary" loading={douyinMappingLoading} onClick={() => void handleBuildDouyinMapping()}>
+                              生成抖店刊登草稿
+                            </Button>
+                            <Button disabled={!douyinMapping} loading={douyinMappingSaving} onClick={() => void handleSaveDouyinMapping()}>
+                              保存刊登草稿
+                            </Button>
+                            <Button loading={douyinMappingValidating} onClick={() => void handleValidateDouyinMapping()}>
+                              校验刊登草稿
+                            </Button>
+                            {douyinMapping?.lastMappedAt ? (
+                              <Typography.Text type="secondary">最近生成：{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
+                            ) : null}
+                          </Space>
+                          {!douyinMapping ? (
+                            <Typography.Text type="secondary">还没有抖店刊登草稿，请先生成。</Typography.Text>
+                          ) : (
+                            <>
+                              {douyinMapping.errors?.length ? (
+                                <Alert
+                                  type="error"
+                                  showIcon
+                                  message="这些信息不完整，暂时不能创建抖店商品"
+                                  description={douyinIssueList(douyinMapping.errors)}
+                                />
+                              ) : null}
+                              {douyinMapping.warnings?.length ? (
+                                <Alert
+                                  type="warning"
+                                  showIcon
+                                  message="这些信息建议人工确认"
+                                  description={douyinIssueList(douyinMapping.warnings)}
+                                />
+                              ) : null}
+                              <Form form={douyinMappingForm} layout="vertical">
+                                <Form.Item name="title" label="抖店标题" rules={[{ required: true, message: '请填写抖店标题' }]}>
+                                  <Input showCount maxLength={80} />
+                                </Form.Item>
+                                <Form.Item name="description" label="抖店描述">
+                                  <Input.TextArea rows={4} />
+                                </Form.Item>
+                              </Form>
+                              <Descriptions bordered size="small" column={2}>
+                                <Descriptions.Item label="抖店店铺">{douyinMapping.shopId || '未选择'}</Descriptions.Item>
+                                <Descriptions.Item label="抖店类目">
+                                  {douyinMapping.categoryPath || douyinMapping.categoryId || '未选择'}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="价格">
+                                  {douyinMoney(douyinMapping.price?.min, douyinMapping.price?.currency)}
+                                  {douyinMapping.price?.max && douyinMapping.price.max !== douyinMapping.price.min
+                                    ? ` - ${douyinMoney(douyinMapping.price.max, douyinMapping.price.currency)}`
+                                    : ''}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="库存">
+                                  {douyinMapping.stock?.total ?? '未确认'}
+                                  {douyinMapping.stock?.unconfirmed ? <Tag color="orange" style={{ marginLeft: 8 }}>库存未确认</Tag> : null}
+                                </Descriptions.Item>
+                              </Descriptions>
+                              <div>
+                                <Typography.Title level={5}>主图</Typography.Title>
+                                <Image.PreviewGroup>
+                                  <Space wrap>
+                                    {(douyinMapping.mainImages ?? []).map((img, idx) => (
+                                      <div key={img.localImageId || `${img.url}-${idx}`} style={{ width: 112 }}>
+                                        <Image src={img.url} width={96} height={96} style={{ objectFit: 'cover' }} />
+                                        <div style={{ marginTop: 4 }}>
+                                          {img.needSync ? <Tag color="orange">待图片同步</Tag> : <Tag color="green">可用</Tag>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </Space>
+                                </Image.PreviewGroup>
+                              </div>
+                              <div>
+                                <Typography.Title level={5}>详情图</Typography.Title>
+                                {(douyinMapping.detailImages ?? []).length ? (
+                                  <Image.PreviewGroup>
+                                    <Space wrap>
+                                      {(douyinMapping.detailImages ?? []).map((img, idx) => (
+                                        <div key={img.localImageId || `${img.url}-${idx}`} style={{ width: 112 }}>
+                                          <Image src={img.url} width={96} height={96} style={{ objectFit: 'cover' }} />
+                                          <div style={{ marginTop: 4 }}>
+                                            {img.needSync ? <Tag color="orange">待图片同步</Tag> : <Tag color="green">可用</Tag>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </Space>
+                                  </Image.PreviewGroup>
+                                ) : (
+                                  <Typography.Text type="secondary">暂无详情图</Typography.Text>
+                                )}
+                              </div>
+                              <Table
+                                size="small"
+                                rowKey={(r) => r.attrId || r.name}
+                                pagination={false}
+                                dataSource={douyinMapping.attributes ?? []}
+                                columns={[
+                                  { title: '抖店要求填写的信息', render: (_, r) => r.name || r.attrId },
+                                  { title: '状态', width: 90, render: (_, r) => (r.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>) },
+                                  { title: '当前值', render: (_, r) => douyinAttrValueText(r.value) },
+                                ]}
+                              />
+                              <Table
+                                size="small"
+                                rowKey={(r) => r.localSkuId || r.name}
+                                pagination={false}
+                                dataSource={douyinMapping.skus ?? []}
+                                columns={[
+                                  { title: '商品规格', dataIndex: 'name', ellipsis: true },
+                                  { title: '规格值', render: (_, r) => douyinAttrValueText(r.attrs ?? {}) },
+                                  { title: '售价', width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
+                                  { title: '库存', width: 90, render: (_, r) => (r.stock == null ? '未确认' : r.stock) },
+                                  { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : '无') },
+                                ]}
+                              />
+                            </>
+                          )}
                         </Space>
                       </Card>
                       {publishReadiness ? (

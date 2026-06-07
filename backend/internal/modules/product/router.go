@@ -12,6 +12,10 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/products/:id", h.Get)
 	g.PUT("/products/:id", h.Put)
 	g.DELETE("/products/:id", h.Delete)
+	g.POST("/products/:id/platform-configs/douyin_shop/build-mapping", h.BuildDouyinDraftMapping)
+	g.GET("/products/:id/platform-configs/douyin_shop/mapping", h.GetDouyinDraftMapping)
+	g.PUT("/products/:id/platform-configs/douyin_shop/mapping", h.PutDouyinDraftMapping)
+	g.POST("/products/:id/platform-configs/douyin_shop/validate", h.ValidateDouyinDraftMapping)
 	g.GET("/products/:id/platform-configs/:platform", h.GetPlatformPublishConfig)
 	g.PUT("/products/:id/platform-configs/:platform", h.PutPlatformPublishConfig)
 
