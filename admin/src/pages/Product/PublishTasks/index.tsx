@@ -216,17 +216,44 @@ export default function ProductPublishTasksPage() {
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph>
-                <Typography.Text strong>错误：</Typography.Text> {detail.errorMessage}
+                <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.platformProductId ? (
+              <Typography.Paragraph copyable={{ text: detail.platformProductId }}>
+                <Typography.Text strong>抖店商品 ID：</Typography.Text> {detail.platformProductId}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.requestId ? (
+              <Typography.Paragraph copyable={{ text: detail.requestId }}>
+                <Typography.Text strong>requestId：</Typography.Text> {detail.requestId}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.retryable != null ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>是否可以重试：</Typography.Text> {detail.retryable ? '是' : '否'}
               </Typography.Paragraph>
             ) : null}
             <Typography.Paragraph>
-              <Typography.Text strong>input</Typography.Text>
+              <Typography.Text strong>平台提交内容</Typography.Text>
+              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
+                {JSON.stringify(detail.platformPayload ?? {}, null, 2)}
+              </pre>
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <Typography.Text strong>平台结果</Typography.Text>
+              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
+                {JSON.stringify(detail.platformResult ?? detail.output ?? {}, null, 2)}
+              </pre>
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <Typography.Text strong>任务 input</Typography.Text>
               <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
                 {JSON.stringify(detail.input ?? {}, null, 2)}
               </pre>
             </Typography.Paragraph>
             <Typography.Paragraph>
-              <Typography.Text strong>output</Typography.Text>
+              <Typography.Text strong>任务 output</Typography.Text>
               <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
                 {JSON.stringify(detail.output ?? {}, null, 2)}
               </pre>

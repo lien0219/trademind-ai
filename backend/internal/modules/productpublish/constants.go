@@ -1,7 +1,8 @@
 package productpublish
 
 const (
-	TaskTypeProductPublish = "product_publish"
+	TaskTypeProductPublish    = "product_publish"
+	TaskTypeDouyinDraftCreate = "douyin_draft_create"
 
 	ModeManual = "manual"
 
@@ -13,13 +14,16 @@ const (
 )
 
 const (
-	StatusDraft           = "draft"
-	StatusChecking        = "checking"
-	StatusReady           = "ready"
-	StatusPublishing      = "publishing"
-	StatusPublishedRecord = "published"
-	StatusSuccess         = "success"
-	StatusPubFailed       = "failed"
-	StatusRejected        = "rejected"
-	StatusOffline         = "offline"
+	StatusDraft                 = "draft"
+	StatusChecking              = "checking"
+	StatusMappingFields         = "mapping_fields"
+	StatusCreatingPlatformDraft = "creating_platform_draft"
+	StatusDraftCreated          = "draft_created"
+	StatusReady                 = "ready"
+	StatusPublishing            = "publishing"
+	StatusPublishedRecord       = "published"
+	StatusSuccess               = "success"
+	StatusPubFailed             = "failed"
+	StatusRejected              = "rejected"
+	StatusOffline               = "offline"
 )

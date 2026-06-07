@@ -462,6 +462,11 @@ func (s *Service) DouyinClientForShop(c *gin.Context, ctx context.Context, shopI
 	return client, shopRow, err
 }
 
+// DouyinClientForShopContext returns the Douyin client without requiring a gin context (for workers).
+func (s *Service) DouyinClientForShopContext(ctx context.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformdouyin.Client, *Shop, error) {
+	return s.DouyinClientForShop(nil, ctx, shopID, adminID)
+}
+
 func (s *Service) persistDouyinShopInfo(ctx context.Context, shopID uuid.UUID, info *platformdouyin.ShopInfo) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("shop: no db")

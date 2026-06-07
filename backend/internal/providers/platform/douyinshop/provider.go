@@ -22,6 +22,7 @@ func (provider) Status() string { return platformp.StatusBeta }
 func (provider) Capabilities() []platformp.Capability {
 	return []platformp.Capability{
 		platformp.CapShopInfo,
+		platformp.CapProductPublish,
 	}
 }
 

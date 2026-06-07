@@ -8,15 +8,21 @@ import (
 )
 
 const (
-	CodeDouyinAPIError            = "DOUYIN_API_ERROR"
-	CodeDouyinAuthExpired         = "DOUYIN_AUTH_EXPIRED"
-	CodeDouyinTokenRefreshFailed  = "DOUYIN_TOKEN_REFRESH_FAILED"
-	CodeDouyinPermissionDenied    = "DOUYIN_PERMISSION_DENIED"
-	CodeDouyinRateLimited         = "DOUYIN_RATE_LIMITED"
-	CodeDouyinRequestTimeout      = "DOUYIN_REQUEST_TIMEOUT"
-	CodeDouyinResponseParseFailed = "DOUYIN_RESPONSE_PARSE_FAILED"
-	CodeDouyinShopInfoFailed      = "DOUYIN_SHOP_INFO_FAILED"
-	CodeUnknownDouyinError        = "UNKNOWN_DOUYIN_ERROR"
+	CodeDouyinAPIError              = "DOUYIN_API_ERROR"
+	CodeDouyinAuthExpired           = "DOUYIN_AUTH_EXPIRED"
+	CodeDouyinTokenRefreshFailed    = "DOUYIN_TOKEN_REFRESH_FAILED"
+	CodeDouyinPermissionDenied      = "DOUYIN_PERMISSION_DENIED"
+	CodeDouyinRateLimited           = "DOUYIN_RATE_LIMITED"
+	CodeDouyinRequestTimeout        = "DOUYIN_REQUEST_TIMEOUT"
+	CodeDouyinResponseParseFailed   = "DOUYIN_RESPONSE_PARSE_FAILED"
+	CodeDouyinShopInfoFailed        = "DOUYIN_SHOP_INFO_FAILED"
+	CodeDouyinStoreNotAuthorized    = "DOUYIN_STORE_NOT_AUTHORIZED"
+	CodeDouyinCategoryMissing       = "DOUYIN_CATEGORY_MISSING"
+	CodeDouyinRequiredAttrMissing   = "DOUYIN_REQUIRED_ATTR_MISSING"
+	CodeDouyinMainImageNotUploaded  = "DOUYIN_MAIN_IMAGE_NOT_UPLOADED"
+	CodeDouyinCreateProductFailed   = "DOUYIN_CREATE_PRODUCT_FAILED"
+	CodeDouyinProductPayloadInvalid = "DOUYIN_PRODUCT_PAYLOAD_INVALID"
+	CodeUnknownDouyinError          = "UNKNOWN_DOUYIN_ERROR"
 )
 
 type Error struct {
@@ -53,8 +59,10 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 	case CodeDouyinRateLimited:
 		e.RateLimited = true
 		e.Retryable = true
-	case CodeDouyinRequestTimeout:
+	case CodeDouyinRequestTimeout, CodeDouyinCreateProductFailed:
 		e.Retryable = true
+	case CodeDouyinProductPayloadInvalid, CodeDouyinCategoryMissing, CodeDouyinRequiredAttrMissing, CodeDouyinMainImageNotUploaded:
+		e.Retryable = false
 	}
 	return e
 }

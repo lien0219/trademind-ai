@@ -342,6 +342,18 @@ var rules = []rule{
 		reason:  "抖店图片素材上传失败。",
 		suggest: "请检查抖店授权、素材中心接口权限、平台限流和图片格式，然后重试上传。",
 	},
+	{
+		id: "sub:douyin_create_product", substrs: []string{"DOUYIN_CREATE_PRODUCT_FAILED", "DOUYIN_PRODUCT_PAYLOAD_INVALID"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店商品草稿创建失败。",
+		suggest: "请查看刊登任务详情中的平台提交内容与失败原因，修正映射或类目属性后重试。",
+	},
+	{
+		id: "sub:douyin_store_auth", substrs: []string{"DOUYIN_STORE_NOT_AUTHORIZED", "DOUYIN_AUTH_EXPIRED", "shop is not authorized"},
+		category: CategoryPlatformAuth, severity: SeverityHigh,
+		reason:  "抖店店铺未授权或授权已过期。",
+		suggest: "请重新连接抖店店铺并完成 OAuth 授权。",
+	},
 	// Validation
 	{
 		id: "sub:publish_validation_code", substrs: []string{"PUBLISH_CHECK_FAILED", "PRICE_INVALID", "IMAGE_MISSING", "SKU_INVALID"},

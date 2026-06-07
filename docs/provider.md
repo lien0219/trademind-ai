@@ -73,6 +73,8 @@ Douyin Shop Phase 5 adds internal product draft → Douyin listing draft mapping
 
 Douyin Shop Phase 6 adds image upload to the Douyin material center before product draft creation. Product listing drafts now keep extended `mapped_images` entries for `mainImages` / `detailImages`: local image id, source URL, Storage URL/key, Douyin `platformImageId` / `platformImageUrl`, upload status, failed error code/message, upload time, processed flag, and sanitized raw response. External images are downloaded with timeout, size cap, format/dimension validation, and SSRF private-network blocking, then written to the current Storage Provider before calling Douyin. Storage-backed images are read server-side from the configured Storage Provider; frontend URLs, tokens, and secrets are not used for platform calls. The provider method is `UploadImage(ctx, shopID, req)` and uses the Phase 3 `douyinshop.Client` with official-doc-checked method `supplyCenter.material.batchUploadImageSync` (`/supplyCenter/material/batchUploadImageSync`), preserving token auto-refresh and safe logs. Phase 6 does not create Douyin products, sync orders, or sync inventory.
 
+Douyin Shop Phase 7 adds platform product draft creation from saved mapping + uploaded images. The provider method is `CreateProductDraft(ctx, shopID, req)` in `douyinshop/product.go`, calling official-doc-checked `product.addV2` with `commit=false` and `start_sale_type=1` so items stay in the Douyin draft box and are not directly listed online. Payload assembly lives in `productpublish/douyin_payload.go` and reads `product_platform_publish_configs` mapped fields only (never collect raw). Publish tasks reuse `product_publish_tasks` with `publishMode=save_as_platform_draft`; success writes `product_publications` / `product_publication_skus`. Failures classify into the failure task center with codes such as `DOUYIN_CREATE_PRODUCT_FAILED`. Phase 7 does not sync orders or inventory.
+
 当前重点平台：
 
 - Douyin Shop（抖店，真实平台闭环优先）
@@ -81,7 +83,7 @@ Douyin Shop Phase 6 adds image upload to the Douyin material center before produ
 - Lazada
 - Amazon
 
-当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1 平台配置与 Provider 注册、Phase 2 OAuth 店铺授权闭环、Phase 3 OpenAPI Client / 签名层 / 店铺信息校准、Phase 4 类目与属性缓存、Phase 5 商品字段映射与刊登草稿预览，以及 Phase 6 图片上传到抖店素材中心。抖店后续 MVP 范围按阶段继续实现商品草稿创建、订单同步和库存同步；多平台并行接入、自动直接上架、绕过平台审核、复杂售后退款、复杂财务结算、多仓 WMS 与自动补货均后置。
+当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1–7：平台配置、OAuth、Client/签名、类目属性、字段映射、图片上传、**平台商品草稿创建**。下一阶段：抖店订单同步 MVP，然后库存同步 MVP。
 
 主要能力：
 

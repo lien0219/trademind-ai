@@ -29,6 +29,19 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("productpublish: no db")
 	}
+	var peek ProductPublishTask
+	if err := s.DB.WithContext(ctx).Select("id", "platform", "task_type", "publish_mode").First(&peek, "id = ?", taskID).Error; err == nil {
+		if peek.Platform == "douyin_shop" && (peek.TaskType == TaskTypeDouyinDraftCreate || peek.PublishMode == PublishModeSaveAsPlatformDraft) {
+			return s.ProcessDouyinDraftTask(ctx, taskID, workerID)
+		}
+	}
+	return s.processGenericPublishTask(ctx, taskID, workerID)
+}
+
+func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("productpublish: no db")
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			s.handlePublishPanic(ctx, taskID, workerID, r)

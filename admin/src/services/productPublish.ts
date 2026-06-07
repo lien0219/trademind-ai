@@ -42,6 +42,11 @@ export type ProductPublishTaskDTO = {
   checkResult?: unknown;
   platformPayload?: unknown;
   platformResult?: unknown;
+  platformProductId?: string;
+  platformRawError?: unknown;
+  retryable?: boolean;
+  requestId?: string;
+  mappingSnapshot?: unknown;
   startedAt?: string;
   finishedAt?: string;
   errorCode?: string;
@@ -97,4 +102,35 @@ export async function getProductPublishTask(id: string): Promise<ProductPublishT
 
 export async function retryProductPublishTask(id: string): Promise<ProductPublishTaskDTO> {
   return postJSON(`/api/v1/product-publish/tasks/${id}/retry`, {});
+}
+
+export async function cancelProductPublishTask(id: string): Promise<ProductPublishTaskDTO> {
+  return postJSON(`/api/v1/product-publish/tasks/${id}/cancel`, {});
+}
+
+export async function createDouyinProductDraft(
+  productId: string,
+  body: { shopId: string; publishMode?: string; force?: boolean },
+): Promise<ProductPublishTaskDTO> {
+  const res = await request<ApiResponse<ProductPublishTaskDTO>>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/create-draft`,
+    { method: 'POST', data: { publishMode: 'save_as_platform_draft', ...body } },
+  );
+  if (res.code !== 0) {
+    const err = new Error(res.message || 'create_draft_failed') as Error & { businessCode?: number; data?: unknown };
+    err.businessCode = res.code;
+    err.data = res.data;
+    throw err;
+  }
+  return res.data as ProductPublishTaskDTO;
+}
+
+export async function listDouyinPublishTasks(
+  productId: string,
+  params?: { page?: number; pageSize?: number },
+): Promise<{
+  list: ProductPublishTaskDTO[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}> {
+  return getWithParams(`/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/publish-tasks`, params ?? {});
 }

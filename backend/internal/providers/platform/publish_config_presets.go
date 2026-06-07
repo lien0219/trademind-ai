@@ -6,6 +6,22 @@ func emptyPublishSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{}
 }
 
+func douyinPublishSchema() PlatformAppConfigSchema {
+	return PlatformAppConfigSchema{
+		GroupKey:    "platform_publish_douyin_shop",
+		Title:       "抖店商品刊登配置",
+		Description: "抖店 product.addV2 默认参数；创建平台商品草稿时使用。",
+		Fields: []AppConfigField{
+			{Name: "freight_id", Label: "运费模板 ID（0=包邮）", Type: "text", Required: false, Sensitive: false, DefaultValue: "0"},
+			{Name: "default_mobile", Label: "客服电话（平台必填字段）", Type: "text", Required: false, Sensitive: false, DefaultValue: "40012345"},
+			{Name: "standard_brand_id", Label: "品牌 ID（无品牌默认 596120136）", Type: "text", Required: false, Sensitive: false, DefaultValue: "596120136"},
+			{Name: "delivery_delay_day", Label: "承诺发货天数", Type: "text", Required: false, Sensitive: false, DefaultValue: "2"},
+			{Name: "after_sale_service", Label: "售后服务 JSON", Type: "textarea", Required: false, Sensitive: false, DefaultValue: `{"supply_day_return_selector":"7-1"}`},
+			{Name: "publish_as_draft", Label: "默认仅创建平台草稿", Type: "switch", Required: false, Sensitive: false, DefaultValue: true},
+		},
+	}
+}
+
 func mockPublishSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{
 		GroupKey:    "platform_publish_mock",
@@ -42,6 +58,8 @@ func PublishConfigPresetForPlatform(platformID string) PlatformAppConfigSchema {
 		return temuPublishSchema()
 	case "shein":
 		return sheinPublishSchema()
+	case "douyin_shop":
+		return douyinPublishSchema()
 	case "mock":
 		return mockPublishSchema()
 	case "manual":

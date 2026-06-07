@@ -108,7 +108,11 @@ import { Link } from '@umijs/renderer-react';
 import {
   listProductPublications,
   publishProduct,
+  createDouyinProductDraft,
+  listDouyinPublishTasks,
+  retryProductPublishTask,
   type ProductPublicationRow,
+  type ProductPublishTaskDTO,
 } from '@/services/productPublish';
 import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
 import PricingApplyModal from '@/components/PricingApplyModal';
@@ -406,6 +410,15 @@ function douyinIssueTag(level?: string) {
   return <Tag color={level === 'error' ? 'red' : 'orange'}>{level === 'error' ? '校验失败' : '需要确认'}</Tag>;
 }
 
+function tagFromPublishStatus(raw?: string) {
+  const s = String(raw || '').toLowerCase();
+  if (s === 'success') return <Tag color="green">success</Tag>;
+  if (s === 'failed') return <Tag color="red">failed</Tag>;
+  if (s === 'running' || s === 'pending') return <Tag color="blue">{raw}</Tag>;
+  if (s === 'cancelled') return <Tag>{raw}</Tag>;
+  return <Tag>{raw || '—'}</Tag>;
+}
+
 function douyinMoney(v?: number, currency = 'CNY') {
   return typeof v === 'number' ? `${currency} ${v.toFixed(2)}` : '未填写';
 }
@@ -523,6 +536,9 @@ export default function ProductDraftDetailPage() {
   const [douyinMappingValidating, setDouyinMappingValidating] = useState(false);
   const [douyinImageUploading, setDouyinImageUploading] = useState(false);
   const [douyinImageRetryingKey, setDouyinImageRetryingKey] = useState('');
+  const [douyinDraftCreating, setDouyinDraftCreating] = useState(false);
+  const [douyinPublishTasks, setDouyinPublishTasks] = useState<ProductPublishTaskDTO[]>([]);
+  const [douyinPublishTasksLoading, setDouyinPublishTasksLoading] = useState(false);
   const [douyinCategoryLoading, setDouyinCategoryLoading] = useState(false);
   const [douyinAttrLoading, setDouyinAttrLoading] = useState(false);
   const [douyinCategoryFlat, setDouyinCategoryFlat] = useState<DouyinCategoryNode[]>([]);
@@ -1079,6 +1095,74 @@ export default function ProductDraftDetailPage() {
     [shopsList],
   );
 
+  const reloadDouyinPublishTasks = useCallback(async () => {
+    if (!id) return;
+    setDouyinPublishTasksLoading(true);
+    try {
+      const res = await listDouyinPublishTasks(id, { page: 1, pageSize: 10 });
+      setDouyinPublishTasks(res.list ?? []);
+    } catch {
+      setDouyinPublishTasks([]);
+    } finally {
+      setDouyinPublishTasksLoading(false);
+    }
+  }, [id]);
+
+  const douyinCreateDraftDisabled = useMemo(() => {
+    if (!douyinMapping || (douyinMapping.errors?.length ?? 0) > 0) return true;
+    if (!douyinConfig.shopId || !douyinConfig.categoryId) return true;
+    if (!douyinShops.some((s) => s.id === douyinConfig.shopId)) return true;
+    const mainUploaded = (douyinMapping.mainImages ?? []).some((img) => img.uploadStatus === 'uploaded');
+    if (!mainUploaded) return true;
+    if (publishReadiness && !publishReadiness.canPublish) return true;
+    return false;
+  }, [douyinConfig.categoryId, douyinConfig.shopId, douyinMapping, douyinShops, publishReadiness]);
+
+  const handleCreateDouyinDraft = useCallback(async () => {
+    const shopId = String(douyinForm.getFieldValue('shopId') || douyinConfig.shopId || '').trim();
+    if (!shopId) {
+      message.error('请选择抖店店铺');
+      return;
+    }
+    if (publishReadiness && (publishReadiness.warningCount ?? 0) > 0) {
+      await new Promise<void>((resolve, reject) => {
+        Modal.confirm({
+          title: '当前商品存在需要人工确认的信息，是否继续创建抖店商品草稿？',
+          width: 640,
+          okText: '继续创建抖店商品草稿',
+          cancelText: '返回处理',
+          content: (
+            <div>
+              {(publishReadiness.checks || [])
+                .filter((c) => c.level !== 'error')
+                .slice(0, 10)
+                .map((c, i) => (
+                  <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
+                    <Tag color="orange">warning</Tag> {c.message}
+                  </div>
+                ))}
+            </div>
+          ),
+          onOk: () => resolve(),
+          onCancel: () => reject(new Error('cancelled')),
+        });
+      });
+    }
+    setDouyinDraftCreating(true);
+    try {
+      const task = await createDouyinProductDraft(id, { shopId, publishMode: 'save_as_platform_draft' });
+      message.success('已创建抖店商品草稿，请到抖店后台确认后上架。');
+      await reloadDouyinPublishTasks();
+      if (task.platformProductId) {
+        message.info(`抖店商品 ID：${task.platformProductId}`);
+      }
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '创建抖店商品草稿失败');
+    } finally {
+      setDouyinDraftCreating(false);
+    }
+  }, [douyinConfig.shopId, douyinForm, id, publishReadiness, reloadDouyinPublishTasks]);
+
   const shopsForReadinessPlat = useMemo(() => {
     const p = readinessPlat.trim().toLowerCase();
     return shopsList.filter((s) => (s.platform || '').toLowerCase() === p && s.authStatus === 'authorized');
@@ -1134,7 +1218,8 @@ export default function ProductDraftDetailPage() {
     if (draftTabKey !== 'publish' || !id) return;
     const sid = publishForm.getFieldValue('shopId') as string | undefined;
     if (sid) void refreshPublishReadiness(String(sid));
-  }, [draftTabKey, id, publishForm, refreshPublishReadiness]);
+    void reloadDouyinPublishTasks();
+  }, [draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks]);
 
   const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
     () => [
@@ -2665,6 +2750,14 @@ export default function ProductDraftDetailPage() {
                             >
                               重新上传全部图片
                             </Button>
+                            <Button
+                              type="primary"
+                              disabled={douyinCreateDraftDisabled}
+                              loading={douyinDraftCreating}
+                              onClick={() => void handleCreateDouyinDraft()}
+                            >
+                              创建抖店商品草稿
+                            </Button>
                             {douyinMapping?.lastMappedAt ? (
                               <Typography.Text type="secondary">最近生成：{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
                             ) : null}
@@ -2815,6 +2908,55 @@ export default function ProductDraftDetailPage() {
                             </>
                           )}
                         </Space>
+                      </Card>
+                      <Card size="small" title="抖店刊登任务" variant="borderless" loading={douyinPublishTasksLoading}>
+                        {douyinPublishTasks.length === 0 ? (
+                          <Typography.Text type="secondary">暂无抖店刊登任务</Typography.Text>
+                        ) : (
+                          <Table
+                            size="small"
+                            rowKey="id"
+                            pagination={false}
+                            dataSource={douyinPublishTasks}
+                            columns={[
+                              { title: '状态', dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
+                              { title: '发布模式', dataIndex: 'publishMode', width: 140, render: (v) => v || 'save_as_platform_draft' },
+                              { title: '抖店商品 ID', dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
+                              { title: '创建时间', dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
+                              {
+                                title: '失败原因',
+                                dataIndex: 'errorMessage',
+                                ellipsis: true,
+                                render: (v, r) => v || (r.errorCode ? String(r.errorCode) : '—'),
+                              },
+                              {
+                                title: '操作',
+                                width: 120,
+                                render: (_, r) => (
+                                  <Space size={4}>
+                                    <Link to={`/product/publish-tasks?productId=${id}`}>详情</Link>
+                                    {r.status === 'failed' && r.retryable !== false ? (
+                                      <Button
+                                        type="link"
+                                        size="small"
+                                        onClick={() =>
+                                          void retryProductPublishTask(r.id)
+                                            .then(() => {
+                                              message.success('已重试刊登任务');
+                                              void reloadDouyinPublishTasks();
+                                            })
+                                            .catch((e: Error) => message.error(e.message || '重试失败'))
+                                        }
+                                      >
+                                        重试
+                                      </Button>
+                                    ) : null}
+                                  </Space>
+                                ),
+                              },
+                            ]}
+                          />
+                        )}
                       </Card>
                       {publishReadiness ? (
                         <Alert

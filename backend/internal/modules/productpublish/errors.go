@@ -17,6 +17,10 @@ const (
 	ErrorPlatformAuthRequired = "PLATFORM_AUTH_REQUIRED"
 	ErrorPlatformAPI          = "PLATFORM_API_ERROR"
 	ErrorUnknownPublish       = "UNKNOWN_PUBLISH_ERROR"
+
+	ErrorDouyinCreateProductFailed   = "DOUYIN_CREATE_PRODUCT_FAILED"
+	ErrorDouyinProductPayloadInvalid = "DOUYIN_PRODUCT_PAYLOAD_INVALID"
+	ErrorUnknownDouyinPublish        = "UNKNOWN_DOUYIN_ERROR"
 )
 
 func inferPublishErrorCode(msg string) string {

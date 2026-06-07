@@ -94,6 +94,8 @@ func ProductPublishImplementationStatus(p Provider) string {
 		return StatusAvailable
 	case "manual":
 		return StatusDisabled
+	case "douyin_shop":
+		return StatusBeta
 	case "tiktok", "shopee", "lazada", "amazon":
 		return StatusBeta
 	default:
