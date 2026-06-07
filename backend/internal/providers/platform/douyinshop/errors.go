@@ -97,6 +97,43 @@ func SanitizeErrorText(raw string) string {
 	return msg
 }
 
+func sanitizeRawMap(in map[string]any) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		low := strings.ToLower(strings.TrimSpace(k))
+		if strings.Contains(low, "token") || strings.Contains(low, "secret") {
+			out[k] = "****"
+			continue
+		}
+		out[k] = sanitizeRawValue(v)
+	}
+	return out
+}
+
+func sanitizeRawValue(v any) any {
+	switch x := v.(type) {
+	case string:
+		return SanitizeErrorText(x)
+	case map[string]any:
+		return sanitizeRawMap(x)
+	case []any:
+		out := make([]any, 0, len(x))
+		for i, item := range x {
+			if i >= 20 {
+				out = append(out, "...truncated")
+				break
+			}
+			out = append(out, sanitizeRawValue(item))
+		}
+		return out
+	default:
+		return v
+	}
+}
+
 func MapHTTPError(status int, requestID string) *Error {
 	switch status {
 	case http.StatusUnauthorized:

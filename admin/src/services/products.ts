@@ -133,6 +133,10 @@ export type DouyinMappingIssue = {
 
 export type DouyinDraftImage = {
   localImageId?: string;
+  sourceUrl?: string;
+  storageUrl?: string;
+  platformImageId?: string;
+  platformImageUrl?: string;
   imageType: string;
   url: string;
   originUrl?: string;
@@ -142,6 +146,12 @@ export type DouyinDraftImage = {
   source?: string;
   status: string;
   needSync: boolean;
+  uploadStatus?: 'pending' | 'processing' | 'uploaded' | 'failed' | 'skipped' | string;
+  errorCode?: string;
+  errorMessage?: string;
+  uploadedAt?: string;
+  processed?: boolean;
+  raw?: Record<string, unknown>;
 };
 
 export type DouyinDraftAttribute = {
@@ -205,6 +215,18 @@ export type DouyinMappingValidationResult = {
   checks: DouyinMappingIssue[];
 };
 
+export type DouyinImageUploadResult = {
+  productId: string;
+  platform: string;
+  summary: {
+    uploaded: number;
+    skipped: number;
+    failed: number;
+    pending: number;
+  };
+  mapping: DouyinDraftMapping;
+};
+
 export async function fetchProductDetail(id: string) {
   return getJSON<ProductDetail>(`/api/v1/products/${id}`);
 }
@@ -255,6 +277,29 @@ export async function validateDouyinDraftMapping(productId: string, body?: Douyi
   return postJSON<DouyinMappingValidationResult>(
     `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/validate`,
     body,
+  );
+}
+
+export async function uploadDouyinImages(
+  productId: string,
+  body: { imageTypes?: string[]; retryFailed?: boolean; force?: boolean } = {},
+) {
+  return postJSON<DouyinImageUploadResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/images/upload`,
+    body,
+  );
+}
+
+export async function retryDouyinImage(productId: string, imageKey: string) {
+  return postJSON<DouyinImageUploadResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/images/${encodeURIComponent(imageKey)}/retry`,
+    {},
+  );
+}
+
+export async function getDouyinImageStatus(productId: string) {
+  return getJSON<DouyinImageUploadResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/images/status`,
   );
 }
 

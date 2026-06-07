@@ -16,7 +16,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
 
 // Service handles product draft persistence.
@@ -27,6 +29,17 @@ type Service struct {
 	Prompts   *aiprompt.Service
 	AITasks   *aitask.Service
 	AIGateway *aigate.Gateway
+
+	Shops               DouyinShopClientFactory
+	DouyinImageUploader DouyinImageUploader
+}
+
+type DouyinShopClientFactory interface {
+	DouyinClientForShop(c *gin.Context, ctx context.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformdouyin.Client, *shop.Shop, error)
+}
+
+type DouyinImageUploader interface {
+	UploadImage(ctx context.Context, shopID string, req platformdouyin.UploadImageRequest) (*platformdouyin.PlatformImage, error)
 }
 
 func clampPage(page, ps int) (int, int) {

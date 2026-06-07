@@ -16,6 +16,9 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/products/:id/platform-configs/douyin_shop/mapping", h.GetDouyinDraftMapping)
 	g.PUT("/products/:id/platform-configs/douyin_shop/mapping", h.PutDouyinDraftMapping)
 	g.POST("/products/:id/platform-configs/douyin_shop/validate", h.ValidateDouyinDraftMapping)
+	g.POST("/products/:id/platform-configs/douyin_shop/images/upload", h.UploadDouyinImages)
+	g.POST("/products/:id/platform-configs/douyin_shop/images/:imageKey/retry", h.RetryDouyinImage)
+	g.GET("/products/:id/platform-configs/douyin_shop/images/status", h.GetDouyinImageStatus)
 	g.GET("/products/:id/platform-configs/:platform", h.GetPlatformPublishConfig)
 	g.PUT("/products/:id/platform-configs/:platform", h.PutPlatformPublishConfig)
 

@@ -50,6 +50,9 @@ import {
   StarOutlined,
   ThunderboltOutlined,
   SyncOutlined,
+  CloudUploadOutlined,
+  ReloadOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
@@ -83,8 +86,10 @@ import {
   getProductPlatformPublishConfig,
   getDouyinDraftMapping,
   putProductPlatformPublishConfig,
+  retryDouyinImage,
   saveDouyinDraftMapping,
   validateDouyinDraftMapping,
+  uploadDouyinImages,
   updateProduct,
   updateProductImage,
   updateProductSku,
@@ -93,6 +98,7 @@ import {
   type GenerateDescriptionResult,
   type OptimizeTitleResult,
   type ProductDetail,
+  type DouyinDraftImage,
   type DouyinDraftMapping,
   type DouyinMappingIssue,
   type ProductImageRow,
@@ -430,6 +436,27 @@ function douyinIssueList(items?: DouyinMappingIssue[]) {
   );
 }
 
+function douyinImageKey(img: DouyinDraftImage, typ: string, idx: number) {
+  return img.localImageId || img.storageKey || img.platformImageId || `${typ}:${idx}`;
+}
+
+function douyinImageStatusTag(img: DouyinDraftImage) {
+  const st = img.uploadStatus || (img.platformImageId ? 'uploaded' : img.needSync ? 'pending' : 'pending');
+  if (st === 'uploaded') return <Tag color="green">已上传抖店</Tag>;
+  if (st === 'failed') return <Tag color="red">上传失败</Tag>;
+  if (st === 'processing') return <Tag color="blue">上传中</Tag>;
+  if (img.needSync) return <Tag color="orange">待同步 Storage</Tag>;
+  return <Tag color="orange">待上传</Tag>;
+}
+
+function douyinStorageStatusTag(img: DouyinDraftImage) {
+  return img.storageKey || img.objectKey || img.storageUrl || img.publicUrl ? <Tag color="green">Storage 已就绪</Tag> : <Tag color="orange">需先同步 Storage</Tag>;
+}
+
+function douyinImagePreviewUrl(img: DouyinDraftImage) {
+  return img.storageUrl || img.publicUrl || img.url || img.originUrl || img.platformImageUrl || '';
+}
+
 function fixLinkForReadinessCode(code: string): { tab?: string; href?: string; label: string } | null {
   const c = (code || '').toLowerCase();
   if (c.startsWith('product.title') || c === 'product.currency_missing' || c === 'product.archived') {
@@ -494,6 +521,8 @@ export default function ProductDraftDetailPage() {
   const [douyinMappingLoading, setDouyinMappingLoading] = useState(false);
   const [douyinMappingSaving, setDouyinMappingSaving] = useState(false);
   const [douyinMappingValidating, setDouyinMappingValidating] = useState(false);
+  const [douyinImageUploading, setDouyinImageUploading] = useState(false);
+  const [douyinImageRetryingKey, setDouyinImageRetryingKey] = useState('');
   const [douyinCategoryLoading, setDouyinCategoryLoading] = useState(false);
   const [douyinAttrLoading, setDouyinAttrLoading] = useState(false);
   const [douyinCategoryFlat, setDouyinCategoryFlat] = useState<DouyinCategoryNode[]>([]);
@@ -874,6 +903,40 @@ export default function ProductDraftDetailPage() {
       setDouyinMappingValidating(false);
     }
   }, [currentDouyinMapping, douyinForm, douyinMapping, id]);
+
+  const handleUploadDouyinImages = useCallback(async (force = false) => {
+    if (!douyinMapping) {
+      message.warning('请先生成抖店刊登草稿');
+      return;
+    }
+    setDouyinImageUploading(true);
+    try {
+      const res = await uploadDouyinImages(id, {
+        imageTypes: ['main', 'detail'],
+        retryFailed: true,
+        force,
+      });
+      setDouyinMapping(res.mapping);
+      message.success(`图片上传完成：成功 ${res.summary.uploaded}，失败 ${res.summary.failed}`);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '上传图片到抖店失败');
+    } finally {
+      setDouyinImageUploading(false);
+    }
+  }, [douyinMapping, id]);
+
+  const handleRetryDouyinImage = useCallback(async (imageKey: string) => {
+    setDouyinImageRetryingKey(imageKey);
+    try {
+      const res = await retryDouyinImage(id, imageKey);
+      setDouyinMapping(res.mapping);
+      message.success('图片重试完成');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '重试图片上传失败');
+    } finally {
+      setDouyinImageRetryingKey('');
+    }
+  }, [id]);
 
   const reloadPublicationSkus = useCallback(async () => {
     if (!id) return;
@@ -2586,6 +2649,22 @@ export default function ProductDraftDetailPage() {
                             <Button loading={douyinMappingValidating} onClick={() => void handleValidateDouyinMapping()}>
                               校验刊登草稿
                             </Button>
+                            <Button
+                              icon={<CloudUploadOutlined />}
+                              disabled={!douyinMapping}
+                              loading={douyinImageUploading}
+                              onClick={() => void handleUploadDouyinImages(false)}
+                            >
+                              上传图片到抖店
+                            </Button>
+                            <Button
+                              icon={<ReloadOutlined />}
+                              disabled={!douyinMapping}
+                              loading={douyinImageUploading}
+                              onClick={() => void handleUploadDouyinImages(true)}
+                            >
+                              重新上传全部图片
+                            </Button>
                             {douyinMapping?.lastMappedAt ? (
                               <Typography.Text type="secondary">最近生成：{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
                             ) : null}
@@ -2636,14 +2715,35 @@ export default function ProductDraftDetailPage() {
                               </Descriptions>
                               <div>
                                 <Typography.Title level={5}>主图</Typography.Title>
+                                <Typography.Text type="secondary">图片需要先上传到抖店后，才能创建抖店商品草稿。</Typography.Text>
                                 <Image.PreviewGroup>
                                   <Space wrap>
                                     {(douyinMapping.mainImages ?? []).map((img, idx) => (
-                                      <div key={img.localImageId || `${img.url}-${idx}`} style={{ width: 112 }}>
-                                        <Image src={img.url} width={96} height={96} style={{ objectFit: 'cover' }} />
-                                        <div style={{ marginTop: 4 }}>
-                                          {img.needSync ? <Tag color="orange">待图片同步</Tag> : <Tag color="green">可用</Tag>}
-                                        </div>
+                                      <div key={douyinImageKey(img, 'main', idx)} style={{ width: 180, marginTop: 8 }}>
+                                        <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                        <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
+                                          {douyinStorageStatusTag(img)}
+                                          {douyinImageStatusTag(img)}
+                                          {img.platformImageId ? <Typography.Text copyable type="secondary" style={{ fontSize: 12 }}>ID: {img.platformImageId}</Typography.Text> : null}
+                                          {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
+                                          {img.errorMessage ? <Typography.Text type="danger" style={{ fontSize: 12 }}>{img.errorCode}: {img.errorMessage}</Typography.Text> : null}
+                                          <Space size={4}>
+                                            {douyinImagePreviewUrl(img) ? (
+                                              <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
+                                            ) : null}
+                                            {img.platformImageUrl ? (
+                                              <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                            ) : null}
+                                            <Button
+                                              size="small"
+                                              icon={<ReloadOutlined />}
+                                              loading={douyinImageRetryingKey === douyinImageKey(img, 'main', idx)}
+                                              onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'main', idx))}
+                                            >
+                                              重试
+                                            </Button>
+                                          </Space>
+                                        </Space>
                                       </div>
                                     ))}
                                   </Space>
@@ -2655,11 +2755,31 @@ export default function ProductDraftDetailPage() {
                                   <Image.PreviewGroup>
                                     <Space wrap>
                                       {(douyinMapping.detailImages ?? []).map((img, idx) => (
-                                        <div key={img.localImageId || `${img.url}-${idx}`} style={{ width: 112 }}>
-                                          <Image src={img.url} width={96} height={96} style={{ objectFit: 'cover' }} />
-                                          <div style={{ marginTop: 4 }}>
-                                            {img.needSync ? <Tag color="orange">待图片同步</Tag> : <Tag color="green">可用</Tag>}
-                                          </div>
+                                        <div key={douyinImageKey(img, 'detail', idx)} style={{ width: 180 }}>
+                                          <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                          <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
+                                            {douyinStorageStatusTag(img)}
+                                            {douyinImageStatusTag(img)}
+                                            {img.platformImageId ? <Typography.Text copyable type="secondary" style={{ fontSize: 12 }}>ID: {img.platformImageId}</Typography.Text> : null}
+                                            {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
+                                            {img.errorMessage ? <Typography.Text type="danger" style={{ fontSize: 12 }}>{img.errorCode}: {img.errorMessage}</Typography.Text> : null}
+                                            <Space size={4}>
+                                              {douyinImagePreviewUrl(img) ? (
+                                                <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
+                                              ) : null}
+                                              {img.platformImageUrl ? (
+                                                <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                              ) : null}
+                                              <Button
+                                                size="small"
+                                                icon={<ReloadOutlined />}
+                                                loading={douyinImageRetryingKey === douyinImageKey(img, 'detail', idx)}
+                                                onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'detail', idx))}
+                                              >
+                                                重试
+                                              </Button>
+                                            </Space>
+                                          </Space>
                                         </div>
                                       ))}
                                     </Space>

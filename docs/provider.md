@@ -71,6 +71,8 @@ Douyin Shop Phase 4 adds category and category-attribute sync using official-doc
 
 Douyin Shop Phase 5 adds internal product draft → Douyin listing draft mapping. Mapping is implemented in the product service layer and stored on `product_platform_publish_configs` as preview fields (`mappedTitle`, `mappedDescription`, `mappedImages`, `mappedSkus`, `mappedPrice`, `mappedStock`, `mappingWarnings`, `mappingErrors`, `lastMappedAt`). It supports AI title / AI description priority, main/detail image preview with `need_sync` status for external images, category attributes, SKU specs, price/profit checks, stock confirmation, manual adjustment, save, and readiness validation. Phase 5 still does not call Douyin product creation or image upload APIs; Phase 6 should handle Douyin image upload / image service sync through Provider abstractions.
 
+Douyin Shop Phase 6 adds image upload to the Douyin material center before product draft creation. Product listing drafts now keep extended `mapped_images` entries for `mainImages` / `detailImages`: local image id, source URL, Storage URL/key, Douyin `platformImageId` / `platformImageUrl`, upload status, failed error code/message, upload time, processed flag, and sanitized raw response. External images are downloaded with timeout, size cap, format/dimension validation, and SSRF private-network blocking, then written to the current Storage Provider before calling Douyin. Storage-backed images are read server-side from the configured Storage Provider; frontend URLs, tokens, and secrets are not used for platform calls. The provider method is `UploadImage(ctx, shopID, req)` and uses the Phase 3 `douyinshop.Client` with official-doc-checked method `supplyCenter.material.batchUploadImageSync` (`/supplyCenter/material/batchUploadImageSync`), preserving token auto-refresh and safe logs. Phase 6 does not create Douyin products, sync orders, or sync inventory.
+
 当前重点平台：
 
 - Douyin Shop（抖店，真实平台闭环优先）
@@ -79,7 +81,7 @@ Douyin Shop Phase 5 adds internal product draft → Douyin listing draft mapping
 - Lazada
 - Amazon
 
-当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1 平台配置与 Provider 注册、Phase 2 OAuth 店铺授权闭环、Phase 3 OpenAPI Client / 签名层 / 店铺信息校准、Phase 4 类目与属性缓存，以及 Phase 5 商品字段映射与刊登草稿预览。抖店后续 MVP 范围按阶段继续实现图片上传、商品草稿创建、订单同步和库存同步；多平台并行接入、自动直接上架、绕过平台审核、复杂售后退款、复杂财务结算、多仓 WMS 与自动补货均后置。
+当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1 平台配置与 Provider 注册、Phase 2 OAuth 店铺授权闭环、Phase 3 OpenAPI Client / 签名层 / 店铺信息校准、Phase 4 类目与属性缓存、Phase 5 商品字段映射与刊登草稿预览，以及 Phase 6 图片上传到抖店素材中心。抖店后续 MVP 范围按阶段继续实现商品草稿创建、订单同步和库存同步；多平台并行接入、自动直接上架、绕过平台审核、复杂售后退款、复杂财务结算、多仓 WMS 与自动补货均后置。
 
 主要能力：
 

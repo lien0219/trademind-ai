@@ -383,6 +383,70 @@ func (h *Handler) ValidateDouyinDraftMapping(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// UploadDouyinImages POST /api/v1/products/:id/platform-configs/douyin_shop/images/upload
+func (h *Handler) UploadDouyinImages(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinImageUploadBody
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.UploadDouyinImages(c, id, body, adminUUID(c), h.Files)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// RetryDouyinImage POST /api/v1/products/:id/platform-configs/douyin_shop/images/:imageKey/retry
+func (h *Handler) RetryDouyinImage(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.RetryDouyinImage(c, id, c.Param("imageKey"), adminUUID(c), h.Files)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// GetDouyinImageStatus GET /api/v1/products/:id/platform-configs/douyin_shop/images/status
+func (h *Handler) GetDouyinImageStatus(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetDouyinImageStatus(c.Request.Context(), id)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
 // Delete DELETE /api/v1/products/:id
 func (h *Handler) Delete(c *gin.Context) {
 	if h == nil || h.Svc == nil {

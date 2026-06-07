@@ -324,6 +324,24 @@ var rules = []rule{
 		reason:  "对象存储读写失败。",
 		suggest: "请检查「设置 → 存储」与 Bucket/密钥/网络。",
 	},
+	{
+		id: "sub:douyin_image_storage", substrs: []string{"STORAGE_UPLOAD_FAILED"},
+		category: CategoryStorageError, severity: SeverityHigh,
+		reason:  "抖店图片上传前同步到对象存储失败。",
+		suggest: "请检查「设置 → 存储」配置和图片源是否可读，然后重试图片上传。",
+	},
+	{
+		id: "sub:douyin_image_url", substrs: []string{"IMAGE_URL_NOT_ACCESSIBLE", "IMAGE_DOWNLOAD_FAILED"},
+		category: CategoryNetworkTimeout, severity: SeverityMedium,
+		reason:  "抖店图片上传前读取外链图片失败。",
+		suggest: "请确认图片 URL 可公开访问且不是内网地址，必要时先手动上传到商品图片库。",
+	},
+	{
+		id: "sub:douyin_image_upload", substrs: []string{"DOUYIN_IMAGE_UPLOAD_FAILED"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店图片素材上传失败。",
+		suggest: "请检查抖店授权、素材中心接口权限、平台限流和图片格式，然后重试上传。",
+	},
 	// Validation
 	{
 		id: "sub:publish_validation_code", substrs: []string{"PUBLISH_CHECK_FAILED", "PRICE_INVALID", "IMAGE_MISSING", "SKU_INVALID"},

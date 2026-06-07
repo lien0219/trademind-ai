@@ -455,6 +455,13 @@ func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopI
 	return client, shopRow, tok, nil
 }
 
+// DouyinClientForShop returns the centralized Douyin OpenAPI client for
+// business modules that need platform calls without duplicating token handling.
+func (s *Service) DouyinClientForShop(c *gin.Context, ctx context.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformdouyin.Client, *Shop, error) {
+	client, shopRow, _, err := s.douyinClientForShop(c, ctx, shopID, adminID)
+	return client, shopRow, err
+}
+
 func (s *Service) persistDouyinShopInfo(ctx context.Context, shopID uuid.UUID, info *platformdouyin.ShopInfo) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("shop: no db")

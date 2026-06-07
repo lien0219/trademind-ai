@@ -26,6 +26,11 @@ const (
 	DouyinDescriptionNeedsReview = "DOUYIN_DESCRIPTION_NEEDS_REVIEW"
 	DouyinMainImageMissing       = "DOUYIN_MAIN_IMAGE_MISSING"
 	DouyinImageNeedSync          = "DOUYIN_IMAGE_NEED_SYNC"
+	DouyinMainImageNotUploaded   = "DOUYIN_MAIN_IMAGE_NOT_UPLOADED"
+	DouyinMainImageUploadFailed  = "DOUYIN_MAIN_IMAGE_UPLOAD_FAILED"
+	DouyinDetailImagePartialFail = "DOUYIN_DETAIL_IMAGE_UPLOAD_PARTIAL_FAILED"
+	DouyinImageNeedUpload        = "DOUYIN_IMAGE_NEED_UPLOAD"
+	DouyinImageUploadExpired     = "DOUYIN_IMAGE_UPLOAD_EXPIRED"
 	DouyinDetailImageEmpty       = "DOUYIN_DETAIL_IMAGE_EMPTY"
 	DouyinDetailImageNeedSync    = "DOUYIN_DETAIL_IMAGE_NEED_SYNC"
 	DouyinAttrValueInvalid       = "DOUYIN_ATTR_VALUE_INVALID"
@@ -65,16 +70,26 @@ type DouyinDraftMapping struct {
 }
 
 type DouyinDraftImage struct {
-	LocalImageID string `json:"localImageId,omitempty"`
-	ImageType    string `json:"imageType"`
-	URL          string `json:"url"`
-	OriginURL    string `json:"originUrl,omitempty"`
-	PublicURL    string `json:"publicUrl,omitempty"`
-	ObjectKey    string `json:"objectKey,omitempty"`
-	StorageKey   string `json:"storageKey,omitempty"`
-	Source       string `json:"source,omitempty"`
-	Status       string `json:"status"`
-	NeedSync     bool   `json:"needSync"`
+	LocalImageID     string         `json:"localImageId,omitempty"`
+	SourceURL        string         `json:"sourceUrl,omitempty"`
+	StorageURL       string         `json:"storageUrl,omitempty"`
+	StorageKey       string         `json:"storageKey,omitempty"`
+	PlatformImageID  string         `json:"platformImageId,omitempty"`
+	PlatformImageURL string         `json:"platformImageUrl,omitempty"`
+	ImageType        string         `json:"imageType"`
+	URL              string         `json:"url"`
+	OriginURL        string         `json:"originUrl,omitempty"`
+	PublicURL        string         `json:"publicUrl,omitempty"`
+	ObjectKey        string         `json:"objectKey,omitempty"`
+	Source           string         `json:"source,omitempty"`
+	Status           string         `json:"status"`
+	NeedSync         bool           `json:"needSync"`
+	UploadStatus     string         `json:"uploadStatus,omitempty"`
+	ErrorCode        string         `json:"errorCode,omitempty"`
+	ErrorMessage     string         `json:"errorMessage,omitempty"`
+	UploadedAt       *time.Time     `json:"uploadedAt,omitempty"`
+	Processed        bool           `json:"processed,omitempty"`
+	Raw              map[string]any `json:"raw,omitempty"`
 }
 
 type DouyinDraftAttr struct {
@@ -350,8 +365,16 @@ func ApplyDouyinDraftValidation(m *DouyinDraftMapping, minProfit float64) {
 		addErr(DouyinMainImageMissing, "mainImages", "At least one main image is required.", "Choose or upload at least one main image.")
 	}
 	for _, im := range m.MainImages {
-		if im.NeedSync {
-			addWarn(DouyinImageNeedSync, "mainImages", "A main image is still an external URL and needs platform image sync.", "Phase 6 will upload images to the Douyin image service.")
+		if strings.EqualFold(im.UploadStatus, "failed") {
+			addErr(DouyinMainImageUploadFailed, "mainImages", "A main image failed to upload to Douyin.", "Retry the failed main image before creating a Douyin product draft.")
+			break
+		}
+		if strings.TrimSpace(im.PlatformImageID) == "" {
+			code := DouyinMainImageNotUploaded
+			if im.NeedSync {
+				code = DouyinImageNeedUpload
+			}
+			addErr(code, "mainImages", "A main image has not been uploaded to Douyin.", "Upload product images to Douyin before creating a Douyin product draft.")
 			break
 		}
 	}
@@ -359,8 +382,18 @@ func ApplyDouyinDraftValidation(m *DouyinDraftMapping, minProfit float64) {
 		addWarn(DouyinDetailImageEmpty, "detailImages", "Detail images are empty.", "Add detail images if this product needs a visual description.")
 	}
 	for _, im := range m.DetailImages {
-		if im.NeedSync {
-			addWarn(DouyinDetailImageNeedSync, "detailImages", "A detail image is still an external URL and needs platform image sync.", "Phase 6 will upload images to the Douyin image service.")
+		if strings.EqualFold(im.UploadStatus, "failed") {
+			addWarn(DouyinDetailImagePartialFail, "detailImages", "Some detail images failed to upload to Douyin.", "Retry failed detail images or remove them before creating a product draft.")
+			break
+		}
+		if strings.TrimSpace(im.PlatformImageID) == "" {
+			code := DouyinDetailImageNeedSync
+			msg := "A detail image has not been uploaded to Douyin."
+			if im.NeedSync {
+				code = DouyinImageNeedSync
+				msg = "A detail image is still an external URL and needs platform image sync."
+			}
+			addWarn(code, "detailImages", msg, "Upload detail images to Douyin before creating a product draft.")
 			break
 		}
 	}
@@ -519,15 +552,18 @@ func douyinImageFromRow(im ProductImage, imageType string) DouyinDraftImage {
 	}
 	return DouyinDraftImage{
 		LocalImageID: im.ID.String(),
+		SourceURL:    strings.TrimSpace(im.OriginURL),
+		StorageURL:   strings.TrimSpace(im.PublicURL),
+		StorageKey:   firstNonEmpty(strings.TrimSpace(im.StorageKey), strings.TrimSpace(im.ObjectKey)),
 		ImageType:    imageType,
 		URL:          u,
 		OriginURL:    strings.TrimSpace(im.OriginURL),
 		PublicURL:    strings.TrimSpace(im.PublicURL),
 		ObjectKey:    strings.TrimSpace(im.ObjectKey),
-		StorageKey:   strings.TrimSpace(im.StorageKey),
 		Source:       strings.TrimSpace(im.Source),
 		Status:       status,
 		NeedSync:     needSync,
+		UploadStatus: "pending",
 	}
 }
 
