@@ -273,6 +273,21 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
   if (/platform config incomplete:\s*please configure settings\.platform_amazon|please configure platform_amazon/i.test(s)) {
     hints.push('请到「设置 → 平台开放配置 → Amazon」补齐 SP-API / LWA 应用字段。');
   }
+  if (/DOUYIN_SKU_NOT_BOUND|external sku id missing/i.test(s)) {
+    hints.push('该规格还没有绑定抖店 SKU ID，暂时不能同步库存。请先完成商品 SKU 绑定校准（完成抖店商品草稿创建后检查刊登映射）。');
+  }
+  if (/DOUYIN_PRODUCT_NOT_BOUND|external product id missing/i.test(s)) {
+    hints.push('该商品还没有绑定抖店商品 ID。请先在「刊登」Tab 完成抖店商品草稿创建。');
+  }
+  if (/DOUYIN_INVENTORY_SYNC_NOT_READY|inventory_sync_enabled=false/i.test(s)) {
+    hints.push('请到「设置 → 平台开放配置 → 抖店」开启「启用库存同步」后再试。');
+  }
+  if (/DOUYIN_INVENTORY_PERMISSION_DENIED|DOUYIN_PERMISSION_DENIED/i.test(s)) {
+    hints.push('请在抖店开放平台申请商品/库存更新权限并重新授权店铺。');
+  }
+  if (/DOUYIN_STORE_NOT_AUTHORIZED|DOUYIN_AUTH_EXPIRED|shop is not authorized/i.test(s)) {
+    hints.push('抖店店铺未授权或授权已过期，请到「店铺」页重新完成 OAuth 授权。');
+  }
   return hints.length ? `${s}\n${hints.join('\n')}` : s;
 }
 type SKUEditable = ProductSKURow & { attrsText?: string };
@@ -1945,7 +1960,7 @@ export default function ProductDraftDetailPage() {
                       <>
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
                           在此调整本地 SKU 库存与预警线；已刊登到各平台的 SKU 可在下方同步到店铺。
-                          仅当平台已开放「库存同步」且映射完整时可发起同步（TikTok、Shopee、Lazada、Amazon 已支持）。
+                          仅当平台已开放「库存同步」且映射完整时可发起同步（抖店、TikTok、Shopee、Lazada、Amazon 已支持）。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 0 }}>
                           相关入口：
@@ -2291,18 +2306,26 @@ export default function ProductDraftDetailPage() {
                           width: 132,
                           render: (_x, r) => {
                             const ok = inventorySyncRunnable(r.inventorySyncCapability);
+                            const hasBinding =
+                              Boolean((r.externalProductId || '').trim()) &&
+                              Boolean((r.externalSkuId || '').trim());
+                            const canSync = ok && hasBinding;
                             const sku = data.skus?.find((s) => s.id === r.productSkuId);
                             const fallback = typeof sku?.stock === 'number' ? sku.stock : 0;
                             const suggested =
                               typeof r.platformStock === 'number' ? r.platformStock : fallback;
+                            const disableReason =
+                              (r.platform || '').toLowerCase() === 'douyin_shop' && !hasBinding
+                                ? '该规格还没有绑定抖店 SKU ID，暂时不能同步库存。请先完成商品 SKU 绑定校准。'
+                                : '当前平台未开放库存同步、店铺未授权，或该映射行不可用';
                             const btn = (
                               <Button
                                 type="link"
                                 size="small"
-                                disabled={!ok}
+                                disabled={!canSync}
                                 style={{ padding: 0 }}
                                 onClick={() => {
-                                  if (!ok) return;
+                                  if (!canSync) return;
                                   setSyncRow(r);
                                   syncForm.setFieldsValue({ stock: suggested });
                                   setSyncOpen(true);
@@ -2311,8 +2334,8 @@ export default function ProductDraftDetailPage() {
                                 同步库存
                               </Button>
                             );
-                            return ok ? btn : (
-                              <Tooltip title="当前平台未开放库存同步、店铺未授权，或该映射行不可用">
+                            return canSync ? btn : (
+                              <Tooltip title={disableReason}>
                                 <span>{btn}</span>
                               </Tooltip>
                             );
@@ -3620,6 +3643,13 @@ export default function ProductDraftDetailPage() {
             <Typography.Text code>warehouse_id</Typography.Text>（仓库代码），或通过任务{' '}
             <Typography.Text code>options.warehouse_id</Typography.Text> 覆盖。若推送失败并提示权限不足，请在 Lazada Open Platform /
             Seller Center 申请库存 / 商品更新相关权限后重新授权店铺。
+          </Typography.Paragraph>
+        ) : null}
+        {(syncRow?.platform || '').trim().toLowerCase() === 'douyin_shop' ? (
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
+            抖店通过 OpenAPI <Typography.Text code>sku.syncStock</Typography.Text> 全量更新库存（
+            <Typography.Text code>incremental=false</Typography.Text>）。请确认「设置 → 平台开放配置 → 抖店」已开启「启用库存同步」，且
+            刊登映射中已写入抖店商品 ID 与 SKU ID。若 SKU ID 为空，请先在「刊登」Tab 完成抖店商品草稿创建。
           </Typography.Paragraph>
         ) : null}
         <Form form={syncForm} layout="vertical">

@@ -372,6 +372,36 @@ var rules = []rule{
 		reason:  "抖店订单接口限流。",
 		suggest: "请稍后重试，或缩小同步时间范围。",
 	},
+	{
+		id: "sub:douyin_inventory_sync", substrs: []string{"DOUYIN_INVENTORY_SYNC_FAILED", "UNKNOWN_DOUYIN_INVENTORY_ERROR"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店库存同步失败。",
+		suggest: "请检查抖店库存接口权限、商品/SKU 绑定与店铺授权，然后在库存同步任务页重试。",
+	},
+	{
+		id: "sub:douyin_inventory_permission", substrs: []string{"DOUYIN_INVENTORY_PERMISSION_DENIED"},
+		category: CategoryPlatformPermission, severity: SeverityHigh,
+		reason:  "抖店库存接口权限不足。",
+		suggest: "请在抖店开放平台申请商品/库存更新权限并重新授权店铺。",
+	},
+	{
+		id: "sub:douyin_inventory_rate_limit", substrs: []string{"DOUYIN_INVENTORY_RATE_LIMITED"},
+		category: CategoryPlatformRateLimit, severity: SeverityMedium,
+		reason:  "抖店库存接口限流。",
+		suggest: "请稍后重试，或降低批量同步并发。",
+	},
+	{
+		id: "sub:douyin_inventory_binding", substrs: []string{"DOUYIN_PRODUCT_NOT_BOUND", "DOUYIN_SKU_NOT_BOUND", "external sku id missing"},
+		category: CategoryValidationError, severity: SeverityHigh,
+		reason:  "抖店商品或 SKU 尚未完成平台绑定。",
+		suggest: "请先在商品详情完成抖店刊登草稿创建，并确认 product_publication_skus 已写入 platformSkuId。",
+	},
+	{
+		id: "sub:douyin_inventory_stock", substrs: []string{"DOUYIN_STOCK_INVALID", "stock must be >= 0"},
+		category: CategoryValidationError, severity: SeverityMedium,
+		reason:  "本地库存无效，无法推送到抖店。",
+		suggest: "请先在商品详情或库存页将本地库存调整为 0 或正整数后再同步。",
+	},
 	// Validation
 	{
 		id: "sub:publish_validation_code", substrs: []string{"PUBLISH_CHECK_FAILED", "PRICE_INVALID", "IMAGE_MISSING", "SKU_INVALID"},

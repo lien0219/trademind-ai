@@ -66,6 +66,16 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), taskRow.ShopID.String(), taskRow.Platform),
 		})
+		if strings.TrimSpace(strings.ToLower(taskRow.Platform)) == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: taskRow.CreatedBy,
+				Action:      "douyin.inventory.sync.start",
+				Resource:    "inventory_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s target=%d", taskID.String(), taskRow.ShopID.String(), taskRow.TargetStock),
+			})
+		}
 	}
 
 	fail := func(msg string) error {
@@ -93,6 +103,26 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				Status:      "failed",
 				Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s err=%s", taskID.String(), taskRow.ShopID.String(), taskRow.Platform, clampStr(msg, 400)),
 			})
+			if strings.TrimSpace(strings.ToLower(taskRow.Platform)) == "douyin_shop" {
+				_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+					AdminUserID: taskRow.CreatedBy,
+					Action:      "douyin.inventory.sync.failed",
+					Resource:    "inventory_sync_task",
+					ResourceID:  taskID.String(),
+					Status:      "failed",
+					Message:     fmt.Sprintf("taskId=%s shopId=%s err=%s", taskID.String(), taskRow.ShopID.String(), clampStr(msg, 400)),
+				})
+				if taskRow.ProductSKUID != nil {
+					_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+						AdminUserID: taskRow.CreatedBy,
+						Action:      "douyin.inventory.sku.failed",
+						Resource:    "product_sku",
+						ResourceID:  taskRow.ProductSKUID.String(),
+						Status:      "failed",
+						Message:     fmt.Sprintf("taskId=%s err=%s", taskID.String(), clampStr(msg, 400)),
+					})
+				}
+			}
 		}
 		s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 		return fmt.Errorf("%s", msg)
@@ -230,6 +260,17 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			Message: fmt.Sprintf("taskId=%s shop=%s sku=%s target=%d mirrored=%d",
 				taskID.String(), taskRow.ShopID.String(), extSK, taskRow.TargetStock, stockOut),
 		})
+		if strings.TrimSpace(strings.ToLower(taskRow.Platform)) == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: taskRow.CreatedBy,
+				Action:      "douyin.inventory.sync.success",
+				Resource:    "inventory_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message: fmt.Sprintf("taskId=%s shop=%s sku=%s target=%d",
+					taskID.String(), taskRow.ShopID.String(), extSK, taskRow.TargetStock),
+			})
+		}
 	}
 	s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 	return nil

@@ -192,6 +192,20 @@
 | `GET` | `/api/v1/products/:id/platform-configs/douyin_shop/publish-tasks` | 列出当前商品的抖店刊登任务（分页）。 |
 | `POST` | `/api/v1/product-publish/tasks/:id/cancel` | 取消 pending/running 刊登任务。 |
 
+抖店库存同步（Phase 9，复用既有 inventory 模块，无新增割裂路径）：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/products/:id/publication-skus` | 商品详情库存 Tab 读取刊登 SKU 映射与 `inventorySyncCapability`（`douyin_shop` 为 `beta`）。 |
+| `POST` | `/api/v1/product-publication-skus/:id/sync-inventory` | 单 SKU 库存同步；body：`stock`、`options`、`fromInventoryAlert`。要求 `product_publications.external_product_id` 与 `product_publication_skus.external_sku_id` 已绑定。 |
+| `POST` | `/api/v1/products/:id/sync-inventory` | 单商品多 SKU 库存同步；body：`shopId`、`skuIds[]`、`options`。 |
+| `GET` | `/api/v1/inventory-sync/tasks` | 库存同步任务列表。 |
+| `GET` | `/api/v1/inventory-sync/tasks/:id` | 任务详情。 |
+| `POST` | `/api/v1/inventory-sync/tasks/:id/retry` | 重试 failed 任务。 |
+| `POST` | `/api/v1/inventory-sync/batches` | 批量库存同步（默认低并发）。 |
+
+Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；受 `inventory_sync_enabled` 开关控制（默认关闭）。缺失平台 SKU ID 返回 `DOUYIN_SKU_NOT_BOUND`，不猜测同步。
+
 通用刊登任务接口（含抖店）：
 
 | 方法 | 路径 | 说明 |

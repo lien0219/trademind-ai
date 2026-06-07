@@ -360,6 +360,16 @@ func (s *Service) RetryInventorySyncTask(ctx context.Context, taskID uuid.UUID, 
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
+		if strings.TrimSpace(strings.ToLower(task.Platform)) == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: admin,
+				Action:      "douyin.inventory.sync.retry",
+				Resource:    "inventory_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
 	}
 	if err := s.enqueueOrRunInventoryTask(ctx, taskID); err != nil {
 		return nil, err

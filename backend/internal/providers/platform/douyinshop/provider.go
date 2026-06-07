@@ -26,6 +26,7 @@ func (provider) Capabilities() []platformp.Capability {
 		platformp.CapShopInfo,
 		platformp.CapProductPublish,
 		platformp.CapOrderSync,
+		platformp.CapInventorySync,
 	}
 }
 

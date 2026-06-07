@@ -45,7 +45,7 @@ export const PLATFORM_APP_FIELD_HELP: Record<string, string> = {
   real_api_enabled: '仅保存开关；Phase 1 不发起抖店真实 API 调用',
   order_sync_enabled: '启用订单同步（抖店 Phase 8 已接入；默认关闭，开启后可在店铺页手动同步订单）',
   order_sync_max_pages: '单次任务最多拉取页数（默认 5）；每页条数由同步任务 limit 控制，总条数上限 500',
-  inventory_sync_enabled: '仅保存开关；库存同步会在后续 Phase 接入',
+  inventory_sync_enabled: '启用库存同步（抖店 Phase 9 已接入 sku.syncStock；默认关闭，开启后可在商品详情/库存预警页手动同步）',
   product_publish_enabled: '仅保存开关；抖店商品草稿创建会在后续 Phase 接入',
   timeout_sec: '外部 HTTP 请求超时，建议 5–600 秒',
   redirect_uri: '须与开放平台应用登记的重定向 URI 完全一致',

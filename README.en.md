@@ -94,11 +94,11 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 | SKU Candidate Recommendation | Candidate SKUs for order items, manual binding, match audit | Supported |
 | Image Management | Local / cloud file upload, product image management, storage providers | Supported |
 | AI Image Processing | remove.bg, OpenAI Image, ComfyUI Provider, async task queue | Supported |
-| Store Authorization | Douyin Shop OAuth loop, OpenAPI client / signing layer, encrypted tokens with auto-refresh, refresh / revoke / real connection test, category / attribute cache, platform product draft creation, **order sync MVP**; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 8.1 supported |
+| Store Authorization | Douyin Shop OAuth loop, OpenAPI client / signing layer, encrypted tokens with auto-refresh, refresh / revoke / real connection test, category / attribute cache, platform product draft creation, order sync MVP, **inventory sync MVP**; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 9 supported |
 | Multi-platform Configuration | Platform app config schema, Douyin Shop config, Service ID, encrypted and masked sensitive settings | Supported |
 | Order Sync | Multi-platform order sync framework, task queue, exception workspace; **Douyin `order.searchList` auto-pagination** (default 5 pages / 500 orders) | Douyin Phase 8.1 supported |
 | Product Publishing | Pricing rules, readiness checks, Douyin listing draft mapping preview, manual adjustment / save, publishing tasks, publication snapshots | In progress |
-| Inventory Sync | Local stock, platform stock mirror, inventory alerts, sync tasks | In progress |
+| Inventory Sync | Local stock, platform stock mirror, inventory alerts, sync tasks; **Douyin `sku.syncStock` MVP** (manual, gated by `inventory_sync_enabled`) | Douyin Phase 9 supported |
 | AI Customer Service | Message sync, AI suggested replies, manual send confirmation | In progress |
 | Operation Automation | Failure task center, alerts, batch AI, task retry | Architecture reserved |
 
@@ -113,7 +113,7 @@ AI Product Operation Tool
 └── Readiness checks and batch AI operations
 
 Multi-platform Cross-border ERP MVP
-├── First real platform loop: Douyin Shop first (OAuth, API client / signing, category / attribute cache, listing draft field mapping, image upload, platform product draft creation, **order sync MVP** done → inventory sync next)
+├── First real platform loop: Douyin Shop first (OAuth, API client / signing, category / attribute cache, listing draft field mapping, image upload, platform product draft creation, order sync MVP, **inventory sync MVP** done)
 ├── Store authorization: Douyin Shop OAuth supported; TikTok Shop / Shopee / Lazada / Amazon retained for later platform rollout
 ├── Order sync: platform order import, local orders, SKU matching
 ├── Inventory sync: stock alerts, platform inventory tasks, failure retry
