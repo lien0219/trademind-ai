@@ -332,6 +332,16 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "douyin.order.sync.start",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
 	}
 
 	fail := func(msg string) error {
@@ -354,6 +364,16 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				Status:      "failed",
 				Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s error=%s", taskID.String(), task.ShopID.String(), task.Platform, msg),
 			})
+			if task.Platform == "douyin_shop" {
+				_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+					AdminUserID: task.CreatedBy,
+					Action:      "douyin.order.sync.failed",
+					Resource:    "order_sync_task",
+					ResourceID:  taskID.String(),
+					Status:      "failed",
+					Message:     fmt.Sprintf("taskId=%s shopId=%s error=%s", taskID.String(), task.ShopID.String(), msg),
+				})
+			}
 		}
 		return fmt.Errorf("%s", msg)
 	}
@@ -486,9 +506,15 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fin := time.Now().UTC()
 	nextCur := strings.TrimSpace(res.NextCursor)
+	finalStatus := StatusSuccess
+	if failedN > 0 && successN > 0 {
+		finalStatus = StatusPartialSuccess
+	} else if failedN > 0 && successN == 0 && len(res.Orders) > 0 {
+		finalStatus = StatusPartialSuccess
+	}
 	_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
 		Updates(map[string]any{
-			"status":        StatusSuccess,
+			"status":        finalStatus,
 			"finished_at":   &fin,
 			"total_count":   len(res.Orders),
 			"success_count": successN,
@@ -511,6 +537,17 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			Message: fmt.Sprintf("taskId=%s shopId=%s platform=%s successCount=%d failedCount=%d",
 				taskID.String(), task.ShopID.String(), task.Platform, successN, failedN),
 		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "douyin.order.sync.success",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message: fmt.Sprintf("taskId=%s shopId=%s successCount=%d failedCount=%d matched=%d unmatched=%d ambiguous=%d",
+					taskID.String(), task.ShopID.String(), successN, failedN, matchedN, unmatchedN, ambiguousN),
+			})
+		}
 	}
 	return nil
 }
@@ -676,6 +713,16 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminID,
+				Action:      "douyin.order.sync.retry",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
 	}
 
 	runInline := func() error {

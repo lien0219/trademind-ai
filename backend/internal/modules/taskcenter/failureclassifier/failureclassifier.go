@@ -354,6 +354,24 @@ var rules = []rule{
 		reason:  "抖店店铺未授权或授权已过期。",
 		suggest: "请重新连接抖店店铺并完成 OAuth 授权。",
 	},
+	{
+		id: "sub:douyin_order_sync", substrs: []string{"DOUYIN_ORDER_SYNC_FAILED", "DOUYIN_ORDER_LIST_FAILED", "DOUYIN_ORDER_DETAIL_FAILED", "DOUYIN_ORDER_PARSE_FAILED", "UNKNOWN_DOUYIN_ORDER_ERROR"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店订单同步失败。",
+		suggest: "请检查抖店订单接口权限、时间范围与店铺授权，然后在订单同步任务页重试。",
+	},
+	{
+		id: "sub:douyin_order_permission", substrs: []string{"DOUYIN_ORDER_PERMISSION_DENIED"},
+		category: CategoryPlatformPermission, severity: SeverityHigh,
+		reason:  "抖店订单接口权限不足。",
+		suggest: "请在抖店开放平台申请订单查询权限并重新授权店铺。",
+	},
+	{
+		id: "sub:douyin_order_rate_limit", substrs: []string{"DOUYIN_ORDER_RATE_LIMITED"},
+		category: CategoryPlatformRateLimit, severity: SeverityMedium,
+		reason:  "抖店订单接口限流。",
+		suggest: "请稍后重试，或缩小同步时间范围。",
+	},
 	// Validation
 	{
 		id: "sub:publish_validation_code", substrs: []string{"PUBLISH_CHECK_FAILED", "PRICE_INVALID", "IMAGE_MISSING", "SKU_INVALID"},

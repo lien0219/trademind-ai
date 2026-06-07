@@ -5,11 +5,12 @@ const (
 )
 
 const (
-	StatusPending   = "pending"
-	StatusRunning   = "running"
-	StatusSuccess   = "success"
-	StatusFailed    = "failed"
-	StatusCancelled = "cancelled"
+	StatusPending        = "pending"
+	StatusRunning        = "running"
+	StatusPartialSuccess = "partial_success"
+	StatusSuccess        = "success"
+	StatusFailed         = "failed"
+	StatusCancelled      = "cancelled"
 )
 
 const (

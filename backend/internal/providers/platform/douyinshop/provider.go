@@ -3,15 +3,17 @@ package douyinshop
 import (
 	"context"
 	"fmt"
+	"strings"
+
+	"github.com/google/uuid"
 
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
 
 type provider struct{}
 
-// NewProvider constructs the Douyin Shop provider. Phase 1 registers app-level
-// configuration only; live OAuth/API adapters are added in later phases.
-func NewProvider() platformp.Provider { return provider{} }
+// NewProvider constructs the Douyin Shop provider.
+func NewProvider() platformp.OrderSyncProvider { return provider{} }
 
 func (provider) Platform() string { return "douyin_shop" }
 
@@ -23,6 +25,7 @@ func (provider) Capabilities() []platformp.Capability {
 	return []platformp.Capability{
 		platformp.CapShopInfo,
 		platformp.CapProductPublish,
+		platformp.CapOrderSync,
 	}
 }
 
@@ -68,5 +71,33 @@ func (provider) TestConnection(ctx context.Context, req platformp.TestConnection
 		OK:       true,
 		Message:  fmt.Sprintf("douyin_shop config ok (%s); OAuth is available in Phase 2", cfg.Environment),
 		Currency: "CNY",
+	}, nil
+}
+
+func (provider) SyncOrders(ctx context.Context, req platformp.SyncOrdersRequest) (*platformp.SyncOrdersResult, error) {
+	if req.ShopID == uuid.Nil {
+		return nil, fmt.Errorf("shop id required")
+	}
+	if err := assertShopAuthorized(req.Auth); err != nil {
+		return nil, err
+	}
+	client, cfg, err := ensureFreshClient(ctx, req.ShopID, req.Auth)
+	if err != nil {
+		_ = setAuthStatusMaybe(ctx, req.ShopID, "error")
+		return nil, err
+	}
+	if err := validateOrderSyncConfig(cfg); err != nil {
+		return nil, err
+	}
+	orders, next, more, sum, err := SyncOrdersPage(ctx, client, strings.TrimSpace(req.Cursor), req.Limit, req.StartTime, req.EndTime)
+	if err != nil {
+		_ = setAuthStatusMaybe(ctx, req.ShopID, "error")
+		return nil, err
+	}
+	return &platformp.SyncOrdersResult{
+		Orders:     orders,
+		NextCursor: next,
+		HasMore:    more,
+		RawSummary: fmtOrderSyncSummary(sum, orders, more, next),
 	}, nil
 }

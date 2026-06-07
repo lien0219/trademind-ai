@@ -66,6 +66,14 @@ export default function OrderSyncTasksPage() {
         title: 'platform',
         dataIndex: 'platform',
         width: 100,
+        valueEnum: {
+          douyin_shop: { text: '抖店' },
+          tiktok: { text: 'TikTok' },
+          shopee: { text: 'Shopee' },
+          lazada: { text: 'Lazada' },
+          amazon: { text: 'Amazon' },
+          mock: { text: 'Mock' },
+        },
       },
       {
         title: '模式',
@@ -135,7 +143,7 @@ export default function OrderSyncTasksPage() {
             >
               查看
             </a>
-            {r.status === 'failed' ? (
+            {r.status === 'failed' || r.status === 'partial_success' ? (
               <Popconfirm
                 title="确认重试该同步任务？"
                 onConfirm={async () => {
@@ -213,6 +221,12 @@ export default function OrderSyncTasksPage() {
               </pre>
             </Typography.Paragraph>
             <Typography.Title level={5}>输出摘要</Typography.Title>
+            {detail.output && typeof detail.output === 'object' && 'skuMatch' in (detail.output as object) ? (
+              <Typography.Paragraph>
+                <Typography.Text strong>SKU 匹配：</Typography.Text>{' '}
+                {JSON.stringify((detail.output as { skuMatch?: unknown }).skuMatch)}
+              </Typography.Paragraph>
+            ) : null}
             <Typography.Paragraph>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
                 {JSON.stringify(detail.output ?? {}, null, 2)}

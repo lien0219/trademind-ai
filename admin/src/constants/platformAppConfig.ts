@@ -42,7 +42,7 @@ export const PLATFORM_APP_FIELD_HELP: Record<string, string> = {
   sandbox_enabled: '标记是否使用沙箱；实际环境以 Partner 配置为准',
   environment: '生产 / 沙箱模式；真实调用仍以后端 Provider 实现和平台官方权限为准',
   real_api_enabled: '仅保存开关；Phase 1 不发起抖店真实 API 调用',
-  order_sync_enabled: '仅保存开关；订单同步会在后续 Phase 接入',
+  order_sync_enabled: '启用订单同步（抖店 Phase 8 已接入；默认关闭，开启后可在店铺页手动同步订单）',
   inventory_sync_enabled: '仅保存开关；库存同步会在后续 Phase 接入',
   product_publish_enabled: '仅保存开关；抖店商品草稿创建会在后续 Phase 接入',
   timeout_sec: '外部 HTTP 请求超时，建议 5–600 秒',

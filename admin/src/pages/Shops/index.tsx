@@ -323,9 +323,17 @@ export default function ShopsPage() {
       message.warning('手工店铺不支持订单同步');
       return;
     }
+    const os = p?.capabilityStatus?.order_sync;
+    if (os === 'planned' || os === 'disabled') {
+      message.warning('当前平台订单同步尚未接入');
+      return;
+    }
     if (p?.status === 'planned') {
       message.warning('平台订单同步暂未实现');
       return;
+    }
+    if (platform === 'douyin_shop' && p?.status === 'beta') {
+      message.info('请先在「设置 → 平台开放配置 → 抖店」开启「启用订单同步」，并完成店铺 OAuth 授权。');
     }
     setSyncTarget({ id: shopId, platform });
     setSyncOpen(true);
@@ -814,7 +822,7 @@ export default function ShopsPage() {
                         ? '店铺连接异常，请检查应用权限或重新授权'
                         : '请先连接抖店店铺'
                 }
-                description="支持抖店 OAuth 授权、刷新授权、解除授权与连接测试；不会在前端返回 token 明文。"
+                description="支持抖店 OAuth 授权、连接测试、手动订单同步与店铺信息校准；订单同步需在平台开放配置中开启「启用订单同步」。不会在前端返回 token 明文。"
               />
             )}
             {detail.platform === 'shopee' && provForShop.status === 'beta' && (

@@ -22,6 +22,14 @@ const (
 	CodeDouyinMainImageNotUploaded  = "DOUYIN_MAIN_IMAGE_NOT_UPLOADED"
 	CodeDouyinCreateProductFailed   = "DOUYIN_CREATE_PRODUCT_FAILED"
 	CodeDouyinProductPayloadInvalid = "DOUYIN_PRODUCT_PAYLOAD_INVALID"
+	CodeDouyinOrderSyncFailed       = "DOUYIN_ORDER_SYNC_FAILED"
+	CodeDouyinOrderListFailed       = "DOUYIN_ORDER_LIST_FAILED"
+	CodeDouyinOrderDetailFailed     = "DOUYIN_ORDER_DETAIL_FAILED"
+	CodeDouyinOrderParseFailed      = "DOUYIN_ORDER_PARSE_FAILED"
+	CodeDouyinOrderPermissionDenied = "DOUYIN_ORDER_PERMISSION_DENIED"
+	CodeDouyinOrderRateLimited      = "DOUYIN_ORDER_RATE_LIMITED"
+	CodeDouyinOrderAmountInvalid    = "DOUYIN_ORDER_AMOUNT_INVALID"
+	CodeUnknownDouyinOrderError     = "UNKNOWN_DOUYIN_ORDER_ERROR"
 	CodeUnknownDouyinError          = "UNKNOWN_DOUYIN_ERROR"
 )
 
@@ -59,8 +67,14 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 	case CodeDouyinRateLimited:
 		e.RateLimited = true
 		e.Retryable = true
-	case CodeDouyinRequestTimeout, CodeDouyinCreateProductFailed:
+	case CodeDouyinRequestTimeout, CodeDouyinCreateProductFailed,
+		CodeDouyinOrderSyncFailed, CodeDouyinOrderListFailed, CodeDouyinOrderDetailFailed:
 		e.Retryable = true
+	case CodeDouyinOrderRateLimited:
+		e.RateLimited = true
+		e.Retryable = true
+	case CodeDouyinOrderPermissionDenied:
+		e.PermissionDenied = true
 	case CodeDouyinProductPayloadInvalid, CodeDouyinCategoryMissing, CodeDouyinRequiredAttrMissing, CodeDouyinMainImageNotUploaded:
 		e.Retryable = false
 	}
