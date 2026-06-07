@@ -16,6 +16,7 @@ import {
 import {
   Button,
   Card,
+  Col,
   Collapse,
   Descriptions,
   Drawer,
@@ -26,6 +27,7 @@ import {
   Modal,
   Popconfirm,
   Radio,
+  Row,
   Select,
   Space,
   Spin,
@@ -48,9 +50,13 @@ import {
   StarOutlined,
   ThunderboltOutlined,
   SyncOutlined,
+  CloudUploadOutlined,
+  ReloadOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
+import { isTaobaoTmallSource } from '@/utils/taobaoTmallCollectAlerts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import {
@@ -64,6 +70,7 @@ import { uploadFile } from '@/services/files';
 import {
   applyAiDescription,
   applyProductAITitle,
+  buildDouyinDraftMapping,
   createProductImage,
   createProductSku,
   deleteProduct,
@@ -74,7 +81,15 @@ import {
   generateDescription,
   optimizeProductTitle,
   reorderProductImages,
+  syncProductImages,
   selectBestMainProductImages,
+  getProductPlatformPublishConfig,
+  getDouyinDraftMapping,
+  putProductPlatformPublishConfig,
+  retryDouyinImage,
+  saveDouyinDraftMapping,
+  validateDouyinDraftMapping,
+  uploadDouyinImages,
   updateProduct,
   updateProductImage,
   updateProductSku,
@@ -83,6 +98,9 @@ import {
   type GenerateDescriptionResult,
   type OptimizeTitleResult,
   type ProductDetail,
+  type DouyinDraftImage,
+  type DouyinDraftMapping,
+  type DouyinMappingIssue,
   type ProductImageRow,
   type ProductSKURow,
 } from '@/services/products';
@@ -90,13 +108,32 @@ import { Link } from '@umijs/renderer-react';
 import {
   listProductPublications,
   publishProduct,
+  createDouyinProductDraft,
+  listDouyinPublishTasks,
+  retryProductPublishTask,
+  getDouyinSkuBindings,
+  syncDouyinSkuBindings,
+  bindDouyinSku,
+  unbindDouyinSku,
   type ProductPublicationRow,
+  type ProductPublishTaskDTO,
+  type DouyinSkuBindingSummary,
+  type DouyinSkuBindingRow,
+  type DouyinPlatformSkuCandidate,
 } from '@/services/productPublish';
 import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
 import PricingApplyModal from '@/components/PricingApplyModal';
 import { CreateImageTaskModal, type CreateImageTaskPrefill } from '@/components/CreateImageTaskModal';
 import { TranslateImageTextModal, type TranslateImageTextPrefill } from '@/components/TranslateImageTextModal';
 import { queryPlatformProviders, queryShops, type PlatformProviderMeta, type ShopListRow } from '@/services/shops';
+import {
+  queryDouyinCategories,
+  queryDouyinCategoryAttributes,
+  syncDouyinCategories,
+  syncDouyinCategoryAttributes,
+  type DouyinCategoryAttribute,
+  type DouyinCategoryNode,
+} from '@/services/douyinCategories';
 import {
   adjustSkuStock,
   batchUpdateStockSettings,
@@ -115,6 +152,7 @@ function inventorySyncRunnable(cap?: string): boolean {
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
+  douyin_shop: '抖店',
   tiktok: 'TikTok',
   shopee: 'Shopee',
   lazada: 'Lazada',
@@ -196,6 +234,10 @@ function isPinduoduoProduct(data: ProductDetail | null): boolean {
   return !!data && isPinduoduoSource(data.source);
 }
 
+function isTaobaoTmallProduct(data: ProductDetail | null): boolean {
+  return !!data && isTaobaoTmallSource(data.source);
+}
+
 function formatInventorySyncTaskCreateError(e: unknown): string {
   const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
   const hints: string[] = [];
@@ -237,6 +279,24 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
   }
   if (/platform config incomplete:\s*please configure settings\.platform_amazon|please configure platform_amazon/i.test(s)) {
     hints.push('请到「设置 → 平台开放配置 → Amazon」补齐 SP-API / LWA 应用字段。');
+  }
+  if (/DOUYIN_SKU_NOT_BOUND|external sku id missing/i.test(s)) {
+    hints.push('该规格还没有绑定抖店 SKU ID，请先执行「校准抖店 SKU 绑定」后再同步库存。');
+  }
+  if (/DOUYIN_SKU_BINDING_AMBIGUOUS/i.test(s)) {
+    hints.push('该规格存在多个候选抖店 SKU，匹配结果不明确，请人工确认绑定后再同步库存。');
+  }
+  if (/DOUYIN_PRODUCT_NOT_BOUND|external product id missing/i.test(s)) {
+    hints.push('该商品还没有绑定抖店商品 ID。请先在「刊登」Tab 完成抖店商品草稿创建。');
+  }
+  if (/DOUYIN_INVENTORY_SYNC_NOT_READY|inventory_sync_enabled=false/i.test(s)) {
+    hints.push('请到「设置 → 平台开放配置 → 抖店」开启「启用库存同步」后再试。');
+  }
+  if (/DOUYIN_INVENTORY_PERMISSION_DENIED|DOUYIN_PERMISSION_DENIED/i.test(s)) {
+    hints.push('请在抖店开放平台申请商品/库存更新权限并重新授权店铺。');
+  }
+  if (/DOUYIN_STORE_NOT_AUTHORIZED|DOUYIN_AUTH_EXPIRED|shop is not authorized/i.test(s)) {
+    hints.push('抖店店铺未授权或授权已过期，请到「店铺」页重新完成 OAuth 授权。');
   }
   return hints.length ? `${s}\n${hints.join('\n')}` : s;
 }
@@ -356,6 +416,7 @@ const READINESS_GROUP_LABEL: Record<string, string> = {
   sku: '商品规格',
   image: '图片',
   inventory: '库存',
+  collect: '采集提示',
   platform: '平台配置',
 };
 
@@ -368,6 +429,98 @@ function readinessStatusTag(r: ProductReadinessResult | null) {
     return <Tag color="orange">有警告</Tag>;
   }
   return <Tag color="green">可发布</Tag>;
+}
+
+function douyinIssueTag(level?: string) {
+  return <Tag color={level === 'error' ? 'red' : 'orange'}>{level === 'error' ? '校验失败' : '需要确认'}</Tag>;
+}
+
+function tagFromPublishStatus(raw?: string) {
+  const s = String(raw || '').toLowerCase();
+  if (s === 'success') return <Tag color="green">success</Tag>;
+  if (s === 'failed') return <Tag color="red">failed</Tag>;
+  if (s === 'running' || s === 'pending') return <Tag color="blue">{raw}</Tag>;
+  if (s === 'cancelled') return <Tag>{raw}</Tag>;
+  return <Tag>{raw || '—'}</Tag>;
+}
+
+function douyinMoney(v?: number, currency = 'CNY') {
+  return typeof v === 'number' ? `${currency} ${v.toFixed(2)}` : '未填写';
+}
+
+function douyinAttrValueText(v: unknown) {
+  if (v == null || v === '') return '未填写';
+  if (Array.isArray(v)) return v.join(', ');
+  if (typeof v === 'object') {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
+}
+
+function douyinIssueList(items?: DouyinMappingIssue[]) {
+  if (!items?.length) return null;
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={4}>
+      {items.map((x, i) => (
+        <div key={`${x.code}-${i}`}>
+          {douyinIssueTag(x.level)} <Typography.Text code>{x.code}</Typography.Text> {x.message}
+        </div>
+      ))}
+    </Space>
+  );
+}
+
+function douyinImageKey(img: DouyinDraftImage, typ: string, idx: number) {
+  return img.localImageId || img.storageKey || img.platformImageId || `${typ}:${idx}`;
+}
+
+function douyinBindStatusTag(status?: string) {
+  const st = String(status || '').toLowerCase();
+  if (st === 'bound') return <Tag color="green">已绑定</Tag>;
+  if (st === 'skipped') return <Tag color="blue">已跳过</Tag>;
+  if (st === 'ambiguous') return <Tag color="orange">待确认</Tag>;
+  if (st === 'unmatched') return <Tag color="red">未匹配</Tag>;
+  if (st === 'failed') return <Tag color="red">失败</Tag>;
+  return <Tag>未校准</Tag>;
+}
+
+function douyinBindStatusHint(status?: string): string {
+  const st = String(status || '').toLowerCase();
+  if (st === 'bound' || st === 'skipped') return '已绑定，可同步库存。';
+  if (st === 'unmatched') return '未匹配到抖店 SKU，请手动绑定后再同步库存。';
+  if (st === 'ambiguous') return '找到多个可能的抖店 SKU，请人工确认。';
+  if (st === 'failed') return '校准失败，请稍后重试或手动绑定。';
+  return '尚未校准，请先执行校准或手动绑定。';
+}
+
+function douyinSkuSyncBlocked(row: PublicationSkuListingRow): boolean {
+  const isDouyin = (row.platform || '').toLowerCase() === 'douyin_shop';
+  if (!isDouyin) return false;
+  const st = String(row.bindStatus || '').toLowerCase();
+  const hasBinding = Boolean((row.externalProductId || '').trim()) && Boolean((row.externalSkuId || '').trim());
+  if (!hasBinding) return true;
+  return st === 'ambiguous' || st === 'unmatched' || st === 'failed';
+}
+
+function douyinImageStatusTag(img: DouyinDraftImage) {
+  const st = img.uploadStatus || (img.platformImageId ? 'uploaded' : img.needSync ? 'pending' : 'pending');
+  if (st === 'uploaded') return <Tag color="green">已上传抖店</Tag>;
+  if (st === 'failed') return <Tag color="red">上传失败</Tag>;
+  if (st === 'processing') return <Tag color="blue">上传中</Tag>;
+  if (img.needSync) return <Tag color="orange">待同步 Storage</Tag>;
+  return <Tag color="orange">待上传</Tag>;
+}
+
+function douyinStorageStatusTag(img: DouyinDraftImage) {
+  return img.storageKey || img.objectKey || img.storageUrl || img.publicUrl ? <Tag color="green">Storage 已就绪</Tag> : <Tag color="orange">需先同步 Storage</Tag>;
+}
+
+function douyinImagePreviewUrl(img: DouyinDraftImage) {
+  return img.storageUrl || img.publicUrl || img.url || img.originUrl || img.platformImageUrl || '';
 }
 
 function fixLinkForReadinessCode(code: string): { tab?: string; href?: string; label: string } | null {
@@ -426,7 +579,37 @@ export default function ProductDraftDetailPage() {
   const [platformsMeta, setPlatformsMeta] = useState<PlatformProviderMeta[]>([]);
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
   const [publishForm] = Form.useForm();
+  const [douyinForm] = Form.useForm();
+  const [douyinMappingForm] = Form.useForm();
   const [publishSubmitting, setPublishSubmitting] = useState(false);
+  const [douyinSaving, setDouyinSaving] = useState(false);
+  const [douyinMapping, setDouyinMapping] = useState<DouyinDraftMapping | null>(null);
+  const [douyinMappingLoading, setDouyinMappingLoading] = useState(false);
+  const [douyinMappingSaving, setDouyinMappingSaving] = useState(false);
+  const [douyinMappingValidating, setDouyinMappingValidating] = useState(false);
+  const [douyinImageUploading, setDouyinImageUploading] = useState(false);
+  const [douyinImageRetryingKey, setDouyinImageRetryingKey] = useState('');
+  const [douyinDraftCreating, setDouyinDraftCreating] = useState(false);
+  const [douyinPublishTasks, setDouyinPublishTasks] = useState<ProductPublishTaskDTO[]>([]);
+  const [douyinPublishTasksLoading, setDouyinPublishTasksLoading] = useState(false);
+  const [douyinSkuBinding, setDouyinSkuBinding] = useState<DouyinSkuBindingSummary | null>(null);
+  const [douyinSkuBindingLoading, setDouyinSkuBindingLoading] = useState(false);
+  const [douyinSkuBindingSyncing, setDouyinSkuBindingSyncing] = useState(false);
+  const [douyinSkuBindOpen, setDouyinSkuBindOpen] = useState(false);
+  const [douyinSkuBindTarget, setDouyinSkuBindTarget] = useState<DouyinSkuBindingRow | null>(null);
+  const [douyinSkuBindSubmitting, setDouyinSkuBindSubmitting] = useState(false);
+  const [douyinSkuCandidatesOpen, setDouyinSkuCandidatesOpen] = useState(false);
+  const [douyinSkuBindForm] = Form.useForm<{ platformSkuId: string; platformSkuName?: string }>();
+  const [douyinCategoryLoading, setDouyinCategoryLoading] = useState(false);
+  const [douyinAttrLoading, setDouyinAttrLoading] = useState(false);
+  const [douyinCategoryFlat, setDouyinCategoryFlat] = useState<DouyinCategoryNode[]>([]);
+  const [douyinAttrs, setDouyinAttrs] = useState<DouyinCategoryAttribute[]>([]);
+  const [douyinConfig, setDouyinConfig] = useState<{
+    shopId?: string;
+    categoryId?: string;
+    categoryPath?: string;
+    platformAttributes?: Record<string, unknown>;
+  }>({});
 
   const [draftTabKey, setDraftTabKey] = useState('basic');
   const [readinessPlat, setReadinessPlat] = useState<string>('tiktok');
@@ -470,8 +653,40 @@ export default function ProductDraftDetailPage() {
   );
 
   const collectQualityWarnings = useMemo(
-    () => collectQualityWarningsFromRaw(data?.rawData),
-    [data?.rawData],
+    () => {
+      const fromDetail = (data?.collectWarnings ?? []).filter((x) => String(x).trim());
+      const fromRaw = collectQualityWarningsFromRaw(data?.rawData);
+      return Array.from(new Set([...fromDetail, ...fromRaw]));
+    },
+    [data?.collectWarnings, data?.rawData],
+  );
+
+  const imageSyncSummary = useMemo(() => {
+    const rows = data?.images ?? [];
+    const external = rows.filter((img) => {
+      const url = String(img.originUrl || img.publicUrl || '').trim();
+      return /^https?:\/\//i.test(url) && !String(img.objectKey || img.storageKey || '').trim();
+    });
+    return {
+      total: rows.length,
+      external: external.length,
+      synced: rows.filter((img) => String(img.objectKey || img.storageKey || '').trim()).length,
+      externalMain: external.filter((img) => img.imageType === 'main').length,
+      externalDetail: external.filter((img) => img.imageType === 'detail' || img.imageType === 'description').length,
+    };
+  }, [data?.images]);
+
+  const skuMappingPreview = useMemo(
+    () =>
+      (data?.skus ?? []).map((sku) => ({
+        id: sku.id,
+        skuCode: sku.skuCode || sku.id,
+        skuName: sku.skuName || '默认规格',
+        price: sku.price,
+        stock: sku.stock,
+        attrs: sku.attrs,
+      })),
+    [data?.skus],
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
@@ -549,18 +764,254 @@ export default function ProductDraftDetailPage() {
     if (!id) return;
     setPubCtxLoading(true);
     try {
-      const [pubs, prov, shops] = await Promise.all([
+      const [pubs, prov, shops, douyinCfg, douyinCats] = await Promise.all([
         listProductPublications(id),
         queryPlatformProviders(),
         queryShops({ page: 1, pageSize: 500, authStatus: 'authorized' }),
+        getProductPlatformPublishConfig(id, 'douyin_shop').catch(() => undefined),
+        queryDouyinCategories({ onlyLeaf: true }).catch(() => undefined),
       ]);
       setPubRows(Array.isArray(pubs.list) ? pubs.list : []);
       setPlatformsMeta(Array.isArray(prov.list) ? prov.list : []);
       setShopsList(Array.isArray(shops.list) ? shops.list : []);
+      if (douyinCats?.flat) setDouyinCategoryFlat(douyinCats.flat);
+      if (douyinCfg) {
+        const attrs = (douyinCfg.platformAttributes && typeof douyinCfg.platformAttributes === 'object'
+          ? douyinCfg.platformAttributes
+          : {}) as Record<string, unknown>;
+        setDouyinConfig({
+          shopId: douyinCfg.shopId,
+          categoryId: douyinCfg.categoryId,
+          categoryPath: douyinCfg.categoryPath,
+          platformAttributes: attrs,
+        });
+        douyinForm.setFieldsValue({
+          shopId: douyinCfg.shopId,
+          categoryId: douyinCfg.categoryId,
+          platformAttributes: attrs,
+        });
+        if (douyinCfg.mapping) {
+          setDouyinMapping(douyinCfg.mapping);
+          douyinMappingForm.setFieldsValue({
+            title: douyinCfg.mapping.title,
+            description: douyinCfg.mapping.description,
+          });
+        } else {
+          const mapped = await getDouyinDraftMapping(id).catch(() => undefined);
+          setDouyinMapping(mapped ?? null);
+          if (mapped) {
+            douyinMappingForm.setFieldsValue({
+              title: mapped.title,
+              description: mapped.description,
+            });
+          }
+        }
+        if (douyinCfg.categoryId) {
+          const ar = await queryDouyinCategoryAttributes(douyinCfg.categoryId).catch(() => undefined);
+          setDouyinAttrs(ar?.list ?? []);
+        }
+      }
     } catch {
       setPubRows([]);
     } finally {
       setPubCtxLoading(false);
+    }
+  }, [douyinForm, douyinMappingForm, id]);
+
+  const reloadDouyinCategories = useCallback(
+    async (shopId?: string, refresh?: boolean) => {
+      setDouyinCategoryLoading(true);
+      try {
+        if (refresh) {
+          const sid = String(shopId || douyinConfig.shopId || '').trim();
+          if (!sid) {
+            message.warning('请先选择已授权抖店店铺');
+            return;
+          }
+          await syncDouyinCategories(sid);
+          message.success('抖店类目已刷新');
+        }
+        const res = await queryDouyinCategories({ onlyLeaf: true });
+        setDouyinCategoryFlat(res.flat ?? []);
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '加载抖店类目失败');
+      } finally {
+        setDouyinCategoryLoading(false);
+      }
+    },
+    [douyinConfig.shopId],
+  );
+
+  const reloadDouyinAttrs = useCallback(
+    async (categoryId?: string, shopId?: string, refresh?: boolean) => {
+      const cid = String(categoryId || douyinConfig.categoryId || '').trim();
+      if (!cid) {
+        setDouyinAttrs([]);
+        return;
+      }
+      setDouyinAttrLoading(true);
+      try {
+        if (refresh) {
+          const sid = String(shopId || douyinConfig.shopId || '').trim();
+          if (!sid) {
+            message.warning('请先选择已授权抖店店铺');
+            return;
+          }
+          const res = await syncDouyinCategoryAttributes(cid, sid);
+          setDouyinAttrs(res.list ?? []);
+          message.success('抖店属性已刷新');
+          return;
+        }
+        const res = await queryDouyinCategoryAttributes(cid);
+        setDouyinAttrs(res.list ?? []);
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '加载抖店属性失败');
+      } finally {
+        setDouyinAttrLoading(false);
+      }
+    },
+    [douyinConfig.categoryId, douyinConfig.shopId],
+  );
+
+  const selectedDouyinCategory = useMemo(
+    () => douyinCategoryFlat.find((c) => c.categoryId === douyinConfig.categoryId),
+    [douyinCategoryFlat, douyinConfig.categoryId],
+  );
+
+  const currentDouyinMapping = useCallback((): DouyinDraftMapping => {
+    const text = douyinMappingForm.getFieldsValue() as { title?: string; description?: string };
+    const vals = douyinForm.getFieldsValue() as {
+      shopId?: string;
+      categoryId?: string;
+      platformAttributes?: Record<string, unknown>;
+    };
+    const attrValues = vals.platformAttributes ?? douyinConfig.platformAttributes ?? {};
+    const attrs = (douyinMapping?.attributes ?? douyinAttrs.map((a) => ({
+      attrId: a.attrId,
+      name: a.name,
+      required: a.required,
+      valueType: a.valueType,
+      options: a.options,
+    }))).map((a) => ({
+      ...a,
+      value: attrValues[a.attrId] ?? attrValues[a.name] ?? a.value,
+    }));
+    return {
+      ...(douyinMapping ?? { platform: 'douyin_shop' }),
+      platform: 'douyin_shop',
+      productId: id,
+      shopId: vals.shopId || douyinConfig.shopId || douyinMapping?.shopId,
+      categoryId: vals.categoryId || douyinConfig.categoryId || douyinMapping?.categoryId,
+      categoryPath: selectedDouyinCategory?.path || douyinConfig.categoryPath || douyinMapping?.categoryPath,
+      title: text.title ?? douyinMapping?.title ?? '',
+      description: text.description ?? douyinMapping?.description ?? '',
+      attributes: attrs,
+    };
+  }, [douyinAttrs, douyinConfig, douyinForm, douyinMapping, douyinMappingForm, id, selectedDouyinCategory?.path]);
+
+  const handleBuildDouyinMapping = useCallback(async () => {
+    setDouyinMappingLoading(true);
+    try {
+      const vals = await douyinForm.validateFields();
+      const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
+      const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
+        shopId: vals.shopId,
+        categoryId: vals.categoryId,
+        categoryPath: cat?.path || douyinConfig.categoryPath,
+        platformAttributes: vals.platformAttributes ?? {},
+      });
+      setDouyinConfig({
+        shopId: saved.shopId,
+        categoryId: saved.categoryId,
+        categoryPath: saved.categoryPath,
+        platformAttributes: saved.platformAttributes ?? {},
+      });
+      const mapped = await buildDouyinDraftMapping(id, { shopId: vals.shopId });
+      setDouyinMapping(mapped);
+      douyinMappingForm.setFieldsValue({ title: mapped.title, description: mapped.description });
+      message.success('抖店刊登草稿已生成');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '生成抖店刊登草稿失败');
+    } finally {
+      setDouyinMappingLoading(false);
+    }
+  }, [douyinCategoryFlat, douyinConfig.categoryPath, douyinForm, douyinMappingForm, id]);
+
+  const handleSaveDouyinMapping = useCallback(async () => {
+    if (!douyinMapping) {
+      message.warning('请先生成抖店刊登草稿');
+      return;
+    }
+    setDouyinMappingSaving(true);
+    try {
+      await douyinMappingForm.validateFields();
+      const saved = await saveDouyinDraftMapping(id, currentDouyinMapping());
+      setDouyinMapping(saved);
+      douyinMappingForm.setFieldsValue({ title: saved.title, description: saved.description });
+      message.success('抖店刊登草稿已保存');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '保存抖店刊登草稿失败');
+    } finally {
+      setDouyinMappingSaving(false);
+    }
+  }, [currentDouyinMapping, douyinMapping, douyinMappingForm, id]);
+
+  const handleValidateDouyinMapping = useCallback(async () => {
+    setDouyinMappingValidating(true);
+    try {
+      const res = await validateDouyinDraftMapping(id, douyinMapping ? currentDouyinMapping() : undefined);
+      setDouyinMapping((cur) => cur ? {
+        ...cur,
+        errors: res.checks.filter((x) => x.level === 'error'),
+        warnings: res.checks.filter((x) => x.level !== 'error'),
+      } : cur);
+      if (res.errorCount > 0) {
+        message.error('这些信息不完整，暂时不能创建抖店商品');
+      } else if (res.warningCount > 0) {
+        message.warning('抖店刊登草稿还有需要确认的信息');
+      } else {
+        message.success('抖店刊登草稿校验通过');
+      }
+      setReadinessPlat('douyin_shop');
+      setReadinessShopId(String(douyinForm.getFieldValue('shopId') || ''));
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '校验抖店刊登草稿失败');
+    } finally {
+      setDouyinMappingValidating(false);
+    }
+  }, [currentDouyinMapping, douyinForm, douyinMapping, id]);
+
+  const handleUploadDouyinImages = useCallback(async (force = false) => {
+    if (!douyinMapping) {
+      message.warning('请先生成抖店刊登草稿');
+      return;
+    }
+    setDouyinImageUploading(true);
+    try {
+      const res = await uploadDouyinImages(id, {
+        imageTypes: ['main', 'detail'],
+        retryFailed: true,
+        force,
+      });
+      setDouyinMapping(res.mapping);
+      message.success(`图片上传完成：成功 ${res.summary.uploaded}，失败 ${res.summary.failed}`);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '上传图片到抖店失败');
+    } finally {
+      setDouyinImageUploading(false);
+    }
+  }, [douyinMapping, id]);
+
+  const handleRetryDouyinImage = useCallback(async (imageKey: string) => {
+    setDouyinImageRetryingKey(imageKey);
+    try {
+      const res = await retryDouyinImage(id, imageKey);
+      setDouyinMapping(res.mapping);
+      message.success('图片重试完成');
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '重试图片上传失败');
+    } finally {
+      setDouyinImageRetryingKey('');
     }
   }, [id]);
 
@@ -700,6 +1151,126 @@ export default function ProductDraftDetailPage() {
     });
   }, [shopsList, platformsMeta]);
 
+  const douyinShops = useMemo(
+    () => shopsList.filter((s) => (s.platform || '').toLowerCase() === 'douyin_shop' && s.authStatus === 'authorized'),
+    [shopsList],
+  );
+
+  const reloadDouyinPublishTasks = useCallback(async () => {
+    if (!id) return;
+    setDouyinPublishTasksLoading(true);
+    try {
+      const res = await listDouyinPublishTasks(id, { page: 1, pageSize: 10 });
+      setDouyinPublishTasks(res.list ?? []);
+    } catch {
+      setDouyinPublishTasks([]);
+    } finally {
+      setDouyinPublishTasksLoading(false);
+    }
+  }, [id]);
+
+  const douyinPublication = useMemo(
+    () =>
+      pubRows.find(
+        (p) =>
+          (p.platform || '').toLowerCase() === 'douyin_shop' && String(p.externalProductId || '').trim() !== '',
+      ) ?? null,
+    [pubRows],
+  );
+
+  const reloadDouyinSkuBindings = useCallback(async () => {
+    if (!douyinPublication?.id) {
+      setDouyinSkuBinding(null);
+      return;
+    }
+    setDouyinSkuBindingLoading(true);
+    try {
+      const res = await getDouyinSkuBindings(douyinPublication.id);
+      setDouyinSkuBinding(res);
+    } catch {
+      setDouyinSkuBinding(null);
+    } finally {
+      setDouyinSkuBindingLoading(false);
+    }
+  }, [douyinPublication?.id]);
+
+  const handleSyncDouyinSkuBindings = useCallback(async () => {
+    if (!douyinPublication?.id) {
+      message.warning('请先完成抖店商品草稿创建');
+      return;
+    }
+    setDouyinSkuBindingSyncing(true);
+    try {
+      const res = await syncDouyinSkuBindings(douyinPublication.id);
+      setDouyinSkuBinding(res);
+      message.success(
+        `SKU 绑定校准完成：已绑定 ${res.bound}，跳过 ${res.skipped}，未匹配 ${res.unmatched}，待确认 ${res.ambiguous}`,
+      );
+      await reloadPublicationSkus();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '校准抖店 SKU 绑定失败');
+    } finally {
+      setDouyinSkuBindingSyncing(false);
+    }
+  }, [douyinPublication?.id, reloadPublicationSkus]);
+
+  const douyinCreateDraftDisabled = useMemo(() => {
+    if (!douyinMapping || (douyinMapping.errors?.length ?? 0) > 0) return true;
+    if (!douyinConfig.shopId || !douyinConfig.categoryId) return true;
+    if (!douyinShops.some((s) => s.id === douyinConfig.shopId)) return true;
+    const mainUploaded = (douyinMapping.mainImages ?? []).some((img) => img.uploadStatus === 'uploaded');
+    if (!mainUploaded) return true;
+    if (publishReadiness && !publishReadiness.canPublish) return true;
+    return false;
+  }, [douyinConfig.categoryId, douyinConfig.shopId, douyinMapping, douyinShops, publishReadiness]);
+
+  const handleCreateDouyinDraft = useCallback(async () => {
+    const shopId = String(douyinForm.getFieldValue('shopId') || douyinConfig.shopId || '').trim();
+    if (!shopId) {
+      message.error('请选择抖店店铺');
+      return;
+    }
+    if (publishReadiness && (publishReadiness.warningCount ?? 0) > 0) {
+      await new Promise<void>((resolve, reject) => {
+        Modal.confirm({
+          title: '当前商品存在需要人工确认的信息，是否继续创建抖店商品草稿？',
+          width: 640,
+          okText: '继续创建抖店商品草稿',
+          cancelText: '返回处理',
+          content: (
+            <div>
+              {(publishReadiness.checks || [])
+                .filter((c) => c.level !== 'error')
+                .slice(0, 10)
+                .map((c, i) => (
+                  <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
+                    <Tag color="orange">warning</Tag> {c.message}
+                  </div>
+                ))}
+            </div>
+          ),
+          onOk: () => resolve(),
+          onCancel: () => reject(new Error('cancelled')),
+        });
+      });
+    }
+    setDouyinDraftCreating(true);
+    try {
+      const task = await createDouyinProductDraft(id, { shopId, publishMode: 'save_as_platform_draft' });
+      message.success('已创建抖店商品草稿，请到抖店后台确认后上架。');
+      await reloadDouyinPublishTasks();
+      await reloadPublicationSkus();
+      await reloadDouyinSkuBindings();
+      if (task.platformProductId) {
+        message.info(`抖店商品 ID：${task.platformProductId}`);
+      }
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '创建抖店商品草稿失败');
+    } finally {
+      setDouyinDraftCreating(false);
+    }
+  }, [douyinConfig.shopId, douyinForm, id, publishReadiness, reloadDouyinPublishTasks, reloadPublicationSkus, reloadDouyinSkuBindings]);
+
   const shopsForReadinessPlat = useMemo(() => {
     const p = readinessPlat.trim().toLowerCase();
     return shopsList.filter((s) => (s.platform || '').toLowerCase() === p && s.authStatus === 'authorized');
@@ -755,7 +1326,9 @@ export default function ProductDraftDetailPage() {
     if (draftTabKey !== 'publish' || !id) return;
     const sid = publishForm.getFieldValue('shopId') as string | undefined;
     if (sid) void refreshPublishReadiness(String(sid));
-  }, [draftTabKey, id, publishForm, refreshPublishReadiness]);
+    void reloadDouyinPublishTasks();
+    void reloadDouyinSkuBindings();
+  }, [draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks, reloadDouyinSkuBindings]);
 
   const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
     () => [
@@ -1043,7 +1616,9 @@ export default function ProductDraftDetailPage() {
               label: '基础信息',
               children: (
                 <Card variant="borderless">
-                  {isPinduoduoProduct(data) ? <ProductCollectQualityAlert product={data} /> : null}
+                  {(isPinduoduoProduct(data) || isTaobaoTmallProduct(data)) ? (
+                    <ProductCollectQualityAlert product={data} />
+                  ) : null}
                   {showCustomIncompleteHint ? (
                     <Alert
                       type="info"
@@ -1052,7 +1627,7 @@ export default function ProductDraftDetailPage() {
                       message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和 SKU 后再发布。"
                     />
                   ) : null}
-                  {!isPinduoduoProduct(data) && collectQualityWarnings.length > 0 ? (
+                  {collectQualityWarnings.length > 0 ? (
                     <Alert
                       type="warning"
                       showIcon
@@ -1227,6 +1802,14 @@ export default function ProductDraftDetailPage() {
                       message="拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。"
                     />
                   ) : null}
+                  {isTaobaoTmallProduct(data) ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      message="淘宝/天猫采集图片默认为外链，发布前建议同步到平台存储，避免外链失效。"
+                    />
+                  ) : null}
                   <Card
                     size="small"
                     style={{
@@ -1287,6 +1870,49 @@ export default function ProductDraftDetailPage() {
                                 同步顺序
                               </Button>
                             </Tooltip>
+                            {isTaobaoTmallProduct(data) ? (
+                              <>
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await syncProductImages(id, { scope: 'all' });
+                                      message.success(`已同步 ${res.synced} 张图片到平台存储`);
+                                      await reloadDetail();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '同步失败');
+                                    }
+                                  }}
+                                >
+                                  同步图片到平台存储
+                                </Button>
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await syncProductImages(id, { scope: 'main' });
+                                      message.success(`已同步 ${res.synced} 张主图`);
+                                      await reloadDetail();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '同步失败');
+                                    }
+                                  }}
+                                >
+                                  批量同步主图
+                                </Button>
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await syncProductImages(id, { scope: 'detail' });
+                                      message.success(`已同步 ${res.synced} 张详情图`);
+                                      await reloadDetail();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '同步失败');
+                                    }
+                                  }}
+                                >
+                                  批量同步详情图
+                                </Button>
+                              </>
+                            ) : null}
                           </Space>
                         </Flex>
                         <Flex vertical gap={10} style={{ flex: '2 1 320px', minWidth: 280 }}>
@@ -1428,7 +2054,7 @@ export default function ProductDraftDetailPage() {
                       <>
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
                           在此调整本地 SKU 库存与预警线；已刊登到各平台的 SKU 可在下方同步到店铺。
-                          仅当平台已开放「库存同步」且映射完整时可发起同步（TikTok、Shopee、Lazada、Amazon 已支持）。
+                          仅当平台已开放「库存同步」且映射完整时可发起同步（抖店、TikTok、Shopee、Lazada、Amazon 已支持）。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 0 }}>
                           相关入口：
@@ -1653,6 +2279,7 @@ export default function ProductDraftDetailPage() {
                       value={pubSkuBulkPlatformFilter || undefined}
                       onChange={(v) => setPubSkuBulkPlatformFilter((v as string | undefined) ?? '')}
                       options={[
+                        { label: '抖店', value: 'douyin_shop' },
                         { label: 'TikTok', value: 'tiktok' },
                         { label: 'Shopee', value: 'shopee' },
                         { label: 'Lazada', value: 'lazada' },
@@ -1708,7 +2335,7 @@ export default function ProductDraftDetailPage() {
                           const missing =
                             !String(r.externalSkuId ?? '').trim() || !String(r.externalProductId ?? '').trim();
                           const ok = inventorySyncRunnable(r.inventorySyncCapability);
-                          return { disabled: missing || !ok };
+                          return { disabled: missing || douyinSkuSyncBlocked(r) || !ok };
                         },
                       }}
                       columns={[
@@ -1734,6 +2361,14 @@ export default function ProductDraftDetailPage() {
                           dataIndex: 'externalSkuId',
                           ellipsis: true,
                           render: (t: string | undefined) => t || '—',
+                        },
+                        {
+                          title: 'SKU 绑定',
+                          width: 108,
+                          render: (_x, r) =>
+                            (r.platform || '').toLowerCase() === 'douyin_shop'
+                              ? douyinBindStatusTag(r.bindStatus || (r.externalSkuId ? 'bound' : 'unmatched'))
+                              : '—',
                         },
                         {
                           title: '平台库存快照',
@@ -1774,18 +2409,30 @@ export default function ProductDraftDetailPage() {
                           width: 132,
                           render: (_x, r) => {
                             const ok = inventorySyncRunnable(r.inventorySyncCapability);
+                            const isDouyin = (r.platform || '').toLowerCase() === 'douyin_shop';
+                            const blocked = douyinSkuSyncBlocked(r);
+                            const hasBinding =
+                              Boolean((r.externalProductId || '').trim()) &&
+                              Boolean((r.externalSkuId || '').trim());
+                            const canSync = ok && hasBinding && !blocked;
                             const sku = data.skus?.find((s) => s.id === r.productSkuId);
                             const fallback = typeof sku?.stock === 'number' ? sku.stock : 0;
                             const suggested =
                               typeof r.platformStock === 'number' ? r.platformStock : fallback;
+                            const st = String(r.bindStatus || '').toLowerCase();
+                            const disableReason = isDouyin && st === 'ambiguous'
+                              ? '找到多个可能的抖店 SKU，请人工确认绑定后再同步库存。'
+                              : isDouyin && (st === 'unmatched' || st === 'failed' || !hasBinding)
+                                ? '该规格还没有绑定抖店 SKU，请先完成绑定后再同步库存。'
+                                : '当前平台未开放库存同步、店铺未授权，或该映射行不可用';
                             const btn = (
                               <Button
                                 type="link"
                                 size="small"
-                                disabled={!ok}
+                                disabled={!canSync}
                                 style={{ padding: 0 }}
                                 onClick={() => {
-                                  if (!ok) return;
+                                  if (!canSync) return;
                                   setSyncRow(r);
                                   syncForm.setFieldsValue({ stock: suggested });
                                   setSyncOpen(true);
@@ -1794,8 +2441,8 @@ export default function ProductDraftDetailPage() {
                                 同步库存
                               </Button>
                             );
-                            return ok ? btn : (
-                              <Tooltip title="当前平台未开放库存同步、店铺未授权，或该映射行不可用">
+                            return canSync ? btn : (
+                              <Tooltip title={disableReason}>
                                 <span>{btn}</span>
                               </Tooltip>
                             );
@@ -1819,7 +2466,7 @@ export default function ProductDraftDetailPage() {
                         style={{ minWidth: 160 }}
                         value={readinessPlat}
                         onChange={(v) => setReadinessPlat(v)}
-                        options={['tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
+                        options={['douyin_shop', 'tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
                           label: p,
                           value: p,
                         }))}
@@ -1851,8 +2498,8 @@ export default function ProductDraftDetailPage() {
                           <Descriptions.Item label="警告数">{readinessResult.warningCount}</Descriptions.Item>
                         </Descriptions>
                         <Collapse
-                          defaultActiveKey={['product', 'sku', 'image', 'inventory', 'platform']}
-                          items={['product', 'sku', 'image', 'inventory', 'platform'].map((g) => ({
+                          defaultActiveKey={['product', 'sku', 'image', 'inventory', 'collect', 'platform']}
+                          items={['product', 'sku', 'image', 'inventory', 'collect', 'platform'].map((g) => ({
                             key: g,
                             label: READINESS_GROUP_LABEL[g] || g,
                             children: (
@@ -1934,6 +2581,648 @@ export default function ProductDraftDetailPage() {
                           </>
                         }
                       />
+                      <Descriptions bordered size="small" column={3}>
+                        <Descriptions.Item label="当前发布状态">
+                          <Tag color={data.publishStatus === 'success' ? 'green' : data.publishStatus === 'ready' ? 'blue' : 'default'}>
+                            {data.publishStatus || 'draft'}
+                          </Tag>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="定价结果">
+                          {typeof data.salePrice === 'number' ? `${data.salePrice.toFixed(2)} ${data.currency || ''}` : '未设置售价'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="SKU 数">{data.skus?.length ?? 0}</Descriptions.Item>
+                        <Descriptions.Item label="图片同步">
+                          已同步 {imageSyncSummary.synced} / {imageSyncSummary.total}，外链 {imageSyncSummary.external}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="主图外链">{imageSyncSummary.externalMain}</Descriptions.Item>
+                        <Descriptions.Item label="详情图外链">{imageSyncSummary.externalDetail}</Descriptions.Item>
+                      </Descriptions>
+                      {collectQualityWarnings.length > 0 ? (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="采集 warning 发布前需确认"
+                          description={collectQualityWarnings.slice(0, 6).join('；')}
+                        />
+                      ) : null}
+                      <Space wrap>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const res = await syncProductImages(id, { scope: 'main' });
+                              message.success(`已同步 ${res.synced} 张主图`);
+                              await reloadDetail();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '同步失败');
+                            }
+                          }}
+                        >
+                          同步主图到平台存储
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const res = await syncProductImages(id, { scope: 'detail' });
+                              message.success(`已同步 ${res.synced} 张详情图`);
+                              await reloadDetail();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '同步失败');
+                            }
+                          }}
+                        >
+                          同步详情图到平台存储
+                        </Button>
+                        <Button
+                          type="primary"
+                          ghost
+                          onClick={async () => {
+                            try {
+                              const res = await syncProductImages(id, { scope: 'all' });
+                              message.success(`已同步 ${res.synced} 张图片到平台存储`);
+                              await reloadDetail();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '同步失败');
+                            }
+                          }}
+                        >
+                          一键同步全部图片
+                        </Button>
+                        <Button onClick={() => setPricingOpen(true)}>应用定价规则</Button>
+                      </Space>
+                      <Table
+                        size="small"
+                        rowKey="id"
+                        pagination={false}
+                        dataSource={skuMappingPreview}
+                        columns={[
+                          { title: 'SKU', dataIndex: 'skuName', ellipsis: true },
+                          { title: '编码', dataIndex: 'skuCode', width: 160, ellipsis: true },
+                          { title: '售价', dataIndex: 'price', width: 100, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
+                          { title: '库存', dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
+                        ]}
+                      />
+                      <Card size="small" title="抖店类目与属性" variant="borderless">
+                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                          {douyinCategoryFlat.length === 0 ? (
+                            <Alert
+                              type="warning"
+                              showIcon
+                              message="暂无抖店类目数据，请先点击「刷新类目」。"
+                            />
+                          ) : null}
+                          <Form
+                            form={douyinForm}
+                            layout="vertical"
+                            onValuesChange={(changed, all) => {
+                              if (Object.prototype.hasOwnProperty.call(changed, 'categoryId')) {
+                                const cat = douyinCategoryFlat.find((x) => x.categoryId === all.categoryId);
+                                setDouyinConfig((cur) => ({
+                                  ...cur,
+                                  categoryId: all.categoryId,
+                                  categoryPath: cat?.path,
+                                  platformAttributes: {},
+                                }));
+                                douyinForm.setFieldValue('platformAttributes', {});
+                                void reloadDouyinAttrs(all.categoryId, all.shopId, false);
+                              } else {
+                                setDouyinConfig((cur) => ({
+                                  ...cur,
+                                  shopId: all.shopId,
+                                  categoryId: all.categoryId,
+                                  categoryPath: selectedDouyinCategory?.path || cur.categoryPath,
+                                  platformAttributes: all.platformAttributes ?? cur.platformAttributes ?? {},
+                                }));
+                              }
+                            }}
+                            onFinish={async (vals) => {
+                              const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
+                              if (vals.categoryId && !cat?.isLeaf) {
+                                message.error('只能选择抖店叶子类目');
+                                return;
+                              }
+                              setDouyinSaving(true);
+                              try {
+                                const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
+                                  shopId: vals.shopId,
+                                  categoryId: vals.categoryId,
+                                  categoryPath: cat?.path || douyinConfig.categoryPath,
+                                  platformAttributes: vals.platformAttributes ?? {},
+                                });
+                                setDouyinConfig({
+                                  shopId: saved.shopId,
+                                  categoryId: saved.categoryId,
+                                  categoryPath: saved.categoryPath,
+                                  platformAttributes: saved.platformAttributes ?? {},
+                                });
+                                message.success('抖店刊登配置已保存');
+                                if (readinessPlat === 'douyin_shop') {
+                                  void runReadinessForTab();
+                                }
+                              } catch (e: unknown) {
+                                message.error((e as Error)?.message || '保存失败');
+                              } finally {
+                                setDouyinSaving(false);
+                              }
+                            }}
+                          >
+                            <Form.Item name="shopId" label="抖店店铺" rules={[{ required: true, message: '请选择抖店店铺' }]}>
+                              <Select
+                                placeholder="选择已授权抖店店铺"
+                                allowClear
+                                showSearch
+                                optionFilterProp="label"
+                                options={douyinShops.map((s) => ({ label: s.shopName, value: s.id }))}
+                              />
+                            </Form.Item>
+                            <Space wrap style={{ marginBottom: 12 }}>
+                              <Button
+                                icon={<SyncOutlined />}
+                                loading={douyinCategoryLoading}
+                                onClick={() => void reloadDouyinCategories(douyinForm.getFieldValue('shopId'), true)}
+                              >
+                                刷新类目
+                              </Button>
+                              <Button
+                                loading={douyinAttrLoading}
+                                disabled={!douyinForm.getFieldValue('categoryId')}
+                                onClick={() =>
+                                  void reloadDouyinAttrs(
+                                    douyinForm.getFieldValue('categoryId'),
+                                    douyinForm.getFieldValue('shopId'),
+                                    true,
+                                  )
+                                }
+                              >
+                                刷新属性
+                              </Button>
+                            </Space>
+                            <Form.Item
+                              name="categoryId"
+                              label="抖店类目"
+                              rules={[{ required: true, message: '请先选择抖店商品类目' }]}
+                              extra={selectedDouyinCategory?.path}
+                            >
+                              <Select
+                                placeholder="搜索并选择叶子类目"
+                                loading={douyinCategoryLoading}
+                                showSearch
+                                allowClear
+                                optionFilterProp="label"
+                                options={douyinCategoryFlat
+                                  .filter((c) => c.isLeaf)
+                                  .map((c) => ({
+                                    label: `${c.path || c.name} (${c.categoryId})`,
+                                    value: c.categoryId,
+                                  }))}
+                              />
+                            </Form.Item>
+                            {douyinForm.getFieldValue('categoryId') && douyinAttrs.length === 0 ? (
+                              <Alert type="info" showIcon message="该类目暂无本地属性缓存，请点击「刷新属性」。" />
+                            ) : null}
+                            {douyinAttrs.length > 0 ? (
+                              <Spin spinning={douyinAttrLoading}>
+                                <Descriptions bordered size="small" column={1}>
+                                  <Descriptions.Item label="必填属性">
+                                    {douyinAttrs.filter((a) => a.required).length || 0} 项
+                                  </Descriptions.Item>
+                                  <Descriptions.Item label="可选属性">
+                                    {douyinAttrs.filter((a) => !a.required).length || 0} 项
+                                  </Descriptions.Item>
+                                </Descriptions>
+                                <Row gutter={16} style={{ marginTop: 12 }}>
+                                  {douyinAttrs.map((attr) => {
+                                    const opts = Array.isArray(attr.options) ? attr.options : [];
+                                    return (
+                                      <Col xs={24} md={12} key={attr.attrId}>
+                                        <Form.Item
+                                          name={['platformAttributes', attr.attrId]}
+                                          label={
+                                            <Space size={4}>
+                                              <span>{attr.name || attr.attrId}</span>
+                                              {attr.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>}
+                                            </Space>
+                                          }
+                                          rules={
+                                            attr.required
+                                              ? [{ required: true, message: `请填写${attr.name || attr.attrId}` }]
+                                              : undefined
+                                          }
+                                        >
+                                          {opts.length > 0 ? (
+                                            <Select
+                                              allowClear={!attr.required}
+                                              showSearch
+                                              optionFilterProp="label"
+                                              options={opts.map((o) => ({
+                                                label: o.name || o.id || '',
+                                                value: o.id || o.name,
+                                              }))}
+                                            />
+                                          ) : (
+                                            <Input placeholder={attr.valueType || '填写属性值'} />
+                                          )}
+                                        </Form.Item>
+                                      </Col>
+                                    );
+                                  })}
+                                </Row>
+                              </Spin>
+                            ) : null}
+                            <Form.Item>
+                              <Space wrap>
+                                <Button type="primary" htmlType="submit" loading={douyinSaving}>
+                                  保存抖店配置
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    setReadinessPlat('douyin_shop');
+                                    setReadinessShopId(String(douyinForm.getFieldValue('shopId') || ''));
+                                    setDraftTabKey('readiness');
+                                  }}
+                                >
+                                  查看抖店发布检查
+                                </Button>
+                              </Space>
+                            </Form.Item>
+                          </Form>
+                        </Space>
+                      </Card>
+                      <Card size="small" title="抖店刊登草稿预览" variant="borderless">
+                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="系统会根据商品标题、AI 文案、图片、SKU、定价和抖店要求填写的信息生成刊登草稿，发布前仍可人工修改。"
+                          />
+                          <Space wrap>
+                            <Button type="primary" loading={douyinMappingLoading} onClick={() => void handleBuildDouyinMapping()}>
+                              生成抖店刊登草稿
+                            </Button>
+                            <Button disabled={!douyinMapping} loading={douyinMappingSaving} onClick={() => void handleSaveDouyinMapping()}>
+                              保存刊登草稿
+                            </Button>
+                            <Button loading={douyinMappingValidating} onClick={() => void handleValidateDouyinMapping()}>
+                              校验刊登草稿
+                            </Button>
+                            <Button
+                              icon={<CloudUploadOutlined />}
+                              disabled={!douyinMapping}
+                              loading={douyinImageUploading}
+                              onClick={() => void handleUploadDouyinImages(false)}
+                            >
+                              上传图片到抖店
+                            </Button>
+                            <Button
+                              icon={<ReloadOutlined />}
+                              disabled={!douyinMapping}
+                              loading={douyinImageUploading}
+                              onClick={() => void handleUploadDouyinImages(true)}
+                            >
+                              重新上传全部图片
+                            </Button>
+                            <Button
+                              type="primary"
+                              disabled={douyinCreateDraftDisabled}
+                              loading={douyinDraftCreating}
+                              onClick={() => void handleCreateDouyinDraft()}
+                            >
+                              创建抖店商品草稿
+                            </Button>
+                            {douyinMapping?.lastMappedAt ? (
+                              <Typography.Text type="secondary">最近生成：{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
+                            ) : null}
+                          </Space>
+                          {!douyinMapping ? (
+                            <Typography.Text type="secondary">还没有抖店刊登草稿，请先生成。</Typography.Text>
+                          ) : (
+                            <>
+                              {douyinMapping.errors?.length ? (
+                                <Alert
+                                  type="error"
+                                  showIcon
+                                  message="这些信息不完整，暂时不能创建抖店商品"
+                                  description={douyinIssueList(douyinMapping.errors)}
+                                />
+                              ) : null}
+                              {douyinMapping.warnings?.length ? (
+                                <Alert
+                                  type="warning"
+                                  showIcon
+                                  message="这些信息建议人工确认"
+                                  description={douyinIssueList(douyinMapping.warnings)}
+                                />
+                              ) : null}
+                              <Form form={douyinMappingForm} layout="vertical">
+                                <Form.Item name="title" label="抖店标题" rules={[{ required: true, message: '请填写抖店标题' }]}>
+                                  <Input showCount maxLength={80} />
+                                </Form.Item>
+                                <Form.Item name="description" label="抖店描述">
+                                  <Input.TextArea rows={4} />
+                                </Form.Item>
+                              </Form>
+                              <Descriptions bordered size="small" column={2}>
+                                <Descriptions.Item label="抖店店铺">{douyinMapping.shopId || '未选择'}</Descriptions.Item>
+                                <Descriptions.Item label="抖店类目">
+                                  {douyinMapping.categoryPath || douyinMapping.categoryId || '未选择'}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="价格">
+                                  {douyinMoney(douyinMapping.price?.min, douyinMapping.price?.currency)}
+                                  {douyinMapping.price?.max && douyinMapping.price.max !== douyinMapping.price.min
+                                    ? ` - ${douyinMoney(douyinMapping.price.max, douyinMapping.price.currency)}`
+                                    : ''}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="库存">
+                                  {douyinMapping.stock?.total ?? '未确认'}
+                                  {douyinMapping.stock?.unconfirmed ? <Tag color="orange" style={{ marginLeft: 8 }}>库存未确认</Tag> : null}
+                                </Descriptions.Item>
+                              </Descriptions>
+                              <div>
+                                <Typography.Title level={5}>主图</Typography.Title>
+                                <Typography.Text type="secondary">图片需要先上传到抖店后，才能创建抖店商品草稿。</Typography.Text>
+                                <Image.PreviewGroup>
+                                  <Space wrap>
+                                    {(douyinMapping.mainImages ?? []).map((img, idx) => (
+                                      <div key={douyinImageKey(img, 'main', idx)} style={{ width: 180, marginTop: 8 }}>
+                                        <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                        <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
+                                          {douyinStorageStatusTag(img)}
+                                          {douyinImageStatusTag(img)}
+                                          {img.platformImageId ? <Typography.Text copyable type="secondary" style={{ fontSize: 12 }}>ID: {img.platformImageId}</Typography.Text> : null}
+                                          {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
+                                          {img.errorMessage ? <Typography.Text type="danger" style={{ fontSize: 12 }}>{img.errorCode}: {img.errorMessage}</Typography.Text> : null}
+                                          <Space size={4}>
+                                            {douyinImagePreviewUrl(img) ? (
+                                              <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
+                                            ) : null}
+                                            {img.platformImageUrl ? (
+                                              <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                            ) : null}
+                                            <Button
+                                              size="small"
+                                              icon={<ReloadOutlined />}
+                                              loading={douyinImageRetryingKey === douyinImageKey(img, 'main', idx)}
+                                              onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'main', idx))}
+                                            >
+                                              重试
+                                            </Button>
+                                          </Space>
+                                        </Space>
+                                      </div>
+                                    ))}
+                                  </Space>
+                                </Image.PreviewGroup>
+                              </div>
+                              <div>
+                                <Typography.Title level={5}>详情图</Typography.Title>
+                                {(douyinMapping.detailImages ?? []).length ? (
+                                  <Image.PreviewGroup>
+                                    <Space wrap>
+                                      {(douyinMapping.detailImages ?? []).map((img, idx) => (
+                                        <div key={douyinImageKey(img, 'detail', idx)} style={{ width: 180 }}>
+                                          <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                          <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
+                                            {douyinStorageStatusTag(img)}
+                                            {douyinImageStatusTag(img)}
+                                            {img.platformImageId ? <Typography.Text copyable type="secondary" style={{ fontSize: 12 }}>ID: {img.platformImageId}</Typography.Text> : null}
+                                            {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
+                                            {img.errorMessage ? <Typography.Text type="danger" style={{ fontSize: 12 }}>{img.errorCode}: {img.errorMessage}</Typography.Text> : null}
+                                            <Space size={4}>
+                                              {douyinImagePreviewUrl(img) ? (
+                                                <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
+                                              ) : null}
+                                              {img.platformImageUrl ? (
+                                                <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                              ) : null}
+                                              <Button
+                                                size="small"
+                                                icon={<ReloadOutlined />}
+                                                loading={douyinImageRetryingKey === douyinImageKey(img, 'detail', idx)}
+                                                onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'detail', idx))}
+                                              >
+                                                重试
+                                              </Button>
+                                            </Space>
+                                          </Space>
+                                        </div>
+                                      ))}
+                                    </Space>
+                                  </Image.PreviewGroup>
+                                ) : (
+                                  <Typography.Text type="secondary">暂无详情图</Typography.Text>
+                                )}
+                              </div>
+                              <Table
+                                size="small"
+                                rowKey={(r) => r.attrId || r.name}
+                                pagination={false}
+                                dataSource={douyinMapping.attributes ?? []}
+                                columns={[
+                                  { title: '抖店要求填写的信息', render: (_, r) => r.name || r.attrId },
+                                  { title: '状态', width: 90, render: (_, r) => (r.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>) },
+                                  { title: '当前值', render: (_, r) => douyinAttrValueText(r.value) },
+                                ]}
+                              />
+                              <Table
+                                size="small"
+                                rowKey={(r) => r.localSkuId || r.name}
+                                pagination={false}
+                                dataSource={douyinMapping.skus ?? []}
+                                columns={[
+                                  { title: '商品规格', dataIndex: 'name', ellipsis: true },
+                                  { title: '规格值', render: (_, r) => douyinAttrValueText(r.attrs ?? {}) },
+                                  { title: '售价', width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
+                                  { title: '库存', width: 90, render: (_, r) => (r.stock == null ? '未确认' : r.stock) },
+                                  { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : '无') },
+                                ]}
+                              />
+                            </>
+                          )}
+                        </Space>
+                      </Card>
+                      <Card size="small" title="抖店刊登任务" variant="borderless" loading={douyinPublishTasksLoading}>
+                        {douyinPublishTasks.length === 0 ? (
+                          <Typography.Text type="secondary">暂无抖店刊登任务</Typography.Text>
+                        ) : (
+                          <Table
+                            size="small"
+                            rowKey="id"
+                            pagination={false}
+                            dataSource={douyinPublishTasks}
+                            columns={[
+                              { title: '状态', dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
+                              { title: '发布模式', dataIndex: 'publishMode', width: 140, render: (v) => v || 'save_as_platform_draft' },
+                              { title: '抖店商品 ID', dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
+                              { title: '创建时间', dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
+                              {
+                                title: '失败原因',
+                                dataIndex: 'errorMessage',
+                                ellipsis: true,
+                                render: (v, r) => v || (r.errorCode ? String(r.errorCode) : '—'),
+                              },
+                              {
+                                title: '操作',
+                                width: 120,
+                                render: (_, r) => (
+                                  <Space size={4}>
+                                    <Link to={`/product/publish-tasks?productId=${id}`}>详情</Link>
+                                    {r.status === 'failed' && r.retryable !== false ? (
+                                      <Button
+                                        type="link"
+                                        size="small"
+                                        onClick={() =>
+                                          void retryProductPublishTask(r.id)
+                                            .then(() => {
+                                              message.success('已重试刊登任务');
+                                              void reloadDouyinPublishTasks();
+                                            })
+                                            .catch((e: Error) => message.error(e.message || '重试失败'))
+                                        }
+                                      >
+                                        重试
+                                      </Button>
+                                    ) : null}
+                                  </Space>
+                                ),
+                              },
+                            ]}
+                          />
+                        )}
+                      </Card>
+                      <Card
+                        size="small"
+                        title="抖店 SKU 绑定管理"
+                        variant="borderless"
+                        loading={douyinSkuBindingLoading}
+                        extra={
+                          <Space>
+                            <Button size="small" onClick={() => setDouyinSkuCandidatesOpen(true)} disabled={!douyinSkuBinding?.platformSkus?.length}>
+                              查看平台 SKU 候选
+                            </Button>
+                            <Button size="small" onClick={() => void reloadDouyinSkuBindings()}>
+                              刷新绑定状态
+                            </Button>
+                            <Button
+                              type="primary"
+                              size="small"
+                              loading={douyinSkuBindingSyncing}
+                              disabled={!douyinPublication?.id}
+                              onClick={() => void handleSyncDouyinSkuBindings()}
+                            >
+                              重新校准
+                            </Button>
+                          </Space>
+                        }
+                      >
+                        {!douyinPublication?.id ? (
+                          <Typography.Text type="secondary">
+                            创建抖店商品草稿后，可在此根据抖店商品详情校准 platformSkuId，并对 ambiguous / unmatched 规格手动绑定。
+                          </Typography.Text>
+                        ) : (
+                          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                            {douyinSkuBinding?.inventorySyncReady === false && douyinSkuBinding.inventorySyncBlockReason ? (
+                              <Alert type="warning" showIcon message={douyinSkuBinding.inventorySyncBlockReason} />
+                            ) : douyinSkuBinding?.inventorySyncReady ? (
+                              <Alert type="success" showIcon message="全部规格已绑定抖店 SKU，可同步库存。" />
+                            ) : null}
+                            <Descriptions bordered size="small" column={2}>
+                              <Descriptions.Item label="抖店商品 ID">
+                                {douyinPublication.externalProductId || '—'}
+                              </Descriptions.Item>
+                              <Descriptions.Item label="最近校准时间">
+                                {douyinSkuBinding?.skuBindingSyncedAt
+                                  ? formatDateTime(douyinSkuBinding.skuBindingSyncedAt)
+                                  : douyinPublication.skuBindingSyncedAt
+                                    ? formatDateTime(douyinPublication.skuBindingSyncedAt)
+                                    : '—'}
+                              </Descriptions.Item>
+                              <Descriptions.Item label="已绑定">{douyinSkuBinding?.bound ?? '—'}</Descriptions.Item>
+                              <Descriptions.Item label="未绑定">{douyinSkuBinding?.unmatched ?? '—'}</Descriptions.Item>
+                              <Descriptions.Item label="待确认">{douyinSkuBinding?.ambiguous ?? '—'}</Descriptions.Item>
+                              <Descriptions.Item label="失败">{douyinSkuBinding?.failed ?? '—'}</Descriptions.Item>
+                            </Descriptions>
+                            {(douyinSkuBinding?.rows?.length ?? 0) > 0 ? (
+                              <Table<DouyinSkuBindingRow>
+                                size="small"
+                                rowKey="publicationSkuId"
+                                pagination={false}
+                                scroll={{ x: 1200 }}
+                                dataSource={douyinSkuBinding?.rows ?? []}
+                                columns={[
+                                  { title: '本地 SKU', dataIndex: 'skuCode', width: 120, ellipsis: true, render: (v, r) => v || r.productSkuId || '—' },
+                                  { title: '本地规格', dataIndex: 'specName', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  {
+                                    title: '本地价格',
+                                    width: 96,
+                                    render: (_, r) => (typeof r.price === 'number' ? r.price.toFixed(2) : '—'),
+                                  },
+                                  {
+                                    title: '本地库存',
+                                    width: 88,
+                                    render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—'),
+                                  },
+                                  { title: '抖店 SKU ID', dataIndex: 'externalSkuId', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  { title: '抖店 SKU 名称', dataIndex: 'platformSkuName', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
+                                  { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
+                                  {
+                                    title: '最近校准',
+                                    dataIndex: 'lastSyncedAt',
+                                    width: 156,
+                                    render: (v) => (v ? formatDateTime(v) : '—'),
+                                  },
+                                  {
+                                    title: '说明',
+                                    dataIndex: 'bindMessage',
+                                    ellipsis: true,
+                                    render: (v, r) => v || douyinBindStatusHint(r.bindStatus),
+                                  },
+                                  {
+                                    title: '操作',
+                                    width: 220,
+                                    fixed: 'right',
+                                    render: (_, r) => (
+                                      <Space size={4} wrap>
+                                        <Button
+                                          type="link"
+                                          size="small"
+                                          style={{ padding: 0 }}
+                                          onClick={() => {
+                                            setDouyinSkuBindTarget(r);
+                                            douyinSkuBindForm.setFieldsValue({ platformSkuId: r.externalSkuId || undefined });
+                                            setDouyinSkuBindOpen(true);
+                                          }}
+                                        >
+                                          手动绑定
+                                        </Button>
+                                        {r.externalSkuId ? (
+                                          <Popconfirm
+                                            title="确认解除该规格的抖店 SKU 绑定？"
+                                            onConfirm={() =>
+                                              void unbindDouyinSku(r.publicationSkuId)
+                                                .then(async () => {
+                                                  message.success('已解除绑定');
+                                                  await reloadDouyinSkuBindings();
+                                                  await reloadPublicationSkus();
+                                                })
+                                                .catch((e: Error) => message.error(e.message || '解除失败'))
+                                            }
+                                          >
+                                            <Button type="link" size="small" style={{ padding: 0 }} danger>
+                                              解除绑定
+                                            </Button>
+                                          </Popconfirm>
+                                        ) : null}
+                                      </Space>
+                                    ),
+                                  },
+                                ]}
+                              />
+                            ) : (
+                              <Typography.Text type="secondary">点击「重新校准」从抖店拉取 SKU 并完成匹配；未匹配或待确认规格可手动绑定。</Typography.Text>
+                            )}
+                          </Space>
+                        )}
+                      </Card>
                       {publishReadiness ? (
                         <Alert
                           type={
@@ -2021,6 +3310,30 @@ export default function ProductDraftDetailPage() {
                               });
                               return;
                             }
+                            if ((r.warningCount ?? 0) > 0) {
+                              await new Promise<void>((resolve, reject) => {
+                                Modal.confirm({
+                                  title: '发布检查存在警告，确认继续？',
+                                  width: 640,
+                                  okText: '确认创建刊登任务',
+                                  cancelText: '返回处理',
+                                  content: (
+                                    <div>
+                                      {(r.checks || [])
+                                        .filter((c) => c.level !== 'error')
+                                        .slice(0, 10)
+                                        .map((c, i) => (
+                                          <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
+                                            <Tag color="orange">warning</Tag> {c.message}
+                                          </div>
+                                        ))}
+                                    </div>
+                                  ),
+                                  onOk: () => resolve(),
+                                  onCancel: () => reject(new Error('cancelled')),
+                                });
+                              });
+                            }
                             const task = await publishProduct(id, { shopId, options: {} });
                             if (task.readiness) setPublishReadiness(task.readiness);
                             message.success('已提交刊登任务');
@@ -2029,6 +3342,7 @@ export default function ProductDraftDetailPage() {
                             await reloadPublishContext();
                           } catch (e: unknown) {
                             const ex = e as Error & { data?: unknown };
+                            if (ex.message === 'cancelled') return;
                             if (ex.message === 'product readiness check failed' && ex.data && typeof ex.data === 'object') {
                               const r = ex.data as ProductReadinessResult;
                               setPublishReadiness(r);
@@ -2573,6 +3887,13 @@ export default function ProductDraftDetailPage() {
             Seller Center 申请库存 / 商品更新相关权限后重新授权店铺。
           </Typography.Paragraph>
         ) : null}
+        {(syncRow?.platform || '').trim().toLowerCase() === 'douyin_shop' ? (
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
+            抖店通过 OpenAPI <Typography.Text code>sku.syncStock</Typography.Text> 全量更新库存（
+            <Typography.Text code>incremental=false</Typography.Text>）。请确认「设置 → 平台开放配置 → 抖店」已开启「启用库存同步」，且
+            刊登映射中已写入抖店商品 ID 与 SKU ID。若 SKU ID 为空，请先在「刊登」Tab 完成抖店商品草稿创建。
+          </Typography.Paragraph>
+        ) : null}
         <Form form={syncForm} layout="vertical">
           <Form.Item
             name="stock"
@@ -2629,6 +3950,102 @@ export default function ProductDraftDetailPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <Modal
+        title={douyinSkuBindTarget ? `手动绑定抖店 SKU · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店 SKU'}
+        open={douyinSkuBindOpen && !!douyinSkuBindTarget}
+        destroyOnHidden
+        okText="确认绑定"
+        confirmLoading={douyinSkuBindSubmitting}
+        onCancel={() => {
+          setDouyinSkuBindOpen(false);
+          setDouyinSkuBindTarget(null);
+          douyinSkuBindForm.resetFields();
+        }}
+        onOk={async () => {
+          if (!douyinSkuBindTarget) return;
+          const v = await douyinSkuBindForm.validateFields();
+          const platformSkuId = String(v.platformSkuId ?? '').trim();
+          if (!platformSkuId) {
+            message.error('请选择或填写抖店 SKU ID');
+            return;
+          }
+          const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
+          setDouyinSkuBindSubmitting(true);
+          try {
+            await bindDouyinSku(douyinSkuBindTarget.publicationSkuId, {
+              platformSkuId,
+              platformSkuName: String(v.platformSkuName ?? selected?.specName ?? '').trim(),
+              bindReason: 'manual',
+            });
+            message.success('手动绑定成功');
+            setDouyinSkuBindOpen(false);
+            setDouyinSkuBindTarget(null);
+            douyinSkuBindForm.resetFields();
+            await reloadDouyinSkuBindings();
+            await reloadPublicationSkus();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '绑定失败');
+          } finally {
+            setDouyinSkuBindSubmitting(false);
+          }
+        }}
+      >
+        <Typography.Paragraph type="secondary">
+          本地规格：{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}
+        </Typography.Paragraph>
+        <Form form={douyinSkuBindForm} layout="vertical">
+          <Form.Item name="platformSkuId" label="抖店 SKU" rules={[{ required: true, message: '请选择抖店 SKU' }]}>
+            <Select
+              showSearch
+              placeholder="从平台候选中选择"
+              optionFilterProp="label"
+              options={(douyinSkuBinding?.platformSkus ?? []).map((c: DouyinPlatformSkuCandidate) => ({
+                value: c.platformSkuId,
+                label: `${c.platformSkuId} · ${c.specName || '—'}${c.boundToPublicationSkuId ? '（已绑定其他规格）' : ''}`,
+                disabled: Boolean(c.boundToPublicationSkuId && c.boundToPublicationSkuId !== douyinSkuBindTarget?.publicationSkuId),
+              }))}
+              onChange={(v) => {
+                const c = (douyinSkuBinding?.platformSkus ?? []).find((x) => x.platformSkuId === v);
+                if (c?.specName) douyinSkuBindForm.setFieldValue('platformSkuName', c.specName);
+              }}
+            />
+          </Form.Item>
+          <Form.Item name="platformSkuName" label="抖店 SKU 名称">
+            <Input placeholder="可选，便于识别" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Drawer
+        title="抖店平台 SKU 候选"
+        open={douyinSkuCandidatesOpen}
+        width={640}
+        onClose={() => setDouyinSkuCandidatesOpen(false)}
+      >
+        {(douyinSkuBinding?.platformSkus?.length ?? 0) === 0 ? (
+          <Typography.Text type="secondary">暂无候选，请先执行「重新校准」从抖店拉取商品详情。</Typography.Text>
+        ) : (
+          <Table<DouyinPlatformSkuCandidate>
+            size="small"
+            rowKey="platformSkuId"
+            pagination={false}
+            dataSource={douyinSkuBinding?.platformSkus ?? []}
+            columns={[
+              { title: '抖店 SKU ID', dataIndex: 'platformSkuId', ellipsis: true },
+              { title: '规格名称', dataIndex: 'specName', ellipsis: true, render: (v) => v || '—' },
+              { title: '价格', width: 96, render: (_, r) => (typeof r.priceYuan === 'number' ? r.priceYuan.toFixed(2) : '—') },
+              { title: '库存', width: 72, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
+              {
+                title: '绑定状态',
+                width: 120,
+                render: (_, r) =>
+                  r.boundToPublicationSkuId ? <Tag color="blue">已绑定本地规格</Tag> : <Tag>未绑定</Tag>,
+              },
+            ]}
+          />
+        )}
+      </Drawer>
 
       <PricingApplyModal
         open={pricingOpen}

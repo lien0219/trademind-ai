@@ -1,0 +1,13 @@
+---
+description: AI workflow for fast, accurate, token-efficient vibe coding across tools
+alwaysApply: true
+---
+
+# AI 工作流规则
+
+- 开始任务前先读 `AGENTS.md`、`docs/ai-workflow.md` 和 `docs/module-map.md` 中与当前任务相关的部分。
+- 先形成最小上下文包：任务目标、改动类型、关联入口、已有实现、验证方式、风险。
+- 优先用搜索和局部读取确认事实，不把大文件、大日志或无关上下文塞进对话。
+- 规则文件保持短而可执行；详细解释放入 `docs/`，避免 Cursor 每次加载过多 token。
+- 重复出现的问题、质量门槛、架构决策和工具约定，应按 `docs/ai-workflow.md` 写回对应文档、pitfalls、`docs/PROGRESS.md` 或 rules。
+- 不把真实密钥、Cookie、Token、客户数据、生产数据或私密对话写入经验文档。

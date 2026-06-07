@@ -36,24 +36,73 @@ func (s *Service) taskToDTO(ctx context.Context, t *ProductPublishTask) TaskDTO 
 		pt = strings.TrimSpace(p.AITitle)
 	}
 	return TaskDTO{
-		ID:           t.ID,
-		ProductID:    t.ProductID,
-		ShopID:       t.ShopID,
-		ShopName:     s.shopNameLookup(ctx, t.ShopID),
-		ProductTitle: pt,
-		Platform:     t.Platform,
-		TaskType:     t.TaskType,
-		Status:       t.Status,
-		Mode:         t.Mode,
-		StartedAt:    t.StartedAt,
-		FinishedAt:   t.FinishedAt,
-		ErrorMessage: t.ErrorMessage,
-		Input:        dtoTrimJSON(t.Input),
-		Output:       dtoTrimJSON(t.Output),
-		CreatedBy:    t.CreatedBy,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
+		ID:                t.ID,
+		ProductID:         t.ProductID,
+		ShopID:            t.ShopID,
+		TargetStoreID:     t.TargetStoreID,
+		ShopName:          s.shopNameLookup(ctx, t.ShopID),
+		ProductTitle:      pt,
+		Platform:          t.Platform,
+		TargetPlatform:    t.Platform,
+		TaskType:          t.TaskType,
+		Status:            t.Status,
+		PublishStatus:     effectivePublishStatus(t),
+		Mode:              t.Mode,
+		PublishMode:       firstNonEmpty(t.PublishMode, t.Mode),
+		Title:             t.Title,
+		Description:       t.Description,
+		Images:            dtoTrimJSON(t.Images),
+		SKUs:              dtoTrimJSON(t.SKUs),
+		Price:             t.Price,
+		Currency:          t.Currency,
+		CheckResult:       dtoTrimJSON(t.CheckResult),
+		PlatformPayload:   dtoTrimJSON(t.PlatformPayload),
+		PlatformResult:    dtoTrimJSON(t.PlatformResult),
+		PlatformProductID: strings.TrimSpace(t.PlatformProductID),
+		PlatformRawError:  dtoTrimJSON(t.PlatformRawError),
+		Retryable:         t.Retryable,
+		RequestID:         strings.TrimSpace(t.RequestID),
+		MappingSnapshot:   dtoTrimJSON(t.MappingSnapshot),
+		StartedAt:         t.StartedAt,
+		FinishedAt:        t.FinishedAt,
+		ErrorCode:         t.ErrorCode,
+		ErrorMessage:      t.ErrorMessage,
+		Input:             dtoTrimJSON(t.Input),
+		Output:            dtoTrimJSON(t.Output),
+		CreatedBy:         t.CreatedBy,
+		CreatedAt:         t.CreatedAt,
+		UpdatedAt:         t.UpdatedAt,
 	}
+}
+
+func effectivePublishStatus(t *ProductPublishTask) string {
+	if t == nil {
+		return ""
+	}
+	if strings.TrimSpace(t.PublishStatus) != "" {
+		return strings.TrimSpace(t.PublishStatus)
+	}
+	switch strings.TrimSpace(t.Status) {
+	case TaskPending:
+		return StatusReady
+	case TaskRunning:
+		return StatusPublishing
+	case TaskSuccess:
+		return StatusSuccess
+	case TaskFailed:
+		return StatusPubFailed
+	case TaskCancelled:
+		return TaskCancelled
+	default:
+		return StatusDraft
+	}
+}
+
+func firstNonEmpty(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return strings.TrimSpace(a)
+	}
+	return strings.TrimSpace(b)
 }
 
 func (s *Service) GetDTO(ctx context.Context, taskID uuid.UUID) (TaskDTO, error) {
@@ -137,14 +186,17 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	reset := time.Now().UTC()
 	if err := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Where("id = ?", taskID).
 		Updates(map[string]any{
-			"status":        TaskPending,
-			"error_message": "",
-			"started_at":    nil,
-			"finished_at":   nil,
-			"output":        nil,
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    reset,
+			"status":          TaskPending,
+			"publish_status":  StatusReady,
+			"error_code":      "",
+			"error_message":   "",
+			"started_at":      nil,
+			"finished_at":     nil,
+			"output":          nil,
+			"platform_result": nil,
+			"locked_by":       nil,
+			"locked_until":    nil,
+			"updated_at":      reset,
 		}).Error; err != nil {
 		return nil, err
 	}
@@ -230,19 +282,20 @@ func (s *Service) ListPublicationsByProduct(ctx context.Context, productID uuid.
 		sum, _ := s.skuMappingSummaryLines(ctx, rows[i].ID)
 		pid := rows[i].PublishTaskID
 		out = append(out, PublicationDTO{
-			ID:                rows[i].ID,
-			ProductID:         rows[i].ProductID,
-			ShopID:            rows[i].ShopID,
-			ShopName:          s.shopNameLookup(ctx, rows[i].ShopID),
-			Platform:          rows[i].Platform,
-			PublishTaskID:     pid,
-			ExternalProductID: rows[i].ExternalProductID,
-			ExternalURL:       rows[i].ExternalURL,
-			Status:            rows[i].Status,
-			PublishStatus:     rows[i].PublishStatus,
-			PublishedAt:       rows[i].PublishedAt,
-			LastSyncedAt:      rows[i].LastSyncedAt,
-			SKUMappingSummary: sum,
+			ID:                 rows[i].ID,
+			ProductID:          rows[i].ProductID,
+			ShopID:             rows[i].ShopID,
+			ShopName:           s.shopNameLookup(ctx, rows[i].ShopID),
+			Platform:           rows[i].Platform,
+			PublishTaskID:      pid,
+			ExternalProductID:  rows[i].ExternalProductID,
+			ExternalURL:        rows[i].ExternalURL,
+			Status:             rows[i].Status,
+			PublishStatus:      rows[i].PublishStatus,
+			PublishedAt:        rows[i].PublishedAt,
+			LastSyncedAt:       rows[i].LastSyncedAt,
+			SkuBindingSyncedAt: rows[i].SkuBindingSyncedAt,
+			SKUMappingSummary:  sum,
 		})
 	}
 	return out, nil

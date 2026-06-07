@@ -248,7 +248,7 @@ export default function InventorySettingsPage() {
   return (
     <PageContainer title="库存 / 订单" subTitle="本地库存预警、订单扣减与平台库存同步策略">
       <div className="tm-system-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <InboxOutlined />
@@ -269,7 +269,7 @@ export default function InventorySettingsPage() {
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
-            bordered
+            variant="outlined"
             title="库存预警"
             className="tm-system-settings__panel"
             extra={
@@ -316,7 +316,7 @@ export default function InventorySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="订单与库存联动" className="tm-system-settings__panel">
+          <ProCard variant="outlined" title="订单与库存联动" className="tm-system-settings__panel">
             <Row gutter={[12, 12]}>
               {INVENTORY_ORDER_TOGGLES.map((item) => (
                 <Col xs={24} sm={12} lg={8} key={item.name}>
@@ -331,7 +331,7 @@ export default function InventorySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="批量同步与限流" className="tm-system-settings__panel">
+          <ProCard variant="outlined" title="批量同步与限流" className="tm-system-settings__panel">
             <Paragraph type="secondary" style={{ marginBottom: 16 }}>
               控制单次批量任务数量与各平台每分钟请求上限；超限时任务会稍后自动重试。
             </Paragraph>
@@ -384,7 +384,7 @@ export default function InventorySettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard bordered className="tm-system-settings__footer">
+          <ProCard variant="outlined" className="tm-system-settings__footer">
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
               保存配置
             </Button>

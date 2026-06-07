@@ -109,6 +109,10 @@ func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, 
 		ExternalSKU       string     `gorm:"column:external_sku_id"`
 		SKUCode           string     `gorm:"column:sku_code"`
 		Stock             *int       `gorm:"column:stock"`
+		BindStatus        string     `gorm:"column:bind_status"`
+		BindConfidence    int        `gorm:"column:bind_confidence"`
+		BindMessage       string     `gorm:"column:bind_message"`
+		LastSyncedAt      *time.Time `gorm:"column:last_synced_at"`
 		ShopUID           uuid.UUID  `gorm:"column:shop_uid"`
 		ShopName          string     `gorm:"column:shop_name"`
 		PlatformRaw       string     `gorm:"column:plat"`
@@ -116,6 +120,7 @@ func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, 
 	}
 	tx := s.DB.WithContext(ctx).Table("product_publication_skus AS ps").
 		Select(`ps.id, ps.publication_id, ps.product_sku_id, ps.external_sku_id, ps.sku_code, ps.stock,
+			ps.bind_status, ps.bind_confidence, ps.bind_message, ps.last_synced_at,
 			pp.shop_id AS shop_uid, sh.shop_name, pp.platform AS plat, pp.external_product_id AS ext_pid`).
 		Joins(`JOIN product_publications pp ON pp.id = ps.publication_id AND pp.product_id = ? AND pp.deleted_at IS NULL`, productID).
 		Joins(`JOIN shops sh ON sh.id = pp.shop_id`)
@@ -146,6 +151,10 @@ func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, 
 			SKUCode:           r.SKUCode,
 			PlatformStock:     r.Stock,
 			InventoryCap:      cap,
+			BindStatus:        strings.TrimSpace(r.BindStatus),
+			BindConfidence:    r.BindConfidence,
+			BindMessage:       strings.TrimSpace(r.BindMessage),
+			LastSyncedAt:      r.LastSyncedAt,
 		})
 	}
 	return out, nil
@@ -360,6 +369,16 @@ func (s *Service) RetryInventorySyncTask(ctx context.Context, taskID uuid.UUID, 
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
+		if strings.TrimSpace(strings.ToLower(task.Platform)) == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: admin,
+				Action:      "douyin.inventory.sync.retry",
+				Resource:    "inventory_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
 	}
 	if err := s.enqueueOrRunInventoryTask(ctx, taskID); err != nil {
 		return nil, err

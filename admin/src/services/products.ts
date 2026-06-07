@@ -92,14 +92,215 @@ export type ProductDetail = {
   currency: string;
   status: string;
   rawData?: unknown;
+  raw?: unknown;
+  mainImages?: string[];
+  descriptionImages?: string[];
+  attributes?: unknown;
+  skuGroups?: unknown;
+  costPrice?: number;
+  salePrice?: number;
+  stock?: number;
+  collectWarnings?: string[];
+  publishStatus?: string;
   createdAt: string;
   updatedAt: string;
   images: ProductImageRow[];
   skus: ProductSKURow[];
 };
 
+export type ProductPlatformPublishConfig = {
+  productId: string;
+  platform: string;
+  shopId?: string;
+  categoryId?: string;
+  categoryPath?: string;
+  platformAttributes?: Record<string, unknown>;
+  mapping?: DouyinDraftMapping;
+  lastMappedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type DouyinMappingIssue = {
+  code: string;
+  level: 'warning' | 'error' | string;
+  message: string;
+  suggestion?: string;
+  field?: string;
+  relatedResourceType?: string;
+  relatedResourceId?: string;
+};
+
+export type DouyinDraftImage = {
+  localImageId?: string;
+  sourceUrl?: string;
+  storageUrl?: string;
+  platformImageId?: string;
+  platformImageUrl?: string;
+  imageType: string;
+  url: string;
+  originUrl?: string;
+  publicUrl?: string;
+  objectKey?: string;
+  storageKey?: string;
+  source?: string;
+  status: string;
+  needSync: boolean;
+  uploadStatus?: 'pending' | 'processing' | 'uploaded' | 'failed' | 'skipped' | string;
+  errorCode?: string;
+  errorMessage?: string;
+  uploadedAt?: string;
+  processed?: boolean;
+  raw?: Record<string, unknown>;
+};
+
+export type DouyinDraftAttribute = {
+  attrId: string;
+  name: string;
+  required?: boolean;
+  valueType?: string;
+  value?: unknown;
+  options?: unknown[];
+};
+
+export type DouyinDraftSku = {
+  localSkuId?: string;
+  name: string;
+  attrs?: Record<string, unknown>;
+  price: number;
+  stock?: number | null;
+  imageUrl?: string;
+  platformSkuDraft?: Record<string, unknown>;
+};
+
+export type DouyinDraftMapping = {
+  platform: 'douyin_shop' | string;
+  productId?: string;
+  source?: string;
+  shopId?: string;
+  categoryId?: string;
+  categoryPath?: string;
+  title?: string;
+  description?: string;
+  mainImages?: DouyinDraftImage[];
+  detailImages?: DouyinDraftImage[];
+  attributes?: DouyinDraftAttribute[];
+  skus?: DouyinDraftSku[];
+  price?: {
+    currency?: string;
+    min?: number;
+    max?: number;
+    costMin?: number;
+    source?: string;
+  };
+  stock?: {
+    total?: number;
+    min?: number;
+    unconfirmed?: boolean;
+  };
+  warnings?: DouyinMappingIssue[];
+  errors?: DouyinMappingIssue[];
+  lastMappedAt?: string;
+  platformDraftHint?: Record<string, unknown>;
+};
+
+export type DouyinMappingValidationResult = {
+  productId?: string;
+  platform: string;
+  status: string;
+  result: string;
+  canPublish: boolean;
+  errorCount: number;
+  warningCount: number;
+  checks: DouyinMappingIssue[];
+};
+
+export type DouyinImageUploadResult = {
+  productId: string;
+  platform: string;
+  summary: {
+    uploaded: number;
+    skipped: number;
+    failed: number;
+    pending: number;
+  };
+  mapping: DouyinDraftMapping;
+};
+
 export async function fetchProductDetail(id: string) {
   return getJSON<ProductDetail>(`/api/v1/products/${id}`);
+}
+
+export async function getProductPlatformPublishConfig(productId: string, platform: string) {
+  return getJSON<ProductPlatformPublishConfig>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/${encodeURIComponent(platform)}`,
+  );
+}
+
+export async function putProductPlatformPublishConfig(
+  productId: string,
+  platform: string,
+  body: {
+    shopId?: string;
+    categoryId?: string;
+    categoryPath?: string;
+    platformAttributes?: Record<string, unknown>;
+  },
+) {
+  return putJSON<ProductPlatformPublishConfig, typeof body>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/${encodeURIComponent(platform)}`,
+    body,
+  );
+}
+
+export async function buildDouyinDraftMapping(productId: string, body: { shopId?: string } = {}) {
+  return postJSON<DouyinDraftMapping>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/build-mapping`,
+    body,
+  );
+}
+
+export async function getDouyinDraftMapping(productId: string) {
+  return getJSON<DouyinDraftMapping>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/mapping`,
+  );
+}
+
+export async function saveDouyinDraftMapping(productId: string, body: DouyinDraftMapping) {
+  return putJSON<DouyinDraftMapping, DouyinDraftMapping>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/mapping`,
+    body,
+  );
+}
+
+export async function validateDouyinDraftMapping(productId: string, body?: DouyinDraftMapping) {
+  return postJSON<DouyinMappingValidationResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/validate`,
+    body,
+  );
+}
+
+export async function uploadDouyinImages(
+  productId: string,
+  body: { imageTypes?: string[]; retryFailed?: boolean; force?: boolean } = {},
+) {
+  return postJSON<DouyinImageUploadResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/images/upload`,
+    body,
+  );
+}
+
+export async function retryDouyinImage(productId: string, imageKey: string) {
+  return postJSON<DouyinImageUploadResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/images/${encodeURIComponent(imageKey)}/retry`,
+    {},
+  );
+}
+
+export async function getDouyinImageStatus(productId: string) {
+  return getJSON<DouyinImageUploadResult>(
+    `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/images/status`,
+  );
 }
 
 export type UpdateProductBody = {
@@ -216,6 +417,20 @@ export async function deleteProductImage(productId: string, imageId: string) {
 
 export async function reorderProductImages(productId: string, body: ReorderProductImagesBody) {
   return postJSON<{ ok: boolean }>(`/api/v1/products/${productId}/images/reorder`, body);
+}
+
+export type SyncProductImagesResult = {
+  synced: number;
+  skipped: number;
+  failed: number;
+  errors?: string[];
+};
+
+export async function syncProductImages(
+  productId: string,
+  body: { scope?: 'all' | 'main' | 'detail' } = {},
+) {
+  return postJSON<SyncProductImagesResult>(`/api/v1/products/${productId}/sync-images`, body);
 }
 
 function attrsToJSON(attrs?: Record<string, unknown> | string | null): object | string | undefined {

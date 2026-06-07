@@ -308,6 +308,11 @@ func (c *CollectorClient) CheckBrowserProfileAccess(ctx context.Context, profile
 }
 
 func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string, options map[string]any) (*CollectOutcome, error) {
+	return c.CollectWithTimeout(ctx, source, rawURL, options, 0)
+}
+
+// CollectWithTimeout invokes POST /v1/collect. When timeout > 0 it overrides the client default.
+func (c *CollectorClient) CollectWithTimeout(ctx context.Context, source, rawURL string, options map[string]any, timeout time.Duration) (*CollectOutcome, error) {
 	if c == nil || c.Client == nil {
 		return nil, fmt.Errorf("collector client unavailable")
 	}
@@ -333,7 +338,12 @@ func (c *CollectorClient) Collect(ctx context.Context, source, rawURL string, op
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.Client.Do(req)
+	httpClient := c.Client
+	if timeout > 0 {
+		httpClient = &http.Client{Timeout: timeout}
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("collector request: %w", err)
 	}
@@ -635,6 +645,39 @@ func (c *CollectorClient) OpenPinduoduoLoginBrowser(parent context.Context, logi
 	var out ProviderPinduoduoOpenLoginResultDTO
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, fmt.Errorf("collector parse pinduoduo open login: %w", err)
+	}
+	out.ProfilePath = ""
+	return &out, nil
+}
+
+// CheckTaobaoTmallLogin calls POST /v1/providers/taobao_tmall/check-login.
+func (c *CollectorClient) CheckTaobaoTmallLogin(parent context.Context, checkURL, settingsTestURL string) (*ProviderTaobaoTmallAuthStatusDTO, error) {
+	body, _ := json.Marshal(map[string]string{
+		"url":     strings.TrimSpace(checkURL),
+		"testUrl": strings.TrimSpace(settingsTestURL),
+	})
+	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/taobao_tmall/check-login", body, 90*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	var out ProviderTaobaoTmallAuthStatusDTO
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("collector parse taobao_tmall check login: %w", err)
+	}
+	out.ProfilePath = ""
+	return &out, nil
+}
+
+// OpenTaobaoTmallLoginBrowser calls POST /v1/providers/taobao_tmall/open-login-browser.
+func (c *CollectorClient) OpenTaobaoTmallLoginBrowser(parent context.Context, loginURL string) (*ProviderTaobaoTmallOpenLoginResultDTO, error) {
+	body, _ := json.Marshal(map[string]string{"url": strings.TrimSpace(loginURL)})
+	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/taobao_tmall/open-login-browser", body, 60*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	var out ProviderTaobaoTmallOpenLoginResultDTO
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("collector parse taobao_tmall open login: %w", err)
 	}
 	out.ProfilePath = ""
 	return &out, nil

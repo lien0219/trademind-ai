@@ -15,6 +15,8 @@ func TestDetectPlatform(t *testing.T) {
 		{"https://es.aliexpress.com/item/1.html", PlatformAliExpress, true},
 		{"https://item.taobao.com/item.htm?id=1", PlatformTaobaoTmall, true},
 		{"https://detail.tmall.com/item.htm?id=1", PlatformTaobaoTmall, true},
+		{"https://detail.tmall.hk/item.htm?id=1", PlatformTaobaoTmall, true},
+		{"https://world.taobao.com/item/123.htm", PlatformTaobaoTmall, true},
 		{"https://mobile.yangkeduo.com/goods.html", PlatformPdd, true},
 		{"https://www.shein.com/p-1.html", PlatformSheinTemu, true},
 		{"https://www.temu.com/goods.html", PlatformSheinTemu, true},

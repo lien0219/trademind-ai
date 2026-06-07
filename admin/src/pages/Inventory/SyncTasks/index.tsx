@@ -5,7 +5,7 @@ import {
   type ProColumns,
   type ProFormInstance,
 } from '@ant-design/pro-components';
-import { Button, Drawer, Modal, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Button, Drawer, Modal, Popconfirm, Space, Tag, Typography, Alert, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useLocation } from '@umijs/max';
@@ -214,8 +214,15 @@ export default function InventorySyncTasksPage() {
 
   return (
     <PageContainer title="库存同步任务">
+      <Alert
+        showIcon
+        type="info"
+        style={{ marginBottom: 16 }}
+        message="抖店库存同步说明"
+        description="须开启「启用库存同步」、商品已创建抖店平台草稿且全部 SKU 已绑定抖店 SKU ID（ambiguous / unmatched 会阻止同步）。可在商品详情 → 库存 Tab 或库存预警页发起同步；失败任务支持重试。"
+      />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        TikTok Shop、Shopee、Lazada 已支持真实库存同步（测试中 / beta）；Amazon 仍为 planned。mock 店铺仍走模拟库存同步。
+        TikTok Shop、Shopee、Lazada、抖店已支持库存同步（测试中 / beta）；Amazon 仍为 planned。mock 店铺仍走模拟库存同步。
       </Typography.Paragraph>
       <ProTable<InventorySyncTaskDTO>
         rowKey="id"

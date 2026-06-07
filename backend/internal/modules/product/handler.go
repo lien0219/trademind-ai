@@ -1,12 +1,17 @@
 package product
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -14,7 +19,17 @@ import (
 
 // Handler exposes product draft HTTP API.
 type Handler struct {
-	Svc *Service
+	Svc   *Service
+	Files *files.Service
+}
+
+func failProductPlatformConfig(c *gin.Context, err error) {
+	var ce *shop.DouyinCategoryError
+	if errors.As(err, &ce) {
+		response.JSON(c, 400, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
+		return
+	}
+	response.Fail(c, 400, response.CodeBadRequest, err.Error())
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -142,6 +157,290 @@ func (h *Handler) Put(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// GetPlatformPublishConfig GET /api/v1/products/:id/platform-configs/:platform
+func (h *Handler) GetPlatformPublishConfig(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetPlatformPublishConfig(c, id, c.Param("platform"))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.OK(c, gin.H{
+				"productId":          id,
+				"platform":           strings.TrimSpace(strings.ToLower(c.Param("platform"))),
+				"platformAttributes": gin.H{},
+			})
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// PutPlatformPublishConfig PUT /api/v1/products/:id/platform-configs/:platform
+func (h *Handler) PutPlatformPublishConfig(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body PlatformPublishConfigBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.PutPlatformPublishConfig(c, id, c.Param("platform"), body, adminUUID(c))
+	if err != nil {
+		failProductPlatformConfig(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// BuildDouyinDraftMapping POST /api/v1/products/:id/platform-configs/douyin_shop/build-mapping
+func (h *Handler) BuildDouyinDraftMapping(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		ShopID string `json:"shopId"`
+	}
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.BuildDouyinDraftMapping(c.Request.Context(), id, body.ShopID)
+	if err == nil {
+		err = h.Svc.SaveDouyinDraftMapping(c.Request.Context(), id, out)
+	}
+	if err != nil {
+		if h.Svc.OpLog != nil {
+			_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminUUID(c),
+				Action:      "douyin.mapping.failed",
+				Resource:    "product",
+				ResourceID:  id.String(),
+				Status:      "failed",
+				Message:     "build failed: " + err.Error(),
+			})
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminUUID(c),
+			Action:      "douyin.mapping.build",
+			Resource:    "product",
+			ResourceID:  id.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("errors=%d warnings=%d", len(out.Errors), len(out.Warnings)),
+		})
+	}
+	response.OK(c, out)
+}
+
+// GetDouyinDraftMapping GET /api/v1/products/:id/platform-configs/douyin_shop/mapping
+func (h *Handler) GetDouyinDraftMapping(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetDouyinDraftMapping(c.Request.Context(), id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.OK(c, gin.H{"platform": "douyin_shop", "productId": id.String(), "warnings": []DouyinMappingIssue{}, "errors": []DouyinMappingIssue{}})
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// PutDouyinDraftMapping PUT /api/v1/products/:id/platform-configs/douyin_shop/mapping
+func (h *Handler) PutDouyinDraftMapping(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinDraftMapping
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if err := h.Svc.SaveDouyinDraftMapping(c.Request.Context(), id, &body); err != nil {
+		if h.Svc.OpLog != nil {
+			_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminUUID(c),
+				Action:      "douyin.mapping.failed",
+				Resource:    "product",
+				ResourceID:  id.String(),
+				Status:      "failed",
+				Message:     "save failed: " + err.Error(),
+			})
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	out, _ := h.Svc.GetDouyinDraftMapping(c.Request.Context(), id)
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminUUID(c),
+			Action:      "douyin.mapping.save",
+			Resource:    "product",
+			ResourceID:  id.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("errors=%d warnings=%d", len(body.Errors), len(body.Warnings)),
+		})
+	}
+	response.OK(c, out)
+}
+
+// ValidateDouyinDraftMapping POST /api/v1/products/:id/platform-configs/douyin_shop/validate
+func (h *Handler) ValidateDouyinDraftMapping(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var mapping *DouyinDraftMapping
+	if c.Request.ContentLength > 0 {
+		var body DouyinDraftMapping
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+		body.ProductID = id.String()
+		mapping = &body
+	} else {
+		mapping, err = h.Svc.GetDouyinDraftMapping(c.Request.Context(), id)
+		if err != nil {
+			response.HandleError(c, err)
+			return
+		}
+	}
+	out, err := h.Svc.ValidateDouyinDraftMapping(c.Request.Context(), mapping)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		action := "douyin.mapping.validate"
+		status := "success"
+		if out.ErrorCount > 0 {
+			action = "douyin.mapping.failed"
+			status = "failed"
+		}
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminUUID(c),
+			Action:      action,
+			Resource:    "product",
+			ResourceID:  id.String(),
+			Status:      status,
+			Message:     fmt.Sprintf("errors=%d warnings=%d", out.ErrorCount, out.WarningCount),
+		})
+	}
+	response.OK(c, out)
+}
+
+// UploadDouyinImages POST /api/v1/products/:id/platform-configs/douyin_shop/images/upload
+func (h *Handler) UploadDouyinImages(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinImageUploadBody
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.UploadDouyinImages(c, id, body, adminUUID(c), h.Files)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// RetryDouyinImage POST /api/v1/products/:id/platform-configs/douyin_shop/images/:imageKey/retry
+func (h *Handler) RetryDouyinImage(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.RetryDouyinImage(c, id, c.Param("imageKey"), adminUUID(c), h.Files)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// GetDouyinImageStatus GET /api/v1/products/:id/platform-configs/douyin_shop/images/status
+func (h *Handler) GetDouyinImageStatus(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetDouyinImageStatus(c.Request.Context(), id)
+	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -307,6 +606,36 @@ func (h *Handler) ListAITasks(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"list": items})
+}
+
+// SyncImages POST /api/v1/products/:id/sync-images
+func (h *Handler) SyncImages(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body SyncImagesBody
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.SyncImages(c, id, body, adminUUID(c), h.Files)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
 }
 
 // SearchSKUs GET /api/v1/product-skus/search

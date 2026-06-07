@@ -92,6 +92,21 @@ func (h *Handler) PutPlatformAppSettings(c *gin.Context) {
 	response.OK(c, out)
 }
 
+// TestPlatformAppSettings POST /api/v1/platform/settings/:platform/test-connection
+func (h *Handler) TestPlatformAppSettings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	plat := strings.TrimSpace(c.Param("platform"))
+	out, err := h.Svc.TestPlatformAppSettings(c, plat)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
 // GetPlatformPublishSettings GET /api/v1/platform/publish-settings/:platform
 func (h *Handler) GetPlatformPublishSettings(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -303,6 +318,259 @@ func (h *Handler) TestConnection(c *gin.Context) {
 		return
 	}
 	response.OK(c, res)
+}
+
+func failDouyin(c *gin.Context, err error) {
+	var ce *DouyinCategoryError
+	if errors.As(err, &ce) {
+		response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
+		return
+	}
+	var de *DouyinAuthError
+	if errors.As(err, &de) {
+		response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, de.Message, gin.H{"errorCode": de.Code})
+		return
+	}
+	response.Fail(c, 400, response.CodeBadRequest, err.Error())
+}
+
+// ListDouyinCategories GET /api/v1/platform/douyin/categories
+func (h *Handler) ListDouyinCategories(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var shopID *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		shopID = &u
+	}
+	out, err := h.Svc.ListDouyinCategories(c, DouyinCategoryListQuery{
+		Keyword:  c.Query("keyword"),
+		ParentID: c.Query("parentId"),
+		OnlyLeaf: queryBoolShop(c, "onlyLeaf"),
+		Refresh:  queryBoolShop(c, "refresh"),
+		ShopID:   shopID,
+	}, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// SyncDouyinCategories POST /api/v1/platform/douyin/categories/sync
+func (h *Handler) SyncDouyinCategories(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var body struct {
+		ShopID string `json:"shopId"`
+	}
+	if c.Request.ContentLength > 0 {
+		_ = c.ShouldBindJSON(&body)
+	}
+	sid, err := uuid.Parse(strings.TrimSpace(firstNonEmptyDouyin(body.ShopID, c.Query("shopId"))))
+	if err != nil || sid == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	out, err := h.Svc.SyncDouyinCategories(c, sid, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// ListDouyinCategoryAttributes GET /api/v1/platform/douyin/categories/:categoryId/attributes
+func (h *Handler) ListDouyinCategoryAttributes(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	out, err := h.Svc.ListDouyinCategoryAttributes(c.Request.Context(), strings.TrimSpace(c.Param("categoryId")))
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+// SyncDouyinCategoryAttributes POST /api/v1/platform/douyin/categories/:categoryId/attributes/sync
+func (h *Handler) SyncDouyinCategoryAttributes(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var body struct {
+		ShopID string `json:"shopId"`
+	}
+	if c.Request.ContentLength > 0 {
+		_ = c.ShouldBindJSON(&body)
+	}
+	sid, err := uuid.Parse(strings.TrimSpace(firstNonEmptyDouyin(body.ShopID, c.Query("shopId"))))
+	if err != nil || sid == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	out, err := h.Svc.SyncDouyinCategoryAttributes(c, sid, strings.TrimSpace(c.Param("categoryId")), adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+// DouyinCategoryStats GET /api/v1/platform/douyin/categories/stats
+func (h *Handler) DouyinCategoryStats(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	out, err := h.Svc.DouyinCategoryStats(c.Request.Context())
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func queryBoolShop(c *gin.Context, key string) bool {
+	v := strings.TrimSpace(strings.ToLower(c.Query(key)))
+	return v == "1" || v == "true" || v == "yes"
+}
+
+// DouyinOAuthStart GET /api/v1/shops/oauth/douyin/start
+func (h *Handler) DouyinOAuthStart(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var sid *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		sid = &u
+	}
+	out, err := h.Svc.DouyinOAuthStart(c, sid, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// DouyinOAuthAuthorizeURL GET /api/v1/shops/:id/oauth/douyin/authorize-url
+func (h *Handler) DouyinOAuthAuthorizeURL(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.DouyinOAuthStart(c, &id, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// DouyinOAuthCallback GET /api/v1/shops/oauth/douyin/callback
+func (h *Handler) DouyinOAuthCallback(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		c.Redirect(http.StatusFound, "/settings/platforms?platform=douyin_shop&auth=failed&reason=UNKNOWN_DOUYIN_AUTH_ERROR")
+		return
+	}
+	h.Svc.DouyinOAuthCallbackRedirect(c)
+}
+
+// DouyinOAuthRefresh POST /api/v1/shops/:id/oauth/douyin/refresh
+func (h *Handler) DouyinOAuthRefresh(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.DouyinOAuthRefresh(c, id, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// DouyinOAuthRevoke POST /api/v1/shops/:id/oauth/douyin/revoke
+func (h *Handler) DouyinOAuthRevoke(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.DouyinOAuthRevoke(c, id, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// DouyinOAuthTest POST /api/v1/shops/:id/oauth/douyin/test
+func (h *Handler) DouyinOAuthTest(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.DouyinOAuthTest(c, id, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// DouyinSyncShopInfo POST /api/v1/shops/:id/oauth/douyin/sync-shop-info
+func (h *Handler) DouyinSyncShopInfo(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.DouyinSyncShopInfo(c, id, adminUUID(c))
+	if err != nil {
+		failDouyin(c, err)
+		return
+	}
+	response.OK(c, out)
 }
 
 // TikTokOAuthAuthorizeURL GET /api/v1/shops/:id/oauth/tiktok/authorize-url

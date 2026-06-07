@@ -28,19 +28,21 @@ type QueueMessage struct {
 
 // SyncOrdersBody POST /shops/:id/sync-orders.
 type SyncOrdersBody struct {
-	Mode   string `json:"mode"`
-	Start  string `json:"start"`
-	End    string `json:"end"`
-	Cursor string `json:"cursor"`
-	Limit  int    `json:"limit"`
+	Mode     string `json:"mode"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+	Cursor   string `json:"cursor"`
+	Limit    int    `json:"limit"`
+	MaxPages int    `json:"maxPages"`
 }
 
 type syncInputSnapshot struct {
-	Mode   string `json:"mode"`
-	Start  string `json:"start"`
-	End    string `json:"end"`
-	Cursor string `json:"cursor"`
-	Limit  int    `json:"limit"`
+	Mode     string `json:"mode"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+	Cursor   string `json:"cursor"`
+	Limit    int    `json:"limit"`
+	MaxPages int    `json:"maxPages"`
 }
 
 // ListQuery filters GET /order-sync/tasks.
@@ -166,12 +168,21 @@ func (s *Service) bindInput(body SyncOrdersBody) (syncInputSnapshot, datatypes.J
 		}
 	}
 
+	maxPages := body.MaxPages
+	if maxPages < 0 {
+		maxPages = 0
+	}
+	if maxPages > 50 {
+		maxPages = 50
+	}
+
 	snap := syncInputSnapshot{
-		Mode:   mode,
-		Start:  strings.TrimSpace(body.Start),
-		End:    strings.TrimSpace(body.End),
-		Cursor: strings.TrimSpace(body.Cursor),
-		Limit:  lim,
+		Mode:     mode,
+		Start:    strings.TrimSpace(body.Start),
+		End:      strings.TrimSpace(body.End),
+		Cursor:   strings.TrimSpace(body.Cursor),
+		Limit:    lim,
+		MaxPages: maxPages,
 	}
 	b, err := json.Marshal(snap)
 	if err != nil {
@@ -332,6 +343,16 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "douyin.order.sync.start",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
 	}
 
 	fail := func(msg string) error {
@@ -354,6 +375,16 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				Status:      "failed",
 				Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s error=%s", taskID.String(), task.ShopID.String(), task.Platform, msg),
 			})
+			if task.Platform == "douyin_shop" {
+				_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+					AdminUserID: task.CreatedBy,
+					Action:      "douyin.order.sync.failed",
+					Resource:    "order_sync_task",
+					ResourceID:  taskID.String(),
+					Status:      "failed",
+					Message:     fmt.Sprintf("taskId=%s shopId=%s error=%s", taskID.String(), task.ShopID.String(), msg),
+				})
+			}
 		}
 		return fmt.Errorf("%s", msg)
 	}
@@ -388,13 +419,14 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		EndTime:   et,
 		Cursor:    snap.Cursor,
 		Limit:     snap.Limit,
+		MaxPages:  snap.MaxPages,
 	})
 	if err != nil {
 		return fail(err.Error())
 	}
 
 	payloads := ToSyncedPayloads(res.Orders)
-	orderIDs, successN, failedN, errUp := s.Orders.UpsertSyncedOrders(ctx, task.ShopID, shopRow.Platform, payloads)
+	orderIDs, successN, failedN, createdN, updatedN, errUp := s.Orders.UpsertSyncedOrders(ctx, task.ShopID, shopRow.Platform, payloads)
 	if errUp != nil {
 		return fail(errUp.Error())
 	}
@@ -451,6 +483,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		}
 	}
 
+	deductedStockItems := 0
 	for _, oid := range orderIDs {
 		if oid == uuid.Nil || s.Inventory == nil {
 			continue
@@ -466,18 +499,45 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			slog.Warn("order_inventory_deduct_failed", "taskId", taskID.String(), "orderId", oid.String(), "err", dex.Error())
 			continue
 		}
-		if ds != nil && ds.Skipped {
-			slog.Info("order_inventory_deduct_skipped", "taskId", taskID.String(), "orderId", oid.String(), "reason", ds.SkipReason)
+		if ds != nil {
+			if ds.Skipped {
+				slog.Info("order_inventory_deduct_skipped", "taskId", taskID.String(), "orderId", oid.String(), "reason", ds.SkipReason)
+			} else {
+				deductedStockItems += ds.LinesSynced
+			}
 		}
 	}
 
+	totalFetched := res.TotalFetched
+	if totalFetched <= 0 {
+		totalFetched = len(res.Orders)
+	}
+	nextCur := strings.TrimSpace(res.NextCursor)
+	nextPage := strings.TrimSpace(res.NextPage)
+	if nextPage == "" {
+		nextPage = nextCur
+	}
+
 	outMap := map[string]any{
-		"receivedOrders": len(res.Orders),
-		"upsertSuccess":  successN,
-		"upsertFailed":   failedN,
-		"hasMore":        res.HasMore,
-		"nextCursor":     res.NextCursor,
-		"skuMatch":       skuAgg,
+		"totalFetched":       totalFetched,
+		"totalPages":         res.TotalPages,
+		"successPages":       res.SuccessPages,
+		"failedPages":        res.FailedPages,
+		"nextCursor":         nextCur,
+		"nextPage":           nextPage,
+		"createdOrders":      createdN,
+		"updatedOrders":      updatedN,
+		"matchedItems":       matchedN,
+		"unmatchedItems":     unmatchedN,
+		"deductedStockItems": deductedStockItems,
+		"receivedOrders":     len(res.Orders),
+		"upsertSuccess":      successN,
+		"upsertFailed":       failedN,
+		"hasMore":            res.HasMore,
+		"skuMatch":           skuAgg,
+	}
+	if len(res.PageErrors) > 0 {
+		outMap["pageErrors"] = res.PageErrors
 	}
 	if len(res.RawSummary) > 0 {
 		outMap["providerSummary"] = res.RawSummary
@@ -485,10 +545,13 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	outJSON, _ := json.Marshal(outMap)
 
 	fin := time.Now().UTC()
-	nextCur := strings.TrimSpace(res.NextCursor)
+	finalStatus := StatusSuccess
+	if res.FailedPages > 0 || (failedN > 0 && (successN > 0 || len(res.Orders) > 0)) {
+		finalStatus = StatusPartialSuccess
+	}
 	_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
 		Updates(map[string]any{
-			"status":        StatusSuccess,
+			"status":        finalStatus,
 			"finished_at":   &fin,
 			"total_count":   len(res.Orders),
 			"success_count": successN,
@@ -511,6 +574,17 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			Message: fmt.Sprintf("taskId=%s shopId=%s platform=%s successCount=%d failedCount=%d",
 				taskID.String(), task.ShopID.String(), task.Platform, successN, failedN),
 		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "douyin.order.sync.success",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message: fmt.Sprintf("taskId=%s shopId=%s successCount=%d failedCount=%d matched=%d unmatched=%d ambiguous=%d",
+					taskID.String(), task.ShopID.String(), successN, failedN, matchedN, unmatchedN, ambiguousN),
+			})
+		}
 	}
 	return nil
 }
@@ -645,8 +719,9 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(task.Status) != StatusFailed {
-		return nil, fmt.Errorf("only failed tasks can be retried")
+	st := strings.TrimSpace(task.Status)
+	if st != StatusFailed && st != StatusPartialSuccess {
+		return nil, fmt.Errorf("only failed or partial_success tasks can be retried")
 	}
 
 	reset := time.Now().UTC()
@@ -676,6 +751,16 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 			Status:      "success",
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminID,
+				Action:      "douyin.order.sync.retry",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
 	}
 
 	runInline := func() error {

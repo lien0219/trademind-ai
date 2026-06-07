@@ -19,23 +19,42 @@ type PublishRequestBody struct {
 
 // TaskDTO API shape for CRUD endpoints.
 type TaskDTO struct {
-	ID           uuid.UUID  `json:"id"`
-	ProductID    uuid.UUID  `json:"productId"`
-	ShopID       uuid.UUID  `json:"shopId"`
-	ShopName     string     `json:"shopName,omitempty"`
-	ProductTitle string     `json:"productTitle,omitempty"`
-	Platform     string     `json:"platform"`
-	TaskType     string     `json:"taskType"`
-	Status       string     `json:"status"`
-	Mode         string     `json:"mode"`
-	StartedAt    *time.Time `json:"startedAt,omitempty"`
-	FinishedAt   *time.Time `json:"finishedAt,omitempty"`
-	ErrorMessage string     `json:"errorMessage,omitempty"`
-	Input        any        `json:"input,omitempty"`
-	Output       any        `json:"output,omitempty"`
-	CreatedBy    *uuid.UUID `json:"createdBy,omitempty"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	ID                uuid.UUID  `json:"id"`
+	ProductID         uuid.UUID  `json:"productId"`
+	ShopID            uuid.UUID  `json:"shopId"`
+	TargetStoreID     uuid.UUID  `json:"targetStoreId"`
+	ShopName          string     `json:"shopName,omitempty"`
+	ProductTitle      string     `json:"productTitle,omitempty"`
+	Platform          string     `json:"platform"`
+	TargetPlatform    string     `json:"targetPlatform"`
+	TaskType          string     `json:"taskType"`
+	Status            string     `json:"status"`
+	PublishStatus     string     `json:"publishStatus,omitempty"`
+	Mode              string     `json:"mode"`
+	PublishMode       string     `json:"publishMode,omitempty"`
+	Title             string     `json:"title,omitempty"`
+	Description       string     `json:"description,omitempty"`
+	Images            any        `json:"images,omitempty"`
+	SKUs              any        `json:"skus,omitempty"`
+	Price             *float64   `json:"price,omitempty"`
+	Currency          string     `json:"currency,omitempty"`
+	CheckResult       any        `json:"checkResult,omitempty"`
+	PlatformPayload   any        `json:"platformPayload,omitempty"`
+	PlatformResult    any        `json:"platformResult,omitempty"`
+	PlatformProductID string     `json:"platformProductId,omitempty"`
+	PlatformRawError  any        `json:"platformRawError,omitempty"`
+	Retryable         bool       `json:"retryable,omitempty"`
+	RequestID         string     `json:"requestId,omitempty"`
+	MappingSnapshot   any        `json:"mappingSnapshot,omitempty"`
+	StartedAt         *time.Time `json:"startedAt,omitempty"`
+	FinishedAt        *time.Time `json:"finishedAt,omitempty"`
+	ErrorCode         string     `json:"errorCode,omitempty"`
+	ErrorMessage      string     `json:"errorMessage,omitempty"`
+	Input             any        `json:"input,omitempty"`
+	Output            any        `json:"output,omitempty"`
+	CreatedBy         *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
 	// Readiness is present when the publish path ran a pre-check and there were warnings (no errors).
 	Readiness *productcheck.CheckProductReadinessResult `json:"readiness,omitempty"`
 }
@@ -61,19 +80,20 @@ type ListTasksResult struct {
 
 // PublicationDTO list row for drafts tab.
 type PublicationDTO struct {
-	ID                uuid.UUID  `json:"id"`
-	ProductID         uuid.UUID  `json:"productId"`
-	ShopID            uuid.UUID  `json:"shopId"`
-	ShopName          string     `json:"shopName,omitempty"`
-	Platform          string     `json:"platform"`
-	PublishTaskID     *uuid.UUID `json:"publishTaskId,omitempty"`
-	ExternalProductID string     `json:"externalProductId,omitempty"`
-	ExternalURL       string     `json:"externalUrl,omitempty"`
-	Status            string     `json:"status"`
-	PublishStatus     string     `json:"publishStatus"`
-	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
-	LastSyncedAt      *time.Time `json:"lastSyncedAt,omitempty"`
-	SKUMappingSummary []string   `json:"skuMappingsSummary,omitempty"`
+	ID                 uuid.UUID  `json:"id"`
+	ProductID          uuid.UUID  `json:"productId"`
+	ShopID             uuid.UUID  `json:"shopId"`
+	ShopName           string     `json:"shopName,omitempty"`
+	Platform           string     `json:"platform"`
+	PublishTaskID      *uuid.UUID `json:"publishTaskId,omitempty"`
+	ExternalProductID  string     `json:"externalProductId,omitempty"`
+	ExternalURL        string     `json:"externalUrl,omitempty"`
+	Status             string     `json:"status"`
+	PublishStatus      string     `json:"publishStatus"`
+	PublishedAt        *time.Time `json:"publishedAt,omitempty"`
+	LastSyncedAt       *time.Time `json:"lastSyncedAt,omitempty"`
+	SkuBindingSyncedAt *time.Time `json:"skuBindingSyncedAt,omitempty"`
+	SKUMappingSummary  []string   `json:"skuMappingsSummary,omitempty"`
 }
 
 func pagesOf(total int64, ps int) int {
@@ -97,4 +117,16 @@ func dtoTrimJSON(raw datatypes.JSON) any {
 	}
 	_ = json.Unmarshal(raw, &v)
 	return v
+}
+
+// DouyinManualBindBody POST /product-publication-skus/:id/douyin/bind-sku
+type DouyinManualBindBody struct {
+	PlatformSkuID   string `json:"platformSkuId"`
+	PlatformSkuName string `json:"platformSkuName"`
+	BindReason      string `json:"bindReason"`
+}
+
+// DouyinManualUnbindBody POST /product-publication-skus/:id/douyin/unbind-sku
+type DouyinManualUnbindBody struct {
+	Reason string `json:"reason"`
 }

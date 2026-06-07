@@ -172,9 +172,20 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, m
 			Status:      "failed",
 			Message:     truncateRunes(msg, 2000),
 		})
+		if task.BatchID != nil && isTaobaoTmallCollectSource(task.Source) {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "collect.taobao_tmall.batch.task_failed",
+				Resource:    "collect_task",
+				ResourceID:  tid.String(),
+				Status:      "failed",
+				Message:     truncateRunes(fmt.Sprintf("batchId=%s %s", task.BatchID.String(), msg), 2000),
+			})
+		}
 	}
 	if task.BatchID != nil {
-		s.reconcileCollectBatch(ctx, task.BatchID)
+		s.maybePauseTaobaoTmallBatchOnAuthFailure(ctx, task, payload)
+		s.reconcileCollectBatchWithTerminalLog(ctx, task.BatchID)
 	}
 }
 
@@ -227,7 +238,8 @@ func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask,
 		})
 	}
 	if task.BatchID != nil {
-		s.reconcileCollectBatch(ctx, task.BatchID)
+		s.maybePauseTaobaoTmallBatchOnAuthFailure(ctx, task, payload)
+		s.reconcileCollectBatchWithTerminalLog(ctx, task.BatchID)
 	}
 }
 
@@ -302,6 +314,18 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 		}
 		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildPinduoduoRequestOptions(ctx, task.SourceURL, useProfile))
 	}
+	if isTaobaoTmallCollectSource(task.Source) {
+		useProfile := true
+		if len(task.RequestOptions) > 0 {
+			var snap struct {
+				UseBrowserProfile bool `json:"useBrowserProfile"`
+			}
+			if err := json.Unmarshal(task.RequestOptions, &snap); err == nil && snap.UseBrowserProfile {
+				useProfile = true
+			}
+		}
+		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildTaobaoTmallRequestOptions(ctx, task.SourceURL, useProfile))
+	}
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
 			RuleID            string          `json:"ruleId"`
@@ -348,7 +372,8 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 		collectorOpts["batchMode"] = true
 	}
 
-	outcome, err := s.Client.Collect(ctx, task.Source, task.SourceURL, collectorOpts)
+	collectTimeout := s.collectorHTTPTimeoutForTask(ctx, task, collectorOpts)
+	outcome, err := s.Client.CollectWithTimeout(ctx, task.Source, task.SourceURL, collectorOpts, collectTimeout)
 	if err != nil {
 		s.handleCollectJobError(ctx, task, err)
 		return
@@ -373,6 +398,9 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	}
 	if strings.EqualFold(strings.TrimSpace(task.Source), "pinduoduo") || strings.EqualFold(strings.TrimSpace(task.Source), "pdd") {
 		params, outcome.ProductJSON = normalizePinduoduoImport(task.Source, norm, outcome.ProductJSON)
+	}
+	if isTaobaoTmallCollectSource(task.Source) {
+		params, outcome.ProductJSON = normalizeTaobaoTmallImport(task.Source, norm, outcome.ProductJSON)
 	}
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
@@ -405,7 +433,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	if err := s.DB.WithContext(ctx).First(&refreshed, "id = ?", taskID).Error; err != nil {
 		return
 	}
-	s.reconcileCollectBatch(ctx, refreshed.BatchID)
+	s.reconcileCollectBatchWithTerminalLog(ctx, refreshed.BatchID)
 
 	s.RecordTaskEvent(ctx, &refreshed, TaskEventInput{
 		EventType:  EventTaskSuccess,
@@ -441,6 +469,28 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 				})
 			}
 			msg = fmt.Sprintf("source=pinduoduo success productId=%s warningCount=%d", pid.String(), warnN)
+		} else if isTaobaoTmallCollectSource(refreshed.Source) {
+			action = "collect.taobao_tmall.single"
+			warnN := 0
+			var wrap struct {
+				Raw struct {
+					QualityWarnings []string `json:"qualityWarnings"`
+					Warnings        []string `json:"warnings"`
+				} `json:"raw"`
+			}
+			_ = json.Unmarshal(outcome.ProductJSON, &wrap)
+			warnN = len(wrap.Raw.QualityWarnings) + len(wrap.Raw.Warnings)
+			if warnN > 0 {
+				_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+					AdminUserID: refreshed.CreatedBy,
+					Action:      "collect.taobao_tmall.parse_warning",
+					Resource:    "collect_task",
+					ResourceID:  taskID.String(),
+					Status:      "success",
+					Message:     fmt.Sprintf("source=taobao_tmall warningCount=%d productId=%s", warnN, pid.String()),
+				})
+			}
+			msg = fmt.Sprintf("source=taobao_tmall success productId=%s warningCount=%d", pid.String(), warnN)
 		}
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: refreshed.CreatedBy,
@@ -450,6 +500,24 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			Status:      "success",
 			Message:     msg,
 		})
+		if refreshed.BatchID != nil && isTaobaoTmallCollectSource(refreshed.Source) {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: refreshed.CreatedBy,
+				Action:      "collect.taobao_tmall.batch.task_success",
+				Resource:    "collect_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("batchId=%s productId=%s", refreshed.BatchID.String(), pid.String()),
+			})
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: refreshed.CreatedBy,
+				Action:      "collect.taobao_tmall.batch.draft_created",
+				Resource:    "product",
+				ResourceID:  pid.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("batchId=%s taskId=%s", refreshed.BatchID.String(), taskID.String()),
+			})
+		}
 	}
 }
 
@@ -500,6 +568,11 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	if err := s.ValidateSourceForCollect(c.Request.Context(), source, false); err != nil {
 		return zero, err
 	}
+	if isTaobaoTmallCollectSource(source) {
+		if err := validateTaobaoTmallCollectURL(url); err != nil {
+			return zero, err
+		}
+	}
 	if strings.EqualFold(strings.TrimSpace(source), "custom") {
 		if err := s.checkCustomCollectURLConflict(c.Request.Context(), url); err != nil {
 			return zero, err
@@ -536,13 +609,20 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		reqOpts = blob
 	} else if isPinduoduoCollectSource(source) {
 		reqOpts = s.buildPinduoduoRequestOptions(c.Request.Context(), url, body.UseBrowserProfile)
+	} else if isTaobaoTmallCollectSource(source) {
+		reqOpts = s.buildTaobaoTmallRequestOptions(c.Request.Context(), url, true)
+	}
+
+	maxRetries := s.defaultMaxRetriesForNewTask()
+	if isTaobaoTmallCollectSource(source) {
+		maxRetries = s.taobaoTmallMaxRetries(c.Request.Context())
 	}
 
 	task := &CollectTask{
 		Source:         source,
 		SourceURL:      url,
 		Status:         StatusPending,
-		MaxRetries:     s.defaultMaxRetriesForNewTask(),
+		MaxRetries:     maxRetries,
 		CreatedBy:      adminID,
 		RequestOptions: reqOpts,
 	}
@@ -583,6 +663,9 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		if isPinduoduoCollectSource(source) {
 			action = "collect.pinduoduo.single"
 			msg = "source=pinduoduo taskId=" + task.ID.String()
+		} else if isTaobaoTmallCollectSource(source) {
+			action = "collect.taobao_tmall.single"
+			msg = "source=taobao_tmall taskId=" + task.ID.String()
 		}
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			Action:     action,

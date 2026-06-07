@@ -84,3 +84,40 @@ func TestClampOCRBlockBBoxes(t *testing.T) {
 		t.Fatalf("bbox out of image: %+v", out[0].BBox)
 	}
 }
+
+func TestPreferPolygonBBoxesForRotatedAliyunOCR(t *testing.T) {
+	blocks := []translateTextBlock{
+		{
+			Text:  "炫酷黑",
+			Angle: -89,
+			BBox:  translateTextBBox{X: 774, Y: -15, Width: 87, Height: 264},
+			Polygon: []translateTextPoint{
+				{X: 686, Y: 70},
+				{X: 951, Y: 74},
+				{X: 949, Y: 162},
+				{X: 685, Y: 158},
+			},
+		},
+		{
+			Text:  "折叠伸缩版/通用手机",
+			Angle: -89,
+			BBox:  translateTextBBox{X: 760, Y: 29, Width: 40, Height: 356},
+			Polygon: []translateTextPoint{
+				{X: 602, Y: 185},
+				{X: 958, Y: 189},
+				{X: 958, Y: 229},
+				{X: 601, Y: 225},
+			},
+		},
+	}
+	out := preferPolygonBBoxesForRotatedOCR(blocks, 987, 987)
+	if out[0].BBox.Width < 250 || out[0].BBox.Height < 80 {
+		t.Fatalf("title should use polygon bbox, got %+v", out[0].BBox)
+	}
+	if out[1].BBox.Width < 330 || out[1].BBox.Height < 35 {
+		t.Fatalf("pill should use polygon bbox, got %+v", out[1].BBox)
+	}
+	if out[1].BBox.X > 620 || out[1].BBox.Y < 180 {
+		t.Fatalf("pill bbox should cover original top-right capsule, got %+v", out[1].BBox)
+	}
+}

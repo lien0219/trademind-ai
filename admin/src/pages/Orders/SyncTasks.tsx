@@ -4,7 +4,7 @@ import {
   type ActionType,
   type ProColumns,
 } from '@ant-design/pro-components';
-import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Button, Drawer, Popconfirm, Space, Tag, Typography, Alert, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef, useState } from 'react';
@@ -66,6 +66,14 @@ export default function OrderSyncTasksPage() {
         title: 'platform',
         dataIndex: 'platform',
         width: 100,
+        valueEnum: {
+          douyin_shop: { text: '抖店' },
+          tiktok: { text: 'TikTok' },
+          shopee: { text: 'Shopee' },
+          lazada: { text: 'Lazada' },
+          amazon: { text: 'Amazon' },
+          mock: { text: 'Mock' },
+        },
       },
       {
         title: '模式',
@@ -135,7 +143,7 @@ export default function OrderSyncTasksPage() {
             >
               查看
             </a>
-            {r.status === 'failed' ? (
+            {r.status === 'failed' || r.status === 'partial_success' ? (
               <Popconfirm
                 title="确认重试该同步任务？"
                 onConfirm={async () => {
@@ -158,6 +166,13 @@ export default function OrderSyncTasksPage() {
 
   return (
     <PageContainer title="订单同步任务">
+      <Alert
+        showIcon
+        type="info"
+        style={{ marginBottom: 16 }}
+        message="抖店订单同步说明"
+        description="须先在「设置 → 平台开放配置 → 抖店」开启「启用订单同步」，并在「店铺管理」完成授权。未授权或授权过期时不能同步；失败任务可在本页重试或到「失败任务中心」查看。买家收货信息已脱敏展示。"
+      />
       <ProTable<OrderSyncTaskDTO>
         rowKey="id"
         actionRef={actionRef}
@@ -213,6 +228,45 @@ export default function OrderSyncTasksPage() {
               </pre>
             </Typography.Paragraph>
             <Typography.Title level={5}>输出摘要</Typography.Title>
+            {detail.output && typeof detail.output === 'object' ? (
+              <>
+                {'totalFetched' in (detail.output as object) ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>拉取：</Typography.Text>{' '}
+                    {(detail.output as { totalFetched?: number }).totalFetched ?? 0} 条 · 页{' '}
+                    {(detail.output as { successPages?: number }).successPages ?? 0}/
+                    {(detail.output as { totalPages?: number }).totalPages ?? 0} 成功
+                    {(detail.output as { failedPages?: number }).failedPages
+                      ? ` · ${(detail.output as { failedPages?: number }).failedPages} 页失败`
+                      : ''}
+                  </Typography.Paragraph>
+                ) : null}
+                {'createdOrders' in (detail.output as object) ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>订单：</Typography.Text> 新建{' '}
+                    {(detail.output as { createdOrders?: number }).createdOrders ?? 0} · 更新{' '}
+                    {(detail.output as { updatedOrders?: number }).updatedOrders ?? 0}
+                  </Typography.Paragraph>
+                ) : null}
+                {'matchedItems' in (detail.output as object) ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>SKU 匹配：</Typography.Text> 已匹配{' '}
+                    {(detail.output as { matchedItems?: number }).matchedItems ?? 0} · 未匹配{' '}
+                    {(detail.output as { unmatchedItems?: number }).unmatchedItems ?? 0}
+                    {(detail.output as { deductedStockItems?: number }).deductedStockItems
+                      ? ` · 扣库 ${(detail.output as { deductedStockItems?: number }).deductedStockItems} 行`
+                      : ''}
+                  </Typography.Paragraph>
+                ) : null}
+                {'nextPage' in (detail.output as object) &&
+                (detail.output as { nextPage?: string }).nextPage ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>续拉游标：</Typography.Text>{' '}
+                    {(detail.output as { nextPage?: string }).nextPage}
+                  </Typography.Paragraph>
+                ) : null}
+              </>
+            ) : null}
             <Typography.Paragraph>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
                 {JSON.stringify(detail.output ?? {}, null, 2)}

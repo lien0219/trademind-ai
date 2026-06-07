@@ -29,6 +29,10 @@ func (h *Handler) CreateBatch(c *gin.Context) {
 			response.Fail(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable, err.Error())
 			return
 		}
+		if errors.Is(err, ErrTaobaoTmallBatchLoginRequired) || errors.Is(err, ErrTaobaoTmallBatchVerifyRequired) {
+			response.Fail(c, 400, response.CodeBadRequest, err.Error())
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

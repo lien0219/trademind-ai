@@ -64,3 +64,36 @@ type PinduoduoCheckLoginBody struct {
 	URL     string `json:"url"`
 	TestURL string `json:"testUrl"`
 }
+
+// ProviderTaobaoTmallAuthStatusDTO mirrors collector taobao_tmall auth check responses.
+type ProviderTaobaoTmallAuthStatusDTO struct {
+	Provider         string `json:"provider"`
+	ProfileKey       string `json:"profileKey"`
+	Status           string `json:"status"`
+	LoginStatus      string `json:"loginStatus"`
+	LoggedIn         bool   `json:"loggedIn"`
+	NeedVerification bool   `json:"needVerification"`
+	Message          string `json:"message"`
+	LastCheckedAt    string `json:"lastCheckedAt"`
+	CheckedURL       string `json:"checkedUrl"`
+	FinalURL         string `json:"finalUrl"`
+	ProfilePath      string `json:"profilePath,omitempty"`
+}
+
+// ProviderTaobaoTmallOpenLoginResultDTO mirrors collector POST /v1/providers/taobao_tmall/open-login-browser.
+type ProviderTaobaoTmallOpenLoginResultDTO struct {
+	ProfilePath string `json:"profilePath,omitempty"`
+	Message     string `json:"message"`
+	AlreadyOpen bool   `json:"alreadyOpen"`
+}
+
+// TaobaoTmallOpenLoginBody optional login entry URL.
+type TaobaoTmallOpenLoginBody struct {
+	URL string `json:"url"`
+}
+
+// TaobaoTmallCheckLoginBody optional URLs for login status check.
+type TaobaoTmallCheckLoginBody struct {
+	URL     string `json:"url"`
+	TestURL string `json:"testUrl"`
+}

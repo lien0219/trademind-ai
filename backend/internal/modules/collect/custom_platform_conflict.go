@@ -29,6 +29,8 @@ func customCollectConflictMessage(platform collectdomain.PlatformID, providerNam
 		return "该链接属于 AliExpress 平台，请使用「速卖通采集器」。专用采集器字段识别更稳定。"
 	case collectdomain.PlatformPdd:
 		return "该链接属于拼多多平台，请使用「拼多多采集器」。专用采集器字段识别更稳定。"
+	case collectdomain.PlatformTaobaoTmall:
+		return "该链接属于淘宝/天猫平台，请使用「淘宝/天猫采集器」。专用采集器字段识别更稳定，请勿使用自定义采集器。"
 	default:
 		if name != "" {
 			return "该链接属于已配置专用采集器的平台，请使用「" + name + "」。"

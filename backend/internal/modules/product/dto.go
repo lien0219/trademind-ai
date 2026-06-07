@@ -33,6 +33,27 @@ type UpdateBody struct {
 	Status        *string `json:"status"`
 }
 
+// PlatformPublishConfigBody binds PUT /products/:id/platform-configs/:platform.
+type PlatformPublishConfigBody struct {
+	ShopID             string          `json:"shopId"`
+	CategoryID         string          `json:"categoryId"`
+	CategoryPath       string          `json:"categoryPath"`
+	PlatformAttributes json.RawMessage `json:"platformAttributes"`
+}
+
+type PlatformPublishConfigDTO struct {
+	ProductID          uuid.UUID           `json:"productId"`
+	Platform           string              `json:"platform"`
+	ShopID             *uuid.UUID          `json:"shopId,omitempty"`
+	CategoryID         string              `json:"categoryId,omitempty"`
+	CategoryPath       string              `json:"categoryPath,omitempty"`
+	PlatformAttributes json.RawMessage     `json:"platformAttributes,omitempty"`
+	Mapping            *DouyinDraftMapping `json:"mapping,omitempty"`
+	LastMappedAt       *time.Time          `json:"lastMappedAt,omitempty"`
+	CreatedAt          time.Time           `json:"createdAt"`
+	UpdatedAt          time.Time           `json:"updatedAt"`
+}
+
 // UnmarshalJSON merges alternate snake_case keys with camelCase.
 func (b *UpdateBody) UnmarshalJSON(data []byte) error {
 	var raw map[string]json.RawMessage
@@ -172,23 +193,33 @@ type ListResult struct {
 
 // DetailDTO is product detail with nested images and SKUs.
 type DetailDTO struct {
-	ID            uuid.UUID       `json:"id"`
-	TenantID      int64           `json:"tenantId"`
-	CreatedBy     *uuid.UUID      `json:"createdBy,omitempty"`
-	Source        string          `json:"source"`
-	SourceURL     string          `json:"sourceUrl"`
-	OriginalTitle string          `json:"originalTitle"`
-	Title         string          `json:"title"`
-	AITitle       string          `json:"aiTitle"`
-	Description   string          `json:"description"`
-	AIDescription string          `json:"aiDescription"`
-	Currency      string          `json:"currency"`
-	Status        string          `json:"status"`
-	RawData       json.RawMessage `json:"rawData,omitempty"`
-	CreatedAt     time.Time       `json:"createdAt"`
-	UpdatedAt     time.Time       `json:"updatedAt"`
-	Images        []ProductImage  `json:"images"`
-	SKUs          []ProductSKU    `json:"skus"`
+	ID                uuid.UUID       `json:"id"`
+	TenantID          int64           `json:"tenantId"`
+	CreatedBy         *uuid.UUID      `json:"createdBy,omitempty"`
+	Source            string          `json:"source"`
+	SourceURL         string          `json:"sourceUrl"`
+	OriginalTitle     string          `json:"originalTitle"`
+	Title             string          `json:"title"`
+	AITitle           string          `json:"aiTitle"`
+	Description       string          `json:"description"`
+	AIDescription     string          `json:"aiDescription"`
+	Currency          string          `json:"currency"`
+	Status            string          `json:"status"`
+	RawData           json.RawMessage `json:"rawData,omitempty"`
+	Raw               json.RawMessage `json:"raw,omitempty"`
+	MainImages        []string        `json:"mainImages"`
+	DescriptionImages []string        `json:"descriptionImages"`
+	Attributes        json.RawMessage `json:"attributes,omitempty"`
+	SKUGroups         json.RawMessage `json:"skuGroups,omitempty"`
+	CostPrice         *float64        `json:"costPrice,omitempty"`
+	SalePrice         *float64        `json:"salePrice,omitempty"`
+	Stock             *int            `json:"stock,omitempty"`
+	CollectWarnings   []string        `json:"collectWarnings"`
+	PublishStatus     string          `json:"publishStatus"`
+	CreatedAt         time.Time       `json:"createdAt"`
+	UpdatedAt         time.Time       `json:"updatedAt"`
+	Images            []ProductImage  `json:"images"`
+	SKUs              []ProductSKU    `json:"skus"`
 }
 
 // ImportDraftParams converts collector output into a product draft (no collect package import).

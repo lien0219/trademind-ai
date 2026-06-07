@@ -16,7 +16,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
 
 // Service handles product draft persistence.
@@ -27,6 +29,17 @@ type Service struct {
 	Prompts   *aiprompt.Service
 	AITasks   *aitask.Service
 	AIGateway *aigate.Gateway
+
+	Shops               DouyinShopClientFactory
+	DouyinImageUploader DouyinImageUploader
+}
+
+type DouyinShopClientFactory interface {
+	DouyinClientForShop(c *gin.Context, ctx context.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformdouyin.Client, *shop.Shop, error)
+}
+
+type DouyinImageUploader interface {
+	UploadImage(ctx context.Context, shopID string, req platformdouyin.UploadImageRequest) (*platformdouyin.PlatformImage, error)
 }
 
 func clampPage(page, ps int) (int, int) {
@@ -261,24 +274,183 @@ func toDetailDTO(p *Product) *DetailDTO {
 	if len(p.RawData) > 0 {
 		raw = json.RawMessage(p.RawData)
 	}
+	mainImages, descriptionImages := productImageURLs(p.Images)
+	attrs, skuGroups := rawDraftDebugFields(raw)
+	costPrice, salePrice, stock := productAggregatePricesAndStock(p.SKUs)
 	return &DetailDTO{
-		ID:            p.ID,
-		TenantID:      p.TenantID,
-		CreatedBy:     p.CreatedBy,
-		Source:        p.Source,
-		SourceURL:     p.SourceURL,
-		OriginalTitle: p.OriginalTitle,
-		Title:         p.Title,
-		AITitle:       p.AITitle,
-		Description:   p.Description,
-		AIDescription: p.AIDescription,
-		Currency:      p.Currency,
-		Status:        p.Status,
-		RawData:       raw,
-		CreatedAt:     p.CreatedAt,
-		UpdatedAt:     p.UpdatedAt,
-		Images:        p.Images,
-		SKUs:          p.SKUs,
+		ID:                p.ID,
+		TenantID:          p.TenantID,
+		CreatedBy:         p.CreatedBy,
+		Source:            p.Source,
+		SourceURL:         p.SourceURL,
+		OriginalTitle:     p.OriginalTitle,
+		Title:             p.Title,
+		AITitle:           p.AITitle,
+		Description:       p.Description,
+		AIDescription:     p.AIDescription,
+		Currency:          p.Currency,
+		Status:            p.Status,
+		RawData:           raw,
+		Raw:               raw,
+		MainImages:        mainImages,
+		DescriptionImages: descriptionImages,
+		Attributes:        attrs,
+		SKUGroups:         skuGroups,
+		CostPrice:         costPrice,
+		SalePrice:         salePrice,
+		Stock:             stock,
+		CollectWarnings:   collectWarningsFromRaw(raw),
+		PublishStatus:     draftPublishStatus(p.Status),
+		CreatedAt:         p.CreatedAt,
+		UpdatedAt:         p.UpdatedAt,
+		Images:            p.Images,
+		SKUs:              p.SKUs,
+	}
+}
+
+func productImageURLs(rows []ProductImage) ([]string, []string) {
+	main := make([]string, 0)
+	detail := make([]string, 0)
+	for _, im := range rows {
+		u := strings.TrimSpace(im.PublicURL)
+		if u == "" {
+			u = strings.TrimSpace(im.OriginURL)
+		}
+		if u == "" {
+			u = strings.TrimSpace(im.ObjectKey)
+		}
+		if u == "" {
+			continue
+		}
+		t := strings.TrimSpace(strings.ToLower(im.ImageType))
+		if t == ImageTypeDescription {
+			t = ImageTypeDetail
+		}
+		switch t {
+		case ImageTypeMain:
+			main = append(main, u)
+		case ImageTypeDetail:
+			detail = append(detail, u)
+		}
+	}
+	return main, detail
+}
+
+func productAggregatePricesAndStock(rows []ProductSKU) (*float64, *float64, *int) {
+	var cost, sale *float64
+	var stock *int
+	for _, row := range rows {
+		if row.CostPrice != nil {
+			v := *row.CostPrice
+			if cost == nil || v < *cost {
+				cost = &v
+			}
+		}
+		if row.Price != nil {
+			v := *row.Price
+			if sale == nil || v < *sale {
+				sale = &v
+			}
+		}
+		if row.Stock != nil {
+			cur := 0
+			if stock != nil {
+				cur = *stock
+			}
+			cur += *row.Stock
+			stock = &cur
+		}
+	}
+	return cost, sale, stock
+}
+
+func rawDraftDebugFields(raw json.RawMessage) (json.RawMessage, json.RawMessage) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return nil, nil
+	}
+	attrs := firstRawField(root, "attributes", "attrs")
+	skuGroups := firstRawField(root, "skuGroups", "sku_groups")
+	if skuGroups == nil {
+		if rawObj := nestedRawMap(root); rawObj != nil {
+			skuGroups = firstRawField(rawObj, "skuGroups", "sku_groups", "skuBase")
+		}
+	}
+	return attrs, skuGroups
+}
+
+func firstRawField(m map[string]json.RawMessage, keys ...string) json.RawMessage {
+	for _, k := range keys {
+		if v, ok := m[k]; ok && len(v) > 0 && string(v) != "null" {
+			return v
+		}
+	}
+	return nil
+}
+
+func nestedRawMap(root map[string]json.RawMessage) map[string]json.RawMessage {
+	var rawObj map[string]json.RawMessage
+	if v, ok := root["raw"]; ok {
+		_ = json.Unmarshal(v, &rawObj)
+	}
+	return rawObj
+}
+
+func collectWarningsFromRaw(raw json.RawMessage) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return nil
+	}
+	out := make([]string, 0)
+	seen := map[string]struct{}{}
+	add := func(items []string) {
+		for _, s := range items {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			key := strings.ToLower(s)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	readList := func(m map[string]json.RawMessage, key string) []string {
+		var ss []string
+		if v, ok := m[key]; ok {
+			_ = json.Unmarshal(v, &ss)
+		}
+		return ss
+	}
+	for _, k := range []string{"collectWarnings", "warnings", "qualityWarnings"} {
+		add(readList(root, k))
+	}
+	if rawObj := nestedRawMap(root); rawObj != nil {
+		for _, k := range []string{"collectWarnings", "warnings", "qualityWarnings"} {
+			add(readList(rawObj, k))
+		}
+	}
+	return out
+}
+
+func draftPublishStatus(status string) string {
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case StatusPublished:
+		return "success"
+	case StatusArchived:
+		return "cancelled"
+	case StatusReady:
+		return "ready"
+	default:
+		return "draft"
 	}
 }
 

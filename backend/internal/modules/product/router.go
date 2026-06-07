@@ -12,6 +12,15 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/products/:id", h.Get)
 	g.PUT("/products/:id", h.Put)
 	g.DELETE("/products/:id", h.Delete)
+	g.POST("/products/:id/platform-configs/douyin_shop/build-mapping", h.BuildDouyinDraftMapping)
+	g.GET("/products/:id/platform-configs/douyin_shop/mapping", h.GetDouyinDraftMapping)
+	g.PUT("/products/:id/platform-configs/douyin_shop/mapping", h.PutDouyinDraftMapping)
+	g.POST("/products/:id/platform-configs/douyin_shop/validate", h.ValidateDouyinDraftMapping)
+	g.POST("/products/:id/platform-configs/douyin_shop/images/upload", h.UploadDouyinImages)
+	g.POST("/products/:id/platform-configs/douyin_shop/images/:imageKey/retry", h.RetryDouyinImage)
+	g.GET("/products/:id/platform-configs/douyin_shop/images/status", h.GetDouyinImageStatus)
+	g.GET("/products/:id/platform-configs/:platform", h.GetPlatformPublishConfig)
+	g.PUT("/products/:id/platform-configs/:platform", h.PutPlatformPublishConfig)
 
 	g.GET("/product-skus/search", h.SearchSKUs)
 
@@ -21,6 +30,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.DELETE("/products/:id/skus/:skuId", h.DeleteSKU)
 
 	g.POST("/products/:id/images/reorder", h.PostImagesReorder)
+	g.POST("/products/:id/sync-images", h.SyncImages)
 	g.POST("/products/:id/images", h.PostImage)
 	g.PUT("/products/:id/images/:imageId", h.PutImage)
 	g.DELETE("/products/:id/images/:imageId", h.DeleteImage)

@@ -24,14 +24,18 @@ import { queryCollectProviders } from '@/services/collectProviders';
 import { collectProviderStatusPresentation } from '@/utils/collectProviderStatus';
 import {
   checkPinduoduoLogin,
+  checkTaobaoTmallLogin,
   fetch1688AuthStatus,
   open1688LoginBrowser,
   openPinduoduoLoginBrowser,
+  openTaobaoTmallLoginBrowser,
   type Provider1688AuthStatus,
   type Provider1688AuthStatusValue,
   type ProviderPinduoduoAuthStatus,
   type ProviderPinduoduoAuthStatusValue,
+  type ProviderTaobaoTmallAuthStatus,
 } from '@/services/collectAuth';
+import { CollectorTaobaoTmallSection } from '@/pages/Settings/Collector/TaobaoTmallSection';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
 import {
   COLLECT_SETTINGS_PROVIDER_OPTIONS,
@@ -72,13 +76,30 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_pinduoduo_batch_delay_min_ms: {},
   collect_pinduoduo_batch_delay_max_ms: {},
   collect_pinduoduo_batch_max_retries: {},
+  collect_taobao_tmall_timeout_ms: {},
+  collect_taobao_tmall_auth_check_url: {},
+  collect_taobao_tmall_access_check_enabled: {},
+  collect_taobao_tmall_retry_on_failure: {},
+  collect_taobao_tmall_max_retries: {},
+  collect_taobao_tmall_scroll_wait_enabled: {},
+  collect_taobao_tmall_detail_image_wait_ms: {},
+  collect_taobao_tmall_sku_click_enabled: {},
+  collect_taobao_tmall_sku_click_max: {},
+  collect_taobao_tmall_batch_enabled: {},
+  collect_taobao_tmall_batch_max_items: {},
+  collect_taobao_tmall_batch_concurrency: {},
+  collect_taobao_tmall_batch_delay_min_ms: {},
+  collect_taobao_tmall_batch_delay_max_ms: {},
+  collect_taobao_tmall_batch_max_retries: {},
+  collect_taobao_tmall_batch_pause_on_login: {},
+  collect_taobao_tmall_batch_pause_on_verify: {},
 };
 
 const PROVIDER_CARD_DESC: Record<CollectSettingsProviderKey, string> = {
   '1688': '登录态检测与批量采集节流',
   aliexpress: 'Beta 单条采集与重试策略',
   pinduoduo: '拼多多登录态、访问检测与批量限速',
-  taobao: '暂未开放，预留配置入口',
+  taobao_tmall: '淘宝/天猫登录态、单品与批量采集限速',
   shein_temu: '暂未开放，预留配置入口',
   custom: '登录状态、采集规则与页面访问检测',
 };
@@ -237,7 +258,7 @@ function Collector1688Section({
   return (
     <ProCard
       title="1688 专属配置"
-      bordered
+      variant="outlined"
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">
@@ -344,7 +365,7 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
   const statusTag = providerRow ? collectProviderStatusPresentation(providerRow.source, providerRow.status) : null;
 
   return (
-    <ProCard title="自定义链接专属配置" bordered className="tm-collector-settings__panel">
+    <ProCard title="自定义链接专属配置" variant="outlined" className="tm-collector-settings__panel">
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         {statusTag ? (
           <div className="tm-collector-auth-panel">
@@ -414,7 +435,7 @@ function CollectorAliExpressSection({ providerRow }: { providerRow?: CollectProv
   const isBeta = providerRow?.status === 'beta';
 
   return (
-    <ProCard title="速卖通专属配置" bordered className="tm-collector-settings__panel">
+    <ProCard title="速卖通专属配置" variant="outlined" className="tm-collector-settings__panel">
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <div className="tm-collector-auth-panel">
           <Space wrap>
@@ -513,7 +534,7 @@ function CollectorPinduoduoSection({
   return (
     <ProCard
       title="拼多多专属配置"
-      bordered
+      variant="outlined"
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">
@@ -698,7 +719,7 @@ function CollectorPinduoduoSection({
 
 function CollectorPlannedSection({ providerLabel }: { providerLabel: string }) {
   return (
-    <ProCard bordered className="tm-collector-settings__panel">
+    <ProCard variant="outlined" className="tm-collector-settings__panel">
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={
@@ -731,6 +752,10 @@ export default function CollectorSettingsPage() {
   const [pddAuthChecking, setPddAuthChecking] = useState(false);
   const [pddAuthLoaded, setPddAuthLoaded] = useState(false);
   const [pddLoginOpening, setPddLoginOpening] = useState(false);
+  const [tbAuthStatus, setTbAuthStatus] = useState<ProviderTaobaoTmallAuthStatus | null>(null);
+  const [tbAuthChecking, setTbAuthChecking] = useState(false);
+  const [tbAuthLoaded, setTbAuthLoaded] = useState(false);
+  const [tbLoginOpening, setTbLoginOpening] = useState(false);
 
   const providerKey = useMemo(
     () => resolveCollectSettingsProvider(new URLSearchParams(location.search || '').get('provider')),
@@ -778,6 +803,21 @@ export default function CollectorSettingsPage() {
     } finally {
       setPddAuthChecking(false);
       setPddAuthLoaded(true);
+    }
+  }, [form]);
+
+  const loadTbAuthStatus = useCallback(async () => {
+    const testUrl = String(form.getFieldValue('collect_taobao_tmall_auth_check_url') ?? '').trim();
+    setTbAuthChecking(true);
+    try {
+      const data = await checkTaobaoTmallLogin({ testUrl: testUrl || undefined });
+      setTbAuthStatus(data);
+    } catch (e: unknown) {
+      setTbAuthStatus(null);
+      message.error((e as Error)?.message || '淘宝/天猫登录态检测失败');
+    } finally {
+      setTbAuthChecking(false);
+      setTbAuthLoaded(true);
     }
   }, [form]);
 
@@ -836,6 +876,44 @@ export default function CollectorSettingsPage() {
         collect_pinduoduo_batch_max_retries: g.collect_pinduoduo_batch_max_retries
           ? Number(g.collect_pinduoduo_batch_max_retries)
           : 2,
+        collect_taobao_tmall_timeout_ms: g.collect_taobao_tmall_timeout_ms
+          ? Number(g.collect_taobao_tmall_timeout_ms)
+          : 45000,
+        collect_taobao_tmall_auth_check_url: g.collect_taobao_tmall_auth_check_url || '',
+        collect_taobao_tmall_access_check_enabled: parseBoolSetting(
+          g.collect_taobao_tmall_access_check_enabled,
+        ),
+        collect_taobao_tmall_retry_on_failure: parseBoolSetting(g.collect_taobao_tmall_retry_on_failure),
+        collect_taobao_tmall_max_retries: g.collect_taobao_tmall_max_retries
+          ? Number(g.collect_taobao_tmall_max_retries)
+          : 2,
+        collect_taobao_tmall_scroll_wait_enabled: parseBoolSetting(g.collect_taobao_tmall_scroll_wait_enabled),
+        collect_taobao_tmall_detail_image_wait_ms: g.collect_taobao_tmall_detail_image_wait_ms
+          ? Number(g.collect_taobao_tmall_detail_image_wait_ms)
+          : 3000,
+        collect_taobao_tmall_sku_click_enabled: parseBoolSetting(g.collect_taobao_tmall_sku_click_enabled),
+        collect_taobao_tmall_sku_click_max: g.collect_taobao_tmall_sku_click_max
+          ? Number(g.collect_taobao_tmall_sku_click_max)
+          : 24,
+        collect_taobao_tmall_batch_enabled:
+          g.collect_taobao_tmall_batch_enabled !== '0' && g.collect_taobao_tmall_batch_enabled !== 'false',
+        collect_taobao_tmall_batch_max_items: g.collect_taobao_tmall_batch_max_items
+          ? Number(g.collect_taobao_tmall_batch_max_items)
+          : 20,
+        collect_taobao_tmall_batch_concurrency: g.collect_taobao_tmall_batch_concurrency
+          ? Number(g.collect_taobao_tmall_batch_concurrency)
+          : 1,
+        collect_taobao_tmall_batch_delay_min_ms: g.collect_taobao_tmall_batch_delay_min_ms
+          ? Number(g.collect_taobao_tmall_batch_delay_min_ms)
+          : 3500,
+        collect_taobao_tmall_batch_delay_max_ms: g.collect_taobao_tmall_batch_delay_max_ms
+          ? Number(g.collect_taobao_tmall_batch_delay_max_ms)
+          : 6000,
+        collect_taobao_tmall_batch_max_retries: g.collect_taobao_tmall_batch_max_retries
+          ? Number(g.collect_taobao_tmall_batch_max_retries)
+          : 2,
+        collect_taobao_tmall_batch_pause_on_login: parseBoolSetting(g.collect_taobao_tmall_batch_pause_on_login),
+        collect_taobao_tmall_batch_pause_on_verify: parseBoolSetting(g.collect_taobao_tmall_batch_pause_on_verify),
       });
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
@@ -858,7 +936,10 @@ export default function CollectorSettingsPage() {
     if (providerKey === 'pinduoduo') {
       void loadPddAuthStatus();
     }
-  }, [providerKey, loadAuthStatus, loadPddAuthStatus]);
+    if (providerKey === 'taobao_tmall') {
+      void loadTbAuthStatus();
+    }
+  }, [providerKey, loadAuthStatus, loadPddAuthStatus, loadTbAuthStatus]);
 
   const handleProviderChange = (key: CollectSettingsProviderKey) => {
     history.replace(`/settings/collector?provider=${encodeURIComponent(key)}`);
@@ -889,6 +970,20 @@ export default function CollectorSettingsPage() {
       message.error((e as Error)?.message || '打开拼多多采集浏览器失败');
     } finally {
       setPddLoginOpening(false);
+    }
+  };
+
+  const handleOpenTbLoginBrowser = async () => {
+    setTbLoginOpening(true);
+    try {
+      const testUrl = String(form.getFieldValue('collect_taobao_tmall_auth_check_url') ?? '').trim();
+      const result = await openTaobaoTmallLoginBrowser(testUrl || undefined);
+      message.success(result.message || '已打开淘宝/天猫采集浏览器');
+      await loadTbAuthStatus();
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '打开采集浏览器失败');
+    } finally {
+      setTbLoginOpening(false);
     }
   };
 
@@ -927,6 +1022,35 @@ export default function CollectorSettingsPage() {
         collect_pinduoduo_batch_delay_min_ms: String(values.collect_pinduoduo_batch_delay_min_ms ?? 4000),
         collect_pinduoduo_batch_delay_max_ms: String(values.collect_pinduoduo_batch_delay_max_ms ?? 9000),
         collect_pinduoduo_batch_max_retries: String(values.collect_pinduoduo_batch_max_retries ?? 2),
+        collect_taobao_tmall_timeout_ms: String(values.collect_taobao_tmall_timeout_ms ?? 45000),
+        collect_taobao_tmall_auth_check_url: String(values.collect_taobao_tmall_auth_check_url ?? ''),
+        collect_taobao_tmall_access_check_enabled: values.collect_taobao_tmall_access_check_enabled
+          ? '1'
+          : '0',
+        collect_taobao_tmall_retry_on_failure: values.collect_taobao_tmall_retry_on_failure ? '1' : '0',
+        collect_taobao_tmall_max_retries: String(values.collect_taobao_tmall_max_retries ?? 2),
+        collect_taobao_tmall_scroll_wait_enabled: values.collect_taobao_tmall_scroll_wait_enabled ? '1' : '0',
+        collect_taobao_tmall_detail_image_wait_ms: String(
+          values.collect_taobao_tmall_detail_image_wait_ms ?? 3000,
+        ),
+        collect_taobao_tmall_sku_click_enabled: values.collect_taobao_tmall_sku_click_enabled ? '1' : '0',
+        collect_taobao_tmall_sku_click_max: String(values.collect_taobao_tmall_sku_click_max ?? 24),
+        collect_taobao_tmall_batch_enabled: values.collect_taobao_tmall_batch_enabled ? '1' : '0',
+        collect_taobao_tmall_batch_max_items: String(values.collect_taobao_tmall_batch_max_items ?? 20),
+        collect_taobao_tmall_batch_concurrency: String(values.collect_taobao_tmall_batch_concurrency ?? 1),
+        collect_taobao_tmall_batch_delay_min_ms: String(
+          values.collect_taobao_tmall_batch_delay_min_ms ?? 3500,
+        ),
+        collect_taobao_tmall_batch_delay_max_ms: String(
+          values.collect_taobao_tmall_batch_delay_max_ms ?? 6000,
+        ),
+        collect_taobao_tmall_batch_max_retries: String(values.collect_taobao_tmall_batch_max_retries ?? 2),
+        collect_taobao_tmall_batch_pause_on_login: values.collect_taobao_tmall_batch_pause_on_login
+          ? '1'
+          : '0',
+        collect_taobao_tmall_batch_pause_on_verify: values.collect_taobao_tmall_batch_pause_on_verify
+          ? '1'
+          : '0',
       };
       await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
       message.success('已保存');
@@ -960,12 +1084,22 @@ export default function CollectorSettingsPage() {
       onRecheck={loadPddAuthStatus}
       onOpenLogin={handleOpenPddLoginBrowser}
     />
+  ) : providerKey === 'taobao_tmall' ? (
+    <CollectorTaobaoTmallSection
+      providerRow={providerRow}
+      authStatus={tbAuthStatus}
+      authChecking={tbAuthChecking}
+      authLoaded={tbAuthLoaded}
+      loginOpening={tbLoginOpening}
+      onRecheck={loadTbAuthStatus}
+      onOpenLogin={handleOpenTbLoginBrowser}
+    />
   ) : null;
 
   return (
     <PageContainer title="采集设置" subTitle={`当前：${providerOption.label}`}>
       <div className="tm-collector-settings">
-        <ProCard bordered className="tm-collector-settings__selector" title="采集器类型">
+        <ProCard variant="outlined" className="tm-collector-settings__selector" title="采集器类型">
           <CollectorProviderSelector
             activeKey={providerKey}
             providers={providers}
@@ -981,7 +1115,7 @@ export default function CollectorSettingsPage() {
               <Col xs={24} xl={10}>
                 <ProCard
                   title="通用采集设置"
-                  bordered
+                  variant="outlined"
                   className="tm-collector-settings__panel"
                   extra={
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -1024,7 +1158,7 @@ export default function CollectorSettingsPage() {
           )}
 
           {!planned ? (
-            <ProCard bordered className="tm-collector-settings__footer">
+            <ProCard variant="outlined" className="tm-collector-settings__footer">
               <Space wrap className="tm-action-space">
                 <Button type="primary" htmlType="submit" loading={loading}>
                   保存配置

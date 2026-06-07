@@ -1,4 +1,4 @@
-import { ApiOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { ApiOutlined, LinkOutlined, ReloadOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
   Alert,
@@ -32,8 +32,11 @@ import {
   getPlatformAppSettings,
   preferredPlatformTabOrder,
   putPlatformAppSettings,
+  startDouyinOAuth,
+  testPlatformAppSettings,
 } from '@/services/platformOpen';
-import { queryPlatformProviders } from '@/services/shops';
+import { queryPlatformProviders, queryShops, type ShopListRow } from '@/services/shops';
+import { getDouyinCategoryStats, syncDouyinCategories } from '@/services/douyinCategories';
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -113,6 +116,11 @@ function renderFieldControl(f: AppConfigFieldDTO) {
 function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [categorySyncing, setCategorySyncing] = useState(false);
+  const [douyinStats, setDouyinStats] = useState<{ count: number; leafCount: number; lastSyncedAt?: string }>();
+  const [douyinShops, setDouyinShops] = useState<ShopListRow[]>([]);
 
   const schema = meta.appConfigSchema;
   const fields = schema?.fields ?? [];
@@ -125,6 +133,14 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
       const flds = row.schema?.fields?.length ? row.schema.fields : meta.appConfigSchema?.fields ?? [];
       form.resetFields();
       form.setFieldsValue(valuesToFormFields(flds, row.values ?? {}));
+      if (meta.platform === 'douyin_shop') {
+        const [stats, shops] = await Promise.all([
+          getDouyinCategoryStats().catch(() => undefined),
+          queryShops({ page: 1, pageSize: 100, platform: 'douyin_shop', authStatus: 'authorized' }).catch(() => ({ list: [] })),
+        ]);
+        if (stats) setDouyinStats(stats);
+        setDouyinShops(Array.isArray(shops.list) ? shops.list : []);
+      }
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
     } finally {
@@ -137,6 +153,55 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   }, [load]);
 
   const docUrl = externalDocUrlFor(meta.platform);
+
+  const testConnection = useCallback(async () => {
+    setTesting(true);
+    try {
+      const res = await testPlatformAppSettings(meta.platform);
+      if (res.ok) {
+        message.success(res.message || '测试连接通过');
+      } else {
+        message.warning(res.message || '测试连接未通过');
+      }
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '测试连接失败');
+    } finally {
+      setTesting(false);
+    }
+  }, [meta.platform]);
+
+  const connectDouyinShop = useCallback(async () => {
+    setConnecting(true);
+    try {
+      const res = await startDouyinOAuth();
+      const target = res.redirectUrl || res.authorizeUrl;
+      if (!target) {
+        throw new Error('missing douyin authorize url');
+      }
+      window.location.href = target;
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '发起抖店授权失败');
+      setConnecting(false);
+    }
+  }, []);
+
+  const syncDouyinCategoryCache = useCallback(async () => {
+    const shop = douyinShops[0];
+    if (!shop?.id) {
+      message.warning('请先完成抖店店铺授权，再同步类目');
+      return;
+    }
+    setCategorySyncing(true);
+    try {
+      const stats = await syncDouyinCategories(shop.id);
+      setDouyinStats(stats);
+      message.success(`已同步 ${stats.count ?? 0} 个抖店类目`);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '同步类目失败');
+    } finally {
+      setCategorySyncing(false);
+    }
+  }, [douyinShops]);
 
   return (
     <Spin spinning={loading}>
@@ -195,6 +260,24 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
               <Button icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
                 重新加载
               </Button>
+              <Button icon={<ApiOutlined />} onClick={() => void testConnection()} loading={testing} disabled={loading}>
+                测试连接
+              </Button>
+              {meta.platform === 'douyin_shop' ? (
+                <Button icon={<LinkOutlined />} onClick={() => void connectDouyinShop()} loading={connecting} disabled={loading}>
+                  连接店铺
+                </Button>
+              ) : null}
+              {meta.platform === 'douyin_shop' ? (
+                <Button
+                  icon={<SyncOutlined />}
+                  onClick={() => void syncDouyinCategoryCache()}
+                  loading={categorySyncing}
+                  disabled={loading}
+                >
+                  同步类目
+                </Button>
+              ) : null}
               {docUrl ? (
                 <Typography.Link href={docUrl} target="_blank" rel="noreferrer">
                   开放平台文档
@@ -203,6 +286,32 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
             </Space>
           </div>
         </Form>
+        {meta.platform === 'douyin_shop' ? (
+          <Alert
+            showIcon
+            type="info"
+            message="抖店验收前置条件"
+            description={
+              <>
+                在「设置 → 存储」配置抖店可访问的公网 HTTPS 地址（<Typography.Text code>public_base</Typography.Text>）。
+                演示订单/库存/刊登前请开启「启用订单同步」「启用库存同步」「启用商品草稿创建」。
+                App Secret 与店铺 token 不会在本页明文展示。验收步骤见仓库 <Typography.Text code>docs/DOUYIN_E2E_CHECKLIST.md</Typography.Text>。
+              </>
+            }
+          />
+        ) : null}
+        {meta.platform === 'douyin_shop' ? (
+          <Alert
+            showIcon
+            type={douyinStats?.count ? 'success' : 'warning'}
+            message="抖店类目缓存"
+            description={
+              douyinStats?.count
+                ? `类目 ${douyinStats.count} 个，叶子类目 ${douyinStats.leafCount ?? 0} 个，最近同步：${douyinStats.lastSyncedAt || '未知'}`
+                : '暂无抖店类目数据，请先点击「同步类目」。'
+            }
+          />
+        ) : null}
       </Space>
     </Spin>
   );
@@ -236,9 +345,20 @@ export default function PlatformSettingsPage() {
   }, [loadProviders]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('platform') !== 'douyin_shop') return;
+    const auth = params.get('auth');
+    if (auth === 'success') {
+      message.success('抖店店铺授权成功');
+    } else if (auth === 'failed') {
+      message.error(`抖店店铺授权失败：${params.get('reason') || 'UNKNOWN_DOUYIN_AUTH_ERROR'}`);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!tab && withSchema.length > 0) {
-      const tiktok = withSchema.find((p) => p.platform === 'tiktok');
-      setTab((tiktok ?? withSchema[0]).platform);
+      const douyin = withSchema.find((p) => p.platform === 'douyin_shop');
+      setTab((douyin ?? withSchema[0]).platform);
     }
   }, [tab, withSchema]);
 
@@ -259,7 +379,7 @@ export default function PlatformSettingsPage() {
   return (
     <PageContainer title="平台开放配置" subTitle="各跨境平台 Partner 应用参数（App Key / Secret 等），店铺授权在「店铺管理」完成">
       <div className="tm-system-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <ApiOutlined />
@@ -276,7 +396,7 @@ export default function PlatformSettingsPage() {
           </div>
         </ProCard>
 
-        <ProCard bordered title="选择平台" className="tm-system-settings__panel">
+        <ProCard variant="outlined" title="选择平台" className="tm-system-settings__panel">
           <Paragraph type="secondary" style={{ marginBottom: 12 }}>
             开发者门户：
             {PLATFORM_DEV_PORTALS.map((p, i) => (

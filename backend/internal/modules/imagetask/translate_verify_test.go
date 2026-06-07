@@ -38,6 +38,66 @@ func TestRuleBasedShortTextPhoneStand(t *testing.T) {
 	}
 }
 
+func TestCollectTargetKeywordsIncludesRenderedTranslationVariants(t *testing.T) {
+	ocr := &translateOCRResult{
+		Blocks: []translateTextBlock{
+			{
+				Text:                  "炫酷黑",
+				TranslatedText:        "Dark Black",
+				StandardTranslation:   "Cool Black",
+				CompactTranslation:    "Cool Black",
+				BadgeTranslation:      "Cool Black",
+				FixedShortTranslation: "Cool Black",
+			},
+			{
+				Text:               "折叠伸缩版/通用手机",
+				TranslatedText:     "Foldable Telescopic Version / Universal Phone",
+				CompactTranslation: "Universal Stand",
+				BadgeTranslation:   "Universal Stand",
+			},
+		},
+	}
+	keywords := collectTargetKeywords(ocr, "en")
+	if countKeywordHits("Cool Black Universal Stand", keywords) < 2 {
+		t.Fatalf("expected rendered variants in target keywords, got %v", keywords)
+	}
+}
+
+func TestFinalSourceRemainThresholdRequiresMoreEvidenceWhenTargetHit(t *testing.T) {
+	ocr := &translateOCRResult{
+		Blocks: []translateTextBlock{
+			{Text: "炫酷黑"},
+			{Text: "折叠伸缩版/通用手机"},
+		},
+	}
+	if got := finalSourceRemainThreshold(ocr, true, 2); got != 2 {
+		t.Fatalf("threshold with target hit = %d, want 2", got)
+	}
+	if got := finalSourceRemainThreshold(ocr, false, 0); got != 1 {
+		t.Fatalf("threshold without target hit = %d, want 1", got)
+	}
+}
+
+func TestDetectSourceKeywordsNearOriginalBoxesIgnoresTinyFragments(t *testing.T) {
+	orig := &translateOCRResult{
+		Blocks: []translateTextBlock{
+			{Text: "折叠伸缩版/通用手机", BBox: translateTextBBox{X: 600, Y: 180, Width: 300, Height: 60}},
+		},
+	}
+	post := &translateOCRResult{
+		Blocks: []translateTextBlock{
+			{Text: "版", BBox: translateTextBBox{X: 620, Y: 190, Width: 20, Height: 20}, Confidence: 0.9},
+		},
+	}
+	if detectSourceKeywordsNearOriginalBoxes(post, orig) {
+		t.Fatal("single-character OCR fragment should not count as source residue")
+	}
+	post.Blocks[0].Text = "通用手机"
+	if !detectSourceKeywordsNearOriginalBoxes(post, orig) {
+		t.Fatal("known source phrase near original box should count as source residue")
+	}
+}
+
 func TestImagerenderChangesBytes(t *testing.T) {
 	a := []byte("abc")
 	b := []byte("abd")

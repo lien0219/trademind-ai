@@ -294,6 +294,7 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 		NormalizedStatus:     norm,
 		Retryable:            norm == NormFailed,
 		ErrorMessage:         truncateRunes(row.ErrorMessage, maxErrorMessageLen),
+		ErrorCode:            strings.TrimSpace(row.ErrorCode),
 		CreatedAt:            row.CreatedAt,
 		UpdatedAt:            row.UpdatedAt,
 		StartedAt:            row.StartedAt,

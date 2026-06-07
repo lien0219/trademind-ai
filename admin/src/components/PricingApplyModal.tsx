@@ -1,4 +1,4 @@
-import { Alert, Button, Form, InputNumber, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { Alert, Button, Checkbox, Form, InputNumber, Modal, Select, Space, Table, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
   applyProductPricing,
@@ -19,8 +19,15 @@ type Props = {
 };
 
 const defaultRule = (): PricingRule => ({
+  costSource: 'collected',
   markupType: 'percent',
   markupPercent: 30,
+  markupMultiplier: 1.5,
+  shippingCost: 0,
+  shippingCostPerWeight: 0,
+  platformCommissionPercent: 0,
+  minProfit: 0,
+  exchangeRate: 1,
   roundingMode: '.99',
 });
 
@@ -48,8 +55,18 @@ export default function PricingApplyModal({
     form.setFieldsValue({
       platform: 'tiktok',
       markupType: 'percent',
+      costSource: 'collected',
       markupPercent: 30,
       markupAmount: 0,
+      markupMultiplier: 1.5,
+      manualCostPrice: undefined,
+      shippingCost: 0,
+      weight: undefined,
+      shippingCostPerWeight: 0,
+      platformCommissionPercent: 0,
+      minProfit: 0,
+      minMarginPercent: 10,
+      exchangeRate: 1,
       roundingMode: '.99',
       minPublishPrice: undefined,
     });
@@ -60,11 +77,21 @@ export default function PricingApplyModal({
   }, [open, reset]);
 
   const buildRule = (vals: Record<string, unknown>): PricingRule => ({
+    costSource: vals.costSource as PricingRule['costSource'],
+    manualCostPrice: vals.manualCostPrice as number | undefined,
     markupType: vals.markupType as PricingRule['markupType'],
     markupPercent: vals.markupPercent as number | undefined,
     markupAmount: vals.markupAmount as number | undefined,
+    markupMultiplier: vals.markupMultiplier as number | undefined,
+    shippingCost: vals.shippingCost as number | undefined,
+    weight: vals.weight as number | undefined,
+    shippingCostPerWeight: vals.shippingCostPerWeight as number | undefined,
+    platformCommissionPercent: vals.platformCommissionPercent as number | undefined,
+    minProfit: vals.minProfit as number | undefined,
+    minMarginPercent: vals.minMarginPercent as number | undefined,
     minPublishPrice: vals.minPublishPrice as number | undefined,
     roundingMode: vals.roundingMode as PricingRule['roundingMode'],
+    exchangeRate: vals.exchangeRate as number | undefined,
   });
 
   const runPreview = async () => {
@@ -197,15 +224,51 @@ export default function PricingApplyModal({
                 options={[
                   { label: '百分比加价', value: 'percent' },
                   { label: '固定金额加价', value: 'fixed' },
+                  { label: '倍率加价', value: 'multiplier' },
                   { label: '不加价', value: 'none' },
                 ]}
               />
+            </Form.Item>
+            <Form.Item name="costSource" label="成本价来源" rules={[{ required: true }]}>
+              <Select
+                options={[
+                  { label: '采集价格 / SKU 成本价', value: 'collected' },
+                  { label: '手动填写', value: 'manual' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="manualCostPrice" label="手动成本价">
+              <InputNumber min={0} precision={2} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="markupPercent" label="加价比例（%）">
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="markupAmount" label="固定加价金额">
               <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="markupMultiplier" label="倍率加价">
+              <InputNumber min={0} step={0.1} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="shippingCost" label="固定运费成本">
+              <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="weight" label="重量（预留，可选）">
+              <InputNumber min={0} precision={3} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="shippingCostPerWeight" label="按重量运费单价（预留）">
+              <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="platformCommissionPercent" label="平台佣金（%）">
+              <InputNumber min={0} max={95} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="exchangeRate" label="汇率（CNY → 目标币种）">
+              <InputNumber min={0.0001} precision={6} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="minProfit" label="最低利润保护">
+              <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="minMarginPercent" label="最低利润率保护（%）">
+              <InputNumber min={0} max={95} precision={2} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="minPublishPrice" label="最低发布价（可选，覆盖 SKU 级保护）">
               <InputNumber min={0} style={{ width: '100%' }} />
@@ -218,6 +281,8 @@ export default function PricingApplyModal({
                   { label: '.9', value: '.9' },
                   { label: '.99', value: '.99' },
                   { label: '.95', value: '.95' },
+                  { label: '9.99', value: '9.99' },
+                  { label: '19.90', value: '19.90' },
                 ]}
               />
             </Form.Item>
@@ -239,8 +304,20 @@ export default function PricingApplyModal({
             columns={[
               { title: 'SKU', dataIndex: 'skuName', ellipsis: true },
               { title: '成本价', dataIndex: 'costPrice', width: 90, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
+              { title: '含运费成本', dataIndex: 'landedCost', width: 110, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
               { title: '当前价', dataIndex: 'currentPrice', width: 90, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
               { title: '计算后', dataIndex: 'calculatedPrice', width: 90, render: (v) => Number(v).toFixed(2) },
+              { title: '佣金', dataIndex: 'commissionFee', width: 80, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
+              {
+                title: '预估利润',
+                dataIndex: 'estimatedProfit',
+                width: 96,
+                render: (v) => {
+                  const n = Number(v ?? 0);
+                  return <span style={{ color: n < 0 ? '#cf1322' : '#389e0d' }}>{n.toFixed(2)}</span>;
+                },
+              },
+              { title: '利润率', dataIndex: 'profitMarginPercent', width: 86, render: (v) => (v != null ? `${Number(v).toFixed(2)}%` : '—') },
               {
                 title: '差额',
                 dataIndex: 'delta',

@@ -188,7 +188,7 @@ export default function WorkersMonitorPage() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} xl={14}>
-          <ProCard bordered title="失败任务中心快照" size="small">
+          <ProCard variant="outlined" title="失败任务中心快照" size="small">
             {failSum ? (
               <Space direction="vertical" size={12} style={{ width: '100%' }}>
                 <Row gutter={[16, 8]}>
@@ -225,7 +225,7 @@ export default function WorkersMonitorPage() {
           </ProCard>
         </Col>
         <Col xs={24} xl={10}>
-          <ProCard bordered title="实例状态汇总" size="small">
+          <ProCard variant="outlined" title="实例状态汇总" size="small">
             <WorkerStatusMetrics summary={summary} />
           </ProCard>
         </Col>
@@ -241,7 +241,7 @@ export default function WorkersMonitorPage() {
           return (
             <Col xs={24} sm={12} lg={8} key={k}>
               <ProCard
-                bordered
+                variant="outlined"
                 size="small"
                 title={TASK_CENTER_TASK_TYPE_LABEL[k] || k}
                 extra={
@@ -255,7 +255,7 @@ export default function WorkersMonitorPage() {
         })}
       </Row>
 
-      <ProCard title="后台进程列表" bordered style={{ marginBottom: 16 }}>
+      <ProCard title="后台进程列表" variant="outlined" style={{ marginBottom: 16 }}>
         <ProTable<WorkerMonitorInstance>
           rowKey={(r) => r.workerInstanceId || r.workerId}
           columns={columns}
@@ -270,7 +270,7 @@ export default function WorkersMonitorPage() {
         <ProCard
           key={dataKey}
           title={`租约中的任务 · ${title}`}
-          bordered
+          variant="outlined"
           style={{ marginBottom: 16 }}
           size="small"
         >

@@ -115,7 +115,14 @@ export default function CollectRulesPage() {
 
   const columns: ProColumns<CollectRuleRow>[] = [
     { title: '名称', dataIndex: 'name', ellipsis: true, width: 180 },
-    { title: '适用网站', dataIndex: 'domain', ellipsis: true, width: 200, copyable: true },
+    {
+      title: '适用网站',
+      dataIndex: 'domain',
+      ellipsis: true,
+      width: 200,
+      copyable: true,
+      responsive: ['md'],
+    },
     {
       title: '状态',
       dataIndex: 'status',
@@ -123,12 +130,13 @@ export default function CollectRulesPage() {
       render: (_, row) =>
         row.status === 'enabled' ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>,
     },
-    { title: '优先级', dataIndex: 'priority', width: 96, search: false },
+    { title: '优先级', dataIndex: 'priority', width: 96, search: false, responsive: ['md'] },
     {
       title: '更新时间',
       dataIndex: 'updatedAt',
       width: 172,
       search: false,
+      responsive: ['lg'],
       render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
@@ -201,7 +209,7 @@ export default function CollectRulesPage() {
       title="采集规则"
       subTitle="用于告诉系统从网页的哪个位置读取商品标题、价格、图片等信息。"
       extra={
-        <Space>
+        <Space wrap className="tm-page-header-extra">
           <Button onClick={() => setAiModalOpen(true)}>AI 帮我生成规则</Button>
           <Button
             onClick={() => {

@@ -106,3 +106,26 @@ type ProductSKU struct {
 }
 
 func (ProductSKU) TableName() string { return "product_skus" }
+
+// ProductPlatformPublishConfig stores per-product marketplace listing prep data.
+// It is separate from collect raw_data so operator selections never mutate source raw.
+type ProductPlatformPublishConfig struct {
+	model.HardDeleteBase
+	ProductID          uuid.UUID      `gorm:"type:char(36);uniqueIndex:idx_product_platform_publish_config;index;not null" json:"productId"`
+	Platform           string         `gorm:"size:64;uniqueIndex:idx_product_platform_publish_config;index;not null" json:"platform"`
+	ShopID             *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	CategoryID         string         `gorm:"size:128;index" json:"categoryId,omitempty"`
+	CategoryPath       string         `gorm:"size:1024" json:"categoryPath,omitempty"`
+	PlatformAttributes datatypes.JSON `gorm:"type:jsonb" json:"platformAttributes,omitempty"`
+	MappedTitle        string         `gorm:"size:512" json:"mappedTitle,omitempty"`
+	MappedDescription  string         `gorm:"type:text" json:"mappedDescription,omitempty"`
+	MappedImages       datatypes.JSON `gorm:"type:jsonb" json:"mappedImages,omitempty"`
+	MappedSKUs         datatypes.JSON `gorm:"column:mapped_skus;type:jsonb" json:"mappedSkus,omitempty"`
+	MappedPrice        datatypes.JSON `gorm:"type:jsonb" json:"mappedPrice,omitempty"`
+	MappedStock        datatypes.JSON `gorm:"type:jsonb" json:"mappedStock,omitempty"`
+	MappingWarnings    datatypes.JSON `gorm:"type:jsonb" json:"mappingWarnings,omitempty"`
+	MappingErrors      datatypes.JSON `gorm:"type:jsonb" json:"mappingErrors,omitempty"`
+	LastMappedAt       *time.Time     `gorm:"index" json:"lastMappedAt,omitempty"`
+}
+
+func (ProductPlatformPublishConfig) TableName() string { return "product_platform_publish_configs" }

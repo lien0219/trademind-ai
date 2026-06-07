@@ -23,7 +23,12 @@ export type CollectBatchRow = {
 };
 
 export async function createCollectBatch(payload: { source: string; urls: string[] }) {
-  return postJSON<{ batch: CollectBatchRow; taskCount: number }>('/api/v1/collect/batches', payload);
+  return postJSON<{
+    batch: CollectBatchRow;
+    taskCount: number;
+    skippedCount?: number;
+    skippedUrls?: string[];
+  }>('/api/v1/collect/batches', payload);
 }
 
 export async function queryCollectBatches(params: {

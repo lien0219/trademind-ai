@@ -65,7 +65,7 @@ func validatePureTextReplace(
 	out.ExtraBackgroundLayerDetected = detectPureTextExtraBackground(renderBlocks, renderRes)
 	out.TranslatedTextOverlapOldText = detectTranslatedOverlapOldText(verify, layout)
 
-	if out.SourceTextRemainDetected {
+	if out.SourceTextRemainDetected && !reviewablePureTextSourceRemain(out, renderBlocks, renderRes) {
 		out.HardFailures = append(out.HardFailures, hardFailSourceTextRemain)
 	}
 	if !out.TargetTextDetected {
@@ -77,7 +77,7 @@ func validatePureTextReplace(
 	if out.ProductOcclusionRatio > 0.02 {
 		out.HardFailures = append(out.HardFailures, hardFailProductOcclusion)
 	}
-	if out.ExtraBackgroundLayerDetected {
+	if out.ExtraBackgroundLayerDetected && !reviewablePureTextExtraBackground(out, renderBlocks, renderRes) {
 		out.HardFailures = append(out.HardFailures, hardFailExtraBackground)
 	}
 	if out.TranslatedTextOverlapOldText {
@@ -209,6 +209,9 @@ func resolvePureTextFinalStatus(validation pureTextValidationResult) string {
 	if !validation.HardPassed {
 		return StatusFailedValidation
 	}
+	if validation.ExtraBackgroundLayerDetected && validation.OverallScore >= 75 {
+		return StatusSuccessWithReview
+	}
 	if validation.OverallScore >= 75 {
 		return StatusSuccess
 	}
@@ -245,6 +248,37 @@ func detectPureTextExtraBackground(blocks []translateRenderBlock, renderRes *ima
 		return true
 	}
 	return false
+}
+
+func reviewablePureTextExtraBackground(v pureTextValidationResult, blocks []translateRenderBlock, renderRes *imagerender.Result) bool {
+	if !v.TargetTextDetected ||
+		v.TextOverflowCount > 0 ||
+		v.ProductOcclusionRatio > 0.02 ||
+		v.TranslatedTextOverlapOldText ||
+		v.OverallScore < 60 {
+		return false
+	}
+	if v.SourceTextRemainDetected && !reviewablePureTextSourceRemain(v, blocks, renderRes) {
+		return false
+	}
+	if !validatePureTextRenderStyles(blocks) || detectBadgeShapeAbnormal(blocks) {
+		return false
+	}
+	return renderRes != nil && (renderRes.LargePatchDetected || renderRes.PatchAreaRatio > 0.045)
+}
+
+func reviewablePureTextSourceRemain(v pureTextValidationResult, blocks []translateRenderBlock, renderRes *imagerender.Result) bool {
+	if !v.TargetTextDetected ||
+		v.TextOverflowCount > 0 ||
+		v.ProductOcclusionRatio > 0.02 ||
+		v.TranslatedTextOverlapOldText ||
+		v.OverallScore < 60 ||
+		len(blocks) == 0 ||
+		renderRes == nil ||
+		renderRes.BlocksDrawn <= 0 {
+		return false
+	}
+	return validatePureTextRenderStyles(blocks) && !detectBadgeShapeAbnormal(blocks)
 }
 
 func detectTranslatedOverlapOldText(verify translateVerificationMeta, layout translateLayoutSummary) bool {

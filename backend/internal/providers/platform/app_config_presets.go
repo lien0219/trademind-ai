@@ -38,6 +38,32 @@ func TikTokShopAppConfigSchema() PlatformAppConfigSchema {
 	}
 }
 
+func DouyinShopAppConfigSchema() PlatformAppConfigSchema {
+	return PlatformAppConfigSchema{
+		GroupKey:    "platform_douyin_shop",
+		Title:       "抖店 / Douyin Shop",
+		Description: "请在抖店开放平台创建应用后填写；App Secret 加密存储。完成配置后在「店铺管理」授权；订单/库存/商品草稿能力需在下方开关中启用。",
+		Fields: []AppConfigField{
+			{Name: "app_key", Label: "App Key / Client Key", Type: "text", Required: true, Sensitive: false, Placeholder: "在抖店开放平台应用中获取"},
+			{Name: "app_secret", Label: "App Secret / Client Secret", Type: "password", Required: true, Sensitive: true},
+			{Name: "service_id", Label: "Service ID", Type: "text", Required: false, Sensitive: false, Help: "抖店服务市场自定义授权 URL 使用 service_id；发起授权前必须填写。"},
+			{Name: "auth_base_url", Label: "Auth Base URL", Type: "text", Required: false, Sensitive: false, Placeholder: "按抖店开放平台官方文档填写"},
+			{Name: "api_base_url", Label: "API Base URL", Type: "text", Required: false, Sensitive: false, Placeholder: "按抖店开放平台官方文档填写"},
+			{Name: "redirect_uri", Label: "Redirect URI", Type: "text", Required: true, Sensitive: false},
+			{Name: "environment", Label: "环境", Type: "select", Required: true, Sensitive: false, DefaultValue: "production", Options: []AppConfigOption{
+				{Label: "生产 production", Value: "production"},
+				{Label: "沙箱 sandbox", Value: "sandbox"},
+			}},
+			{Name: "real_api_enabled", Label: "启用真实接口", Type: "switch", Required: false, Sensitive: false, Help: "Phase 1 仅保存开关；真实接口调用将在后续阶段逐项接入。"},
+			{Name: "order_sync_enabled", Label: "启用订单同步", Type: "switch", Required: false, Sensitive: false},
+			{Name: "order_sync_max_pages", Label: "订单同步最大页数", Type: "number", Required: false, Sensitive: false, DefaultValue: 5, Help: "单次任务最多拉取页数（默认 5）；每页 size 由任务 limit 控制，总条数上限 500"},
+			{Name: "inventory_sync_enabled", Label: "启用库存同步", Type: "switch", Required: false, Sensitive: false},
+			{Name: "product_publish_enabled", Label: "启用商品草稿创建", Type: "switch", Required: false, Sensitive: false},
+			{Name: "timeout_sec", Label: "Timeout (seconds)", Type: "number", Required: true, Sensitive: false, DefaultValue: 30, Help: "外部 HTTP 超时，5–600"},
+		},
+	}
+}
+
 func ShopeeAppConfigSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{
 		GroupKey:    "platform_shopee",

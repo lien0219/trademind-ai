@@ -142,6 +142,36 @@ export async function testShopConnection(
   return postJSON(`/api/v1/shops/${id}/test-connection`, {});
 }
 
+export async function getDouyinOAuthAuthorizeUrl(shopId: string): Promise<{ redirectUrl: string; authorizeUrl: string; state: string }> {
+  return getWithParams(`/api/v1/shops/${shopId}/oauth/douyin/authorize-url`, {});
+}
+
+export async function refreshDouyinOAuth(shopId: string): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/douyin/refresh`, {});
+}
+
+export async function revokeDouyinOAuth(shopId: string): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/douyin/revoke`, {});
+}
+
+export async function testDouyinOAuth(shopId: string): Promise<{
+  ok: boolean;
+  message?: string;
+  shopName?: string;
+  externalShopId?: string;
+  currency?: string;
+  expiresAt?: string;
+  shopStatus?: string;
+  lastTestAt?: string;
+  scopesSummary?: string;
+}> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/douyin/test`, {});
+}
+
+export async function syncDouyinShopInfo(shopId: string): Promise<ShopDetail> {
+  return postJSON(`/api/v1/shops/${shopId}/oauth/douyin/sync-shop-info`, {});
+}
+
 export async function getTikTokOAuthAuthorizeUrl(
   shopId: string,
   redirectUri?: string,

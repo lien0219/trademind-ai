@@ -81,14 +81,15 @@ TradeMind 当前路线坚持先完成 AI 商品运营闭环，再扩展多平台
 - Platform Provider 接口
 - 店铺列表
 - 平台配置页面
-- TikTok Shop 授权
-- Shopee 授权
-- Lazada 授权
-- Amazon SP-API 授权
+- 抖店 / Douyin Shop 优先授权
+- 抖店类目属性
+- 抖店图片上传
+- 抖店商品草稿创建
 - 订单同步
 - SKU 匹配与候选推荐
 - 商品刊登任务
 - 库存同步任务
+- TikTok Shop / Shopee / Lazada / Amazon SP-API 后续接入，不在当前阶段多平台并行铺开
 
 ## v0.7.0 AI 客服预览版
 
@@ -118,9 +119,11 @@ TradeMind 当前路线坚持先完成 AI 商品运营闭环，再扩展多平台
 - 多仓库存
 - 采购入库
 - 供应商管理
-- 售后 / 退款
-- 财务统计
+- 复杂售后 / 退款
+- 复杂财务结算
 - WMS / OMS
 - 复杂 BI
 - 自动化规则引擎
+- 自动补货
+- 自动直接上架
 - 多租户 SaaS

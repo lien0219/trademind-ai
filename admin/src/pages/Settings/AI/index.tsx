@@ -191,7 +191,7 @@ export default function AISettingsPage() {
       subTitle="配置大模型服务商，用于标题优化、描述生成、客服建议、AI 生成采集规则等"
     >
       <div className="tm-ai-settings">
-        <ProCard bordered className="tm-ai-settings__hero">
+        <ProCard variant="outlined" className="tm-ai-settings__hero">
           <div className="tm-ai-settings__hero-inner">
             <div className="tm-ai-settings__hero-icon">
               <ExperimentOutlined />
@@ -248,7 +248,7 @@ export default function AISettingsPage() {
           }}
         >
           <ProCard
-            bordered
+            variant="outlined"
             title="模型服务商"
             className="tm-ai-settings__panel"
             extra={
@@ -323,7 +323,7 @@ export default function AISettingsPage() {
 
           <Row gutter={[16, 16]} className="tm-ai-settings__row">
             <Col xs={24} lg={14}>
-              <ProCard bordered title="连接配置" className="tm-ai-settings__panel tm-ai-settings__panel--fill">
+              <ProCard variant="outlined" title="连接配置" className="tm-ai-settings__panel tm-ai-settings__panel--fill">
                 {providerDocs ? (
                   <Alert
                     type="info"
@@ -352,7 +352,7 @@ export default function AISettingsPage() {
               </ProCard>
             </Col>
             <Col xs={24} lg={10}>
-              <ProCard bordered title="生成参数" className="tm-ai-settings__panel tm-ai-settings__panel--fill">
+              <ProCard variant="outlined" title="生成参数" className="tm-ai-settings__panel tm-ai-settings__panel--fill">
                 <Row gutter={12}>
                   <Col span={12}>
                     <Form.Item label="随机度（Temperature）" name="temperature" extra="默认 0.7，越低越稳定">
@@ -392,7 +392,7 @@ export default function AISettingsPage() {
             </Col>
           </Row>
 
-          <ProCard bordered title="批量 AI（商品运营）" className="tm-ai-settings__panel">
+          <ProCard variant="outlined" title="批量 AI（商品运营）" className="tm-ai-settings__panel">
             <Alert
               type="warning"
               showIcon
@@ -444,7 +444,7 @@ export default function AISettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered className="tm-ai-settings__footer">
+          <ProCard variant="outlined" className="tm-ai-settings__footer">
             <Space wrap className="tm-action-space">
               <Button type="primary" htmlType="submit" loading={loading} size="large">
                 保存配置

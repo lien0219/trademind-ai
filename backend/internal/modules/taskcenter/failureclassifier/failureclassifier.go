@@ -105,6 +105,12 @@ var rules = []rule{
 	},
 	// Platform auth
 	{
+		id: "sub:publish_auth_code", substrs: []string{"PLATFORM_AUTH_REQUIRED", "STORE_NOT_CONFIGURED"},
+		category: CategoryPlatformAuth, severity: SeverityHigh,
+		reason:  "刊登任务缺少店铺授权或店铺配置。",
+		suggest: "请先完成店铺授权，并检查「设置 → 平台开放配置 / 平台刊登预设」。",
+	},
+	{
 		id: "sub:token_expired", substrs: []string{"token expired", "access token expired", "invalid access token", "unauthorized", "refresh token failed", "invalid refresh token"},
 		category: CategoryPlatformAuth, severity: SeverityHigh,
 		reason:  "鉴权失败或 Token 失效。",
@@ -318,7 +324,91 @@ var rules = []rule{
 		reason:  "对象存储读写失败。",
 		suggest: "请检查「设置 → 存储」与 Bucket/密钥/网络。",
 	},
+	{
+		id: "sub:douyin_image_storage", substrs: []string{"STORAGE_UPLOAD_FAILED"},
+		category: CategoryStorageError, severity: SeverityHigh,
+		reason:  "抖店图片上传前同步到对象存储失败。",
+		suggest: "请检查「设置 → 存储」配置和图片源是否可读，然后重试图片上传。",
+	},
+	{
+		id: "sub:douyin_image_url", substrs: []string{"IMAGE_URL_NOT_ACCESSIBLE", "IMAGE_DOWNLOAD_FAILED"},
+		category: CategoryNetworkTimeout, severity: SeverityMedium,
+		reason:  "抖店图片上传前读取外链图片失败。",
+		suggest: "请确认图片 URL 可公开访问且不是内网地址，必要时先手动上传到商品图片库。",
+	},
+	{
+		id: "sub:douyin_image_upload", substrs: []string{"DOUYIN_IMAGE_UPLOAD_FAILED"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店图片素材上传失败。",
+		suggest: "请检查抖店授权、素材中心接口权限、平台限流和图片格式，然后重试上传。",
+	},
+	{
+		id: "sub:douyin_create_product", substrs: []string{"DOUYIN_CREATE_PRODUCT_FAILED", "DOUYIN_PRODUCT_PAYLOAD_INVALID"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店商品草稿创建失败。",
+		suggest: "请查看刊登任务详情中的平台提交内容与失败原因，修正映射或类目属性后重试。",
+	},
+	{
+		id: "sub:douyin_store_auth", substrs: []string{"DOUYIN_STORE_NOT_AUTHORIZED", "DOUYIN_AUTH_EXPIRED", "shop is not authorized"},
+		category: CategoryPlatformAuth, severity: SeverityHigh,
+		reason:  "抖店店铺未授权或授权已过期。",
+		suggest: "请重新连接抖店店铺并完成 OAuth 授权。",
+	},
+	{
+		id: "sub:douyin_order_sync", substrs: []string{"DOUYIN_ORDER_SYNC_FAILED", "DOUYIN_ORDER_LIST_FAILED", "DOUYIN_ORDER_DETAIL_FAILED", "DOUYIN_ORDER_PARSE_FAILED", "UNKNOWN_DOUYIN_ORDER_ERROR"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店订单同步失败。",
+		suggest: "请检查抖店订单接口权限、时间范围与店铺授权，然后在订单同步任务页重试。",
+	},
+	{
+		id: "sub:douyin_order_permission", substrs: []string{"DOUYIN_ORDER_PERMISSION_DENIED"},
+		category: CategoryPlatformPermission, severity: SeverityHigh,
+		reason:  "抖店订单接口权限不足。",
+		suggest: "请在抖店开放平台申请订单查询权限并重新授权店铺。",
+	},
+	{
+		id: "sub:douyin_order_rate_limit", substrs: []string{"DOUYIN_ORDER_RATE_LIMITED"},
+		category: CategoryPlatformRateLimit, severity: SeverityMedium,
+		reason:  "抖店订单接口限流。",
+		suggest: "请稍后重试，或缩小同步时间范围。",
+	},
+	{
+		id: "sub:douyin_inventory_sync", substrs: []string{"DOUYIN_INVENTORY_SYNC_FAILED", "UNKNOWN_DOUYIN_INVENTORY_ERROR"},
+		category: CategoryPlatformAPIError, severity: SeverityHigh,
+		reason:  "抖店库存同步失败。",
+		suggest: "请检查抖店库存接口权限、商品/SKU 绑定与店铺授权，然后在库存同步任务页重试。",
+	},
+	{
+		id: "sub:douyin_inventory_permission", substrs: []string{"DOUYIN_INVENTORY_PERMISSION_DENIED"},
+		category: CategoryPlatformPermission, severity: SeverityHigh,
+		reason:  "抖店库存接口权限不足。",
+		suggest: "请在抖店开放平台申请商品/库存更新权限并重新授权店铺。",
+	},
+	{
+		id: "sub:douyin_inventory_rate_limit", substrs: []string{"DOUYIN_INVENTORY_RATE_LIMITED"},
+		category: CategoryPlatformRateLimit, severity: SeverityMedium,
+		reason:  "抖店库存接口限流。",
+		suggest: "请稍后重试，或降低批量同步并发。",
+	},
+	{
+		id: "sub:douyin_inventory_binding", substrs: []string{"DOUYIN_PRODUCT_NOT_BOUND", "DOUYIN_SKU_NOT_BOUND", "external sku id missing"},
+		category: CategoryValidationError, severity: SeverityHigh,
+		reason:  "抖店商品或 SKU 尚未完成平台绑定。",
+		suggest: "请先在商品详情完成抖店刊登草稿创建，并确认 product_publication_skus 已写入 platformSkuId。",
+	},
+	{
+		id: "sub:douyin_inventory_stock", substrs: []string{"DOUYIN_STOCK_INVALID", "stock must be >= 0"},
+		category: CategoryValidationError, severity: SeverityMedium,
+		reason:  "本地库存无效，无法推送到抖店。",
+		suggest: "请先在商品详情或库存页将本地库存调整为 0 或正整数后再同步。",
+	},
 	// Validation
+	{
+		id: "sub:publish_validation_code", substrs: []string{"PUBLISH_CHECK_FAILED", "PRICE_INVALID", "IMAGE_MISSING", "SKU_INVALID"},
+		category: CategoryValidationError, severity: SeverityHigh,
+		reason:  "刊登前商品资料未达到发布要求。",
+		suggest: "请回到商品详情，按发布检查提示补齐标题、描述、主图、SKU、价格、库存或利润保护项后再提交。",
+	},
 	{
 		id: "sub:validation", substrs: []string{"invalid request", "validation", "bad request", "malformed", "422"},
 		category: CategoryValidationError, severity: SeverityLow,

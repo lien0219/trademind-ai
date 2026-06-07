@@ -22,6 +22,7 @@ import {
   Switch,
   Tag,
   Typography,
+  Alert,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -50,8 +51,9 @@ import {
   TASK_NORMALIZED_STATUS,
   failureCategoryLabel,
 } from '@/constants/taskCenter';
-import { openPinduoduoLoginBrowser } from '@/services/collectAuth';
+import { openPinduoduoLoginBrowser, openTaobaoTmallLoginBrowser } from '@/services/collectAuth';
 import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
+import { resolveTaobaoTmallLoginTargetUrl } from '@/utils/taobaoTmallUrl';
 
 function normTag(norm: string) {
   const m = TASK_NORMALIZED_STATUS[norm];
@@ -106,6 +108,21 @@ export default function TaskCenterFailuresPage() {
   const [detail, setDetail] = useState<FailureDetailDTO | null>(null);
   const [sel, setSel] = useState<UnifiedTaskDTO[]>([]);
   const [pddLoginOpening, setPddLoginOpening] = useState(false);
+  const [tbLoginOpening, setTbLoginOpening] = useState(false);
+
+  const isTbLoginFailure = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
+    if (!row || row.taskType !== 'collect') return false;
+    const pl = (row.platform ?? '').toLowerCase();
+    if (pl !== 'taobao_tmall' && pl !== 'taobao') return false;
+    const code = (row.errorCode ?? '').toUpperCase();
+    const cat = (row.failureCategory ?? '').toLowerCase();
+    return (
+      code === 'LOGIN_REQUIRED' ||
+      code === 'VERIFY_REQUIRED' ||
+      cat === 'login_required' ||
+      cat === 'collector_platform_login'
+    );
+  };
 
   const isPddLoginFailure = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
     if (!row || row.taskType !== 'collect') return false;
@@ -483,7 +500,13 @@ export default function TaskCenterFailuresPage() {
       }}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <ProCard bordered size="small">
+        <Alert
+          showIcon
+          type="info"
+          message="抖店相关失败"
+          description="刊登、图片上传、创建草稿、订单同步、库存同步、SKU 绑定失败会聚合到本页。错误信息已脱敏，不含 token 或 App Secret。抖店授权/类目/图片/SKU 未绑定类问题请按提示回到对应页面处理后再重试。"
+        />
+        <ProCard variant="outlined" size="small">
           {summary ? (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               <Row gutter={[16, 16]}>
@@ -740,6 +763,30 @@ export default function TaskCenterFailuresPage() {
               <Typography.Paragraph type="secondary">关联：{detail.relatedResourceTitle}</Typography.Paragraph>
             ) : null}
             <Space wrap>
+              {isTbLoginFailure(detail) ? (
+                <Button
+                  type="primary"
+                  loading={tbLoginOpening}
+                  onClick={async () => {
+                    setTbLoginOpening(true);
+                    try {
+                      const src =
+                        typeof detail.extra?.sourceUrl === 'string'
+                          ? String(detail.extra.sourceUrl).trim()
+                          : '';
+                      const loginUrl = resolveTaobaoTmallLoginTargetUrl(src || undefined);
+                      const res = await openTaobaoTmallLoginBrowser(loginUrl);
+                      message.success(res.message || '已打开淘宝/天猫采集浏览器');
+                    } catch (e) {
+                      message.error((e as Error).message);
+                    } finally {
+                      setTbLoginOpening(false);
+                    }
+                  }}
+                >
+                  打开淘宝/天猫采集浏览器
+                </Button>
+              ) : null}
               {isPddLoginFailure(detail) ? (
                 <Button
                   type="primary"

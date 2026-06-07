@@ -16,7 +16,8 @@ func TestCheckCustomCollectURLConflict(t *testing.T) {
 	}{
 		{"https://detail.1688.com/offer/1.html", true, "1688"},
 		{"https://www.aliexpress.com/item/1.html", true, "aliexpress"},
-		{"https://item.taobao.com/item.htm?id=1", false, ""},
+		{"https://item.taobao.com/item.htm?id=1", true, "taobao_tmall"},
+		{"https://detail.tmall.hk/item.htm?id=1", true, "taobao_tmall"},
 		{"https://example.com/p/1", false, ""},
 	}
 	for _, tc := range cases {

@@ -220,7 +220,7 @@ export default function CollectMonitorPage() {
     <PageContainer title="采集监控" subTitle="查看采集任务排队情况、后台进程与采集服务状态（约每 5 秒刷新）">
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" bordered>
+          <Card size="small" variant="outlined">
             <Statistic title="排队任务数" value={q?.depth ?? '—'} suffix={q && !q.redisAvailable ? <Tag color="warning">队列不可用</Tag> : null} />
             <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
               {q?.name ?? '—'} · {q?.redisAvailable ? '任务队列正常' : '任务队列不可用'}
@@ -228,7 +228,7 @@ export default function CollectMonitorPage() {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" bordered>
+          <Card size="small" variant="outlined">
             <Statistic title="同时执行数" value={w?.concurrency ?? '—'} />
             <div style={{ marginTop: 8 }}>
               <Space size="small">
@@ -239,7 +239,7 @@ export default function CollectMonitorPage() {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" bordered>
+          <Card size="small" variant="outlined">
             <Statistic
               title="任务 pending / running / failed"
               value={`${((tasks?.pending ?? 0) + (tasks?.retryingCount ?? tasks?.retrying ?? 0)).toString()} / ${(tasks?.running ?? 0).toString()} / ${(tasks?.failed ?? 0).toString()}`}
@@ -250,7 +250,7 @@ export default function CollectMonitorPage() {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card size="small" bordered>
+          <Card size="small" variant="outlined">
             <div style={{ marginBottom: 4 }}>采集服务</div>
             <Badge status={col?.reachable ? 'success' : 'error'} text={col?.reachable ? '可达' : '不可达'} />
             <Typography.Paragraph ellipsis type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
@@ -262,7 +262,7 @@ export default function CollectMonitorPage() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>
-          <Card size="small" bordered title="自动重试">
+          <Card size="small" variant="outlined" title="自动重试">
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space wrap>
                 <Tag color={r?.enabled ? 'success' : 'default'}>{r?.enabled ? '已开启' : '已关闭'}</Tag>
@@ -285,14 +285,14 @@ export default function CollectMonitorPage() {
         </Col>
       </Row>
       {q?.oldestPendingSeconds != null && (
-        <ProCard title="队列积压提示" bordered style={{ marginBottom: 16 }} size="small">
+        <ProCard title="队列积压提示" variant="outlined" style={{ marginBottom: 16 }} size="small">
           <Typography.Text>
             最早 pending / retrying 任务已等待约 <strong>{q.oldestPendingSeconds}s</strong>
           </Typography.Text>
         </ProCard>
       )}
 
-      <ProCard title="任务状态分布" bordered style={{ marginBottom: 16 }} size="small">
+      <ProCard title="任务状态分布" variant="outlined" style={{ marginBottom: 16 }} size="small">
         {!tasks || taskTotal === 0 ? (
           <Typography.Text type="secondary">暂无任务记录</Typography.Text>
         ) : (
@@ -327,7 +327,7 @@ export default function CollectMonitorPage() {
         )}
       </ProCard>
 
-      <ProCard title="批次状态分布" bordered style={{ marginBottom: 16 }} size="small">
+      <ProCard title="批次状态分布" variant="outlined" style={{ marginBottom: 16 }} size="small">
         {!batches || batchTotal === 0 ? (
           <Typography.Text type="secondary">暂无批次记录</Typography.Text>
         ) : (
@@ -352,7 +352,7 @@ export default function CollectMonitorPage() {
         )}
       </ProCard>
 
-      <ProCard title="最近等待重试（10 条）" bordered style={{ marginBottom: 16 }} size="small">
+      <ProCard title="最近等待重试（10 条）" variant="outlined" style={{ marginBottom: 16 }} size="small">
         <ProTable<CollectMonitorData['recentRetrying'][number]>
           rowKey="id"
           search={false}
@@ -364,7 +364,7 @@ export default function CollectMonitorPage() {
         />
       </ProCard>
 
-      <ProCard title="最近失败任务（10 条）" bordered size="small">
+      <ProCard title="最近失败任务（10 条）" variant="outlined" size="small">
         <ProTable<CollectMonitorData['recentFailures'][number]>
           rowKey="id"
           search={false}

@@ -44,6 +44,7 @@ import (
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
+	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
@@ -170,7 +171,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	fileH := &files.Handler{Svc: fileSvc}
 	staticH := &files.StaticHandler{Settings: settingsSvc}
 
-	collectorTimeout := 60 * time.Second
+	collectorTimeout := 120 * time.Second
 	if dep.Config != nil && dep.Config.CollectorTimeoutSeconds > 0 {
 		collectorTimeout = time.Duration(dep.Config.CollectorTimeoutSeconds) * time.Second
 	}
@@ -231,7 +232,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		AITasks:   aiTaskSvc,
 		AIGateway: aiGateway,
 	}
-	productH := &product.Handler{Svc: productSvc}
+	productH := &product.Handler{Svc: productSvc, Files: fileSvc}
 
 	aiBatchSvc := &aioperationbatch.Service{
 		DB:       dep.DB,
@@ -282,8 +283,11 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Redis:     dep.Redis,
 		Settings:  settingsSvc,
 	}
+	productSvc.Shops = shopSvc
 	platformtiktok.BindShops(shopSvc.TikTokShopsBridge())
 	platformtiktok.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
+	platformdouyin.BindShops(shopSvc.DouyinShopsBridge())
+	platformdouyin.RegisterProvider()
 	platformtiktok.RegisterProvider()
 	platformshopee.BindShops(shopSvc.ShopeeShopsBridge())
 	platformshopee.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
@@ -480,6 +484,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)
 	collectorAlias.POST("/providers/pinduoduo/check-login", collectH.CheckPinduoduoLogin)
 	collectorAlias.POST("/providers/pinduoduo/open-login-browser", collectH.OpenPinduoduoLoginBrowser)
+	collectorAlias.POST("/providers/taobao_tmall/check-login", collectH.CheckTaobaoTmallLogin)
+	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
@@ -488,6 +494,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	ordersync.Register(authed, orderSyncH)
 	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)
+	shop.RegisterPublic(v1, shopH)
 	shop.Register(authed, shopH)
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)

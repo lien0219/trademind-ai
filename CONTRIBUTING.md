@@ -64,6 +64,7 @@ chore: update issue templates
 
 - 变更范围清晰，避免混入无关修改。
 - 目标分支符合 [docs/branching.md](docs/branching.md)：`feat/*` 与普通 `fix/*` 先合并到 `dev`，`release/*` 再合并到 `main`。
+- 使用 AI 工具协作时，已参考 [docs/ai-workflow.md](docs/ai-workflow.md) 控制上下文范围，并把可复用经验沉淀到合适文档。
 - 已阅读并遵守 [docs/ai-coding-rules.md](docs/ai-coding-rules.md) 与 [docs/module-map.md](docs/module-map.md)，代码、配置、示例和文档需要同步更新。
 - 已按 [docs/task-checklist.md](docs/task-checklist.md) 完成对应范围的收尾检查。
 - 涉及后端 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。

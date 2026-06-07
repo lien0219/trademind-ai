@@ -189,7 +189,7 @@ export default function SystemSettingsPage() {
   return (
     <PageContainer title="系统设置" subTitle="站点基础信息与任务中心站内告警策略">
       <div className="tm-system-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <SettingOutlined />
@@ -208,7 +208,7 @@ export default function SystemSettingsPage() {
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
-            bordered
+            variant="outlined"
             title="站点信息"
             className="tm-system-settings__panel"
             extra={
@@ -241,7 +241,7 @@ export default function SystemSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="任务中心 · 站内告警策略" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="任务中心 · 站内告警策略" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Alert
               type="info"
               showIcon
@@ -378,7 +378,7 @@ export default function SystemSettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard bordered className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
               保存设置
             </Button>

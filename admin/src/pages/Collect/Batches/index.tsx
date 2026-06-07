@@ -18,8 +18,21 @@ import {
 import type { CollectProviderRow } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { retryCollectTask, type CollectTaskRow } from '@/services/collectTasks';
+import { checkTaobaoTmallLogin } from '@/services/collectAuth';
+import {
+  parseTaobaoTmallBatchUrls,
+  TAOBAO_TMALL_BATCH_HINT,
+  TAOBAO_TMALL_BATCH_LOGIN_BLOCK_MSG,
+  TAOBAO_TMALL_BATCH_MAX_ITEMS,
+  TAOBAO_TMALL_BATCH_VERIFY_BLOCK_MSG,
+} from '@/utils/taobaoTmallUrl';
 
 const POLL_MS = 5000;
+
+function isTaobaoTmallSource(source?: string) {
+  const s = source?.trim().toLowerCase();
+  return s === 'taobao_tmall' || s === 'taobao';
+}
 
 function countDedupedLines(raw: string): number {
   const seen = new Set<string>();
@@ -71,7 +84,20 @@ export default function CollectBatchesPage() {
     return q.get('source')?.trim() ?? '';
   }, [location.search]);
 
-  const displayCount = useMemo(() => countDedupedLines(urlsWatch ?? ''), [urlsWatch]);
+  const batchMaxItems = useMemo(() => {
+    if (isTaobaoTmallSource(formSourceWatch)) return TAOBAO_TMALL_BATCH_MAX_ITEMS;
+    return 50;
+  }, [formSourceWatch]);
+
+  const taobaoUrlPreview = useMemo(() => {
+    if (!isTaobaoTmallSource(formSourceWatch)) return null;
+    return parseTaobaoTmallBatchUrls(urlsWatch ?? '');
+  }, [formSourceWatch, urlsWatch]);
+
+  const displayCount = useMemo(() => {
+    if (taobaoUrlPreview) return taobaoUrlPreview.valid.length;
+    return countDedupedLines(urlsWatch ?? '');
+  }, [taobaoUrlPreview, urlsWatch]);
 
   useEffect(() => {
     const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : POLL_MS);
@@ -264,6 +290,16 @@ export default function CollectBatchesPage() {
 
   const taskColumns: ProColumns<CollectTaskRow>[] = [
     {
+      title: '商品标题',
+      width: 160,
+      ellipsis: true,
+      search: false,
+      render: (_, row) => {
+        const raw = row.rawResult as { title?: string } | undefined;
+        return raw?.title?.trim() || '—';
+      },
+    },
+    {
       title: '链接',
       dataIndex: 'sourceUrl',
       width: 220,
@@ -394,6 +430,20 @@ export default function CollectBatchesPage() {
             </Button>,
           );
         }
+        if (row.sourceUrl) {
+          actions.unshift(
+            <Button
+              key="open"
+              type="link"
+              size="small"
+              href={row.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              原链接
+            </Button>,
+          );
+        }
         return actions;
       },
     },
@@ -401,7 +451,7 @@ export default function CollectBatchesPage() {
 
   return (
     <PageContainer title="批量采集">
-      <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {sourceFromQuery &&
         providers.length > 0 &&
         !batchProviders.some((p) => p.source === sourceFromQuery) ? (
@@ -425,31 +475,97 @@ export default function CollectBatchesPage() {
           layout="vertical"
           initialValues={{ source: '1688', urls: '' }}
           onFinish={async (vals) => {
-            const urls = parseUrlsFromTextarea(vals.urls ?? '');
-            if (urls.length === 0) {
-              message.warning('请至少填写一条链接');
-              return;
-            }
             const src = vals.source?.trim() || '';
             const allowed = batchProviders.some((p) => p.source === src);
             if (!allowed) {
               message.warning('该平台暂不支持批量采集');
               return;
             }
+
+            let urls: string[] = [];
+            if (isTaobaoTmallSource(src)) {
+              const parsed = parseTaobaoTmallBatchUrls(vals.urls ?? '');
+              urls = parsed.valid;
+              if (parsed.invalid.length > 0 || parsed.unsupported.length > 0) {
+                const skipped = [...parsed.invalid, ...parsed.unsupported];
+                message.warning(
+                  `已跳过 ${skipped.length} 条无效或不支持的链接，仅提交 ${urls.length} 条有效商品详情页链接`,
+                );
+              }
+              if (urls.length === 0) {
+                message.warning('请至少填写一条有效的淘宝/天猫商品详情页链接');
+                return;
+              }
+              if (urls.length > batchMaxItems) {
+                message.warning(`每批最多 ${batchMaxItems} 条，请分批提交`);
+                return;
+              }
+              setSubmitting(true);
+              try {
+                const auth = await checkTaobaoTmallLogin({ url: urls[0] });
+                if (auth.needVerification || auth.status === 'verify_required') {
+                  message.error(TAOBAO_TMALL_BATCH_VERIFY_BLOCK_MSG);
+                  return;
+                }
+                if (!auth.loggedIn && auth.status !== 'logged_in') {
+                  message.error(TAOBAO_TMALL_BATCH_LOGIN_BLOCK_MSG);
+                  return;
+                }
+              } catch (e) {
+                message.error(e instanceof Error ? e.message : '登录状态检测失败');
+                return;
+              } finally {
+                setSubmitting(false);
+              }
+            } else {
+              urls = parseUrlsFromTextarea(vals.urls ?? '');
+              if (urls.length === 0) {
+                message.warning('请至少填写一条链接');
+                return;
+              }
+              if (urls.length > batchMaxItems) {
+                message.warning(`每批最多 ${batchMaxItems} 条，请分批提交`);
+                return;
+              }
+            }
+
             setSubmitting(true);
             try {
               const res = await createCollectBatch({ source: src, urls });
-              message.success(`批量采集任务已提交，共 ${res.taskCount} 条，正在后台处理`);
+              const skipped = res.skippedCount ?? 0;
+              message.success(
+                skipped > 0
+                  ? `批量采集已提交：有效 ${res.taskCount} 条，跳过 ${skipped} 条无效链接`
+                  : `批量采集任务已提交，共 ${res.taskCount} 条，正在后台处理`,
+              );
               form.setFieldsValue({ urls: '' });
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof Error ? e.message : '提交失败');
+              const msg = e instanceof Error ? e.message : '提交失败';
+              if (msg.includes('登录')) {
+                message.error(TAOBAO_TMALL_BATCH_LOGIN_BLOCK_MSG);
+              } else if (msg.includes('安全验证') || msg.includes('验证')) {
+                message.error(TAOBAO_TMALL_BATCH_VERIFY_BLOCK_MSG);
+              } else {
+                message.error(msg);
+              }
             } finally {
               setSubmitting(false);
             }
           }}
         >
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            {isTaobaoTmallSource(formSourceWatch) ? (
+              <Alert type="info" showIcon message={TAOBAO_TMALL_BATCH_HINT} />
+            ) : null}
+            {taobaoUrlPreview &&
+            (taobaoUrlPreview.invalid.length > 0 || taobaoUrlPreview.unsupported.length > 0) ? (
+              <Alert
+                type="warning"
+                showIcon
+                message={`检测到 ${taobaoUrlPreview.invalid.length + taobaoUrlPreview.unsupported.length} 条无效或不支持的链接，提交时将自动跳过`}
+              />
+            ) : null}
             <Form.Item label="采集平台" name="source" rules={[{ required: true }]}>
               <Select
                 style={{ maxWidth: 320 }}
@@ -460,7 +576,10 @@ export default function CollectBatchesPage() {
             <Form.Item
               label={
                 <span>
-                  商品链接（每行一条） <Tag>当前 {displayCount} 条</Tag>
+                  商品链接（每行一条） <Tag>有效 {displayCount} 条</Tag>
+                  {isTaobaoTmallSource(formSourceWatch) ? (
+                    <Tag color="blue">每批最多 {batchMaxItems} 条</Tag>
+                  ) : null}
                 </span>
               }
               name="urls"
@@ -526,11 +645,43 @@ export default function CollectBatchesPage() {
                 type="warning"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message="本批次部分链接失败"
-                description="若同一链接单独采集成功，批量失败通常与并发、访问频率或目标站点风控有关。可在「采集设置」降低 1688 批量并发，或稍后重试失败任务。"
+                message="本批次部分链接失败（partial_success）"
+                description={
+                  isTaobaoTmallSource(activeBatch.source)
+                    ? '成功的链接已生成商品草稿；失败链接可在下方重试，或到失败任务中心处理。若出现登录/验证失败，请先在采集浏览器完成后再重试。'
+                    : '若同一链接单独采集成功，批量失败通常与并发、访问频率或目标站点风控有关。可在「采集设置」降低批量并发，或稍后重试失败任务。'
+                }
               />
             ) : null}
-            <ProCard bordered size="small" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
+            {activeBatch.finishedAt && activeBatch.createdAt ? (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+                message="批次汇总"
+                description={
+                  <Space wrap>
+                    <span>总链接 {activeBatch.totalCount}</span>
+                    <span>成功 {activeBatch.successCount}</span>
+                    <span>失败 {activeBatch.failedCount}</span>
+                    <span>取消 {activeBatch.cancelledCount}</span>
+                    <span>
+                      耗时{' '}
+                      {Math.max(
+                        0,
+                        Math.round(
+                          (new Date(activeBatch.finishedAt).getTime() -
+                            new Date(activeBatch.createdAt).getTime()) /
+                            1000,
+                        ),
+                      )}
+                      秒
+                    </span>
+                  </Space>
+                }
+              />
+            ) : null}
+            <ProCard variant="outlined" size="small" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
               <Space wrap size="middle">
                 <Tag>总数 {activeBatch.totalCount}</Tag>
                 <Tag>排队 {activeBatch.pendingCount}</Tag>

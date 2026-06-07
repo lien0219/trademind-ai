@@ -507,7 +507,7 @@ func sampleLightCapsuleBackgroundColor(img *image.RGBA, rect image.Rectangle, fa
 		}
 		c := img.RGBAAt(x, y)
 		lum := luminance(c)
-		if lum < 150 {
+		if lum < 185 {
 			return
 		}
 		r += float64(c.R)
@@ -719,6 +719,107 @@ func sampleFillRegion(img *image.RGBA, rect image.Rectangle) {
 	for y := rect.Min.Y; y < rect.Max.Y; y++ {
 		for x := rect.Min.X; x < rect.Max.X; x++ {
 			img.Set(x, y, fill)
+		}
+	}
+}
+
+func blendFillRegion(img *image.RGBA, rect image.Rectangle) {
+	b := img.Bounds()
+	rect = rect.Intersect(b)
+	if rect.Empty() {
+		return
+	}
+	fallback := textOverlayBackgroundColor(img, rect)
+	w, h := rect.Dx(), rect.Dy()
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			c, ok := blendedSurroundingColor(img, rect, x, y, fallback)
+			if !ok {
+				c = fallback
+			}
+			img.Set(x, y, c)
+		}
+	}
+	if w > 2 && h > 2 {
+		featherRectEdges(img, rect, 2)
+	}
+}
+
+func blendedSurroundingColor(img *image.RGBA, rect image.Rectangle, x, y int, fallback color.RGBA) (color.RGBA, bool) {
+	b := img.Bounds()
+	type sample struct {
+		c color.RGBA
+		w float64
+	}
+	var samples []sample
+	add := func(sx, sy int, weight float64) {
+		if weight <= 0 || sx < b.Min.X || sy < b.Min.Y || sx >= b.Max.X || sy >= b.Max.Y {
+			return
+		}
+		c := img.RGBAAt(sx, sy)
+		if luminance(c) < 25 {
+			return
+		}
+		samples = append(samples, sample{c: c, w: weight})
+	}
+	leftD := float64(x - rect.Min.X + 1)
+	rightD := float64(rect.Max.X - x)
+	topD := float64(y - rect.Min.Y + 1)
+	bottomD := float64(rect.Max.Y - y)
+	add(rect.Min.X-2, y, 1/leftD)
+	add(rect.Max.X+1, y, 1/rightD)
+	add(x, rect.Min.Y-2, 1/topD)
+	add(x, rect.Max.Y+1, 1/bottomD)
+	add(rect.Min.X-2, rect.Min.Y-2, 0.5/(leftD+topD))
+	add(rect.Max.X+1, rect.Min.Y-2, 0.5/(rightD+topD))
+	add(rect.Min.X-2, rect.Max.Y+1, 0.5/(leftD+bottomD))
+	add(rect.Max.X+1, rect.Max.Y+1, 0.5/(rightD+bottomD))
+	if len(samples) == 0 {
+		return fallback, false
+	}
+	var r, g, bl, total float64
+	for _, s := range samples {
+		r += float64(s.c.R) * s.w
+		g += float64(s.c.G) * s.w
+		bl += float64(s.c.B) * s.w
+		total += s.w
+	}
+	if total <= 0 {
+		return fallback, false
+	}
+	return color.RGBA{R: uint8(r / total), G: uint8(g / total), B: uint8(bl / total), A: 255}, true
+}
+
+func featherRectEdges(img *image.RGBA, rect image.Rectangle, radius int) {
+	if radius <= 0 {
+		return
+	}
+	b := img.Bounds()
+	orig := cloneRGBA(img)
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			dist := min(min(x-rect.Min.X, rect.Max.X-1-x), min(y-rect.Min.Y, rect.Max.Y-1-y))
+			if dist >= radius {
+				continue
+			}
+			var r, g, bl, n float64
+			for dy := -1; dy <= 1; dy++ {
+				for dx := -1; dx <= 1; dx++ {
+					sx, sy := x+dx, y+dy
+					if sx < b.Min.X || sy < b.Min.Y || sx >= b.Max.X || sy >= b.Max.Y {
+						continue
+					}
+					c := orig.RGBAAt(sx, sy)
+					r += float64(c.R)
+					g += float64(c.G)
+					bl += float64(c.B)
+					n++
+				}
+			}
+			if n == 0 {
+				continue
+			}
+			img.Set(x, y, color.RGBA{R: uint8(r / n), G: uint8(g / n), B: uint8(bl / n), A: 255})
 		}
 	}
 }

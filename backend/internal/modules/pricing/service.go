@@ -65,14 +65,18 @@ func buildPreviewLine(row product.ProductSKU, prodID uuid.UUID, calc CalculateRe
 		delta = calc.CalculatedPrice - *cur
 	}
 	return PreviewLine{
-		ProductSkuID:    row.ID.String(),
-		ProductID:       prodID.String(),
-		SKUCode:         row.SKUCode,
-		SKUName:         row.SKUName,
-		CostPrice:       row.CostPrice,
-		CurrentPrice:    cur,
-		CalculatedPrice: calc.CalculatedPrice,
-		Delta:           roundMoney(delta),
+		ProductSkuID:        row.ID.String(),
+		ProductID:           prodID.String(),
+		SKUCode:             row.SKUCode,
+		SKUName:             row.SKUName,
+		CostPrice:           row.CostPrice,
+		CurrentPrice:        cur,
+		LandedCost:          calc.LandedCost,
+		CommissionFee:       calc.CommissionFee,
+		CalculatedPrice:     calc.CalculatedPrice,
+		EstimatedProfit:     calc.EstimatedProfit,
+		ProfitMarginPercent: calc.ProfitMarginPercent,
+		Delta:               roundMoney(delta),
 	}
 }
 
@@ -128,11 +132,16 @@ func (s *Service) Calculate(ctx context.Context, body CalculateBody) (*Calculate
 		Rule:            rule,
 	}, curr)
 	return &CalculateResponse{
-		BasePrice:       calc.BasePrice,
-		CostPrice:       calc.CostPrice,
-		CurrentPrice:    calc.CurrentPrice,
-		CalculatedPrice: calc.CalculatedPrice,
-		Currency:        calc.Currency,
+		BasePrice:           calc.BasePrice,
+		CostPrice:           calc.CostPrice,
+		CurrentPrice:        calc.CurrentPrice,
+		LandedCost:          calc.LandedCost,
+		ShippingCost:        calc.ShippingCost,
+		CommissionFee:       calc.CommissionFee,
+		CalculatedPrice:     calc.CalculatedPrice,
+		EstimatedProfit:     calc.EstimatedProfit,
+		ProfitMarginPercent: calc.ProfitMarginPercent,
+		Currency:            calc.Currency,
 	}, nil
 }
 
@@ -455,14 +464,18 @@ func (s *Service) writeApplyOpLog(ctx context.Context, adminID *uuid.UUID, actio
 		return
 	}
 	payload := map[string]any{
-		"productId":     productID,
-		"skuCount":      sum.SkuCount,
-		"updated":       sum.Updated,
-		"platform":      strings.TrimSpace(platform),
-		"markupType":    rule.MarkupType,
-		"markupPercent": rule.MarkupPercent,
-		"markupAmount":  rule.MarkupAmount,
-		"roundingMode":  rule.RoundingMode,
+		"productId":                 productID,
+		"skuCount":                  sum.SkuCount,
+		"updated":                   sum.Updated,
+		"platform":                  strings.TrimSpace(platform),
+		"markupType":                rule.MarkupType,
+		"markupPercent":             rule.MarkupPercent,
+		"markupAmount":              rule.MarkupAmount,
+		"markupMultiplier":          rule.MarkupMultiplier,
+		"shippingCost":              rule.ShippingCost,
+		"platformCommissionPercent": rule.PlatformCommissionPercent,
+		"minProfit":                 rule.MinProfit,
+		"roundingMode":              rule.RoundingMode,
 	}
 	b, _ := json.Marshal(payload)
 	_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{

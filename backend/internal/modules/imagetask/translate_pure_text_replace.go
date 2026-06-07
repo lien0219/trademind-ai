@@ -72,7 +72,7 @@ func computePureTextRenderBlocks(
 			blockClass = blockClassSmallCaption
 		}
 		anchorBBox := clampGroupBBox(b.BBox, imageW, imageH)
-		detectBBox := anchorBBox
+		detectBBox := clampGroupBBox(sourceBBoxForBlock(b), imageW, imageH)
 		baseStyle := drawStyleForPureTextBlock(b, blockClass)
 		maxLines := maxLinesForPureTextBlock(blockClass, opts)
 		text, fontSize, lines, overflow, renderStyle := selectPureTextTranslation(
@@ -97,7 +97,7 @@ func computePureTextRenderBlocks(
 			FontSize:     fontSize,
 			BBox:         drawBBox,
 			EraseBBox:    detectBBox,
-			OriginalBBox: clampGroupBBox(b.BBox, imageW, imageH),
+			OriginalBBox: detectBBox,
 			Style:        renderStyle,
 			ErasePadding: erasePaddingForBlockClass(blockClass),
 			MaskDilate:   1,
@@ -111,21 +111,13 @@ func computePureTextRenderBlocks(
 }
 
 func drawStyleForPureTextBlock(b translateTextBlock, blockClass string) translateTextStyle {
-	if isCapsuleBlockClassForRender(blockClass) && isDarkLabelStyle(b.Style) {
-		style := translateTextStyle{
-			Color:      "#ffffff",
-			FontWeight: "bold",
-			Align:      "center",
-		}
-		return style
-	}
 	if isCapsuleBlockClassForRender(blockClass) {
 		style := translateTextStyle{
 			Color:      "#111111",
 			FontWeight: "bold",
 			Align:      "center",
 		}
-		if strings.TrimSpace(b.Style.Color) != "" {
+		if strings.TrimSpace(b.Style.Color) != "" && !isWhiteTextStyle(b.Style) {
 			style.Color = b.Style.Color
 		}
 		return style

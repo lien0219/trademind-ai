@@ -21,17 +21,31 @@ import {
 } from '../providers/sourcePinduoduo/login-url.js';
 import { PINDUODUO_PROFILE_KEY } from '../providers/sourcePinduoduo/profile.js';
 import {
+  buildTaobaoAuthCheckResult,
+  evaluateTaobaoAuthPage,
+  logTaobaoAuthDebug,
+  resolveTaobaoAuthResult,
+  type TaobaoAuthCheckResult,
+} from '../providers/sourceTaobaoTmall/auth-detect.js';
+import { TAOBAO_TMALL_PROFILE_KEY } from '../providers/sourceTaobaoTmall/profile.js';
+import {
   ensureBrowserDataDirs,
   get1688UserDataDir,
   getPinduoduoUserDataDir,
+  getTaobaoTmallUserDataDir,
 } from './browser-paths.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
 
 const PROVIDER_1688 = '1688';
 const PROVIDER_PINDUODUO = 'pinduoduo';
+const PROVIDER_TAOBAO_TMALL = 'taobao_tmall';
 
-export { PINDUODUO_PROFILE_KEY };
+export { PINDUODUO_PROFILE_KEY, TAOBAO_TMALL_PROFILE_KEY };
+
+export type AuthStatusTaobaoTmall = TaobaoAuthCheckResult & {
+  profilePath?: string;
+};
 
 export type AuthStatusPinduoduo = PinduoduoAuthCheckResult & {
   profilePath?: string;
@@ -104,9 +118,14 @@ export class BrowserSessionManager {
     return getPinduoduoUserDataDir();
   }
 
+  getTaobaoTmallUserDataDir(): string {
+    return getTaobaoTmallUserDataDir();
+  }
+
   private providerUserDataDir(provider: string): string {
     if (provider === PROVIDER_1688) return get1688UserDataDir();
     if (provider === PROVIDER_PINDUODUO) return getPinduoduoUserDataDir();
+    if (provider === PROVIDER_TAOBAO_TMALL) return getTaobaoTmallUserDataDir();
     return `${get1688UserDataDir()}/../${provider}`;
   }
 
@@ -174,15 +193,21 @@ export class BrowserSessionManager {
     const loginUrl =
       provider === PROVIDER_PINDUODUO
         ? 'https://mobile.yangkeduo.com/'
-        : 'https://www.1688.com/';
+        : provider === PROVIDER_TAOBAO_TMALL
+          ? 'https://www.taobao.com/'
+          : 'https://www.1688.com/';
     const alreadyMsg =
       provider === PROVIDER_PINDUODUO
         ? '采集浏览器已打开，请在窗口中完成拼多多登录或安全验证'
-        : '采集浏览器已打开，请在窗口中完成 1688 登录或安全验证';
+        : provider === PROVIDER_TAOBAO_TMALL
+          ? '采集浏览器已打开，请在窗口中完成淘宝/天猫登录或安全验证'
+          : '采集浏览器已打开，请在窗口中完成 1688 登录或安全验证';
     const openedMsg =
       provider === PROVIDER_PINDUODUO
         ? '已打开拼多多采集浏览器。若跳转到微信页面，请用微信扫码完成授权（系统不保存账号密码），完成后点击「重新检测」。'
-        : '已打开采集浏览器，请在此窗口完成 1688 登录与安全验证（普通 Chrome/Edge 登录无效）';
+        : provider === PROVIDER_TAOBAO_TMALL
+          ? '已打开淘宝/天猫采集浏览器。请在窗口中完成登录或安全验证（系统不保存账号密码），完成后点击「重新检测」。'
+          : '已打开采集浏览器，请在此窗口完成 1688 登录与安全验证（普通 Chrome/Edge 登录无效）';
 
     return this.runLocked(async () => {
       const userDataDir = this.providerUserDataDir(provider);
@@ -455,6 +480,120 @@ export class BrowserSessionManager {
             finalUrl: '',
             checkMode: plan.mode,
             evidence: emptyEvidence,
+          }),
+          profilePath: userDataDir,
+        };
+      }
+    });
+  }
+
+  async openTaobaoTmallLoginBrowser(contextUrl?: string): Promise<{
+    profilePath: string;
+    message: string;
+    alreadyOpen: boolean;
+  }> {
+    const loginUrl = contextUrl?.trim() || 'https://www.taobao.com/';
+    return this.runLocked(async () => {
+      const userDataDir = getTaobaoTmallUserDataDir();
+      const existing = this.contexts.get(PROVIDER_TAOBAO_TMALL);
+      if (this.loginSessionActive.has(PROVIDER_TAOBAO_TMALL) && existing && !existing.isClosed()) {
+        const page = existing.pages()[0] ?? (await existing.newPage());
+        await page.bringToFront().catch(() => undefined);
+        if (contextUrl?.trim()) {
+          await page.goto(loginUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: getDefaultNavigationTimeoutMs(),
+          });
+        }
+        return {
+          profilePath: userDataDir,
+          message: '采集浏览器已打开，请在窗口中完成淘宝/天猫登录或安全验证',
+          alreadyOpen: true,
+        };
+      }
+
+      this.loginSessionActive.add(PROVIDER_TAOBAO_TMALL);
+      const context = await this.getOrCreateProviderContext(PROVIDER_TAOBAO_TMALL, { headless: false });
+      const page = context.pages()[0] ?? (await context.newPage());
+      await page.goto(loginUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: getDefaultNavigationTimeoutMs(),
+      });
+
+      return {
+        profilePath: userDataDir,
+        message: contextUrl?.trim()
+          ? '已打开目标商品页，请在采集浏览器中完成登录或安全验证，完成后点击「重新检测」。'
+          : '已打开淘宝/天猫采集浏览器。建议从失败任务或采集弹窗打开具体商品链接登录。（系统不保存账号密码）',
+        alreadyOpen: false,
+      };
+    });
+  }
+
+  async checkTaobaoTmallAuthStatus(contextUrl?: string): Promise<AuthStatusTaobaoTmall> {
+    return this.runLocked(async () => {
+      const lastCheckedAt = new Date().toISOString();
+      const userDataDir = getTaobaoTmallUserDataDir();
+      const timeoutMs = getDefaultNavigationTimeoutMs();
+      const headless = this.loginSessionActive.has(PROVIDER_TAOBAO_TMALL) ? false : true;
+      const context = await this.getOrCreateProviderContext(PROVIDER_TAOBAO_TMALL, { headless });
+      const checkUrl = contextUrl?.trim() || 'https://www.taobao.com/';
+
+      const page = await context.newPage();
+      page.setDefaultNavigationTimeout(timeoutMs);
+      page.setDefaultTimeout(timeoutMs);
+
+      try {
+        await page.goto(checkUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+        await page
+          .waitForLoadState('networkidle', { timeout: Math.min(timeoutMs, 12_000) })
+          .catch(() => undefined);
+
+        const finalUrl = page.url();
+        const signals = await evaluateTaobaoAuthPage(page);
+        const resolved = resolveTaobaoAuthResult(signals);
+
+        logTaobaoAuthDebug({
+          userDataDir,
+          profileKey: TAOBAO_TMALL_PROFILE_KEY,
+          checkUrl,
+          finalUrl,
+          result: resolved.status,
+          message: resolved.message,
+        });
+
+        await page.close().catch(() => undefined);
+        return {
+          ...buildTaobaoAuthCheckResult({
+            status: resolved.status,
+            loggedIn: resolved.loggedIn,
+            needVerification: resolved.needVerification,
+            message: resolved.message,
+            lastCheckedAt,
+            checkedUrl: checkUrl,
+            finalUrl,
+          }),
+          profilePath: userDataDir,
+        };
+      } catch (e) {
+        await page.close().catch(() => undefined);
+        const err = e instanceof Error ? e.message : String(e);
+        logTaobaoAuthDebug({
+          userDataDir,
+          profileKey: TAOBAO_TMALL_PROFILE_KEY,
+          checkUrl,
+          result: 'unknown',
+          message: err,
+        });
+        return {
+          ...buildTaobaoAuthCheckResult({
+            status: 'unknown',
+            loggedIn: false,
+            needVerification: /verify|captcha|验证/i.test(err),
+            message: `检测页异常：${err}`,
+            lastCheckedAt,
+            checkedUrl: checkUrl,
+            finalUrl: '',
           }),
           profilePath: userDataDir,
         };

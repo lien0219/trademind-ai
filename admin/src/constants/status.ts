@@ -87,6 +87,8 @@ export const SHOP_AUTH_STATUS = {
   unauthorized: { text: '未授权', color: 'default' as const },
   authorized: { text: '已授权', color: 'success' as const },
   expired: { text: '已过期', color: 'warning' as const },
+  invalid: { text: '异常', color: 'error' as const },
+  need_check: { text: '待检查', color: 'warning' as const },
   error: { text: '异常', color: 'error' as const },
   unsupported: { text: '不支持', color: 'default' as const },
 };
@@ -103,6 +105,7 @@ export const PLATFORM_PROVIDER_STATUS = {
 export const ORDER_SYNC_TASK_STATUS = {
   pending: { text: '等待处理', color: 'processing' as const },
   running: { text: '处理中', color: 'processing' as const },
+  partial_success: { text: '部分成功', color: 'warning' as const },
   success: { text: '成功', color: 'success' as const },
   failed: { text: '失败', color: 'error' as const },
   cancelled: { text: '已取消', color: 'default' as const },

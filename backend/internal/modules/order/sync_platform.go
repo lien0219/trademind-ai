@@ -163,13 +163,13 @@ func compactRawSummary(platformKey string, shopID uuid.UUID, extID string, src m
 
 // UpsertSyncedOrders writes provider-neutral payloads into orders / items / shipments (idempotent by external_order_id per shop).
 // Returned order IDs are internal UUIDs successfully upserted in this batch (same order each run for the same external id).
-func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shopPlatform string, payloads []SyncedOrderPayload) (orderIDs []uuid.UUID, success int, failed int, err error) {
+func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shopPlatform string, payloads []SyncedOrderPayload) (orderIDs []uuid.UUID, success int, failed int, created int, updated int, err error) {
 	if s == nil || s.DB == nil {
-		return nil, 0, 0, fmt.Errorf("order: no db")
+		return nil, 0, 0, 0, 0, fmt.Errorf("order: no db")
 	}
 	platformKey := strings.TrimSpace(shopPlatform)
 	if platformKey == "" {
-		return nil, 0, 0, fmt.Errorf("platform is required")
+		return nil, 0, 0, 0, 0, fmt.Errorf("platform is required")
 	}
 	for _, p := range payloads {
 		ext := strings.TrimSpace(p.ExternalOrderID)
@@ -179,6 +179,7 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 		}
 
 		var upsertedID uuid.UUID
+		isCreate := false
 		txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			st := normalizeSyncedOrderStatus(p.Status)
 			ps := normalizeSyncedPaymentStatus(p.PaymentStatus)
@@ -215,6 +216,7 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 			extCopy := ext
 
 			if errors.Is(findErr, gorm.ErrRecordNotFound) {
+				isCreate = true
 				o := &Order{
 					Platform:          platformKey,
 					ShopID:            &sid,
@@ -268,11 +270,16 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 			continue
 		}
 		success++
+		if isCreate {
+			created++
+		} else {
+			updated++
+		}
 		if upsertedID != uuid.Nil {
 			orderIDs = append(orderIDs, upsertedID)
 		}
 	}
-	return orderIDs, success, failed, nil
+	return orderIDs, success, failed, created, updated, nil
 }
 
 func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload) error {

@@ -472,7 +472,7 @@ export default function StorageSettingsPage() {
   return (
     <PageContainer title="存储设置" subTitle="配置商品图片与附件的存储方式，支持本地磁盘与主流对象存储">
       <div className="tm-storage-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <HddOutlined />
@@ -503,7 +503,7 @@ export default function StorageSettingsPage() {
           }}
         >
           <ProCard
-            bordered
+            variant="outlined"
             title="存储方式"
             className="tm-system-settings__panel"
             extra={
@@ -537,7 +537,7 @@ export default function StorageSettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard bordered title={storageConnectionSectionTitle(kind)} className="tm-system-settings__panel">
+          <ProCard variant="outlined" title={storageConnectionSectionTitle(kind)} className="tm-system-settings__panel">
             {kind === 'local' || !kind ? (
               <Row gutter={[24, 0]}>
                 <Col xs={24} md={12}>
@@ -753,7 +753,7 @@ export default function StorageSettingsPage() {
             ) : null}
           </ProCard>
 
-          <ProCard bordered className="tm-system-settings__footer">
+          <ProCard variant="outlined" className="tm-system-settings__footer">
             <Space wrap className="tm-action-space">
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
                 保存配置
@@ -778,7 +778,7 @@ export default function StorageSettingsPage() {
           </ProCard>
         </Form>
 
-        <ProCard bordered title="上传测试" className="tm-system-settings__panel">
+        <ProCard variant="outlined" title="上传测试" className="tm-system-settings__panel">
           <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
             保存配置后，可选择图片验证上传与访问是否正常。
           </Typography.Paragraph>

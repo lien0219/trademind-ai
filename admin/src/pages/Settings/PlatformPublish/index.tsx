@@ -345,7 +345,7 @@ export default function PlatformPublishSettingsPage() {
       subTitle="各平台商品上架时的默认参数；单次刊登可在商品详情中覆盖"
     >
       <div className="tm-system-settings tm-platform-publish">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <CloudUploadOutlined />
@@ -364,7 +364,7 @@ export default function PlatformPublishSettingsPage() {
           </div>
         </ProCard>
 
-        <ProCard bordered title="选择平台" className="tm-system-settings__panel">
+        <ProCard variant="outlined" title="选择平台" className="tm-system-settings__panel">
           <Spin spinning={loadingProviders}>
             {items.length === 0 ? (
               <Paragraph type="secondary">暂无可配置刊登参数的平台，请刷新或检查后端 Provider 注册。</Paragraph>

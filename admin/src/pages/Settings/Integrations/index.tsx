@@ -216,7 +216,7 @@ export default function IntegrationsHubPage() {
       <Spin spinning={loading}>
         {data ? (
           <>
-            <ProCard bordered style={{ marginBottom: 16 }}>
+            <ProCard variant="outlined" style={{ marginBottom: 16 }}>
               <Row gutter={[24, 16]}>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic title="核心集成就绪" value={`${summary.configured} / ${summary.total}`} />

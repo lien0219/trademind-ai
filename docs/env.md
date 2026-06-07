@@ -72,7 +72,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | 变量 | 示例 / 默认 | 服务 | 敏感 | 说明 |
 | --- | --- | --- | --- | --- |
 | `COLLECTOR_BASE_URL` | `http://127.0.0.1:3100` | backend | 否 | Go API 调用 Collector 的基础地址。 |
-| `COLLECTOR_TIMEOUT_SECONDS` | `60` | backend | 否 | 后端调用 Collector 超时。 |
+| `COLLECTOR_TIMEOUT_SECONDS` | `120` | backend | 否 | 后端调用 Collector 超时；淘宝/天猫任务会按页面打开超时自动放宽（约 `gotoTimeoutMs + 90s`）。 |
 | `COLLECTOR_HTTP_ADDR` | `:3100` / `:3001` | collector | 否 | Collector 监听地址。 |
 | `COLLECTOR_MAIN_SERVICE_URL` | `http://127.0.0.1:8080` | collector | 否 | Collector 回调或访问后端的基础地址预留。 |
 | `COLLECTOR_GOTO_TIMEOUT_MS` | `45000` | collector | 否 | Playwright 页面打开超时。 |

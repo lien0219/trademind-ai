@@ -11,7 +11,7 @@ type PlatformID string
 const (
 	Platform1688        PlatformID = "1688"
 	PlatformAliExpress  PlatformID = "aliexpress"
-	PlatformTaobaoTmall PlatformID = "taobao"
+	PlatformTaobaoTmall PlatformID = "taobao_tmall"
 	PlatformPdd         PlatformID = "pinduoduo"
 	PlatformSheinTemu   PlatformID = "shein_temu"
 )
@@ -38,13 +38,7 @@ func hostMatchesAliExpress(host string) bool {
 }
 
 func hostMatchesTaobaoTmall(host string) bool {
-	if host == "taobao.com" || strings.HasSuffix(host, ".taobao.com") {
-		return true
-	}
-	if host == "tmall.com" || strings.HasSuffix(host, ".tmall.com") {
-		return true
-	}
-	return host == "item.taobao.com" || host == "detail.tmall.com"
+	return IsTaobaoEcosystemHost(host)
 }
 
 func hostMatchesPdd(host string) bool {

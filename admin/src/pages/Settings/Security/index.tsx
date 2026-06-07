@@ -98,7 +98,7 @@ export default function SecuritySettingsPage() {
   return (
     <PageContainer title="安全设置" subTitle="会话超时、HTTPS 策略与运维回调签名校验">
       <div className="tm-system-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <LockOutlined />
@@ -117,7 +117,7 @@ export default function SecuritySettingsPage() {
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
-            bordered
+            variant="outlined"
             title="会话管理"
             className="tm-system-settings__panel"
             style={{ marginTop: 16 }}
@@ -145,7 +145,7 @@ export default function SecuritySettingsPage() {
                   ]}
                   extra={SECURITY_FIELD_HELP.sessionIdleTimeoutMin}
                 >
-                  <InputNumber min={5} max={10080} style={{ width: '100%' }} addonAfter="分钟" />
+                  <InputNumber min={5} max={10080} style={{ width: '100%' }} suffix="分钟" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={10}>
@@ -165,7 +165,7 @@ export default function SecuritySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="传输安全" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="传输安全" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Row gutter={[16, 16]}>
               <Col xs={24} md={16} lg={14}>
                 <SecurityToggleCard
@@ -177,7 +177,7 @@ export default function SecuritySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="Webhook 签名校验" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="Webhook 签名校验" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Paragraph type="secondary" style={{ marginBottom: 16, fontSize: 13 }}>
               用于验证外部系统向贸灵发起的运维类回调请求，与告警通知中的 Webhook 密钥相互独立。
             </Paragraph>
@@ -194,7 +194,7 @@ export default function SecuritySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
             <Space wrap>
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
                 保存配置

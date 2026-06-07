@@ -8,6 +8,7 @@ alwaysApply: true
 - 修改代码前先读取相关代码、配置与文档，不凭空假设脚本、端口、路径或变量。
 - 变更必须保持 **代码 / 配置 / 示例 / Docker / CI / 文档** 同步。
 - 跨模块改动先查 `docs/module-map.md`；收尾时按 `docs/task-checklist.md` 自查。
+- 跨 AI 工具的上下文控制、token 节约和经验沉淀流程见 `docs/ai-workflow.md`。
 - 新增或修改环境变量时，同步更新 `.env.example`、`docs/env.md`；Docker 也需要时同步 `.env.docker.example` 与 `docker-compose.full.yml`。
 - 新增或修改命令时，同步更新 `README.md`、`README.en.md`、`docs/development.md` 和 `package.json` 脚本说明。
 - 新增或修改 Docker 部署行为时，同步更新 `docs/docker-deployment.md`。

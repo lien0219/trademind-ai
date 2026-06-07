@@ -8,6 +8,12 @@ export const PLATFORM_APP_FIELD_LABEL: Record<string, string> = {
   api_base_url: 'API 接口地址',
   redirect_uri: 'OAuth 回调地址',
   api_version: 'API 版本号',
+  environment: '环境',
+  real_api_enabled: '启用真实接口',
+  order_sync_enabled: '启用订单同步',
+  order_sync_max_pages: '订单同步最大页数',
+  inventory_sync_enabled: '启用库存同步',
+  product_publish_enabled: '启用商品草稿创建',
   region: '区域',
   oauth_scopes: 'OAuth 授权范围',
   sandbox_enabled: '沙箱环境',
@@ -35,6 +41,12 @@ export const PLATFORM_APP_FIELD_HELP: Record<string, string> = {
   oauth_scopes: '多个 scope 用空格分隔；留空使用 Partner 应用默认',
   region: '站点或市场区域标识，可选',
   sandbox_enabled: '标记是否使用沙箱；实际环境以 Partner 配置为准',
+  environment: '生产 / 沙箱模式；真实调用仍以后端 Provider 实现和平台官方权限为准',
+  real_api_enabled: '仅保存开关；Phase 1 不发起抖店真实 API 调用',
+  order_sync_enabled: '启用订单同步（抖店 Phase 8 已接入；默认关闭，开启后可在店铺页手动同步订单）',
+  order_sync_max_pages: '单次任务最多拉取页数（默认 5）；每页条数由同步任务 limit 控制，总条数上限 500',
+  inventory_sync_enabled: '启用库存同步（抖店 Phase 9 已接入 sku.syncStock；默认关闭，开启后可在商品详情/库存预警页手动同步）',
+  product_publish_enabled: '仅保存开关；抖店商品草稿创建会在后续 Phase 接入',
   timeout_sec: '外部 HTTP 请求超时，建议 5–600 秒',
   redirect_uri: '须与开放平台应用登记的重定向 URI 完全一致',
   refresh_token: '通常保存在店铺授权中；此处为应用级占位',
@@ -50,6 +62,7 @@ export const PLATFORM_APP_FIELD_PLACEHOLDER: Record<string, string> = {
   api_base_url: 'https://api.example.com',
   redirect_uri: 'https://your-admin.example.com/callback',
   api_version: '202309',
+  environment: 'production',
   timeout_sec: '30',
 };
 
@@ -62,6 +75,7 @@ export const PLATFORM_STATUS_META: Record<string, { label: string; color: string
 
 /** 开发者门户快捷链接 */
 export const PLATFORM_DEV_PORTALS: { name: string; url: string }[] = [
+  { name: '抖店开放平台', url: 'https://op.jinritemai.com/docs/' },
   { name: 'TikTok Shop Partner', url: 'https://partner.tiktokshop.com/' },
   { name: 'Shopee Open', url: 'https://open.shopee.com/' },
   { name: 'Lazada Open', url: 'https://open.lazada.com/' },

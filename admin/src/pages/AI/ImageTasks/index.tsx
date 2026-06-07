@@ -1,18 +1,43 @@
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { CopyOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Descriptions, Drawer, Image, Popconfirm, Space, Spin, Tag, message, Typography } from 'antd';
+import { CopyOutlined, EditOutlined } from '@ant-design/icons';
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Drawer,
+  Image,
+  Input,
+  InputNumber,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Spin,
+  Switch,
+  Tag,
+  message,
+  Typography,
+} from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from '@umijs/max';
 import { CreateImageTaskModal } from '@/components/CreateImageTaskModal';
-import type { ImageTaskDetail, ImageTaskItemRow, ImageTaskListRow } from '@/services/imageTasks';
+import type {
+  ImageTaskDetail,
+  ImageTaskItemRow,
+  ImageTaskListRow,
+  TranslateManualEditBlock,
+  TranslateManualEditState,
+} from '@/services/imageTasks';
 import { displayNameForProvider } from '@/constants/imageProviders';
 import { useImageProviders } from '@/hooks/useImageProviders';
 import {
   applyImageTaskResult,
   getImageTask,
+  getTranslateManualEditState,
   IMAGE_TASK_TEMPLATES,
   isImageTaskSuccessStatus,
   isImageTaskUsableForProduct,
@@ -20,6 +45,7 @@ import {
   parseTranslateTaskOutput,
   queryImageTasks,
   retryImageTask,
+  manualRenderTranslateImageTask,
   saveImageTaskItemToProduct,
   setImageTaskItemAsMain,
   taskTypeLabel,
@@ -409,6 +435,278 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
   );
 }
 
+function manualBaseImageUrl(state: TranslateManualEditState | null, base: 'original' | 'erased' | 'result') {
+  if (!state) return '';
+  if (base === 'erased') return state.erasedImageUrl || state.originalImageUrl || state.baseImageUrl || '';
+  if (base === 'result') return state.resultImageUrl || state.erasedImageUrl || state.originalImageUrl || state.baseImageUrl || '';
+  return state.originalImageUrl || state.baseImageUrl || state.erasedImageUrl || '';
+}
+
+function ManualTranslateEditor({
+  open,
+  loading,
+  state,
+  onCancel,
+  onSaved,
+}: {
+  open: boolean;
+  loading: boolean;
+  state: TranslateManualEditState | null;
+  onCancel: () => void;
+  onSaved: (row: ImageTaskDetail) => void;
+}) {
+  const [blocks, setBlocks] = useState<TranslateManualEditBlock[]>([]);
+  const [baseImage, setBaseImage] = useState<'original' | 'erased' | 'result'>('original');
+  const [saving, setSaving] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(0);
+
+  useEffect(() => {
+    if (!open || !state) return;
+    setBlocks(state.blocks ?? []);
+    setBaseImage(state.originalImageUrl ? 'original' : state.erasedImageUrl ? 'erased' : 'result');
+    setPreviewWidth(0);
+  }, [open, state]);
+
+  const updateBlock = useCallback((index: number, patch: Partial<TranslateManualEditBlock>) => {
+    setBlocks((prev) => prev.map((b, i) => (i === index ? { ...b, ...patch } : b)));
+  }, []);
+
+  const updateBBox = useCallback((index: number, patch: Partial<TranslateManualEditBlock['bbox']>) => {
+    setBlocks((prev) =>
+      prev.map((b, i) => (i === index ? { ...b, bbox: { ...b.bbox, ...patch } } : b)),
+    );
+  }, []);
+
+  const updateEraseBBox = useCallback((index: number, patch: Partial<TranslateManualEditBlock['eraseBBox']>) => {
+    setBlocks((prev) =>
+      prev.map((b, i) => (i === index ? { ...b, eraseBBox: { ...b.eraseBBox, ...patch } } : b)),
+    );
+  }, []);
+
+  const baseUrl = manualBaseImageUrl(state, baseImage);
+  const imageWidth = state?.imageWidth || 1;
+  const imageHeight = state?.imageHeight || 1;
+  const scale = previewWidth > 0 && state?.imageWidth ? previewWidth / state.imageWidth : 0.6;
+
+  const save = async () => {
+    if (!state?.taskId) return;
+    setSaving(true);
+    try {
+      const row = await manualRenderTranslateImageTask(state.taskId, {
+        baseImage,
+        outputFormat: 'webp',
+        note: 'manual translate text layout edit',
+        verifyOutputText: false,
+        blocks,
+      });
+      message.success('已保存人工编辑译图');
+      onSaved(row);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '保存人工译图失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="人工编辑翻译图片"
+      open={open}
+      onCancel={onCancel}
+      onOk={save}
+      okText="渲染并保存"
+      cancelText="取消"
+      confirmLoading={saving}
+      width={1180}
+      destroyOnHidden
+    >
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 48 }}>
+          <Spin />
+        </div>
+      ) : state ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) 420px', gap: 16 }}>
+          <div>
+            <Space style={{ marginBottom: 12 }} wrap>
+              <Typography.Text strong>底图</Typography.Text>
+              <Select
+                value={baseImage}
+                style={{ width: 180 }}
+                onChange={setBaseImage}
+                options={[
+                  { label: '原图重新擦除', value: 'original', disabled: !state.originalImageUrl },
+                  { label: '已擦除底图', value: 'erased', disabled: !state.erasedImageUrl },
+                  { label: '当前结果图', value: 'result', disabled: !state.resultImageUrl },
+                ]}
+              />
+              <Typography.Text type="secondary">
+                {state.imageWidth} x {state.imageHeight}
+              </Typography.Text>
+            </Space>
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: 680,
+                border: '1px solid var(--ant-color-border)',
+                background: 'var(--ant-color-fill-quaternary)',
+                overflow: 'hidden',
+              }}
+            >
+              {baseUrl ? (
+                <img
+                  src={baseUrl}
+                  alt=""
+                  style={{ display: 'block', width: '100%', height: 'auto' }}
+                  onLoad={(e) => setPreviewWidth(e.currentTarget.clientWidth)}
+                />
+              ) : null}
+              {blocks.map((b) =>
+                b.hidden ? null : (
+                  <div
+                    key={b.id}
+                    style={{
+                      position: 'absolute',
+                      left: `${(b.bbox.x / imageWidth) * 100}%`,
+                      top: `${(b.bbox.y / imageHeight) * 100}%`,
+                      width: `${(b.bbox.width / imageWidth) * 100}%`,
+                      minHeight: `${(b.bbox.height / imageHeight) * 100}%`,
+                      boxSizing: 'border-box',
+                      border: '1px dashed #1677ff',
+                      color: b.color || '#111111',
+                      fontSize: Math.max(10, Math.round((b.fontSize || 18) * scale)),
+                      fontWeight: b.fontWeight || undefined,
+                      textAlign: (b.align as 'left' | 'center' | 'right') || 'left',
+                      lineHeight: 1.15,
+                      padding: 2,
+                      pointerEvents: 'none',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {b.text}
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+          <div style={{ maxHeight: 650, overflow: 'auto', paddingRight: 4 }}>
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="保存时会用当前块配置重新擦除原文并绘制译文，适合清理旧中文、旧标签底和文字重叠。"
+            />
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              {blocks.map((b, index) => (
+                <div
+                  key={b.id}
+                  style={{
+                    border: '1px solid var(--ant-color-border)',
+                    borderRadius: 6,
+                    padding: 12,
+                    background: 'var(--ant-color-bg-container)',
+                  }}
+                >
+                  <Space wrap style={{ marginBottom: 8 }}>
+                    <Tag>{b.blockClass || 'text'}</Tag>
+                    <Typography.Text type="secondary">{b.sourceText || b.id}</Typography.Text>
+                    <Switch
+                      size="small"
+                      checked={!b.hidden}
+                      checkedChildren="显示"
+                      unCheckedChildren="隐藏"
+                      onChange={(checked) => updateBlock(index, { hidden: !checked })}
+                    />
+                    <Switch
+                      size="small"
+                      checked={b.removeSourceBackground}
+                      checkedChildren="清原文"
+                      unCheckedChildren="仅重绘"
+                      onChange={(checked) => updateBlock(index, { removeSourceBackground: checked })}
+                    />
+                  </Space>
+                  <Input.TextArea
+                    value={b.text}
+                    autoSize={{ minRows: 1, maxRows: 3 }}
+                    onChange={(e) => updateBlock(index, { text: e.target.value })}
+                  />
+                  <Space wrap size={8} style={{ marginTop: 8 }}>
+                    <InputNumber prefix="x" value={b.bbox.x} onChange={(v) => updateBBox(index, { x: Number(v ?? 0) })} />
+                    <InputNumber prefix="y" value={b.bbox.y} onChange={(v) => updateBBox(index, { y: Number(v ?? 0) })} />
+                    <InputNumber
+                      prefix="w"
+                      min={1}
+                      value={b.bbox.width}
+                      onChange={(v) => updateBBox(index, { width: Number(v ?? 1) })}
+                    />
+                    <InputNumber
+                      prefix="h"
+                      min={1}
+                      value={b.bbox.height}
+                      onChange={(v) => updateBBox(index, { height: Number(v ?? 1) })}
+                    />
+                    <InputNumber
+                      prefix="字号"
+                      min={8}
+                      max={96}
+                      value={b.fontSize}
+                      onChange={(v) => updateBlock(index, { fontSize: Number(v ?? 18) })}
+                    />
+                    <Input
+                      prefix="颜色"
+                      value={b.color || '#111111'}
+                      style={{ width: 150 }}
+                      onChange={(e) => updateBlock(index, { color: e.target.value })}
+                    />
+                    <Select
+                      value={b.align || 'left'}
+                      style={{ width: 100 }}
+                      onChange={(align) => updateBlock(index, { align })}
+                      options={[
+                        { label: '左对齐', value: 'left' },
+                        { label: '居中', value: 'center' },
+                        { label: '右对齐', value: 'right' },
+                      ]}
+                    />
+                  </Space>
+                  {b.removeSourceBackground ? (
+                    <Space wrap size={8} style={{ marginTop: 8 }}>
+                      <InputNumber
+                        prefix="擦除 x"
+                        value={b.eraseBBox.x}
+                        onChange={(v) => updateEraseBBox(index, { x: Number(v ?? 0) })}
+                      />
+                      <InputNumber
+                        prefix="擦除 y"
+                        value={b.eraseBBox.y}
+                        onChange={(v) => updateEraseBBox(index, { y: Number(v ?? 0) })}
+                      />
+                      <InputNumber
+                        prefix="擦除 w"
+                        min={1}
+                        value={b.eraseBBox.width}
+                        onChange={(v) => updateEraseBBox(index, { width: Number(v ?? 1) })}
+                      />
+                      <InputNumber
+                        prefix="擦除 h"
+                        min={1}
+                        value={b.eraseBBox.height}
+                        onChange={(v) => updateEraseBBox(index, { height: Number(v ?? 1) })}
+                      />
+                    </Space>
+                  ) : null}
+                </div>
+              ))}
+            </Space>
+          </div>
+        </div>
+      ) : (
+        <Alert type="warning" showIcon message="暂无可编辑数据，请先生成一次图片文字翻译结果。" />
+      )}
+    </Modal>
+  );
+}
+
 export default function ImageTasksPage() {
   const location = useLocation();
   const { caps } = useImageProviders();
@@ -427,6 +725,9 @@ export default function ImageTasksPage() {
   const [taskItems, setTaskItems] = useState<ImageTaskItemRow[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<{ taskType?: string }>({});
+  const [manualEditorOpen, setManualEditorOpen] = useState(false);
+  const [manualEditorLoading, setManualEditorLoading] = useState(false);
+  const [manualEditorState, setManualEditorState] = useState<TranslateManualEditState | null>(null);
   const translateOutput = useMemo(
     () => (detail?.taskType === 'translate_image_text' ? parseTranslateTaskOutput(detail.output) : null),
     [detail?.taskType, detail?.output],
@@ -489,6 +790,24 @@ export default function ImageTasksPage() {
       setDetailLoading(false);
     }
   }, []);
+
+  const openManualEditor = useCallback(async () => {
+    if (!detail?.id) return;
+    setManualEditorOpen(true);
+    setManualEditorLoading(true);
+    try {
+      const state = await getTranslateManualEditState(detail.id);
+      setManualEditorState(state);
+      if (!state.blocks?.length) {
+        message.warning('当前任务没有可编辑文字块，请先重新生成一次翻译结果');
+      }
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '加载人工编辑数据失败');
+      setManualEditorOpen(false);
+    } finally {
+      setManualEditorLoading(false);
+    }
+  }, [detail?.id]);
 
   const columns: ProColumns<ImageTaskListRow>[] = [
     {
@@ -697,6 +1016,11 @@ export default function ImageTasksPage() {
         destroyOnHidden
         footer={
           <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
+            {detail?.taskType === 'translate_image_text' ? (
+              <Button icon={<EditOutlined />} onClick={() => void openManualEditor()}>
+                人工编辑译图
+              </Button>
+            ) : null}
             {detail?.taskType === 'translate_image_text' &&
             (detail.status === 'failed' ||
               detail.status === 'success_with_warnings' ||
@@ -1071,6 +1395,17 @@ export default function ImageTasksPage() {
           <div style={{ color: 'var(--ant-color-text-secondary)' }}>暂无数据</div>
         )}
       </Drawer>
+      <ManualTranslateEditor
+        open={manualEditorOpen}
+        loading={manualEditorLoading}
+        state={manualEditorState}
+        onCancel={() => setManualEditorOpen(false)}
+        onSaved={(row) => {
+          setDetail(row);
+          setManualEditorOpen(false);
+          actionRef.current?.reload?.();
+        }}
+      />
     </PageContainer>
   );
 }

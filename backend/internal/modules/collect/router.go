@@ -27,4 +27,9 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/collector/providers/pinduoduo/check-login", h.CheckPinduoduoLogin)
 	g.POST("/collect/providers/pinduoduo/check-login", h.CheckPinduoduoLogin)
 	g.POST("/collector/providers/pinduoduo/open-login-browser", h.OpenPinduoduoLoginBrowser)
+
+	g.POST("/collector/providers/taobao_tmall/check-login", h.CheckTaobaoTmallLogin)
+	g.POST("/collect/providers/taobao_tmall/check-login", h.CheckTaobaoTmallLogin)
+	g.POST("/collector/providers/taobao_tmall/open-login-browser", h.OpenTaobaoTmallLoginBrowser)
+	g.POST("/collect/providers/taobao_tmall/open-login-browser", h.OpenTaobaoTmallLoginBrowser)
 }

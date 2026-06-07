@@ -252,6 +252,46 @@ type taskDetailDTO struct {
 	UpdatedAt       time.Time       `json:"updatedAt"`
 }
 
+func (h *Handler) taskDetailDTO(row *ImageTask) taskDetailDTO {
+	if row == nil {
+		return taskDetailDTO{}
+	}
+	mr := row.MaxRetries
+	if mr <= 0 && h != nil && h.Svc != nil {
+		mr = h.Svc.effectiveMaxRetries(row)
+	}
+	dto := taskDetailDTO{
+		ID:              row.ID,
+		TaskType:        row.TaskType,
+		Provider:        row.Provider,
+		Status:          row.Status,
+		ProductID:       row.ProductID,
+		SourceImageID:   row.SourceImageID,
+		SourceImageURL:  row.SourceImageURL,
+		ResultFileID:    row.ResultFileID,
+		ResultURL:       row.ResultURL,
+		ErrorMessage:    row.ErrorMessage,
+		RetryCount:      row.RetryCount,
+		MaxRetries:      mr,
+		NextRetryAt:     row.NextRetryAt,
+		RetryEnqueuedAt: row.RetryEnqueuedAt,
+		CreatedBy:       row.CreatedBy,
+		BatchID:         row.BatchID,
+		BatchNo:         row.BatchNo,
+		StartedAt:       row.StartedAt,
+		FinishedAt:      row.FinishedAt,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
+	}
+	if len(row.Input) > 0 {
+		dto.Input = json.RawMessage(row.Input)
+	}
+	if len(row.Output) > 0 {
+		dto.Output = json.RawMessage(row.Output)
+	}
+	return dto
+}
+
 // Monitor GET /api/v1/image/tasks/monitor
 func (h *Handler) Monitor(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -286,40 +326,7 @@ func (h *Handler) Get(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	mr := row.MaxRetries
-	if mr <= 0 {
-		mr = h.Svc.effectiveMaxRetries(row)
-	}
-	dto := taskDetailDTO{
-		ID:              row.ID,
-		TaskType:        row.TaskType,
-		Provider:        row.Provider,
-		Status:          row.Status,
-		ProductID:       row.ProductID,
-		SourceImageID:   row.SourceImageID,
-		SourceImageURL:  row.SourceImageURL,
-		ResultFileID:    row.ResultFileID,
-		ResultURL:       row.ResultURL,
-		ErrorMessage:    row.ErrorMessage,
-		RetryCount:      row.RetryCount,
-		MaxRetries:      mr,
-		NextRetryAt:     row.NextRetryAt,
-		RetryEnqueuedAt: row.RetryEnqueuedAt,
-		CreatedBy:       row.CreatedBy,
-		BatchID:         row.BatchID,
-		BatchNo:         row.BatchNo,
-		StartedAt:       row.StartedAt,
-		FinishedAt:      row.FinishedAt,
-		CreatedAt:       row.CreatedAt,
-		UpdatedAt:       row.UpdatedAt,
-	}
-	if len(row.Input) > 0 {
-		dto.Input = json.RawMessage(row.Input)
-	}
-	if len(row.Output) > 0 {
-		dto.Output = json.RawMessage(row.Output)
-	}
-	response.OK(c, dto)
+	response.OK(c, h.taskDetailDTO(row))
 }
 
 // Retry POST /api/v1/image/tasks/:id/retry

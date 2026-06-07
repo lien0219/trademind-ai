@@ -220,7 +220,7 @@ export function BrowserProfileLoginPanel({
             onOk={() => void handleCreate()}
             destroyOnHidden
           >
-            <Form form={createForm} layout="vertical">
+            <Form form={createForm} component={false} layout="vertical">
               <Form.Item label="适用网站">{domain || '—'}</Form.Item>
               <Form.Item
                 name="name"

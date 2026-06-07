@@ -100,7 +100,7 @@ export default function EmailSettingsPage() {
   return (
     <PageContainer title="邮箱设置" subTitle="配置 SMTP 发信服务器，供告警通知与系统邮件使用">
       <div className="tm-system-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <MailOutlined />
@@ -120,7 +120,7 @@ export default function EmailSettingsPage() {
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
-            bordered
+            variant="outlined"
             title="服务提供商"
             className="tm-system-settings__panel"
             style={{ marginTop: 16 }}
@@ -144,7 +144,7 @@ export default function EmailSettingsPage() {
             </Text>
           </ProCard>
 
-          <ProCard bordered title="SMTP 连接" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="SMTP 连接" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Row gutter={[24, 0]}>
               <Col xs={24} md={14}>
                 <Form.Item
@@ -178,7 +178,7 @@ export default function EmailSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="发件人信息" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="发件人信息" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12}>
                 <Form.Item
@@ -197,7 +197,7 @@ export default function EmailSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="加密方式" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="加密方式" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Alert
               type="info"
               showIcon
@@ -225,11 +225,11 @@ export default function EmailSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard bordered title="发送测试" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="发送测试" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Paragraph type="secondary" style={{ marginBottom: 12 }}>
               保存 SMTP 配置后，可向指定邮箱发送测试邮件以验证连通性。
             </Paragraph>
-            <Form form={testForm} layout="vertical">
+            <Form form={testForm} component={false} layout="vertical">
               <Row gutter={[16, 0]} align="bottom">
                 <Col xs={24} md={12} lg={10}>
                   <Form.Item
@@ -252,7 +252,7 @@ export default function EmailSettingsPage() {
             </Form>
           </ProCard>
 
-          <ProCard bordered className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
               保存配置
             </Button>

@@ -22,6 +22,10 @@ export type PublicationSkuListingRow = {
   skuCode?: string;
   platformStock?: number | null;
   inventorySyncCapability?: string;
+  bindStatus?: string;
+  bindConfidence?: number;
+  bindMessage?: string;
+  lastSyncedAt?: string;
 };
 
 export type InventoryChangeLogRow = {

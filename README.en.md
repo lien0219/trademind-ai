@@ -94,11 +94,11 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 | SKU Candidate Recommendation | Candidate SKUs for order items, manual binding, match audit | Supported |
 | Image Management | Local / cloud file upload, product image management, storage providers | Supported |
 | AI Image Processing | remove.bg, OpenAI Image, ComfyUI Provider, async task queue | Supported |
-| Store Authorization | TikTok Shop / Shopee / Lazada / Amazon authorization foundation | In progress |
-| Multi-platform Configuration | Platform app config schema, encrypted and masked sensitive settings | Supported |
-| Order Sync | Multi-platform order sync framework, task queue, exception workspace | In progress |
-| Product Publishing | Multi-platform publishing tasks, readiness checks, publication snapshots | In progress |
-| Inventory Sync | Local stock, platform stock mirror, inventory alerts, sync tasks | In progress |
+| Store Authorization | Douyin Shop OAuth loop, OpenAPI client / signing layer, encrypted tokens with auto-refresh, refresh / revoke / real connection test, category / attribute cache, platform product draft creation, order sync MVP, **inventory sync MVP**, **SKU binding calibration + manual fallback**; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 9.2 supported |
+| Multi-platform Configuration | Platform app config schema, Douyin Shop config, Service ID, encrypted and masked sensitive settings | Supported |
+| Order Sync | Multi-platform order sync framework, task queue, exception workspace; **Douyin `order.searchList` auto-pagination** (default 5 pages / 500 orders) | Douyin Phase 8.1 supported |
+| Product Publishing | Pricing rules, readiness checks, Douyin listing draft mapping preview, manual adjustment / save, publishing tasks, publication snapshots | In progress |
+| Inventory Sync | Local stock, platform stock mirror, inventory alerts, sync tasks; **Douyin `sku.syncStock` MVP** (manual, after SKU binding validation, gated by `inventory_sync_enabled`) | Douyin Phase 9.2 supported |
 | AI Customer Service | Message sync, AI suggested replies, manual send confirmation | In progress |
 | Operation Automation | Failure task center, alerts, batch AI, task retry | Architecture reserved |
 
@@ -113,7 +113,8 @@ AI Product Operation Tool
 └── Readiness checks and batch AI operations
 
 Multi-platform Cross-border ERP MVP
-├── Store authorization: TikTok Shop / Shopee / Lazada / Amazon
+├── First real platform loop: Douyin Shop first (OAuth, API client / signing, category / attribute cache, listing draft field mapping, image upload, platform product draft creation, order sync MVP, **inventory sync MVP** done)
+├── Store authorization: Douyin Shop OAuth supported; TikTok Shop / Shopee / Lazada / Amazon retained for later platform rollout
 ├── Order sync: platform order import, local orders, SKU matching
 ├── Inventory sync: stock alerts, platform inventory tasks, failure retry
 ├── Product publishing: publishing tasks, platform mappings, publication snapshots
@@ -354,6 +355,7 @@ Go Gin API
 │   ├── OpenAI Image
 │   └── ComfyUI
 ├── Platform Provider
+│   ├── Douyin Shop (next real-platform priority)
 │   ├── TikTok Shop
 │   ├── Shopee
 │   ├── Lazada
@@ -371,9 +373,9 @@ See [docs/architecture.md](docs/architecture.md) and [docs/provider.md](docs/pro
 1. **First priority: AI product operation tool**
    - Product collection, product drafts, AI titles, AI descriptions, image management, AI image processing, batch AI operations.
 2. **Second priority: multi-platform cross-border ERP MVP**
-   - Store authorization, order sync, SKU matching, inventory sync, product publishing, AI reply suggestions.
+   - First run a real Douyin Shop loop: store authorization, category / attribute cache, product field mapping / listing draft preview, image upload, and platform product draft creation are done; next comes order sync and inventory sync. TikTok Shop / Shopee / Lazada / Amazon remain later platform rollouts instead of parallel work.
 3. **Later iteration: full ERP enhancement**
-   - Multi-warehouse, purchasing, after-sales, finance, WMS / OMS, complex BI, automation rules.
+   - Multi-warehouse, purchasing, complex after-sales refunds, complex finance settlement, WMS / OMS, complex BI, auto replenishment, and automatic direct listing are deferred.
 
 ## Roadmap
 
@@ -398,7 +400,7 @@ The full documentation index is available at [docs/README.md](docs/README.md).
 | --- | --- |
 | Quick Start | [Local Development](docs/development.md) · [Docker Deployment](docs/docker-deployment.md) · [Environment Variables](docs/env.md) |
 | Architecture | [Architecture](docs/architecture.md) · [API Contract](docs/api.md) · [Provider Extension](docs/provider.md) · [Roadmap](docs/roadmap.md) |
-| Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
+| Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [AI Workflow](docs/ai-workflow.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
 | Community | [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Sponsor](docs/sponsor.md) · [NOTICE](NOTICE) |
 | Languages | [简体中文 README](README.md) |
 

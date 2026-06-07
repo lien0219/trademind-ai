@@ -50,10 +50,17 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g.POST("/products/:id/publish", h.Publish)
+	g.POST("/products/:id/platform-configs/douyin_shop/create-draft", h.CreateDouyinDraft)
+	g.GET("/products/:id/platform-configs/douyin_shop/publish-tasks", h.ListDouyinPublishTasks)
 	g.GET("/products/:id/publications", h.ListByProduct)
 	g.GET("/product-publish/tasks", h.ListTasks)
 	g.GET("/product-publish/tasks/:id", h.GetTask)
 	g.POST("/product-publish/tasks/:id/retry", h.RetryTask)
+	g.POST("/product-publish/tasks/:id/cancel", h.CancelTask)
+	g.GET("/product-publications/:id/douyin/sku-bindings", h.GetDouyinSKUBindings)
+	g.POST("/product-publications/:id/douyin/sync-sku-bindings", h.SyncDouyinSKUBindings)
+	g.POST("/product-publication-skus/:id/douyin/bind-sku", h.BindDouyinSKU)
+	g.POST("/product-publication-skus/:id/douyin/unbind-sku", h.UnbindDouyinSKU)
 }
 
 func (h *Handler) Publish(c *gin.Context) {
@@ -200,6 +207,181 @@ func (h *Handler) RetryTask(c *gin.Context) {
 		return
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CreateDouyinDraft(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinCreateDraftBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CreateDouyinDraftTask(c, pid, body, adminUUID(c))
+	if err != nil {
+		var blocked *productcheck.BlockedError
+		if errors.As(err, &blocked) && blocked.Result != nil {
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", blocked.Result)
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) ListDouyinPublishTasks(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	res, err := h.Svc.ListTasks(c.Request.Context(), ListTasksQuery{
+		Page:      atoiQ(c, "page", 1),
+		PageSize:  atoiQ(c, "pageSize", 20),
+		ProductID: &pid,
+		Platform:  "douyin_shop",
+	})
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"list": res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
+}
+
+func (h *Handler) GetDouyinSKUBindings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetDouyinSKUBindings(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) SyncDouyinSKUBindings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.SyncDouyinSKUBindings(c, id, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) BindDouyinSKU(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinManualBindBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ManualBindDouyinSKU(c, id, body, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) UnbindDouyinSKU(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinManualUnbindBody
+	_ = c.ShouldBindJSON(&body)
+	if strings.TrimSpace(body.Reason) == "" {
+		body.Reason = "manual_unbind"
+	}
+	out, err := h.Svc.UnbindDouyinSKU(c, id, body, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CancelTask(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.CancelTask(c, id, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return

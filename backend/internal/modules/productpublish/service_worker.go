@@ -29,6 +29,19 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("productpublish: no db")
 	}
+	var peek ProductPublishTask
+	if err := s.DB.WithContext(ctx).Select("id", "platform", "task_type", "publish_mode").First(&peek, "id = ?", taskID).Error; err == nil {
+		if peek.Platform == "douyin_shop" && (peek.TaskType == TaskTypeDouyinDraftCreate || peek.PublishMode == PublishModeSaveAsPlatformDraft) {
+			return s.ProcessDouyinDraftTask(ctx, taskID, workerID)
+		}
+	}
+	return s.processGenericPublishTask(ctx, taskID, workerID)
+}
+
+func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("productpublish: no db")
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			s.handlePublishPanic(ctx, taskID, workerID, r)
@@ -57,17 +70,22 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), taskRow.ShopID.String(), taskRow.Platform),
 		})
 	}
+	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+		Updates(map[string]any{"publish_status": StatusPublishing}).Error
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
+		code := inferPublishErrorCode(msg)
 		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
 			Updates(map[string]any{
-				"status":        TaskFailed,
-				"error_message": msg,
-				"finished_at":   &fin,
-				"locked_by":     nil,
-				"locked_until":  nil,
-				"updated_at":    fin,
+				"status":         TaskFailed,
+				"publish_status": StatusPubFailed,
+				"error_code":     code,
+				"error_message":  msg,
+				"finished_at":    &fin,
+				"locked_by":      nil,
+				"locked_until":   nil,
+				"updated_at":     fin,
 			}).Error
 		if rid, ok := snapshotPublicationFromTask(taskRow); ok {
 			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
@@ -161,13 +179,16 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
 		Updates(map[string]any{
-			"status":        TaskSuccess,
-			"error_message": "",
-			"finished_at":   &fin,
-			"output":        datatypes.JSON(rawOut),
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
+			"status":          TaskSuccess,
+			"publish_status":  StatusSuccess,
+			"error_message":   "",
+			"error_code":      "",
+			"finished_at":     &fin,
+			"output":          datatypes.JSON(rawOut),
+			"platform_result": datatypes.JSON(rawOut),
+			"locked_by":       nil,
+			"locked_until":    nil,
+			"updated_at":      fin,
 		}).Error
 
 	pubSnap := platformp.TrimRawMap(map[string]any{
@@ -283,12 +304,14 @@ func (s *Service) handlePublishPanic(parent context.Context, taskID uuid.UUID, w
 	fin := time.Now().UTC()
 	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
 		Updates(map[string]any{
-			"status":        TaskFailed,
-			"error_message": msg,
-			"finished_at":   &fin,
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
+			"status":         TaskFailed,
+			"publish_status": StatusPubFailed,
+			"error_code":     inferPublishErrorCode(msg),
+			"error_message":  msg,
+			"finished_at":    &fin,
+			"locked_by":      nil,
+			"locked_until":   nil,
+			"updated_at":     fin,
 		}).Error
 	if rid, ok := snapshotPublicationFromTask(&cur); ok {
 		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
