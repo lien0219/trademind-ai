@@ -123,12 +123,105 @@ func fmtOrderSyncSummary(sum map[string]any, orders []platformp.PlatformOrder, h
 		"returnedOrders": len(orders),
 		"hasMore":        hasMore,
 		"nextCursor":     next,
+		"nextPage":       next,
 		"receivedAt":     time.Now().UTC().Format(time.RFC3339),
 	}
 	for k, v := range sum {
 		raw[k] = v
 	}
 	return raw
+}
+
+// SyncOrdersPaginated pulls up to maxPages from order.searchList, capped at maxOrderSyncRecordsPerTask.
+func SyncOrdersPaginated(ctx context.Context, client *Client, cursor string, limit, maxPages int, start, end *time.Time) (*platformp.SyncOrdersResult, error) {
+	if client == nil {
+		return nil, NewError(CodeDouyinOrderSyncFailed, "douyin order sync client missing", "", "", "")
+	}
+	if maxPages <= 0 {
+		maxPages = defaultOrderSyncMaxPages
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+
+	allOrders := make([]platformp.PlatformOrder, 0)
+	pageErrors := make([]platformp.PageSyncError, 0)
+	totalPages := 0
+	successPages := 0
+	failedPages := 0
+	nextCursor := strings.TrimSpace(cursor)
+	hasMore := false
+	lastPageSum := map[string]any{}
+
+	for attempt := 0; attempt < maxPages; attempt++ {
+		if len(allOrders) >= maxOrderSyncRecordsPerTask {
+			hasMore = true
+			break
+		}
+
+		pageNo := parsePageCursor(nextCursor)
+		totalPages++
+		orders, next, more, sum, err := SyncOrdersPage(ctx, client, nextCursor, limit, start, end)
+		if err != nil {
+			failedPages++
+			pageErrors = append(pageErrors, platformp.PageSyncError{
+				Page:  pageNo,
+				Error: SanitizeErrorText(err.Error()),
+			})
+			if len(allOrders) == 0 && attempt == 0 {
+				return nil, err
+			}
+			nextCursor = formatPageCursor(pageNo + 1)
+			if attempt+1 >= maxPages {
+				hasMore = more
+				break
+			}
+			continue
+		}
+
+		successPages++
+		lastPageSum = sum
+		remaining := maxOrderSyncRecordsPerTask - len(allOrders)
+		if remaining < len(orders) {
+			orders = orders[:remaining]
+			hasMore = true
+		} else {
+			hasMore = more
+		}
+		allOrders = append(allOrders, orders...)
+		nextCursor = next
+		if !hasMore || len(allOrders) >= maxOrderSyncRecordsPerTask {
+			break
+		}
+	}
+
+	if len(allOrders) == 0 && failedPages > 0 {
+		return nil, NewError(CodeDouyinOrderListFailed, pageErrors[0].Error, "", "", "")
+	}
+
+	raw := fmtOrderSyncSummary(lastPageSum, allOrders, hasMore, nextCursor)
+	raw["totalFetched"] = len(allOrders)
+	raw["totalPages"] = totalPages
+	raw["successPages"] = successPages
+	raw["failedPages"] = failedPages
+	raw["maxPages"] = maxPages
+	raw["maxRecords"] = maxOrderSyncRecordsPerTask
+	if len(pageErrors) > 0 {
+		raw["pageErrors"] = pageErrors
+	}
+
+	return &platformp.SyncOrdersResult{
+		Orders:       allOrders,
+		NextCursor:   nextCursor,
+		NextPage:     nextCursor,
+		HasMore:      hasMore,
+		TotalFetched: len(allOrders),
+		TotalPages:   totalPages,
+		SuccessPages: successPages,
+		FailedPages:  failedPages,
+		PageErrors:   pageErrors,
+		RawSummary:   raw,
+	}, nil
 }
 
 func assertShopAuthorized(auth platformp.TestConnectionRequest) error {

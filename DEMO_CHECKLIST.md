@@ -97,6 +97,14 @@
 - [x] 订单同步任务页可查看 SKU 匹配摘要与重试；买家敏感信息脱敏
 - [x] 不调用抖店库存同步接口；不做售后 / 退款
 
+### 抖店 Phase 8.1 订单同步分页收口
+
+- [x] 单次同步任务按 `page` / `size` 自动拉取多页（默认最多 5 页或 500 条）
+- [x] 平台开放配置支持 **订单同步最大页数**（`order_sync_max_pages`）；任务 body 可传 `maxPages` 覆盖
+- [x] 单页失败记录 `page` 与错误原因；部分页成功时任务状态为 **partial_success**
+- [x] 任务输出摘要含 `totalFetched` / `totalPages` / `successPages` / `failedPages` / `nextPage` / `createdOrders` / `updatedOrders` / `matchedItems` / `unmatchedItems` / `deductedStockItems`
+- [x] 定时轮询仍默认关闭；不调用抖店库存 API；不做售后 / 退款
+
 - [x] 设置 → 平台开放配置可配置 **抖店 / Douyin Shop** 应用信息，App Secret 脱敏展示
 - [x] 抖店配置保存后，重新加载仍只展示 App Secret 脱敏值 `****`
 - [x] 点击 **测试连接** 时校验配置完整性，抖店 Phase 2 不做商品 / 订单 / 库存真实调用

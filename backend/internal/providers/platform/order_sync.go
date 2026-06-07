@@ -13,6 +13,12 @@ type OrderSyncProvider interface {
 	SyncOrders(ctx context.Context, req SyncOrdersRequest) (*SyncOrdersResult, error)
 }
 
+// PageSyncError records a single list-page failure during multi-page order sync.
+type PageSyncError struct {
+	Page  int    `json:"page"`
+	Error string `json:"error"`
+}
+
 // SyncOrdersRequest is passed to a provider adapter (never log Auth secrets).
 type SyncOrdersRequest struct {
 	ShopID    uuid.UUID
@@ -23,14 +29,21 @@ type SyncOrdersRequest struct {
 	EndTime   *time.Time
 	Cursor    string
 	Limit     int
+	MaxPages  int // 0 = provider default (single page for legacy providers)
 }
 
-// SyncOrdersResult is one page of normalized orders plus paging hints.
+// SyncOrdersResult is normalized orders plus paging hints and optional multi-page summary.
 type SyncOrdersResult struct {
-	Orders     []PlatformOrder
-	NextCursor string
-	HasMore    bool
-	RawSummary map[string]any
+	Orders       []PlatformOrder
+	NextCursor   string
+	NextPage     string // alias for page-based providers (e.g. douyin_shop)
+	HasMore      bool
+	TotalFetched int
+	TotalPages   int
+	SuccessPages int
+	FailedPages  int
+	PageErrors   []PageSyncError
+	RawSummary   map[string]any
 }
 
 // PlatformOrder is provider-neutral order snapshot for persistence (no TikTok/Shopee-specific fields).

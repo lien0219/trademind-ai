@@ -89,15 +89,11 @@ func (provider) SyncOrders(ctx context.Context, req platformp.SyncOrdersRequest)
 	if err := validateOrderSyncConfig(cfg); err != nil {
 		return nil, err
 	}
-	orders, next, more, sum, err := SyncOrdersPage(ctx, client, strings.TrimSpace(req.Cursor), req.Limit, req.StartTime, req.EndTime)
+	maxPages := ResolveOrderSyncMaxPages(req.MaxPages, cfg)
+	res, err := SyncOrdersPaginated(ctx, client, strings.TrimSpace(req.Cursor), req.Limit, maxPages, req.StartTime, req.EndTime)
 	if err != nil {
 		_ = setAuthStatusMaybe(ctx, req.ShopID, "error")
 		return nil, err
 	}
-	return &platformp.SyncOrdersResult{
-		Orders:     orders,
-		NextCursor: next,
-		HasMore:    more,
-		RawSummary: fmtOrderSyncSummary(sum, orders, more, next),
-	}, nil
+	return res, nil
 }

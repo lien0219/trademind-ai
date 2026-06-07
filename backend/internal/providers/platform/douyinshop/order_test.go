@@ -2,6 +2,7 @@ package douyinshop
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -276,6 +277,142 @@ func TestSanitizeErrorTextHidesTokens(t *testing.T) {
 func TestMaskCustomerName(t *testing.T) {
 	if maskCustomerName("13800138000") == "13800138000" {
 		t.Fatal("phone-like nickname should be masked")
+	}
+}
+
+func orderListResponse(page, size, total int, ids ...string) string {
+	orders := make([]string, 0, len(ids))
+	for _, id := range ids {
+		orders = append(orders, fmt.Sprintf(`{"order_id":"%s","order_status":"105","pay_amount":"100"}`, id))
+	}
+	list := strings.Join(orders, ",")
+	return fmt.Sprintf(`{"code":10000,"msg":"success","data":{"page":%d,"size":%d,"total":%d,"shop_order_list":[%s]}}`, page, size, total, list)
+}
+
+func TestSyncOrdersPaginatedMultiPageSuccess(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	pageCalls := 0
+	client := &Client{
+		Config:      testRuntimeConfig(),
+		Now:         func() time.Time { return now },
+		AccessToken: "access",
+		HTTP: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			pageCalls++
+			var body string
+			switch pageCalls {
+			case 1:
+				body = orderListResponse(0, 20, 40, "O1", "O2")
+			case 2:
+				body = orderListResponse(1, 20, 40, "O3")
+			default:
+				body = orderListResponse(2, 20, 40)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+			}, nil
+		}),
+	}
+
+	res, err := SyncOrdersPaginated(context.Background(), client, "", 20, 5, nil, nil)
+	if err != nil {
+		t.Fatalf("SyncOrdersPaginated failed: %v", err)
+	}
+	if len(res.Orders) != 3 {
+		t.Fatalf("expected 3 orders, got %d", len(res.Orders))
+	}
+	if res.TotalPages != 2 || res.SuccessPages != 2 || res.FailedPages != 0 {
+		t.Fatalf("unexpected page stats: %+v", res)
+	}
+	if res.TotalFetched != 3 {
+		t.Fatalf("expected totalFetched=3, got %d", res.TotalFetched)
+	}
+	if pageCalls != 2 {
+		t.Fatalf("expected 2 page calls, got %d", pageCalls)
+	}
+}
+
+func TestSyncOrdersPaginatedPartialSuccess(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	pageCalls := 0
+	client := &Client{
+		Config:      testRuntimeConfig(),
+		Now:         func() time.Time { return now },
+		AccessToken: "access",
+		HTTP: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			pageCalls++
+			var body string
+			if pageCalls == 1 {
+				body = orderListResponse(0, 20, 60, "O1")
+			} else {
+				body = `{"code":10001,"msg":"rate limited","data":{}}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+			}, nil
+		}),
+	}
+
+	res, err := SyncOrdersPaginated(context.Background(), client, "", 20, 2, nil, nil)
+	if err != nil {
+		t.Fatalf("expected partial result without top-level error, got %v", err)
+	}
+	if len(res.Orders) != 1 {
+		t.Fatalf("expected 1 order, got %d", len(res.Orders))
+	}
+	if res.SuccessPages != 1 || res.FailedPages != 1 {
+		t.Fatalf("expected 1 success + 1 failed page, got success=%d failed=%d", res.SuccessPages, res.FailedPages)
+	}
+	if len(res.PageErrors) != 1 || res.PageErrors[0].Page != 1 {
+		t.Fatalf("unexpected page errors: %+v", res.PageErrors)
+	}
+}
+
+func TestSyncOrdersPaginatedMaxPagesCap(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	pageCalls := 0
+	client := &Client{
+		Config:      testRuntimeConfig(),
+		Now:         func() time.Time { return now },
+		AccessToken: "access",
+		HTTP: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			pageCalls++
+			page := pageCalls - 1
+			body := orderListResponse(page, 10, 100, fmt.Sprintf("O%d", pageCalls))
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+			}, nil
+		}),
+	}
+
+	res, err := SyncOrdersPaginated(context.Background(), client, "", 10, 2, nil, nil)
+	if err != nil {
+		t.Fatalf("SyncOrdersPaginated failed: %v", err)
+	}
+	if res.TotalPages != 2 || len(res.Orders) != 2 {
+		t.Fatalf("expected 2 pages / 2 orders, got pages=%d orders=%d", res.TotalPages, len(res.Orders))
+	}
+	if pageCalls != 2 {
+		t.Fatalf("expected maxPages=2 to cap calls, got %d", pageCalls)
+	}
+	if !res.HasMore {
+		t.Fatalf("expected hasMore when capped before total")
+	}
+}
+
+func TestResolveOrderSyncMaxPages(t *testing.T) {
+	cfg := testRuntimeConfig()
+	cfg.OrderSyncMaxPages = 7
+	if got := ResolveOrderSyncMaxPages(0, cfg); got != 7 {
+		t.Fatalf("expected config default 7, got %d", got)
+	}
+	if got := ResolveOrderSyncMaxPages(3, cfg); got != 3 {
+		t.Fatalf("expected task override 3, got %d", got)
 	}
 }
 

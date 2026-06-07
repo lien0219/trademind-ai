@@ -31,10 +31,16 @@ type RuntimeConfig struct {
 	APIBaseURL          string
 	RealAPIEnabled      bool
 	OrderSyncEnabled    bool
+	OrderSyncMaxPages   int
 	InventoryEnabled    bool
 	ProductDraftEnabled bool
 	HTTPTimeout         time.Duration
 }
+
+const (
+	defaultOrderSyncMaxPages   = 5
+	maxOrderSyncRecordsPerTask = 500
+)
 
 func mapGetCI(m map[string]string, aliases ...string) string {
 	for _, a := range aliases {
@@ -129,8 +135,38 @@ func RuntimeFromMergedMap(m map[string]string) (RuntimeConfig, error) {
 
 	cfg.RealAPIEnabled = boolFromConfig(m, "real_api_enabled")
 	cfg.OrderSyncEnabled = boolFromConfig(m, "order_sync_enabled")
+	cfg.OrderSyncMaxPages = parseOrderSyncMaxPages(mapGetCI(m, "order_sync_max_pages"))
 	cfg.InventoryEnabled = boolFromConfig(m, "inventory_sync_enabled")
 	cfg.ProductDraftEnabled = boolFromConfig(m, "product_publish_enabled")
 
 	return cfg, nil
+}
+
+func parseOrderSyncMaxPages(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return defaultOrderSyncMaxPages
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 {
+		return defaultOrderSyncMaxPages
+	}
+	if n > 50 {
+		return 50
+	}
+	return n
+}
+
+// ResolveOrderSyncMaxPages picks task override, platform config, or default.
+func ResolveOrderSyncMaxPages(taskMax int, cfg RuntimeConfig) int {
+	if taskMax > 0 {
+		if taskMax > 50 {
+			return 50
+		}
+		return taskMax
+	}
+	if cfg.OrderSyncMaxPages > 0 {
+		return cfg.OrderSyncMaxPages
+	}
+	return defaultOrderSyncMaxPages
 }

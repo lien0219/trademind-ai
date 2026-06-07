@@ -221,11 +221,44 @@ export default function OrderSyncTasksPage() {
               </pre>
             </Typography.Paragraph>
             <Typography.Title level={5}>输出摘要</Typography.Title>
-            {detail.output && typeof detail.output === 'object' && 'skuMatch' in (detail.output as object) ? (
-              <Typography.Paragraph>
-                <Typography.Text strong>SKU 匹配：</Typography.Text>{' '}
-                {JSON.stringify((detail.output as { skuMatch?: unknown }).skuMatch)}
-              </Typography.Paragraph>
+            {detail.output && typeof detail.output === 'object' ? (
+              <>
+                {'totalFetched' in (detail.output as object) ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>拉取：</Typography.Text>{' '}
+                    {(detail.output as { totalFetched?: number }).totalFetched ?? 0} 条 · 页{' '}
+                    {(detail.output as { successPages?: number }).successPages ?? 0}/
+                    {(detail.output as { totalPages?: number }).totalPages ?? 0} 成功
+                    {(detail.output as { failedPages?: number }).failedPages
+                      ? ` · ${(detail.output as { failedPages?: number }).failedPages} 页失败`
+                      : ''}
+                  </Typography.Paragraph>
+                ) : null}
+                {'createdOrders' in (detail.output as object) ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>订单：</Typography.Text> 新建{' '}
+                    {(detail.output as { createdOrders?: number }).createdOrders ?? 0} · 更新{' '}
+                    {(detail.output as { updatedOrders?: number }).updatedOrders ?? 0}
+                  </Typography.Paragraph>
+                ) : null}
+                {'matchedItems' in (detail.output as object) ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>SKU 匹配：</Typography.Text> 已匹配{' '}
+                    {(detail.output as { matchedItems?: number }).matchedItems ?? 0} · 未匹配{' '}
+                    {(detail.output as { unmatchedItems?: number }).unmatchedItems ?? 0}
+                    {(detail.output as { deductedStockItems?: number }).deductedStockItems
+                      ? ` · 扣库 ${(detail.output as { deductedStockItems?: number }).deductedStockItems} 行`
+                      : ''}
+                  </Typography.Paragraph>
+                ) : null}
+                {'nextPage' in (detail.output as object) &&
+                (detail.output as { nextPage?: string }).nextPage ? (
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <Typography.Text strong>续拉游标：</Typography.Text>{' '}
+                    {(detail.output as { nextPage?: string }).nextPage}
+                  </Typography.Paragraph>
+                ) : null}
+              </>
             ) : null}
             <Typography.Paragraph>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>

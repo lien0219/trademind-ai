@@ -28,6 +28,21 @@ func TestRuntimeFromMergedMapValid(t *testing.T) {
 	if !cfg.RealAPIEnabled {
 		t.Fatalf("expected real api flag true")
 	}
+	if cfg.OrderSyncMaxPages != defaultOrderSyncMaxPages {
+		t.Fatalf("expected default max pages %d, got %d", defaultOrderSyncMaxPages, cfg.OrderSyncMaxPages)
+	}
+}
+
+func TestRuntimeFromMergedMapOrderSyncMaxPages(t *testing.T) {
+	m := validConfigMap()
+	m["order_sync_max_pages"] = "8"
+	cfg, err := RuntimeFromMergedMap(m)
+	if err != nil {
+		t.Fatalf("RuntimeFromMergedMap() error = %v", err)
+	}
+	if cfg.OrderSyncMaxPages != 8 {
+		t.Fatalf("expected max pages 8, got %d", cfg.OrderSyncMaxPages)
+	}
 }
 
 func TestRuntimeFromMergedMapMissingSecret(t *testing.T) {
