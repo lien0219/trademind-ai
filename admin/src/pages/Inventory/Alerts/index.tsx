@@ -404,7 +404,7 @@ export default function InventoryAlertsPage() {
         <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
         （可勾选 SKU 行后批量创建{' '}
         <Link to="/inventory/sync-batches">{INVENTORY_SYNC_BATCHES_LABEL}</Link>
-        ）。
+        ）。抖店 SKU 须先在商品详情完成 SKU 绑定后再同步库存。
       </Typography.Paragraph>
       <ProTable<InventoryAlertRow>
         rowKey={(r) => r.productSkuId}

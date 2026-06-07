@@ -289,6 +289,20 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
         {meta.platform === 'douyin_shop' ? (
           <Alert
             showIcon
+            type="info"
+            message="抖店验收前置条件"
+            description={
+              <>
+                在「设置 → 存储」配置抖店可访问的公网 HTTPS 地址（<Typography.Text code>public_base</Typography.Text>）。
+                演示订单/库存/刊登前请开启「启用订单同步」「启用库存同步」「启用商品草稿创建」。
+                App Secret 与店铺 token 不会在本页明文展示。验收步骤见仓库 <Typography.Text code>docs/DOUYIN_E2E_CHECKLIST.md</Typography.Text>。
+              </>
+            }
+          />
+        ) : null}
+        {meta.platform === 'douyin_shop' ? (
+          <Alert
+            showIcon
             type={douyinStats?.count ? 'success' : 'warning'}
             message="抖店类目缓存"
             description={

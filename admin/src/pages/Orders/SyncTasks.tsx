@@ -4,7 +4,7 @@ import {
   type ActionType,
   type ProColumns,
 } from '@ant-design/pro-components';
-import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Button, Drawer, Popconfirm, Space, Tag, Typography, Alert, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef, useState } from 'react';
@@ -166,6 +166,13 @@ export default function OrderSyncTasksPage() {
 
   return (
     <PageContainer title="订单同步任务">
+      <Alert
+        showIcon
+        type="info"
+        style={{ marginBottom: 16 }}
+        message="抖店订单同步说明"
+        description="须先在「设置 → 平台开放配置 → 抖店」开启「启用订单同步」，并在「店铺管理」完成授权。未授权或授权过期时不能同步；失败任务可在本页重试或到「失败任务中心」查看。买家收货信息已脱敏展示。"
+      />
       <ProTable<OrderSyncTaskDTO>
         rowKey="id"
         actionRef={actionRef}

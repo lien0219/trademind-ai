@@ -42,7 +42,7 @@ func DouyinShopAppConfigSchema() PlatformAppConfigSchema {
 	return PlatformAppConfigSchema{
 		GroupKey:    "platform_douyin_shop",
 		Title:       "抖店 / Douyin Shop",
-		Description: "请在抖店开放平台创建应用后填写；App Secret 加密存储。Phase 1 仅做配置完整性测试，OAuth、类目、图片、商品、订单和库存接口将在后续阶段按官方文档逐项接入。",
+		Description: "请在抖店开放平台创建应用后填写；App Secret 加密存储。完成配置后在「店铺管理」授权；订单/库存/商品草稿能力需在下方开关中启用。",
 		Fields: []AppConfigField{
 			{Name: "app_key", Label: "App Key / Client Key", Type: "text", Required: true, Sensitive: false, Placeholder: "在抖店开放平台应用中获取"},
 			{Name: "app_secret", Label: "App Secret / Client Secret", Type: "password", Required: true, Sensitive: true},

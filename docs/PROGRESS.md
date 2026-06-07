@@ -1,5 +1,7 @@
 # TradeMind 开发进度记录
 
+**Stage closure**: 2026-06-07 — **抖店接入 Phase 1–9.2 已完成；主链路代码闭环完成，进入 MVP Demo Release 收口**。抖店 / Douyin Shop（`douyin_shop`）已支持：**平台配置**、**店铺 OAuth 授权**、**token 刷新**、**类目/属性同步**、**商品字段映射**、**图片上传（素材中心）**、**平台商品草稿创建（`product.addV2`，非直接上架）**、**订单同步（`order.searchList`）**、**SKU 绑定校准（`product.detail`）**、**SKU 手动绑定兜底**、**库存同步（`sku.syncStock`）**。验收文档：[`docs/DOUYIN_E2E_CHECKLIST.md`](DOUYIN_E2E_CHECKLIST.md)；演示清单：根目录 [`DEMO_CHECKLIST.md`](../DEMO_CHECKLIST.md)「抖店完整演示流程」。**剩余事项**：真实抖店凭证 E2E 验收；`product.addV2` / `product.detail` / `order.searchList` / `sku.syncStock` 线上字段校准；Storage `public_base` 公网可访问验证。**明确不在当前 MVP 范围**：售后/退款、财务结算、多仓 WMS、自动补货、直接上架 `publish_online`。建议 Release tag：`v0.8.0-douyin-mvp-demo`（E2E 通过后）。
+
 **Stage closure**: 2026-06-07 — **Douyin Shop Phase 9.2 SKU manual binding fallback is implemented**. Building on Phase 9.1 auto-calibration, Phase 9.2 adds human fallback for `ambiguous` / `unmatched` publication SKUs: view platform SKU candidates (`platformSkus` cached on `product_publications.raw_data`), **manual bind** (`POST /api/v1/product-publication-skus/:id/douyin/bind-sku`), **unbind** (`POST .../unbind-sku`), and **recheck** (reuse sync-sku-bindings). Manual bind sets `bindStatus=bound`, `bindConfidence=100`, `bindMessage=手动绑定`, writes `external_sku_id`; validates conflict (same platform SKU on another local spec). Inventory sync now gates on all SKUs bind-ready via `inventorySyncReady` / `DOUYIN_SKU_BINDING_REQUIRED` / `DOUYIN_SKU_BINDING_CONFLICT`. New error codes: `DOUYIN_SKU_MANUAL_BIND_FAILED`, `DOUYIN_SKU_MANUAL_UNBIND_FAILED`, `DOUYIN_PLATFORM_SKU_ID_MISSING`, `DOUYIN_SKU_BINDING_REQUIRED`. Operation logs: `douyin.sku.binding.manual_bind/unbind/recheck/conflict`. Admin: Product Detail → Listing **抖店 SKU 绑定管理** table with manual bind / unbind / candidates drawer; Inventory tab blocks sync until bound. **Douyin main path enters full end-to-end acceptance** (see `DEMO_CHECKLIST.md`). Next: run acceptance with real Douyin credentials and Release hardening.
 
 **Stage closure**: 2026-06-07 — **Douyin Shop Phase 9.1 SKU binding calibration is implemented**. After `product.addV2` draft creation, `product_publication_skus.external_sku_id` may be empty; Phase 9.1 adds official-doc-checked **`product.detail`** (`show_draft=true`) via `douyinshop.Client.GetProductDetail`, local↔platform SKU matching (attrs exact → spec name+price → similar=ambiguous, no low-confidence bind), and persistence of `bindStatus` / `bindConfidence` / `bindMessage` / `lastSyncedAt` on `product_publication_skus` plus `skuBindingSyncedAt` on `product_publications`. New APIs: **`GET /api/v1/product-publications/:id/douyin/sku-bindings`**, **`POST /api/v1/product-publications/:id/douyin/sync-sku-bindings`**. Inventory sync blocks unbound / ambiguous Douyin SKUs with **`DOUYIN_SKU_NOT_BOUND`** / **`DOUYIN_SKU_BINDING_AMBIGUOUS`**; new detail/binding error codes include **`DOUYIN_PRODUCT_DETAIL_FAILED`**, **`DOUYIN_PRODUCT_NOT_FOUND`**, **`DOUYIN_PRODUCT_DETAIL_PERMISSION_DENIED`**, **`DOUYIN_SKU_BINDING_SYNC_FAILED`**, **`DOUYIN_SKU_BINDING_UNMATCHED`**, **`DOUYIN_SKU_BINDING_AMBIGUOUS`**. Operation logs: **`douyin.product.detail.sync.start/success/failed`**, **`douyin.sku.binding.matched/unmatched/ambiguous`**. Admin: Product Detail → Listing adds「校准抖店 SKU 绑定」and inventory tab shows bind status; unbound SKUs cannot sync stock until calibration. Next: full Douyin end-to-end acceptance and optional direct online listing.
@@ -145,8 +147,9 @@
 
 **当前开发重点：**
 
-- **SKU 候选推荐**（已落地，见正文 §3.2 / 变更记录 2026-05-18；持续联调、验收与文档对齐）
-- **多平台跨境 ERP MVP 验收检查**
+- **抖店整链路真实环境 E2E 验收**（见 [`DOUYIN_E2E_CHECKLIST.md`](DOUYIN_E2E_CHECKLIST.md)）
+- **MVP Demo Release 收口**（文案/空状态/构建检查；不新增功能）
+- **SKU 候选推荐**（已落地；订单异常工作台联调）
 - **AI 商品运营工具体验打磨**
 
 ---
@@ -523,6 +526,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-07 | **抖店 MVP Demo Release 收口**：新增 [`docs/DOUYIN_E2E_CHECKLIST.md`](DOUYIN_E2E_CHECKLIST.md)（18 步 E2E + 安全 + 风险 + tag 准备）；`DEMO_CHECKLIST.md` 增加「抖店完整演示流程」；`PROGRESS` 标记 Phase 1–9.2 主链路完成；管理端补抖店前置/订单同步/库存同步/失败中心/异常工作台小白提示；抖店平台配置描述更新；建议 tag **`v0.8.0-douyin-mvp-demo`** |
 | 2026-06-06 | **淘宝/天猫采集器生产可用收口**：状态 **beta → available（已可用）**；开放 **批量采集**（默认每批 20 条、并发 1、间隔 3500–6000ms、重试 2）；批量前置登录/验证检查；无效链接跳过；**partial_success**；登录/验证失败可暂停批次；设置页 **collect_taobao_tmall_batch_***；操作日志 **collect.taobao_tmall.batch.***；README / DEMO_CHECKLIST 同步 |
 | 2026-05-29 | **修复 AI 设置保存清空其他服务商密钥**：保存时仅 PUT 当前 provider 连接字段 + 全局参数；隐藏字段保留切换状态；后端对已存在加密项忽略空字符串提交 |
 | 2026-05-29 | **AI 文本设置按服务商独立密钥**：`settings.ai` 新增 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`**（openai、openai_compatible、deepseek、qwen）；管理端切换卡片自动带出对应配置；启动时 **`EnsureAIProviderDefaults`** 将 legacy **`api_key/base_url/model`** 迁移至当前 provider；Gateway 读取 provider 专属字段（legacy **`api_key`** 仍作回退） |
