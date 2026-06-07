@@ -26,11 +26,21 @@ export type DouyinSkuBindingRow = {
   skuCode?: string;
   specName?: string;
   externalSkuId?: string;
+  platformSkuName?: string;
   bindStatus?: string;
   bindConfidence?: number;
   bindMessage?: string;
   lastSyncedAt?: string;
   price?: number;
+  stock?: number;
+};
+
+export type DouyinPlatformSkuCandidate = {
+  platformSkuId: string;
+  specName?: string;
+  priceYuan?: number;
+  stock?: number;
+  boundToPublicationSkuId?: string;
 };
 
 export type DouyinSkuBindingSummary = {
@@ -44,6 +54,9 @@ export type DouyinSkuBindingSummary = {
   ambiguous: number;
   failed: number;
   rows: DouyinSkuBindingRow[];
+  platformSkus?: DouyinPlatformSkuCandidate[];
+  inventorySyncReady?: boolean;
+  inventorySyncBlockReason?: string;
   errorCode?: string;
   errorMessage?: string;
 };
@@ -160,6 +173,25 @@ export async function getDouyinSkuBindings(publicationId: string): Promise<Douyi
 
 export async function syncDouyinSkuBindings(publicationId: string): Promise<DouyinSkuBindingSummary> {
   return postJSON(`/api/v1/product-publications/${encodeURIComponent(publicationId)}/douyin/sync-sku-bindings`, {});
+}
+
+export async function bindDouyinSku(
+  publicationSkuId: string,
+  body: { platformSkuId: string; platformSkuName?: string; bindReason?: string },
+): Promise<DouyinSkuBindingRow> {
+  return postJSON(`/api/v1/product-publication-skus/${encodeURIComponent(publicationSkuId)}/douyin/bind-sku`, {
+    bindReason: 'manual',
+    ...body,
+  });
+}
+
+export async function unbindDouyinSku(
+  publicationSkuId: string,
+  body?: { reason?: string },
+): Promise<DouyinSkuBindingRow> {
+  return postJSON(`/api/v1/product-publication-skus/${encodeURIComponent(publicationSkuId)}/douyin/unbind-sku`, {
+    reason: body?.reason ?? 'manual_unbind',
+  });
 }
 
 export async function listDouyinPublishTasks(

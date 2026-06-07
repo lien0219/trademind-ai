@@ -133,6 +133,23 @@
 - [x] 操作日志包含 `douyin.inventory.sync.*`，且不记录 token / secret
 - [x] 不做多仓库存、自动补货、默认定时自动同步
 
+### 抖店 Phase 9.1 SKU 绑定校准
+
+- [x] 创建抖店商品草稿后可 **校准抖店 SKU 绑定**（`product.detail` + 本地匹配）
+- [x] 已绑定跳过；规格属性一致 / 规格名+价格一致可自动绑定；多候选 `ambiguous`；无候选 `unmatched`
+- [x] 商品详情 → 刊登 Tab 可查看绑定状态与置信度
+
+### 抖店 Phase 9.2 SKU 手动绑定兜底 + 整链路验收准备
+
+- [x] 可查看抖店平台 SKU 候选（`platformSkus`）
+- [x] ambiguous / unmatched 规格可 **手动绑定** 抖店 SKU
+- [x] 可 **解除绑定** 与 **重新校准**
+- [x] 库存同步前校验全部 SKU 绑定状态；存在 unmatched / ambiguous / failed 时禁用同步并提示
+- [x] 手动绑定后 `external_sku_id` 回写，`bindStatus=bound`；解除绑定后库存同步禁用
+- [x] 绑定冲突（同一抖店 SKU 绑定到多个本地规格）可拦截
+- [x] 操作日志含 `douyin.sku.binding.manual_bind/unbind/recheck/conflict`，不记录 token / secret
+- [ ] **整链路验收**（需真实抖店凭证）：配置应用 → 授权 → 同步类目 → 采集 → AI 优化 → 定价 → 属性补全 → 刊登草稿 → 上传图片 → 创建平台草稿 → SKU 校准/手动绑定 → 同步订单 → 扣库存 → 同步库存到抖店
+
 - [x] 可同步抖店库存，失败任务进入失败任务中心
 - [x] 操作日志包含抖店库存同步，且不记录 token / secret / 收货敏感信息明文
 

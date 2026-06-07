@@ -113,9 +113,13 @@ import {
   retryProductPublishTask,
   getDouyinSkuBindings,
   syncDouyinSkuBindings,
+  bindDouyinSku,
+  unbindDouyinSku,
   type ProductPublicationRow,
   type ProductPublishTaskDTO,
   type DouyinSkuBindingSummary,
+  type DouyinSkuBindingRow,
+  type DouyinPlatformSkuCandidate,
 } from '@/services/productPublish';
 import { getProductReadiness, type ProductReadinessResult, type ReadinessCheckItem } from '@/services/productReadiness';
 import PricingApplyModal from '@/components/PricingApplyModal';
@@ -484,6 +488,24 @@ function douyinBindStatusTag(status?: string) {
   return <Tag>未校准</Tag>;
 }
 
+function douyinBindStatusHint(status?: string): string {
+  const st = String(status || '').toLowerCase();
+  if (st === 'bound' || st === 'skipped') return '已绑定，可同步库存。';
+  if (st === 'unmatched') return '未匹配到抖店 SKU，请手动绑定后再同步库存。';
+  if (st === 'ambiguous') return '找到多个可能的抖店 SKU，请人工确认。';
+  if (st === 'failed') return '校准失败，请稍后重试或手动绑定。';
+  return '尚未校准，请先执行校准或手动绑定。';
+}
+
+function douyinSkuSyncBlocked(row: PublicationSkuListingRow): boolean {
+  const isDouyin = (row.platform || '').toLowerCase() === 'douyin_shop';
+  if (!isDouyin) return false;
+  const st = String(row.bindStatus || '').toLowerCase();
+  const hasBinding = Boolean((row.externalProductId || '').trim()) && Boolean((row.externalSkuId || '').trim());
+  if (!hasBinding) return true;
+  return st === 'ambiguous' || st === 'unmatched' || st === 'failed';
+}
+
 function douyinImageStatusTag(img: DouyinDraftImage) {
   const st = img.uploadStatus || (img.platformImageId ? 'uploaded' : img.needSync ? 'pending' : 'pending');
   if (st === 'uploaded') return <Tag color="green">已上传抖店</Tag>;
@@ -573,6 +595,11 @@ export default function ProductDraftDetailPage() {
   const [douyinSkuBinding, setDouyinSkuBinding] = useState<DouyinSkuBindingSummary | null>(null);
   const [douyinSkuBindingLoading, setDouyinSkuBindingLoading] = useState(false);
   const [douyinSkuBindingSyncing, setDouyinSkuBindingSyncing] = useState(false);
+  const [douyinSkuBindOpen, setDouyinSkuBindOpen] = useState(false);
+  const [douyinSkuBindTarget, setDouyinSkuBindTarget] = useState<DouyinSkuBindingRow | null>(null);
+  const [douyinSkuBindSubmitting, setDouyinSkuBindSubmitting] = useState(false);
+  const [douyinSkuCandidatesOpen, setDouyinSkuCandidatesOpen] = useState(false);
+  const [douyinSkuBindForm] = Form.useForm<{ platformSkuId: string; platformSkuName?: string }>();
   const [douyinCategoryLoading, setDouyinCategoryLoading] = useState(false);
   const [douyinAttrLoading, setDouyinAttrLoading] = useState(false);
   const [douyinCategoryFlat, setDouyinCategoryFlat] = useState<DouyinCategoryNode[]>([]);
@@ -2252,6 +2279,7 @@ export default function ProductDraftDetailPage() {
                       value={pubSkuBulkPlatformFilter || undefined}
                       onChange={(v) => setPubSkuBulkPlatformFilter((v as string | undefined) ?? '')}
                       options={[
+                        { label: '抖店', value: 'douyin_shop' },
                         { label: 'TikTok', value: 'tiktok' },
                         { label: 'Shopee', value: 'shopee' },
                         { label: 'Lazada', value: 'lazada' },
@@ -2306,11 +2334,8 @@ export default function ProductDraftDetailPage() {
                         getCheckboxProps: (r) => {
                           const missing =
                             !String(r.externalSkuId ?? '').trim() || !String(r.externalProductId ?? '').trim();
-                          const ambiguous =
-                            (r.platform || '').toLowerCase() === 'douyin_shop' &&
-                            String(r.bindStatus || '').toLowerCase() === 'ambiguous';
                           const ok = inventorySyncRunnable(r.inventorySyncCapability);
-                          return { disabled: missing || ambiguous || !ok };
+                          return { disabled: missing || douyinSkuSyncBlocked(r) || !ok };
                         },
                       }}
                       columns={[
@@ -2385,19 +2410,20 @@ export default function ProductDraftDetailPage() {
                           render: (_x, r) => {
                             const ok = inventorySyncRunnable(r.inventorySyncCapability);
                             const isDouyin = (r.platform || '').toLowerCase() === 'douyin_shop';
-                            const ambiguous = isDouyin && String(r.bindStatus || '').toLowerCase() === 'ambiguous';
+                            const blocked = douyinSkuSyncBlocked(r);
                             const hasBinding =
                               Boolean((r.externalProductId || '').trim()) &&
                               Boolean((r.externalSkuId || '').trim());
-                            const canSync = ok && hasBinding && !ambiguous;
+                            const canSync = ok && hasBinding && !blocked;
                             const sku = data.skus?.find((s) => s.id === r.productSkuId);
                             const fallback = typeof sku?.stock === 'number' ? sku.stock : 0;
                             const suggested =
                               typeof r.platformStock === 'number' ? r.platformStock : fallback;
-                            const disableReason = ambiguous
-                              ? '该规格存在多个候选抖店 SKU，请人工确认绑定后再同步库存。'
-                              : isDouyin && !hasBinding
-                                ? '该规格还没有绑定抖店 SKU ID，请先执行「校准抖店 SKU 绑定」后再同步库存。'
+                            const st = String(r.bindStatus || '').toLowerCase();
+                            const disableReason = isDouyin && st === 'ambiguous'
+                              ? '找到多个可能的抖店 SKU，请人工确认绑定后再同步库存。'
+                              : isDouyin && (st === 'unmatched' || st === 'failed' || !hasBinding)
+                                ? '该规格还没有绑定抖店 SKU，请先完成绑定后再同步库存。'
                                 : '当前平台未开放库存同步、店铺未授权，或该映射行不可用';
                             const btn = (
                               <Button
@@ -3064,13 +3090,16 @@ export default function ProductDraftDetailPage() {
                       </Card>
                       <Card
                         size="small"
-                        title="抖店 SKU 绑定校准"
+                        title="抖店 SKU 绑定管理"
                         variant="borderless"
                         loading={douyinSkuBindingLoading}
                         extra={
                           <Space>
+                            <Button size="small" onClick={() => setDouyinSkuCandidatesOpen(true)} disabled={!douyinSkuBinding?.platformSkus?.length}>
+                              查看平台 SKU 候选
+                            </Button>
                             <Button size="small" onClick={() => void reloadDouyinSkuBindings()}>
-                              查看 SKU 绑定状态
+                              刷新绑定状态
                             </Button>
                             <Button
                               type="primary"
@@ -3079,17 +3108,22 @@ export default function ProductDraftDetailPage() {
                               disabled={!douyinPublication?.id}
                               onClick={() => void handleSyncDouyinSkuBindings()}
                             >
-                              校准抖店 SKU 绑定
+                              重新校准
                             </Button>
                           </Space>
                         }
                       >
                         {!douyinPublication?.id ? (
                           <Typography.Text type="secondary">
-                            创建抖店商品草稿后，可在此根据抖店商品详情校准 platformSkuId。
+                            创建抖店商品草稿后，可在此根据抖店商品详情校准 platformSkuId，并对 ambiguous / unmatched 规格手动绑定。
                           </Typography.Text>
                         ) : (
                           <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                            {douyinSkuBinding?.inventorySyncReady === false && douyinSkuBinding.inventorySyncBlockReason ? (
+                              <Alert type="warning" showIcon message={douyinSkuBinding.inventorySyncBlockReason} />
+                            ) : douyinSkuBinding?.inventorySyncReady ? (
+                              <Alert type="success" showIcon message="全部规格已绑定抖店 SKU，可同步库存。" />
+                            ) : null}
                             <Descriptions bordered size="small" column={2}>
                               <Descriptions.Item label="抖店商品 ID">
                                 {douyinPublication.externalProductId || '—'}
@@ -3101,29 +3135,90 @@ export default function ProductDraftDetailPage() {
                                     ? formatDateTime(douyinPublication.skuBindingSyncedAt)
                                     : '—'}
                               </Descriptions.Item>
-                              <Descriptions.Item label="未绑定 SKU">
-                                {douyinSkuBinding?.unmatched ?? '—'}
-                              </Descriptions.Item>
-                              <Descriptions.Item label="待确认 SKU">
-                                {douyinSkuBinding?.ambiguous ?? '—'}
-                              </Descriptions.Item>
+                              <Descriptions.Item label="已绑定">{douyinSkuBinding?.bound ?? '—'}</Descriptions.Item>
+                              <Descriptions.Item label="未绑定">{douyinSkuBinding?.unmatched ?? '—'}</Descriptions.Item>
+                              <Descriptions.Item label="待确认">{douyinSkuBinding?.ambiguous ?? '—'}</Descriptions.Item>
+                              <Descriptions.Item label="失败">{douyinSkuBinding?.failed ?? '—'}</Descriptions.Item>
                             </Descriptions>
                             {(douyinSkuBinding?.rows?.length ?? 0) > 0 ? (
-                              <Table
+                              <Table<DouyinSkuBindingRow>
                                 size="small"
                                 rowKey="publicationSkuId"
                                 pagination={false}
+                                scroll={{ x: 1200 }}
                                 dataSource={douyinSkuBinding?.rows ?? []}
                                 columns={[
-                                  { title: '本地规格', dataIndex: 'skuCode', ellipsis: true, render: (v, r) => v || r.specName || '—' },
-                                  { title: '抖店 SKU ID', dataIndex: 'externalSkuId', ellipsis: true, render: (v) => v || '—' },
-                                  { title: '绑定状态', dataIndex: 'bindStatus', width: 100, render: (v) => douyinBindStatusTag(v) },
-                                  { title: '置信度', dataIndex: 'bindConfidence', width: 80, render: (v) => (typeof v === 'number' ? v : '—') },
-                                  { title: '说明', dataIndex: 'bindMessage', ellipsis: true, render: (v) => v || '—' },
+                                  { title: '本地 SKU', dataIndex: 'skuCode', width: 120, ellipsis: true, render: (v, r) => v || r.productSkuId || '—' },
+                                  { title: '本地规格', dataIndex: 'specName', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  {
+                                    title: '本地价格',
+                                    width: 96,
+                                    render: (_, r) => (typeof r.price === 'number' ? r.price.toFixed(2) : '—'),
+                                  },
+                                  {
+                                    title: '本地库存',
+                                    width: 88,
+                                    render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—'),
+                                  },
+                                  { title: '抖店 SKU ID', dataIndex: 'externalSkuId', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  { title: '抖店 SKU 名称', dataIndex: 'platformSkuName', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
+                                  { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
+                                  {
+                                    title: '最近校准',
+                                    dataIndex: 'lastSyncedAt',
+                                    width: 156,
+                                    render: (v) => (v ? formatDateTime(v) : '—'),
+                                  },
+                                  {
+                                    title: '说明',
+                                    dataIndex: 'bindMessage',
+                                    ellipsis: true,
+                                    render: (v, r) => v || douyinBindStatusHint(r.bindStatus),
+                                  },
+                                  {
+                                    title: '操作',
+                                    width: 220,
+                                    fixed: 'right',
+                                    render: (_, r) => (
+                                      <Space size={4} wrap>
+                                        <Button
+                                          type="link"
+                                          size="small"
+                                          style={{ padding: 0 }}
+                                          onClick={() => {
+                                            setDouyinSkuBindTarget(r);
+                                            douyinSkuBindForm.setFieldsValue({ platformSkuId: r.externalSkuId || undefined });
+                                            setDouyinSkuBindOpen(true);
+                                          }}
+                                        >
+                                          手动绑定
+                                        </Button>
+                                        {r.externalSkuId ? (
+                                          <Popconfirm
+                                            title="确认解除该规格的抖店 SKU 绑定？"
+                                            onConfirm={() =>
+                                              void unbindDouyinSku(r.publicationSkuId)
+                                                .then(async () => {
+                                                  message.success('已解除绑定');
+                                                  await reloadDouyinSkuBindings();
+                                                  await reloadPublicationSkus();
+                                                })
+                                                .catch((e: Error) => message.error(e.message || '解除失败'))
+                                            }
+                                          >
+                                            <Button type="link" size="small" style={{ padding: 0 }} danger>
+                                              解除绑定
+                                            </Button>
+                                          </Popconfirm>
+                                        ) : null}
+                                      </Space>
+                                    ),
+                                  },
                                 ]}
                               />
                             ) : (
-                              <Typography.Text type="secondary">点击「校准抖店 SKU 绑定」从抖店拉取 SKU 并完成匹配。</Typography.Text>
+                              <Typography.Text type="secondary">点击「重新校准」从抖店拉取 SKU 并完成匹配；未匹配或待确认规格可手动绑定。</Typography.Text>
                             )}
                           </Space>
                         )}
@@ -3855,6 +3950,102 @@ export default function ProductDraftDetailPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <Modal
+        title={douyinSkuBindTarget ? `手动绑定抖店 SKU · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店 SKU'}
+        open={douyinSkuBindOpen && !!douyinSkuBindTarget}
+        destroyOnHidden
+        okText="确认绑定"
+        confirmLoading={douyinSkuBindSubmitting}
+        onCancel={() => {
+          setDouyinSkuBindOpen(false);
+          setDouyinSkuBindTarget(null);
+          douyinSkuBindForm.resetFields();
+        }}
+        onOk={async () => {
+          if (!douyinSkuBindTarget) return;
+          const v = await douyinSkuBindForm.validateFields();
+          const platformSkuId = String(v.platformSkuId ?? '').trim();
+          if (!platformSkuId) {
+            message.error('请选择或填写抖店 SKU ID');
+            return;
+          }
+          const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
+          setDouyinSkuBindSubmitting(true);
+          try {
+            await bindDouyinSku(douyinSkuBindTarget.publicationSkuId, {
+              platformSkuId,
+              platformSkuName: String(v.platformSkuName ?? selected?.specName ?? '').trim(),
+              bindReason: 'manual',
+            });
+            message.success('手动绑定成功');
+            setDouyinSkuBindOpen(false);
+            setDouyinSkuBindTarget(null);
+            douyinSkuBindForm.resetFields();
+            await reloadDouyinSkuBindings();
+            await reloadPublicationSkus();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || '绑定失败');
+          } finally {
+            setDouyinSkuBindSubmitting(false);
+          }
+        }}
+      >
+        <Typography.Paragraph type="secondary">
+          本地规格：{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}
+        </Typography.Paragraph>
+        <Form form={douyinSkuBindForm} layout="vertical">
+          <Form.Item name="platformSkuId" label="抖店 SKU" rules={[{ required: true, message: '请选择抖店 SKU' }]}>
+            <Select
+              showSearch
+              placeholder="从平台候选中选择"
+              optionFilterProp="label"
+              options={(douyinSkuBinding?.platformSkus ?? []).map((c: DouyinPlatformSkuCandidate) => ({
+                value: c.platformSkuId,
+                label: `${c.platformSkuId} · ${c.specName || '—'}${c.boundToPublicationSkuId ? '（已绑定其他规格）' : ''}`,
+                disabled: Boolean(c.boundToPublicationSkuId && c.boundToPublicationSkuId !== douyinSkuBindTarget?.publicationSkuId),
+              }))}
+              onChange={(v) => {
+                const c = (douyinSkuBinding?.platformSkus ?? []).find((x) => x.platformSkuId === v);
+                if (c?.specName) douyinSkuBindForm.setFieldValue('platformSkuName', c.specName);
+              }}
+            />
+          </Form.Item>
+          <Form.Item name="platformSkuName" label="抖店 SKU 名称">
+            <Input placeholder="可选，便于识别" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Drawer
+        title="抖店平台 SKU 候选"
+        open={douyinSkuCandidatesOpen}
+        width={640}
+        onClose={() => setDouyinSkuCandidatesOpen(false)}
+      >
+        {(douyinSkuBinding?.platformSkus?.length ?? 0) === 0 ? (
+          <Typography.Text type="secondary">暂无候选，请先执行「重新校准」从抖店拉取商品详情。</Typography.Text>
+        ) : (
+          <Table<DouyinPlatformSkuCandidate>
+            size="small"
+            rowKey="platformSkuId"
+            pagination={false}
+            dataSource={douyinSkuBinding?.platformSkus ?? []}
+            columns={[
+              { title: '抖店 SKU ID', dataIndex: 'platformSkuId', ellipsis: true },
+              { title: '规格名称', dataIndex: 'specName', ellipsis: true, render: (v) => v || '—' },
+              { title: '价格', width: 96, render: (_, r) => (typeof r.priceYuan === 'number' ? r.priceYuan.toFixed(2) : '—') },
+              { title: '库存', width: 72, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
+              {
+                title: '绑定状态',
+                width: 120,
+                render: (_, r) =>
+                  r.boundToPublicationSkuId ? <Tag color="blue">已绑定本地规格</Tag> : <Tag>未绑定</Tag>,
+              },
+            ]}
+          />
+        )}
+      </Drawer>
 
       <PricingApplyModal
         open={pricingOpen}

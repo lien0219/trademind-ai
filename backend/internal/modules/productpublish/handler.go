@@ -59,6 +59,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/product-publish/tasks/:id/cancel", h.CancelTask)
 	g.GET("/product-publications/:id/douyin/sku-bindings", h.GetDouyinSKUBindings)
 	g.POST("/product-publications/:id/douyin/sync-sku-bindings", h.SyncDouyinSKUBindings)
+	g.POST("/product-publication-skus/:id/douyin/bind-sku", h.BindDouyinSKU)
+	g.POST("/product-publication-skus/:id/douyin/unbind-sku", h.UnbindDouyinSKU)
 }
 
 func (h *Handler) Publish(c *gin.Context) {
@@ -304,6 +306,60 @@ func (h *Handler) SyncDouyinSKUBindings(c *gin.Context) {
 		return
 	}
 	out, err := h.Svc.SyncDouyinSKUBindings(c, id, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) BindDouyinSKU(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinManualBindBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ManualBindDouyinSKU(c, id, body, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) UnbindDouyinSKU(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body DouyinManualUnbindBody
+	_ = c.ShouldBindJSON(&body)
+	if strings.TrimSpace(body.Reason) == "" {
+		body.Reason = "manual_unbind"
+	}
+	out, err := h.Svc.UnbindDouyinSKU(c, id, body, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

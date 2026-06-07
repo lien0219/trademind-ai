@@ -118,3 +118,15 @@ func dtoTrimJSON(raw datatypes.JSON) any {
 	_ = json.Unmarshal(raw, &v)
 	return v
 }
+
+// DouyinManualBindBody POST /product-publication-skus/:id/douyin/bind-sku
+type DouyinManualBindBody struct {
+	PlatformSkuID   string `json:"platformSkuId"`
+	PlatformSkuName string `json:"platformSkuName"`
+	BindReason      string `json:"bindReason"`
+}
+
+// DouyinManualUnbindBody POST /product-publication-skus/:id/douyin/unbind-sku
+type DouyinManualUnbindBody struct {
+	Reason string `json:"reason"`
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
 
 // AdjustSKUStock updates local SKU snapshot and optionally enqueues platform pushes for eligible mappings.
@@ -111,15 +112,18 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 	optCopy := platformp.TrimRawMap(opt, 12, 200)
 	n := 0
 	for _, psku := range psRows {
-		if strings.TrimSpace(psku.ExternalSKUID) == "" || strings.TrimSpace(psku.BindStatus) == productpublish.BindStatusAmbiguous {
-			continue
-		}
 		var pub productpublish.ProductPublication
 		if err := s.DB.WithContext(ctx).Where("id = ? AND product_id = ? AND deleted_at IS NULL", psku.PublicationID, productID).
 			First(&pub).Error; err != nil {
 			continue
 		}
 		pl := strings.TrimSpace(strings.ToLower(pub.Platform))
+		if err := productpublish.ValidateDouyinSKUBindingForInventorySync(pl, strings.TrimSpace(psku.ExternalSKUID), strings.TrimSpace(psku.BindStatus)); err != nil {
+			continue
+		}
+		if strings.TrimSpace(psku.ExternalSKUID) == "" {
+			continue
+		}
 		extPID := strings.TrimSpace(pub.ExternalProductID)
 		if extPID == "" && pl != "amazon" {
 			continue
@@ -181,10 +185,10 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 		return nil, err
 	}
 	if strings.TrimSpace(psku.ExternalSKUID) == "" {
-		return nil, fmt.Errorf("DOUYIN_SKU_NOT_BOUND: external sku id missing for mapped listing SKU; please run douyin sku binding calibration first")
+		return nil, fmt.Errorf("%s: external sku id missing for mapped listing SKU; please bind douyin sku first", platformdouyin.CodeDouyinSKUBindingRequired)
 	}
-	if strings.TrimSpace(strings.ToLower(pub.Platform)) == "douyin_shop" && strings.TrimSpace(psku.BindStatus) == productpublish.BindStatusAmbiguous {
-		return nil, fmt.Errorf("DOUYIN_SKU_BINDING_AMBIGUOUS: ambiguous sku binding requires manual confirmation before inventory sync")
+	if err := productpublish.ValidateDouyinSKUBindingForInventorySync(pub.Platform, psku.ExternalSKUID, psku.BindStatus); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(pub.ExternalProductID) == "" {
 		return nil, fmt.Errorf("external product id missing for publication row")

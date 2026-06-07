@@ -28,6 +28,11 @@ const (
 	CodeDouyinSKUBindingSyncFailed          = "DOUYIN_SKU_BINDING_SYNC_FAILED"
 	CodeDouyinSKUBindingUnmatched           = "DOUYIN_SKU_BINDING_UNMATCHED"
 	CodeDouyinSKUBindingAmbiguous           = "DOUYIN_SKU_BINDING_AMBIGUOUS"
+	CodeDouyinSKUManualBindFailed           = "DOUYIN_SKU_MANUAL_BIND_FAILED"
+	CodeDouyinSKUManualUnbindFailed         = "DOUYIN_SKU_MANUAL_UNBIND_FAILED"
+	CodeDouyinPlatformSKUIDMissing          = "DOUYIN_PLATFORM_SKU_ID_MISSING"
+	CodeDouyinSKUBindingConflict            = "DOUYIN_SKU_BINDING_CONFLICT"
+	CodeDouyinSKUBindingRequired            = "DOUYIN_SKU_BINDING_REQUIRED"
 	CodeDouyinOrderSyncFailed               = "DOUYIN_ORDER_SYNC_FAILED"
 	CodeDouyinOrderListFailed               = "DOUYIN_ORDER_LIST_FAILED"
 	CodeDouyinOrderDetailFailed             = "DOUYIN_ORDER_DETAIL_FAILED"
@@ -94,7 +99,9 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 	case CodeDouyinProductPayloadInvalid, CodeDouyinCategoryMissing, CodeDouyinRequiredAttrMissing, CodeDouyinMainImageNotUploaded,
 		CodeDouyinProductNotBound, CodeDouyinSKUNotBound, CodeDouyinStockInvalid, CodeDouyinInventorySyncNotReady,
 		CodeDouyinProductNotFound, CodeDouyinProductDetailPermissionDenied,
-		CodeDouyinSKUBindingUnmatched, CodeDouyinSKUBindingAmbiguous:
+		CodeDouyinSKUBindingUnmatched, CodeDouyinSKUBindingAmbiguous,
+		CodeDouyinSKUManualBindFailed, CodeDouyinSKUManualUnbindFailed, CodeDouyinPlatformSKUIDMissing,
+		CodeDouyinSKUBindingConflict, CodeDouyinSKUBindingRequired:
 		e.Retryable = false
 	}
 	return e

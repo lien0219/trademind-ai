@@ -42,27 +42,32 @@ type DouyinSKUBindingRow struct {
 	SKUCode          string     `json:"skuCode,omitempty"`
 	SpecName         string     `json:"specName,omitempty"`
 	ExternalSKUID    string     `json:"externalSkuId,omitempty"`
+	PlatformSkuName  string     `json:"platformSkuName,omitempty"`
 	BindStatus       string     `json:"bindStatus,omitempty"`
 	BindConfidence   int        `json:"bindConfidence,omitempty"`
 	BindMessage      string     `json:"bindMessage,omitempty"`
 	LastSyncedAt     *time.Time `json:"lastSyncedAt,omitempty"`
 	Price            *float64   `json:"price,omitempty"`
+	Stock            *int       `json:"stock,omitempty"`
 }
 
 // DouyinSKUBindingSummary aggregates calibration outcome.
 type DouyinSKUBindingSummary struct {
-	PublicationID      uuid.UUID             `json:"publicationId"`
-	ExternalProductID  string                `json:"externalProductId,omitempty"`
-	SkuBindingSyncedAt *time.Time            `json:"skuBindingSyncedAt,omitempty"`
-	Total              int                   `json:"total"`
-	Bound              int                   `json:"bound"`
-	Skipped            int                   `json:"skipped"`
-	Unmatched          int                   `json:"unmatched"`
-	Ambiguous          int                   `json:"ambiguous"`
-	Failed             int                   `json:"failed"`
-	Rows               []DouyinSKUBindingRow `json:"rows"`
-	ErrorCode          string                `json:"errorCode,omitempty"`
-	ErrorMessage       string                `json:"errorMessage,omitempty"`
+	PublicationID            uuid.UUID                    `json:"publicationId"`
+	ExternalProductID        string                       `json:"externalProductId,omitempty"`
+	SkuBindingSyncedAt       *time.Time                   `json:"skuBindingSyncedAt,omitempty"`
+	Total                    int                          `json:"total"`
+	Bound                    int                          `json:"bound"`
+	Skipped                  int                          `json:"skipped"`
+	Unmatched                int                          `json:"unmatched"`
+	Ambiguous                int                          `json:"ambiguous"`
+	Failed                   int                          `json:"failed"`
+	Rows                     []DouyinSKUBindingRow        `json:"rows"`
+	PlatformSkus             []DouyinPlatformSKUCandidate `json:"platformSkus,omitempty"`
+	InventorySyncReady       bool                         `json:"inventorySyncReady"`
+	InventorySyncBlockReason string                       `json:"inventorySyncBlockReason,omitempty"`
+	ErrorCode                string                       `json:"errorCode,omitempty"`
+	ErrorMessage             string                       `json:"errorMessage,omitempty"`
 }
 
 // GetDouyinSKUBindings returns current binding rows for one publication.
@@ -79,6 +84,8 @@ func (s *Service) GetDouyinSKUBindings(ctx context.Context, publicationID uuid.U
 		return nil, err
 	}
 	sum := summarizeBindingRows(pub, rows)
+	sum.PlatformSkus = annotatePlatformSkuCandidates(platformSkusFromPublicationRaw(pub.RawData), sum.Rows)
+	sum.InventorySyncReady, sum.InventorySyncBlockReason = DouyinInventorySyncReady(sum.Rows)
 	return &sum, nil
 }
 
@@ -102,6 +109,14 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 	_ = shopRow
 
 	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "douyin.sku.binding.recheck",
+			Resource:    "product_publication",
+			ResourceID:  publicationID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("publicationId=%s trigger=sync-sku-bindings", publicationID),
+		})
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
 			Action:      "douyin.product.detail.sync.start",
@@ -207,7 +222,12 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 	}
 
 	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", publicationID).
-		Updates(map[string]any{"sku_binding_synced_at": &now, "last_synced_at": &now, "updated_at": now}).Error
+		Updates(map[string]any{
+			"sku_binding_synced_at": &now,
+			"last_synced_at":        &now,
+			"raw_data":              mergePublicationRawPlatformSkus(pub.RawData, detail.SKUs),
+			"updated_at":            now,
+		}).Error
 
 	sum := DouyinSKUBindingSummary{
 		PublicationID:      publicationID,
@@ -221,6 +241,8 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 		Failed:             counts[BindStatusFailed],
 		Rows:               resultRows,
 	}
+	sum.PlatformSkus = annotatePlatformSkuCandidates(platformSkusToCandidates(detail.SKUs), sum.Rows)
+	sum.InventorySyncReady, sum.InventorySyncBlockReason = DouyinInventorySyncReady(sum.Rows)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
@@ -288,11 +310,13 @@ func (s *Service) listDouyinBindingRows(ctx context.Context, pub *ProductPublica
 			SKUCode:          firstNonEmpty(row.SKUCode, lr.SKUCode),
 			SpecName:         lr.SpecName,
 			ExternalSKUID:    strings.TrimSpace(row.ExternalSKUID),
+			PlatformSkuName:  platformSkuNameFromCache(pub, strings.TrimSpace(row.ExternalSKUID)),
 			BindStatus:       strings.TrimSpace(row.BindStatus),
 			BindConfidence:   row.BindConfidence,
 			BindMessage:      row.BindMessage,
 			LastSyncedAt:     row.LastSyncedAt,
 			Price:            row.Price,
+			Stock:            localStockForBinding(ctx, s.DB, pub.ProductID, row.ProductSKUID),
 		})
 	}
 	return out, nil
