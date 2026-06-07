@@ -518,7 +518,7 @@ function ManualTranslateEditor({
       cancelText="取消"
       confirmLoading={saving}
       width={1180}
-      destroyOnClose
+      destroyOnHidden
     >
       {loading ? (
         <div style={{ textAlign: 'center', padding: 48 }}>
@@ -631,29 +631,29 @@ function ManualTranslateEditor({
                     onChange={(e) => updateBlock(index, { text: e.target.value })}
                   />
                   <Space wrap size={8} style={{ marginTop: 8 }}>
-                    <InputNumber addonBefore="x" value={b.bbox.x} onChange={(v) => updateBBox(index, { x: Number(v ?? 0) })} />
-                    <InputNumber addonBefore="y" value={b.bbox.y} onChange={(v) => updateBBox(index, { y: Number(v ?? 0) })} />
+                    <InputNumber prefix="x" value={b.bbox.x} onChange={(v) => updateBBox(index, { x: Number(v ?? 0) })} />
+                    <InputNumber prefix="y" value={b.bbox.y} onChange={(v) => updateBBox(index, { y: Number(v ?? 0) })} />
                     <InputNumber
-                      addonBefore="w"
+                      prefix="w"
                       min={1}
                       value={b.bbox.width}
                       onChange={(v) => updateBBox(index, { width: Number(v ?? 1) })}
                     />
                     <InputNumber
-                      addonBefore="h"
+                      prefix="h"
                       min={1}
                       value={b.bbox.height}
                       onChange={(v) => updateBBox(index, { height: Number(v ?? 1) })}
                     />
                     <InputNumber
-                      addonBefore="字号"
+                      prefix="字号"
                       min={8}
                       max={96}
                       value={b.fontSize}
                       onChange={(v) => updateBlock(index, { fontSize: Number(v ?? 18) })}
                     />
                     <Input
-                      addonBefore="颜色"
+                      prefix="颜色"
                       value={b.color || '#111111'}
                       style={{ width: 150 }}
                       onChange={(e) => updateBlock(index, { color: e.target.value })}
@@ -672,23 +672,23 @@ function ManualTranslateEditor({
                   {b.removeSourceBackground ? (
                     <Space wrap size={8} style={{ marginTop: 8 }}>
                       <InputNumber
-                        addonBefore="擦除 x"
+                        prefix="擦除 x"
                         value={b.eraseBBox.x}
                         onChange={(v) => updateEraseBBox(index, { x: Number(v ?? 0) })}
                       />
                       <InputNumber
-                        addonBefore="擦除 y"
+                        prefix="擦除 y"
                         value={b.eraseBBox.y}
                         onChange={(v) => updateEraseBBox(index, { y: Number(v ?? 0) })}
                       />
                       <InputNumber
-                        addonBefore="擦除 w"
+                        prefix="擦除 w"
                         min={1}
                         value={b.eraseBBox.width}
                         onChange={(v) => updateEraseBBox(index, { width: Number(v ?? 1) })}
                       />
                       <InputNumber
-                        addonBefore="擦除 h"
+                        prefix="擦除 h"
                         min={1}
                         value={b.eraseBBox.height}
                         onChange={(v) => updateEraseBBox(index, { height: Number(v ?? 1) })}

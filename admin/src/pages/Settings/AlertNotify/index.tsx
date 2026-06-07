@@ -253,7 +253,7 @@ export default function AlertNotifySettingsPage() {
   return (
     <PageContainer title="告警通知配置" subTitle="配置任务告警的外部通知策略与邮件、Webhook 等出站通道">
       <div className="tm-system-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <BellOutlined />
@@ -303,7 +303,7 @@ export default function AlertNotifySettingsPage() {
           }}
         >
           <ProCard
-            bordered
+            variant="outlined"
             title="通知策略"
             className="tm-system-settings__panel"
             style={{ marginTop: 16 }}
@@ -394,7 +394,7 @@ export default function AlertNotifySettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard bordered title="通道配置" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="通道配置" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Form.Item
               label="通道总开关"
               name="an_enabled"
@@ -512,7 +512,7 @@ export default function AlertNotifySettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard bordered className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
               保存配置
             </Button>

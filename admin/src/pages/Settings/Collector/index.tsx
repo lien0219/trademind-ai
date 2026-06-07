@@ -258,7 +258,7 @@ function Collector1688Section({
   return (
     <ProCard
       title="1688 专属配置"
-      bordered
+      variant="outlined"
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">
@@ -365,7 +365,7 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
   const statusTag = providerRow ? collectProviderStatusPresentation(providerRow.source, providerRow.status) : null;
 
   return (
-    <ProCard title="自定义链接专属配置" bordered className="tm-collector-settings__panel">
+    <ProCard title="自定义链接专属配置" variant="outlined" className="tm-collector-settings__panel">
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         {statusTag ? (
           <div className="tm-collector-auth-panel">
@@ -435,7 +435,7 @@ function CollectorAliExpressSection({ providerRow }: { providerRow?: CollectProv
   const isBeta = providerRow?.status === 'beta';
 
   return (
-    <ProCard title="速卖通专属配置" bordered className="tm-collector-settings__panel">
+    <ProCard title="速卖通专属配置" variant="outlined" className="tm-collector-settings__panel">
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <div className="tm-collector-auth-panel">
           <Space wrap>
@@ -534,7 +534,7 @@ function CollectorPinduoduoSection({
   return (
     <ProCard
       title="拼多多专属配置"
-      bordered
+      variant="outlined"
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">
@@ -719,7 +719,7 @@ function CollectorPinduoduoSection({
 
 function CollectorPlannedSection({ providerLabel }: { providerLabel: string }) {
   return (
-    <ProCard bordered className="tm-collector-settings__panel">
+    <ProCard variant="outlined" className="tm-collector-settings__panel">
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={
@@ -1099,7 +1099,7 @@ export default function CollectorSettingsPage() {
   return (
     <PageContainer title="采集设置" subTitle={`当前：${providerOption.label}`}>
       <div className="tm-collector-settings">
-        <ProCard bordered className="tm-collector-settings__selector" title="采集器类型">
+        <ProCard variant="outlined" className="tm-collector-settings__selector" title="采集器类型">
           <CollectorProviderSelector
             activeKey={providerKey}
             providers={providers}
@@ -1115,7 +1115,7 @@ export default function CollectorSettingsPage() {
               <Col xs={24} xl={10}>
                 <ProCard
                   title="通用采集设置"
-                  bordered
+                  variant="outlined"
                   className="tm-collector-settings__panel"
                   extra={
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -1158,7 +1158,7 @@ export default function CollectorSettingsPage() {
           )}
 
           {!planned ? (
-            <ProCard bordered className="tm-collector-settings__footer">
+            <ProCard variant="outlined" className="tm-collector-settings__footer">
               <Space wrap className="tm-action-space">
                 <Button type="primary" htmlType="submit" loading={loading}>
                   保存配置

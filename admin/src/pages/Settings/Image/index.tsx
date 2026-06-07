@@ -408,7 +408,7 @@ export default function ImageSettingsPage() {
       subTitle="配置去背景、场景图生成、图片文字翻译等能力；支持云端 API 与本地 ComfyUI"
     >
       <div className="tm-image-settings">
-        <ProCard bordered className="tm-image-settings__hero">
+        <ProCard variant="outlined" className="tm-image-settings__hero">
           <div className="tm-image-settings__hero-inner">
             <div className="tm-image-settings__hero-icon">
               <PictureOutlined />
@@ -458,7 +458,7 @@ export default function ImageSettingsPage() {
             }
           }}
         >
-          <ProCard bordered title="使用场景" className="tm-image-settings__panel">
+          <ProCard variant="outlined" title="使用场景" className="tm-image-settings__panel">
             <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
               选择最接近你需求的场景，系统将推荐合适的图片服务（可再手动调整）。
             </Typography.Paragraph>
@@ -509,7 +509,7 @@ export default function ImageSettingsPage() {
           </ProCard>
 
           <ProCard
-            bordered
+            variant="outlined"
             title="图片处理服务"
             className="tm-image-settings__panel"
             extra={
@@ -560,7 +560,7 @@ export default function ImageSettingsPage() {
 
           <Row gutter={[16, 16]} className="tm-image-settings__row">
             <Col xs={24} lg={15}>
-              <ProCard bordered title="服务连接" className="tm-image-settings__panel tm-image-settings__panel--fill">
+              <ProCard variant="outlined" title="服务连接" className="tm-image-settings__panel tm-image-settings__panel--fill">
                 {currentCap?.status === 'planned' ? (
                   <Alert
                     type="warning"
@@ -585,7 +585,7 @@ export default function ImageSettingsPage() {
               </ProCard>
             </Col>
             <Col xs={24} lg={9}>
-              <ProCard bordered title="说明与提示" className="tm-image-settings__panel tm-image-settings__panel--fill">
+              <ProCard variant="outlined" title="说明与提示" className="tm-image-settings__panel tm-image-settings__panel--fill">
                 <div className="tm-image-settings__tips">
                   <Typography.Text type="secondary" className="tm-image-settings__tips-title">
                     配置建议
@@ -606,7 +606,7 @@ export default function ImageSettingsPage() {
           </Row>
 
           <ProCard
-            bordered
+            variant="outlined"
             title="OCR 配置"
             subTitle="用于图片文字翻译与中英文识别"
             className="tm-image-settings__panel"
@@ -910,7 +910,7 @@ export default function ImageSettingsPage() {
           </ProCard>
 
           <ProCard
-            bordered
+            variant="outlined"
             title="局部擦除"
             subTitle="用于图片文字翻译前去除原文字"
             className="tm-image-settings__panel"
@@ -943,7 +943,7 @@ export default function ImageSettingsPage() {
           </Form.Item>
           </ProCard>
 
-          <ProCard bordered className="tm-image-settings__footer">
+          <ProCard variant="outlined" className="tm-image-settings__footer">
             <Space wrap className="tm-action-space">
               <Button type="primary" htmlType="submit" loading={loading} size="large">
                 保存全部配置

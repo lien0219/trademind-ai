@@ -202,6 +202,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
     platformHint?.kind === 'planned' && !plannedDismissed;
 
   return (
+    <>
     <ModalForm<{ url: string; ruleId?: string }>
       title="自定义链接采集"
       open={open}
@@ -399,18 +400,19 @@ export function CustomCollectModal({ open, onClose }: Props) {
           description="提交采集任务时将使用所选登录状态（采集浏览器中的登录信息）。"
         />
       ) : null}
-      <AIGenerateRuleModal
-        open={aiModalOpen}
-        initialUrl={formUrl.trim() || undefined}
-        onClose={() => setAiModalOpen(false)}
-        onSaved={() => {
-          setLoadingRules(true);
-          void queryCollectRules({ page: 1, pageSize: 500, status: 'enabled' })
-            .then((res) => setRules(res.list ?? []))
-            .catch(() => setRules([]))
-            .finally(() => setLoadingRules(false));
-        }}
-      />
     </ModalForm>
+    <AIGenerateRuleModal
+      open={aiModalOpen}
+      initialUrl={formUrl.trim() || undefined}
+      onClose={() => setAiModalOpen(false)}
+      onSaved={() => {
+        setLoadingRules(true);
+        void queryCollectRules({ page: 1, pageSize: 500, status: 'enabled' })
+          .then((res) => setRules(res.list ?? []))
+          .catch(() => setRules([]))
+          .finally(() => setLoadingRules(false));
+      }}
+    />
+    </>
   );
 }

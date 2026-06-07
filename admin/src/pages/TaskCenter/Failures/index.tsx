@@ -506,7 +506,7 @@ export default function TaskCenterFailuresPage() {
           message="抖店相关失败"
           description="刊登、图片上传、创建草稿、订单同步、库存同步、SKU 绑定失败会聚合到本页。错误信息已脱敏，不含 token 或 App Secret。抖店授权/类目/图片/SKU 未绑定类问题请按提示回到对应页面处理后再重试。"
         />
-        <ProCard bordered size="small">
+        <ProCard variant="outlined" size="small">
           {summary ? (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               <Row gutter={[16, 16]}>

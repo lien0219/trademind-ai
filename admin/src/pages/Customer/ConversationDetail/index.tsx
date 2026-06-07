@@ -329,7 +329,7 @@ export default function CustomerConversationDetailPage() {
                 </Typography.Text>
               </Descriptions.Item>
             </Descriptions>
-            <Card size="small" title="关联店铺" bordered={false} style={{ marginBottom: 16 }}>
+            <Card size="small" title="关联店铺" variant="borderless" style={{ marginBottom: 16 }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space wrap>
                   <Button type="primary" onClick={() => void openShopPick()}>
@@ -353,7 +353,7 @@ export default function CustomerConversationDetailPage() {
                 )}
               </Space>
             </Card>
-            <Card size="small" title="关联订单" bordered={false} style={{ marginBottom: 16 }}>
+            <Card size="small" title="关联订单" variant="borderless" style={{ marginBottom: 16 }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space wrap>
                   <Button
@@ -417,7 +417,7 @@ export default function CustomerConversationDetailPage() {
 
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={14}>
-            <Card title="消息时间线" bordered={false}>
+            <Card title="消息时间线" variant="borderless">
               {msgs.length === 0 ? (
                 <Empty description="暂无消息" />
               ) : (
@@ -478,7 +478,7 @@ export default function CustomerConversationDetailPage() {
           </Col>
 
           <Col xs={24} lg={10}>
-            <Card title="AI 回复建议" bordered={false}>
+            <Card title="AI 回复建议" variant="borderless">
               <Space direction="vertical" style={{ width: '100%' }} size="middle">
                 <Alert
                   type="warning"

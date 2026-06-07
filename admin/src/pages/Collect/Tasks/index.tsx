@@ -374,7 +374,7 @@ export default function CollectTasksPage() {
         ) : undefined
       }
     >
-      <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {formSource === 'custom' ? (
           <Alert
             type="info"

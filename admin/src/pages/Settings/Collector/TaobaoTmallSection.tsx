@@ -79,7 +79,7 @@ export function CollectorTaobaoTmallSection({
   return (
     <ProCard
       title="淘宝/天猫专属配置"
-      bordered
+      variant="outlined"
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">

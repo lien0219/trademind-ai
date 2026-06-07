@@ -451,7 +451,7 @@ export default function CollectBatchesPage() {
 
   return (
     <PageContainer title="批量采集">
-      <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {sourceFromQuery &&
         providers.length > 0 &&
         !batchProviders.some((p) => p.source === sourceFromQuery) ? (
@@ -681,7 +681,7 @@ export default function CollectBatchesPage() {
                 }
               />
             ) : null}
-            <ProCard bordered size="small" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
+            <ProCard variant="outlined" size="small" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
               <Space wrap size="middle">
                 <Tag>总数 {activeBatch.totalCount}</Tag>
                 <Tag>排队 {activeBatch.pendingCount}</Tag>

@@ -232,7 +232,7 @@ function KpiCard(props: {
 }) {
   return (
     <ProCard
-      bordered
+      variant="outlined"
       hoverable={!!props.onClick}
       bodyStyle={{ padding: '14px 16px', cursor: props.onClick ? 'pointer' : 'default' }}
       onClick={props.onClick}
@@ -252,7 +252,7 @@ function TodoCardItem({ item }: { item: DashboardTodo }) {
   const hasCount = (item.count ?? 0) > 0;
   return (
     <ProCard
-      bordered
+      variant="outlined"
       bodyStyle={{ padding: '16px', height: '100%' }}
       style={hasCount ? { borderColor: '#f97316' } : undefined}
     >
@@ -274,7 +274,7 @@ function TodoCardItem({ item }: { item: DashboardTodo }) {
 function ExceptionRow({ item }: { item: DashboardException }) {
   return (
     <ProCard
-      bordered
+      variant="outlined"
       bodyStyle={{ padding: '16px 18px' }}
       style={{ margin: 0 }}
       hoverable
@@ -791,7 +791,7 @@ export default function ProductOperationsDashboardPage() {
       }
     >
       {/* 筛选 */}
-      <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
+      <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
         <Space wrap size={[12, 12]}>
           <RangePicker
             value={filters.range}
@@ -859,7 +859,7 @@ export default function ProductOperationsDashboardPage() {
       ) : (
         <>
           {/* 1. 顶部欢迎区 + KPI */}
-          <ProCard bordered style={{ marginBottom: 16 }} bodyStyle={{ padding: '20px 24px' }}>
+          <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ padding: '20px 24px' }}>
             <Row align="middle" gutter={[16, 16]} wrap style={{ marginBottom: 20 }}>
               <Col flex="auto">
                 <Typography.Title level={4} style={{ margin: 0 }}>
@@ -891,7 +891,7 @@ export default function ProductOperationsDashboardPage() {
           </ProCard>
 
           {/* 2. 今日待办 */}
-          <ProCard title="今日待办" bordered style={{ marginBottom: 16 }}>
+          <ProCard title="今日待办" variant="outlined" style={{ marginBottom: 16 }}>
             <Row gutter={[16, 16]}>
               {todos.map((item) => (
                 <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
@@ -904,14 +904,14 @@ export default function ProductOperationsDashboardPage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
             {/* 4. AI 商品运营进度漏斗 */}
             <Col xs={24} lg={10}>
-              <ProCard title="AI 商品运营进度" bordered bodyStyle={{ padding: '16px 20px 12px' }}>
+              <ProCard title="AI 商品运营进度" variant="outlined" bodyStyle={{ padding: '16px 20px 12px' }}>
                 <FunnelSteps steps={funnelSteps} />
               </ProCard>
             </Col>
 
             {/* 5. 异常与失败提醒 */}
             <Col xs={24} lg={14}>
-              <ProCard title="异常与失败提醒" bordered>
+              <ProCard title="异常与失败提醒" variant="outlined">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {exceptions.map((item) => (
                     <ExceptionRow key={item.key} item={item} />
@@ -922,7 +922,7 @@ export default function ProductOperationsDashboardPage() {
           </Row>
 
           {/* 最近动态 */}
-          <ProCard title="最近动态" bordered style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px 16px' }}>
+          <ProCard title="最近动态" variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px 16px' }}>
             {recentFlat.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {recentFlat.map((item, idx) => (
@@ -946,7 +946,7 @@ export default function ProductOperationsDashboardPage() {
           </ProCard>
 
           {/* 快捷入口 */}
-          <ProCard title="快捷入口" bordered bodyStyle={{ padding: '16px 20px 20px' }}>
+          <ProCard title="快捷入口" variant="outlined" bodyStyle={{ padding: '16px 20px 20px' }}>
             <QuickLinkGroups links={quickLinks} />
           </ProCard>
         </>

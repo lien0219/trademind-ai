@@ -379,7 +379,7 @@ export default function PlatformSettingsPage() {
   return (
     <PageContainer title="平台开放配置" subTitle="各跨境平台 Partner 应用参数（App Key / Secret 等），店铺授权在「店铺管理」完成">
       <div className="tm-system-settings">
-        <ProCard bordered className="tm-system-settings__hero">
+        <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
             <div className="tm-system-settings__hero-icon">
               <ApiOutlined />
@@ -396,7 +396,7 @@ export default function PlatformSettingsPage() {
           </div>
         </ProCard>
 
-        <ProCard bordered title="选择平台" className="tm-system-settings__panel">
+        <ProCard variant="outlined" title="选择平台" className="tm-system-settings__panel">
           <Paragraph type="secondary" style={{ marginBottom: 12 }}>
             开发者门户：
             {PLATFORM_DEV_PORTALS.map((p, i) => (
