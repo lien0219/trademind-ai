@@ -282,19 +282,20 @@ func (s *Service) ListPublicationsByProduct(ctx context.Context, productID uuid.
 		sum, _ := s.skuMappingSummaryLines(ctx, rows[i].ID)
 		pid := rows[i].PublishTaskID
 		out = append(out, PublicationDTO{
-			ID:                rows[i].ID,
-			ProductID:         rows[i].ProductID,
-			ShopID:            rows[i].ShopID,
-			ShopName:          s.shopNameLookup(ctx, rows[i].ShopID),
-			Platform:          rows[i].Platform,
-			PublishTaskID:     pid,
-			ExternalProductID: rows[i].ExternalProductID,
-			ExternalURL:       rows[i].ExternalURL,
-			Status:            rows[i].Status,
-			PublishStatus:     rows[i].PublishStatus,
-			PublishedAt:       rows[i].PublishedAt,
-			LastSyncedAt:      rows[i].LastSyncedAt,
-			SKUMappingSummary: sum,
+			ID:                 rows[i].ID,
+			ProductID:          rows[i].ProductID,
+			ShopID:             rows[i].ShopID,
+			ShopName:           s.shopNameLookup(ctx, rows[i].ShopID),
+			Platform:           rows[i].Platform,
+			PublishTaskID:      pid,
+			ExternalProductID:  rows[i].ExternalProductID,
+			ExternalURL:        rows[i].ExternalURL,
+			Status:             rows[i].Status,
+			PublishStatus:      rows[i].PublishStatus,
+			PublishedAt:        rows[i].PublishedAt,
+			LastSyncedAt:       rows[i].LastSyncedAt,
+			SkuBindingSyncedAt: rows[i].SkuBindingSyncedAt,
+			SKUMappingSummary:  sum,
 		})
 	}
 	return out, nil

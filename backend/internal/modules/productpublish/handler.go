@@ -57,6 +57,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/product-publish/tasks/:id", h.GetTask)
 	g.POST("/product-publish/tasks/:id/retry", h.RetryTask)
 	g.POST("/product-publish/tasks/:id/cancel", h.CancelTask)
+	g.GET("/product-publications/:id/douyin/sku-bindings", h.GetDouyinSKUBindings)
+	g.POST("/product-publications/:id/douyin/sync-sku-bindings", h.SyncDouyinSKUBindings)
 }
 
 func (h *Handler) Publish(c *gin.Context) {
@@ -267,6 +269,50 @@ func (h *Handler) ListDouyinPublishTasks(c *gin.Context) {
 			"totalPages": res.TotalPages,
 		},
 	})
+}
+
+func (h *Handler) GetDouyinSKUBindings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetDouyinSKUBindings(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) SyncDouyinSKUBindings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.SyncDouyinSKUBindings(c, id, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
 }
 
 func (h *Handler) CancelTask(c *gin.Context) {

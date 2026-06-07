@@ -66,6 +66,7 @@ type ProductPublication struct {
 	ExternalURL        string         `gorm:"type:text" json:"externalUrl,omitempty"`
 	PublishedAt        *time.Time     `json:"publishedAt,omitempty"`
 	LastSyncedAt       *time.Time     `json:"lastSyncedAt,omitempty"`
+	SkuBindingSyncedAt *time.Time     `json:"skuBindingSyncedAt,omitempty"`
 	RawData            datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
 	CreatedBy          *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 }
@@ -75,13 +76,17 @@ func (ProductPublication) TableName() string { return "product_publications" }
 // ProductPublicationSKU maps local SKU to external listing SKU.
 type ProductPublicationSKU struct {
 	model.HardDeleteBase
-	PublicationID uuid.UUID      `gorm:"type:char(36);index;not null" json:"publicationId"`
-	ProductSKUID  *uuid.UUID     `gorm:"column:product_sku_id;type:char(36);index" json:"productSkuId,omitempty"`
-	ExternalSKUID string         `gorm:"column:external_sku_id;size:256" json:"externalSkuId,omitempty"`
-	SKUCode       string         `gorm:"size:128" json:"skuCode,omitempty"`
-	Price         *float64       `json:"price,omitempty"`
-	Stock         *int           `json:"stock,omitempty"`
-	RawData       datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	PublicationID  uuid.UUID      `gorm:"type:char(36);index;not null" json:"publicationId"`
+	ProductSKUID   *uuid.UUID     `gorm:"column:product_sku_id;type:char(36);index" json:"productSkuId,omitempty"`
+	ExternalSKUID  string         `gorm:"column:external_sku_id;size:256" json:"externalSkuId,omitempty"`
+	SKUCode        string         `gorm:"size:128" json:"skuCode,omitempty"`
+	Price          *float64       `json:"price,omitempty"`
+	Stock          *int           `json:"stock,omitempty"`
+	BindStatus     string         `gorm:"size:32;index" json:"bindStatus,omitempty"`
+	BindConfidence int            `gorm:"default:0" json:"bindConfidence,omitempty"`
+	BindMessage    string         `gorm:"type:text" json:"bindMessage,omitempty"`
+	LastSyncedAt   *time.Time     `json:"lastSyncedAt,omitempty"`
+	RawData        datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
 }
 
 func (ProductPublicationSKU) TableName() string { return "product_publication_skus" }

@@ -8,38 +8,44 @@ import (
 )
 
 const (
-	CodeDouyinAPIError                  = "DOUYIN_API_ERROR"
-	CodeDouyinAuthExpired               = "DOUYIN_AUTH_EXPIRED"
-	CodeDouyinTokenRefreshFailed        = "DOUYIN_TOKEN_REFRESH_FAILED"
-	CodeDouyinPermissionDenied          = "DOUYIN_PERMISSION_DENIED"
-	CodeDouyinRateLimited               = "DOUYIN_RATE_LIMITED"
-	CodeDouyinRequestTimeout            = "DOUYIN_REQUEST_TIMEOUT"
-	CodeDouyinResponseParseFailed       = "DOUYIN_RESPONSE_PARSE_FAILED"
-	CodeDouyinShopInfoFailed            = "DOUYIN_SHOP_INFO_FAILED"
-	CodeDouyinStoreNotAuthorized        = "DOUYIN_STORE_NOT_AUTHORIZED"
-	CodeDouyinCategoryMissing           = "DOUYIN_CATEGORY_MISSING"
-	CodeDouyinRequiredAttrMissing       = "DOUYIN_REQUIRED_ATTR_MISSING"
-	CodeDouyinMainImageNotUploaded      = "DOUYIN_MAIN_IMAGE_NOT_UPLOADED"
-	CodeDouyinCreateProductFailed       = "DOUYIN_CREATE_PRODUCT_FAILED"
-	CodeDouyinProductPayloadInvalid     = "DOUYIN_PRODUCT_PAYLOAD_INVALID"
-	CodeDouyinOrderSyncFailed           = "DOUYIN_ORDER_SYNC_FAILED"
-	CodeDouyinOrderListFailed           = "DOUYIN_ORDER_LIST_FAILED"
-	CodeDouyinOrderDetailFailed         = "DOUYIN_ORDER_DETAIL_FAILED"
-	CodeDouyinOrderParseFailed          = "DOUYIN_ORDER_PARSE_FAILED"
-	CodeDouyinOrderPermissionDenied     = "DOUYIN_ORDER_PERMISSION_DENIED"
-	CodeDouyinOrderRateLimited          = "DOUYIN_ORDER_RATE_LIMITED"
-	CodeDouyinOrderAmountInvalid        = "DOUYIN_ORDER_AMOUNT_INVALID"
-	CodeUnknownDouyinOrderError         = "UNKNOWN_DOUYIN_ORDER_ERROR"
-	CodeDouyinProductNotBound           = "DOUYIN_PRODUCT_NOT_BOUND"
-	CodeDouyinSKUNotBound               = "DOUYIN_SKU_NOT_BOUND"
-	CodeDouyinStockInvalid              = "DOUYIN_STOCK_INVALID"
-	CodeDouyinInventorySyncNotReady     = "DOUYIN_INVENTORY_SYNC_NOT_READY"
-	CodeDouyinInventorySyncFailed       = "DOUYIN_INVENTORY_SYNC_FAILED"
-	CodeDouyinInventoryPermissionDenied = "DOUYIN_INVENTORY_PERMISSION_DENIED"
-	CodeDouyinInventoryRateLimited      = "DOUYIN_INVENTORY_RATE_LIMITED"
-	CodeDouyinInventoryRecentlySynced   = "DOUYIN_INVENTORY_RECENTLY_SYNCED"
-	CodeUnknownDouyinInventoryError     = "UNKNOWN_DOUYIN_INVENTORY_ERROR"
-	CodeUnknownDouyinError              = "UNKNOWN_DOUYIN_ERROR"
+	CodeDouyinAPIError                      = "DOUYIN_API_ERROR"
+	CodeDouyinAuthExpired                   = "DOUYIN_AUTH_EXPIRED"
+	CodeDouyinTokenRefreshFailed            = "DOUYIN_TOKEN_REFRESH_FAILED"
+	CodeDouyinPermissionDenied              = "DOUYIN_PERMISSION_DENIED"
+	CodeDouyinRateLimited                   = "DOUYIN_RATE_LIMITED"
+	CodeDouyinRequestTimeout                = "DOUYIN_REQUEST_TIMEOUT"
+	CodeDouyinResponseParseFailed           = "DOUYIN_RESPONSE_PARSE_FAILED"
+	CodeDouyinShopInfoFailed                = "DOUYIN_SHOP_INFO_FAILED"
+	CodeDouyinStoreNotAuthorized            = "DOUYIN_STORE_NOT_AUTHORIZED"
+	CodeDouyinCategoryMissing               = "DOUYIN_CATEGORY_MISSING"
+	CodeDouyinRequiredAttrMissing           = "DOUYIN_REQUIRED_ATTR_MISSING"
+	CodeDouyinMainImageNotUploaded          = "DOUYIN_MAIN_IMAGE_NOT_UPLOADED"
+	CodeDouyinCreateProductFailed           = "DOUYIN_CREATE_PRODUCT_FAILED"
+	CodeDouyinProductPayloadInvalid         = "DOUYIN_PRODUCT_PAYLOAD_INVALID"
+	CodeDouyinProductDetailFailed           = "DOUYIN_PRODUCT_DETAIL_FAILED"
+	CodeDouyinProductNotFound               = "DOUYIN_PRODUCT_NOT_FOUND"
+	CodeDouyinProductDetailPermissionDenied = "DOUYIN_PRODUCT_DETAIL_PERMISSION_DENIED"
+	CodeDouyinSKUBindingSyncFailed          = "DOUYIN_SKU_BINDING_SYNC_FAILED"
+	CodeDouyinSKUBindingUnmatched           = "DOUYIN_SKU_BINDING_UNMATCHED"
+	CodeDouyinSKUBindingAmbiguous           = "DOUYIN_SKU_BINDING_AMBIGUOUS"
+	CodeDouyinOrderSyncFailed               = "DOUYIN_ORDER_SYNC_FAILED"
+	CodeDouyinOrderListFailed               = "DOUYIN_ORDER_LIST_FAILED"
+	CodeDouyinOrderDetailFailed             = "DOUYIN_ORDER_DETAIL_FAILED"
+	CodeDouyinOrderParseFailed              = "DOUYIN_ORDER_PARSE_FAILED"
+	CodeDouyinOrderPermissionDenied         = "DOUYIN_ORDER_PERMISSION_DENIED"
+	CodeDouyinOrderRateLimited              = "DOUYIN_ORDER_RATE_LIMITED"
+	CodeDouyinOrderAmountInvalid            = "DOUYIN_ORDER_AMOUNT_INVALID"
+	CodeUnknownDouyinOrderError             = "UNKNOWN_DOUYIN_ORDER_ERROR"
+	CodeDouyinProductNotBound               = "DOUYIN_PRODUCT_NOT_BOUND"
+	CodeDouyinSKUNotBound                   = "DOUYIN_SKU_NOT_BOUND"
+	CodeDouyinStockInvalid                  = "DOUYIN_STOCK_INVALID"
+	CodeDouyinInventorySyncNotReady         = "DOUYIN_INVENTORY_SYNC_NOT_READY"
+	CodeDouyinInventorySyncFailed           = "DOUYIN_INVENTORY_SYNC_FAILED"
+	CodeDouyinInventoryPermissionDenied     = "DOUYIN_INVENTORY_PERMISSION_DENIED"
+	CodeDouyinInventoryRateLimited          = "DOUYIN_INVENTORY_RATE_LIMITED"
+	CodeDouyinInventoryRecentlySynced       = "DOUYIN_INVENTORY_RECENTLY_SYNCED"
+	CodeUnknownDouyinInventoryError         = "UNKNOWN_DOUYIN_INVENTORY_ERROR"
+	CodeUnknownDouyinError                  = "UNKNOWN_DOUYIN_ERROR"
 )
 
 type Error struct {
@@ -76,9 +82,9 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 	case CodeDouyinRateLimited:
 		e.RateLimited = true
 		e.Retryable = true
-	case CodeDouyinRequestTimeout, CodeDouyinCreateProductFailed,
+	case CodeDouyinRequestTimeout, CodeDouyinCreateProductFailed, CodeDouyinProductDetailFailed,
 		CodeDouyinOrderSyncFailed, CodeDouyinOrderListFailed, CodeDouyinOrderDetailFailed,
-		CodeDouyinInventorySyncFailed:
+		CodeDouyinInventorySyncFailed, CodeDouyinSKUBindingSyncFailed:
 		e.Retryable = true
 	case CodeDouyinOrderRateLimited, CodeDouyinInventoryRateLimited:
 		e.RateLimited = true
@@ -86,7 +92,9 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 	case CodeDouyinOrderPermissionDenied, CodeDouyinInventoryPermissionDenied:
 		e.PermissionDenied = true
 	case CodeDouyinProductPayloadInvalid, CodeDouyinCategoryMissing, CodeDouyinRequiredAttrMissing, CodeDouyinMainImageNotUploaded,
-		CodeDouyinProductNotBound, CodeDouyinSKUNotBound, CodeDouyinStockInvalid, CodeDouyinInventorySyncNotReady:
+		CodeDouyinProductNotBound, CodeDouyinSKUNotBound, CodeDouyinStockInvalid, CodeDouyinInventorySyncNotReady,
+		CodeDouyinProductNotFound, CodeDouyinProductDetailPermissionDenied,
+		CodeDouyinSKUBindingUnmatched, CodeDouyinSKUBindingAmbiguous:
 		e.Retryable = false
 	}
 	return e

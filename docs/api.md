@@ -192,6 +192,15 @@
 | `GET` | `/api/v1/products/:id/platform-configs/douyin_shop/publish-tasks` | 列出当前商品的抖店刊登任务（分页）。 |
 | `POST` | `/api/v1/product-publish/tasks/:id/cancel` | 取消 pending/running 刊登任务。 |
 
+抖店 SKU 绑定校准（Phase 9.1，`product_publications.id` 为路径参数）：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/product-publications/:id/douyin/sku-bindings` | 读取当前 `product_publication_skus` 绑定状态汇总（`bound` / `skipped` / `unmatched` / `ambiguous` 计数与行明细）。 |
+| `POST` | `/api/v1/product-publications/:id/douyin/sync-sku-bindings` | 调用官方 `product.detail`（`show_draft=true`）拉取抖店 SKU 列表并校准本地映射，回写 `external_sku_id`、`bindStatus`、`bindConfidence`、`bindMessage`、`lastSyncedAt`；更新 `product_publications.skuBindingSyncedAt`。已绑定 SKU 跳过；多候选标记 `ambiguous` 不强行绑定。 |
+
+错误码：`DOUYIN_PRODUCT_DETAIL_FAILED`、`DOUYIN_PRODUCT_NOT_FOUND`、`DOUYIN_PRODUCT_DETAIL_PERMISSION_DENIED`、`DOUYIN_SKU_BINDING_SYNC_FAILED`、`DOUYIN_SKU_BINDING_UNMATCHED`、`DOUYIN_SKU_BINDING_AMBIGUOUS`。
+
 抖店库存同步（Phase 9，复用既有 inventory 模块，无新增割裂路径）：
 
 | 方法 | 路径 | 说明 |
@@ -204,7 +213,7 @@
 | `POST` | `/api/v1/inventory-sync/tasks/:id/retry` | 重试 failed 任务。 |
 | `POST` | `/api/v1/inventory-sync/batches` | 批量库存同步（默认低并发）。 |
 
-Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；受 `inventory_sync_enabled` 开关控制（默认关闭）。缺失平台 SKU ID 返回 `DOUYIN_SKU_NOT_BOUND`，不猜测同步。
+Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；受 `inventory_sync_enabled` 开关控制（默认关闭）。缺失平台 SKU ID 返回 `DOUYIN_SKU_NOT_BOUND`；`bindStatus=ambiguous` 返回 `DOUYIN_SKU_BINDING_AMBIGUOUS`；不猜测同步。库存同步前须先执行 SKU 绑定校准。
 
 通用刊登任务接口（含抖店）：
 

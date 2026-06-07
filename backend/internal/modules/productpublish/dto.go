@@ -80,19 +80,20 @@ type ListTasksResult struct {
 
 // PublicationDTO list row for drafts tab.
 type PublicationDTO struct {
-	ID                uuid.UUID  `json:"id"`
-	ProductID         uuid.UUID  `json:"productId"`
-	ShopID            uuid.UUID  `json:"shopId"`
-	ShopName          string     `json:"shopName,omitempty"`
-	Platform          string     `json:"platform"`
-	PublishTaskID     *uuid.UUID `json:"publishTaskId,omitempty"`
-	ExternalProductID string     `json:"externalProductId,omitempty"`
-	ExternalURL       string     `json:"externalUrl,omitempty"`
-	Status            string     `json:"status"`
-	PublishStatus     string     `json:"publishStatus"`
-	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
-	LastSyncedAt      *time.Time `json:"lastSyncedAt,omitempty"`
-	SKUMappingSummary []string   `json:"skuMappingsSummary,omitempty"`
+	ID                 uuid.UUID  `json:"id"`
+	ProductID          uuid.UUID  `json:"productId"`
+	ShopID             uuid.UUID  `json:"shopId"`
+	ShopName           string     `json:"shopName,omitempty"`
+	Platform           string     `json:"platform"`
+	PublishTaskID      *uuid.UUID `json:"publishTaskId,omitempty"`
+	ExternalProductID  string     `json:"externalProductId,omitempty"`
+	ExternalURL        string     `json:"externalUrl,omitempty"`
+	Status             string     `json:"status"`
+	PublishStatus      string     `json:"publishStatus"`
+	PublishedAt        *time.Time `json:"publishedAt,omitempty"`
+	LastSyncedAt       *time.Time `json:"lastSyncedAt,omitempty"`
+	SkuBindingSyncedAt *time.Time `json:"skuBindingSyncedAt,omitempty"`
+	SKUMappingSummary  []string   `json:"skuMappingsSummary,omitempty"`
 }
 
 func pagesOf(total int64, ps int) int {

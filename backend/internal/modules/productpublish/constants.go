@@ -27,3 +27,11 @@ const (
 	StatusRejected              = "rejected"
 	StatusOffline               = "offline"
 )
+
+const (
+	BindStatusBound     = "bound"
+	BindStatusUnmatched = "unmatched"
+	BindStatusAmbiguous = "ambiguous"
+	BindStatusSkipped   = "skipped"
+	BindStatusFailed    = "failed"
+)

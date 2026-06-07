@@ -112,6 +112,10 @@ type PublicationSkuListingRow struct {
 	SKUCode           string     `json:"skuCode,omitempty"`
 	PlatformStock     *int       `json:"platformStock,omitempty"`
 	InventoryCap      string     `json:"inventorySyncCapability,omitempty"`
+	BindStatus        string     `json:"bindStatus,omitempty"`
+	BindConfidence    int        `json:"bindConfidence,omitempty"`
+	BindMessage       string     `json:"bindMessage,omitempty"`
+	LastSyncedAt      *time.Time `json:"lastSyncedAt,omitempty"`
 }
 
 // GlobalLogsQuery optional filters for audit feed.

@@ -16,7 +16,36 @@ export type ProductPublicationRow = {
   publishStatus: string;
   publishedAt?: string;
   lastSyncedAt?: string;
+  skuBindingSyncedAt?: string;
   skuMappingsSummary?: string[];
+};
+
+export type DouyinSkuBindingRow = {
+  publicationSkuId: string;
+  productSkuId?: string;
+  skuCode?: string;
+  specName?: string;
+  externalSkuId?: string;
+  bindStatus?: string;
+  bindConfidence?: number;
+  bindMessage?: string;
+  lastSyncedAt?: string;
+  price?: number;
+};
+
+export type DouyinSkuBindingSummary = {
+  publicationId: string;
+  externalProductId?: string;
+  skuBindingSyncedAt?: string;
+  total: number;
+  bound: number;
+  skipped: number;
+  unmatched: number;
+  ambiguous: number;
+  failed: number;
+  rows: DouyinSkuBindingRow[];
+  errorCode?: string;
+  errorMessage?: string;
 };
 
 export type ProductPublishTaskDTO = {
@@ -123,6 +152,14 @@ export async function createDouyinProductDraft(
     throw err;
   }
   return res.data as ProductPublishTaskDTO;
+}
+
+export async function getDouyinSkuBindings(publicationId: string): Promise<DouyinSkuBindingSummary> {
+  return getJSON(`/api/v1/product-publications/${encodeURIComponent(publicationId)}/douyin/sku-bindings`);
+}
+
+export async function syncDouyinSkuBindings(publicationId: string): Promise<DouyinSkuBindingSummary> {
+  return postJSON(`/api/v1/product-publications/${encodeURIComponent(publicationId)}/douyin/sync-sku-bindings`, {});
 }
 
 export async function listDouyinPublishTasks(
