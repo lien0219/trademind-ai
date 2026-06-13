@@ -1,4 +1,5 @@
-import { PageContainer, ProTable, type ProColumns } from '@ant-design/pro-components';
+import { ProTable, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Button, Space } from 'antd';
 import { history, useSearchParams } from '@umijs/max';
 import { queryOrderSkuMatches, type OrderSkuMatchListRow } from '@/services/orders';
@@ -148,7 +149,10 @@ export default function OrderSkuMatchesPage() {
   ];
 
   return (
-    <PageContainer title="规格匹配" subTitle="将平台订单中的规格编码与本地商品规格建立对应关系">
+    <TmPageContainer
+      title="规格绑定"
+      subTitle="将平台订单中的规格与本地商品规格建立对应关系。"
+    >
       <ProTable<OrderSkuMatchListRow>
         rowKey="id"
         search={{ labelWidth: 100 }}
@@ -168,6 +172,6 @@ export default function OrderSkuMatchesPage() {
         columns={columns}
         pagination={{ pageSize: 20 }}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

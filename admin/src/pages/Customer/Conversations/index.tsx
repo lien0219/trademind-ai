@@ -1,13 +1,8 @@
-import {
-  ModalForm,
-  ProFormDigit,
-  ProFormRadio,
-  ProFormSelect,
-  ProFormText,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
@@ -146,7 +141,7 @@ export default function CustomerConversationsPage() {
   ];
 
   return (
-    <PageContainer title="会话列表">
+    <TmPageContainer title="会话列表" subTitle="查看与管理各平台买家会话，可拉取平台消息或人工回复。">
       <ProTable<ConversationRow>
         rowKey="id"
         actionRef={actionRef}
@@ -226,8 +221,8 @@ export default function CustomerConversationsPage() {
           ]}
           rules={[{ required: true }]}
         />
-        <ProFormText name="start" label="开始时间（可选 RFC3339）" placeholder="2026-05-01T00:00:00Z" />
-        <ProFormText name="end" label="结束时间（可选 RFC3339）" placeholder="2026-05-16T23:59:59Z" />
+        <ProFormText name="start" label="开始时间（可选）" placeholder="2026-05-01T00:00:00Z" extra="ISO 8601 格式" />
+        <ProFormText name="end" label="结束时间（可选）" placeholder="2026-05-16T23:59:59Z" extra="ISO 8601 格式" />
         <ProFormText name="cursor" label="游标（可选）" />
         <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
       </ModalForm>
@@ -264,6 +259,6 @@ export default function CustomerConversationsPage() {
         <ProFormText name="customerName" label="客户名称" rules={[{ required: true }]} />
         <ProFormText name="customerLanguage" label="语言" initialValue="en" placeholder="如 en" />
       </ModalForm>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

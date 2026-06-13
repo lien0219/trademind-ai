@@ -2,17 +2,10 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
-import {
-  EditableProTable,
-  ModalForm,
-  PageContainer,
-  ProForm,
-  ProFormDigit,
-  ProFormSelect,
-  ProFormText,
-  ProFormTextArea,
-  ProTable,
-} from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { commonStatusLabel, publishModeLabel, readinessLevelLabel } from '@/constants/copywriting';
+import { formatUserErrorMessage } from '@/constants/errorMessages';
+import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import {
   Button,
   Card,
@@ -243,14 +236,15 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
   const hints: string[] = [];
   if (/missing warehouse_id|platform inventory config incomplete:\s*missing warehouse_id/i.test(s)) {
     hints.push(
-      'TikTok Shop：请到「设置 → 平台刊登配置 → TikTok Shop」填写默认仓库 ID，或通过任务 options.warehouse_id 覆盖。',
+      'TikTok Shop：请到「设置 → 平台刊登配置 → TikTok Shop」填写默认仓库 ID。',
     );
     hints.push(
-      'Shopee：请到「设置 → 平台刊登配置 → Shopee」填写默认仓库 ID，或任务 options.warehouse_id / location_id 覆盖。',
+      'Shopee：请到「设置 → 平台刊登配置 → Shopee」填写默认仓库 ID。',
     );
     hints.push(
-      'Lazada：若平台提示与仓库 / WarehouseCode 相关，请到「设置 → 平台刊登配置 → Lazada」填写默认仓库代码（warehouse_id），或任务 options.warehouse_id 覆盖。',
+      'Lazada：若平台提示与仓库相关，请到「设置 → 平台刊登配置 → Lazada」填写默认仓库代码。',
     );
+    hints.push('高级用户可在库存同步任务参数中覆盖默认仓库设置。');
   }
   if (/platform inventory config incomplete:\s*missing (marketplace_id|fulfillment_channel|product_type)/i.test(s)) {
     hints.push(
@@ -269,19 +263,19 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
     );
   }
   if (/platform config incomplete:\s*please configure settings\.platform_tiktok/i.test(s)) {
-    hints.push('请到「设置 → 平台开放配置 → TikTok Shop」补齐开放平台应用字段。');
+    hints.push('请到「设置 → 平台接入设置 → TikTok Shop」补齐平台应用信息。');
   }
   if (/platform config incomplete:\s*please configure settings\.platform_shopee/i.test(s)) {
-    hints.push('请到「设置 → 平台开放配置 → Shopee」补齐开放平台应用字段。');
+    hints.push('请到「设置 → 平台接入设置 → Shopee」补齐平台应用信息。');
   }
   if (/platform config incomplete:\s*please configure settings\.platform_lazada/i.test(s)) {
-    hints.push('请到「设置 → 平台开放配置 → Lazada」补齐开放平台应用字段。');
+    hints.push('请到「设置 → 平台接入设置 → Lazada」补齐平台应用信息。');
   }
   if (/platform config incomplete:\s*please configure settings\.platform_amazon|please configure platform_amazon/i.test(s)) {
-    hints.push('请到「设置 → 平台开放配置 → Amazon」补齐 SP-API / LWA 应用字段。');
+    hints.push('请到「设置 → 平台接入设置 → Amazon」补齐应用信息。');
   }
   if (/DOUYIN_SKU_NOT_BOUND|external sku id missing/i.test(s)) {
-    hints.push('该规格还没有绑定抖店 SKU ID，请先执行「校准抖店 SKU 绑定」后再同步库存。');
+    hints.push('该规格尚未绑定抖店规格，请先完成规格绑定后再同步库存。');
   }
   if (/DOUYIN_SKU_BINDING_AMBIGUOUS/i.test(s)) {
     hints.push('该规格存在多个候选抖店 SKU，匹配结果不明确，请人工确认绑定后再同步库存。');
@@ -290,13 +284,13 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
     hints.push('该商品还没有绑定抖店商品 ID。请先在「刊登」Tab 完成抖店商品草稿创建。');
   }
   if (/DOUYIN_INVENTORY_SYNC_NOT_READY|inventory_sync_enabled=false/i.test(s)) {
-    hints.push('请到「设置 → 平台开放配置 → 抖店」开启「启用库存同步」后再试。');
+    hints.push('请到「设置 → 平台接入设置 → 抖店」开启「开启库存同步」后再试。');
   }
   if (/DOUYIN_INVENTORY_PERMISSION_DENIED|DOUYIN_PERMISSION_DENIED/i.test(s)) {
     hints.push('请在抖店开放平台申请商品/库存更新权限并重新授权店铺。');
   }
   if (/DOUYIN_STORE_NOT_AUTHORIZED|DOUYIN_AUTH_EXPIRED|shop is not authorized/i.test(s)) {
-    hints.push('抖店店铺未授权或授权已过期，请到「店铺」页重新完成 OAuth 授权。');
+    hints.push('抖店店铺未授权或授权已过期，请到「店铺管理」重新完成店铺授权。');
   }
   return hints.length ? `${s}\n${hints.join('\n')}` : s;
 }
@@ -431,17 +425,34 @@ function readinessStatusTag(r: ProductReadinessResult | null) {
   return <Tag color="green">可发布</Tag>;
 }
 
+function readinessLevelTag(level?: string) {
+  const l = (level || '').toLowerCase();
+  if (l === 'error') return <Tag color="red">{readinessLevelLabel(level)}</Tag>;
+  if (l === 'warning') return <Tag color="orange">{readinessLevelLabel(level)}</Tag>;
+  return <Tag>{readinessLevelLabel(level)}</Tag>;
+}
+
+function readinessCheckList(items: ReadinessCheckItem[], limit?: number) {
+  const list = limit != null ? items.slice(0, limit) : items;
+  return list.map((c, i) => (
+    <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
+      {readinessLevelTag(c.level)} {c.message}
+    </div>
+  ));
+}
+
 function douyinIssueTag(level?: string) {
   return <Tag color={level === 'error' ? 'red' : 'orange'}>{level === 'error' ? '校验失败' : '需要确认'}</Tag>;
 }
 
 function tagFromPublishStatus(raw?: string) {
   const s = String(raw || '').toLowerCase();
-  if (s === 'success') return <Tag color="green">success</Tag>;
-  if (s === 'failed') return <Tag color="red">failed</Tag>;
-  if (s === 'running' || s === 'pending') return <Tag color="blue">{raw}</Tag>;
-  if (s === 'cancelled') return <Tag>{raw}</Tag>;
-  return <Tag>{raw || '—'}</Tag>;
+  const label = commonStatusLabel(s);
+  if (s === 'success') return <Tag color="green">{label}</Tag>;
+  if (s === 'failed') return <Tag color="red">{label}</Tag>;
+  if (s === 'running' || s === 'pending') return <Tag color="blue">{label}</Tag>;
+  if (s === 'cancelled') return <Tag>{label}</Tag>;
+  return <Tag>{label}</Tag>;
 }
 
 function douyinMoney(v?: number, currency = 'CNY') {
@@ -466,9 +477,11 @@ function douyinIssueList(items?: DouyinMappingIssue[]) {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={4}>
       {items.map((x, i) => (
-        <div key={`${x.code}-${i}`}>
-          {douyinIssueTag(x.level)} <Typography.Text code>{x.code}</Typography.Text> {x.message}
-        </div>
+        <Tooltip key={`${x.code}-${i}`} title={x.code ? `内部编号：${x.code}` : undefined}>
+          <div>
+            {douyinIssueTag(x.level)} {x.message}
+          </div>
+        </Tooltip>
       ))}
     </Space>
   );
@@ -521,6 +534,64 @@ function douyinStorageStatusTag(img: DouyinDraftImage) {
 
 function douyinImagePreviewUrl(img: DouyinDraftImage) {
   return img.storageUrl || img.publicUrl || img.url || img.originUrl || img.platformImageUrl || '';
+}
+
+function InventorySyncPlatformHint({ platform }: { platform?: string }) {
+  const p = (platform || '').trim().toLowerCase();
+  if (p === 'tiktok') {
+    return (
+      <>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 8 }}>
+          TikTok 会使用「设置 → 平台刊登配置 → TikTok Shop」中的默认仓库。若推送失败并提示权限不足，请在 TikTok Shop
+          Partner Center 申请库存更新相关权限后重新授权店铺。
+        </Typography.Paragraph>
+        <TechnicalDetails label="高级参数说明">
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+            可在任务参数 options.warehouse_id 中覆盖默认仓库 ID。
+          </Typography.Paragraph>
+        </TechnicalDetails>
+      </>
+    );
+  }
+  if (p === 'shopee') {
+    return (
+      <>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 8 }}>
+          Shopee 默认按总库存更新。若你的卖家中心要求按仓/位置维护库存，请在「设置 → 平台刊登配置 → Shopee」填写默认仓库
+          ID。若推送失败并提示权限不足，请在 Shopee Open Platform 申请库存/商品更新相关权限后重新授权店铺。
+        </Typography.Paragraph>
+        <TechnicalDetails label="高级参数说明">
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+            Open API 字段：normal_stock、seller_stock[].location_id；任务参数 options.warehouse_id / location_id 可覆盖默认仓库。
+          </Typography.Paragraph>
+        </TechnicalDetails>
+      </>
+    );
+  }
+  if (p === 'lazada') {
+    return (
+      <>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 8 }}>
+          Lazada 通过 Open Platform 更新可售数量。多仓店铺请在「设置 → 平台刊登配置 → Lazada」填写默认仓库代码。若推送失败并提示权限不足，请在
+          Lazada Open Platform / Seller Center 申请库存/商品更新相关权限后重新授权店铺。
+        </Typography.Paragraph>
+        <TechnicalDetails label="高级参数说明">
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+            接口 price_quantity；仓库字段 WarehouseCode / warehouse_id；任务参数 options.warehouse_id 可覆盖默认仓库。
+          </Typography.Paragraph>
+        </TechnicalDetails>
+      </>
+    );
+  }
+  if (p === 'douyin_shop') {
+    return (
+      <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
+        抖店库存同步会更新各规格的可售数量。请确认「设置 → 平台接入设置 → 抖店」已开启「开启库存同步」，且刊登草稿中已写入抖店商品编号与平台规格编号。若规格编号为空，请先在「刊登」Tab
+        完成抖店商品草稿创建。
+      </Typography.Paragraph>
+    );
+  }
+  return null;
 }
 
 function fixLinkForReadinessCode(code: string): { tab?: string; href?: string; label: string } | null {
@@ -1204,11 +1275,11 @@ export default function ProductDraftDetailPage() {
       const res = await syncDouyinSkuBindings(douyinPublication.id);
       setDouyinSkuBinding(res);
       message.success(
-        `SKU 绑定校准完成：已绑定 ${res.bound}，跳过 ${res.skipped}，未匹配 ${res.unmatched}，待确认 ${res.ambiguous}`,
+        `规格绑定校准完成：已绑定 ${res.bound}，跳过 ${res.skipped}，未匹配 ${res.unmatched}，待确认 ${res.ambiguous}`,
       );
       await reloadPublicationSkus();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '校准抖店 SKU 绑定失败');
+      message.error((e as Error)?.message || '校准规格绑定失败');
     } finally {
       setDouyinSkuBindingSyncing(false);
     }
@@ -1244,7 +1315,7 @@ export default function ProductDraftDetailPage() {
                 .slice(0, 10)
                 .map((c, i) => (
                   <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
-                    <Tag color="orange">warning</Tag> {c.message}
+                    {readinessLevelTag(c.level)} {c.message}
                   </div>
                 ))}
             </div>
@@ -1539,14 +1610,14 @@ export default function ProductDraftDetailPage() {
 
   if (!id) {
     return (
-      <PageContainer title="商品详情">
+      <TmPageContainer title="商品详情">
         <Typography.Text type="danger">无效的商品 ID</Typography.Text>
-      </PageContainer>
+      </TmPageContainer>
     );
   }
 
   return (
-    <PageContainer
+    <TmPageContainer
       title={data?.title || '商品详情'}
       loading={loading}
       extra={
@@ -1765,7 +1836,7 @@ export default function ProductDraftDetailPage() {
                         { title: '状态', dataIndex: 'status', width: 100 },
                         { title: '模型', dataIndex: 'model', ellipsis: true },
                         {
-                          title: 'Tokens',
+                          title: 'Token 用量',
                           width: 100,
                           render: (_: unknown, row: AITaskRow) => `${row.tokenInput ?? 0}/${row.tokenOutput ?? 0}`,
                         },
@@ -1782,9 +1853,9 @@ export default function ProductDraftDetailPage() {
                   </Card>
 
                   {data.rawData != null ? (
-                    <Card title="原始数据（高级）" variant="borderless">
-                      <pre style={{ maxHeight: 360, overflow: 'auto', fontSize: 12 }}>{JSON.stringify(data.rawData, null, 2)}</pre>
-                    </Card>
+                    <TechnicalDetails label="采集原始信息">
+                      <TaskJsonBlock title="原始信息" value={data.rawData} maxHeight={360} last />
+                    </TechnicalDetails>
                   ) : null}
                 </Space>
               ),
@@ -2363,7 +2434,7 @@ export default function ProductDraftDetailPage() {
                           render: (t: string | undefined) => t || '—',
                         },
                         {
-                          title: 'SKU 绑定',
+                          title: '规格绑定',
                           width: 108,
                           render: (_x, r) =>
                             (r.platform || '').toLowerCase() === 'douyin_shop'
@@ -2512,12 +2583,9 @@ export default function ProductDraftDetailPage() {
                                   {
                                     title: '级别',
                                     width: 88,
-                                    render: (_: unknown, row: ReadinessCheckItem) => (
-                                      <Tag color={row.level === 'error' ? 'red' : 'orange'}>{row.level}</Tag>
-                                    ),
+                                    render: (_: unknown, row: ReadinessCheckItem) => readinessLevelTag(row.level),
                                   },
                                   { title: '说明', dataIndex: 'message', ellipsis: true },
-                                  { title: '代码', dataIndex: 'code', width: 200, ellipsis: true },
                                   {
                                     title: '建议 / 操作',
                                     width: 220,
@@ -2549,6 +2617,9 @@ export default function ProductDraftDetailPage() {
                             ),
                           }))}
                         />
+                        <TechnicalDetails label="检查项技术详情">
+                          <TaskJsonBlock title="完整检查结果" value={readinessResult.checks} last />
+                        </TechnicalDetails>
                       </>
                     ) : (
                       <Typography.Text type="secondary">选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / SKU / 图片（不校验店铺与平台配置）。</Typography.Text>
@@ -2570,14 +2641,17 @@ export default function ProductDraftDetailPage() {
                         message="多平台刊登"
                         description={
                           <>
-                            <Typography.Text code>product_publish</Typography.Text>{' '}
-                            为「可用」的店铺（如 mock）或「测试中 / beta」（如 TikTok Shop、Shopee、Lazada、Amazon）可提交刊登任务。请到{' '}
-                            <Link to="/settings/platform-publish">设置 · 平台刊登预设</Link> 补齐对应平台预设（如 TikTok{' '}
-                            <Typography.Text code>platform_publish_tiktok</Typography.Text>、Shopee{' '}
-                            <Typography.Text code>platform_publish_shopee</Typography.Text>、Lazada{' '}
-                            <Typography.Text code>platform_publish_lazada</Typography.Text>
-                            、Amazon <Typography.Text code>platform_publish_amazon</Typography.Text>
-                            的类目、品牌、制造商、包裹重量尺寸、配送选项等）；队列见 <Link to="/product/publish-tasks">刊登任务</Link>。
+                            可为已授权且支持刊登的店铺创建刊登任务。提交前请先在{' '}
+                            <Link to="/settings/platform-publish">平台刊登预设</Link>{' '}
+                            补齐类目、品牌、包裹尺寸等信息；进度可在{' '}
+                            <Link to="/product/publish-tasks">刊登任务</Link> 查看。
+                            <TechnicalDetails label="预设项说明">
+                              <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+                                各平台需配置对应刊登模板（如 TikTok、Shopee、Lazada、Amazon 的类目与物流选项）。内部预设键名：
+                                product_publish、platform_publish_tiktok、platform_publish_shopee、
+                                platform_publish_lazada、platform_publish_amazon。
+                              </Typography.Paragraph>
+                            </TechnicalDetails>
                           </>
                         }
                       />
@@ -2655,7 +2729,7 @@ export default function ProductDraftDetailPage() {
                         pagination={false}
                         dataSource={skuMappingPreview}
                         columns={[
-                          { title: 'SKU', dataIndex: 'skuName', ellipsis: true },
+                          { title: '规格', dataIndex: 'skuName', ellipsis: true },
                           { title: '编码', dataIndex: 'skuCode', width: 160, ellipsis: true },
                           { title: '售价', dataIndex: 'price', width: 100, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
                           { title: '库存', dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
@@ -2947,9 +3021,19 @@ export default function ProductDraftDetailPage() {
                                         <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
                                           {douyinStorageStatusTag(img)}
                                           {douyinImageStatusTag(img)}
-                                          {img.platformImageId ? <Typography.Text copyable type="secondary" style={{ fontSize: 12 }}>ID: {img.platformImageId}</Typography.Text> : null}
+                                          {img.platformImageId ? (
+                                            <Tooltip title={`平台图片编号：${img.platformImageId}`}>
+                                              <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
+                                                已获平台编号
+                                              </Typography.Text>
+                                            </Tooltip>
+                                          ) : null}
                                           {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
-                                          {img.errorMessage ? <Typography.Text type="danger" style={{ fontSize: 12 }}>{img.errorCode}: {img.errorMessage}</Typography.Text> : null}
+                                          {img.errorMessage || img.errorCode ? (
+                                            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                                              {img.errorMessage || formatUserErrorMessage(img.errorCode)}
+                                            </Typography.Text>
+                                          ) : null}
                                           <Space size={4}>
                                             {douyinImagePreviewUrl(img) ? (
                                               <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
@@ -2983,9 +3067,19 @@ export default function ProductDraftDetailPage() {
                                           <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
                                             {douyinStorageStatusTag(img)}
                                             {douyinImageStatusTag(img)}
-                                            {img.platformImageId ? <Typography.Text copyable type="secondary" style={{ fontSize: 12 }}>ID: {img.platformImageId}</Typography.Text> : null}
+                                            {img.platformImageId ? (
+                                            <Tooltip title={`平台图片编号：${img.platformImageId}`}>
+                                              <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
+                                                已获平台编号
+                                              </Typography.Text>
+                                            </Tooltip>
+                                          ) : null}
                                             {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
-                                            {img.errorMessage ? <Typography.Text type="danger" style={{ fontSize: 12 }}>{img.errorCode}: {img.errorMessage}</Typography.Text> : null}
+                                            {img.errorMessage || img.errorCode ? (
+                                            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                                              {img.errorMessage || formatUserErrorMessage(img.errorCode)}
+                                            </Typography.Text>
+                                          ) : null}
                                             <Space size={4}>
                                               {douyinImagePreviewUrl(img) ? (
                                                 <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
@@ -3050,14 +3144,17 @@ export default function ProductDraftDetailPage() {
                             dataSource={douyinPublishTasks}
                             columns={[
                               { title: '状态', dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
-                              { title: '发布模式', dataIndex: 'publishMode', width: 140, render: (v) => v || 'save_as_platform_draft' },
+                              { title: '发布模式', dataIndex: 'publishMode', width: 140, render: (v) => publishModeLabel(v) },
                               { title: '抖店商品 ID', dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
                               { title: '创建时间', dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
                               {
                                 title: '失败原因',
                                 dataIndex: 'errorMessage',
                                 ellipsis: true,
-                                render: (v, r) => v || (r.errorCode ? String(r.errorCode) : '—'),
+                                render: (v, r) => {
+                                  const text = (v as string) || formatUserErrorMessage(r.errorCode);
+                                  return text || '—';
+                                },
                               },
                               {
                                 title: '操作',
@@ -3090,7 +3187,7 @@ export default function ProductDraftDetailPage() {
                       </Card>
                       <Card
                         size="small"
-                        title="抖店 SKU 绑定管理"
+                        title="抖店规格绑定"
                         variant="borderless"
                         loading={douyinSkuBindingLoading}
                         extra={
@@ -3160,7 +3257,7 @@ export default function ProductDraftDetailPage() {
                                     width: 88,
                                     render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—'),
                                   },
-                                  { title: '抖店 SKU ID', dataIndex: 'externalSkuId', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  { title: '平台规格编号', dataIndex: 'externalSkuId', width: 140, ellipsis: true, render: (v) => v || '—' },
                                   { title: '抖店 SKU 名称', dataIndex: 'platformSkuName', width: 140, ellipsis: true, render: (v) => v || '—' },
                                   { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
                                   { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
@@ -3196,7 +3293,7 @@ export default function ProductDraftDetailPage() {
                                         </Button>
                                         {r.externalSkuId ? (
                                           <Popconfirm
-                                            title="确认解除该规格的抖店 SKU 绑定？"
+                                            title="确认解除该规格的抖店规格绑定？"
                                             onConfirm={() =>
                                               void unbindDouyinSku(r.publicationSkuId)
                                                 .then(async () => {
@@ -3254,11 +3351,7 @@ export default function ProductDraftDetailPage() {
                           description={
                             publishReadiness.checks.length ? (
                               <div>
-                                {publishReadiness.checks.slice(0, 5).map((c, i) => (
-                                  <div key={`${c.code}-${i}`} style={{ marginBottom: 4 }}>
-                                    <Tag color={c.level === 'error' ? 'red' : 'orange'}>{c.level}</Tag> {c.message}
-                                  </div>
-                                ))}
+                                {readinessCheckList(publishReadiness.checks, 5)}
                                 {publishReadiness.checks.length > 5 ? (
                                   <Typography.Text type="secondary">
                                     … 共 {publishReadiness.checks.length} 项
@@ -3298,15 +3391,7 @@ export default function ProductDraftDetailPage() {
                               Modal.error({
                                 title: '发布检查未通过',
                                 width: 600,
-                                content: (
-                                  <div>
-                                    {r.checks.map((c, i) => (
-                                      <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
-                                        <Tag color={c.level === 'error' ? 'red' : 'orange'}>{c.level}</Tag> {c.message}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ),
+                                content: <div>{readinessCheckList(r.checks)}</div>,
                               });
                               return;
                             }
@@ -3317,18 +3402,7 @@ export default function ProductDraftDetailPage() {
                                   width: 640,
                                   okText: '确认创建刊登任务',
                                   cancelText: '返回处理',
-                                  content: (
-                                    <div>
-                                      {(r.checks || [])
-                                        .filter((c) => c.level !== 'error')
-                                        .slice(0, 10)
-                                        .map((c, i) => (
-                                          <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
-                                            <Tag color="orange">warning</Tag> {c.message}
-                                          </div>
-                                        ))}
-                                    </div>
-                                  ),
+                                  content: <div>{readinessCheckList((r.checks || []).filter((c) => c.level !== 'error'), 10)}</div>,
                                   onOk: () => resolve(),
                                   onCancel: () => reject(new Error('cancelled')),
                                 });
@@ -3349,15 +3423,7 @@ export default function ProductDraftDetailPage() {
                               Modal.error({
                                 title: '发布检查未通过',
                                 width: 600,
-                                content: (
-                                  <div>
-                                    {(r.checks || []).map((c, i) => (
-                                      <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
-                                        <Tag color={c.level === 'error' ? 'red' : 'orange'}>{c.level}</Tag> {c.message}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ),
+                                content: <div>{readinessCheckList(r.checks || [])}</div>,
                               });
                             } else {
                               message.error((ex as Error)?.message || '提交失败');
@@ -3584,7 +3650,7 @@ export default function ProductDraftDetailPage() {
           }}
         >
           <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-            <Input placeholder="en" />
+            <Input placeholder="例如 en" />
           </Form.Item>
           <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
             <Input placeholder="TikTok Shop" />
@@ -3674,13 +3740,13 @@ export default function ProductDraftDetailPage() {
           }}
         >
           <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-            <Input placeholder="en" />
+            <Input placeholder="例如 en" />
           </Form.Item>
           <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
             <Input placeholder="TikTok Shop" />
           </Form.Item>
           <Form.Item name="tone" label="语气" rules={[{ required: true }]}>
-            <Input placeholder="professional" />
+            <Input placeholder="例如 professional" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={descBusy}>
@@ -3861,39 +3927,7 @@ export default function ProductDraftDetailPage() {
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
           平台：{syncRow?.platform ?? '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
         </Typography.Paragraph>
-        {(syncRow?.platform || '').trim().toLowerCase() === 'tiktok' ? (
-          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
-            TikTok 会使用「设置 → 平台刊登配置 → TikTok Shop」中的默认仓库 ID（也可在接口层通过任务{' '}
-            <Typography.Text code>options.warehouse_id</Typography.Text> 覆盖）。若推送失败并提示权限不足，请在 TikTok Shop
-            Partner Center 申请库存更新相关权限后重新授权店铺。
-          </Typography.Paragraph>
-        ) : null}
-        {(syncRow?.platform || '').trim().toLowerCase() === 'shopee' ? (
-          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
-            Shopee 默认使用 <Typography.Text code>normal_stock</Typography.Text> 更新；若你的卖家中心要求按仓/位置维护库存，请在「设置
-            → 平台刊登配置 → Shopee」填写默认仓库 ID（对应 Open API{' '}
-            <Typography.Text code>seller_stock[].location_id</Typography.Text>），或通过任务{' '}
-            <Typography.Text code>options.warehouse_id</Typography.Text> /
-            <Typography.Text code>location_id</Typography.Text>{' '}
-            覆盖。若推送失败并提示权限不足，请在 Shopee Open Platform 申请库存/商品更新相关权限后重新授权店铺。
-          </Typography.Paragraph>
-        ) : null}
-        {(syncRow?.platform || '').trim().toLowerCase() === 'lazada' ? (
-          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
-            Lazada 通过 Open Platform 的 <Typography.Text code>price_quantity</Typography.Text> 接口更新数量；多仓或平台要求指定{' '}
-            <Typography.Text code>WarehouseCode</Typography.Text> 时，请在「设置 → 平台刊登配置 → Lazada」填写默认{' '}
-            <Typography.Text code>warehouse_id</Typography.Text>（仓库代码），或通过任务{' '}
-            <Typography.Text code>options.warehouse_id</Typography.Text> 覆盖。若推送失败并提示权限不足，请在 Lazada Open Platform /
-            Seller Center 申请库存 / 商品更新相关权限后重新授权店铺。
-          </Typography.Paragraph>
-        ) : null}
-        {(syncRow?.platform || '').trim().toLowerCase() === 'douyin_shop' ? (
-          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
-            抖店通过 OpenAPI <Typography.Text code>sku.syncStock</Typography.Text> 全量更新库存（
-            <Typography.Text code>incremental=false</Typography.Text>）。请确认「设置 → 平台开放配置 → 抖店」已开启「启用库存同步」，且
-            刊登映射中已写入抖店商品 ID 与 SKU ID。若 SKU ID 为空，请先在「刊登」Tab 完成抖店商品草稿创建。
-          </Typography.Paragraph>
-        ) : null}
+        <InventorySyncPlatformHint platform={syncRow?.platform} />
         <Form form={syncForm} layout="vertical">
           <Form.Item
             name="stock"
@@ -3967,7 +4001,7 @@ export default function ProductDraftDetailPage() {
           const v = await douyinSkuBindForm.validateFields();
           const platformSkuId = String(v.platformSkuId ?? '').trim();
           if (!platformSkuId) {
-            message.error('请选择或填写抖店 SKU ID');
+            message.error('请选择或填写平台规格编号');
             return;
           }
           const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
@@ -4032,7 +4066,7 @@ export default function ProductDraftDetailPage() {
             pagination={false}
             dataSource={douyinSkuBinding?.platformSkus ?? []}
             columns={[
-              { title: '抖店 SKU ID', dataIndex: 'platformSkuId', ellipsis: true },
+              { title: '平台规格编号', dataIndex: 'platformSkuId', ellipsis: true },
               { title: '规格名称', dataIndex: 'specName', ellipsis: true, render: (v) => v || '—' },
               { title: '价格', width: 96, render: (_, r) => (typeof r.priceYuan === 'number' ? r.priceYuan.toFixed(2) : '—') },
               { title: '库存', width: 72, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
@@ -4072,7 +4106,7 @@ export default function ProductDraftDetailPage() {
         sourceImage={translateSourceImage}
         onSuccess={() => void reloadDetail()}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }
 

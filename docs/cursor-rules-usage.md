@@ -43,6 +43,6 @@ README.md
 
 1. GitHub 展示使用根目录 `README.md`。
 2. 内部开发约束使用 `TradeMind.md`。
-3. AI vibe coding 工作流见 [ai-workflow.md](ai-workflow.md)，Cursor 规则只保留短约束和入口。
+3. AI vibe coding 工作流、提示词优化、上下文预算和经验沉淀见 [ai-workflow.md](ai-workflow.md)，Cursor 规则只保留短约束和入口。
 4. Cursor 主要读取 `.cursor/rules/*.mdc` 和 `.cursorrules`。
 5. 如果后续项目结构变化，需要同步更新 rules。

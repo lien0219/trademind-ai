@@ -10,15 +10,23 @@ export const AI_PROVIDER_LABEL = 'AI 服务商';
 
 export const IMAGE_PROVIDER_LABEL = '图片处理服务';
 
+export const PLATFORM_PROVIDER_LABEL = '接入方式';
+
+export const COLLECT_PROVIDER_LABEL = '采集服务';
+
 export const PROMPT_TEMPLATE_LABEL = 'AI 技能模板';
 
-export const WORKER_LABEL = '后台任务进程';
+export const WORKER_LABEL = '后台任务';
 
 export const QUEUE_LABEL = '任务队列';
 
 export const COLLECTOR_SERVICE_LABEL = '采集服务';
 
 export const SETTINGS_COLLECTOR_PATH = '采集设置';
+
+export const SETTINGS_PLATFORM_PATH = '平台接入设置';
+
+export const SETTINGS_SHOPS_PATH = '店铺管理';
 
 /** 商品图片字段（避免直接展示 API 字段名） */
 export const PRODUCT_IMAGE_SORT_ORDER_LABEL = '排序';

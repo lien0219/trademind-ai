@@ -1,16 +1,13 @@
-import {
-  PageContainer,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-  type ProFormInstance,
-} from '@ant-design/pro-components';
+import { ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { Button, Drawer, Modal, Popconfirm, Space, Tag, Typography, Alert, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { PAGE_COPY } from '@/constants/copywriting';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   getInventorySyncTask,
   queryInventorySyncTasks,
@@ -137,9 +134,10 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => r.batchNo || '—',
       },
       {
-        title: 'platform',
+        title: '平台',
         dataIndex: 'platform',
         width: 100,
+        render: (_, r) => platformLabel(r.platform),
       },
       {
         title: '目标库存',
@@ -213,7 +211,7 @@ export default function InventorySyncTasksPage() {
   );
 
   return (
-    <PageContainer title="库存同步任务">
+    <TmPageContainer title={PAGE_COPY.inventorySyncTasks.title} subTitle={PAGE_COPY.inventorySyncTasks.description}>
       <Alert
         showIcon
         type="info"
@@ -319,28 +317,20 @@ export default function InventorySyncTasksPage() {
               <Typography.Text strong>目标库存：</Typography.Text> {detail.targetStock}
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: detail.id }}>
-              <Typography.Text type="secondary">taskId</Typography.Text>
+              <Typography.Text strong>任务编号：</Typography.Text> {detail.id}
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph>
-                <Typography.Text strong>错误：</Typography.Text> {detail.errorMessage}
+                <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
               </Typography.Paragraph>
             ) : null}
-            <Typography.Paragraph>
-              <Typography.Text strong>input（摘要）</Typography.Text>
-              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 220 }}>
-                {JSON.stringify(detail.input ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
-            <Typography.Paragraph>
-              <Typography.Text strong>output（摘要）</Typography.Text>
-              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 220 }}>
-                {JSON.stringify(detail.output ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
+            <TechnicalDetails>
+              <TaskJsonBlock title="任务输入" value={detail.input} />
+              <TaskJsonBlock title="任务输出" value={detail.output} last />
+            </TechnicalDetails>
           </Space>
         )}
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

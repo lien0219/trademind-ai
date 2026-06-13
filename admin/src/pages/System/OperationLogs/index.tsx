@@ -1,9 +1,11 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import { Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useRef } from 'react';
+import { PAGE_COPY, TASK_COPY, commonStatusLabel } from '@/constants/copywriting';
 import {
   OPERATION_LOG_ACTION_OPTIONS,
   OPERATION_LOG_RESOURCE_OPTIONS,
@@ -13,9 +15,11 @@ import {
 import { fetchOperationLogs, type OperationLogRow } from '@/services/operationLogs';
 
 function statusTag(s: string) {
-  const ok = s === 'success';
-  const label = ok ? '成功' : s === 'failed' ? '失败' : s;
-  return <Tag color={ok ? 'success' : 'error'}>{label}</Tag>;
+  const k = (s || '').trim().toLowerCase();
+  const label = commonStatusLabel(k);
+  if (k === 'success') return <Tag color="success">{label}</Tag>;
+  if (k === 'failed') return <Tag color="error">{label}</Tag>;
+  return <Tag>{label === '—' ? s || '—' : label}</Tag>;
 }
 
 function mappedCellLabel(label: string, raw?: string) {
@@ -89,13 +93,13 @@ export default function OperationLogsPage() {
       render: (_, row) => statusTag(row.status),
     },
     {
-      title: 'IP',
+      title: '来源 IP',
       dataIndex: 'ip',
       width: 132,
       search: false,
     },
     {
-      title: 'RequestID',
+      title: TASK_COPY.requestId,
       dataIndex: 'requestId',
       width: 260,
       ellipsis: true,
@@ -132,7 +136,7 @@ export default function OperationLogsPage() {
   ];
 
   return (
-    <PageContainer title="操作日志">
+    <TmPageContainer title={PAGE_COPY.operationLogs.title} subTitle={PAGE_COPY.operationLogs.description}>
       <ProTable<OperationLogRow>
         rowKey="id"
         actionRef={actionRef}
@@ -159,6 +163,6 @@ export default function OperationLogsPage() {
         headerTitle={false}
         toolBarRender={() => []}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

@@ -19,7 +19,7 @@
 | --- | --- |
 | [README.md](README.md) | 项目首页、能力概览、启动方式 |
 | [docs/README.md](docs/README.md) | 文档中心 |
-| [docs/ai-workflow.md](docs/ai-workflow.md) | 跨 AI 工具通用工作流、最小上下文包、token 节约和经验沉淀机制 |
+| [docs/ai-workflow.md](docs/ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀机制 |
 | [docs/ai-coding-rules.md](docs/ai-coding-rules.md) | AI 编程规则与文档同步要求 |
 | [docs/module-map.md](docs/module-map.md) | 模块关联索引，说明改动一个模块时必须检查哪些关联文件 |
 | [docs/task-checklist.md](docs/task-checklist.md) | 任务完成前按类型自查的检查清单 |
@@ -91,8 +91,8 @@ go test ./...
 
 ## 给 AI Agent 的工作方式
 
-1. 先读 `docs/ai-workflow.md`，形成任务目标、改动类型、关联入口、验证方式和风险的最小上下文包。
-2. 先读取相关代码、配置和文档，不全量吞上下文，不凭空假设脚本、端口、路径、字段或变量。
+1. 先读 `docs/ai-workflow.md`，把用户需求改写成短执行提示词，再形成任务目标、改动类型、关联入口、验证方式和风险的最小上下文包。
+2. 按上下文预算读取相关代码、配置和文档，不全量吞上下文，不凭空假设脚本、端口、路径、字段或变量。
 3. 明确影响范围，再编辑文件。
 4. 保持修改小而聚焦。
 5. 不回滚用户已有修改，除非用户明确要求。

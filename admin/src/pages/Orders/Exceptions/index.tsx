@@ -1,4 +1,5 @@
-import { PageContainer, ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
+import { ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import {
@@ -18,6 +19,7 @@ import {
   Table,
   Tag,
   Typography,
+  Descriptions,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -47,6 +49,55 @@ const EX_TYPES: Record<string, { text: string }> = {
   missing_order_item: { text: '缺明细' },
   unknown: { text: '未知' },
 };
+
+const SEV_LABEL: Record<string, string> = {
+  critical: '紧急',
+  high: '高',
+  medium: '中',
+  low: '低',
+};
+
+function formatSkuAttrs(attrs: unknown): string {
+  if (!attrs || typeof attrs !== 'object') return '—';
+  const entries = Object.entries(attrs as Record<string, unknown>);
+  if (!entries.length) return '—';
+  return entries.map(([k, v]) => `${k}: ${String(v ?? '')}`).join(' · ');
+}
+
+function exceptionDetailContent(row: OrderExceptionRow) {
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Descriptions column={1} size="small" bordered>
+        <Descriptions.Item label="异常类型">
+          {EX_TYPES[row.exceptionType]?.text || row.exceptionType || '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="严重程度">
+          {SEV_LABEL[row.severity] || row.severity || '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="处理状态">{row.status || '—'}</Descriptions.Item>
+        <Descriptions.Item label="订单编号">{row.orderNo || row.orderId || '—'}</Descriptions.Item>
+        <Descriptions.Item label="错误说明">{row.errorMessage || '—'}</Descriptions.Item>
+        <Descriptions.Item label="建议操作">{row.suggestedAction || '—'}</Descriptions.Item>
+      </Descriptions>
+      <TechnicalDetails>
+        <TaskJsonBlock
+          title="完整记录"
+          value={{
+            exceptionType: row.exceptionType,
+            severity: row.severity,
+            status: row.status,
+            sourceType: row.sourceType,
+            sourceId: row.sourceId,
+            orderId: row.orderId,
+            errorMessage: row.errorMessage,
+            suggestedAction: row.suggestedAction,
+          }}
+          last
+        />
+      </TechnicalDetails>
+    </Space>
+  );
+}
 
 function sevColor(s: string) {
   switch (s) {
@@ -386,25 +437,8 @@ export default function OrderExceptionsPage() {
               onClick={() => {
                 Modal.info({
                   title: '异常详情',
-                  width: 720,
-                  content: (
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
-                      {JSON.stringify(
-                        {
-                          exceptionType: r.exceptionType,
-                          severity: r.severity,
-                          status: r.status,
-                          sourceType: r.sourceType,
-                          sourceId: r.sourceId,
-                          orderId: r.orderId,
-                          errorMessage: r.errorMessage,
-                          suggestedAction: r.suggestedAction,
-                        },
-                        null,
-                        2,
-                      )}
-                    </pre>
-                  ),
+                  width: 640,
+                  content: exceptionDetailContent(r),
                 });
               }}
             >
@@ -469,7 +503,10 @@ export default function OrderExceptionsPage() {
   );
 
   return (
-    <PageContainer title="订单异常工作台">
+    <TmPageContainer
+      title="订单异常工作台"
+      subTitle="处理订单同步与规格匹配中的异常情况。"
+    >
       <Typography.Paragraph type="secondary">
         聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。
         抖店订单同步后若 SKU 未绑定，请在此绑定本地规格后再扣库存或同步抖店库存。
@@ -602,7 +639,8 @@ export default function OrderExceptionsPage() {
               }
             />
             <Typography.Paragraph type="secondary">
-              匹配状态：{bindRow.exceptionType} · {bindRow.suggestedAction}
+              匹配状态：{EX_TYPES[bindRow.exceptionType]?.text || bindRow.exceptionType} ·{' '}
+              {bindRow.suggestedAction || '—'}
             </Typography.Paragraph>
             <Typography.Title level={5}>候选推荐（只读 · 不自动绑定）</Typography.Title>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
@@ -688,19 +726,26 @@ export default function OrderExceptionsPage() {
               showSearch={false}
             />
             {pickedHit ? (
-              <Typography.Paragraph style={{ marginBottom: 16 }} type="secondary">
-                <Typography.Text strong>已选：</Typography.Text> {pickedHit.productTitle || '—'} ·{' '}
-                {pickedHit.skuCode || pickedHit.productSkuId}
-                {pickedHit.skuName ? `（${pickedHit.skuName}）` : ''}
-                <br />
-                库存：{pickedHit.stock ?? '—'}
+              <>
+                <Typography.Paragraph style={{ marginBottom: 16 }} type="secondary">
+                  <Typography.Text strong>已选：</Typography.Text> {pickedHit.productTitle || '—'} ·{' '}
+                  {pickedHit.skuCode || pickedHit.productSkuId}
+                  {pickedHit.skuName ? `（${pickedHit.skuName}）` : ''}
+                  <br />
+                  库存：{pickedHit.stock ?? '—'}
+                  {pickedHit.attrs != null ? (
+                    <>
+                      <br />
+                      规格属性：{formatSkuAttrs(pickedHit.attrs)}
+                    </>
+                  ) : null}
+                </Typography.Paragraph>
                 {pickedHit.attrs != null ? (
-                  <>
-                    <br />
-                    属性：<Typography.Text code>{JSON.stringify(pickedHit.attrs)}</Typography.Text>
-                  </>
+                  <TechnicalDetails label="规格属性详情">
+                    <TaskJsonBlock title="规格属性" value={pickedHit.attrs} last />
+                  </TechnicalDetails>
                 ) : null}
-              </Typography.Paragraph>
+              </>
             ) : null}
             <Space direction="vertical">
               <Space>
@@ -759,6 +804,6 @@ export default function OrderExceptionsPage() {
           ]}
         />
       </Modal>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

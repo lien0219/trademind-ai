@@ -1,15 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import {
-  ModalForm,
-  PageContainer,
-  ProFormDependency,
-  ProFormDigit,
-  ProFormSelect,
-  ProFormText,
-  ProFormTextArea,
-  ProTable,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormDependency, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CollectRuleRow, CollectRuleTestResult } from '@/services/collectRules';
@@ -205,9 +197,9 @@ export default function CollectRulesPage() {
   }
 
   return (
-    <PageContainer
+    <TmPageContainer
       title="采集规则"
-      subTitle="用于告诉系统从网页的哪个位置读取商品标题、价格、图片等信息。"
+      subTitle="配置自定义网页采集规则，指定从页面读取商品标题、价格、图片等信息的字段。"
       extra={
         <Space wrap className="tm-page-header-extra">
           <Button onClick={() => setAiModalOpen(true)}>AI 帮我生成规则</Button>
@@ -415,24 +407,26 @@ export default function CollectRulesPage() {
           style={{ marginBottom: 8 }}
           message="这里是系统识别页面内容的规则，格式不正确会导致采集失败。不会写的话，建议使用「AI 帮我生成规则」。"
         />
-        <ProFormDependency name={['ruleJson']}>
-          {({ ruleJson }) =>
-            isTitleOnlyRuleJson(typeof ruleJson === 'string' ? ruleJson : undefined) ? (
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 8 }}
-                message="当前规则只会采集标题，无法采集价格、图片和参数。用于正式采集前，建议补充主图和价格规则。"
-              />
-            ) : null
-          }
-        </ProFormDependency>
-        <ProFormTextArea
-          name="ruleJson"
-          label="采集规则内容（高级）"
-          rules={[{ required: true }]}
-          fieldProps={{ rows: 14, style: { fontFamily: 'monospace', fontSize: 12 } }}
-        />
+        <TechnicalDetails label="采集规则内容（高级）">
+          <ProFormDependency name={['ruleJson']}>
+            {({ ruleJson }) =>
+              isTitleOnlyRuleJson(typeof ruleJson === 'string' ? ruleJson : undefined) ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 8 }}
+                  message="当前规则只会采集标题，无法采集价格、图片和参数。用于正式采集前，建议补充主图和价格规则。"
+                />
+              ) : null
+            }
+          </ProFormDependency>
+          <ProFormTextArea
+            name="ruleJson"
+            label="规则 JSON"
+            rules={[{ required: true }]}
+            fieldProps={{ rows: 14, style: { fontFamily: 'monospace', fontSize: 12 } }}
+          />
+        </TechnicalDetails>
       </ModalForm>
 
       <ModalForm<{ url: string }>
@@ -501,6 +495,6 @@ export default function CollectRulesPage() {
         onClose={() => setAiModalOpen(false)}
         onSaved={() => reload()}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

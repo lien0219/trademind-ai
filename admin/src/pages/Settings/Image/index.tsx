@@ -8,7 +8,8 @@ import {
   ScissorOutlined,
   SwapOutlined,
 } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import {
   Alert,
   Button,
@@ -37,6 +38,7 @@ import {
   providerRegionLabel,
   providerStatusLabel,
 } from '@/constants/imageProviders';
+import { ACTION_COPY } from '@/constants/copywriting';
 import { fetchImageProviders, testImageProvider } from '@/services/imageProviders';
 import { taskTypeLabel } from '@/services/imageTasks';
 import { fetchSettingsList, saveSettingsItems, testOCRConnection } from '@/services/settings';
@@ -403,9 +405,9 @@ export default function ImageSettingsPage() {
   };
 
   return (
-    <PageContainer
-      title="图片 AI 设置"
-      subTitle="配置去背景、场景图生成、图片文字翻译等能力；支持云端 API 与本地 ComfyUI"
+    <TmPageContainer
+      title="图片处理设置"
+      subTitle="配置去背景、场景图生成、图片文字翻译等服务连接与默认参数"
     >
       <div className="tm-image-settings">
         <ProCard variant="outlined" className="tm-image-settings__hero">
@@ -946,7 +948,7 @@ export default function ImageSettingsPage() {
           <ProCard variant="outlined" className="tm-image-settings__footer">
             <Space wrap className="tm-action-space">
               <Button type="primary" htmlType="submit" loading={loading} size="large">
-                保存全部配置
+                {ACTION_COPY.saveSettings}
               </Button>
               <Button
                 size="large"
@@ -980,6 +982,6 @@ export default function ImageSettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

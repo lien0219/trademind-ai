@@ -21,7 +21,7 @@
 | `10-progress-sync.mdc` | 阶段、模块或较大修改后更新 `docs/PROGRESS.md` |
 | `11-local-dev-postgres.mdc` | 本地与默认数据库统一采用 PostgreSQL |
 | `12-ai-coding-doc-sync.mdc` | AI 编程规则、配置与文档同步要求 |
-| `13-ai-workflow.mdc` | AI vibe coding 工作流、上下文节约和经验沉淀入口 |
+| `13-ai-workflow.mdc` | AI vibe coding 工作流、提示词优化、上下文节约和经验沉淀入口 |
 
 ## 领域规则
 

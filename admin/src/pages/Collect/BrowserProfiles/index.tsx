@@ -1,6 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ModalForm, PageContainer, ProFormText, ProTable } from '@ant-design/pro-components';
+import { ModalForm, ProFormText, ProTable } from '@ant-design/pro-components';
 import { Button, Input, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { useRef, useState } from 'react';
 import {
@@ -114,7 +115,7 @@ export default function CollectBrowserProfilesPage() {
   ];
 
   return (
-    <PageContainer
+    <TmPageContainer
       title="采集浏览器登录状态"
       subTitle="用于需要登录才能查看的商品页；系统不保存账号密码。"
     >
@@ -175,6 +176,6 @@ export default function CollectBrowserProfilesPage() {
           rules={[{ required: true }]}
         />
       </ModalForm>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

@@ -1,4 +1,5 @@
-﻿import { PageContainer, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+﻿import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Tag } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
@@ -116,7 +117,7 @@ export default function InventoryLogsPage() {
   );
 
   return (
-    <PageContainer title="库存流水">
+    <TmPageContainer title="库存流水" subTitle="查看本地库存变更记录，便于核对扣减、恢复与手动调整。">
       <ProTable<InventoryChangeLogRow>
         rowKey="id"
         actionRef={actionRef}
@@ -138,6 +139,6 @@ export default function InventoryLogsPage() {
           return { data: res.list, total: res.pagination.total, success: true };
         }}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

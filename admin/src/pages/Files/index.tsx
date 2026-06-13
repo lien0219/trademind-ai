@@ -1,7 +1,8 @@
 import { PictureOutlined } from '@ant-design/icons';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
+import { ProTable } from '@ant-design/pro-components';
 import { Link } from '@umijs/renderer-react';
 import { Button, Image, Popconfirm, message } from 'antd';
 import { useRef } from 'react';
@@ -52,7 +53,7 @@ export default function FilesPage() {
       render: (_, row) => formatSize(row.size),
     },
     {
-      title: 'URL',
+      title: '访问地址',
       dataIndex: 'url',
       ellipsis: true,
       copyable: true,
@@ -99,8 +100,9 @@ export default function FilesPage() {
   ];
 
   return (
-    <PageContainer
+    <TmPageContainer
       title="文件管理"
+      subTitle="管理已上传的商品图片与附件。"
       extra={
         <Link key="hint" to="/settings/storage">
           存储设置
@@ -128,6 +130,6 @@ export default function FilesPage() {
         }}
         headerTitle={false}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

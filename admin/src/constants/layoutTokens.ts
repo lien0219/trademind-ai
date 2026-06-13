@@ -1,0 +1,33 @@
+/** 管理端统一布局与间距 token（与 global.less 保持一致） */
+export const layoutTokens = {
+  pagePaddingX: 24,
+  pagePaddingY: 20,
+  pagePaddingBottom: 32,
+  pageMaxWidth: 1680,
+  settingsMaxWidth: 1440,
+  dashboardMaxWidth: 1680,
+  formMaxWidth: 1440,
+  sectionGap: 24,
+  cardGap: 16,
+  cardPadding: 24,
+  cardPaddingCompact: 20,
+  formColumnGap: 24,
+  formRowGap: 20,
+  controlHeight: 40,
+  borderRadius: 10,
+  pageTitleSize: 20,
+  pageDescSize: 14,
+  pageTitleDescGap: 6,
+  pageHeaderBottomGap: 20,
+  breadcrumbTitleGap: 12,
+  labelControlGap: 8,
+  controlHelpGap: 6,
+  fieldGroupGap: 16,
+  modalWidthSm: 480,
+  modalWidthMd: 640,
+  modalWidthLg: 800,
+  drawerWidthMin: 720,
+  drawerWidthMax: 960,
+} as const;
+
+export type LayoutTokens = typeof layoutTokens;

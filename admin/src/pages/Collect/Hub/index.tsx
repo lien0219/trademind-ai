@@ -1,4 +1,5 @@
-import { PageContainer } from '@ant-design/pro-components';
+import { PAGE_COPY } from '@/constants/copywriting';
+import { TmPageContainer } from '@/components/ui';
 import { history } from '@umijs/max';
 import { Alert, Button, Col, Empty, message, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
@@ -164,7 +165,7 @@ export default function CollectHubPage() {
   }, [providers]);
 
   return (
-    <PageContainer title="采集中心">
+    <TmPageContainer title={PAGE_COPY.collectHub.title} subTitle={PAGE_COPY.collectHub.description}>
       <Alert
         type="info"
         showIcon
@@ -296,6 +297,6 @@ export default function CollectHubPage() {
       <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} />
       <PinduoduoCollectModal open={pddModalOpen} onClose={() => setPddModalOpen(false)} />
       <TaobaoTmallCollectModal open={tbModalOpen} onClose={() => setTbModalOpen(false)} />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

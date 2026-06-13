@@ -1,4 +1,6 @@
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
+import { PAGE_COPY } from '@/constants/copywriting';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import {
@@ -1097,7 +1099,7 @@ export default function CollectorSettingsPage() {
   ) : null;
 
   return (
-    <PageContainer title="采集设置" subTitle={`当前：${providerOption.label}`}>
+    <TmPageContainer title="采集设置" subTitle={PAGE_COPY.collectorSettings.description}>
       <div className="tm-collector-settings">
         <ProCard variant="outlined" className="tm-collector-settings__selector" title="采集器类型">
           <CollectorProviderSelector
@@ -1174,6 +1176,6 @@ export default function CollectorSettingsPage() {
           ) : null}
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

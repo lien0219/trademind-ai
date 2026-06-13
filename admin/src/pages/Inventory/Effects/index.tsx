@@ -1,4 +1,5 @@
-﻿import { PageContainer, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+﻿import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef } from 'react';
@@ -59,7 +60,7 @@ export default function InventoryEffectsPage() {
   );
 
   return (
-    <PageContainer title="订单库存影响">
+    <TmPageContainer title="订单库存影响" subTitle="查看订单对本地库存的扣减、恢复与跳过记录。">
       <ProTable<OrderInventoryEffectRow>
         rowKey="id"
         actionRef={actionRef}
@@ -81,6 +82,6 @@ export default function InventoryEffectsPage() {
           return { data: res.list, total: res.pagination.total, success: true };
         }}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

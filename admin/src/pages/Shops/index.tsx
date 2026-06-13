@@ -1,21 +1,10 @@
 import { Link } from '@umijs/renderer-react';
 import { formatDateTime } from '@/utils/formatTime';
-import {
-  ModalForm,
-  PageContainer,
-  ProFormDigit,
-  ProFormRadio,
-  ProFormSelect,
-  ProFormText,
-  ProFormTextArea,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText, ProFormTextArea, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import {
   Alert,
   Button,
-  Collapse,
   Descriptions,
   Divider,
   Drawer,
@@ -98,7 +87,7 @@ function summarizeShopTest(res: {
     res.message,
     res.shopName ? `店铺 ${res.shopName}` : '',
     res.region ? `地区 ${res.region}` : '',
-    res.externalShopId ? `外部ID ${res.externalShopId}` : '',
+    res.externalShopId ? `平台店铺编号 ${res.externalShopId}` : '',
   ].filter(Boolean);
   return parts.join(' · ') || '连接成功';
 }
@@ -109,17 +98,17 @@ function formatPlatformPartnerErr(err: unknown): string {
   const low = msg.toLowerCase();
 
   if (msg.includes('required setting missing:')) {
-    return `${msg}\n请先到「设置 → 平台开放配置」补齐该平台应用参数的必填项。`;
+    return `${msg}\n请先到「设置 → 平台接入设置」补齐该平台应用信息的必填项。`;
   }
 
   if (msg.includes('platform config incomplete: please configure platform_tiktok')) {
-    return `${msg}\n请先到「设置 → 平台开放配置 → TikTok Shop」填写 App Key、App Secret 和 Redirect URI。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → TikTok Shop」填写 App Key、App Secret 和 Redirect URI。`;
   }
   if (msg.includes('platform config incomplete: please configure platform_shopee')) {
-    return `${msg}\n请先到「设置 → 平台开放配置 → Shopee」填写 Partner ID、Partner Key 和 Redirect URI。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → Shopee」填写 Partner ID、Partner Key 和 Redirect URI。`;
   }
   if (msg.includes('platform config incomplete: please configure platform_lazada')) {
-    return `${msg}\n请先到「设置 → 平台开放配置 → Lazada」填写 App Key、App Secret 和 Redirect URI。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → Lazada」填写 App Key、App Secret 和 Redirect URI。`;
   }
   if (msg.includes('platform customer message permission denied') || msg.includes('platform customer message permission')) {
     return `${msg}\n平台客服权限不足，请确认已在 TikTok / Shopee / Lazada 等平台开放后台申请客服消息权限并重新授权；Amazon 请在 Seller Central / SP-API Developer Console 申请 Buyer-Seller Messaging（Messaging API）相关权限并重新授权店铺。`;
@@ -131,7 +120,7 @@ function formatPlatformPartnerErr(err: unknown): string {
     return `${msg}\n手工店铺仅支持会话手工录入，不支持平台客服消息同步。`;
   }
   if (msg.includes('platform config incomplete: please configure platform_amazon')) {
-    return `${msg}\n请先到「设置 → 平台开放配置 → Amazon SP-API」填写 Client ID、Client Secret、Redirect URI、Marketplace ID 和 SP-API Base URL。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → Amazon SP-API」填写 Client ID、Client Secret、Redirect URI、Marketplace ID 和 SP-API Base URL。`;
   }
   if (msg.includes('platform_amazon.lwa_auth_base_url and lwa_token_url')) {
     return `${msg}\n请在「Amazon SP-API」配置中补齐 LWA Auth Base URL 与 LWA Token URL。`;
@@ -141,10 +130,10 @@ function formatPlatformPartnerErr(err: unknown): string {
       'TikTok platform config is incomplete. Please configure App Key, App Secret and Redirect URI first.',
     )
   ) {
-    return `${msg}\n请先前往「设置 → 平台开放配置」填写 TikTok Shop（分组 platform_tiktok）必填项后再试。`;
+    return `${msg}\n请先前往「设置 → 平台接入设置」填写 TikTok Shop（分组 platform_tiktok）必填项后再试。`;
   }
   if (low.includes('tiktok platform config is incomplete') || low.includes('platform_tiktok')) {
-    return `${msg}\n请到「设置 → 平台开放配置」完成 TikTok Shop 必填项后再试。`;
+    return `${msg}\n请到「设置 → 平台接入设置」完成 TikTok Shop 必填项后再试。`;
   }
   return msg;
 }
@@ -206,7 +195,7 @@ export default function ShopsPage() {
         const row = await getPlatformAppSettings(p.platform);
         if (!isDeployAppConfigComplete(row.schema ?? p.appConfigSchema, row.values)) {
           setAuthPartnerWarn(
-            `请先到「设置 → 平台开放配置」填写「${p.name}」开放平台应用参数（分组 ${p.settingsGroupKey}），再完成店铺授权。`,
+            `请先到「设置 → 平台接入设置」填写「${p.name}」平台应用信息（分组 ${p.settingsGroupKey}），再完成店铺授权。`,
           );
         }
       } catch {
@@ -333,7 +322,7 @@ export default function ShopsPage() {
       return;
     }
     if (platform === 'douyin_shop' && p?.status === 'beta') {
-      message.info('请先在「设置 → 平台开放配置 → 抖店」开启「启用订单同步」，并完成店铺 OAuth 授权。');
+      message.info('请先在「设置 → 平台接入设置 → 抖店」开启订单同步，并完成店铺授权。');
     }
     setSyncTarget({ id: shopId, platform });
     setSyncOpen(true);
@@ -479,7 +468,10 @@ export default function ShopsPage() {
   );
 
   return (
-    <PageContainer title="店铺管理">
+    <TmPageContainer
+      title="店铺管理"
+      subTitle="授权并管理已连接的电商平台店铺，可在此同步订单与更新店铺信息。"
+    >
       <ProTable<ShopListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -517,7 +509,7 @@ export default function ShopsPage() {
               const row = await getPlatformAppSettings(meta.platform);
               if (!isDeployAppConfigComplete(row.schema ?? meta.appConfigSchema, row.values)) {
                 message.error(
-                  `请先到「设置 → 平台开放配置」填写「${meta.name}」应用参数后再创建店铺。`,
+                  `请先到「设置 → 平台接入设置」填写「${meta.name}」平台应用信息后再创建店铺。`,
                 );
                 return false;
               }
@@ -557,7 +549,7 @@ export default function ShopsPage() {
         <ProFormText name="region" label="地区" />
         <ProFormText name="currency" label="币种" placeholder="USD" />
         <ProFormText name="timezone" label="时区" placeholder="America/Los_Angeles" />
-        <ProFormText name="defaultLanguage" label="默认语言" placeholder="en" />
+        <ProFormText name="defaultLanguage" label="默认语言" placeholder="例如 en" />
         <ProFormTextArea name="remark" label="备注" fieldProps={{ rows: 2 }} />
       </ModalForm>
 
@@ -657,8 +649,8 @@ export default function ShopsPage() {
           ]}
           rules={[{ required: true }]}
         />
-        <ProFormText name="start" label="开始时间（可选 RFC3339）" placeholder="2026-05-01T00:00:00Z" />
-        <ProFormText name="end" label="结束时间（可选 RFC3339）" placeholder="2026-05-16T23:59:59Z" />
+        <ProFormText name="start" label="开始时间（可选）" placeholder="2026-05-01T00:00:00Z" extra="ISO 8601 格式" />
+        <ProFormText name="end" label="结束时间（可选）" placeholder="2026-05-16T23:59:59Z" extra="ISO 8601 格式" />
         <ProFormText name="cursor" label="游标（可选）" />
         <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
       </ModalForm>
@@ -704,8 +696,8 @@ export default function ShopsPage() {
           ]}
           rules={[{ required: true }]}
         />
-        <ProFormText name="start" label="开始时间（可选 RFC3339）" placeholder="2026-05-01T00:00:00Z" />
-        <ProFormText name="end" label="结束时间（可选 RFC3339）" placeholder="2026-05-16T23:59:59Z" />
+        <ProFormText name="start" label="开始时间（可选）" placeholder="2026-05-01T00:00:00Z" extra="ISO 8601 格式" />
+        <ProFormText name="end" label="结束时间（可选）" placeholder="2026-05-16T23:59:59Z" extra="ISO 8601 格式" />
         <ProFormText name="cursor" label="游标（可选）" />
         <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
       </ModalForm>
@@ -805,7 +797,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="TikTok Shop（Beta）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置」填写应用参数，再在此生成授权链接并完成授权。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置」填写平台应用信息，再在此生成授权链接并完成授权。"
               />
             )}
             {detail.platform === 'douyin_shop' && provForShop.status === 'beta' && (
@@ -822,7 +814,7 @@ export default function ShopsPage() {
                         ? '店铺连接异常，请检查应用权限或重新授权'
                         : '请先连接抖店店铺'
                 }
-                description="支持抖店 OAuth 授权、连接测试、手动订单同步与店铺信息校准；订单同步需在平台开放配置中开启「启用订单同步」。不会在前端返回 token 明文。"
+                description="支持抖店店铺授权、连接测试、手动订单同步与店铺信息校准；订单同步需在平台接入设置中开启订单同步。不会在前端返回授权凭证明文。"
               />
             )}
             {detail.platform === 'shopee' && provForShop.status === 'beta' && (
@@ -831,7 +823,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="Shopee（Beta）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置 → Shopee」填写应用参数，再完成授权。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Shopee」填写平台应用信息，再完成授权。"
               />
             )}
             {detail.platform === 'lazada' && provForShop.status === 'beta' && (
@@ -840,7 +832,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="Lazada（测试中）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置 → Lazada」填写应用参数，再完成授权。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Lazada」填写平台应用信息，再完成授权。"
               />
             )}
             {detail.platform === 'amazon' && provForShop.status === 'beta' && (
@@ -849,7 +841,7 @@ export default function ShopsPage() {
                 showIcon
                 style={{ marginBottom: 12 }}
                 message="Amazon SP-API（测试中）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台开放配置 → Amazon」填写完整应用参数；服务器需按文档配置亚马逊访问凭证。"
+                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Amazon」填写完整平台应用信息；服务器需按文档配置亚马逊访问凭证。"
               />
             )}
             <Descriptions bordered size="small" column={2}>
@@ -862,7 +854,7 @@ export default function ShopsPage() {
               <Descriptions.Item label="币种">{detail.currency || '—'}</Descriptions.Item>
               <Descriptions.Item label="时区">{detail.timezone || '—'}</Descriptions.Item>
               <Descriptions.Item label="语言">{detail.defaultLanguage || '—'}</Descriptions.Item>
-              <Descriptions.Item label="外部店铺 ID">{detail.externalShopId || '—'}</Descriptions.Item>
+              <Descriptions.Item label="平台店铺编号">{detail.externalShopId || '—'}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>
                 {detail.remark || '—'}
               </Descriptions.Item>
@@ -907,12 +899,12 @@ export default function ShopsPage() {
                 type="warning"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message="平台开放配置可能不完整"
+                message="平台应用信息可能不完整"
                 description={authPartnerWarn}
               />
             )}
             {detail.platform === 'manual' && (
-              <Alert type="success" showIcon message="手工店铺无需授权" description="无需配置 Token / Secret。" />
+              <Alert type="success" showIcon message="手工店铺无需授权" description="无需配置授权凭证或密钥。" />
             )}
             {detail.platform !== 'manual' && provForShop?.status === 'planned' && (
               <Alert
@@ -931,7 +923,7 @@ export default function ShopsPage() {
                 message="TikTok 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 TikTok 应用参数，再生成授权链接。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 TikTok 平台应用信息，再生成授权链接。
                     本地开发需启动任务队列服务。仅在展开「可选覆盖」时才使用本页单独填写的密钥。
                   </>
                 }
@@ -945,7 +937,7 @@ export default function ShopsPage() {
                 message="Shopee 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 Shopee 应用参数。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Shopee 平台应用信息。
                     授权回调中如有店铺编号，请一并填写到提交表单。
                   </>
                 }
@@ -959,7 +951,7 @@ export default function ShopsPage() {
                 message="Lazada 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 Lazada 应用参数。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Lazada 平台应用信息。
                     授权完成后从回调页面复制授权码并提交即可。
                   </>
                 }
@@ -973,7 +965,7 @@ export default function ShopsPage() {
                 message="Amazon 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台开放配置</Link> 填写 Amazon 应用参数。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Amazon 平台应用信息。
                     授权完成后按页面提示填写卖家编号与授权码。管理端不会直接访问亚马逊接口。
                   </>
                 }
@@ -988,117 +980,81 @@ export default function ShopsPage() {
                   密钥字段已脱敏展示为 ****；不修改请留空或保持原样，保存时不覆盖。
                 </Typography.Text>
                 {detail.platform === 'tiktok' ? (
-                  <Collapse
-                    bordered={false}
-                    style={{ marginBottom: 12 }}
-                    items={[
-                      {
-                        key: 'tiktok_ov',
-                        label: '可选：覆盖 Partner App Key / Secret / Redirect URI',
-                        children: (
-                          <>
-                            <Form.Item
-                              name="appKey"
-                              label="覆盖 App Key"
-                              tooltip="多数情况留空即可，使用「平台开放配置」中的默认值"
-                            >
-                              <Input autoComplete="off" />
-                            </Form.Item>
-                            <Form.Item
-                              name="appSecret"
-                              label="覆盖 App Secret"
-                              tooltip="留空以保持平台配置的 Secret；仅在多应用并行调试时使用"
-                            >
-                              <Input.Password autoComplete="new-password" />
-                            </Form.Item>
-                            <Form.Item
-                              name="redirectUri"
-                              label="覆盖 Redirect URI"
-                              tooltip="留空则用平台配置的 redirect_uri；必须与 Partner Center 登记的回调完全一致"
-                            >
-                              <Input placeholder="https://…" />
-                            </Form.Item>
-                          </>
-                        ),
-                      },
-                    ]}
-                  />
+                  <TechnicalDetails label="可选：覆盖应用密钥与回调地址" className="tm-shop-auth-override">
+                    <Form.Item
+                      name="appKey"
+                      label="覆盖 App Key"
+                      tooltip="多数情况留空即可，使用「平台接入设置」中的默认值"
+                    >
+                      <Input autoComplete="off" />
+                    </Form.Item>
+                    <Form.Item
+                      name="appSecret"
+                      label="覆盖 App Secret"
+                      tooltip="留空以保持平台配置的 Secret；仅在多应用并行调试时使用"
+                    >
+                      <Input.Password autoComplete="new-password" />
+                    </Form.Item>
+                    <Form.Item
+                      name="redirectUri"
+                      label="覆盖 Redirect URI"
+                      tooltip="留空则用平台配置的 redirect_uri；必须与 Partner Center 登记的回调完全一致"
+                    >
+                      <Input placeholder="https://…" />
+                    </Form.Item>
+                  </TechnicalDetails>
                 ) : detail.platform === 'shopee' ? (
-                  <Collapse
-                    bordered={false}
-                    style={{ marginBottom: 12 }}
-                    items={[
-                      {
-                        key: 'shopee_ov',
-                        label: '可选：覆盖 Partner ID / Partner Key / Redirect URI',
-                        children: (
-                          <>
-                            <Form.Item
-                              name="appKey"
-                              label="覆盖 Partner ID"
-                              tooltip="留空则使用「平台开放配置」中的 partner_id"
-                            >
-                              <Input autoComplete="off" />
-                            </Form.Item>
-                            <Form.Item
-                              name="appSecret"
-                              label="覆盖 Partner Key"
-                              tooltip="留空则使用平台配置中的 partner_key（加密存储）"
-                            >
-                              <Input.Password autoComplete="new-password" />
-                            </Form.Item>
-                            <Form.Item
-                              name="redirectUri"
-                              label="覆盖 Redirect URI"
-                              tooltip="留空则用平台配置的 redirect_uri；须与 Shopee Open Platform 登记一致"
-                            >
-                              <Input placeholder="https://…" />
-                            </Form.Item>
-                          </>
-                        ),
-                      },
-                    ]}
-                  />
+                  <TechnicalDetails label="可选：覆盖 Partner 凭证与回调地址" className="tm-shop-auth-override">
+                    <Form.Item
+                      name="appKey"
+                      label="覆盖 Partner ID"
+                      tooltip="留空则使用「平台接入设置」中的 partner_id"
+                    >
+                      <Input autoComplete="off" />
+                    </Form.Item>
+                    <Form.Item
+                      name="appSecret"
+                      label="覆盖 Partner Key"
+                      tooltip="留空则使用平台配置中的 partner_key（加密存储）"
+                    >
+                      <Input.Password autoComplete="new-password" />
+                    </Form.Item>
+                    <Form.Item
+                      name="redirectUri"
+                      label="覆盖 Redirect URI"
+                      tooltip="留空则用平台配置的 redirect_uri；须与 Shopee Open Platform 登记一致"
+                    >
+                      <Input placeholder="https://…" />
+                    </Form.Item>
+                  </TechnicalDetails>
                 ) : detail.platform === 'lazada' ? (
-                  <Collapse
-                    bordered={false}
-                    style={{ marginBottom: 12 }}
-                    items={[
-                      {
-                        key: 'lazada_ov',
-                        label: '可选：覆盖 App Key / App Secret / Redirect URI',
-                        children: (
-                          <>
-                            <Form.Item
-                              name="appKey"
-                              label="覆盖 App Key"
-                              tooltip="留空则使用「平台开放配置」中的 app_key"
-                            >
-                              <Input autoComplete="off" />
-                            </Form.Item>
-                            <Form.Item
-                              name="appSecret"
-                              label="覆盖 App Secret"
-                              tooltip="留空以保持平台配置的 app_secret（加密存储）"
-                            >
-                              <Input.Password autoComplete="new-password" />
-                            </Form.Item>
-                            <Form.Item
-                              name="redirectUri"
-                              label="覆盖 Redirect URI"
-                              tooltip="留空则用平台配置的 redirect_uri；须与 Lazada App Console 登记一致"
-                            >
-                              <Input placeholder="https://…" />
-                            </Form.Item>
-                          </>
-                        ),
-                      },
-                    ]}
-                  />
+                  <TechnicalDetails label="可选：覆盖应用密钥与回调地址" className="tm-shop-auth-override">
+                    <Form.Item
+                      name="appKey"
+                      label="覆盖 App Key"
+                      tooltip="留空则使用「平台接入设置」中的 app_key"
+                    >
+                      <Input autoComplete="off" />
+                    </Form.Item>
+                    <Form.Item
+                      name="appSecret"
+                      label="覆盖 App Secret"
+                      tooltip="留空以保持平台配置的 app_secret（加密存储）"
+                    >
+                      <Input.Password autoComplete="new-password" />
+                    </Form.Item>
+                    <Form.Item
+                      name="redirectUri"
+                      label="覆盖 Redirect URI"
+                      tooltip="留空则用平台配置的 redirect_uri；须与 Lazada App Console 登记一致"
+                    >
+                      <Input placeholder="https://…" />
+                    </Form.Item>
+                  </TechnicalDetails>
                 ) : detail.platform === 'amazon' ? (
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
                     LWA Client ID / Secret、Redirect URI、SP-API 与 LWA 端点均在「
-                    <Link to="/settings/platforms">平台开放配置</Link>」维护；本页保存店铺 Token 与 Selling Partner 标识。
+                    <Link to="/settings/platforms">平台接入设置</Link>」维护；本页保存店铺授权凭证与 Selling Partner 标识。
                   </Typography.Paragraph>
                 ) : (
                   <>
@@ -1110,91 +1066,92 @@ export default function ShopsPage() {
                     </Form.Item>
                   </>
                 )}
-                <Form.Item name="accessToken" label="Access Token（可手工填入调试）">
-                  <Input.Password autoComplete="new-password" />
-                </Form.Item>
-                <Form.Item name="refreshToken" label="Refresh Token（可手工填入）">
-                  <Input.Password autoComplete="new-password" />
-                </Form.Item>
-                <Form.Item
-                  name="expiresAt"
-                  label="Access Token 过期时间（RFC3339，可选）"
-                  tooltip="示例 2026-06-01T00:00:00Z"
-                >
-                  <Input placeholder="2026-06-01T00:00:00Z" />
-                </Form.Item>
-                <Form.Item name="refreshExpiresAt" label="Refresh Token 过期（RFC3339，可选）">
-                  <Input />
-                </Form.Item>
-                <Form.Item
-                  name="sellerId"
-                  label={
-                    detail.platform === 'tiktok'
-                      ? 'Seller Id（TikTok 通常不用填）'
-                      : detail.platform === 'shopee'
-                        ? 'Shopee shop_id（OAuth 成功后写入；可手工改）'
-                        : detail.platform === 'lazada'
-                          ? 'Seller / short_code（OAuth 后可写入；可手工改）'
-                          : detail.platform === 'amazon'
-                            ? 'Selling Partner Id（OAuth 回调 selling_partner_id）'
-                            : 'Seller Id'
-                  }
-                  tooltip={
-                    detail.platform === 'shopee'
-                      ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。'
-                      : detail.platform === 'lazada'
-                        ? 'Lazada 店铺标识；OAuth 成功后通常会自动写入。'
-                        : detail.platform === 'amazon'
-                          ? 'Amazon SP-API 卖家编号；授权回调必填。'
-                          : undefined
-                  }
-                >
-                  <Input />
-                </Form.Item>
-                <Form.Item
-                  name="merchantId"
-                  label={
-                    detail.platform === 'tiktok'
-                      ? 'Shop cipher（merchant_id）'
-                      : detail.platform === 'shopee'
-                        ? 'Main account id（可选）'
-                        : detail.platform === 'lazada'
-                          ? '扩展信息（可选）'
-                          : detail.platform === 'amazon'
-                            ? '扩展（可选）'
-                            : 'Merchant Id'
-                  }
-                  tooltip={
-                    detail.platform === 'tiktok'
-                      ? 'OAuth 成功后通常会自动写入；仅在手工调试时粘贴。'
-                      : detail.platform === 'shopee'
-                        ? '跨境/主帐号场景可选；OAuth 回调可一并提交。'
-                        : detail.platform === 'lazada'
-                          ? 'OAuth 回调 country / account 摘要可写入 auth_config。'
-                          : undefined
-                  }
-                >
-                  <Input />
-                </Form.Item>
-                <Form.Item name="marketplaceId" label="Marketplace Id">
-                  <Input
-                    placeholder={
-                      detail.platform === 'amazon' ? '可覆盖 platform_amazon 默认 Marketplace ID' : undefined
+                <TechnicalDetails label="手工填入 / 高级字段" className="tm-shop-auth-override">
+                  <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
+                    一般通过上方「生成授权链接」完成授权即可。仅在调试或特殊场景下手工填写 Token、卖家编号等字段。
+                  </Typography.Paragraph>
+                  <Form.Item name="accessToken" label="授权凭证">
+                    <Input.Password autoComplete="new-password" />
+                  </Form.Item>
+                  <Form.Item name="refreshToken" label="刷新授权凭证">
+                    <Input.Password autoComplete="new-password" />
+                  </Form.Item>
+                  <Form.Item
+                    name="expiresAt"
+                    label="授权凭证过期时间"
+                    tooltip="ISO 8601 格式，例如 2026-06-01T00:00:00Z"
+                  >
+                    <Input placeholder="2026-06-01T00:00:00Z" />
+                  </Form.Item>
+                  <Form.Item name="refreshExpiresAt" label="刷新凭证过期时间" tooltip="ISO 8601 格式">
+                    <Input placeholder="2026-06-01T00:00:00Z" />
+                  </Form.Item>
+                  <Form.Item
+                    name="sellerId"
+                    label={
+                      detail.platform === 'tiktok'
+                        ? 'Seller Id（TikTok 通常不用填）'
+                        : detail.platform === 'shopee'
+                          ? 'Shopee 店铺编号'
+                          : detail.platform === 'lazada'
+                            ? '卖家标识'
+                            : detail.platform === 'amazon'
+                              ? 'Selling Partner Id'
+                              : 'Seller Id'
                     }
-                  />
-                </Form.Item>
+                    tooltip={
+                      detail.platform === 'shopee'
+                        ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。'
+                        : detail.platform === 'lazada'
+                          ? 'Lazada 店铺标识；店铺授权成功后通常会自动写入。'
+                          : detail.platform === 'amazon'
+                            ? 'Amazon SP-API 卖家编号；授权回调必填。'
+                            : undefined
+                    }
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name="merchantId"
+                    label={
+                      detail.platform === 'tiktok'
+                        ? 'Shop cipher'
+                        : detail.platform === 'shopee'
+                          ? '主账号 ID（可选）'
+                          : detail.platform === 'lazada'
+                            ? '扩展信息（可选）'
+                            : detail.platform === 'amazon'
+                              ? '扩展（可选）'
+                              : 'Merchant Id'
+                    }
+                    tooltip={
+                      detail.platform === 'tiktok'
+                        ? '店铺授权成功后通常会自动写入；仅在手工调试时粘贴。'
+                        : detail.platform === 'shopee'
+                          ? '跨境/主帐号场景可选；店铺授权回调可一并提交。'
+                          : detail.platform === 'lazada'
+                            ? '店铺授权回调 country / account 摘要可写入 auth_config。'
+                            : undefined
+                    }
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="marketplaceId" label="站点 Marketplace ID（可选）">
+                    <Input placeholder={detail.platform === 'amazon' ? '可覆盖平台接入设置中的默认站点 ID' : undefined} />
+                  </Form.Item>
+                </TechnicalDetails>
                 {detail.platform === 'tiktok' && (
                   <>
-                    <Divider>TikTok OAuth</Divider>
+                    <Divider>TikTok 店铺授权</Divider>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接（留空则不发送覆盖项）。默认直接使用「平台开放配置」。
+                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接（留空则不发送覆盖项）。默认直接使用「平台接入设置」。
                     </Typography.Paragraph>
                     <Space wrap>
                       <Button
                         type="primary"
                         onClick={async () => {
                           if (authPartnerWarn) {
-                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            message.warning('请先完成「平台接入设置」中的必填项。');
                             return;
                           }
                           try {
@@ -1288,16 +1245,16 @@ export default function ShopsPage() {
                 )}
                 {detail.platform === 'shopee' && provForShop?.status === 'beta' && (
                   <>
-                    <Divider>Shopee OAuth</Divider>
+                    <Divider>Shopee 店铺授权</Divider>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接。默认使用「平台开放配置」中的 partner 参数。
+                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接。默认使用「平台接入设置」中的平台应用信息。
                     </Typography.Paragraph>
                     <Space wrap>
                       <Button
                         type="primary"
                         onClick={async () => {
                           if (authPartnerWarn) {
-                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            message.warning('请先完成「平台接入设置」中的必填项。');
                             return;
                           }
                           try {
@@ -1358,7 +1315,7 @@ export default function ShopsPage() {
                       授权成功后，从回调 URL 读取 <code style={{ padding: '0 4px' }}>code</code> 与{' '}
                       <code style={{ padding: '0 4px' }}>shop_id</code>，填入下方：
                     </Typography.Text>
-                    <Form.Item name="shopeeAuthCode" label="code">
+                    <Form.Item name="shopeeAuthCode" label="授权码">
                       <Input placeholder="Paste authorization code" />
                     </Form.Item>
                     <Form.Item name="shopeeCallbackShopId" label="shopId（回调 shop_id）" rules={[{ required: false }]}>
@@ -1405,16 +1362,16 @@ export default function ShopsPage() {
                 )}
                 {detail.platform === 'lazada' && provForShop?.status === 'beta' && (
                   <>
-                    <Divider>Lazada OAuth</Divider>
+                    <Divider>Lazada 店铺授权</Divider>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接。默认使用「平台开放配置」中的 Lazada 应用参数。
+                      若填写「可选覆盖」中的字段，会先同步到服务端再生成链接。默认使用「平台接入设置」中的 Lazada 平台应用信息。
                     </Typography.Paragraph>
                     <Space wrap>
                       <Button
                         type="primary"
                         onClick={async () => {
                           if (authPartnerWarn) {
-                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            message.warning('请先完成「平台接入设置」中的必填项。');
                             return;
                           }
                           try {
@@ -1474,7 +1431,7 @@ export default function ShopsPage() {
                     <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                       从 Lazada 授权回调 URL 复制 <code style={{ padding: '0 4px' }}>code</code>，与上方 state 一并提交：
                     </Typography.Text>
-                    <Form.Item name="lazadaAuthCode" label="code">
+                    <Form.Item name="lazadaAuthCode" label="授权码">
                       <Input placeholder="Paste authorization code" />
                     </Form.Item>
                     <Button
@@ -1508,16 +1465,16 @@ export default function ShopsPage() {
                 )}
                 {detail.platform === 'amazon' && provForShop?.status === 'beta' && (
                   <>
-                    <Divider>Amazon LWA OAuth</Divider>
+                    <Divider>Amazon 店铺授权</Divider>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                      生成链接使用「平台开放配置」中的 Client ID、Redirect URI 与 Seller Central 基址；无需在下方手工填写 Secret。
+                      生成链接使用「平台接入设置」中的 Client ID、Redirect URI 与 Seller Central 基址；无需在下方手工填写 Secret。
                     </Typography.Paragraph>
                     <Space wrap>
                       <Button
                         type="primary"
                         onClick={async () => {
                           if (authPartnerWarn) {
-                            message.warning('请先完成「平台开放配置」中的必填项。');
+                            message.warning('请先完成「平台接入设置」中的必填项。');
                             return;
                           }
                           try {
@@ -1641,6 +1598,6 @@ export default function ShopsPage() {
           </>
         )}
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

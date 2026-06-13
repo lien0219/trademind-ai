@@ -1,6 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import {
   Button,
   Descriptions,
@@ -13,6 +14,8 @@ import {
 } from 'antd';
 import { useRef, useState } from 'react';
 import { Link } from '@umijs/renderer-react';
+import { AI_FIELD_COPY, commonStatusLabel } from '@/constants/copywriting';
+import { taskTypeLabel } from '@/services/imageTasks';
 import {
   applyAiBatchResults,
   fetchAiBatchDetail,
@@ -73,7 +76,7 @@ export default function AiBatchesPage() {
       dataIndex: 'status',
       width: 120,
       render: (_, row) => (
-        <Tag color={STATUS_COLOR[row.status] ?? 'default'}>{row.status}</Tag>
+        <Tag color={STATUS_COLOR[row.status] ?? 'default'}>{commonStatusLabel(row.status)}</Tag>
       ),
     },
     { title: '商品数', dataIndex: 'productCount', width: 80, search: false },
@@ -155,10 +158,12 @@ export default function AiBatchesPage() {
   };
 
   return (
-    <PageContainer title="AI 批次">
+    <TmPageContainer
+      title="AI 批次"
+      subTitle="查看批量 AI 标题优化、描述生成等任务的执行进度与结果。"
+    >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        批量结果默认进入 AI 文案字段（<Typography.Text code>ai_title</Typography.Text> /{' '}
-        <Typography.Text code>ai_description</Typography.Text>）或图片任务表，不会自动覆盖正式标题/详情或替换主图。详情见{' '}
+        批量结果默认写入商品的 {AI_FIELD_COPY.aiTitle} / {AI_FIELD_COPY.aiDescription} 字段，或进入图片任务列表，不会自动覆盖正式标题、详情或替换主图。详情见{' '}
         <Link to="/settings/ai">AI 设置</Link>。
       </Typography.Paragraph>
 
@@ -201,23 +206,17 @@ export default function AiBatchesPage() {
                 {OP_LABEL[detail.batch.operationType] ?? detail.batch.operationType}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
-                <Tag color={STATUS_COLOR[detail.batch.status]}>{detail.batch.status}</Tag>
+                <Tag color={STATUS_COLOR[detail.batch.status]}>{commonStatusLabel(detail.batch.status)}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="统计">
                 商品 {detail.batch.productCount} · 任务 {detail.batch.taskCount} · 成功 {detail.batch.successCount}{' '}
                 · 失败 {detail.batch.failedCount} · 跳过 {detail.batch.skippedCount}
               </Descriptions.Item>
             </Descriptions>
-            <Typography.Title level={5} style={{ marginTop: 16 }}>
-              Input 摘要
-            </Typography.Title>
-            <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-              {JSON.stringify(detail.batch.input ?? {}, null, 2)}
-            </pre>
-            <Typography.Title level={5}>Output 摘要</Typography.Title>
-            <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-              {JSON.stringify(detail.batch.output ?? {}, null, 2)}
-            </pre>
+            <TechnicalDetails>
+              <TaskJsonBlock title="批次输入" value={detail.batch.input} />
+              <TaskJsonBlock title="批次输出" value={detail.batch.output} last />
+            </TechnicalDetails>
             {(detail.recentAiTasks?.length ?? 0) > 0 && (
               <>
                 <Typography.Title level={5}>最近 AI 任务</Typography.Title>
@@ -227,7 +226,7 @@ export default function AiBatchesPage() {
                   rowKey={(r) => (r as { id: string }).id}
                   dataSource={detail.recentAiTasks as object[]}
                   columns={[
-                    { title: '状态', dataIndex: 'status', width: 90 },
+                    { title: '状态', dataIndex: 'status', width: 90, render: (v) => commonStatusLabel(v as string) },
                     { title: '商品', dataIndex: 'productId', ellipsis: true },
                     {
                       title: '错误摘要',
@@ -247,8 +246,8 @@ export default function AiBatchesPage() {
                   rowKey={(r) => (r as { id: string }).id}
                   dataSource={detail.recentImageTasks as object[]}
                   columns={[
-                    { title: '类型', dataIndex: 'taskType', width: 140 },
-                    { title: '状态', dataIndex: 'status', width: 96 },
+                    { title: '类型', dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
+                    { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
                     { title: '商品', dataIndex: 'productId', ellipsis: true },
                   ]}
                 />
@@ -265,7 +264,7 @@ export default function AiBatchesPage() {
                     : message.info('仅文本批次可一键应用')
                 }
               >
-                应用 AI 文案到草稿（仅 ai_* 字段）
+                应用 AI 文案到草稿
               </Button>
               <Button onClick={() => currentId && runRetry(currentId)}>重试失败</Button>
             </Space>
@@ -303,22 +302,22 @@ export default function AiBatchesPage() {
           columns={
             tasksKind === 'image_tasks'
               ? [
-                  { title: 'ID', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
-                  { title: '类型', dataIndex: 'taskType', width: 140 },
-                  { title: '状态', dataIndex: 'status', width: 96 },
+                  { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
+                  { title: '类型', dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
+                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
                   { title: '商品', dataIndex: 'productId', ellipsis: true },
                   { title: '错误', dataIndex: 'errorMessage', ellipsis: true },
                 ]
               : [
-                  { title: 'ID', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
+                  { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
                   { title: '类型', dataIndex: 'taskType', width: 140 },
-                  { title: '状态', dataIndex: 'status', width: 96 },
+                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
                   { title: '商品', dataIndex: 'productId', ellipsis: true },
                   { title: '错误摘要', dataIndex: 'errorMessage', ellipsis: true },
                 ]
           }
         />
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

@@ -1,3 +1,16 @@
+import {
+  ArrowRightOutlined,
+  CheckCircleOutlined,
+  CloudDownloadOutlined,
+  CloudUploadOutlined,
+  DashboardOutlined,
+  FileImageOutlined,
+  InboxOutlined,
+  LockOutlined,
+  MailOutlined,
+  RobotOutlined,
+  SafetyCertificateOutlined,
+} from '@ant-design/icons';
 import { Form, Input, Checkbox, Button, Tabs, Row, Col } from 'antd';
 import { history, useModel } from '@umijs/max';
 import { message } from 'antd';
@@ -7,133 +20,16 @@ import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { login, register, sendEmailCode } from '@/services/auth';
 import './index.less';
 
-const CollectIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-    <path d="M2 10H22" stroke="currentColor" strokeWidth="2" />
-    <path d="M6 14H10" stroke="currentColor" strokeWidth="2" />
-  </svg>
-);
-
-const AiIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z"
-      fill="currentColor"
-    />
-  </svg>
-);
-
-const ImageIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-    <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-    <path d="M21 15L16 10L5 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-
-const PublishIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M12 3L20 7V17L12 21L4 17V7L12 3Z"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinejoin="round"
-    />
-    <path d="M12 12L20 7" stroke="currentColor" strokeWidth="2" />
-    <path d="M12 12V21" stroke="currentColor" strokeWidth="2" />
-    <path d="M12 12L4 7" stroke="currentColor" strokeWidth="2" />
-  </svg>
-);
-
-const InventoryIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M21 8L12 13L3 8"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M21 16L12 21L3 16"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M12 3L21 8L12 13L3 8L12 3Z"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const DashboardIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="2" />
-    <rect x="13" y="3" width="8" height="5" rx="1.5" stroke="currentColor" strokeWidth="2" />
-    <rect x="13" y="10" width="8" height="11" rx="1.5" stroke="currentColor" strokeWidth="2" />
-    <rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="2" />
-  </svg>
-);
-
-const MailIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M4 7.00005L10.2 11.65C11.2667 12.45 12.7333 12.45 13.8 11.65L20 7"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <rect
-      x="3"
-      y="5"
-      width="18"
-      height="14"
-      rx="2"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
-const LockIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect
-      x="5"
-      y="11"
-      width="14"
-      height="10"
-      rx="2"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M8 11V7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7V11"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 const FEATURE_TAGS = [
-  { icon: <CollectIcon />, label: '多平台商品采集', className: 'tag-blue' },
-  { icon: <AiIcon />, label: 'AI 商品运营', className: 'tag-violet' },
-  { icon: <ImageIcon />, label: '图片智能处理', className: 'tag-teal' },
-  { icon: <PublishIcon />, label: '多平台刊登', className: 'tag-indigo' },
-  { icon: <InventoryIcon />, label: '库存同步', className: 'tag-green' },
-  { icon: <DashboardIcon />, label: '运营看板', className: 'tag-slate' },
+  { icon: <CloudDownloadOutlined />, label: '多平台商品采集', className: 'tag-blue' },
+  { icon: <RobotOutlined />, label: 'AI 商品运营', className: 'tag-violet' },
+  { icon: <FileImageOutlined />, label: '图片智能处理', className: 'tag-teal' },
+  { icon: <CloudUploadOutlined />, label: '多平台刊登', className: 'tag-indigo' },
+  { icon: <InboxOutlined />, label: '库存同步', className: 'tag-green' },
+  { icon: <DashboardOutlined />, label: '运营看板', className: 'tag-amber' },
 ] as const;
+
+const PLATFORM_ITEMS = ['1688', 'Shopee', 'Lazada', 'Temu'];
 
 export default function LoginPage() {
   const { setInitialState, initialState } = useModel('@@initialState');
@@ -222,75 +118,111 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell">
-    <div className="login-container">
-      <div className="login-left">
-        <div className="login-left-decor" aria-hidden="true">
-          <div className="decor-glow" />
-          <div className="decor-card decor-card-1" />
-          <div className="decor-card decor-card-2" />
-          <div className="decor-card decor-card-3" />
-        </div>
-
-        <div className="login-left-content">
-          <div className="brand">
-            <BrandLogo height={32} />
-            <div>
-              <div className="brand-text">贸灵 TradeMind</div>
-              <div className="brand-sub">AI-Powered Cross-Border ERP</div>
-            </div>
+      <div className="login-container">
+        <div className="login-left">
+          <div className="login-left-decor" aria-hidden="true">
+            <div className="decor-line decor-line-1" />
+            <div className="decor-line decor-line-2" />
+            <div className="decor-card decor-card-1" />
+            <div className="decor-card decor-card-2" />
+            <div className="decor-card decor-card-3" />
           </div>
 
-          <div className="slogan">
-            <h1>
-              用 <span className="highlight">AI</span> 驱动你的
-              <br />
-              跨境运营增长
-            </h1>
-            <p>
-              贸灵 TradeMind 帮助跨境卖家统一管理商品、采集、AI 优化、刊登、库存与数据分析，让运营更高效。
-            </p>
-          </div>
-
-          <div className="features">
-            {FEATURE_TAGS.map((tag) => (
-              <div key={tag.label} className={`feature-tag ${tag.className}`}>
-                {tag.icon} {tag.label}
+          <div className="login-left-content">
+            <div className="brand">
+              <BrandLogo height={32} />
+              <div>
+                <div className="brand-text">贸灵 TradeMind</div>
+                <div className="brand-sub">AI-Powered Cross-Border ERP</div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="login-right">
-        <div className="login-right-inner">
-          <div className="mobile-brand">
-            <BrandLogo height={28} />
-            <div>
-              <div className="brand-text">贸灵 TradeMind</div>
-              <div className="brand-sub">AI-Powered Cross-Border ERP</div>
             </div>
-          </div>
 
-          <div className="auth-card">
-            <Tabs
-              className="auth-tabs"
-              activeKey={activeTab}
-              centered
-              onChange={setActiveTab}
-              items={[
-                { key: 'login', label: '登录' },
-                { key: 'register', label: '注册' },
-              ]}
-            />
-
-            <div className="welcome-text">
-              <h2>{activeTab === 'login' ? '欢迎回来' : '注册账号'}</h2>
+            <div className="slogan">
+              <div className="eyebrow">
+                <SafetyCertificateOutlined />
+                <span>面向跨境团队的 AI 运营工作台</span>
+              </div>
+              <h1>
+                用 <span className="highlight">AI</span> 串联商品、
+                <br />
+                刊登与库存增长
+              </h1>
               <p>
-                {activeTab === 'login'
-                  ? '登录你的 TradeMind 工作台'
-                  : '开启你的 AI 跨境之旅'}
+                从商品采集、图片处理、AI 优化到多平台刊登，TradeMind
+                把高频运营动作收进一个更轻、更快的工作台。
               </p>
             </div>
+
+            <div className="features">
+              {FEATURE_TAGS.map((tag, index) => (
+                <div
+                  key={tag.label}
+                  className={`feature-tag ${tag.className}`}
+                  style={{ animationDelay: `${index * 80 + 180}ms` }}
+                >
+                  {tag.icon} {tag.label}
+                </div>
+              ))}
+            </div>
+
+            <div className="hero-board" aria-hidden="true">
+              <div className="hero-board__top">
+                <div>
+                  <span className="hero-board__label">Today GMV</span>
+                  <strong>¥128,430</strong>
+                </div>
+                <span className="hero-board__badge">+18.6%</span>
+              </div>
+              <div className="hero-board__chart">
+                <span className="chart-bar chart-bar-1" />
+                <span className="chart-bar chart-bar-2" />
+                <span className="chart-bar chart-bar-3" />
+                <span className="chart-bar chart-bar-4" />
+                <span className="chart-bar chart-bar-5" />
+              </div>
+              <div className="hero-board__flow">
+                {PLATFORM_ITEMS.map((platform) => (
+                  <span key={platform}>{platform}</span>
+                ))}
+              </div>
+              <div className="hero-board__task">
+                <CheckCircleOutlined />
+                <span>AI 已生成 36 条商品优化建议</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="login-right">
+          <div className="login-right-inner">
+            <div className="mobile-brand">
+              <BrandLogo height={28} />
+              <div>
+                <div className="brand-text">贸灵 TradeMind</div>
+                <div className="brand-sub">AI-Powered Cross-Border ERP</div>
+              </div>
+            </div>
+
+            <div className={`auth-card auth-card-${activeTab}`}>
+              <Tabs
+                className="auth-tabs"
+                activeKey={activeTab}
+                centered
+                onChange={setActiveTab}
+                items={[
+                  { key: 'login', label: '登录' },
+                  { key: 'register', label: '注册' },
+                ]}
+              />
+
+              <div className="welcome-text" key={`welcome-${activeTab}`}>
+                <h2>{activeTab === 'login' ? '欢迎回来' : '注册账号'}</h2>
+                <p>
+                  {activeTab === 'login'
+                    ? '登录你的 TradeMind 工作台'
+                    : '开启你的 AI 跨境之旅'}
+                </p>
+              </div>
 
             {activeTab === 'login' ? (
               <Form
@@ -308,7 +240,7 @@ export default function LoginPage() {
                 >
                   <Input
                     placeholder="请输入邮箱或手机号"
-                    prefix={<MailIcon />}
+                    prefix={<MailOutlined />}
                     autoComplete="off"
                     data-lpignore="true"
                     data-1p-ignore="true"
@@ -323,7 +255,7 @@ export default function LoginPage() {
                 >
                   <Input.Password
                     placeholder="请输入登录密码"
-                    prefix={<LockIcon />}
+                    prefix={<LockOutlined />}
                     autoComplete="new-password"
                     data-lpignore="true"
                     data-1p-ignore="true"
@@ -348,6 +280,7 @@ export default function LoginPage() {
                     disabled={loading}
                   >
                     登录工作台
+                    <ArrowRightOutlined />
                   </Button>
                 </Form.Item>
 
@@ -379,7 +312,7 @@ export default function LoginPage() {
                   ]}
                   validateTrigger="onBlur"
                 >
-                  <Input placeholder="请输入邮箱" prefix={<MailIcon />} autoComplete="email" />
+                  <Input placeholder="请输入邮箱" prefix={<MailOutlined />} autoComplete="email" />
                 </Form.Item>
 
                 <Form.Item label="邮箱验证码" required>
@@ -395,7 +328,7 @@ export default function LoginPage() {
                     </Col>
                     <Col span={9}>
                       <Button
-                        style={{ width: '100%', height: 50, borderRadius: 11 }}
+                        className="code-btn"
                         onClick={handleSendCode}
                         disabled={countdown > 0}
                       >
@@ -416,7 +349,7 @@ export default function LoginPage() {
                 >
                   <Input.Password
                     placeholder="请输入至少6位密码"
-                    prefix={<LockIcon />}
+                    prefix={<LockOutlined />}
                     autoComplete="new-password"
                   />
                 </Form.Item>
@@ -440,7 +373,7 @@ export default function LoginPage() {
                 >
                   <Input.Password
                     placeholder="请再次输入密码"
-                    prefix={<LockIcon />}
+                    prefix={<LockOutlined />}
                     autoComplete="new-password"
                   />
                 </Form.Item>
@@ -454,6 +387,7 @@ export default function LoginPage() {
                     disabled={loading}
                   >
                     注册
+                    <ArrowRightOutlined />
                   </Button>
                 </Form.Item>
 

@@ -326,7 +326,7 @@ export default [
       },
       {
         path: '/settings/platforms',
-        name: '平台开放配置',
+        name: '平台接入设置',
         component: './Settings/Platforms',
       },
       {

@@ -42,6 +42,183 @@ body,
   max-width: 100%;
 }
 
+/* ── TradeMind 统一页面布局 token ── */
+@tm-page-px: 24px;
+@tm-page-py: 20px;
+@tm-page-pb: 32px;
+@tm-section-gap: 24px;
+@tm-card-gap: 16px;
+@tm-form-row-gap: 20px;
+@tm-form-col-gap: 24px;
+@tm-radius: 10px;
+
+.tm-page-container {
+  .ant-page-header-heading-title {
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    line-height: 1.35 !important;
+  }
+
+  .ant-page-header-heading-sub-title {
+    font-size: 14px !important;
+    margin-block-start: 6px !important;
+    line-height: 1.5 !important;
+  }
+
+  .ant-pro-page-container-warp-page-header {
+    margin-block-end: 20px;
+  }
+}
+
+.tm-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: @tm-form-row-gap @tm-form-col-gap;
+}
+
+.tm-form-grid__item--full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1100px) {
+  .tm-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tm-form-grid__item--full {
+    grid-column: auto;
+  }
+}
+
+.tm-section-card {
+  border-radius: @tm-radius !important;
+
+  &.ant-pro-card {
+    margin-block-end: @tm-card-gap;
+  }
+
+  .ant-pro-card-body {
+    padding: @tm-page-px !important;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  &__head-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--ant-color-text);
+  }
+
+  &__desc {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  &__head-extra {
+    flex-shrink: 0;
+  }
+}
+
+.tm-field-help {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tm-switch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  &__label {
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--ant-color-text);
+  }
+
+  &__help {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ant-color-text-secondary);
+  }
+}
+
+.tm-action-bar {
+  margin-top: 16px;
+  padding-top: 12px;
+
+  &--right {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &--sticky {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    padding: 12px 0;
+    background: var(--ant-color-bg-container);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+  }
+}
+
+.tm-empty-state {
+  padding: 32px 16px;
+
+  &__title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ant-color-text);
+    margin-bottom: 6px;
+  }
+
+  &__desc {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ant-color-text-secondary);
+  }
+}
+
+.tm-technical-details {
+  margin-top: 16px;
+
+  &__body {
+    font-size: 12px;
+    line-height: 1.6;
+    word-break: break-all;
+  }
+}
+
+.tm-settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: @tm-section-gap;
+}
+
 /* PageContainer 标题与右侧操作：窄屏自动换行 */
 .ant-pro-page-container-warp-page-header .ant-page-header-heading {
   flex-wrap: wrap;

@@ -1,4 +1,6 @@
-import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { ProCard, ProTable } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
+import { commonStatusLabel } from '@/constants/copywriting';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
@@ -161,7 +163,7 @@ export default function WorkersMonitorPage() {
 
   const leaseCols = (): ProColumns<LeasedTaskRow>[] => [
     { title: '任务 ID', dataIndex: 'id', copyable: true, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 90 },
+    { title: '状态', dataIndex: 'status', width: 90, render: (_, row) => commonStatusLabel(row.status) },
     { title: '锁定者', dataIndex: 'lockedBy', ellipsis: true },
     {
       title: '执行截止',
@@ -181,7 +183,10 @@ export default function WorkersMonitorPage() {
   const summary = data?.summary ?? EMPTY_SUMMARY;
 
   return (
-    <PageContainer header={{ title: '后台任务监控', subTitle: '查看采集、图片、订单同步等后台进程是否在正常运行' }}>
+    <TmPageContainer
+      title={'后台任务监控'}
+      subTitle={'查看采集、图片处理、订单同步、商品刊登等后台任务是否在正常运行'}
+    >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         展示各类型后台任务进程状态与正在执行中的任务（每 {POLL_MS / 1000} 秒刷新；页面隐藏时暂停）。
       </Typography.Paragraph>
@@ -284,6 +289,6 @@ export default function WorkersMonitorPage() {
           />
         </ProCard>
       ))}
-    </PageContainer>
+    </TmPageContainer>
   );
 }

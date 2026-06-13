@@ -1,5 +1,6 @@
 import { CloudUploadOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import {
   Alert,
   Button,
@@ -340,9 +341,9 @@ export default function PlatformPublishSettingsPage() {
   });
 
   return (
-    <PageContainer
-      title="平台刊登预设"
-      subTitle="各平台商品上架时的默认参数；单次刊登可在商品详情中覆盖"
+    <TmPageContainer
+      title="刊登设置"
+      subTitle="配置各平台商品刊登时的默认字段与规则。"
     >
       <div className="tm-system-settings tm-platform-publish">
         <ProCard variant="outlined" className="tm-system-settings__hero">
@@ -356,7 +357,7 @@ export default function PlatformPublishSettingsPage() {
               </Title>
               <Paragraph type="secondary" className="tm-system-settings__hero-desc">
                 此处保存各平台刊登时的默认类目、物流、包裹尺寸等参数，写入系统配置并加密敏感项。与{' '}
-                <Link to="/settings/platforms">平台开放配置</Link> 分开：开放配置填 App Key / Secret，此处填上架业务参数。
+                <Link to="/settings/platforms">平台接入设置</Link> 分开：接入设置填应用 Key / Secret，此处填刊登业务参数。
                 在商品草稿详情选择店铺提交刊登时，可覆盖单次任务参数。查看进度请前往{' '}
                 <Link to="/product/publish-tasks">商品 · 刊登任务</Link>。
               </Paragraph>
@@ -367,13 +368,13 @@ export default function PlatformPublishSettingsPage() {
         <ProCard variant="outlined" title="选择平台" className="tm-system-settings__panel">
           <Spin spinning={loadingProviders}>
             {items.length === 0 ? (
-              <Paragraph type="secondary">暂无可配置刊登参数的平台，请刷新或检查后端 Provider 注册。</Paragraph>
+              <Paragraph type="secondary">暂无可配置刊登参数的平台，请稍后刷新或联系管理员。</Paragraph>
             ) : (
               <Tabs activeKey={tab} onChange={setTab} items={items} />
             )}
           </Spin>
         </ProCard>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

@@ -1,6 +1,7 @@
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { ProCard, ProTable } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import {
@@ -177,7 +178,7 @@ export default function CollectTasksPage() {
 
   const columns: ProColumns<CollectTaskRow>[] = [
     {
-      title: '采集器',
+      title: '采集服务',
       dataIndex: 'source',
       width: 132,
       valueType: 'select',
@@ -361,7 +362,7 @@ export default function CollectTasksPage() {
   ];
 
   return (
-    <PageContainer
+    <TmPageContainer
       title="采集任务"
       subTitle={
         batchIdFromQuery ? (
@@ -371,7 +372,9 @@ export default function CollectTasksPage() {
             </Tag>
             <Link to="/collect/tasks">清除筛选</Link>
           </span>
-        ) : undefined
+        ) : (
+          '提交单条商品链接采集任务，查看执行进度与结果。'
+        )
       }
     >
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
@@ -381,7 +384,7 @@ export default function CollectTasksPage() {
             showIcon
             style={{ marginBottom: 12 }}
             message="未选择规则时，系统会尝试按域名匹配启用规则。"
-            description="已支持专用采集器的平台链接无法通过自定义采集提交，请在采集中心使用对应采集器。"
+            description="已支持专用采集服务的平台链接无法通过自定义采集提交，请在采集中心使用对应采集方式。"
           />
         ) : null}
         <Form
@@ -452,7 +455,7 @@ export default function CollectTasksPage() {
                 name="source"
                 rules={[{ required: true, message: '请选择采集平台' }]}
               >
-                <Select options={providerSelectOptions} placeholder="选择采集器" />
+                <Select options={providerSelectOptions} placeholder="选择采集服务" />
               </Form.Item>
             </Col>
             {formSource === 'custom' ? (
@@ -553,7 +556,7 @@ export default function CollectTasksPage() {
           setEventDrawerTaskId(null);
         }}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }
 

@@ -1,5 +1,6 @@
+import { TechnicalDetails } from '@/components/ui';
 import type { ReactNode } from 'react';
-import { Alert, Collapse, Descriptions, Progress, Space, Tag, Typography } from 'antd';
+import { Alert, Descriptions, Progress, Space, Tag, Typography } from 'antd';
 import type { CollectRuleTestResult } from '@/services/collectRules';
 import { accessStatusHint, accessStatusLabel } from '@/constants/collectAccess';
 import {
@@ -65,6 +66,13 @@ export function RuleTestResultPanel({ result, showProduct = true, compact = fals
       children: String(result.httpStatus),
     });
   }
+  if (ef.titleSelector) {
+    technicalItems.push({
+      key: 'titleSelector',
+      label: '标题选择器',
+      children: <Text code>{ef.titleSelector}</Text>,
+    });
+  }
 
   const titleSuspect = ef.titleSuspectWrong === true;
   const userWarnings = (result.warnings ?? []).filter(
@@ -124,11 +132,6 @@ export function RuleTestResultPanel({ result, showProduct = true, compact = fals
           {ef.title ? (
             <Space direction="vertical" size={0}>
               <Text>{ef.titleText || '已识别'}</Text>
-              {ef.titleSelector ? (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  命中：{ef.titleSelector}
-                </Text>
-              ) : null}
               {ef.titleConfidence ? (
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   可信度：{confidenceLabel(String(ef.titleConfidence))}
@@ -193,26 +196,15 @@ export function RuleTestResultPanel({ result, showProduct = true, compact = fals
       ) : null}
 
       {technicalItems.length > 0 ? (
-        <Collapse
-          ghost
-          size="small"
-          style={{ marginTop: 12 }}
-          items={[
-            {
-              key: 'tech',
-              label: '展开查看技术信息',
-              children: (
-                <Descriptions bordered size="small" column={1}>
-                  {technicalItems.map((item) => (
-                    <Descriptions.Item key={item.key} label={item.label}>
-                      {item.children}
-                    </Descriptions.Item>
-                  ))}
-                </Descriptions>
-              ),
-            },
-          ]}
-        />
+        <TechnicalDetails label="技术详情">
+          <Descriptions bordered size="small" column={1}>
+            {technicalItems.map((item) => (
+              <Descriptions.Item key={item.key} label={item.label}>
+                {item.children}
+              </Descriptions.Item>
+            ))}
+          </Descriptions>
+        </TechnicalDetails>
       ) : null}
 
       {showProduct && result.product && typeof result.product === 'object' ? (
