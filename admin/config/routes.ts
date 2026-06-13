@@ -61,10 +61,15 @@ export default [
         component: './TaskCenter/Alerts',
       },
       {
-        path: '/ops/douyin/runtime',
-        name: '抖店运行状态',
+        path: '/ops/platform-runtime',
+        name: '平台运行状态',
         icon: 'ApiOutlined',
-        component: './Ops/DouyinRuntime',
+        component: './Ops/PlatformRuntime',
+      },
+      {
+        path: '/ops/douyin/runtime',
+        redirect: '/ops/platform-runtime?platform=douyin_shop',
+        hideInMenu: true,
       },
     ],
   },

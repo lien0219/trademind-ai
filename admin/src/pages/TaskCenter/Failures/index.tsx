@@ -174,8 +174,8 @@ export default function TaskCenterFailuresPage() {
     }
     if (!canOpenFailureDetail(taskType, jumpId)) {
       if (taskType.trim() === 'douyin_platform') {
-        message.info('该平台级告警无对应失败任务详情，已跳转到抖店运行状态页');
-        history.replace('/ops/douyin/runtime');
+        message.info('该平台级告警无对应失败任务详情，已跳转到平台运行状态页');
+        history.replace('/ops/platform-runtime?platform=douyin_shop');
         return;
       }
       if (isPlatformAlertTaskType(taskType)) {

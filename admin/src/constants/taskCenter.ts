@@ -127,7 +127,7 @@ export function resolveAlertRelatedLink(alert: {
   const sourceId = (alert.sourceId || '').trim();
 
   if (taskType === 'douyin_platform') {
-    return { href: '/ops/douyin/runtime', label: '抖店运维' };
+    return { href: '/ops/platform-runtime?platform=douyin_shop', label: '平台运维' };
   }
   if (isPlatformAlertTaskType(taskType)) {
     return { href: '/ops/task-center/alerts', label: '告警中心' };

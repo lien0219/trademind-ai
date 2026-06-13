@@ -8,7 +8,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { ActionBar, SectionCard, TechnicalDetails, TmPageContainer } from '@/components/ui';
+import { ActionBar, SectionCard, TechnicalDetails } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, Link } from '@umijs/max';
 import {
@@ -101,7 +101,6 @@ function failuresHref(params: Record<string, string>): string {
   return `/ops/task-center/failures?${sp.toString()}`;
 }
 
-/** 抖店任务健康摘要 details 字段中文名（与后端 healthTasks 一致） */
 const DOUYIN_TASK_HEALTH_DETAIL_LABEL: Record<string, string> = {
   failedPending: '待处理失败任务',
   recoveryRequired: '需要人工检查',
@@ -300,7 +299,7 @@ function ReleaseGatePanel({ gate }: { gate: DouyinReleaseGate | null }) {
   );
 }
 
-export default function DouyinRuntimePage() {
+export default function DouyinRuntimePanel() {
   const [loading, setLoading] = useState(true);
   const [healthChecking, setHealthChecking] = useState(false);
   const [storageTesting, setStorageTesting] = useState(false);
@@ -391,242 +390,235 @@ export default function DouyinRuntimePage() {
   const gray = health?.grayRelease;
 
   return (
-    <TmPageContainer
-      title="抖店运行状态"
-      subTitle="聚合健康检查、24 小时指标、运行控制与发布门禁清单（Release Candidate）"
-    >
-      <Spin spinning={loading}>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <ProCard variant="outlined">
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              <Space wrap align="center">
-                <Text strong style={{ fontSize: 16 }}>
-                  整体状态
-                </Text>
-                {healthTag(health?.overallStatus)}
-                <Text>{health?.overallLabel || '—'}</Text>
-                {health?.checkedAt ? (
-                  <Text type="secondary">最近检查：{formatDateTime(health.checkedAt)}</Text>
-                ) : null}
-              </Space>
-              {gray?.enabled ? (
-                <Alert
-                  showIcon
-                  type="info"
-                  message="灰度发布已启用"
-                  description={
-                    <Space direction="vertical" size={4}>
-                      <Text>
-                        写操作：{gray.writeOperationsEnabled ? '已开启' : '已关闭'} · 定时订单同步：
-                        {gray.scheduledOrderSyncEnabled ? '已开启' : '已关闭'} · 定时库存同步：
-                        {gray.scheduledInventorySyncEnabled ? '已开启' : '已关闭'}
-                      </Text>
-                      {gray.shopIds?.length ? (
-                        <Text type="secondary">灰度店铺：{gray.shopIds.join(', ')}</Text>
-                      ) : (
-                        <Text type="secondary">未配置灰度店铺列表</Text>
-                      )}
-                    </Space>
-                  }
-                />
-              ) : null}
-              <ActionBar>
-                <Button type="primary" icon={<ReloadOutlined />} loading={healthChecking} onClick={() => void runHealthCheck()}>
-                  运行健康检查
-                </Button>
-                <Button icon={<ReloadOutlined />} onClick={() => void loadAll()}>
-                  刷新全部
-                </Button>
-                <Button icon={<BellOutlined />} onClick={() => history.push('/ops/task-center/alerts')}>
-                  告警中心
-                </Button>
-                <Button icon={<WarningOutlined />} onClick={() => history.push('/ops/task-center/failures?platform=douyin_shop')}>
-                  失败任务
-                </Button>
-                <Link to="/settings/platforms">
-                  <Button>平台接入设置</Button>
-                </Link>
-              </ActionBar>
+    <Spin spinning={loading}>
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <ProCard variant="outlined">
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Space wrap align="center">
+              <Text strong style={{ fontSize: 16 }}>
+                整体状态
+              </Text>
+              {healthTag(health?.overallStatus)}
+              <Text>{health?.overallLabel || '—'}</Text>
+              {health?.checkedAt ? <Text type="secondary">最近检查：{formatDateTime(health.checkedAt)}</Text> : null}
             </Space>
-          </ProCard>
-
-          <SectionCard title="运行控制" description="暂停或紧急停用后，Worker 将不再调用抖店写接口。">
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              <Space wrap>
-                <Text strong>当前状态</Text>
-                {runtimeStatusTag(runtime?.status ?? health?.runtime?.status)}
-                {runtime?.message ? <Text type="secondary">{runtime.message}</Text> : null}
-              </Space>
-              {runtime?.reason ? <Text type="secondary">最近变更原因：{runtime.reason}</Text> : null}
-              {runtime?.changedAt ? <Text type="secondary">变更时间：{runtime.changedAt}</Text> : null}
-              <Input.TextArea
-                rows={2}
-                placeholder="填写本次操作原因（必填）"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              <ActionBar>
-                <Button
-                  onClick={() =>
-                    confirmRuntimeChange('暂停抖店任务？', async () => {
-                      const res = await pauseDouyinRuntime(reason.trim());
-                      setRuntime(res);
-                      setReason('');
-                      message.success('已暂停');
-                      void loadAll();
-                    })
-                  }
-                >
-                  暂停任务
-                </Button>
-                <Button
-                  type="primary"
-                  onClick={() =>
-                    confirmRuntimeChange('恢复抖店运行？', async () => {
-                      const res = await resumeDouyinRuntime(reason.trim());
-                      setRuntime(res);
-                      setReason('');
-                      message.success('已恢复运行');
-                      void loadAll();
-                    })
-                  }
-                >
-                  恢复运行
-                </Button>
-                <Button
-                  danger
-                  onClick={() =>
-                    confirmRuntimeChange('紧急停用抖店？', async () => {
-                      const res = await emergencyDisableDouyinRuntime(reason.trim());
-                      setRuntime(res);
-                      setReason('');
-                      message.warning('已紧急停用');
-                      void loadAll();
-                    })
-                  }
-                >
-                  紧急停用
-                </Button>
-              </ActionBar>
-            </Space>
-          </SectionCard>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={12}>
-              <HealthSectionCard
-                title="应用配置"
-                icon={<ApiOutlined />}
-                section={health?.config}
-                extra={
-                  <Link to="/settings/platforms">
-                    <Button size="small" type="link">
-                      前往平台接入设置
-                    </Button>
-                  </Link>
-                }
-              />
-            </Col>
-            <Col xs={24} lg={12}>
-              <HealthSectionCard
-                title="店铺授权"
-                icon={<ShopOutlined />}
-                section={health?.auth}
-                extra={
-                  <Link to="/shops/manage">
-                    <Button size="small" type="link">
-                      前往店铺管理
-                    </Button>
-                  </Link>
-                }
-              />
-            </Col>
-            <Col xs={24} lg={12}>
-              <HealthSectionCard
-                title="Storage 公网访问"
-                icon={<CloudServerOutlined />}
-                section={health?.storage}
-                extra={
-                  <Space wrap>
-                    <Button size="small" loading={storageTesting} onClick={() => void testStorage()}>
-                      测试公网访问
-                    </Button>
-                    <Link to="/settings/storage">
-                      <Button size="small" type="link">
-                        存储设置
-                      </Button>
-                    </Link>
+            {gray?.enabled ? (
+              <Alert
+                showIcon
+                type="info"
+                message="灰度发布已启用"
+                description={
+                  <Space direction="vertical" size={4}>
+                    <Text>
+                      写操作：{gray.writeOperationsEnabled ? '已开启' : '已关闭'} · 定时订单同步：
+                      {gray.scheduledOrderSyncEnabled ? '已开启' : '已关闭'} · 定时库存同步：
+                      {gray.scheduledInventorySyncEnabled ? '已开启' : '已关闭'}
+                    </Text>
+                    {gray.shopIds?.length ? (
+                      <Text type="secondary">灰度店铺：{gray.shopIds.join(', ')}</Text>
+                    ) : (
+                      <Text type="secondary">未配置灰度店铺列表</Text>
+                    )}
                   </Space>
                 }
               />
-            </Col>
-            <Col xs={24} lg={12}>
-              <HealthSectionCard title="API 调用" icon={<SafetyCertificateOutlined />} section={health?.api} />
-            </Col>
-          </Row>
-
-          <SectionCard title="24 小时指标" description="滚动 24 小时窗口内的抖店运行指标。">
-            {metrics?.generatedAt ? (
-              <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                统计时间：{formatDateTime(metrics.generatedAt)}
-              </Text>
             ) : null}
-            <MetricsGrid metrics={metrics} />
-          </SectionCard>
+            <ActionBar>
+              <Button type="primary" icon={<ReloadOutlined />} loading={healthChecking} onClick={() => void runHealthCheck()}>
+                运行健康检查
+              </Button>
+              <Button icon={<ReloadOutlined />} onClick={() => void loadAll()}>
+                刷新全部
+              </Button>
+              <Button icon={<BellOutlined />} onClick={() => history.push('/ops/task-center/alerts')}>
+                告警中心
+              </Button>
+              <Button icon={<WarningOutlined />} onClick={() => history.push('/ops/task-center/failures?platform=douyin_shop')}>
+                失败任务
+              </Button>
+              <Link to="/settings/platforms">
+                <Button>平台接入设置</Button>
+              </Link>
+            </ActionBar>
+          </Space>
+        </ProCard>
 
-          <SectionCard title="待处理问题" description="点击条目跳转到对应处理页面。">
-            {issues.length ? (
-              <List<IssueRow>
-                size="small"
-                bordered
-                dataSource={issues}
-                renderItem={(item) => (
-                  <List.Item
-                    actions={[
-                      <Button key="go" type="link" size="small" onClick={() => history.push(item.href)}>
-                        去处理
-                      </Button>,
-                    ]}
-                  >
-                    <Space>
-                      <Tag color={item.severity === 'error' ? 'error' : item.severity === 'warning' ? 'warning' : 'processing'}>
-                        {item.count}
-                      </Tag>
-                      <Text>{item.label}</Text>
-                    </Space>
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Alert showIcon type="success" message="暂无需要立即处理的问题" />
-            )}
-          </SectionCard>
+        <SectionCard title="运行控制" description="暂停或紧急停用后，Worker 将不再调用抖店写接口。">
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Space wrap>
+              <Text strong>当前状态</Text>
+              {runtimeStatusTag(runtime?.status ?? health?.runtime?.status)}
+              {runtime?.message ? <Text type="secondary">{runtime.message}</Text> : null}
+            </Space>
+            {runtime?.reason ? <Text type="secondary">最近变更原因：{runtime.reason}</Text> : null}
+            {runtime?.changedAt ? <Text type="secondary">变更时间：{runtime.changedAt}</Text> : null}
+            <Input.TextArea
+              rows={2}
+              placeholder="填写本次操作原因（必填）"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+            <ActionBar>
+              <Button
+                onClick={() =>
+                  confirmRuntimeChange('暂停抖店任务？', async () => {
+                    const res = await pauseDouyinRuntime(reason.trim());
+                    setRuntime(res);
+                    setReason('');
+                    message.success('已暂停');
+                    void loadAll();
+                  })
+                }
+              >
+                暂停任务
+              </Button>
+              <Button
+                type="primary"
+                onClick={() =>
+                  confirmRuntimeChange('恢复抖店运行？', async () => {
+                    const res = await resumeDouyinRuntime(reason.trim());
+                    setRuntime(res);
+                    setReason('');
+                    message.success('已恢复运行');
+                    void loadAll();
+                  })
+                }
+              >
+                恢复运行
+              </Button>
+              <Button
+                danger
+                onClick={() =>
+                  confirmRuntimeChange('紧急停用抖店？', async () => {
+                    const res = await emergencyDisableDouyinRuntime(reason.trim());
+                    setRuntime(res);
+                    setReason('');
+                    message.warning('已紧急停用');
+                    void loadAll();
+                  })
+                }
+              >
+                紧急停用
+              </Button>
+            </ActionBar>
+          </Space>
+        </SectionCard>
 
-          <SectionCard title="发布门禁清单" description="Release Candidate 检查项；真实 E2E 仍可能 blocked_by_real_credentials。">
-            <ReleaseGatePanel gate={gate} />
-          </SectionCard>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={12}>
+            <HealthSectionCard
+              title="应用配置"
+              icon={<ApiOutlined />}
+              section={health?.config}
+              extra={
+                <Link to="/settings/platforms">
+                  <Button size="small" type="link">
+                    前往平台接入设置
+                  </Button>
+                </Link>
+              }
+            />
+          </Col>
+          <Col xs={24} lg={12}>
+            <HealthSectionCard
+              title="店铺授权"
+              icon={<ShopOutlined />}
+              section={health?.auth}
+              extra={
+                <Link to="/shops/manage">
+                  <Button size="small" type="link">
+                    前往店铺管理
+                  </Button>
+                </Link>
+              }
+            />
+          </Col>
+          <Col xs={24} lg={12}>
+            <HealthSectionCard
+              title="Storage 公网访问"
+              icon={<CloudServerOutlined />}
+              section={health?.storage}
+              extra={
+                <Space wrap>
+                  <Button size="small" loading={storageTesting} onClick={() => void testStorage()}>
+                    测试公网访问
+                  </Button>
+                  <Link to="/settings/storage">
+                    <Button size="small" type="link">
+                      存储设置
+                    </Button>
+                  </Link>
+                </Space>
+              }
+            />
+          </Col>
+          <Col xs={24} lg={12}>
+            <HealthSectionCard title="API 调用" icon={<SafetyCertificateOutlined />} section={health?.api} />
+          </Col>
+        </Row>
 
-          {health?.tasks ? (
-            <SectionCard title="任务健康摘要">
-              <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
-                {(() => {
-                  const details = health.tasks.details ?? {};
-                  const ordered = DOUYIN_TASK_HEALTH_DETAIL_ORDER.filter(
-                    (k) => details[k] !== undefined && details[k] !== null,
-                  );
-                  const extra = Object.keys(details).filter(
-                    (k) => !(DOUYIN_TASK_HEALTH_DETAIL_ORDER as readonly string[]).includes(k),
-                  );
-                  return [...ordered, ...extra].map((k) => (
-                    <Descriptions.Item key={k} label={douyinTaskHealthDetailLabel(k)}>
-                      {String(details[k])}
-                    </Descriptions.Item>
-                  ));
-                })()}
-              </Descriptions>
-            </SectionCard>
+        <SectionCard title="24 小时指标" description="滚动 24 小时窗口内的抖店运行指标。">
+          {metrics?.generatedAt ? (
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              统计时间：{formatDateTime(metrics.generatedAt)}
+            </Text>
           ) : null}
-        </Space>
-      </Spin>
-    </TmPageContainer>
+          <MetricsGrid metrics={metrics} />
+        </SectionCard>
+
+        <SectionCard title="待处理问题" description="点击条目跳转到对应处理页面。">
+          {issues.length ? (
+            <List<IssueRow>
+              size="small"
+              bordered
+              dataSource={issues}
+              renderItem={(item) => (
+                <List.Item
+                  actions={[
+                    <Button key="go" type="link" size="small" onClick={() => history.push(item.href)}>
+                      去处理
+                    </Button>,
+                  ]}
+                >
+                  <Space>
+                    <Tag color={item.severity === 'error' ? 'error' : item.severity === 'warning' ? 'warning' : 'processing'}>
+                      {item.count}
+                    </Tag>
+                    <Text>{item.label}</Text>
+                  </Space>
+                </List.Item>
+              )}
+            />
+          ) : (
+            <Alert showIcon type="success" message="暂无需要立即处理的问题" />
+          )}
+        </SectionCard>
+
+        <SectionCard title="发布门禁清单" description="Release Candidate 检查项；真实 E2E 仍可能 blocked_by_real_credentials。">
+          <ReleaseGatePanel gate={gate} />
+        </SectionCard>
+
+        {health?.tasks ? (
+          <SectionCard title="任务健康摘要">
+            <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
+              {(() => {
+                const details = health.tasks.details ?? {};
+                const ordered = DOUYIN_TASK_HEALTH_DETAIL_ORDER.filter(
+                  (k) => details[k] !== undefined && details[k] !== null,
+                );
+                const extra = Object.keys(details).filter(
+                  (k) => !(DOUYIN_TASK_HEALTH_DETAIL_ORDER as readonly string[]).includes(k),
+                );
+                return [...ordered, ...extra].map((k) => (
+                  <Descriptions.Item key={k} label={douyinTaskHealthDetailLabel(k)}>
+                    {String(details[k])}
+                  </Descriptions.Item>
+                ));
+              })()}
+            </Descriptions>
+          </SectionCard>
+        ) : null}
+      </Space>
+    </Spin>
   );
 }

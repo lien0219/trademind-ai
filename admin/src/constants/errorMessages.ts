@@ -88,17 +88,17 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
   DOUYIN_PLATFORM_PAUSED: {
     title: '抖店任务已暂停',
     detail: '管理员已暂停抖店写操作，任务不会继续执行。',
-    action: '前往抖店运行状态页恢复',
+    action: '前往平台运行状态页恢复',
   },
   DOUYIN_PLATFORM_EMERGENCY_DISABLED: {
     title: '抖店已紧急停用',
     detail: '所有抖店写接口已停用，需管理员恢复后才能继续。',
-    action: '前往抖店运行状态页',
+    action: '前往平台运行状态页',
   },
   DOUYIN_TASK_BLOCKED_BY_RUNTIME_STATUS: {
     title: '任务被运行状态拦截',
     detail: '抖店当前处于暂停或紧急停用状态。',
-    action: '前往抖店运行状态页',
+    action: '前往平台运行状态页',
   },
   UNKNOWN_DOUYIN_AUTH_ERROR: {
     title: '抖店店铺授权失败',

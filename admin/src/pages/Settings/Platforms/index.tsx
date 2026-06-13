@@ -20,6 +20,7 @@ import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TechnicalDetails, TmPageContainer } from '@/components/ui';
 import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
+import { platformRuntimeHref } from '@/constants/platformRuntime';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import {
   PLATFORM_DEV_PORTALS,
@@ -253,7 +254,7 @@ function DouyinRuntimePanel() {
       title="抖店运行状态"
       description="暂停或紧急停用后，Worker 将不再调用抖店写接口；历史数据仍可查看。"
       headerExtra={
-        <Link to="/ops/douyin/runtime">
+        <Link to={platformRuntimeHref('douyin_shop')}>
           <Button type="link" size="small">
             查看完整运行状态
           </Button>
