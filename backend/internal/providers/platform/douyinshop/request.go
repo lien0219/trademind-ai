@@ -73,6 +73,13 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		outErr := MapHTTPError(resp.StatusCode, requestID)
+		if HTTPStatusRetryable(resp.StatusCode) {
+			outErr.Retryable = true
+		}
+		retryAfter := ParseRetryAfter(resp.Header.Get("Retry-After"))
+		if retryAfter > 0 && outErr.RateLimited {
+			_ = retryAfter
+		}
 		c.logRequest(ctx, SafeRequestLog{
 			Method:       method,
 			RequestID:    requestID,

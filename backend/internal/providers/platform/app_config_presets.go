@@ -59,6 +59,10 @@ func DouyinShopAppConfigSchema() PlatformAppConfigSchema {
 			{Name: "order_sync_max_pages", Label: "订单同步最大页数", Type: "number", Required: false, Sensitive: false, DefaultValue: 5, Help: "单次任务最多拉取页数（默认 5）；每页 size 由任务 limit 控制，总条数上限 500"},
 			{Name: "inventory_sync_enabled", Label: "启用库存同步", Type: "switch", Required: false, Sensitive: false},
 			{Name: "product_publish_enabled", Label: "启用商品草稿创建", Type: "switch", Required: false, Sensitive: false},
+			{Name: "stale_timeout_product_draft_min", Label: "商品草稿超时(分钟)", Type: "number", Required: false, Sensitive: false, DefaultValue: 10},
+			{Name: "stale_timeout_image_upload_min", Label: "图片上传超时(分钟)", Type: "number", Required: false, Sensitive: false, DefaultValue: 15},
+			{Name: "stale_timeout_order_sync_min", Label: "订单同步超时(分钟)", Type: "number", Required: false, Sensitive: false, DefaultValue: 30},
+			{Name: "stale_timeout_inventory_sync_min", Label: "库存同步超时(分钟)", Type: "number", Required: false, Sensitive: false, DefaultValue: 15},
 			{Name: "timeout_sec", Label: "Timeout (seconds)", Type: "number", Required: true, Sensitive: false, DefaultValue: 30, Help: "外部 HTTP 超时，5–600"},
 		},
 	}

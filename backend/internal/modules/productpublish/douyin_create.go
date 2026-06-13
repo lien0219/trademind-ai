@@ -218,6 +218,9 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 	if err != nil || !claimed || taskRow == nil {
 		return err
 	}
+	if err := s.guardDouyinWorker(ctx, taskID, platformdouyin.FeatureProductDraft, taskRow.CreatedBy); err != nil {
+		return err
+	}
 	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, s.publishLeaseTTL())
 	defer cancelRen()
 
@@ -332,6 +335,10 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 				retryable = de.Retryable
 				requestID = de.RequestID
 				raw = map[string]any{"platformCode": de.PlatformCode, "platformMessage": de.PlatformMessage}
+				if de.Code == platformdouyin.CodeDouyinRequestTimeout {
+					s.markDouyinStale(ctx, taskID, platformdouyin.CodeDouyinTaskResultUnknown, platformdouyin.RecoveryResultUnknown, taskRow.CreatedBy)
+					return fail(platformdouyin.CodeDouyinTaskResultUnknown, platformdouyin.UserMessageForRecovery(platformdouyin.RecoveryResultUnknown), true, requestID, raw)
+				}
 			}
 			return fail(code, pubErr.Error(), retryable, requestID, raw)
 		}

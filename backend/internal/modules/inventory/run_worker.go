@@ -53,6 +53,9 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	if !ok {
 		return nil
 	}
+	if err := s.guardDouyinInventoryWorker(ctx, taskID, taskRow); err != nil {
+		return err
+	}
 	s.InventoryRateObserveStarted(ctx, taskRow.Platform)
 	stop := s.startInventoryLeaseRenewal(ctx, taskID, workerID, lease)
 	defer stop()

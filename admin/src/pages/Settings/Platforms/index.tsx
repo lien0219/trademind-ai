@@ -6,6 +6,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Select,
   Space,
   Spin,
@@ -42,7 +43,12 @@ import { getDouyinCategoryStats, syncDouyinCategories } from '@/services/douyinC
 import {
   getDouyinProductionPreflightLatest,
   runDouyinProductionPreflight,
+  getDouyinRuntimeStatus,
+  pauseDouyinRuntime,
+  resumeDouyinRuntime,
+  emergencyDisableDouyinRuntime,
   type DouyinPreflightResult,
+  type DouyinRuntimeStatus,
   type PreflightCheckItem,
 } from '@/services/douyinProduction';
 
@@ -188,6 +194,123 @@ function preflightOverallTag(status?: string) {
     <Tag color={st.color} style={{ margin: 0 }}>
       {st.label}
     </Tag>
+  );
+}
+
+function runtimeStatusTag(status?: string) {
+  switch (status) {
+    case 'paused':
+      return <Tag color="warning">已暂停</Tag>;
+    case 'emergency_disabled':
+      return <Tag color="error">紧急停用</Tag>;
+    default:
+      return <Tag color="success">正常运行</Tag>;
+  }
+}
+
+function DouyinRuntimePanel() {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<DouyinRuntimeStatus | null>(null);
+  const [reason, setReason] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getDouyinRuntimeStatus();
+      setStatus(res);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '加载运行状态失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const confirmChange = (title: string, onOk: () => Promise<void>) => {
+    if (!reason.trim()) {
+      message.warning('请填写变更原因');
+      return;
+    }
+    Modal.confirm({
+      title,
+      content: (
+        <div>
+          <Paragraph type="secondary">此操作将影响抖店任务执行，请确认原因已记录。</Paragraph>
+          <Text>原因：{reason}</Text>
+        </div>
+      ),
+      okText: '确认',
+      cancelText: '取消',
+      onOk,
+    });
+  };
+
+  return (
+    <SectionCard title="抖店运行状态" description="暂停或紧急停用后，Worker 将不再调用抖店写接口；历史数据仍可查看。">
+      <Spin spinning={loading}>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <Text strong>当前状态</Text>
+            {runtimeStatusTag(status?.status)}
+            {status?.message ? <Text type="secondary">{status.message}</Text> : null}
+          </Space>
+          {status?.reason ? <Text type="secondary">最近变更原因：{status.reason}</Text> : null}
+          {status?.changedAt ? <Text type="secondary">变更时间：{status.changedAt}</Text> : null}
+          <Input.TextArea
+            rows={2}
+            placeholder="填写本次操作原因（必填）"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <ActionBar>
+            <Button
+              onClick={() =>
+                confirmChange('暂停抖店任务？', async () => {
+                  const res = await pauseDouyinRuntime(reason.trim());
+                  setStatus(res);
+                  setReason('');
+                  message.success('已暂停');
+                })
+              }
+            >
+              暂停任务
+            </Button>
+            <Button
+              type="primary"
+              onClick={() =>
+                confirmChange('恢复抖店运行？', async () => {
+                  const res = await resumeDouyinRuntime(reason.trim());
+                  setStatus(res);
+                  setReason('');
+                  message.success('已恢复运行');
+                })
+              }
+            >
+              恢复运行
+            </Button>
+            <Button
+              danger
+              onClick={() =>
+                confirmChange('紧急停用抖店？', async () => {
+                  const res = await emergencyDisableDouyinRuntime(reason.trim());
+                  setStatus(res);
+                  setReason('');
+                  message.warning('已紧急停用');
+                })
+              }
+            >
+              紧急停用
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={() => void load()}>
+              刷新
+            </Button>
+          </ActionBar>
+        </Space>
+      </Spin>
+    </SectionCard>
   );
 }
 
@@ -471,6 +594,7 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
           />
         ) : null}
 
+        {meta.platform === 'douyin_shop' ? <DouyinRuntimePanel /> : null}
         {meta.platform === 'douyin_shop' ? <DouyinPreflightPanel /> : null}
       </Space>
     </Spin>

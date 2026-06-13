@@ -44,6 +44,7 @@ func (f SafeLoggerFunc) LogDouyinRequest(ctx context.Context, entry SafeRequestL
 }
 
 type Client struct {
+	ShopID string
 	Config RuntimeConfig
 	HTTP   HTTPDoer
 	Now    func() time.Time
@@ -133,7 +134,7 @@ func (c *Client) refreshUsable(now time.Time) bool {
 	return c.RefreshTokenExpiresAt.After(now)
 }
 
-func (c *Client) EnsureFreshAccess(ctx context.Context) (string, error) {
+func (c *Client) ensureFreshAccessDirect(ctx context.Context) (string, error) {
 	now := c.now()
 	if c.accessFresh(now) {
 		return strings.TrimSpace(c.AccessToken), nil
@@ -147,6 +148,10 @@ func (c *Client) EnsureFreshAccess(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(tok.AccessToken), nil
+}
+
+func (c *Client) EnsureFreshAccess(ctx context.Context) (string, error) {
+	return c.EnsureFreshAccessSingleflight(ctx)
 }
 
 func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
@@ -180,9 +185,28 @@ func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
 }
 
 func (c *Client) Do(ctx context.Context, method string, params map[string]any, out any) error {
-	access, err := c.EnsureFreshAccess(ctx)
+	ctx = WithShopID(ctx, c.ShopID)
+	access, err := c.EnsureFreshAccessSingleflight(ctx)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, method, params, access, out)
+	policy := DefaultRetryPolicy()
+	attempts, err := ExecuteWithRetry(ctx, policy, func(ctx context.Context, attempt int) error {
+		doErr := c.do(ctx, method, params, access, out)
+		if doErr == nil {
+			return nil
+		}
+		var de *Error
+		if AsError(doErr, &de) && de != nil && de.AuthExpired {
+			newToken, refreshErr := c.RefreshOnceAfterAuthError(ctx)
+			if refreshErr != nil {
+				return refreshErr
+			}
+			access = newToken
+			return c.do(ctx, method, params, access, out)
+		}
+		return doErr
+	})
+	_ = attempts
+	return err
 }

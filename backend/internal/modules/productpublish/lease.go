@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -90,15 +92,38 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 	}
 	fin := now
 	msg := "worker lease expired"
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":        TaskFailed,
-			"error_message": msg,
-			"finished_at":   &fin,
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
-		}).Error
+	code := platformdouyin.CodeDouyinTaskStale
+	recovery := platformdouyin.RecoveryStale
+	if task.Platform == "douyin_shop" {
+		out := platformdouyin.MarshalRecoveryOutput(nil, platformdouyin.TaskRecoveryMeta{
+			RecoveryStatus: recovery,
+			LastErrorCode:  code,
+			UserMessage:    platformdouyin.UserMessageForRecovery(recovery),
+			TechnicalCode:  code,
+		})
+		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+			Updates(map[string]any{
+				"status":        TaskFailed,
+				"error_code":    code,
+				"error_message": platformdouyin.UserMessageForRecovery(recovery),
+				"retryable":     true,
+				"finished_at":   &fin,
+				"output":        datatypes.JSON(out),
+				"locked_by":     nil,
+				"locked_until":  nil,
+				"updated_at":    fin,
+			}).Error
+	} else {
+		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+			Updates(map[string]any{
+				"status":        TaskFailed,
+				"error_message": msg,
+				"finished_at":   &fin,
+				"locked_by":     nil,
+				"locked_until":  nil,
+				"updated_at":    fin,
+			}).Error
+	}
 	if rid, ok := snapshotPublicationFromTask(&task); ok {
 		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
 			Updates(map[string]any{

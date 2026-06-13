@@ -332,6 +332,10 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return nil
 	}
 
+	if err := s.guardDouyinOrderWorker(ctx, taskID, task); err != nil {
+		return err
+	}
+
 	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, lease)
 	defer stopRen()
 

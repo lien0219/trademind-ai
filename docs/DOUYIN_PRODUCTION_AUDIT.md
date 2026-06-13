@@ -133,11 +133,40 @@
 
 ---
 
+## 5.2 Phase 10.3 已修复 / 新增（运行可靠性与安全加固）
+
+| 项 | 说明 |
+| --- | --- |
+| 统一重试策略 | `douyinshop/retry_policy.go` — `ExecuteWithRetry`、指数退避+抖动、最大 3 次；权限/参数错误不可重试 |
+| 限流处理 | `douyinshop/rate_limit.go` — `Retry-After` 解析；HTTP 429/5xx 可重试 |
+| Token 单飞 | `douyinshop/token_singleflight.go` — 同店铺并发刷新仅 1 次 HTTP；撤销时 `ClearTokenRefreshState` |
+| Worker 开关二次检查 | `GuardWorker` — 商品草稿/订单/库存/图片执行前检查 `real_api_enabled` 与各功能开关 |
+| 平台运行状态 | `normal` / `paused` / `emergency_disabled`；API + 管理端「抖店运行状态」 |
+| Stale 任务 | 租约过期标记 `DOUYIN_TASK_STALE`；商品超时 `result_unknown` + `product.detail` 回查 |
+| SSRF 加固 | `pkg/safedownload` — DNS+连接时 IP 校验、重定向限制、图片解码 |
+| 敏感信息脱敏 | `pkg/safefields` — 递归 map/URL/Header 脱敏；接入 `douyinshop/errors.go` |
+| 迁移前重复检查 | `migrateDouyinPhase102Indexes` 启动时自动检测；失败见 `DOUYIN_DUPLICATE_DATA_REPAIR.md` |
+| 库存限流 defer | 最多 defer 5 次 + 2s 等待，避免无限 requeue |
+
+### Phase 10.3 重试审计结论（改造前基线 → 现状）
+
+| 审计项 | 改造前 | Phase 10.3 后 |
+| --- | --- | --- |
+| HTTP 层散落重试 | 无统一策略，单次 `do()` | `Client.Do` 统一 `ExecuteWithRetry` |
+| Token 刷新风暴 | 多 Worker 可并行 refresh | `singleflight` 按 `shopId` 单飞 |
+| Worker 自动重试 | 订单/商品/库存无自动重试 | 仍无业务层嵌套重试（避免放大） |
+| 权限/参数误重试 | 手动重试不校验 | Provider 层 `Retryable=false`；Client 不重试 |
+| 开关 enforcement | 仅 Provider 部分校验 | Worker 执行前 `GuardWorker` |
+| 图片下载 SSRF | 部分 DNS 检查 | 统一 `safedownload` |
+| 唯一索引迁移 | 直接 `CREATE INDEX` | 先检测重复，有则阻断并输出 sample IDs |
+
+---
+
 ## 6. 仍阻塞上线
 
 1. 真实凭证 E2E 全绿（见 §4）  
 2. P0-3 真实环境重复订单 / 重复扣减验证（代码加固已完成，见 §5.1）  
-3. P1 可靠性 / 可观测 / 紧急停用（Phase 10.3–10.4）  
+3. P1 可观测 / 灰度演练（Phase 10.4）  
 4. 灰度 48–72h 无阻断错误  
 5. 回滚演练（文档 Phase 10.4）
 
@@ -147,5 +176,6 @@
 
 | 日期 | 摘要 |
 | --- | --- |
+| 2026-06-13 | Phase 10.3：统一重试/Token 单飞/运行状态/SSRF/脱敏/stale 恢复/迁移重复检查 |
 | 2026-06-13 | Phase 10.2：Fixture/契约测试、订单断点恢复、幂等 migration、草稿 platform 回查、库存 dedup |
 | 2026-06-13 | Phase 10.1：基线扫描、生产预检、Storage 公网验证、管理端入口 |

@@ -53,6 +53,7 @@ func ensureFreshClient(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 	if err != nil {
 		return nil, RuntimeConfig{}, err
 	}
+	client.ShopID = shopID.String()
 	now := client.now()
 	if client.accessFresh(now) {
 		return client, cfg, nil

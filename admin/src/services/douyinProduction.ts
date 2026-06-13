@@ -48,3 +48,29 @@ export type StoragePublicAccessResult = {
 export async function testStoragePublicAccess() {
   return postJSON<StoragePublicAccessResult>('/api/v1/storage/test-public-access');
 }
+
+export type DouyinRuntimeStatus = {
+  status: 'normal' | 'paused' | 'emergency_disabled';
+  reason?: string;
+  changedAt?: string;
+  message?: string;
+};
+
+export async function getDouyinRuntimeStatus() {
+  return getJSON<DouyinRuntimeStatus>('/api/v1/platform/douyin/runtime-status');
+}
+
+export async function pauseDouyinRuntime(reason: string) {
+  return postJSON<DouyinRuntimeStatus, { reason: string }>('/api/v1/platform/douyin/runtime-status/pause', { reason });
+}
+
+export async function resumeDouyinRuntime(reason: string) {
+  return postJSON<DouyinRuntimeStatus, { reason: string }>('/api/v1/platform/douyin/runtime-status/resume', { reason });
+}
+
+export async function emergencyDisableDouyinRuntime(reason: string) {
+  return postJSON<DouyinRuntimeStatus, { reason: string }>(
+    '/api/v1/platform/douyin/runtime-status/emergency-disable',
+    { reason },
+  );
+}

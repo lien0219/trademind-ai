@@ -34,6 +34,8 @@ type RuntimeConfig struct {
 	OrderSyncMaxPages   int
 	InventoryEnabled    bool
 	ProductDraftEnabled bool
+	RuntimeStatus       string
+	RuntimeStatusReason string
 	HTTPTimeout         time.Duration
 }
 
@@ -138,6 +140,8 @@ func RuntimeFromMergedMap(m map[string]string) (RuntimeConfig, error) {
 	cfg.OrderSyncMaxPages = parseOrderSyncMaxPages(mapGetCI(m, "order_sync_max_pages"))
 	cfg.InventoryEnabled = boolFromConfig(m, "inventory_sync_enabled")
 	cfg.ProductDraftEnabled = boolFromConfig(m, "product_publish_enabled")
+	cfg.RuntimeStatus = parseRuntimeStatus(mapGetCI(m, "platform_runtime_status"))
+	cfg.RuntimeStatusReason = strings.TrimSpace(mapGetCI(m, "platform_runtime_status_reason"))
 
 	return cfg, nil
 }

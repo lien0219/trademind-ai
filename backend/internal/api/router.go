@@ -24,6 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
+	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -311,6 +312,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Storage:  storagePublicSvc,
 	}
 	douyinPreflightH := &douyinpreflight.Handler{Svc: douyinPreflightSvc, OpLog: opLogSvc}
+	douyinRuntimeSvc := &douyinruntime.Service{Settings: settingsSvc, OpLog: opLogSvc}
+	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
 	inventorySvc := &inventory.Service{
 		DB:       dep.DB,
@@ -511,6 +514,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	shop.Register(authed, shopH)
 	storagepublic.Register(authed, storagePublicH)
 	douyinpreflight.Register(authed, douyinPreflightH)
+	douyinruntime.Register(authed, douyinRuntimeH)
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
