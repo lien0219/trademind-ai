@@ -123,7 +123,9 @@ Collector 在规则未命中时会自动尝试：内置京东选择器、JSON-LD
 | `POST /api/v1/collect/browser-profiles` | 新建 Profile |
 | `POST …/:id/open-login` | 打开 headed 采集浏览器（body: `{ url }`） |
 | `POST …/:id/check` | 用 Profile 检测 URL 访问状态 |
-| `DELETE …/:id` | 停用 Profile |
+| `POST …/:id/disable` | 停用 Profile |
+| `POST …/:id/enable` | 重新启用 Profile |
+| `DELETE …/:id` | 删除 Profile 元数据（Collector 本地 Profile 目录不自动清理） |
 
 规则测试与采集任务 body 可选：
 

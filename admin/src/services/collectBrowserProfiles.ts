@@ -68,5 +68,13 @@ export async function checkBrowserProfile(id: string, payload: { url: string }) 
 }
 
 export async function disableBrowserProfile(id: string) {
+  return postJSON<{ ok: boolean }>(`/api/v1/collect/browser-profiles/${id}/disable`, {});
+}
+
+export async function enableBrowserProfile(id: string) {
+  return postJSON<{ ok: boolean }>(`/api/v1/collect/browser-profiles/${id}/enable`, {});
+}
+
+export async function deleteBrowserProfile(id: string) {
   return deleteJSON<{ ok: boolean }>(`/api/v1/collect/browser-profiles/${id}`);
 }

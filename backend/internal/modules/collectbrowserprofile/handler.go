@@ -105,7 +105,25 @@ func (h *Handler) Check(c *gin.Context) {
 	})
 }
 
+func (h *Handler) Disable(c *gin.Context) {
+	h.profileStatusAction(c, func(id uuid.UUID) error {
+		return h.Svc.Disable(c, id, adminUUID(c))
+	})
+}
+
+func (h *Handler) Enable(c *gin.Context) {
+	h.profileStatusAction(c, func(id uuid.UUID) error {
+		return h.Svc.Enable(c, id, adminUUID(c))
+	})
+}
+
 func (h *Handler) Delete(c *gin.Context) {
+	h.profileStatusAction(c, func(id uuid.UUID) error {
+		return h.Svc.Delete(c, id, adminUUID(c))
+	})
+}
+
+func (h *Handler) profileStatusAction(c *gin.Context, fn func(id uuid.UUID) error) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "browser profiles unavailable")
 		return
@@ -115,7 +133,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	if err := h.Svc.Disable(c, id, adminUUID(c)); err != nil {
+	if err := fn(id); err != nil {
 		if errors.Is(err, ErrProfileNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, err.Error())
 			return

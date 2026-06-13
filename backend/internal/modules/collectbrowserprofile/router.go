@@ -11,5 +11,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/collect/browser-profiles", h.Create)
 	g.POST("/collect/browser-profiles/:id/open-login", h.OpenLogin)
 	g.POST("/collect/browser-profiles/:id/check", h.Check)
+	g.POST("/collect/browser-profiles/:id/disable", h.Disable)
+	g.POST("/collect/browser-profiles/:id/enable", h.Enable)
 	g.DELETE("/collect/browser-profiles/:id", h.Delete)
 }

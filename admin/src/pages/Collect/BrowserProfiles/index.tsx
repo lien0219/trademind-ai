@@ -7,7 +7,9 @@ import { useRef, useState } from 'react';
 import {
   checkBrowserProfile,
   createBrowserProfile,
+  deleteBrowserProfile,
   disableBrowserProfile,
+  enableBrowserProfile,
   openBrowserProfileLogin,
   queryBrowserProfiles,
   type BrowserProfileRow,
@@ -27,6 +29,51 @@ export default function CollectBrowserProfilesPage() {
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
   const [checkUrl, setCheckUrl] = useState('');
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
+  const handleOpenLogin = async (row: BrowserProfileRow) => {
+    const u = checkUrl.trim() || row.lastCheckUrl || `https://${row.domain}/`;
+    setOpeningId(row.id);
+    try {
+      const res = await openBrowserProfileLogin(row.id, { url: u });
+      message.success(res.message);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '打开失败';
+      if (msg.includes('HEADED_BROWSER_REQUIRED')) {
+        message.error('无法打开登录窗口，请联系管理员开启采集浏览器的可视化模式');
+      } else {
+        message.error(msg);
+      }
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
+  const handleCheckStatus = async (row: BrowserProfileRow) => {
+    const u = checkUrl.trim() || row.lastCheckUrl;
+    if (!u) {
+      message.warning('请在页顶填写用于检测的商品链接');
+      return;
+    }
+    setCheckingId(row.id);
+    message.loading({ content: '正在检测登录状态…', key: 'browser-profile-check', duration: 0 });
+    try {
+      const res = await checkBrowserProfile(row.id, { url: u });
+      message.success({
+        content: `${accessStatusLabel(res.accessStatus).text}：${res.message}`,
+        key: 'browser-profile-check',
+      });
+      actionRef.current?.reload();
+    } catch (e) {
+      message.error({
+        content: e instanceof Error ? e.message : '检测失败',
+        key: 'browser-profile-check',
+      });
+    } finally {
+      setCheckingId(null);
+    }
+  };
 
   const columns: ProColumns<BrowserProfileRow>[] = [
     { title: '名称', dataIndex: 'name', ellipsis: true },
@@ -59,55 +106,71 @@ export default function CollectBrowserProfilesPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 280,
+      width: 320,
       render: (_, row) => (
         <Space wrap size="small">
-          <a
-            onClick={() => {
-              const u = checkUrl.trim() || row.lastCheckUrl || `https://${row.domain}/`;
-              void openBrowserProfileLogin(row.id, { url: u })
-                .then((res) => message.success(res.message))
-                .catch((e) => {
-                  const msg = e instanceof Error ? e.message : '打开失败';
-                  if (msg.includes('HEADED_BROWSER_REQUIRED')) {
-                    message.error('无法打开登录窗口，请联系管理员开启采集浏览器的可视化模式');
-                  } else {
-                    message.error(msg);
-                  }
-                });
-            }}
-          >
-            打开登录
-          </a>
-          <a
-            onClick={() => {
-              const u = checkUrl.trim() || row.lastCheckUrl;
-              if (!u) {
-                message.warning('请在页顶填写用于检测的商品链接');
-                return;
+          {row.status === 'active' ? (
+            <>
+              <Button
+                type="link"
+                size="small"
+                loading={openingId === row.id}
+                disabled={checkingId === row.id}
+                onClick={() => void handleOpenLogin(row)}
+              >
+                打开登录
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                loading={checkingId === row.id}
+                disabled={openingId === row.id}
+                onClick={() => void handleCheckStatus(row)}
+              >
+                检测状态
+              </Button>
+              <Popconfirm
+                title="停用该登录状态？"
+                onConfirm={() =>
+                  void disableBrowserProfile(row.id)
+                    .then(() => {
+                      message.success('已停用');
+                      actionRef.current?.reload();
+                    })
+                    .catch((e) => message.error(e instanceof Error ? e.message : '失败'))
+                }
+              >
+                <a>停用</a>
+              </Popconfirm>
+            </>
+          ) : (
+            <Popconfirm
+              title="重新启用该登录状态？"
+              onConfirm={() =>
+                void enableBrowserProfile(row.id)
+                  .then(() => {
+                    message.success('已启用');
+                    actionRef.current?.reload();
+                  })
+                  .catch((e) => message.error(e instanceof Error ? e.message : '失败'))
               }
-              void checkBrowserProfile(row.id, { url: u })
-                .then((res) => {
-                  message.info(`${accessStatusLabel(res.accessStatus).text}：${res.message}`);
-                  actionRef.current?.reload();
-                })
-                .catch((e) => message.error(e instanceof Error ? e.message : '检测失败'));
-            }}
-          >
-            检测状态
-          </a>
+            >
+              <a>启用</a>
+            </Popconfirm>
+          )}
           <Popconfirm
-            title="停用该登录状态？"
+            title="删除该登录状态？"
+            description="删除后不可恢复，本地浏览器登录数据需手动清理。"
             onConfirm={() =>
-              void disableBrowserProfile(row.id)
+              void deleteBrowserProfile(row.id)
                 .then(() => {
-                  message.success('已停用');
+                  message.success('已删除');
                   actionRef.current?.reload();
                 })
-                .catch((e) => message.error(e instanceof Error ? e.message : '失败'))
+                .catch((e) => message.error(e instanceof Error ? e.message : '删除失败'))
             }
           >
-            <a>停用</a>
+            <a>删除</a>
           </Popconfirm>
         </Space>
       ),

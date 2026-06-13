@@ -88,9 +88,9 @@ func accessToLastCheck(access string) string {
 	}
 }
 
-func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
+func (s *Service) byID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
 	var row CollectBrowserProfile
-	err := s.DB.WithContext(ctx).First(&row, "id = ? AND status = ?", id, StatusActive).Error
+	err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProfileNotFound
@@ -98,6 +98,17 @@ func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowser
 		return nil, err
 	}
 	return &row, nil
+}
+
+func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
+	row, err := s.byID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if row.Status != StatusActive {
+		return nil, ErrProfileNotFound
+	}
+	return row, nil
 }
 
 func (s *Service) List(ctx context.Context, q ListQuery) ([]RowDTO, int64, error) {
@@ -176,14 +187,18 @@ func (s *Service) Disable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) erro
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectbrowserprofile: no db")
 	}
+	row, err := s.byID(c.Request.Context(), id)
+	if err != nil {
+		return err
+	}
+	if row.Status == StatusDisabled {
+		return nil
+	}
 	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
 		Where("id = ?", id).
 		Update("status", StatusDisabled)
 	if res.Error != nil {
 		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return ErrProfileNotFound
 	}
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -192,6 +207,59 @@ func (s *Service) Disable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) erro
 			Resource:    "collect_browser_profile",
 			ResourceID:  id.String(),
 			Status:      "success",
+		})
+	}
+	return nil
+}
+
+func (s *Service) Enable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("collectbrowserprofile: no db")
+	}
+	row, err := s.byID(c.Request.Context(), id)
+	if err != nil {
+		return err
+	}
+	if row.Status == StatusActive {
+		return nil
+	}
+	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
+		Where("id = ?", id).
+		Update("status", StatusActive)
+	if res.Error != nil {
+		return res.Error
+	}
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "collect.browser_profile.enable",
+			Resource:    "collect_browser_profile",
+			ResourceID:  id.String(),
+			Status:      "success",
+		})
+	}
+	return nil
+}
+
+func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("collectbrowserprofile: no db")
+	}
+	row, err := s.byID(c.Request.Context(), id)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(c.Request.Context()).Delete(row).Error; err != nil {
+		return err
+	}
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "collect.browser_profile.delete",
+			Resource:    "collect_browser_profile",
+			ResourceID:  id.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("profileKey=%s", row.ProfileKey),
 		})
 	}
 	return nil
