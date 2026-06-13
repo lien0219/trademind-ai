@@ -79,10 +79,11 @@ func taskInputSnap(mode string, target int, publicationSkuID uuid.UUID, productS
 	shop uuid.UUID, options map[string]any, batchID *uuid.UUID, batchNo string,
 ) datatypes.JSON {
 	m := map[string]any{
-		"taskType":    TaskTypeInventorySync,
-		"mode":        mode,
-		"targetStock": target,
-		"shopId":      shop.String(),
+		"taskType":     TaskTypeInventorySync,
+		"mode":         mode,
+		"targetStock":  target,
+		"stockVersion": target,
+		"shopId":       shop.String(),
 	}
 	if publicationSkuID != uuid.Nil {
 		m["publicationSkuId"] = publicationSkuID.String()
@@ -137,6 +138,17 @@ func (s *Service) persistTaskAndMaybeRun(ctx context.Context, t *InventorySyncTa
 		})
 	}
 	return s.enqueueOrRunInventoryTask(ctx, t.ID)
+}
+
+func (s *Service) hasDuplicateInventorySync(ctx context.Context, pubSkuID uuid.UUID, target int) (bool, error) {
+	if s == nil || s.DB == nil || pubSkuID == uuid.Nil {
+		return false, nil
+	}
+	var n int64
+	err := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).
+		Where("publication_sku_id = ? AND target_stock = ? AND status IN ?", pubSkuID, target, []string{StatusPending, StatusRunning}).
+		Count(&n).Error
+	return n > 0, err
 }
 
 func (s *Service) enqueueOrRunInventoryTask(ctx context.Context, taskID uuid.UUID) error {

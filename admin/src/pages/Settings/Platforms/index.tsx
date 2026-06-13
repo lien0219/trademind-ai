@@ -1,7 +1,8 @@
-import { ApiOutlined, LinkOutlined, ReloadOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
+import { ApiOutlined, LinkOutlined, ReloadOutlined, SafetyCertificateOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
 import {
   Alert,
   Button,
+  Collapse,
   Form,
   Input,
   InputNumber,
@@ -16,7 +17,7 @@ import {
 } from 'antd';
 import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TmPageContainer } from '@/components/ui';
+import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TechnicalDetails, TmPageContainer } from '@/components/ui';
 import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import {
@@ -38,6 +39,12 @@ import {
 } from '@/services/platformOpen';
 import { queryPlatformProviders, queryShops, type ShopListRow } from '@/services/shops';
 import { getDouyinCategoryStats, syncDouyinCategories } from '@/services/douyinCategories';
+import {
+  getDouyinProductionPreflightLatest,
+  runDouyinProductionPreflight,
+  type DouyinPreflightResult,
+  type PreflightCheckItem,
+} from '@/services/douyinProduction';
 
 const { Paragraph, Text } = Typography;
 
@@ -166,6 +173,116 @@ function renderFormField(f: AppConfigFieldDTO) {
     >
       {renderFieldControl(f)}
     </Form.Item>
+  );
+}
+
+const PREFLIGHT_STATUS: Record<string, { label: string; color: string }> = {
+  passed: { label: '通过', color: 'success' },
+  warning: { label: '警告', color: 'warning' },
+  failed: { label: '未通过', color: 'error' },
+};
+
+function preflightOverallTag(status?: string) {
+  const st = PREFLIGHT_STATUS[status || ''] ?? { label: status || '未知', color: 'default' };
+  return (
+    <Tag color={st.color} style={{ margin: 0 }}>
+      {st.label}
+    </Tag>
+  );
+}
+
+function DouyinPreflightPanel() {
+  const [running, setRunning] = useState(false);
+  const [liveTest, setLiveTest] = useState(false);
+  const [result, setResult] = useState<DouyinPreflightResult | null>(null);
+
+  const loadLatest = useCallback(async () => {
+    try {
+      const res = await getDouyinProductionPreflightLatest();
+      if (res && 'checks' in res && Array.isArray(res.checks)) {
+        setResult(res);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLatest();
+  }, [loadLatest]);
+
+  const run = useCallback(async () => {
+    setRunning(true);
+    try {
+      const res = await runDouyinProductionPreflight(liveTest);
+      setResult(res);
+      if (res.status === 'passed') {
+        message.success('生产预检全部通过');
+      } else if (res.status === 'warning') {
+        message.warning(`预检完成：${res.warningCount} 项警告，${res.failedCount} 项未通过`);
+      } else {
+        message.error(`预检未通过：${res.failedCount} 项需处理`);
+      }
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '运行预检失败');
+    } finally {
+      setRunning(false);
+    }
+  }, [liveTest]);
+
+  return (
+    <SectionCard title="抖店生产预检" extra={result?.checkedAt ? `最近：${result.checkedAt}` : undefined}>
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          上线前一键检查应用配置、店铺授权、功能开关、Storage 公网访问与基础数据状态。不含自动写操作。
+        </Paragraph>
+        <Space wrap>
+          <Button type="primary" icon={<SafetyCertificateOutlined />} loading={running} onClick={() => void run()}>
+            运行生产预检
+          </Button>
+          <Switch checked={liveTest} onChange={setLiveTest} /> <Text type="secondary">包含真实 Token 刷新联调（需已授权店铺）</Text>
+        </Space>
+        {result?.blockedByRealCredentials ? (
+          <Alert showIcon type="info" message="部分真实联调项需 App Key / Secret 与已授权店铺，当前以结构检查为主" />
+        ) : null}
+        {result ? (
+          <>
+            <Space>
+              <Text strong>总体结果</Text>
+              {preflightOverallTag(result.status)}
+              <Text type="secondary">
+                通过 {result.passedCount} · 警告 {result.warningCount} · 未通过 {result.failedCount}
+              </Text>
+            </Space>
+            <Collapse
+              accordion
+              items={result.checks.map((c: PreflightCheckItem) => ({
+                key: c.key,
+                label: (
+                  <Space>
+                    {preflightOverallTag(c.status)}
+                    <span>{c.title}</span>
+                  </Space>
+                ),
+                children: (
+                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Text>{c.message}</Text>
+                    {c.suggestion ? <Text type="secondary">建议：{c.suggestion}</Text> : null}
+                    {c.technicalDetails && Object.keys(c.technicalDetails).length > 0 ? (
+                      <TechnicalDetails label="技术详情">
+                        <pre style={{ margin: 0, fontSize: 12 }}>{JSON.stringify(c.technicalDetails, null, 2)}</pre>
+                      </TechnicalDetails>
+                    ) : null}
+                  </Space>
+                ),
+              }))}
+            />
+          </>
+        ) : (
+          <Alert showIcon type="info" message="尚未运行预检，点击上方按钮开始检查" />
+        )}
+      </Space>
+    </SectionCard>
   );
 }
 
@@ -353,6 +470,8 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
             }
           />
         ) : null}
+
+        {meta.platform === 'douyin_shop' ? <DouyinPreflightPanel /> : null}
       </Space>
     </Spin>
   );

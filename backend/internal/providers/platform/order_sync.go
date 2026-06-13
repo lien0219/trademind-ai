@@ -28,8 +28,9 @@ type SyncOrdersRequest struct {
 	StartTime *time.Time
 	EndTime   *time.Time
 	Cursor    string
-	Limit     int
-	MaxPages  int // 0 = provider default (single page for legacy providers)
+	Limit      int
+	MaxPages   int // 0 = provider default (single page for legacy providers)
+	RetryPages []int
 }
 
 // SyncOrdersResult is normalized orders plus paging hints and optional multi-page summary.

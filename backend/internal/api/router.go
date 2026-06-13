@@ -23,6 +23,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectruleai"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -38,6 +39,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
+	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -299,6 +301,17 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformamazon.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
 
+	storagePublicSvc := &storagepublic.Service{Settings: settingsSvc, OpLog: opLogSvc}
+	storagePublicH := &storagepublic.Handler{Svc: storagePublicSvc, OpLog: opLogSvc}
+
+	douyinPreflightSvc := &douyinpreflight.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Shops:    shopSvc,
+		Storage:  storagePublicSvc,
+	}
+	douyinPreflightH := &douyinpreflight.Handler{Svc: douyinPreflightSvc, OpLog: opLogSvc}
+
 	inventorySvc := &inventory.Service{
 		DB:       dep.DB,
 		Redis:    dep.Redis,
@@ -496,6 +509,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	customerchat.Register(authed, customerChatH)
 	shop.RegisterPublic(v1, shopH)
 	shop.Register(authed, shopH)
+	storagepublic.Register(authed, storagePublicH)
+	douyinpreflight.Register(authed, douyinPreflightH)
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}

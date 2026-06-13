@@ -33,6 +33,7 @@ type douyinDraftSnapshot struct {
 	PublicationID uuid.UUID      `json:"publicationId"`
 	ConfigID      string         `json:"configId,omitempty"`
 	PublishMode   string         `json:"publishMode"`
+	MappingHash   string         `json:"mappingHash,omitempty"`
 	Mapping       map[string]any `json:"mappingSnapshot,omitempty"`
 }
 
@@ -145,6 +146,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 		PublicationID: pubRow.ID,
 		ConfigID:      cfg.ID.String(),
 		PublishMode:   publishMode,
+		MappingHash:   douyinMappingContentHash(mapping),
 	}
 	snapRaw, _ := json.Marshal(snap)
 
@@ -298,24 +300,50 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 
 	xctx, cancel := context.WithTimeout(ctx, s.execTimeout())
 	defer cancel()
-	res, pubErr := client.CreateProductDraft(xctx, taskRow.ShopID.String(), buildRes.APIReq)
-	if pubErr != nil {
-		code := inferDouyinPublishErrorCode(pubErr)
-		var de *platformdouyin.Error
-		raw := map[string]any{}
-		retryable := false
-		requestID := ""
-		if errors.As(pubErr, &de) {
-			retryable = de.Retryable
-			requestID = de.RequestID
-			raw = map[string]any{"platformCode": de.PlatformCode, "platformMessage": de.PlatformMessage}
+
+	var res *platformdouyin.PlatformProductResult
+	recoveredRes, recovered, recErr := tryRecoverDouyinDraftFromPlatform(xctx, client, taskRow.ShopID.String(), taskRow.ProductID.String())
+	if recErr != nil {
+		code := inferDouyinPublishErrorCode(recErr)
+		return fail(code, recErr.Error(), douyinErrRetryable(recErr), "", nil)
+	}
+	if recovered {
+		res = recoveredRes
+		if s.OpLog != nil {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: taskRow.CreatedBy,
+				Action:      "douyin.product.draft.recover",
+				Resource:    "product_publish_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s platformProductId=%s recovered via product.detail", taskID, res.PlatformProductID),
+			})
 		}
-		return fail(code, pubErr.Error(), retryable, requestID, raw)
+	} else {
+		var pubErr error
+		res, pubErr = client.CreateProductDraft(xctx, taskRow.ShopID.String(), buildRes.APIReq)
+		if pubErr != nil {
+			code := inferDouyinPublishErrorCode(pubErr)
+			var de *platformdouyin.Error
+			raw := map[string]any{}
+			retryable := false
+			requestID := ""
+			if errors.As(pubErr, &de) {
+				retryable = de.Retryable
+				requestID = de.RequestID
+				raw = map[string]any{"platformCode": de.PlatformCode, "platformMessage": de.PlatformMessage}
+			}
+			return fail(code, pubErr.Error(), retryable, requestID, raw)
+		}
 	}
 	if res == nil || strings.TrimSpace(res.PlatformProductID) == "" {
 		return fail(ErrorDouyinCreateProductFailed, "platform did not return product id", true, "", nil)
 	}
 
+	return s.completeDouyinDraftSuccess(ctx, taskRow, taskID, snap, buildRes, res)
+}
+
+func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *ProductPublishTask, taskID uuid.UUID, snap douyinDraftSnapshot, buildRes *DouyinPayloadBuildResult, res *platformdouyin.PlatformProductResult) error {
 	fin := time.Now().UTC()
 	outSnap := map[string]any{
 		"platformProductId": res.PlatformProductID,

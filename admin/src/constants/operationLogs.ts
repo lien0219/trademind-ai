@@ -173,6 +173,8 @@ export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   'douyin.sku.binding.manual_unbind': '抖店 SKU 解除绑定',
   'douyin.sku.binding.recheck': '抖店 SKU 绑定重新校准',
   'douyin.sku.binding.conflict': '抖店 SKU 绑定冲突',
+  'douyin.production.preflight': '抖店生产预检',
+  'storage.public_access.test': 'Storage 公网访问测试',
   'platform.settings.update': '更新平台应用设置',
   'platform.publish_settings.update': '更新平台刊登设置',
   'order.create': '创建订单',

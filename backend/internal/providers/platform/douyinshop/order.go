@@ -133,9 +133,13 @@ func fmtOrderSyncSummary(sum map[string]any, orders []platformp.PlatformOrder, h
 }
 
 // SyncOrdersPaginated pulls up to maxPages from order.searchList, capped at maxOrderSyncRecordsPerTask.
-func SyncOrdersPaginated(ctx context.Context, client *Client, cursor string, limit, maxPages int, start, end *time.Time) (*platformp.SyncOrdersResult, error) {
+// When retryPages is non-empty, only those page numbers are fetched (partial_success recovery).
+func SyncOrdersPaginated(ctx context.Context, client *Client, cursor string, limit, maxPages int, start, end *time.Time, retryPages []int) (*platformp.SyncOrdersResult, error) {
 	if client == nil {
 		return nil, NewError(CodeDouyinOrderSyncFailed, "douyin order sync client missing", "", "", "")
+	}
+	if len(retryPages) > 0 {
+		return syncOrdersRetryPagesOnly(ctx, client, limit, retryPages, start, end)
 	}
 	if maxPages <= 0 {
 		maxPages = defaultOrderSyncMaxPages
@@ -222,6 +226,89 @@ func SyncOrdersPaginated(ctx context.Context, client *Client, cursor string, lim
 		PageErrors:   pageErrors,
 		RawSummary:   raw,
 	}, nil
+}
+
+func syncOrdersRetryPagesOnly(ctx context.Context, client *Client, limit int, retryPages []int, start, end *time.Time) (*platformp.SyncOrdersResult, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	pages := dedupePageNumbers(retryPages)
+	allOrders := make([]platformp.PlatformOrder, 0)
+	pageErrors := make([]platformp.PageSyncError, 0)
+	successPages := 0
+	failedPages := 0
+	lastPageSum := map[string]any{}
+	nextCursor := ""
+
+	for _, pageNo := range pages {
+		if len(allOrders) >= maxOrderSyncRecordsPerTask {
+			break
+		}
+		cursor := formatPageCursor(pageNo)
+		orders, next, _, sum, err := SyncOrdersPage(ctx, client, cursor, limit, start, end)
+		if err != nil {
+			failedPages++
+			pageErrors = append(pageErrors, platformp.PageSyncError{
+				Page:  pageNo,
+				Error: SanitizeErrorText(err.Error()),
+			})
+			continue
+		}
+		successPages++
+		lastPageSum = sum
+		nextCursor = next
+		remaining := maxOrderSyncRecordsPerTask - len(allOrders)
+		if remaining < len(orders) {
+			orders = orders[:remaining]
+		}
+		allOrders = append(allOrders, orders...)
+	}
+
+	if len(allOrders) == 0 && failedPages > 0 && successPages == 0 {
+		return nil, NewError(CodeDouyinOrderListFailed, pageErrors[0].Error, "", "", "")
+	}
+
+	raw := fmtOrderSyncSummary(lastPageSum, allOrders, false, nextCursor)
+	raw["totalFetched"] = len(allOrders)
+	raw["totalPages"] = len(pages)
+	raw["successPages"] = successPages
+	raw["failedPages"] = failedPages
+	raw["retryPagesOnly"] = pages
+	if len(pageErrors) > 0 {
+		raw["pageErrors"] = pageErrors
+	}
+
+	return &platformp.SyncOrdersResult{
+		Orders:       allOrders,
+		NextCursor:   nextCursor,
+		NextPage:     nextCursor,
+		HasMore:      false,
+		TotalFetched: len(allOrders),
+		TotalPages:   len(pages),
+		SuccessPages: successPages,
+		FailedPages:  failedPages,
+		PageErrors:   pageErrors,
+		RawSummary:   raw,
+	}, nil
+}
+
+func dedupePageNumbers(in []int) []int {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := map[int]struct{}{}
+	out := make([]int, 0, len(in))
+	for _, p := range in {
+		if p < 0 {
+			continue
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	return out
 }
 
 func assertShopAuthorized(auth platformp.TestConnectionRequest) error {
