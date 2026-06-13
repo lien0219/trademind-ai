@@ -9,6 +9,7 @@ import {
   TagsOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
+import { TechnicalDetails } from '@/components/ui';
 import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import {
   Alert,
@@ -498,20 +499,21 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
               <RuleTestResultPanel result={result.testResult} showProduct={false} compact />
             ) : null}
 
-            <div className="tm-ai-rule-modal__json-block">
+            <TechnicalDetails label="采集规则内容（高级）">
               <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
-                下方为采集规则内容（高级），一般无需修改；格式错误会导致采集失败。
+                下方为采集规则 JSON，一般无需修改；格式错误会导致采集失败。
               </Typography.Paragraph>
               <ProFormTextArea
-                label="采集规则内容（高级）"
+                label="规则 JSON"
                 fieldProps={{
                   rows: 10,
                   value: ruleJson,
                   onChange: (e) => setRuleJson(e.target.value),
                   className: 'tm-ai-rule-modal__json',
+                  style: { fontFamily: 'monospace', fontSize: 12 },
                 }}
               />
-            </div>
+            </TechnicalDetails>
           </section>
         ) : null}
       </div>

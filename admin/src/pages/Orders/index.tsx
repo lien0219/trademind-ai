@@ -1,14 +1,5 @@
-import {
-  ModalForm,
-  PageContainer,
-  ProFormDigit,
-  ProFormSelect,
-  ProFormSwitch,
-  ProFormText,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import {
   Badge,
   Alert,
@@ -31,6 +22,7 @@ import dayjs from 'dayjs';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PAGE_COPY } from '@/constants/copywriting';
 import {
   ORDER_FULFILLMENT_STATUS,
   ORDER_PAYMENT_STATUS,
@@ -340,7 +332,7 @@ export default function OrdersPage() {
   const itemColumns = detail
     ? [
         { title: '商品标题', dataIndex: 'productTitle', ellipsis: true },
-        { title: 'SKU', dataIndex: 'skuCode', width: 120 },
+        { title: '规格编号', dataIndex: 'skuCode', width: 120 },
         { title: '数量', dataIndex: 'quantity', width: 72 },
         { title: '单价', dataIndex: 'unitPrice', width: 88 },
         { title: '小计', dataIndex: 'totalPrice', width: 88 },
@@ -413,7 +405,7 @@ export default function OrdersPage() {
 
   const inventoryEffectCols = useMemo(
     () => [
-      { title: 'SKU', dataIndex: 'productSkuId', ellipsis: true, width: 120 },
+      { title: '规格编号', dataIndex: 'productSkuId', ellipsis: true, width: 120 },
       { title: '类型', dataIndex: 'effectType', width: 100 },
       { title: '状态', dataIndex: 'status', width: 92 },
       { title: '数量', dataIndex: 'quantity', width: 64 },
@@ -434,7 +426,7 @@ export default function OrdersPage() {
   );
 
   return (
-    <PageContainer title="订单管理">
+    <TmPageContainer title={PAGE_COPY.orderList.title} subTitle={PAGE_COPY.orderList.description}>
       <ProTable<OrderListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -456,7 +448,7 @@ export default function OrdersPage() {
               return true;
             }}
           >
-            <ProFormText name="platform" label="platform" placeholder="manual" />
+            <ProFormText name="platform" label="平台" placeholder="manual" extra="手工订单可填 manual 或留空" />
             <ProFormSelect
               name="shopId"
               label="关联店铺（可选）"
@@ -855,6 +847,6 @@ export default function OrdersPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

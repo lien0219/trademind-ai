@@ -1,5 +1,5 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
+import { TmPageContainer } from '@/components/ui';
 import { history, useParams } from '@umijs/max';
 import {
   Button,
@@ -27,7 +27,10 @@ import {
   ORDER_PAYMENT_STATUS,
   ORDER_SHIPMENT_STATUS,
   ORDER_STATUS,
+  SHOP_AUTH_STATUS,
+  SHOP_STATUS,
 } from '@/constants/status';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   acceptReplySuggestion,
   createMessage,
@@ -312,13 +315,13 @@ export default function CustomerConversationDetailPage() {
   const canSendToPlatform = Boolean(conv?.shopId && conv?.externalConversationId);
 
   return (
-    <PageContainer title="AI 客服工作台" onBack={() => history.push('/customer/conversations')}>
+    <TmPageContainer title="AI 客服工作台" onBack={() => history.push('/customer/conversations')}>
       <Spin spinning={loading}>
         {conv && (
           <>
             <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="客户">{conv.customerName}</Descriptions.Item>
-              <Descriptions.Item label="platform">{conv.platform}</Descriptions.Item>
+              <Descriptions.Item label="平台">{platformLabel(conv.platform)}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
               </Descriptions.Item>
@@ -344,9 +347,19 @@ export default function CustomerConversationDetailPage() {
                 {conv.shopSummary ? (
                   <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="店铺名">{conv.shopSummary.shopName}</Descriptions.Item>
-                    <Descriptions.Item label="平台">{conv.shopSummary.platform}</Descriptions.Item>
-                    <Descriptions.Item label="店铺状态">{conv.shopSummary.status}</Descriptions.Item>
-                    <Descriptions.Item label="授权">{conv.shopSummary.authStatus}</Descriptions.Item>
+                    <Descriptions.Item label="平台">{platformLabel(conv.shopSummary.platform)}</Descriptions.Item>
+                    <Descriptions.Item label="店铺状态">
+                      {(() => {
+                        const m = SHOP_STATUS[conv.shopSummary.status as keyof typeof SHOP_STATUS];
+                        return m ? <Tag color={m.color}>{m.text}</Tag> : conv.shopSummary.status || '—';
+                      })()}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="授权状态">
+                      {(() => {
+                        const m = SHOP_AUTH_STATUS[conv.shopSummary.authStatus as keyof typeof SHOP_AUTH_STATUS];
+                        return m ? <Tag color={m.color}>{m.text}</Tag> : conv.shopSummary.authStatus || '—';
+                      })()}
+                    </Descriptions.Item>
                   </Descriptions>
                 ) : (
                   <Typography.Text type="secondary">未关联统一店铺（shops）；可选填便于后续按 shop_id 扩展。 </Typography.Text>
@@ -532,10 +545,10 @@ export default function CustomerConversationDetailPage() {
 
                 {aiMeta && (
                   <Descriptions size="small" column={1} bordered>
-                    <Descriptions.Item label="intent">{aiMeta.intent || '—'}</Descriptions.Item>
-                    <Descriptions.Item label="sentiment">{aiMeta.sentiment || '—'}</Descriptions.Item>
-                    <Descriptions.Item label="riskLevel">{riskTag(aiMeta.riskLevel)}</Descriptions.Item>
-                    <Descriptions.Item label="notes">{aiMeta.notes || '—'}</Descriptions.Item>
+                    <Descriptions.Item label="买家意图">{aiMeta.intent || '—'}</Descriptions.Item>
+                    <Descriptions.Item label="情绪倾向">{aiMeta.sentiment || '—'}</Descriptions.Item>
+                    <Descriptions.Item label="风险等级">{riskTag(aiMeta.riskLevel)}</Descriptions.Item>
+                    <Descriptions.Item label="备注">{aiMeta.notes || '—'}</Descriptions.Item>
                   </Descriptions>
                 )}
                 <div>
@@ -658,6 +671,6 @@ export default function CustomerConversationDetailPage() {
           />
         </Modal>
       </Spin>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

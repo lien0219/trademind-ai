@@ -23,6 +23,33 @@ export const COLLECT_TASK_STATUS = {
   obsolete: { text: '已过期', color: 'default' as const },
 };
 
+/** 采集任务事件类型（collect_task_events.event_type） */
+export const COLLECT_TASK_EVENT_TYPE: Record<string, string> = {
+  'task.success': '任务成功',
+  'task.failed': '任务失败',
+  'task.retry_exhausted': '重试次数已用尽',
+  'task.running': '任务执行中',
+  'task.auto_retry_scheduled': '已安排自动重试',
+  'task.auto_retry_enqueued': '自动重试已入队',
+  'task.manual_retry': '手动重试',
+  'batch.delay.applied': '批次延迟已生效',
+};
+
+export function collectTaskEventLabel(eventType?: string | null): string {
+  const k = (eventType ?? '').trim();
+  if (!k) return '—';
+  return COLLECT_TASK_EVENT_TYPE[k] ?? k;
+}
+
+export function collectTaskStatusTransition(from?: string | null, to?: string | null): string {
+  const fromM = from ? COLLECT_TASK_STATUS[from as keyof typeof COLLECT_TASK_STATUS] : null;
+  const toM = to ? COLLECT_TASK_STATUS[to as keyof typeof COLLECT_TASK_STATUS] : null;
+  const fromText = fromM?.text ?? from ?? '—';
+  const toText = toM?.text ?? to ?? '—';
+  if (!from && !to) return '—';
+  return `${fromText} → ${toText}`;
+}
+
 /** 采集批次聚合状态 */
 export const COLLECT_BATCH_STATUS = {
   pending: { text: '待开始', color: 'default' as const },
@@ -86,19 +113,35 @@ export const SHOP_STATUS = {
 export const SHOP_AUTH_STATUS = {
   unauthorized: { text: '未授权', color: 'default' as const },
   authorized: { text: '已授权', color: 'success' as const },
-  expired: { text: '已过期', color: 'warning' as const },
+  expired: { text: '授权已过期', color: 'warning' as const },
   invalid: { text: '异常', color: 'error' as const },
-  need_check: { text: '待检查', color: 'warning' as const },
+  need_check: { text: '需要检查', color: 'warning' as const },
   error: { text: '异常', color: 'error' as const },
   unsupported: { text: '不支持', color: 'default' as const },
 };
 
-/** Platform Provider 元信息 status（采集与店铺_provider 语义一致） */
+/** 平台接入元信息 status */
 export const PLATFORM_PROVIDER_STATUS = {
   available: { text: '可用', color: 'success' as const },
-  beta: { text: '测试', color: 'processing' as const },
+  beta: { text: '测试中', color: 'processing' as const },
   planned: { text: '规划中', color: 'default' as const },
   disabled: { text: '停用', color: 'default' as const },
+};
+
+/** 规格绑定状态 */
+export const SKU_BIND_STATUS = {
+  bound: { text: '已绑定', color: 'success' as const },
+  unmatched: { text: '未匹配', color: 'default' as const },
+  ambiguous: { text: '需要人工确认', color: 'warning' as const },
+  skipped: { text: '已跳过', color: 'default' as const },
+};
+
+/** 配置开关状态 */
+export const CONFIG_TOGGLE_STATUS = {
+  enabled: { text: '已开启', color: 'success' as const },
+  disabled: { text: '未开启', color: 'default' as const },
+  configured: { text: '已配置', color: 'success' as const },
+  unconfigured: { text: '未配置', color: 'default' as const },
 };
 
 /** 订单同步任务 order_sync_tasks.status */

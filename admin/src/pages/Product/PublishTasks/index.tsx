@@ -1,16 +1,12 @@
-import {
-  PageContainer,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-  type ProFormInstance,
-} from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   getProductPublishTask,
   queryProductPublishTasks,
@@ -94,9 +90,10 @@ export default function ProductPublishTasksPage() {
         render: (_, r) => r.productTitle || '—',
       },
       {
-        title: 'platform',
+        title: '平台',
         dataIndex: 'platform',
         width: 100,
+        render: (_, r) => platformLabel(r.platform),
       },
       {
         title: '状态',
@@ -164,7 +161,7 @@ export default function ProductPublishTasksPage() {
   );
 
   return (
-    <PageContainer title="商品刊登任务">
+    <TmPageContainer title="商品刊登任务" subTitle="查看商品刊登到各平台的任务进度与结果。">
       <ProTable<ProductPublishTaskDTO>
         rowKey="id"
         actionRef={actionRef}
@@ -211,9 +208,6 @@ export default function ProductPublishTasksPage() {
               <Typography.Text strong>商品：</Typography.Text>{' '}
               {detail.productTitle || detail.productId}
             </Typography.Paragraph>
-            <Typography.Paragraph copyable={{ text: detail.id }}>
-              <Typography.Text type="secondary">taskId</Typography.Text>
-            </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph>
                 <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
@@ -221,46 +215,31 @@ export default function ProductPublishTasksPage() {
             ) : null}
             {detail.platformProductId ? (
               <Typography.Paragraph copyable={{ text: detail.platformProductId }}>
-                <Typography.Text strong>抖店商品 ID：</Typography.Text> {detail.platformProductId}
-              </Typography.Paragraph>
-            ) : null}
-            {detail.requestId ? (
-              <Typography.Paragraph copyable={{ text: detail.requestId }}>
-                <Typography.Text strong>requestId：</Typography.Text> {detail.requestId}
+                <Typography.Text strong>平台商品编号：</Typography.Text> {detail.platformProductId}
               </Typography.Paragraph>
             ) : null}
             {detail.retryable != null ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Typography.Text strong>是否可以重试：</Typography.Text> {detail.retryable ? '是' : '否'}
+                <Typography.Text strong>可以重试：</Typography.Text> {detail.retryable ? '是' : '否'}
               </Typography.Paragraph>
             ) : null}
-            <Typography.Paragraph>
-              <Typography.Text strong>平台提交内容</Typography.Text>
-              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-                {JSON.stringify(detail.platformPayload ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
-            <Typography.Paragraph>
-              <Typography.Text strong>平台结果</Typography.Text>
-              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-                {JSON.stringify(detail.platformResult ?? detail.output ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
-            <Typography.Paragraph>
-              <Typography.Text strong>任务 input</Typography.Text>
-              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-                {JSON.stringify(detail.input ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
-            <Typography.Paragraph>
-              <Typography.Text strong>任务 output</Typography.Text>
-              <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-                {JSON.stringify(detail.output ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
+            <TechnicalDetails>
+              {detail.requestId ? (
+                <Typography.Paragraph copyable={{ text: detail.requestId }} style={{ marginBottom: 8 }}>
+                  <Typography.Text strong>请求编号：</Typography.Text> {detail.requestId}
+                </Typography.Paragraph>
+              ) : null}
+              <Typography.Paragraph copyable={{ text: detail.id }} style={{ marginBottom: 8 }}>
+                <Typography.Text strong>任务编号：</Typography.Text> {detail.id}
+              </Typography.Paragraph>
+              <TaskJsonBlock title="平台提交内容" value={detail.platformPayload} />
+              <TaskJsonBlock title="平台返回结果" value={detail.platformResult ?? detail.output} />
+              <TaskJsonBlock title="任务输入" value={detail.input} />
+              <TaskJsonBlock title="任务输出" value={detail.output} last />
+            </TechnicalDetails>
           </Space>
         )}
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

@@ -1,9 +1,5 @@
-import {
-  PageContainer,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-} from '@ant-design/pro-components';
+import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
@@ -166,7 +162,7 @@ export default function CustomerMessageSyncTasksPage() {
   );
 
   return (
-    <PageContainer title="客服消息同步任务">
+    <TmPageContainer title="客服消息同步任务">
       <ProTable<CustomerMessageSyncTaskRow>
         rowKey="id"
         actionRef={actionRef}
@@ -208,28 +204,20 @@ export default function CustomerMessageSyncTasksPage() {
               <Typography.Text type="secondary">({platformLabel(detail.platform)})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: detail.id }}>
-              <Typography.Text strong>taskId：</Typography.Text> {detail.id}
+              <Typography.Text strong>任务编号：</Typography.Text> {detail.id}
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph type="danger">
-                <Typography.Text strong>错误：</Typography.Text> {detail.errorMessage}
+                <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
               </Typography.Paragraph>
             ) : null}
-            <Typography.Title level={5}>输入摘要</Typography.Title>
-            <Typography.Paragraph>
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
-                {JSON.stringify(detail.input ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
-            <Typography.Title level={5}>输出摘要</Typography.Title>
-            <Typography.Paragraph>
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
-                {JSON.stringify(detail.output ?? {}, null, 2)}
-              </pre>
-            </Typography.Paragraph>
+            <TechnicalDetails>
+              <TaskJsonBlock title="任务输入" value={detail.input} />
+              <TaskJsonBlock title="任务输出" value={detail.output} last />
+            </TechnicalDetails>
           </Space>
         )}
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

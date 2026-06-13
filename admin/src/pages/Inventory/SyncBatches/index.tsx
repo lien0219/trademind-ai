@@ -1,9 +1,5 @@
-import {
-  PageContainer,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-} from '@ant-design/pro-components';
+import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { Button, Drawer, Popconfirm, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
@@ -51,15 +47,6 @@ function taskTagFromStatus(raw: string) {
   const c = COLLECT_TASK_STATUS[raw as keyof typeof COLLECT_TASK_STATUS];
   if (!c) return <Tag>{raw}</Tag>;
   return <Tag color={c.color}>{c.text}</Tag>;
-}
-
-function summarizeJson(val: unknown, max = 1200): string {
-  try {
-    const s = JSON.stringify(val ?? {}, null, 2);
-    return s.length > max ? `${s.slice(0, max)}\n…` : s;
-  } catch {
-    return '';
-  }
 }
 
 export default function InventorySyncBatchesPage() {
@@ -236,7 +223,7 @@ export default function InventorySyncBatchesPage() {
       },
       { title: '平台', dataIndex: 'platform', width: 88, render: (_, r) => platformLabel(r.platform) },
       { title: '店铺', dataIndex: 'shopName', width: 120, ellipsis: true, render: (_, r) => r.shopName || '—' },
-      { title: 'SKU', dataIndex: 'skuCode', width: 112, ellipsis: true, render: (_, r) => r.skuCode || '—' },
+      { title: '规格编号', dataIndex: 'skuCode', width: 112, ellipsis: true, render: (_, r) => r.skuCode || '—' },
       {
         title: '状态',
         dataIndex: 'status',
@@ -256,7 +243,7 @@ export default function InventorySyncBatchesPage() {
   );
 
   return (
-    <PageContainer title="库存同步批次">
+    <TmPageContainer title="库存同步批次" subTitle="查看批量库存同步任务的批次进度与汇总结果。">
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         批量创建的库存同步任务会归入批次；Worker 完成后按任务聚合回写批次统计。单次创建上限见{' '}
         <Typography.Link href="/settings/inventory">设置 · 库存 / 订单</Typography.Link>
@@ -325,18 +312,10 @@ export default function InventorySyncBatchesPage() {
                           <Typography.Text strong>跳过摘要：</Typography.Text> {drawerBatch.skippedReason}
                         </Typography.Paragraph>
                       ) : null}
-                      <Typography.Paragraph style={{ marginBottom: 0 }}>
-                        <Typography.Text strong>input（摘要）</Typography.Text>
-                      </Typography.Paragraph>
-                      <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-                        {summarizeJson(drawerBatch.input)}
-                      </pre>
-                      <Typography.Paragraph style={{ marginBottom: 0 }}>
-                        <Typography.Text strong>output（摘要）</Typography.Text>
-                      </Typography.Paragraph>
-                      <pre style={{ fontSize: 12, overflow: 'auto', maxHeight: 200 }}>
-                        {summarizeJson(drawerBatch.output)}
-                      </pre>
+                      <TechnicalDetails>
+                        <TaskJsonBlock title="批次输入" value={drawerBatch.input} />
+                        <TaskJsonBlock title="批次输出" value={drawerBatch.output} last />
+                      </TechnicalDetails>
                       <Typography.Paragraph style={{ marginBottom: 0 }}>
                         <Typography.Text strong>最近任务（最多 15 条）</Typography.Text>
                       </Typography.Paragraph>
@@ -359,7 +338,7 @@ export default function InventorySyncBatchesPage() {
                             render: (_: unknown, row: InventorySyncTaskDTO) => platformLabel(row.platform),
                           },
                           {
-                            title: 'SKU',
+                            title: '规格编号',
                             dataIndex: 'skuCode',
                             ellipsis: true,
                             render: (_: unknown, row: InventorySyncTaskDTO) => row.skuCode || row.productSkuId || '—',
@@ -428,6 +407,6 @@ export default function InventorySyncBatchesPage() {
           ) : null}
         </Spin>
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

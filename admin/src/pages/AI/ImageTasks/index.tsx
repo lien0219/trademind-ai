@@ -1,6 +1,7 @@
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import { CopyOutlined, EditOutlined } from '@ant-design/icons';
 import {
   Alert,
@@ -57,54 +58,20 @@ import {
   buildTranslateImageTextInput,
   createImageTask,
 } from '@/services/imageTasks';
+import { PAGE_COPY, commonStatusLabel } from '@/constants/copywriting';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
-
-function formatJsonPretty(v: unknown): string {
-  if (v == null) return '';
-  try {
-    return typeof v === 'string' ? v : JSON.stringify(v, null, 2);
-  } catch {
-    return String(v);
-  }
-}
 
 function statusTag(status: string) {
   const s = status?.trim() || '';
   const m = COLLECT_TASK_STATUS[s as keyof typeof COLLECT_TASK_STATUS];
   if (m) return <Tag color={m.color}>{m.text}</Tag>;
-  return <Tag>{s || '—'}</Tag>;
+  const label = commonStatusLabel(s);
+  return <Tag>{label === '—' ? s || '—' : label}</Tag>;
 }
 
-function JsonBlock({ title, value }: { title: string; value: unknown }) {
-  const text = formatJsonPretty(value);
-  if (!text) {
-    return (
-      <div style={{ marginBottom: 16 }}>
-        <strong>{title}</strong>
-        <div style={{ marginTop: 8, color: 'var(--ant-color-text-secondary)' }}>—</div>
-      </div>
-    );
-  }
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <strong>{title}</strong>
-      <pre
-        style={{
-          marginTop: 8,
-          marginBottom: 0,
-          maxHeight: 360,
-          overflow: 'auto',
-          padding: 12,
-          background: 'var(--ant-color-fill-quaternary, #f5f5f5)',
-          borderRadius: 6,
-          fontSize: 12,
-          lineHeight: 1.5,
-        }}
-      >
-        {text}
-      </pre>
-    </div>
-  );
+function validationModeLabel(mode?: string) {
+  if (mode === 'validatePureTextReplace') return '纯文字替换校验';
+  return mode || '—';
 }
 
 function ocrProviderLabel(provider?: string): string {
@@ -167,15 +134,6 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
             </Tag>
           ) : null}
         </Descriptions.Item>
-        <Descriptions.Item label="校验模式">
-          {validationMode === 'validatePureTextReplace' ? (
-            <Tag color="geekblue">validatePureTextReplace</Tag>
-          ) : (
-            validationMode ?? '—'
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label="擦除方式">{layout?.eraseMode ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="版式模板">{layout?.layoutTemplate ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="渲染质量">
           <Tag color={qualityLevel.color}>{qualityLevel.text}</Tag>
           {renderQuality?.commercialUsabilityScore != null ? ` ${renderQuality.commercialUsabilityScore}` : ''}
@@ -212,13 +170,22 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
         <Descriptions.Item label="检测到大背景块">
           {layout?.largePatchDetected ? '是' : '否'}
         </Descriptions.Item>
-        <Descriptions.Item label="自动重试策略">
-          {layout?.retryStrategies?.length ? layout.retryStrategies.join(' / ') : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="最终质量状态">{parsed.finalQualityStatus ?? taskStatus ?? '—'}</Descriptions.Item>
       </Descriptions>
-      <div style={{ marginTop: 12 }}>
-        <Typography.Text strong>OCR 配置与执行</Typography.Text>
+      <TechnicalDetails label="渲染技术参数">
+        <Descriptions column={2} size="small">
+          <Descriptions.Item label="校验模式">{validationModeLabel(validationMode)}</Descriptions.Item>
+          <Descriptions.Item label="擦除方式">{layout?.eraseMode ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="版式模板">{layout?.layoutTemplate ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="自动重试策略">
+            {layout?.retryStrategies?.length ? layout.retryStrategies.join(' / ') : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="最终质量状态">
+            {commonStatusLabel(parsed.finalQualityStatus ?? taskStatus)}
+          </Descriptions.Item>
+        </Descriptions>
+        <Typography.Text strong style={{ display: 'block', marginTop: 12 }}>
+          OCR 配置与执行
+        </Typography.Text>
         <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
           <Descriptions.Item label="配置 OCR">{ocrProviderLabel(configuredOcr)}</Descriptions.Item>
           <Descriptions.Item label="实际 OCR">{ocrProviderLabel(actualOcr)}</Descriptions.Item>
@@ -250,9 +217,9 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
           <Descriptions.Item label="是否坐标缩放">{coord?.coordScaleApplied ? '是' : '否'}</Descriptions.Item>
           <Descriptions.Item label="坐标修正数量">{coord?.bboxCorrectionCount ?? 0}</Descriptions.Item>
         </Descriptions>
-      </div>
-      <div style={{ marginTop: 12 }}>
-        <Typography.Text strong>擦除与渲染</Typography.Text>
+        <Typography.Text strong style={{ display: 'block', marginTop: 12 }}>
+          擦除与渲染
+        </Typography.Text>
         <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
           <Descriptions.Item label="eraseMode">{layout?.eraseMode ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="eraseBlocks">{parsed.eraseBlocks ?? '—'}</Descriptions.Item>
@@ -273,7 +240,7 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
           <Descriptions.Item label="badgeShapeAbnormal">{parsed.badgeShapeAbnormal ? '是' : '否'}</Descriptions.Item>
           <Descriptions.Item label="textOverlap">{parsed.textOverlap ? '是' : '否'}</Descriptions.Item>
         </Descriptions>
-      </div>
+      </TechnicalDetails>
       <div style={{ marginTop: 12 }}>
         <Typography.Text strong>渲染检查</Typography.Text>
         <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
@@ -338,28 +305,28 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
           <Space wrap size="middle">
             {parsed.debugOriginalUrl ? (
               <div>
-                <Typography.Text type="secondary">original.png</Typography.Text>
+                <Typography.Text type="secondary">原图</Typography.Text>
                 <br />
                 <Image src={parsed.debugOriginalUrl} width={160} style={{ marginTop: 4 }} />
               </div>
             ) : null}
             {parsed.debugMaskUrl ? (
               <div>
-                <Typography.Text type="secondary">mask.png</Typography.Text>
+                <Typography.Text type="secondary">文字区域</Typography.Text>
                 <br />
                 <Image src={parsed.debugMaskUrl} width={160} style={{ marginTop: 4 }} />
               </div>
             ) : null}
             {parsed.debugErasedUrl ? (
               <div>
-                <Typography.Text type="secondary">erased.png</Typography.Text>
+                <Typography.Text type="secondary">擦除后背景</Typography.Text>
                 <br />
                 <Image src={parsed.debugErasedUrl} width={160} style={{ marginTop: 4 }} />
               </div>
             ) : null}
             {parsed.debugFinalUrl ? (
               <div>
-                <Typography.Text type="secondary">final.png</Typography.Text>
+                <Typography.Text type="secondary">最终成图</Typography.Text>
                 <br />
                 <Image src={parsed.debugFinalUrl} width={160} style={{ marginTop: 4 }} />
               </div>
@@ -429,7 +396,9 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
         </div>
       ) : null}
       {parsed.blockClassifications?.length ? (
-        <JsonBlock title="block 分类结果 / compact_translation" value={parsed.blockClassifications} />
+        <TechnicalDetails label="高级配置">
+          <TaskJsonBlock title="文字块分类结果" value={parsed.blockClassifications} last />
+        </TechnicalDetails>
       ) : null}
     </Card>
   );
@@ -936,7 +905,7 @@ export default function ImageTasksPage() {
   ];
 
   return (
-    <PageContainer title="AI 图片任务">
+    <TmPageContainer title={PAGE_COPY.aiImageTasks.title} subTitle={PAGE_COPY.aiImageTasks.description}>
       <Card size="small" style={{ marginBottom: 16 }} title="快捷模板">
         <Space wrap>
           {IMAGE_TASK_TEMPLATES.map((tpl) => (
@@ -1275,12 +1244,10 @@ export default function ImageTasksPage() {
         ) : detail ? (
           <>
             <Descriptions column={1} size="small" bordered style={{ marginBottom: 24 }}>
-              <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
               <Descriptions.Item label="任务类型">{taskTypeLabel(detail.taskType)}</Descriptions.Item>
               <Descriptions.Item label="状态">{statusTag(detail.status)}</Descriptions.Item>
               <Descriptions.Item label="图片服务">{detail.provider || '—'}</Descriptions.Item>
-              <Descriptions.Item label="商品 ID">{detail.productId || '—'}</Descriptions.Item>
-              <Descriptions.Item label="源图 ID">{detail.sourceImageId || '—'}</Descriptions.Item>
+              <Descriptions.Item label="关联商品">{detail.productId || '—'}</Descriptions.Item>
               <Descriptions.Item label="创建者">{detail.createdBy || '—'}</Descriptions.Item>
               <Descriptions.Item label="开始时间">
                 {detail.startedAt ? formatDateTime(detail.startedAt) : '—'}
@@ -1341,9 +1308,9 @@ export default function ImageTasksPage() {
                           <div>状态：{statusTag(item.status)}</div>
                           {item.isSelectedBest ? <Tag color="gold">推荐主图</Tag> : null}
                           {item.scoreJson ? (
-                            <pre style={{ fontSize: 11, maxWidth: 280, overflow: 'auto' }}>
-                              {formatJsonPretty(item.scoreJson)}
-                            </pre>
+                            <TechnicalDetails label="评分详情">
+                              <TaskJsonBlock title="评分数据" value={item.scoreJson} maxHeight={120} last />
+                            </TechnicalDetails>
                           ) : null}
                           {detail.productId && item.status === 'success' && item.outputImageUrl ? (
                             <Space wrap style={{ marginTop: 8 }}>
@@ -1388,11 +1355,19 @@ export default function ImageTasksPage() {
                 </Space>
               </div>
             ) : null}
-            <JsonBlock title="任务输入" value={detail.input} />
-            <JsonBlock title="任务输出" value={detail.output} />
+            <TechnicalDetails label="任务技术信息">
+              <Descriptions column={1} size="small" bordered style={{ marginBottom: 12 }}>
+                <Descriptions.Item label="任务编号">{detail.id}</Descriptions.Item>
+                {detail.sourceImageId ? (
+                  <Descriptions.Item label="源图编号">{detail.sourceImageId}</Descriptions.Item>
+                ) : null}
+              </Descriptions>
+              <TaskJsonBlock title="任务输入" value={detail.input} maxHeight={360} />
+              <TaskJsonBlock title="任务输出" value={detail.output} maxHeight={360} last />
+            </TechnicalDetails>
           </>
         ) : (
-          <div style={{ color: 'var(--ant-color-text-secondary)' }}>暂无数据</div>
+          <div style={{ color: 'var(--ant-color-text-secondary)' }}>未加载到图片任务详情，请从列表重新选择一条任务。</div>
         )}
       </Drawer>
       <ManualTranslateEditor
@@ -1406,6 +1381,6 @@ export default function ImageTasksPage() {
           actionRef.current?.reload?.();
         }}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

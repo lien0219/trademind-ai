@@ -1,6 +1,7 @@
 import { Link } from '@umijs/renderer-react';
 import { BellOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import {
   Alert,
   Button,
@@ -251,7 +252,7 @@ export default function AlertNotifySettingsPage() {
   }, [load]);
 
   return (
-    <PageContainer title="告警通知配置" subTitle="配置任务告警的外部通知策略与邮件、Webhook 等出站通道">
+    <TmPageContainer title="告警通知配置" subTitle="配置任务失败与异常时的通知方式，包括邮件与消息推送">
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -284,7 +285,7 @@ export default function AlertNotifySettingsPage() {
                 <Link to="/settings/email">邮箱设置</Link>。
               </li>
               <li>飞书 / 企业微信当前为预留能力，可保存配置，实际发送结果为 skipped。</li>
-              <li>通知正文与 Webhook 负载均经裁剪，不会包含完整平台响应、客户消息全文或密钥。</li>
+              <li>通知正文与 Webhook 内容均经裁剪，不会包含完整平台响应、客户消息全文或密钥。</li>
             </ul>
           }
         />
@@ -519,6 +520,6 @@ export default function AlertNotifySettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

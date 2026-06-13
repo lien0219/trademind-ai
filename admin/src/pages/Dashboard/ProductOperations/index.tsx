@@ -15,7 +15,8 @@ import {
   UnorderedListOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
 import {
@@ -34,6 +35,8 @@ import {
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PAGE_COPY } from '@/constants/copywriting';
+import { layoutTokens } from '@/constants/layoutTokens';
 import { PLATFORM_OPTIONS } from '@/constants/userFriendly';
 import {
   DEFAULT_FUNNEL,
@@ -772,8 +775,10 @@ export default function ProductOperationsDashboardPage() {
   ];
 
   return (
-    <PageContainer
-      title="工作台 / 商品运营看板"
+    <TmPageContainer
+      title={PAGE_COPY.dashboard.title}
+      subTitle={PAGE_COPY.dashboard.description}
+      contentMaxWidth={layoutTokens.dashboardMaxWidth}
       extra={
         <Space>
           <Button
@@ -951,6 +956,6 @@ export default function ProductOperationsDashboardPage() {
           </ProCard>
         </>
       )}
-    </PageContainer>
+    </TmPageContainer>
   );
 }

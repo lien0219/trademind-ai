@@ -1,6 +1,7 @@
 import { Link } from '@umijs/renderer-react';
 import { LockOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Alert, Button, Col, Form, Input, InputNumber, Row, Select, Space, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -96,7 +97,7 @@ export default function SecuritySettingsPage() {
   };
 
   return (
-    <PageContainer title="安全设置" subTitle="会话超时、HTTPS 策略与运维回调签名校验">
+    <TmPageContainer title="安全设置" subTitle="管理登录会话时长、安全连接与外部回调验证">
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -206,6 +207,6 @@ export default function SecuritySettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

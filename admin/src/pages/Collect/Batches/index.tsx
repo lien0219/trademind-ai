@@ -1,6 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { ProCard, ProTable } from '@ant-design/pro-components';
 import { history, useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select, Typography } from 'antd';
@@ -205,7 +206,7 @@ export default function CollectBatchesPage() {
         render: (_, row) => formatDateTime(row.createdAt),
       },
       {
-        title: '采集器',
+        title: '采集服务',
         dataIndex: 'source',
         width: 120,
         valueType: 'select',
@@ -450,7 +451,10 @@ export default function CollectBatchesPage() {
   ];
 
   return (
-    <PageContainer title="批量采集">
+    <TmPageContainer
+      title="批量采集"
+      subTitle="一次提交多条商品链接，批量采集并生成商品草稿。"
+    >
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {sourceFromQuery &&
         providers.length > 0 &&
@@ -459,7 +463,7 @@ export default function CollectBatchesPage() {
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message={`所选采集器暂不支持批量采集，已切换到当前可用的批量平台。`}
+            message="所选采集服务暂不支持批量采集，已切换到当前可用的批量平台。"
           />
         ) : null}
         {batchProviders.length === 0 && providers.length > 0 ? (
@@ -701,21 +705,9 @@ export default function CollectBatchesPage() {
                 ) : null}
               </Space>
               {activeBatch.errorSummary && Object.keys(activeBatch.errorSummary).length > 0 ? (
-                <div style={{ marginTop: 12 }}>
-                  <Typography.Text type="secondary">失败摘要（按错误码）：</Typography.Text>
-                  <pre
-                    style={{
-                      margin: '8px 0 0',
-                      padding: 8,
-                      background: '#fafafa',
-                      borderRadius: 6,
-                      fontSize: 12,
-                      overflow: 'auto',
-                    }}
-                  >
-                    {JSON.stringify(activeBatch.errorSummary, null, 2)}
-                  </pre>
-                </div>
+                <TechnicalDetails label="失败统计详情">
+                  <TaskJsonBlock title="按错误类型汇总" value={activeBatch.errorSummary} last />
+                </TechnicalDetails>
               ) : null}
             </ProCard>
 
@@ -764,7 +756,7 @@ export default function CollectBatchesPage() {
           setEventDrawerTaskId(null);
         }}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }
 

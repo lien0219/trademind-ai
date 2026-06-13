@@ -11,7 +11,8 @@ import {
   SaveOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import {
   Button,
   Col,
@@ -29,6 +30,7 @@ import {
 import type { UploadFile } from 'antd';
 import type { ComponentType, CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PAGE_COPY } from '@/constants/copywriting';
 import { storageConnectionSectionTitle } from '@/constants/storageSettings';
 import { deleteFile, uploadFile, type UploadedFileInfo } from '@/services/files';
 import { fetchSettingsList, saveSettingsItems, testStorageConnection, type SettingPutItem } from '@/services/settings';
@@ -470,7 +472,7 @@ export default function StorageSettingsPage() {
   }, [kind, form]);
 
   return (
-    <PageContainer title="存储设置" subTitle="配置商品图片与附件的存储方式，支持本地磁盘与主流对象存储">
+    <TmPageContainer title={PAGE_COPY.storageSettings.title} subTitle={PAGE_COPY.storageSettings.description}>
       <div className="tm-storage-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -840,6 +842,6 @@ export default function StorageSettingsPage() {
           </Space>
         </ProCard>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

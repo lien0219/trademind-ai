@@ -1,7 +1,9 @@
 import { ReloadOutlined, SaveOutlined, SettingOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Alert, Button, Col, Divider, Form, Input, InputNumber, Row, Select, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PAGE_COPY } from '@/constants/copywriting';
 import {
   ALERT_SEVERITY_OPTIONS,
   SYSTEM_TIMEZONE_OPTIONS,
@@ -187,7 +189,7 @@ export default function SystemSettingsPage() {
   };
 
   return (
-    <PageContainer title="系统设置" subTitle="站点基础信息与任务中心站内告警策略">
+    <TmPageContainer title={PAGE_COPY.systemSettings.title} subTitle={PAGE_COPY.systemSettings.description}>
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -385,6 +387,6 @@ export default function SystemSettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

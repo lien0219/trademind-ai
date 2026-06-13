@@ -1,10 +1,5 @@
-import {
-  PageContainer,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-  type ProFormInstance,
-} from '@ant-design/pro-components';
+import { ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import {
   Button,
   Checkbox,
@@ -224,7 +219,7 @@ export default function InventoryAlertsPage() {
         ),
       },
       {
-        title: 'SKU',
+        title: '规格编号',
         dataIndex: 'skuCode',
         width: 140,
         search: false,
@@ -398,7 +393,7 @@ export default function InventoryAlertsPage() {
   );
 
   return (
-    <PageContainer title="库存预警">
+    <TmPageContainer title="库存预警" subTitle="查看低库存、缺货与平台库存不一致等预警，可按需创建同步任务。">
       <Typography.Paragraph type="secondary">
         仅查询与提醒，不自动改平台库存；推送仍走{' '}
         <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
@@ -756,6 +751,6 @@ export default function InventoryAlertsPage() {
           </Button>
         </Form>
       </Modal>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

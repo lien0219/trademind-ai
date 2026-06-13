@@ -1,6 +1,7 @@
 ﻿import { Link } from '@umijs/renderer-react';
 import { InboxOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Alert, Button, Col, Divider, Form, InputNumber, Row, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -246,7 +247,7 @@ export default function InventorySettingsPage() {
   };
 
   return (
-    <PageContainer title="库存 / 订单" subTitle="本地库存预警、订单扣减与平台库存同步策略">
+    <TmPageContainer title="库存与订单" subTitle="配置本地库存预警、订单扣减与平台库存同步策略。">
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -391,6 +392,6 @@ export default function InventorySettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

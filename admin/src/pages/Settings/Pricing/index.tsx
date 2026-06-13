@@ -1,5 +1,6 @@
 import { DollarOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Alert, Button, Col, Divider, Form, InputNumber, Row, Select, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -100,7 +101,7 @@ export default function PricingSettingsPage() {
   }, [load]);
 
   return (
-    <PageContainer title="商品定价 / 发布价格配置" subTitle="配置默认加价、尾数与平台覆盖规则，用于本地销售价计算">
+    <TmPageContainer title="商品定价" subTitle="配置默认加价、尾数与平台覆盖规则，用于本地销售价计算。">
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -316,6 +317,6 @@ export default function PricingSettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

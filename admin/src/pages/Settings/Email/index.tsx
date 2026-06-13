@@ -1,6 +1,7 @@
 import { Link } from '@umijs/renderer-react';
 import { MailOutlined, ReloadOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Alert, Button, Col, Form, Input, InputNumber, Radio, Row, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -98,7 +99,7 @@ export default function EmailSettingsPage() {
   };
 
   return (
-    <PageContainer title="邮箱设置" subTitle="配置 SMTP 发信服务器，供告警通知与系统邮件使用">
+    <TmPageContainer title="邮箱设置" subTitle="配置系统发信邮箱，用于告警通知与系统邮件">
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -259,6 +260,6 @@ export default function EmailSettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

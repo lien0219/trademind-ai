@@ -1,14 +1,12 @@
-import {
-  ModalForm,
-  ProFormText,
-  ProFormTextArea,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { ProTable } from '@ant-design/pro-components';
 import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber } from 'antd';
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
+import { PAGE_COPY } from '@/constants/copywriting';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
@@ -253,7 +251,7 @@ export default function ProductDraftsPage() {
   };
 
   return (
-    <PageContainer title="商品草稿">
+    <TmPageContainer title={PAGE_COPY.productDrafts.title} subTitle={PAGE_COPY.productDrafts.description}>
       {(urlFilters.missingAiTitle ||
         urlFilters.missingAiDescription ||
         urlFilters.readinessBlocked ||
@@ -485,7 +483,7 @@ export default function ProductDraftsPage() {
           {(bulkOp === 'title_optimize' || bulkOp === 'description_generate') && (
             <>
               <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-                <Input placeholder="en" />
+                <Input placeholder="例如 en" />
               </Form.Item>
               <Form.Item name="platform" label="平台口径" rules={[{ required: true }]}>
                 <Input placeholder="TikTok Shop" />
@@ -496,7 +494,7 @@ export default function ProductDraftsPage() {
                 </Form.Item>
               )}
               <Form.Item name="tone" label="语气 / 风格">
-                <Input placeholder="professional" />
+                <Input placeholder="例如 professional" />
               </Form.Item>
               <Form.Item name="applyMode" label="应用策略" tooltip="save_ai_field：成功后写入草稿的 ai_title / ai_description">
                 <Select
@@ -540,6 +538,6 @@ export default function ProductDraftsPage() {
         listFilters={selectedRowKeys.length === 0 ? listFilters : undefined}
         onApplied={() => actionRef.current?.reload()}
       />
-    </PageContainer>
+    </TmPageContainer>
   );
 }

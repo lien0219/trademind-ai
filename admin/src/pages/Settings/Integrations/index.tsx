@@ -7,10 +7,12 @@ import {
   RightOutlined,
   RobotOutlined,
 } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { Alert, Col, Row, Space, Spin, Statistic, Tag, Typography } from 'antd';
 import type { ComponentType, CSSProperties, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PAGE_COPY } from '@/constants/copywriting';
 import {
   aiTextProviderLabel,
   imageProviderLabel,
@@ -167,9 +169,9 @@ export default function IntegrationsHubPage() {
   const imageDetail = useMemo(() => {
     if (!data) return null;
     const items = [
-      { label: 'remove.bg', ok: data.image.removebg, kind: 'key' as const },
-      { label: 'OpenAI Image', ok: data.image.openaiImage, kind: 'key' as const },
-      { label: 'ComfyUI', ok: data.image.comfyui, kind: 'url' as const },
+      { label: 'remove.bg 抠图', ok: data.image.removebg, kind: 'key' as const },
+      { label: 'OpenAI 图片', ok: data.image.openaiImage, kind: 'key' as const },
+      { label: 'ComfyUI 工作流', ok: data.image.comfyui, kind: 'url' as const },
     ];
     return (
       <Space direction="vertical" size={6} style={{ width: '100%' }}>
@@ -196,9 +198,9 @@ export default function IntegrationsHubPage() {
   }, [data]);
 
   return (
-    <PageContainer
-      title="第三方集成总览"
-      subTitle="查看 AI、存储、邮件与跨境平台等外部服务的配置就绪情况"
+    <TmPageContainer
+      title={PAGE_COPY.integrations.title}
+      subTitle={PAGE_COPY.integrations.description}
     >
       <Alert
         type="info"
@@ -316,7 +318,7 @@ export default function IntegrationsHubPage() {
                   跨境平台
                 </Title>
                 <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                  此处为各平台开放平台应用参数（App Key / Secret 等）。店铺授权后的 Access Token 保存在「店铺 →
+                  此处为各平台开放平台应用参数（App Key / Secret 等）。店铺授权后的授权凭证保存在「店铺 →
                   授权配置」，请勿写入此处。
                 </Paragraph>
                 <Row gutter={[16, 16]}>
@@ -332,7 +334,7 @@ export default function IntegrationsHubPage() {
                 </Row>
                 <div style={{ marginTop: 16 }}>
                   <Link to="/settings/platforms">
-                    前往「平台开放配置」编辑 <RightOutlined style={{ fontSize: 11 }} />
+                    前往「平台接入设置」编辑 <RightOutlined style={{ fontSize: 11 }} />
                   </Link>
                 </div>
               </>
@@ -340,6 +342,6 @@ export default function IntegrationsHubPage() {
           </>
         ) : null}
       </Spin>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

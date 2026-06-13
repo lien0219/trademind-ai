@@ -1,13 +1,10 @@
 import { ApiOutlined, LinkOutlined, ReloadOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
-  Col,
   Form,
   Input,
   InputNumber,
-  Row,
   Select,
   Space,
   Spin,
@@ -19,9 +16,13 @@ import {
 } from 'antd';
 import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TmPageContainer } from '@/components/ui';
+import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
+import { formatUserErrorMessage } from '@/constants/errorMessages';
 import {
   PLATFORM_DEV_PORTALS,
   PLATFORM_STATUS_META,
+  isPlatformSwitchField,
   platformAppFieldHelp,
   platformAppFieldLabel,
   platformAppFieldPlaceholder,
@@ -38,7 +39,7 @@ import {
 import { queryPlatformProviders, queryShops, type ShopListRow } from '@/services/shops';
 import { getDouyinCategoryStats, syncDouyinCategories } from '@/services/douyinCategories';
 
-const { Paragraph, Text, Title } = Typography;
+const { Paragraph, Text } = Typography;
 
 function valuesToFormFields(fields: AppConfigFieldDTO[], values: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -62,17 +63,13 @@ function buildPutValues(fields: AppConfigFieldDTO[], formVals: Record<string, un
   const out: Record<string, unknown> = {};
   for (const f of fields) {
     const v = formVals[f.name];
-    if (v === undefined) {
-      continue;
-    }
+    if (v === undefined) continue;
     if (f.type === 'switch') {
       out[f.name] = !!v;
       continue;
     }
     if (f.type === 'number') {
-      if (typeof v === 'number' && Number.isFinite(v)) {
-        out[f.name] = v;
-      }
+      if (typeof v === 'number' && Number.isFinite(v)) out[f.name] = v;
       continue;
     }
     if (typeof v === 'string') {
@@ -85,7 +82,7 @@ function buildPutValues(fields: AppConfigFieldDTO[], formVals: Record<string, un
 }
 
 function isFullWidthField(f: AppConfigFieldDTO): boolean {
-  return f.type === 'textarea' || f.name === 'oauth_scopes' || f.name === 'scopes';
+  return f.type === 'textarea' || f.name === 'oauth_scopes' || f.name === 'scopes' || isPlatformSwitchField(f);
 }
 
 function renderFieldControl(f: AppConfigFieldDTO) {
@@ -96,7 +93,13 @@ function renderFieldControl(f: AppConfigFieldDTO) {
     case 'textarea':
       return <Input.TextArea rows={4} placeholder={ph} />;
     case 'number':
-      return <InputNumber min={f.name === 'timeout_sec' ? 5 : undefined} style={{ width: '100%' }} placeholder={ph || undefined} />;
+      return (
+        <InputNumber
+          min={f.name === 'timeout_sec' ? 5 : undefined}
+          style={{ width: '100%' }}
+          placeholder={ph || undefined}
+        />
+      );
     case 'switch':
       return <Switch />;
     case 'select':
@@ -113,6 +116,59 @@ function renderFieldControl(f: AppConfigFieldDTO) {
   }
 }
 
+function SwitchField({
+  label,
+  help,
+  checked,
+  onChange,
+}: {
+  label: string;
+  help?: string;
+  checked?: boolean;
+  onChange?: (v: boolean) => void;
+}) {
+  return (
+    <div className="tm-switch-field">
+      <div className="tm-switch-field__row">
+        <span className="tm-switch-field__label">{label}</span>
+        <Switch checked={checked} onChange={onChange} />
+      </div>
+      {help ? <div className="tm-switch-field__help">{help}</div> : null}
+    </div>
+  );
+}
+
+function renderFormField(f: AppConfigFieldDTO) {
+  const label = platformAppFieldLabel(f);
+  const help = platformAppFieldHelp(f);
+
+  if (isPlatformSwitchField(f)) {
+    return (
+      <Form.Item
+        key={f.name}
+        name={f.name}
+        valuePropName="checked"
+        rules={[{ required: f.required, message: `请设置${label}` }]}
+      >
+        <SwitchField label={label} help={help} />
+      </Form.Item>
+    );
+  }
+
+  return (
+    <Form.Item
+      key={f.name}
+      name={f.name}
+      label={label}
+      valuePropName={f.type === 'switch' ? 'checked' : 'value'}
+      rules={[{ required: f.required, message: `请填写${label}` }]}
+      extra={help}
+    >
+      {renderFieldControl(f)}
+    </Form.Item>
+  );
+}
+
 function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -125,6 +181,7 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   const schema = meta.appConfigSchema;
   const fields = schema?.fields ?? [];
   const st = PLATFORM_STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
+  const panelTitle = meta.platform === 'douyin_shop' ? '抖店接入设置' : `${meta.name} 接入设置`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,12 +216,12 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
     try {
       const res = await testPlatformAppSettings(meta.platform);
       if (res.ok) {
-        message.success(res.message || '测试连接通过');
+        message.success(res.message || '连接测试通过');
       } else {
-        message.warning(res.message || '测试连接未通过');
+        message.warning(res.message || '连接测试未通过，请检查应用信息');
       }
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '测试连接失败');
+      message.error((e as Error)?.message || '连接测试失败');
     } finally {
       setTesting(false);
     }
@@ -175,12 +232,10 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
     try {
       const res = await startDouyinOAuth();
       const target = res.redirectUrl || res.authorizeUrl;
-      if (!target) {
-        throw new Error('missing douyin authorize url');
-      }
+      if (!target) throw new Error('无法获取授权地址');
       window.location.href = target;
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '发起抖店授权失败');
+      message.error((e as Error)?.message || '发起店铺授权失败');
       setConnecting(false);
     }
   }, []);
@@ -210,105 +265,91 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
           <Alert
             showIcon
             type="warning"
-            message="该平台能力暂未完全接入"
-            description="可先保存开放平台应用参数，供后续店铺授权与 API 对接使用。"
+            message="该平台能力尚未完全开放"
+            description="可先填写平台应用信息，供后续店铺授权使用。"
           />
         )}
-        {schema?.description ? (
-          <Alert showIcon type="info" message={`${meta.name} 配置说明`} description={schema.description} />
-        ) : null}
-        <div>
-          <Text type="secondary">接入状态 </Text>
-          <Tag color={st.color}>{st.label}</Tag>
-        </div>
 
-        <Form
-          layout="vertical"
-          form={form}
-          onFinish={async (vals: Record<string, unknown>) => {
-            try {
-              const payload = buildPutValues(fields, vals);
-              await putPlatformAppSettings(meta.platform, payload);
-              message.success('已保存');
-              await load();
-            } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
-            }
-          }}
-        >
-          <Row gutter={[24, 0]}>
-            {fields.map((f) => (
-              <Col xs={24} md={isFullWidthField(f) ? 24 : 12} key={f.name}>
-                <Form.Item
-                  name={f.name}
-                  label={platformAppFieldLabel(f)}
-                  valuePropName={f.type === 'switch' ? 'checked' : 'value'}
-                  rules={[{ required: f.required, message: `请填写${platformAppFieldLabel(f)}` }]}
-                  extra={platformAppFieldHelp(f)}
-                >
-                  {renderFieldControl(f)}
-                </Form.Item>
-              </Col>
-            ))}
-          </Row>
+        <SectionCard title={panelTitle} description={schema?.description || undefined}>
+          <div style={{ marginBottom: 12 }}>
+            <Text type="secondary">接入状态 </Text>
+            <Tag color={st.color}>{st.label}</Tag>
+          </div>
 
-          <div className="tm-system-settings__footer" style={{ marginTop: 8, position: 'static', boxShadow: 'none', padding: '12px 0 0' }}>
-            <Space wrap>
+          <Form
+            layout="vertical"
+            form={form}
+            onFinish={async (vals: Record<string, unknown>) => {
+              try {
+                await putPlatformAppSettings(meta.platform, buildPutValues(fields, vals));
+                message.success('设置已保存');
+                await load();
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '保存失败');
+              }
+            }}
+          >
+            <FormGrid>
+              {fields.map((f) =>
+                isFullWidthField(f) ? (
+                  <FormGridFull key={f.name}>{renderFormField(f)}</FormGridFull>
+                ) : (
+                  <FormGridItem key={f.name}>{renderFormField(f)}</FormGridItem>
+                ),
+              )}
+            </FormGrid>
+
+            <ActionBar>
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-                保存配置
+                {ACTION_COPY.saveSettings}
               </Button>
               <Button icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
+                {ACTION_COPY.reload}
               </Button>
               <Button icon={<ApiOutlined />} onClick={() => void testConnection()} loading={testing} disabled={loading}>
-                测试连接
+                {ACTION_COPY.testConnection}
               </Button>
               {meta.platform === 'douyin_shop' ? (
                 <Button icon={<LinkOutlined />} onClick={() => void connectDouyinShop()} loading={connecting} disabled={loading}>
-                  连接店铺
+                  {ACTION_COPY.authorizeShop}
                 </Button>
               ) : null}
               {meta.platform === 'douyin_shop' ? (
-                <Button
-                  icon={<SyncOutlined />}
-                  onClick={() => void syncDouyinCategoryCache()}
-                  loading={categorySyncing}
-                  disabled={loading}
-                >
+                <Button icon={<SyncOutlined />} onClick={() => void syncDouyinCategoryCache()} loading={categorySyncing} disabled={loading}>
                   同步类目
                 </Button>
               ) : null}
               {docUrl ? (
                 <Typography.Link href={docUrl} target="_blank" rel="noreferrer">
-                  开放平台文档
+                  查看平台文档
                 </Typography.Link>
               ) : null}
-            </Space>
-          </div>
-        </Form>
+            </ActionBar>
+          </Form>
+        </SectionCard>
+
         {meta.platform === 'douyin_shop' ? (
           <Alert
             showIcon
             type="info"
-            message="抖店验收前置条件"
+            message="使用前请确认"
             description={
               <>
-                在「设置 → 存储」配置抖店可访问的公网 HTTPS 地址（<Typography.Text code>public_base</Typography.Text>）。
-                演示订单/库存/刊登前请开启「启用订单同步」「启用库存同步」「启用商品草稿创建」。
-                App Secret 与店铺 token 不会在本页明文展示。验收步骤见仓库 <Typography.Text code>docs/DOUYIN_E2E_CHECKLIST.md</Typography.Text>。
+                在「存储设置」中配置抖店可访问的公网图片地址。同步订单、库存或创建商品草稿前，请在本页开启对应开关并完成店铺授权。
               </>
             }
           />
         ) : null}
+
         {meta.platform === 'douyin_shop' ? (
           <Alert
             showIcon
             type={douyinStats?.count ? 'success' : 'warning'}
-            message="抖店类目缓存"
+            message="抖店类目"
             description={
               douyinStats?.count
-                ? `类目 ${douyinStats.count} 个，叶子类目 ${douyinStats.leafCount ?? 0} 个，最近同步：${douyinStats.lastSyncedAt || '未知'}`
-                : '暂无抖店类目数据，请先点击「同步类目」。'
+                ? `已缓存 ${douyinStats.count} 个类目（叶子类目 ${douyinStats.leafCount ?? 0} 个），最近同步：${douyinStats.lastSyncedAt || '未知'}`
+                : '暂无类目数据，请先完成店铺授权，再点击「同步类目」。'
             }
           />
         ) : null}
@@ -351,7 +392,8 @@ export default function PlatformSettingsPage() {
     if (auth === 'success') {
       message.success('抖店店铺授权成功');
     } else if (auth === 'failed') {
-      message.error(`抖店店铺授权失败：${params.get('reason') || 'UNKNOWN_DOUYIN_AUTH_ERROR'}`);
+      const reason = params.get('reason');
+      message.error(formatUserErrorMessage(reason, '抖店店铺授权失败'));
     }
   }, []);
 
@@ -369,7 +411,11 @@ export default function PlatformSettingsPage() {
       label: (
         <Space size={6}>
           <span>{p.name}</span>
-          {st && p.status !== 'available' ? <Tag color={st.color} style={{ margin: 0 }}>{st.label}</Tag> : null}
+          {st && p.status !== 'available' ? (
+            <Tag color={st.color} style={{ margin: 0 }}>
+              {st.label}
+            </Tag>
+          ) : null}
         </Space>
       ),
       children: <PlatformPanel meta={p} />,
@@ -377,27 +423,13 @@ export default function PlatformSettingsPage() {
   });
 
   return (
-    <PageContainer title="平台开放配置" subTitle="各跨境平台 Partner 应用参数（App Key / Secret 等），店铺授权在「店铺管理」完成">
-      <div className="tm-system-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <ApiOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Title level={5} className="tm-system-settings__hero-title">
-                开放平台应用参数
-              </Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                请在各平台开放平台创建应用，将 App Key、Secret 等填回贸灵；敏感信息加密存库。店铺授权后的 Access Token 仅保存在对应店铺，不会写入此处。完成配置后前往{' '}
-                <Link to="/shops">店铺管理</Link> 授权。
-              </Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
-        <ProCard variant="outlined" title="选择平台" className="tm-system-settings__panel">
-          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+    <TmPageContainer title={PAGE_COPY.platformSettings.title} subTitle={PAGE_COPY.platformSettings.description}>
+      <div className="tm-settings-stack">
+        <SectionCard
+          title={PAGE_COPY.platformSettings.heroTitle}
+          description={PAGE_COPY.platformSettings.heroDescription}
+        >
+          <Paragraph type="secondary" style={{ marginBottom: 0 }}>
             开发者门户：
             {PLATFORM_DEV_PORTALS.map((p, i) => (
               <span key={p.url}>
@@ -408,15 +440,18 @@ export default function PlatformSettingsPage() {
               </span>
             ))}
           </Paragraph>
+        </SectionCard>
+
+        <SectionCard title="选择平台">
           <Spin spinning={loadingProviders}>
             {items.length === 0 ? (
-              <Paragraph type="secondary">暂无可用平台配置项，请刷新或检查后端注册。</Paragraph>
+              <Paragraph type="secondary">暂无可配置的平台，请刷新页面后重试。</Paragraph>
             ) : (
               <Tabs activeKey={tab} onChange={setTab} items={items} />
             )}
           </Spin>
-        </ProCard>
+        </SectionCard>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

@@ -32,7 +32,7 @@ export const TASK_FAILURE_CATEGORY_LABEL: Record<string, string> = {
   storage_error: '存储错误',
   validation_error: '校验失败',
   inventory_mapping_missing: '库存映射缺失',
-  sku_mapping_missing: 'SKU 映射缺失',
+  sku_mapping_missing: '规格绑定缺失',
   worker_lease_expired: '后台任务执行超时',
   system_error: '系统错误',
   unknown: '未知',

@@ -1,9 +1,5 @@
-import {
-  PageContainer,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-} from '@ant-design/pro-components';
+import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import { history } from '@umijs/max';
 import { formatDateTime } from '@/utils/formatTime';
 import { Button, Drawer, message, Modal, Table, Tag, Typography } from 'antd';
@@ -22,18 +18,18 @@ import {
   unmarkTaskAlertRecord,
 } from '@/services/taskCenter';
 
-const SEVER_TAG: Record<string, { color: string; text?: string }> = {
-  low: { color: 'default' },
-  medium: { color: 'blue' },
-  high: { color: 'orange' },
-  critical: { color: 'red' },
+const SEVER_TAG: Record<string, { color: string; text: string }> = {
+  low: { color: 'default', text: '低' },
+  medium: { color: 'blue', text: '中' },
+  high: { color: 'orange', text: '高' },
+  critical: { color: 'red', text: '严重' },
 };
 
 function sevTag(sev: string) {
-  const m = SEVER_TAG[sev];
-  const label = sev.toUpperCase();
-  if (!m) return <Tag>{label}</Tag>;
-  return <Tag color={m.color}>{label}</Tag>;
+  const k = (sev || '').trim().toLowerCase();
+  const m = SEVER_TAG[k];
+  if (!m) return <Tag>{k || '—'}</Tag>;
+  return <Tag color={m.color}>{m.text}</Tag>;
 }
 
 const STATUS_META: Record<string, { color: string; text: string }> = {
@@ -318,11 +314,9 @@ export default function TaskCenterAlertsPage() {
   );
 
   return (
-    <PageContainer
-      header={{
-        title: '告警中心',
-        subTitle: '站内告警与可选外部通知（邮件 / Webhook；飞书与企业微信预留）',
-      }}
+    <TmPageContainer
+      title={'告警中心'}
+      subTitle={'站内告警与可选外部通知（邮件 / Webhook；飞书与企业微信预留）'}
       extra={[
         <Button
           key="scan"
@@ -407,6 +401,6 @@ export default function TaskCenterAlertsPage() {
           ]}
         />
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

@@ -8,7 +8,8 @@ import {
   RobotOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer } from '@/components/ui';
 import {
   Alert,
   Button,
@@ -42,6 +43,7 @@ import {
   initialAIConnectionFormValues,
   type AIProviderValue,
 } from '@/constants/aiProviders';
+import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
 import { fetchSettingsList, saveSettingsItems, testAIConnection } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
@@ -108,7 +110,7 @@ export default function AISettingsPage() {
 
   const runTest = async () => {
     if (!provider) {
-      message.error('请选择模型服务商');
+      message.error('请选择 AI 服务商');
       return;
     }
     setTesting(true);
@@ -186,9 +188,9 @@ export default function AISettingsPage() {
   };
 
   return (
-    <PageContainer
+    <TmPageContainer
       title="AI 设置"
-      subTitle="配置大模型服务商，用于标题优化、描述生成、客服建议、AI 生成采集规则等"
+      subTitle={PAGE_COPY.aiSettings.description}
     >
       <div className="tm-ai-settings">
         <ProCard variant="outlined" className="tm-ai-settings__hero">
@@ -249,7 +251,7 @@ export default function AISettingsPage() {
         >
           <ProCard
             variant="outlined"
-            title="模型服务商"
+            title="AI 服务商"
             className="tm-ai-settings__panel"
             extra={
               <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
@@ -447,7 +449,7 @@ export default function AISettingsPage() {
           <ProCard variant="outlined" className="tm-ai-settings__footer">
             <Space wrap className="tm-action-space">
               <Button type="primary" htmlType="submit" loading={loading} size="large">
-                保存配置
+                {ACTION_COPY.saveSettings}
               </Button>
               <Button size="large" loading={testing} onClick={() => void runTest()}>
                 测试连接
@@ -456,6 +458,6 @@ export default function AISettingsPage() {
           </ProCard>
         </Form>
       </div>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

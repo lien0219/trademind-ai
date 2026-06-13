@@ -1,16 +1,8 @@
 import { Link } from '@umijs/renderer-react';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import {
-  ModalForm,
-  PageContainer,
-  ProFormDigit,
-  ProFormSelect,
-  ProFormSwitch,
-  ProFormText,
-  ProFormTextArea,
-  ProTable,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { Button, Popconfirm, Tag, Tooltip, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -222,12 +214,12 @@ export default function AIPromptsPage() {
   ];
 
   return (
-    <PageContainer
+    <TmPageContainer
       title="AI 技能模板"
       subTitle={
         <>
-          配置标题优化、描述生成、客服建议等场景的提示词；一般使用系统内置模板即可。未单独指定 AI 服务商 / 模型时，将自动使用{' '}
-          <Link to="/settings/ai">设置 → AI</Link> 中的默认配置。
+          配置标题优化、描述生成、客服建议等场景的提示词模板；未单独指定 AI 服务商或模型时，将使用{' '}
+          <Link to="/settings/ai">AI 设置</Link> 中的默认配置。
         </>
       }
     >
@@ -298,12 +290,14 @@ export default function AIPromptsPage() {
         <ProFormSwitch name="enabled" label="启用" initialValue={true} />
         <ProFormTextArea name="systemPrompt" label="系统提示词" fieldProps={{ rows: 6 }} />
         <ProFormTextArea name="userPrompt" label="用户提示词" fieldProps={{ rows: 6 }} rules={[{ required: true }]} />
-        <ProFormTextArea
-          name="outputSchemaStr"
-          label="输出格式说明（高级，JSON）"
-          fieldProps={{ rows: 4 }}
-          extra="仅高级用户需要填写，用于约束 AI 返回结构"
-        />
+        <TechnicalDetails label="输出格式说明（高级）">
+          <ProFormTextArea
+            name="outputSchemaStr"
+            label="JSON 结构"
+            fieldProps={{ rows: 4, style: { fontFamily: 'monospace', fontSize: 12 } }}
+            extra="仅高级用户需要填写，用于约束 AI 返回结构"
+          />
+        </TechnicalDetails>
       </ModalForm>
 
       <ModalForm<Record<string, unknown>>
@@ -379,8 +373,14 @@ export default function AIPromptsPage() {
         <ProFormSwitch name="enabled" label="启用" />
         <ProFormTextArea name="systemPrompt" label="系统提示词" fieldProps={{ rows: 6 }} />
         <ProFormTextArea name="userPrompt" label="用户提示词" fieldProps={{ rows: 6 }} rules={[{ required: true }]} />
-        <ProFormTextArea name="outputSchemaStr" label="输出格式说明（高级，JSON）" fieldProps={{ rows: 4 }} />
+        <TechnicalDetails label="输出格式说明（高级）">
+          <ProFormTextArea
+            name="outputSchemaStr"
+            label="JSON 结构"
+            fieldProps={{ rows: 4, style: { fontFamily: 'monospace', fontSize: 12 } }}
+          />
+        </TechnicalDetails>
       </ModalForm>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

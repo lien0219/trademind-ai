@@ -153,7 +153,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
             },
             { title: '原因', dataIndex: 'reason', ellipsis: true },
             { title: '来源', dataIndex: 'source', width: 120, ellipsis: true },
-            { title: 'SKU', width: 200, ellipsis: true, render: (_, row) => row.skuCode || row.productSkuId },
+            { title: '规格编号', width: 200, ellipsis: true, render: (_, row) => row.skuCode || row.productSkuId },
             { title: '库存', dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
             {
               title: '操作',
@@ -469,7 +469,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
               },
               { title: '原因', dataIndex: 'reason', ellipsis: true },
               { title: '标题', dataIndex: 'productTitle', width: 140, ellipsis: true },
-              { title: 'Code', dataIndex: 'skuCode', width: 120, ellipsis: true },
+              { title: '规格编号', dataIndex: 'skuCode', width: 120, ellipsis: true },
               { title: '名称', dataIndex: 'skuName', width: 120, ellipsis: true },
               { title: '库存', dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
               {

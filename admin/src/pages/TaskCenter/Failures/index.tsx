@@ -1,10 +1,5 @@
-import {
-  PageContainer,
-  ProCard,
-  ProTable,
-  type ActionType,
-  type ProColumns,
-} from '@ant-design/pro-components';
+import { ProCard, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
 import { formatDateTime } from '@/utils/formatTime';
 import {
@@ -43,6 +38,7 @@ import {
   type UnifiedTaskDTO,
   type FailuresSummary,
 } from '@/services/taskCenter';
+import { PAGE_COPY } from '@/constants/copywriting';
 import {
   TASK_CENTER_TASK_TYPE_LABEL,
   TASK_FAILURE_CATEGORY_LABEL,
@@ -493,11 +489,9 @@ export default function TaskCenterFailuresPage() {
   );
 
   return (
-    <PageContainer
-      header={{
-        title: '失败任务中心',
-        subTitle: '聚合各模块失败态任务，支持统一筛选、重试与标记处理',
-      }}
+    <TmPageContainer
+      title={PAGE_COPY.taskFailures.title}
+      subTitle={PAGE_COPY.taskFailures.description}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Alert
@@ -888,13 +882,16 @@ export default function TaskCenterFailuresPage() {
               </Typography.Paragraph>
             ) : null}
             {detail.extra && Object.keys(detail.extra).length > 0 ? (
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, margin: 0 }}>
-                {JSON.stringify(detail.extra, null, 2)}
-              </pre>
+              <TechnicalDetails>
+                {detail.errorCode ? (
+                  <TaskJsonBlock title="错误码" value={detail.errorCode} />
+                ) : null}
+                <TaskJsonBlock title="附加信息" value={detail.extra} last />
+              </TechnicalDetails>
             ) : null}
           </Space>
         ) : null}
       </Drawer>
-    </PageContainer>
+    </TmPageContainer>
   );
 }

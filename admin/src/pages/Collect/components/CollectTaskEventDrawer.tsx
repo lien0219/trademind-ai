@@ -1,7 +1,7 @@
 import { Link } from '@umijs/renderer-react';
 import { formatDateTime } from '@/utils/formatTime';
+import { TechnicalDetails, TaskJsonBlock } from '@/components/ui';
 import {
-  Collapse,
   Descriptions,
   Drawer,
   Space,
@@ -12,7 +12,7 @@ import {
   message,
 } from 'antd';
 import { useEffect, useState } from 'react';
-import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { COLLECT_TASK_STATUS, collectTaskEventLabel, collectTaskStatusTransition } from '@/constants/status';
 import {
   mapCollectorErrorCodeDetail,
   mapCollectorErrorCodeLabel,
@@ -152,20 +152,9 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                       {mapCollectorErrorCodeDetail(task.collectorErrorCode)}
                     </Typography.Paragraph>
                   ) : null}
-                  <Collapse
-                    ghost
-                    size="small"
-                    style={{ marginTop: 8 }}
-                    items={[
-                      {
-                        key: 'tech',
-                        label: '展开查看技术信息',
-                        children: (
-                          <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
-                        ),
-                      },
-                    ]}
-                  />
+                  <TechnicalDetails label="错误码">
+                    <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
+                  </TechnicalDetails>
                 </div>
               </Descriptions.Item>
             ) : null}
@@ -193,9 +182,9 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                       <Typography.Text strong type="secondary">
                         {formatDateTime(ev.createdAt)}
                       </Typography.Text>
-                      <Tag color={eventTagColor(ev.eventType)}>{ev.eventType}</Tag>
+                      <Tag color={eventTagColor(ev.eventType)}>{collectTaskEventLabel(ev.eventType)}</Tag>
                       <Typography.Text type="secondary">
-                        {(ev.fromStatus ?? '—') + ' → ' + (ev.toStatus ?? '—')}
+                        {collectTaskStatusTransition(ev.fromStatus, ev.toStatus)}
                       </Typography.Text>
                     </Space>
                     {ev.message ? (
@@ -204,7 +193,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                     {(ev.retryCount != null || ev.maxRetries != null || ev.nextRetryAt) && (
                       <Typography.Paragraph type="secondary" style={{ marginBottom: 4, fontSize: 12 }}>
                         重试 {ev.retryCount ?? '—'} / {ev.maxRetries ?? '—'}
-                        {ev.nextRetryAt ? ` · next ${formatDateTime(ev.nextRetryAt)}` : ''}
+                        {ev.nextRetryAt ? ` · 下次 ${formatDateTime(ev.nextRetryAt)}` : ''}
                       </Typography.Paragraph>
                     )}
                     {ev.errorMessage ? (
@@ -216,21 +205,9 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                     ev.payload !== null &&
                     typeof ev.payload === 'object' &&
                     Object.keys(ev.payload as object).length ? (
-                      <Collapse
-                        bordered={false}
-                        size="small"
-                        items={[
-                          {
-                            key: 'payload',
-                            label: 'payload',
-                            children: (
-                              <pre style={{ margin: 0, maxHeight: 220, overflow: 'auto', fontSize: 12 }}>
-                                {JSON.stringify(ev.payload, null, 2)}
-                              </pre>
-                            ),
-                          },
-                        ]}
-                      />
+                      <TechnicalDetails label="事件详情">
+                        <TaskJsonBlock title="原始信息" value={ev.payload} last />
+                      </TechnicalDetails>
                     ) : null}
                   </div>
                 ),
