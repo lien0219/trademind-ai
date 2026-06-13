@@ -147,9 +147,9 @@ export default [
         component: './Collect/Tasks',
       },
       {
-        path: '/collect/rules',
-        name: '采集规则',
-        component: './Collect/Rules',
+        path: '/collect/batches',
+        name: '批量采集',
+        component: './Collect/Batches',
       },
       {
         path: '/collect/browser-profiles',
@@ -157,9 +157,9 @@ export default [
         component: './Collect/BrowserProfiles',
       },
       {
-        path: '/collect/batches',
-        name: '批量采集',
-        component: './Collect/Batches',
+        path: '/collect/rules',
+        name: '采集规则',
+        component: './Collect/Rules',
       },
       {
         path: '/collect/monitor',
