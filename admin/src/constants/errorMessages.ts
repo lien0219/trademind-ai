@@ -67,7 +67,7 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
   },
   DOUYIN_TASK_STALE: {
     title: '任务执行时间过长',
-    detail: '任务长时间无进展，可能 Worker 异常或平台响应缓慢。',
+    detail: '任务长时间无进展，可能后台任务进程异常或平台响应缓慢。',
     action: '在失败任务中心查看详情并重试',
   },
   DOUYIN_TASK_RESULT_UNKNOWN: {

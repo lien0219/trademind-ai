@@ -799,10 +799,10 @@ export default function OrdersPage() {
           <Form.Item name="productTitle" label="标题" rules={[{ required: true, message: '必填' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="skuCode" label="SKU 编码">
+          <Form.Item name="skuCode" label="规格编码">
             <Input />
           </Form.Item>
-          <Form.Item name="skuName" label="SKU 名称">
+          <Form.Item name="skuName" label="规格名称">
             <Input />
           </Form.Item>
           <Form.Item name="quantity" label="数量" initialValue={1} rules={[{ required: true }]}>

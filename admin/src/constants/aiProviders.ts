@@ -52,7 +52,7 @@ export const AI_PROVIDER_DOCS: Record<AIProviderValue, AIProviderDocs> = {
       'https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create/',
     docsLabel: 'OpenAI Chat Completions 文档',
     consoleUrl: 'https://platform.openai.com/api-keys',
-    consoleLabel: 'OpenAI 控制台 · 申请 API Key',
+    consoleLabel: 'OpenAI 控制台 · 申请接口密钥',
   },
   openai_compatible: {
     docsUrl:
@@ -65,14 +65,14 @@ export const AI_PROVIDER_DOCS: Record<AIProviderValue, AIProviderDocs> = {
     docsUrl: 'https://api-docs.deepseek.com/',
     docsLabel: 'DeepSeek API 文档',
     consoleUrl: 'https://platform.deepseek.com/api_keys',
-    consoleLabel: 'DeepSeek 控制台 · 申请 API Key',
+    consoleLabel: 'DeepSeek 控制台 · 申请接口密钥',
   },
   qwen: {
     docsUrl:
       'https://help.aliyun.com/zh/model-studio/developer-reference/compatibility-of-openai-with-dashscope',
     docsLabel: '通义千问 OpenAI 兼容文档',
     consoleUrl: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
-    consoleLabel: '阿里云百炼 · 申请 API Key',
+    consoleLabel: '阿里云百炼 · 申请接口密钥',
   },
 };
 
@@ -138,7 +138,7 @@ export const ALL_AI_CONNECTION_FIELD_SPECS: Record<
   },
   openai_model: { label: '模型', placeholder: 'gpt-4o-mini' },
   openai_api_key: {
-    label: 'API 密钥',
+    label: '接口密钥',
     encrypted: true,
     placeholder: 'sk-...',
     extra: '请到 OpenAI 控制台申请；各服务商密钥独立保存',
@@ -150,7 +150,7 @@ export const ALL_AI_CONNECTION_FIELD_SPECS: Record<
   },
   openai_compatible_model: { label: '模型', placeholder: 'gpt-4o-mini' },
   openai_compatible_api_key: {
-    label: 'API 密钥',
+    label: '接口密钥',
     encrypted: true,
     placeholder: 'sk-...',
     extra: 'Ollama 等本地服务可留空或填占位；各服务商密钥独立保存',
@@ -162,7 +162,7 @@ export const ALL_AI_CONNECTION_FIELD_SPECS: Record<
   },
   deepseek_model: { label: '模型', placeholder: 'deepseek-chat' },
   deepseek_api_key: {
-    label: 'API 密钥',
+    label: '接口密钥',
     encrypted: true,
     placeholder: 'sk-...',
     extra: '请到 DeepSeek 控制台申请；各服务商密钥独立保存',
@@ -174,7 +174,7 @@ export const ALL_AI_CONNECTION_FIELD_SPECS: Record<
   },
   qwen_model: { label: '模型', placeholder: 'qwen-plus' },
   qwen_api_key: {
-    label: 'API 密钥',
+    label: '接口密钥',
     encrypted: true,
     placeholder: 'sk-...',
     extra: '请到阿里云百炼控制台申请；各服务商密钥独立保存',

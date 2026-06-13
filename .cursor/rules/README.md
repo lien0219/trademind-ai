@@ -33,6 +33,7 @@
 | `05-ai-provider.mdc` | AI / Image 相关后端与前端设置页面 | AI Provider、Prompt、AI 任务、图片 AI、客服 AI |
 | `06-storage-provider.mdc` | Storage 后端与存储设置页面 | Storage Provider、本地存储、云存储扩展 |
 | `07-collector-node-playwright.mdc` | `collector/**/*.{ts,tsx,js,json}` | Node / Playwright 采集服务规则 |
+| `14-ui-copywriting.mdc` | `admin/src/**`、后端用户可见 message/label | 用户可见文案中文化；见 `docs/ui-copywriting.md` |
 
 ## 新增规则 Checklist
 

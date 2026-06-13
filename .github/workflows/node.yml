@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check user-visible copy (strict)
+        run: pnpm check:ui-copy --strict
+
       - name: Build admin
         run: pnpm build:admin
 

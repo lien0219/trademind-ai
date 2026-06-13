@@ -1,8 +1,8 @@
 /** 邮件服务提供商（存库 provider 字段） */
 export const MAIL_PROVIDER_META: Record<string, { label: string; desc: string }> = {
   smtp: {
-    label: 'SMTP',
-    desc: '企业邮箱、QQ/网易授权码、SendGrid / Mailgun 等标准 SMTP',
+    label: '邮件（SMTP）',
+    desc: '企业邮箱、QQ/网易授权码、SendGrid / Mailgun 等标准邮件协议',
   },
 };
 
@@ -25,8 +25,8 @@ export function smtpPortHint(port?: number | null): string {
 
 /** 表单字段中文标签（不暴露 item_key） */
 export const MAIL_FIELD_LABEL = {
-  host: 'SMTP 服务器',
-  port: 'SMTP 端口',
+  host: '邮件服务器',
+  port: '邮件端口',
   username: '登录账号',
   password: '密码 / 授权码',
   from: '发件人邮箱',

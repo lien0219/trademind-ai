@@ -14,7 +14,7 @@ export default function PlatformRuntimeUnavailablePanel({ meta }: Props) {
   const st = PLATFORM_STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
 
   return (
-    <SectionCard title={`${meta.name} 运行状态`} description="该平台尚未接入 runtime 运维能力。">
+    <SectionCard title={`${meta.name} 运行状态`} description="该平台尚未接入运行时运维能力。">
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Alert
           showIcon
@@ -32,7 +32,7 @@ export default function PlatformRuntimeUnavailablePanel({ meta }: Props) {
         <Space wrap>
           <Text type="secondary">平台状态</Text>
           <Tag color={st.color}>{st.label}</Tag>
-          <Tag>未接入 runtime</Tag>
+          <Tag>未接入运行时</Tag>
         </Space>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
           如需配置应用凭证、授权店铺或开启同步能力，请前往平台接入设置。

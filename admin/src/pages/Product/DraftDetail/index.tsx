@@ -150,7 +150,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   shopee: 'Shopee',
   lazada: 'Lazada',
   amazon: 'Amazon',
-  mock: 'Mock',
+  mock: '模拟',
 };
 
 function platformDisplayName(platform?: string): string {
@@ -278,7 +278,7 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
     hints.push('该规格尚未绑定抖店规格，请先完成规格绑定后再同步库存。');
   }
   if (/DOUYIN_SKU_BINDING_AMBIGUOUS/i.test(s)) {
-    hints.push('该规格存在多个候选抖店 SKU，匹配结果不明确，请人工确认绑定后再同步库存。');
+    hints.push('该规格存在多个候选抖店规格，匹配结果不明确，请人工确认绑定后再同步库存。');
   }
   if (/DOUYIN_PRODUCT_NOT_BOUND|external product id missing/i.test(s)) {
     hints.push('该商品还没有绑定抖店商品 ID。请先在「刊登」Tab 完成抖店商品草稿创建。');
@@ -504,8 +504,8 @@ function douyinBindStatusTag(status?: string) {
 function douyinBindStatusHint(status?: string): string {
   const st = String(status || '').toLowerCase();
   if (st === 'bound' || st === 'skipped') return '已绑定，可同步库存。';
-  if (st === 'unmatched') return '未匹配到抖店 SKU，请手动绑定后再同步库存。';
-  if (st === 'ambiguous') return '找到多个可能的抖店 SKU，请人工确认。';
+  if (st === 'unmatched') return '未匹配到抖店规格，请手动绑定后再同步库存。';
+  if (st === 'ambiguous') return '找到多个可能的抖店规格，请人工确认。';
   if (st === 'failed') return '校准失败，请稍后重试或手动绑定。';
   return '尚未校准，请先执行校准或手动绑定。';
 }
@@ -524,12 +524,12 @@ function douyinImageStatusTag(img: DouyinDraftImage) {
   if (st === 'uploaded') return <Tag color="green">已上传抖店</Tag>;
   if (st === 'failed') return <Tag color="red">上传失败</Tag>;
   if (st === 'processing') return <Tag color="blue">上传中</Tag>;
-  if (img.needSync) return <Tag color="orange">待同步 Storage</Tag>;
+  if (img.needSync) return <Tag color="orange">待同步到存储</Tag>;
   return <Tag color="orange">待上传</Tag>;
 }
 
 function douyinStorageStatusTag(img: DouyinDraftImage) {
-  return img.storageKey || img.objectKey || img.storageUrl || img.publicUrl ? <Tag color="green">Storage 已就绪</Tag> : <Tag color="orange">需先同步 Storage</Tag>;
+  return img.storageKey || img.objectKey || img.storageUrl || img.publicUrl ? <Tag color="green">存储已就绪</Tag> : <Tag color="orange">需先同步到存储</Tag>;
 }
 
 function douyinImagePreviewUrl(img: DouyinDraftImage) {
@@ -1695,7 +1695,7 @@ export default function ProductDraftDetailPage() {
                       type="info"
                       showIcon
                       style={{ marginBottom: 16 }}
-                      message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和 SKU 后再发布。"
+                      message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。"
                     />
                   ) : null}
                   {collectQualityWarnings.length > 0 ? (
@@ -1836,7 +1836,7 @@ export default function ProductDraftDetailPage() {
                         { title: '状态', dataIndex: 'status', width: 100 },
                         { title: '模型', dataIndex: 'model', ellipsis: true },
                         {
-                          title: 'Token 用量',
+                          title: 'AI 消耗量',
                           width: 100,
                           render: (_: unknown, row: AITaskRow) => `${row.tokenInput ?? 0}/${row.tokenOutput ?? 0}`,
                         },
@@ -2041,8 +2041,8 @@ export default function ProductDraftDetailPage() {
                       style={{ marginBottom: 12 }}
                       message={
                         isPinduoduoProduct(data)
-                          ? '当前采集结果没有完整商品规格。你可以手动新增 SKU，或等待后续版本增强拼多多规格采集。'
-                          : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增 SKU。'
+                          ? '当前采集结果没有完整商品规格。你可以手动新增规格，或等待后续版本增强拼多多规格采集。'
+                          : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增规格。'
                       }
                     />
                   ) : null}
@@ -2067,13 +2067,13 @@ export default function ProductDraftDetailPage() {
                         id: `new_${Date.now()}`,
                         productId: id,
                         skuCode: '',
-                        skuName: '新 SKU',
+                        skuName: '新规格',
                         attrsText: '{}',
                       }),
                       style: {
                         marginBottom: 16,
                       },
-                      creatorButtonText: '新增 SKU',
+                      creatorButtonText: '新增规格',
                     }}
                     editable={{
                       type: 'multiple',
@@ -2124,7 +2124,7 @@ export default function ProductDraftDetailPage() {
                     description={
                       <>
                         <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          在此调整本地 SKU 库存与预警线；已刊登到各平台的 SKU 可在下方同步到店铺。
+                          在此调整本地规格库存与预警线；已刊登到各平台的规格可在下方同步到店铺。
                           仅当平台已开放「库存同步」且映射完整时可发起同步（抖店、TikTok、Shopee、Lazada、Amazon 已支持）。
                         </Typography.Paragraph>
                         <Typography.Paragraph style={{ marginBottom: 0 }}>
@@ -2273,14 +2273,14 @@ export default function ProductDraftDetailPage() {
                             return Promise.reject(new Error('validation'));
                           }
                           if (skuBatchScope === 'selected' && skuBatchSelKeys.length === 0) {
-                            message.error('请勾选 SKU，或改用「本商品全部 SKU」');
+                            message.error('请勾选规格，或改用「本商品全部规格」');
                             return Promise.reject(new Error('validation'));
                           }
                           return new Promise<void>((resolve, reject) => {
                             Modal.confirm({
                               title: '确认仅修改预警线？',
                               content:
-                                '不修改实际库存，不同步平台，不写入库存流水。将影响的 SKU 数：' +
+                                '不修改实际库存，不同步平台，不写入库存流水。将影响的规格数：' +
                                 String(skuBatchMatched ?? '—'),
                               okText: '确认',
                               onOk: async () => {
@@ -2313,7 +2313,7 @@ export default function ProductDraftDetailPage() {
                     }}
                   >
                     <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-                      匹配数：{skuBatchPreviewLoading ? '计算中…' : skuBatchMatched !== null ? `${skuBatchMatched} 个 SKU` : '—'}
+                      匹配数：{skuBatchPreviewLoading ? '计算中…' : skuBatchMatched !== null ? `${skuBatchMatched} 个规格` : '—'}
                     </Typography.Paragraph>
                     <Form form={skuBatchStockForm} layout="vertical" initialValues={{ warningStock: 10, safetyStock: 2 }}>
                       <Form.Item label="应用范围">
@@ -2321,7 +2321,7 @@ export default function ProductDraftDetailPage() {
                           value={skuBatchScope}
                           onChange={(e) => setSkuBatchScope(e.target.value as 'selected' | 'all')}
                         >
-                          <Radio value="all">本商品全部 SKU</Radio>
+                          <Radio value="all">本商品全部规格</Radio>
                           <Radio value="selected" disabled={skuBatchSelKeys.length === 0}>
                             仅选中（{skuBatchSelKeys.length}）
                           </Radio>
@@ -2340,7 +2340,7 @@ export default function ProductDraftDetailPage() {
                   </Modal>
 
                   <Typography.Title level={5} style={{ marginTop: 24 }}>
-                    已刊登 SKU 映射
+                    已刊登规格映射
                   </Typography.Title>
                   <Space wrap style={{ marginBottom: 12 }}>
                     <Select
@@ -2362,7 +2362,7 @@ export default function ProductDraftDetailPage() {
                       disabled={pubSkuSelectedKeys.length === 0}
                       onClick={() => {
                         Modal.confirm({
-                          title: '批量同步选中刊登 SKU？',
+                          title: '批量同步选中刊登规格？',
                           content: `将为选中的 ${pubSkuSelectedKeys.length} 条映射创建库存同步任务。缺少平台映射或未开放库存同步能力的条目将自动跳过。`,
                           okText: '创建批次',
                           onOk: async () => {
@@ -2492,9 +2492,9 @@ export default function ProductDraftDetailPage() {
                               typeof r.platformStock === 'number' ? r.platformStock : fallback;
                             const st = String(r.bindStatus || '').toLowerCase();
                             const disableReason = isDouyin && st === 'ambiguous'
-                              ? '找到多个可能的抖店 SKU，请人工确认绑定后再同步库存。'
+                              ? '找到多个可能的抖店规格，请人工确认绑定后再同步库存。'
                               : isDouyin && (st === 'unmatched' || st === 'failed' || !hasBinding)
-                                ? '该规格还没有绑定抖店 SKU，请先完成绑定后再同步库存。'
+                                ? '该规格还没有绑定抖店规格，请先完成绑定后再同步库存。'
                                 : '当前平台未开放库存同步、店铺未授权，或该映射行不可用';
                             const btn = (
                               <Button
@@ -2622,7 +2622,7 @@ export default function ProductDraftDetailPage() {
                         </TechnicalDetails>
                       </>
                     ) : (
-                      <Typography.Text type="secondary">选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / SKU / 图片（不校验店铺与平台配置）。</Typography.Text>
+                      <Typography.Text type="secondary">选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / 规格 / 图片（不校验店铺与平台配置）。</Typography.Text>
                     )}
                   </Space>
                 </Card>
@@ -2664,7 +2664,7 @@ export default function ProductDraftDetailPage() {
                         <Descriptions.Item label="定价结果">
                           {typeof data.salePrice === 'number' ? `${data.salePrice.toFixed(2)} ${data.currency || ''}` : '未设置售价'}
                         </Descriptions.Item>
-                        <Descriptions.Item label="SKU 数">{data.skus?.length ?? 0}</Descriptions.Item>
+                        <Descriptions.Item label="规格数">{data.skus?.length ?? 0}</Descriptions.Item>
                         <Descriptions.Item label="图片同步">
                           已同步 {imageSyncSummary.synced} / {imageSyncSummary.total}，外链 {imageSyncSummary.external}
                         </Descriptions.Item>
@@ -2926,7 +2926,7 @@ export default function ProductDraftDetailPage() {
                           <Alert
                             type="info"
                             showIcon
-                            message="系统会根据商品标题、AI 文案、图片、SKU、定价和抖店要求填写的信息生成刊登草稿，发布前仍可人工修改。"
+                            message="系统会根据商品标题、AI 文案、图片、规格、定价和抖店要求填写的信息生成刊登草稿，发布前仍可人工修改。"
                           />
                           <Space wrap>
                             <Button type="primary" loading={douyinMappingLoading} onClick={() => void handleBuildDouyinMapping()}>
@@ -3193,7 +3193,7 @@ export default function ProductDraftDetailPage() {
                         extra={
                           <Space>
                             <Button size="small" onClick={() => setDouyinSkuCandidatesOpen(true)} disabled={!douyinSkuBinding?.platformSkus?.length}>
-                              查看平台 SKU 候选
+                              查看平台规格候选
                             </Button>
                             <Button size="small" onClick={() => void reloadDouyinSkuBindings()}>
                               刷新绑定状态
@@ -3219,7 +3219,7 @@ export default function ProductDraftDetailPage() {
                             {douyinSkuBinding?.inventorySyncReady === false && douyinSkuBinding.inventorySyncBlockReason ? (
                               <Alert type="warning" showIcon message={douyinSkuBinding.inventorySyncBlockReason} />
                             ) : douyinSkuBinding?.inventorySyncReady ? (
-                              <Alert type="success" showIcon message="全部规格已绑定抖店 SKU，可同步库存。" />
+                              <Alert type="success" showIcon message="全部规格已绑定抖店规格，可同步库存。" />
                             ) : null}
                             <Descriptions bordered size="small" column={2}>
                               <Descriptions.Item label="抖店商品 ID">
@@ -3245,7 +3245,7 @@ export default function ProductDraftDetailPage() {
                                 scroll={{ x: 1200 }}
                                 dataSource={douyinSkuBinding?.rows ?? []}
                                 columns={[
-                                  { title: '本地 SKU', dataIndex: 'skuCode', width: 120, ellipsis: true, render: (v, r) => v || r.productSkuId || '—' },
+                                  { title: '本地规格', dataIndex: 'skuCode', width: 120, ellipsis: true, render: (v, r) => v || r.productSkuId || '—' },
                                   { title: '本地规格', dataIndex: 'specName', width: 140, ellipsis: true, render: (v) => v || '—' },
                                   {
                                     title: '本地价格',
@@ -3258,7 +3258,7 @@ export default function ProductDraftDetailPage() {
                                     render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—'),
                                   },
                                   { title: '平台规格编号', dataIndex: 'externalSkuId', width: 140, ellipsis: true, render: (v) => v || '—' },
-                                  { title: '抖店 SKU 名称', dataIndex: 'platformSkuName', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  { title: '抖店规格名称', dataIndex: 'platformSkuName', width: 140, ellipsis: true, render: (v) => v || '—' },
                                   { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
                                   { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
                                   {
@@ -3315,7 +3315,7 @@ export default function ProductDraftDetailPage() {
                                 ]}
                               />
                             ) : (
-                              <Typography.Text type="secondary">点击「重新校准」从抖店拉取 SKU 并完成匹配；未匹配或待确认规格可手动绑定。</Typography.Text>
+                              <Typography.Text type="secondary">点击「重新校准」从抖店拉取规格并完成匹配；未匹配或待确认规格可手动绑定。</Typography.Text>
                             )}
                           </Space>
                         )}
@@ -3892,7 +3892,7 @@ export default function ProductDraftDetailPage() {
       </Modal>
 
       <Modal
-        title="同步刊登 SKU 库存"
+        title="同步刊登规格库存"
         open={syncOpen && !!syncRow}
         destroyOnHidden
         okText="提交任务"
@@ -3986,7 +3986,7 @@ export default function ProductDraftDetailPage() {
       </Modal>
 
       <Modal
-        title={douyinSkuBindTarget ? `手动绑定抖店 SKU · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店 SKU'}
+        title={douyinSkuBindTarget ? `手动绑定抖店规格 · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店规格'}
         open={douyinSkuBindOpen && !!douyinSkuBindTarget}
         destroyOnHidden
         okText="确认绑定"
@@ -4029,7 +4029,7 @@ export default function ProductDraftDetailPage() {
           本地规格：{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}
         </Typography.Paragraph>
         <Form form={douyinSkuBindForm} layout="vertical">
-          <Form.Item name="platformSkuId" label="抖店 SKU" rules={[{ required: true, message: '请选择抖店 SKU' }]}>
+          <Form.Item name="platformSkuId" label="抖店规格" rules={[{ required: true, message: '请选择抖店规格' }]}>
             <Select
               showSearch
               placeholder="从平台候选中选择"
@@ -4045,14 +4045,14 @@ export default function ProductDraftDetailPage() {
               }}
             />
           </Form.Item>
-          <Form.Item name="platformSkuName" label="抖店 SKU 名称">
+          <Form.Item name="platformSkuName" label="抖店规格名称">
             <Input placeholder="可选，便于识别" />
           </Form.Item>
         </Form>
       </Modal>
 
       <Drawer
-        title="抖店平台 SKU 候选"
+        title="抖店平台规格候选"
         open={douyinSkuCandidatesOpen}
         width={640}
         onClose={() => setDouyinSkuCandidatesOpen(false)}

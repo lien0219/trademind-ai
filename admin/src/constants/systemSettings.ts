@@ -30,11 +30,11 @@ export const TASK_ALERT_CATEGORY_TOGGLES = [
   {
     name: 'alert_on_inventory_mapping_missing',
     label: '库存映射缺失',
-    extra: '库存同步因 SKU 映射缺失失败时告警',
+    extra: '库存同步因规格映射缺失失败时告警',
   },
   {
     name: 'alert_on_worker_lease_expired',
     label: '后台任务执行超时',
-    extra: '任务租约过期、Worker 长时间未续租时告警',
+    extra: '任务租约过期、后台任务进程长时间未续租时告警',
   },
 ] as const;

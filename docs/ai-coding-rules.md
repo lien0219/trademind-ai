@@ -80,5 +80,6 @@ AI Agent 修改代码时应遵循：
 - [ ] 已按 `docs/module-map.md` 检查关联文件。
 - [ ] 涉及后端 Go 代码时已执行 `go fmt ./...`。
 - [ ] 涉及 admin 时已执行或说明 `pnpm build:admin`。
+- [ ] 涉及用户可见文案时已执行或说明 `pnpm check:ui-copy --strict`。
 - [ ] 涉及 collector 时已执行或说明 `pnpm build:collector`。
 - [ ] 较大模块或阶段性变更已更新 `docs/PROGRESS.md`。

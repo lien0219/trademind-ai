@@ -200,7 +200,7 @@ export function CollectorTaobaoTmallSection({
         <Row gutter={16}>
           <Col xs={24} sm={12}>
             <Form.Item
-              label="SKU 点击采集"
+              label="规格点击采集"
               name="collect_taobao_tmall_sku_click_enabled"
               valuePropName="checked"
               tooltip="规格组合较少时点击采集价格；组合过多时自动限制点击次数。"
@@ -210,7 +210,7 @@ export function CollectorTaobaoTmallSection({
           </Col>
           <Col xs={24} sm={12}>
             <Form.Item
-              label="SKU 最大点击次数"
+              label="规格最大点击次数"
               name="collect_taobao_tmall_sku_click_max"
               tooltip="避免规格组合过多导致采集卡死，默认 24。"
             >

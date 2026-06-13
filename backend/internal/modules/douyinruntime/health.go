@@ -133,7 +133,7 @@ func (s *Service) healthAuth(ctx context.Context, metrics douyinmetrics.Summary2
 
 func (s *Service) healthStorage(ctx context.Context) HealthSection {
 	if s == nil || s.Preflight == nil || s.Preflight.Storage == nil {
-		return HealthSection{Status: HealthDegraded, Label: "Storage 检查不可用", Details: map[string]any{}}
+		return HealthSection{Status: HealthDegraded, Label: "存储检查不可用", Details: map[string]any{}}
 	}
 	probe := s.Preflight.Storage.ProbeConfiguredBase(ctx)
 	details := map[string]any{
@@ -142,9 +142,9 @@ func (s *Service) healthStorage(ctx context.Context) HealthSection {
 		"errorCode": probe.ErrorCode,
 	}
 	if !probe.OK {
-		return HealthSection{Status: HealthDegraded, Label: "Storage 公网访问需检查", Details: details}
+		return HealthSection{Status: HealthDegraded, Label: "存储公网访问需检查", Details: details}
 	}
-	return HealthSection{Status: HealthHealthy, Label: "Storage 正常", Details: details}
+	return HealthSection{Status: HealthHealthy, Label: "存储正常", Details: details}
 }
 
 func (s *Service) healthTasks(ctx context.Context, metrics douyinmetrics.Summary24h) HealthSection {
@@ -168,7 +168,7 @@ func (s *Service) healthTasks(ctx context.Context, metrics douyinmetrics.Summary
 	}
 	switch {
 	case metrics.StaleTasksTotal >= 5 || metrics.FailureTasksPending >= 20:
-		return HealthSection{Status: HealthUnhealthy, Label: "任务积压或 stale 过多", Details: details}
+		return HealthSection{Status: HealthUnhealthy, Label: "任务积压或停滞过多", Details: details}
 	case metrics.StaleTasksTotal > 0 || metrics.FailureTasksPending > 0:
 		return HealthSection{Status: HealthDegraded, Label: "存在需处理任务", Details: details}
 	default:
@@ -186,15 +186,15 @@ func (s *Service) healthAPI(metrics douyinmetrics.Summary24h) HealthSection {
 		"retry24h":       metrics.APIRetryTotal,
 	}
 	if metrics.APIRequestsTotal == 0 {
-		return HealthSection{Status: HealthDegraded, Label: "暂无 API 调用数据", Details: details}
+		return HealthSection{Status: HealthDegraded, Label: "暂无接口调用数据", Details: details}
 	}
 	switch {
 	case metrics.APISuccessRate < 90 || metrics.APITimeoutTotal >= 10:
-		return HealthSection{Status: HealthUnhealthy, Label: "API 成功率偏低", Details: details}
+		return HealthSection{Status: HealthUnhealthy, Label: "接口成功率偏低", Details: details}
 	case metrics.APISuccessRate < 98 || metrics.APIRateLimitedTotal >= 5:
-		return HealthSection{Status: HealthDegraded, Label: "API 存在异常波动", Details: details}
+		return HealthSection{Status: HealthDegraded, Label: "接口存在异常波动", Details: details}
 	default:
-		return HealthSection{Status: HealthHealthy, Label: "API 运行正常", Details: details}
+		return HealthSection{Status: HealthHealthy, Label: "接口运行正常", Details: details}
 	}
 }
 

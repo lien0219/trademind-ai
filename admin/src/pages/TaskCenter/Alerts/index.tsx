@@ -321,7 +321,7 @@ export default function TaskCenterAlertsPage() {
   return (
     <TmPageContainer
       title={'告警中心'}
-      subTitle={'站内告警与可选外部通知（邮件 / Webhook；飞书与企业微信预留）'}
+      subTitle={'站内告警与可选外部通知（邮件 / 回调通知；飞书与企业微信预留）'}
       extra={[
         <Button
           key="scan"

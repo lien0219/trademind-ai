@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { ActionBar, SectionCard, TechnicalDetails } from '@/components/ui';
+import { releaseGateConclusionLabel } from '@/constants/platformRuntime';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, Link } from '@umijs/max';
 import {
@@ -185,7 +186,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if ((metrics?.tokenRefreshFailedTotal ?? 0) >= 3) {
     rows.push({
       key: 'token_refresh',
-      label: 'Token 刷新失败（24h）',
+      label: '访问令牌刷新失败（24h）',
       count: metrics!.tokenRefreshFailedTotal,
       href: '/shops/manage',
       severity: 'warning',
@@ -246,9 +247,9 @@ function HealthSectionCard({
 function MetricsGrid({ metrics }: { metrics: DouyinMetricsSummary | null }) {
   if (!metrics) return <Text type="secondary">载入中...</Text>;
   const items = [
-    { title: 'API 请求', value: metrics.apiRequestsTotal },
-    { title: 'API 成功率', value: `${metrics.apiSuccessRate.toFixed(1)}%` },
-    { title: 'Stale 标记', value: metrics.staleTasksTotal },
+    { title: '接口请求', value: metrics.apiRequestsTotal },
+    { title: '接口成功率', value: `${metrics.apiSuccessRate.toFixed(1)}%` },
+    { title: '停滞标记', value: metrics.staleTasksTotal },
     { title: '恢复成功', value: metrics.recoverySuccessTotal },
     { title: '恢复失败', value: metrics.recoveryFailedTotal },
     { title: '草稿创建', value: metrics.productDraftCreateTotal },
@@ -276,7 +277,7 @@ function ReleaseGatePanel({ gate }: { gate: DouyinReleaseGate | null }) {
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
       <Space wrap>
         <Text strong>发布结论</Text>
-        <Tag color="processing">{gate.overallConclusion}</Tag>
+        <Tag color="processing">{releaseGateConclusionLabel(gate.overallConclusion)}</Tag>
         <Text type="secondary">检查时间：{formatDateTime(gate.checkedAt)}</Text>
       </Space>
       <List<DouyinReleaseGateItem>
@@ -374,14 +375,14 @@ export default function DouyinRuntimePanel() {
     try {
       const res = await testStoragePublicAccess();
       if (res.ok) {
-        message.success(res.message || 'Storage 公网访问正常');
+        message.success(res.message || '存储公网访问正常');
       } else {
-        message.warning(res.message || 'Storage 公网访问需检查');
+        message.warning(res.message || '存储公网访问需检查');
       }
       const h = await getDouyinHealth();
       setHealth(h);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || 'Storage 测试失败');
+      message.error((e as Error)?.message || '存储公网访问测试失败');
     } finally {
       setStorageTesting(false);
     }
@@ -443,7 +444,7 @@ export default function DouyinRuntimePanel() {
           </Space>
         </ProCard>
 
-        <SectionCard title="运行控制" description="暂停或紧急停用后，Worker 将不再调用抖店写接口。">
+        <SectionCard title="运行控制" description="暂停或紧急停用后，后台任务进程将不再调用抖店写接口。">
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Space wrap>
               <Text strong>当前状态</Text>
@@ -535,7 +536,7 @@ export default function DouyinRuntimePanel() {
           </Col>
           <Col xs={24} lg={12}>
             <HealthSectionCard
-              title="Storage 公网访问"
+              title="存储公网访问"
               icon={<CloudServerOutlined />}
               section={health?.storage}
               extra={
@@ -553,7 +554,7 @@ export default function DouyinRuntimePanel() {
             />
           </Col>
           <Col xs={24} lg={12}>
-            <HealthSectionCard title="API 调用" icon={<SafetyCertificateOutlined />} section={health?.api} />
+            <HealthSectionCard title="接口调用" icon={<SafetyCertificateOutlined />} section={health?.api} />
           </Col>
         </Row>
 
@@ -594,7 +595,7 @@ export default function DouyinRuntimePanel() {
           )}
         </SectionCard>
 
-        <SectionCard title="发布门禁清单" description="Release Candidate 检查项；真实 E2E 仍可能 blocked_by_real_credentials。">
+        <SectionCard title="发布门禁清单" description="发布候选检查项；真实端到端联调仍可能因缺少真实凭证而阻塞。">
           <ReleaseGatePanel gate={gate} />
         </SectionCard>
 

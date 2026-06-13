@@ -252,7 +252,7 @@ function DouyinRuntimePanel() {
   return (
     <SectionCard
       title="抖店运行状态"
-      description="暂停或紧急停用后，Worker 将不再调用抖店写接口；历史数据仍可查看。"
+      description="暂停或紧急停用后，后台任务进程将不再调用抖店写接口；历史数据仍可查看。"
       headerExtra={
         <Link to={platformRuntimeHref('douyin_shop')}>
           <Button type="link" size="small">
@@ -368,16 +368,16 @@ function DouyinPreflightPanel() {
     <SectionCard title="抖店生产预检" extra={result?.checkedAt ? `最近：${result.checkedAt}` : undefined}>
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          上线前一键检查应用配置、店铺授权、功能开关、Storage 公网访问与基础数据状态。不含自动写操作。
+          上线前一键检查应用配置、店铺授权、功能开关、存储公网访问与基础数据状态。不含自动写操作。
         </Paragraph>
         <Space wrap>
           <Button type="primary" icon={<SafetyCertificateOutlined />} loading={running} onClick={() => void run()}>
             运行生产预检
           </Button>
-          <Switch checked={liveTest} onChange={setLiveTest} /> <Text type="secondary">包含真实 Token 刷新联调（需已授权店铺）</Text>
+          <Switch checked={liveTest} onChange={setLiveTest} /> <Text type="secondary">包含真实访问令牌刷新联调（需已授权店铺）</Text>
         </Space>
         {result?.blockedByRealCredentials ? (
-          <Alert showIcon type="info" message="部分真实联调项需 App Key / Secret 与已授权店铺，当前以结构检查为主" />
+          <Alert showIcon type="info" message="部分真实联调项需应用 Key / 密钥与已授权店铺，当前以结构检查为主" />
         ) : null}
         {result ? (
           <>

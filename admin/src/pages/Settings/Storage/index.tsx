@@ -70,31 +70,31 @@ const STORAGE_KIND_OPTIONS: StorageKindMeta[] = [
   {
     value: 's3',
     title: 'Amazon S3',
-    desc: '标准 AWS S3 Region + Bucket（可留空 Endpoint 使用默认分区）',
+    desc: '标准 AWS S3 区域 + 存储桶（可留空接口地址以使用默认分区）',
     Icon: CloudServerOutlined,
   },
   {
     value: 'cos',
     title: '腾讯云 COS',
-    desc: '原生 COS SDK（Put/Get/Delete/GetURL），密钥仅存库 AES-GCM 加密',
+    desc: '原生 COS SDK（上传/下载/删除/获取链接），密钥仅存库 AES-GCM 加密',
     Icon: CloudOutlined,
   },
   {
     value: 'oss',
     title: '阿里云 OSS',
-    desc: '原生 OSS SDK（Put/Get/Delete/GetURL），密钥仅存库 AES-GCM 加密',
+    desc: '原生 OSS SDK（上传/下载/删除/获取链接），密钥仅存库 AES-GCM 加密',
     Icon: GlobalOutlined,
   },
   {
     value: 'r2',
     title: 'Cloudflare R2',
-    desc: 'S3 兼容 API；Region 常为 auto',
+    desc: 'S3 兼容接口；区域常为 auto',
     Icon: ThunderboltOutlined,
   },
   {
     value: 'minio',
     title: 'MinIO',
-    desc: '私有化对象存储（建议 Path-style）',
+    desc: '私有化对象存储（建议路径式访问）',
     Icon: DatabaseOutlined,
   },
 ];
@@ -486,7 +486,7 @@ export default function StorageSettingsPage() {
                 自备云存储与访问域名
               </Typography.Title>
               <Typography.Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                请在 AWS、Cloudflare R2、MinIO、腾讯云 COS、阿里云 OSS 等开通 Bucket 与密钥；密钥仅在后端加密保存，浏览器不直连对象存储。上传走服务端接口，可在本页或「文件管理」中测试。总览见{' '}
+                请在 AWS、Cloudflare R2、MinIO、腾讯云 COS、阿里云 OSS 等开通存储桶与密钥；密钥仅在后端加密保存，浏览器不直连对象存储。上传走服务端接口，可在本页或「文件管理」中测试。总览见{' '}
                 <Link to="/settings/integrations">第三方集成总览</Link>。
               </Typography.Paragraph>
             </div>
@@ -571,11 +571,11 @@ export default function StorageSettingsPage() {
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={14}>
                     <Form.Item
-                      label="接口地址 Endpoint"
+                      label="接口地址"
                       name="s3_endpoint"
                       rules={
                         kind === 'r2' || kind === 'minio'
-                          ? [{ required: true, message: '请填写 Endpoint URL（含 https:// 或 http://）' }]
+                          ? [{ required: true, message: '请填写接口地址（含 https:// 或 http://）' }]
                           : []
                       }
                       extra={
@@ -595,25 +595,25 @@ export default function StorageSettingsPage() {
                 </Row>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="存储桶 Bucket" name="s3_bucket" rules={[{ required: true, message: '请填写 Bucket' }]}>
+                    <Form.Item label="存储桶" name="s3_bucket" rules={[{ required: true, message: '请填写存储桶名称' }]}>
                       <Input placeholder="my-bucket" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="Access Key ID" name="s3_access_key_id" rules={[{ required: true }]}>
-                      <Input.Password autoComplete="new-password" placeholder="AKIA… 或 R2 Token" />
+                    <Form.Item label="访问密钥 ID" name="s3_access_key_id" rules={[{ required: true }]}>
+                      <Input.Password autoComplete="new-password" placeholder="AKIA… 或 R2 令牌" />
                     </Form.Item>
                   </Col>
                 </Row>
-                <Form.Item label="Secret Access Key" name="s3_secret_access_key" rules={[{ required: true }]}>
+                <Form.Item label="访问密钥" name="s3_secret_access_key" rules={[{ required: true }]}>
                   <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
                 </Form.Item>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="Path-style 访问" name="s3_force_path_style">
+                    <Form.Item label="路径式访问" name="s3_force_path_style">
                       <Radio.Group>
                         <Radio value="false">虚拟主机（AWS 默认）</Radio>
-                        <Radio value="true">Path-style（MinIO 常用）</Radio>
+                        <Radio value="true">路径式（MinIO 常用）</Radio>
                       </Radio.Group>
                     </Form.Item>
                   </Col>
@@ -664,7 +664,7 @@ export default function StorageSettingsPage() {
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      label="存储桶 Bucket"
+                      label="存储桶"
                       name="cos_bucket"
                       rules={[{ required: true, message: '请填写 COS 存储桶' }]}
                       extra="腾讯云名称形如 example-1250000000（含 AppID 后缀）"
@@ -674,7 +674,7 @@ export default function StorageSettingsPage() {
                   </Col>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      label="区域 Region"
+                      label="区域"
                       name="cos_region"
                       rules={[{ required: true, message: '请填写区域' }]}
                       extra="例如 ap-guangzhou"
@@ -685,12 +685,12 @@ export default function StorageSettingsPage() {
                 </Row>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="SecretId" name="cos_secret_id" rules={[{ required: true }]}>
+                    <Form.Item label="密钥 ID" name="cos_secret_id" rules={[{ required: true }]}>
                       <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="SecretKey" name="cos_secret_key" rules={[{ required: true }]}>
+                    <Form.Item label="密钥" name="cos_secret_key" rules={[{ required: true }]}>
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
                   </Col>
@@ -702,7 +702,7 @@ export default function StorageSettingsPage() {
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="自定义 Endpoint（可选）" name="cos_endpoint" extra="加速域等特殊入口；留空使用标准域名">
+                    <Form.Item label="自定义接口地址（可选）" name="cos_endpoint" extra="加速域等特殊入口；留空使用标准域名">
                       <Input placeholder="https://…" />
                     </Form.Item>
                   </Col>
@@ -722,26 +722,26 @@ export default function StorageSettingsPage() {
             {showOssForm ? (
               <>
                 <Form.Item
-                  label="接口地址 Endpoint"
+                  label="接口地址"
                   name="oss_endpoint"
-                  rules={[{ required: true, message: '请填写 OSS Endpoint' }]}
+                  rules={[{ required: true, message: '请填写 OSS 接口地址' }]}
                   extra="例如 https://oss-cn-guangzhou.aliyuncs.com"
                 >
                   <Input placeholder="https://oss-cn-guangzhou.aliyuncs.com" />
                 </Form.Item>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="存储桶 Bucket" name="oss_bucket" rules={[{ required: true, message: '请填写 Bucket' }]}>
+                    <Form.Item label="存储桶" name="oss_bucket" rules={[{ required: true, message: '请填写存储桶名称' }]}>
                       <Input placeholder="trademind-assets" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="AccessKey ID" name="oss_access_key_id" rules={[{ required: true }]}>
+                    <Form.Item label="访问密钥 ID" name="oss_access_key_id" rules={[{ required: true }]}>
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
                   </Col>
                 </Row>
-                <Form.Item label="AccessKey Secret" name="oss_access_key_secret" rules={[{ required: true }]}>
+                <Form.Item label="访问密钥" name="oss_access_key_secret" rules={[{ required: true }]}>
                   <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
                 </Form.Item>
                 <Form.Item label="对外 URL 前缀（可选）" name="oss_public_base" extra="CDN / 自定义域名；留空使用虚拟托管域名">

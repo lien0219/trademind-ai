@@ -167,32 +167,32 @@ function formatPlatformPartnerErr(err: unknown): string {
   }
 
   if (msg.includes('platform config incomplete: please configure platform_tiktok')) {
-    return `${msg}\n请先到「设置 → 平台接入设置 → TikTok Shop」填写 App Key、App Secret 和 Redirect URI。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → TikTok Shop」填写应用 Key、应用密钥和授权回调地址。`;
   }
   if (msg.includes('platform config incomplete: please configure platform_shopee')) {
-    return `${msg}\n请先到「设置 → 平台接入设置 → Shopee」填写 Partner ID、Partner Key 和 Redirect URI。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → Shopee」填写合作伙伴 ID、合作伙伴密钥和授权回调地址。`;
   }
   if (msg.includes('platform config incomplete: please configure platform_lazada')) {
-    return `${msg}\n请先到「设置 → 平台接入设置 → Lazada」填写 App Key、App Secret 和 Redirect URI。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → Lazada」填写应用 Key、应用密钥和授权回调地址。`;
   }
   if (msg.includes('platform customer message permission denied') || msg.includes('platform customer message permission')) {
     return `${msg}\n平台客服权限不足，请确认已在 TikTok / Shopee / Lazada 等平台开放后台申请客服消息权限并重新授权；Amazon 请在 Seller Central / SP-API Developer Console 申请 Buyer-Seller Messaging（Messaging API）相关权限并重新授权店铺。`;
   }
   if (msg.includes('platform customer message provider not implemented')) {
-    return `${msg}\n当前平台客服消息 API 尚未接入，可使用 mock 店铺验证拉取与发送联调。`;
+    return `${msg}\n当前平台客服消息接口尚未接入，可使用模拟店铺验证拉取与发送联调。`;
   }
   if (msg.includes('manual shop does not support platform customer messages')) {
     return `${msg}\n手工店铺仅支持会话手工录入，不支持平台客服消息同步。`;
   }
   if (msg.includes('platform config incomplete: please configure platform_amazon')) {
-    return `${msg}\n请先到「设置 → 平台接入设置 → Amazon SP-API」填写 Client ID、Client Secret、Redirect URI、Marketplace ID 和 SP-API Base URL。`;
+    return `${msg}\n请先到「设置 → 平台接入设置 → Amazon SP-API」填写客户端 ID、客户端密钥、授权回调地址、站点 ID 和 SP-API 接口地址。`;
   }
   if (msg.includes('platform_amazon.lwa_auth_base_url and lwa_token_url')) {
     return `${msg}\n请在「Amazon SP-API」配置中补齐 LWA Auth Base URL 与 LWA Token URL。`;
   }
   if (
     msg.includes(
-      'TikTok platform config is incomplete. Please configure App Key, App Secret and Redirect URI first.',
+      'TikTok 平台配置不完整，请先填写应用 Key、应用密钥和授权回调地址。',
     )
   ) {
     return `${msg}\n请先前往「设置 → 平台接入设置」填写 TikTok Shop（分组 platform_tiktok）必填项后再试。`;
@@ -360,7 +360,7 @@ export default function ShopsPage() {
     }
     const cm = p?.capabilityStatus?.customer_message;
     if (cm === 'planned' || cm === 'disabled') {
-      message.warning('当前平台客服消息接口尚未接入；请使用 mock 店铺验证联调，或等待后续版本。');
+      message.warning('当前平台客服消息接口尚未接入；请使用模拟店铺验证联调，或等待后续版本。');
       return;
     }
     if (cm !== 'available' && cm !== 'beta') {
@@ -823,8 +823,8 @@ export default function ShopsPage() {
           name="mode"
           label="同步模式"
           options={[
-            { label: '增量 incremental', value: 'incremental' },
-            { label: '全量 full', value: 'full' },
+            { label: '增量', value: 'incremental' },
+            { label: '全量', value: 'full' },
           ]}
           rules={[{ required: true }]}
         />
@@ -869,9 +869,9 @@ export default function ShopsPage() {
           name="mode"
           label="同步模式"
           options={[
-            { label: '增量 incremental', value: 'incremental' },
-            { label: '全量 full', value: 'full' },
-            { label: '手动 manual', value: 'manual' },
+            { label: '增量', value: 'incremental' },
+            { label: '全量', value: 'full' },
+            { label: '手动', value: 'manual' },
           ]}
           rules={[{ required: true }]}
         />
@@ -1162,21 +1162,21 @@ export default function ShopsPage() {
                   <TechnicalDetails label="可选：覆盖应用密钥与回调地址" className="tm-shop-auth-override">
                     <Form.Item
                       name="appKey"
-                      label="覆盖 App Key"
+                      label="覆盖应用 Key"
                       tooltip="多数情况留空即可，使用「平台接入设置」中的默认值"
                     >
                       <Input autoComplete="off" />
                     </Form.Item>
                     <Form.Item
                       name="appSecret"
-                      label="覆盖 App Secret"
+                      label="覆盖应用密钥"
                       tooltip="留空以保持平台配置的 Secret；仅在多应用并行调试时使用"
                     >
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item
                       name="redirectUri"
-                      label="覆盖 Redirect URI"
+                      label="覆盖授权回调地址"
                       tooltip="留空则用平台配置的 redirect_uri；必须与 Partner Center 登记的回调完全一致"
                     >
                       <Input placeholder="https://…" />
@@ -1200,7 +1200,7 @@ export default function ShopsPage() {
                     </Form.Item>
                     <Form.Item
                       name="redirectUri"
-                      label="覆盖 Redirect URI"
+                      label="覆盖授权回调地址"
                       tooltip="留空则用平台配置的 redirect_uri；须与 Shopee Open Platform 登记一致"
                     >
                       <Input placeholder="https://…" />
@@ -1210,21 +1210,21 @@ export default function ShopsPage() {
                   <TechnicalDetails label="可选：覆盖应用密钥与回调地址" className="tm-shop-auth-override">
                     <Form.Item
                       name="appKey"
-                      label="覆盖 App Key"
+                      label="覆盖应用 Key"
                       tooltip="留空则使用「平台接入设置」中的 app_key"
                     >
                       <Input autoComplete="off" />
                     </Form.Item>
                     <Form.Item
                       name="appSecret"
-                      label="覆盖 App Secret"
+                      label="覆盖应用密钥"
                       tooltip="留空以保持平台配置的 app_secret（加密存储）"
                     >
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
                     <Form.Item
                       name="redirectUri"
-                      label="覆盖 Redirect URI"
+                      label="覆盖授权回调地址"
                       tooltip="留空则用平台配置的 redirect_uri；须与 Lazada App Console 登记一致"
                     >
                       <Input placeholder="https://…" />
@@ -1232,15 +1232,15 @@ export default function ShopsPage() {
                   </TechnicalDetails>
                 ) : detail.platform === 'amazon' ? (
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                    LWA Client ID / Secret、Redirect URI、SP-API 与 LWA 端点均在「
+                    LWA 客户端 ID/密钥、授权回调地址、SP-API 与 LWA 端点均在「
                     <Link to="/settings/platforms">平台接入设置</Link>」维护；本页保存店铺授权凭证与 Selling Partner 标识。
                   </Typography.Paragraph>
                 ) : (
                   <>
-                    <Form.Item name="appKey" label="App Key">
+                    <Form.Item name="appKey" label="应用 Key">
                       <Input />
                     </Form.Item>
-                    <Form.Item name="appSecret" label="App Secret">
+                    <Form.Item name="appSecret" label="应用密钥">
                       <Input.Password autoComplete="new-password" placeholder="敏感，留空不更新" />
                     </Form.Item>
                   </>
@@ -1646,7 +1646,7 @@ export default function ShopsPage() {
                   <>
                     <Divider>Amazon 店铺授权</Divider>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                      生成链接使用「平台接入设置」中的 Client ID、Redirect URI 与 Seller Central 基址；无需在下方手工填写 Secret。
+                      生成链接使用「平台接入设置」中的客户端 ID、授权回调地址与 Seller Central 基址；无需在下方手工填写密钥。
                     </Typography.Paragraph>
                     <Space wrap>
                       <Button

@@ -44,6 +44,7 @@ alwaysApply: false
 - 前端不保存明文 API Key。
 - 前端不直接调用第三方 AI API。
 - 敏感配置展示必须脱敏。
+- 用户可见文案遵循 `docs/ui-copywriting.md` 与 `.cursor/rules/14-ui-copywriting.mdc`；术语优先引用 `copywriting.ts` / `userFriendly.ts`。
 
 ## 推荐页面结构
 

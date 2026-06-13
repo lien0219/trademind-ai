@@ -157,7 +157,7 @@ export default function InventoryAlertsPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '标题 / SKU 编码 / 名称' },
+        fieldProps: { placeholder: '标题 / 规格编码 / 名称' },
       },
       {
         title: '平台',
@@ -285,7 +285,7 @@ export default function InventoryAlertsPage() {
           if (!r.platformStocks?.length) return <Typography.Text type="secondary">—</Typography.Text>;
           return (
             <Popover
-              title="刊登 SKU 明细"
+              title="刊登规格明细"
               content={
                 <div style={{ maxWidth: 420 }}>
                   {r.platformStocks.map((p) => {
@@ -397,9 +397,9 @@ export default function InventoryAlertsPage() {
       <Typography.Paragraph type="secondary">
         仅查询与提醒，不自动改平台库存；推送仍走{' '}
         <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
-        （可勾选 SKU 行后批量创建{' '}
+        （可勾选规格行后批量创建{' '}
         <Link to="/inventory/sync-batches">{INVENTORY_SYNC_BATCHES_LABEL}</Link>
-        ）。抖店 SKU 须先在商品详情完成 SKU 绑定后再同步库存。
+        ）。抖店规格须先在商品详情完成规格绑定后再同步库存。
       </Typography.Paragraph>
       <ProTable<InventoryAlertRow>
         rowKey={(r) => r.productSkuId}
@@ -558,14 +558,14 @@ export default function InventoryAlertsPage() {
         }}
       >
         <Typography.Paragraph>
-          将为选中的 <Typography.Text strong>{selectedSkuIds.length}</Typography.Text> 个 SKU 创建库存同步批次。
-          默认仅包含「平台库存不一致」「同步失败」类预警对应的刊登 SKU；不包含单纯的本地低库存/售罄，除非你勾选下方选项。
+          将为选中的 <Typography.Text strong>{selectedSkuIds.length}</Typography.Text> 个规格创建库存同步批次。
+          默认仅包含「平台库存不一致」「同步失败」类预警对应的刊登规格；不包含单纯的本地低库存/售罄，除非你勾选下方选项。
         </Typography.Paragraph>
         <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-          列表筛选中的 platform / shopId 会一并传给后端以收窄刊登映射（若留空则由服务端按 SKU 聚合）。
+          列表筛选中的平台 / 店铺会一并传给后端以收窄刊登映射（若留空则由服务端按规格聚合）。
         </Typography.Paragraph>
         <Checkbox checked={bulkIncludeLocalAlerts} onChange={(e) => setBulkIncludeLocalAlerts(e.target.checked)}>
-          同时包含本地低库存 / 售罄 / 低于安全线预警（将把对应刊登 SKU 推送到平台队列）
+          同时包含本地低库存 / 售罄 / 低于安全线预警（将把对应刊登规格推送到平台队列）
         </Checkbox>
       </Modal>
 
@@ -657,7 +657,7 @@ export default function InventoryAlertsPage() {
                 return Promise.reject(new Error('validation'));
               }
               if (batchStockScope === 'selected' && selectedSkuIds.length === 0) {
-                message.error('请先勾选 SKU，或改用「当前筛选结果」');
+                message.error('请先勾选规格，或改用「当前筛选结果」');
                 return Promise.reject(new Error('validation'));
               }
               const payload = buildStockBatchPayload();
@@ -673,16 +673,16 @@ export default function InventoryAlertsPage() {
                     <div>
                       <Typography.Paragraph>
                         将修改 <Typography.Text strong>{batchMatched ?? '—'}</Typography.Text>{' '}
-                        个 SKU 的预警线 / 安全线；不修改本地实际库存，不写入库存流水，不创建平台同步任务。
+                        个规格的预警线 / 安全线；不修改本地实际库存，不写入库存流水，不创建平台同步任务。
                       </Typography.Paragraph>
                       {needAll ? (
                         <Typography.Paragraph type="warning">
-                          当前为「含正常 SKU 的全表筛选」，将附加 confirmAll 提交。
+                          当前为「含正常规格的全表筛选」，将按全表确认提交。
                         </Typography.Paragraph>
                       ) : null}
                       {(batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX ? (
                         <Typography.Paragraph type="warning">
-                          匹配数超过默认单次上限 {BATCH_STOCK_DEFAULT_MAX}，将附加 confirmLarge。
+                          匹配数超过默认单次上限 {BATCH_STOCK_DEFAULT_MAX}，将附加大批量确认。
                         </Typography.Paragraph>
                       ) : null}
                     </div>
@@ -738,7 +738,7 @@ export default function InventoryAlertsPage() {
             </Radio.Group>
           </Form.Item>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-            影响数量：{batchPreviewLoading ? '计算中…' : batchMatched !== null ? `${batchMatched} 个 SKU` : '—'}
+            影响数量：{batchPreviewLoading ? '计算中…' : batchMatched !== null ? `${batchMatched} 个规格` : '—'}
           </Typography.Paragraph>
           <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />

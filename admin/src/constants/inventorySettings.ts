@@ -22,7 +22,7 @@ export const INVENTORY_ORDER_TOGGLES = [
   {
     name: 'auto_match_order_skus',
     label: '平台订单自动规格匹配',
-    extra: '入库后按平台规格编码匹配本地 SKU；失败不影响订单同步',
+    extra: '入库后按平台规格编码匹配本地规格；失败不影响订单同步',
     link: { href: '/orders/sku-matches', text: '全局匹配记录' },
   },
   {

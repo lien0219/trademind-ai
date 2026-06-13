@@ -25,22 +25,22 @@ export const PLATFORM_APP_FIELD_LABEL: Record<string, string> = {
   oauth_scopes: '授权范围',
   sandbox_enabled: '测试环境',
   timeout_sec: PLATFORM_COPY.requestTimeout,
-  partner_id: 'Partner ID',
-  partner_key: 'Partner Key',
-  client_id: 'Client ID',
-  client_secret: 'Client Secret',
+  partner_id: '合作伙伴 ID',
+  partner_key: '合作伙伴密钥',
+  client_id: '客户端 ID',
+  client_secret: '客户端密钥',
   refresh_token: '授权续期凭证',
   lwa_auth_base_url: 'LWA 授权地址',
   lwa_token_url: 'LWA 凭证地址',
   sp_api_base_url: 'SP-API 接口地址',
-  marketplace_id: 'Marketplace ID',
-  role_arn: 'IAM Role ARN',
+  marketplace_id: '站点 ID',
+  role_arn: 'IAM 角色 ARN',
   shop_domain: '店铺域名',
   scopes: '授权范围',
-  consumer_key: 'Consumer Key',
-  consumer_secret: 'Consumer Secret',
+  consumer_key: '消费者 Key',
+  consumer_secret: '消费者密钥',
   store_url: '店铺地址',
-  dev_id: 'Dev ID',
+  dev_id: '开发者 ID',
 };
 
 export const PLATFORM_APP_FIELD_HELP: Record<string, string> = {
@@ -67,9 +67,9 @@ export const PLATFORM_APP_FIELD_HELP: Record<string, string> = {
   scheduled_inventory_sync_enabled: '开启后，允许定时/批量库存同步任务。',
   timeout_sec: '外部请求超时时间，建议 5–600 秒。',
   refresh_token: '通常保存在店铺授权中；此处为应用级占位。',
-  role_arn: '配置后使用 STS AssumeRole 再签名 SP-API 请求。',
+  role_arn: '配置后使用 STS 角色扮演再签名 SP-API 请求。',
   shop_domain: '例如 your-store.myshopify.com',
-  store_url: '须为 HTTPS 的店铺地址',
+  store_url: '须为 HTTPS 安全链接的店铺地址',
 };
 
 export const PLATFORM_APP_FIELD_PLACEHOLDER: Record<string, string> = {

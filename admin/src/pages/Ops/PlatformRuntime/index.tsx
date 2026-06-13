@@ -101,7 +101,7 @@ export default function PlatformRuntimePage() {
   return (
     <TmPageContainer
       title="平台运行状态"
-      subTitle="按平台查看健康检查、运行指标、运行控制与发布门禁；未接入 runtime 的平台仅展示说明，不可操作。"
+      subTitle="按平台查看健康检查、运行指标、运行控制与发布门禁；未接入运行时的平台仅展示说明，不可操作。"
     >
       <Spin spinning={loadingProviders}>
         {tabProviders.length === 0 ? (
@@ -109,7 +109,7 @@ export default function PlatformRuntimePage() {
             showIcon
             type="info"
             message="暂无平台"
-            description="请刷新页面或先在平台接入设置中确认平台 Provider 已注册。"
+            description="请刷新页面或先在平台接入设置中确认平台接入方已注册。"
           />
         ) : (
           <Tabs activeKey={activePlatform} onChange={onTabChange} items={tabItems} destroyInactiveTabPane />

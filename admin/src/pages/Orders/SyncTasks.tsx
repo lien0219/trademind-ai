@@ -69,7 +69,7 @@ export default function OrderSyncTasksPage() {
           shopee: { text: 'Shopee' },
           lazada: { text: 'Lazada' },
           amazon: { text: 'Amazon' },
-          mock: { text: 'Mock' },
+          mock: { text: '模拟' },
         },
       },
       {

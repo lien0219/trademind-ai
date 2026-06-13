@@ -202,7 +202,7 @@ export default function SystemSettingsPage() {
               </Typography.Title>
               <Paragraph type="secondary" className="tm-system-settings__hero-desc">
                 站点名称与时区用于后台展示与时间计算；任务中心告警策略决定哪些失败会自动写入站内告警列表。外部邮件 /
-                Webhook 通知请在「告警通知配置」中单独设置。
+                回调通知请在「告警通知配置」中单独设置。
               </Paragraph>
             </div>
           </div>

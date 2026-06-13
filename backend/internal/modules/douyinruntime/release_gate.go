@@ -42,32 +42,32 @@ func (s *Service) GetReleaseGate(ctx context.Context) (*ReleaseGateDTO, error) {
 
 	cfgSt, cfgMsg := gateFromErr(cfgErr)
 	items = append(items, gateItem("config", "配置检查", cfgSt, cfgMsg))
-	items = append(items, gateItem("credentials", "真实凭证", GateBlocked, "真实 E2E 仍为 blocked_by_real_credentials"))
+	items = append(items, gateItem("credentials", "真实凭证", GateBlocked, "真实端到端联调仍因缺少真实凭证而阻塞"))
 	authSt, authMsg := gateAuth(health)
 	items = append(items, gateItem("shop_auth", "店铺授权", authSt, authMsg))
 	storageSt, storageMsg := gateSection(health, "storage")
-	items = append(items, gateItem("storage", "Storage", storageSt, storageMsg))
+	items = append(items, gateItem("storage", "存储公网访问", storageSt, storageMsg))
 	items = append(items, gateItem("image_upload", "图片上传", GateWarning, "需真实环境验证"))
 	draftSt, draftMsg := gateCounter(metrics.ProductDraftCreateTotal > 0, metrics.ProductDraftCreateFailed == 0)
 	items = append(items, gateItem("product_draft", "商品草稿", draftSt, draftMsg))
-	items = append(items, gateItem("product_detail", "商品详情回查", GatePassed, "Phase 10.2+ 已实现"))
-	items = append(items, gateItem("sku_binding", "SKU 绑定", GatePassed, "自动/手动绑定已实现"))
+	items = append(items, gateItem("product_detail", "商品详情回查", GatePassed, "已实现商品详情回查"))
+	items = append(items, gateItem("sku_binding", "规格绑定", GatePassed, "自动/手动绑定已实现"))
 	orderSt, orderMsg := gateCounter(metrics.OrderFetchedTotal > 0, metrics.OrderPartialSuccessTotal == 0)
 	items = append(items, gateItem("order_sync", "订单同步", orderSt, orderMsg))
 	invSt, invMsg := gateCounter(metrics.InventorySyncSuccessTotal > 0, metrics.InventorySyncFailedTotal == 0)
 	items = append(items, gateItem("inventory_sync", "库存同步", invSt, invMsg))
-	items = append(items, gateItem("retry_policy", "重试策略", GatePassed, "Phase 10.3 已落地"))
+	items = append(items, gateItem("retry_policy", "重试策略", GatePassed, "重试策略已落地"))
 	staleSt, staleMsg := gateCounter(metrics.RecoverySuccessTotal >= 0, true)
-	items = append(items, gateItem("stale_recovery", "stale 恢复", staleSt, staleMsg))
-	items = append(items, gateItem("alerts", "告警", GatePassed, "已接入 taskcenter TaskAlert"))
-	items = append(items, gateItem("ci_race", "CI race", GateWarning, "Linux race job 已配置，待 CI 执行"))
+	items = append(items, gateItem("stale_recovery", "停滞任务恢复", staleSt, staleMsg))
+	items = append(items, gateItem("alerts", "告警", GatePassed, "已接入任务中心告警"))
+	items = append(items, gateItem("ci_race", "CI 并发测试", GateWarning, "Linux 并发测试任务已配置，待 CI 执行"))
 	items = append(items, gateItem("rollback_drill", "回滚演练", GateWarning, "见 docs/DOUYIN_ROLLBACK_DRILL_REPORT.md"))
 	graySt, grayMsg := gateGray(cfg)
 	items = append(items, gateItem("gray_observation", "灰度观察", graySt, grayMsg))
 
 	conclusion := ReleaseCandidateConclusion
 	if allPassed(items) {
-		conclusion = "Gray Release Ready"
+		conclusion = "灰度发布就绪"
 	}
 	return &ReleaseGateDTO{
 		OverallConclusion: conclusion,
@@ -76,7 +76,7 @@ func (s *Service) GetReleaseGate(ctx context.Context) (*ReleaseGateDTO, error) {
 	}, nil
 }
 
-const ReleaseCandidateConclusion = "Release Candidate"
+const ReleaseCandidateConclusion = "发布候选"
 
 func gateItem(key, label, status, msg string) ReleaseGateItem {
 	return ReleaseGateItem{Key: key, Label: label, Status: status, Message: msg}

@@ -245,7 +245,7 @@ export default function InventorySyncBatchesPage() {
   return (
     <TmPageContainer title="库存同步批次" subTitle="查看批量库存同步任务的批次进度与汇总结果。">
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        批量创建的库存同步任务会归入批次；Worker 完成后按任务聚合回写批次统计。单次创建上限见{' '}
+        批量创建的库存同步任务会归入批次；后台任务进程完成后按任务聚合回写批次统计。单次创建上限见{' '}
         <Typography.Link href="/settings/inventory">设置 · 库存 / 订单</Typography.Link>
         中的「{INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL}」。
       </Typography.Paragraph>

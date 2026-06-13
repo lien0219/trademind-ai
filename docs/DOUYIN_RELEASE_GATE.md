@@ -12,8 +12,9 @@
 | 1.1 | `go test ./...` | backend 全量测试绿 | CI `backend` job |
 | 1.2 | Race 测试 | `douyinshop`、`ordersync`、`inventory`、`productpublish` 包 `-race` 无 DATA RACE | CI `backend-race` job（`CGO_ENABLED=1`） |
 | 1.3 | `go build ./cmd/server/...` | 服务端可编译 | CI `backend-race` job |
-| 1.4 | `pnpm build:admin` | 管理端可构建 | CI `node.yml` |
-| 1.5 | 契约测试 | `douyinshop/contract_test.go` + Fixture | 本地/CI |
+| 1.4 | `pnpm check:ui-copy --strict` | 管理端用户文案无混排英文 | CI `node.yml` admin job |
+| 1.5 | `pnpm build:admin` | 管理端可构建 | CI `node.yml` |
+| 1.6 | 契约测试 | `douyinshop/contract_test.go` + Fixture | 本地/CI |
 
 ---
 

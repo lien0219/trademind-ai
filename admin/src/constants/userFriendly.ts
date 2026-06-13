@@ -1,10 +1,28 @@
 /** 管理端通用用户文案（避免直接展示英文技术词） */
 
 /** 菜单、标题中完整写法 */
-export const SKU_LABEL = 'SKU（商品规格）';
+export const SKU_LABEL = '商品规格';
 
 /** 正文、说明中的简称 */
-export const SKU_SHORT = '商品规格';
+export const SKU_SHORT = '规格';
+
+export const STORAGE_LABEL = '存储';
+
+export const RUNTIME_LABEL = '运行时';
+
+export const API_LABEL = '接口';
+
+export const TOKEN_LABEL = '访问令牌';
+
+export const WEBHOOK_LABEL = '回调通知';
+
+export const SMTP_LABEL = '邮件服务器';
+
+export const ENDPOINT_LABEL = '接口地址';
+
+export const BUCKET_LABEL = '存储桶';
+
+export const MOCK_LABEL = '模拟';
 
 export const AI_PROVIDER_LABEL = 'AI 服务商';
 
@@ -53,7 +71,7 @@ export const PLATFORM_LABEL: Record<string, string> = {
   shopee: 'Shopee',
   lazada: 'Lazada',
   amazon: 'Amazon',
-  mock: 'Mock',
+  mock: '模拟',
   manual: '手动',
 };
 

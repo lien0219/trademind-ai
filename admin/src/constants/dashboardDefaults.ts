@@ -16,9 +16,9 @@ export const DEFAULT_QUICK_LINKS: DashboardQuickLink[] = [
   { title: '商品刊登任务', link: '/product/publish-tasks', description: '管理刊登到平台的任务' },
   { title: '库存预警', link: '/inventory/alerts', description: '低库存与缺货提醒' },
   { title: '失败任务中心', link: '/ops/task-center/failures', description: '统一查看各类失败任务' },
-  { title: '订单异常工作台', link: '/orders/exceptions', description: '处理 SKU 未匹配等订单问题' },
-  { title: 'AI 设置', link: '/settings/ai', description: '配置 AI 模型与 API' },
-  { title: '图片 AI 设置', link: '/settings/image', description: '配置图片处理 Provider' },
+  { title: '订单异常工作台', link: '/orders/exceptions', description: '处理规格未匹配等订单问题' },
+  { title: 'AI 设置', link: '/settings/ai', description: '配置 AI 模型与接口' },
+  { title: '图片 AI 设置', link: '/settings/image', description: '配置图片处理服务' },
   { title: '存储设置', link: '/settings/storage', description: '配置图片与文件存储' },
 ];
 
@@ -109,7 +109,7 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     count: 0,
     severity: 'high',
     level: 'danger',
-    description: '含未匹配 SKU 等需人工处理的订单问题',
+    description: '含未匹配规格等需人工处理的订单问题',
     link: '/orders/exceptions',
   },
 ];
@@ -152,7 +152,7 @@ export const DEFAULT_EXCEPTIONS: DashboardException[] = [
   },
   {
     key: 'order_exceptions',
-    title: '订单异常 / SKU 未匹配',
+    title: '订单异常 / 规格未匹配',
     count: 0,
     link: '/orders/exceptions',
     description: '平台订单行尚未绑定本地 SKU，需人工处理',

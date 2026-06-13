@@ -109,8 +109,8 @@ export default function SecuritySettingsPage() {
                 访问与传输安全
               </Title>
               <Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                控制后台登录会话的有效时长、是否强制 HTTPS，以及外部运维 Webhook 的签名校验密钥。敏感项加密存库、接口脱敏，日志不输出明文密钥。
-                业务告警 Webhook 请在 <Link to="/settings/alert-notify">告警通知配置</Link> 中单独设置。
+                控制后台登录会话的有效时长、是否强制 HTTPS，以及外部运维回调通知的签名校验密钥。敏感项加密存库、接口脱敏，日志不输出明文密钥。
+                业务告警回调请在 <Link to="/settings/alert-notify">告警通知配置</Link> 中单独设置。
               </Paragraph>
             </div>
           </div>
@@ -178,9 +178,9 @@ export default function SecuritySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title="Webhook 签名校验" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title="回调签名校验" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Paragraph type="secondary" style={{ marginBottom: 16, fontSize: 13 }}>
-              用于验证外部系统向贸灵发起的运维类回调请求，与告警通知中的 Webhook 密钥相互独立。
+              用于验证外部系统向贸灵发起的运维类回调请求，与告警通知中的回调密钥相互独立。
             </Paragraph>
             <Row gutter={[24, 0]}>
               <Col xs={24} md={14} lg={12}>

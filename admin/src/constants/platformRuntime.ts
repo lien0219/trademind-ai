@@ -18,6 +18,18 @@ export function platformRuntimeHref(platform: string = DEFAULT_PLATFORM_RUNTIME)
   return `${PLATFORM_RUNTIME_ROUTE}?platform=${encodeURIComponent(key)}`;
 }
 
+/** 发布门禁总体结论（后端英文常量 → 用户可见中文） */
+export const RELEASE_GATE_CONCLUSION_LABEL: Record<string, string> = {
+  'Release Candidate': '发布候选',
+  'Gray Release Ready': '灰度发布就绪',
+};
+
+export function releaseGateConclusionLabel(raw?: string | null): string {
+  const k = (raw || '').trim();
+  if (!k) return '—';
+  return RELEASE_GATE_CONCLUSION_LABEL[k] || k;
+}
+
 /** 解析 Tab 选中项；platform 不在列表时回退到默认或首个平台。 */
 export function resolvePlatformRuntimeTab(platform?: string | null, allPlatforms: string[] = []): string {
   const key = (platform || '').trim().toLowerCase();

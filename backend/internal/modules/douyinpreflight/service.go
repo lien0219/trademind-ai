@@ -56,8 +56,8 @@ func (s *Service) Run(c *gin.Context, req RunRequest) (*Result, error) {
 		checks = append(checks, checkWarning(
 			"live.auth_test",
 			"真实接口联调",
-			"当前环境缺少真实凭证，已跳过 Token 刷新与店铺信息联调",
-			"配置真实 App Key / Secret 并完成店铺 OAuth 后重新运行预检（开启 liveTest）",
+			"当前环境缺少真实凭证，已跳过访问令牌刷新与店铺信息联调",
+			"配置真实应用 Key/密钥并完成店铺授权后重新运行预检（开启「真实联调」）",
 			map[string]any{"skipped": true},
 		))
 	}
@@ -176,63 +176,63 @@ func (s *Service) checkAppConfig(ctx context.Context) []CheckItem {
 	}
 
 	if appKey == "" {
-		out = append(out, checkFailed("app.app_key", "App Key", "未配置 App Key", "在平台开放配置中填写抖店 App Key", nil))
+		out = append(out, checkFailed("app.app_key", "应用 Key", "未配置应用 Key", "在平台开放配置中填写抖店应用 Key", nil))
 	} else {
-		out = append(out, checkPassed("app.app_key", "App Key", "App Key 已配置", map[string]any{"masked": encrypt.MaskSecret(appKey)}))
+		out = append(out, checkPassed("app.app_key", "应用 Key", "应用 Key 已配置", map[string]any{"masked": encrypt.MaskSecret(appKey)}))
 	}
 
 	secretOK := false
 	if strings.TrimSpace(appSecretEnc) == "" {
-		out = append(out, checkFailed("app.app_secret", "App Secret", "未配置 App Secret", "在平台开放配置中填写并保存 App Secret", nil))
+		out = append(out, checkFailed("app.app_secret", "应用密钥", "未配置 应用密钥", "在平台开放配置中填写并保存 应用密钥", nil))
 	} else if encrypt.LooksMasked(appSecretEnc) {
 		// masked in list output — verify decrypt via PlainByGroup
 		plain, err := s.Settings.PlainByGroup(ctx, 0, "platform_douyin_shop")
 		if err != nil || strings.TrimSpace(plain["app_secret"]) == "" {
-			out = append(out, checkFailed("app.app_secret", "App Secret", "App Secret 无法解密或为空", "确认 APP_MASTER_KEY 正确并重新保存 Secret", nil))
+			out = append(out, checkFailed("app.app_secret", "应用密钥", "应用密钥 无法解密或为空", "确认 APP_MASTER_KEY 正确并重新保存 Secret", nil))
 		} else {
 			secretOK = true
-			out = append(out, checkPassed("app.app_secret", "App Secret", "App Secret 已配置且可解密", map[string]any{"masked": encrypt.MaskSecret(plain["app_secret"])}))
+			out = append(out, checkPassed("app.app_secret", "应用密钥", "应用密钥 已配置且可解密", map[string]any{"masked": encrypt.MaskSecret(plain["app_secret"])}))
 		}
 	} else {
 		secretOK = true
-		out = append(out, checkPassed("app.app_secret", "App Secret", "App Secret 已配置", nil))
+		out = append(out, checkPassed("app.app_secret", "应用密钥", "应用密钥 已配置", nil))
 	}
 	_ = secretOK
 
 	if serviceID == "" {
-		out = append(out, checkWarning("app.service_id", "Service ID", "未配置 Service ID", "抖店 OAuth 授权通常需要 Service ID", nil))
+		out = append(out, checkWarning("app.service_id", "服务编号", "未配置服务编号", "抖店店铺授权通常需要服务编号", nil))
 	} else {
-		out = append(out, checkPassed("app.service_id", "Service ID", "Service ID 已配置", nil))
+		out = append(out, checkPassed("app.service_id", "服务编号", "服务编号已配置", nil))
 	}
 
 	if apiBase == "" {
 		apiBase = "https://openapi-fxg.jinritemai.com"
 	}
 	if u, err := url.Parse(apiBase); err != nil || u.Scheme == "" || u.Host == "" {
-		out = append(out, checkFailed("app.api_endpoint", "API 地址", "API Endpoint 无效", "填写合法的 https:// 开放平台地址", map[string]any{"apiBaseUrl": apiBase}))
+		out = append(out, checkFailed("app.api_endpoint", "接口地址", "开放平台接口地址无效", "填写合法的 https:// 开放平台地址", map[string]any{"apiBaseUrl": apiBase}))
 	} else {
-		out = append(out, checkPassed("app.api_endpoint", "API 地址", "API Endpoint 格式合法", map[string]any{"apiBaseUrl": apiBase}))
+		out = append(out, checkPassed("app.api_endpoint", "接口地址", "开放平台接口地址格式合法", map[string]any{"apiBaseUrl": apiBase}))
 	}
 
 	if redirectURI == "" {
-		out = append(out, checkFailed("app.redirect_uri", "OAuth 回调地址", "未配置 Redirect URI", "填写与抖店开放平台登记一致的回调 URL", nil))
+		out = append(out, checkFailed("app.redirect_uri", "授权回调地址", "未配置授权回调地址", "填写与抖店开放平台登记一致的回调 URL", nil))
 	} else {
 		ru, err := url.Parse(redirectURI)
 		if err != nil || ru.Scheme == "" || ru.Host == "" {
-			out = append(out, checkFailed("app.redirect_uri", "OAuth 回调地址", "Redirect URI 格式无效", "使用完整 https:// 域名 + 路径", nil))
+			out = append(out, checkFailed("app.redirect_uri", "授权回调地址", "授权回调地址格式无效", "使用完整 https:// 域名 + 路径", nil))
 		} else {
 			if environment == "" {
 				environment = "production"
 			}
 			if environment == "production" && strings.ToLower(ru.Scheme) != "https" {
-				out = append(out, checkFailed("app.redirect_https", "OAuth HTTPS", "生产环境回调地址须为 HTTPS", "将 Redirect URI 改为 https://", map[string]any{"scheme": ru.Scheme}))
+				out = append(out, checkFailed("app.redirect_https", "授权 HTTPS", "生产环境回调地址须为 HTTPS", "将授权回调地址改为 https://", map[string]any{"scheme": ru.Scheme}))
 			} else {
-				out = append(out, checkPassed("app.redirect_https", "OAuth HTTPS", "回调地址使用 HTTPS", nil))
+				out = append(out, checkPassed("app.redirect_https", "授权 HTTPS", "回调地址使用 HTTPS", nil))
 			}
 			if !strings.Contains(ru.Path, expectedCallbackPath) {
-				out = append(out, checkWarning("app.redirect_path", "OAuth 回调路径", "回调路径可能与系统默认不一致", "确认路径包含 "+expectedCallbackPath, map[string]any{"path": ru.Path}))
+				out = append(out, checkWarning("app.redirect_path", "授权回调路径", "回调路径可能与系统默认不一致", "确认路径包含 "+expectedCallbackPath, map[string]any{"path": ru.Path}))
 			} else {
-				out = append(out, checkPassed("app.redirect_path", "OAuth 回调路径", "回调路径与系统路由一致", map[string]any{"path": ru.Path}))
+				out = append(out, checkPassed("app.redirect_path", "授权回调路径", "回调路径与系统路由一致", map[string]any{"path": ru.Path}))
 			}
 		}
 	}
@@ -279,7 +279,7 @@ func (s *Service) checkShopAuth(ctx context.Context) []CheckItem {
 		return out
 	}
 	if len(shops) == 0 {
-		out = append(out, checkFailed("shop.authorized", "已授权店铺", "尚无抖店店铺记录", "完成 OAuth 授权后再运行预检", nil))
+		out = append(out, checkFailed("shop.authorized", "已授权店铺", "尚无抖店店铺记录", "完成店铺授权后再运行预检", nil))
 		return out
 	}
 
@@ -298,7 +298,7 @@ func (s *Service) checkShopAuth(ctx context.Context) []CheckItem {
 		}
 	}
 	if authorized == 0 {
-		out = append(out, checkFailed("shop.authorized", "已授权店铺", "没有处于已授权状态的抖店店铺", "在店铺管理中完成授权或刷新 Token", map[string]any{
+		out = append(out, checkFailed("shop.authorized", "已授权店铺", "没有处于已授权状态的抖店店铺", "在店铺管理中完成授权或刷新访问令牌", map[string]any{
 			"needCheck": needCheck, "expired": expired, "invalid": invalid,
 		}))
 	} else {
@@ -310,7 +310,7 @@ func (s *Service) checkShopAuth(ctx context.Context) []CheckItem {
 		}))
 	}
 
-	// Token presence for first authorized shop
+	// 令牌 presence for first authorized shop
 	var probeShop *shop.Shop
 	for i := range shops {
 		if shops[i].AuthStatus == shop.AuthAuthorized {
@@ -323,32 +323,32 @@ func (s *Service) checkShopAuth(ctx context.Context) []CheckItem {
 	}
 	var tok shop.ShopAuthToken
 	if err := s.DB.WithContext(ctx).Where("shop_id = ?", probeShop.ID).First(&tok).Error; err != nil {
-		out = append(out, checkFailed("shop.token", "店铺 Token", "已授权店铺缺少 Token 记录", "重新发起 OAuth 授权", map[string]any{"shopId": probeShop.ID.String()}))
+		out = append(out, checkFailed("shop.token", "店铺令牌", "已授权店铺缺少令牌记录", "重新发起店铺授权", map[string]any{"shopId": probeShop.ID.String()}))
 		return out
 	}
 	hasAccess := strings.TrimSpace(tok.AccessTokenEnc) != ""
 	hasRefresh := strings.TrimSpace(tok.RefreshTokenEnc) != ""
 	if !hasAccess {
-		out = append(out, checkFailed("shop.access_token", "Access Token", "Access Token 不存在", "刷新或重新授权", nil))
+		out = append(out, checkFailed("shop.access_token", "访问令牌", "访问令牌不存在", "刷新或重新授权", nil))
 	} else {
-		out = append(out, checkPassed("shop.access_token", "Access Token", "Access Token 已保存（加密）", nil))
+		out = append(out, checkPassed("shop.access_token", "访问令牌", "访问令牌已保存（加密）", nil))
 	}
 	if !hasRefresh {
-		out = append(out, checkWarning("shop.refresh_token", "Refresh Token", "Refresh Token 不存在", "Token 过期后可能无法自动刷新", nil))
+		out = append(out, checkWarning("shop.refresh_token", "刷新令牌", "刷新令牌不存在", "访问令牌过期后可能无法自动刷新", nil))
 	} else {
-		out = append(out, checkPassed("shop.refresh_token", "Refresh Token", "Refresh Token 已保存（加密）", nil))
+		out = append(out, checkPassed("shop.refresh_token", "刷新令牌", "刷新令牌已保存（加密）", nil))
 	}
 	if tok.ExpiresAt != nil {
 		if tok.ExpiresAt.Before(time.Now()) {
-			out = append(out, checkWarning("shop.token_expiry", "Token 有效期", "Access Token 已过期", "在店铺管理中刷新授权", map[string]any{"expiresAt": tok.ExpiresAt.Format(time.RFC3339)}))
+			out = append(out, checkWarning("shop.token_expiry", "令牌有效期", "访问令牌已过期", "在店铺管理中刷新授权", map[string]any{"expiresAt": tok.ExpiresAt.Format(time.RFC3339)}))
 		} else if tok.ExpiresAt.Before(time.Now().Add(24 * time.Hour)) {
 			soonExpire++
-			out = append(out, checkWarning("shop.token_expiry", "Token 有效期", "Access Token 将在 24 小时内过期", "建议提前刷新授权", map[string]any{"expiresAt": tok.ExpiresAt.Format(time.RFC3339)}))
+			out = append(out, checkWarning("shop.token_expiry", "令牌有效期", "访问令牌将在 24 小时内过期", "建议提前刷新授权", map[string]any{"expiresAt": tok.ExpiresAt.Format(time.RFC3339)}))
 		} else {
-			out = append(out, checkPassed("shop.token_expiry", "Token 有效期", "Access Token 仍在有效期内", map[string]any{"expiresAt": tok.ExpiresAt.Format(time.RFC3339)}))
+			out = append(out, checkPassed("shop.token_expiry", "令牌有效期", "访问令牌仍在有效期内", map[string]any{"expiresAt": tok.ExpiresAt.Format(time.RFC3339)}))
 		}
 	} else {
-		out = append(out, checkWarning("shop.token_expiry", "Token 有效期", "未记录 Token 过期时间", "运行店铺连接测试以校准", nil))
+		out = append(out, checkWarning("shop.token_expiry", "令牌有效期", "未记录令牌过期时间", "运行店铺连接测试以校准", nil))
 	}
 	_ = soonExpire
 	return out
@@ -393,7 +393,7 @@ func (s *Service) checkFeatureSwitches(ctx context.Context) []CheckItem {
 func (s *Service) checkStorage(ctx context.Context) []CheckItem {
 	out := make([]CheckItem, 0, 4)
 	if s.Storage == nil {
-		out = append(out, checkFailed("storage.public_access", "图片公网访问", "Storage 公网检测服务不可用", "联系管理员检查服务配置", nil))
+		out = append(out, checkFailed("storage.public_access", "图片公网访问", "存储公网检测服务不可用", "联系管理员检查服务配置", nil))
 		return out
 	}
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
@@ -403,7 +403,7 @@ func (s *Service) checkStorage(ctx context.Context) []CheckItem {
 	}
 	pubBase := storagepub.ResolvePublicBase(plain)
 	if pubBase == "" {
-		out = append(out, checkFailed("storage.public_base", "公开访问域名", "未配置 public_base", "在存储设置中配置 HTTPS 公网域名", nil))
+		out = append(out, checkFailed("storage.public_base", "公开访问域名", "未配置公网访问地址", "在存储设置中配置 HTTPS 公网域名", nil))
 		return out
 	}
 	if !strings.Contains(pubBase, "://") {
@@ -445,7 +445,7 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 	if err := q.Count(&productCount).Error; err != nil {
 		out = append(out, checkWarning("data.products", "测试商品", "无法统计商品草稿", err.Error(), nil))
 	} else if productCount == 0 {
-		out = append(out, checkWarning("data.products", "测试商品", "尚无可用商品草稿", "采集或手工创建至少 1 个商品用于 E2E", map[string]any{"count": 0}))
+		out = append(out, checkWarning("data.products", "测试商品", "尚无可用商品草稿", "采集或手工创建至少 1 个商品用于端到端联调", map[string]any{"count": 0}))
 	} else {
 		out = append(out, checkPassed("data.products", "测试商品", fmt.Sprintf("已有 %d 个可编辑商品草稿", productCount), map[string]any{"count": productCount}))
 	}
@@ -463,9 +463,9 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 	var skuCount int64
 	_ = s.DB.WithContext(ctx).Model(&product.ProductSKU{}).Count(&skuCount).Error
 	if skuCount == 0 {
-		out = append(out, checkWarning("data.skus", "商品规格", "尚无 SKU 规格数据", "维护至少一个带规格的商品", nil))
+		out = append(out, checkWarning("data.skus", "商品规格", "尚无规格数据", "维护至少一个带规格的商品", nil))
 	} else {
-		out = append(out, checkPassed("data.skus", "商品规格", fmt.Sprintf("已有 %d 条 SKU 记录", skuCount), map[string]any{"count": skuCount}))
+		out = append(out, checkPassed("data.skus", "商品规格", fmt.Sprintf("已有 %d 条规格记录", skuCount), map[string]any{"count": skuCount}))
 	}
 
 	var pubCount int64
@@ -484,9 +484,9 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 		Where("product_publications.platform = ? AND product_publication_skus.bind_status IN ?", douyinPlatform, []string{productpublish.BindStatusUnmatched, productpublish.BindStatusAmbiguous}).
 		Count(&unmatched).Error
 	if unmatched > 0 {
-		out = append(out, checkWarning("data.sku_binding", "SKU 绑定", fmt.Sprintf("存在 %d 条未匹配或待确认的 SKU 绑定", unmatched), "在商品详情中完成 SKU 手动绑定", map[string]any{"count": unmatched}))
+		out = append(out, checkWarning("data.sku_binding", "规格绑定", fmt.Sprintf("存在 %d 条未匹配或待确认的规格绑定", unmatched), "在商品详情中完成规格手动绑定", map[string]any{"count": unmatched}))
 	} else {
-		out = append(out, checkPassed("data.sku_binding", "SKU 绑定", "未发现未匹配或冲突的抖店 SKU 绑定", nil))
+		out = append(out, checkPassed("data.sku_binding", "规格绑定", "未发现未匹配或冲突的抖店规格绑定", nil))
 	}
 
 	return out
@@ -501,26 +501,26 @@ func (s *Service) checkLiveAuth(c *gin.Context) []CheckItem {
 	ctx := c.Request.Context()
 	var sh shop.Shop
 	if err := s.DB.WithContext(ctx).Where("platform = ? AND auth_status = ?", douyinPlatform, shop.AuthAuthorized).First(&sh).Error; err != nil {
-		out = append(out, checkFailed("live.auth", "真实联调", "没有可用于联调的已授权店铺", "先完成 OAuth", nil))
+		out = append(out, checkFailed("live.auth", "真实联调", "没有可用于联调的已授权店铺", "先完成 店铺授权", nil))
 		return out
 	}
 	var adminID *uuid.UUID
 	res, err := s.Shops.DouyinOAuthTest(c, sh.ID, adminID)
 	if err != nil {
-		out = append(out, checkFailed("live.token_refresh", "Token 刷新联调", "店铺连接测试失败", "查看店铺管理中的错误提示并重新授权", map[string]any{
+		out = append(out, checkFailed("live.token_refresh", "令牌刷新联调", "店铺连接测试失败", "查看店铺管理中的错误提示并重新授权", map[string]any{
 			"shopId": sh.ID.String(),
 			"error":  err.Error(),
 		}))
 		return out
 	}
 	if res != nil && res.OK {
-		out = append(out, checkPassed("live.token_refresh", "Token 刷新联调", "Token 刷新与店铺信息读取成功", map[string]any{
+		out = append(out, checkPassed("live.token_refresh", "令牌刷新联调", "令牌刷新与店铺信息读取成功", map[string]any{
 			"shopName":       res.ShopName,
 			"externalShopId": res.ExternalShopID,
 			"expiresAt":      res.ExpiresAt,
 		}))
 	} else {
-		out = append(out, checkFailed("live.token_refresh", "Token 刷新联调", "店铺连接测试未通过", "重新授权或检查 App 权限", nil))
+		out = append(out, checkFailed("live.token_refresh", "令牌刷新联调", "店铺连接测试未通过", "重新授权或检查应用权限", nil))
 	}
 	return out
 }

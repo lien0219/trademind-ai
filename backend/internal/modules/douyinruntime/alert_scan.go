@@ -31,7 +31,7 @@ func (s *Service) ScanDouyinAlerts(ctx context.Context) (AlertScanSummary, error
 	if rt.Status == platformdouyin.RuntimeEmergencyDisabled {
 		sum.Generated++
 		_ = s.UpsertDouyinAlert(ctx, "global", AlertRuntimeEmergency, failureclassifier.SeverityCritical,
-			"抖店已进入紧急停用", "平台运行状态为 emergency_disabled", "在设置中恢复平台运行状态或排查原因后恢复", now)
+			"抖店已进入紧急停用", "平台运行状态为紧急停用", "在设置中恢复平台运行状态或排查原因后恢复", now)
 	} else {
 		sum.Resolved++
 		_ = s.ResolveDouyinAlert(ctx, "global", AlertRuntimeEmergency, now)
@@ -42,8 +42,8 @@ func (s *Service) ScanDouyinAlerts(ctx context.Context) (AlertScanSummary, error
 	if metrics.TokenRefreshFailedTotal >= int64(thToken) {
 		sum.Generated++
 		_ = s.UpsertDouyinAlert(ctx, "global", AlertTokenRefreshFailed, failureclassifier.SeverityHigh,
-			"Token 刷新连续失败", fmt.Sprintf("最近24小时 Token 刷新失败 %d 次", metrics.TokenRefreshFailedTotal),
-			"检查 App Secret、店铺授权与网络连通性", now)
+			"访问令牌刷新连续失败", fmt.Sprintf("最近24小时访问令牌刷新失败 %d 次", metrics.TokenRefreshFailedTotal),
+			"检查应用密钥、店铺授权与网络连通性", now)
 	} else {
 		sum.Resolved++
 		_ = s.ResolveDouyinAlert(ctx, "global", AlertTokenRefreshFailed, now)
@@ -64,7 +64,7 @@ func (s *Service) ScanDouyinAlerts(ctx context.Context) (AlertScanSummary, error
 	if needCheck > 0 {
 		sum.Generated++
 		_ = s.UpsertDouyinAlert(ctx, "global", AlertAuthNeedCheck, failureclassifier.SeverityMedium,
-			"存在需检查授权店铺", fmt.Sprintf("need_check 店铺数=%d", needCheck), "检查店铺授权与 Token 状态", now)
+			"存在需检查授权店铺", fmt.Sprintf("需检查店铺数=%d", needCheck), "检查店铺授权与访问令牌状态", now)
 	} else {
 		sum.Resolved++
 		_ = s.ResolveDouyinAlert(ctx, "global", AlertAuthNeedCheck, now)
@@ -76,7 +76,7 @@ func (s *Service) ScanDouyinAlerts(ctx context.Context) (AlertScanSummary, error
 		if !probe.OK {
 			sum.Generated++
 			_ = s.UpsertDouyinAlert(ctx, "global", AlertStoragePublicFailed, failureclassifier.SeverityHigh,
-				"Storage 公网访问异常", probe.Message, "在存储设置中配置 HTTPS public_base 并运行公网访问测试", now)
+				"存储公网访问异常", probe.Message, "在存储设置中配置 HTTPS 公网访问地址并运行公网访问测试", now)
 		} else {
 			sum.Resolved++
 			_ = s.ResolveDouyinAlert(ctx, "global", AlertStoragePublicFailed, now)
@@ -88,7 +88,7 @@ func (s *Service) ScanDouyinAlerts(ctx context.Context) (AlertScanSummary, error
 	if metrics.StaleTasksTotal >= int64(staleTh) {
 		sum.Generated++
 		_ = s.UpsertDouyinAlert(ctx, "global", AlertStaleTasksHigh, failureclassifier.SeverityHigh,
-			"stale 任务数量偏高", fmt.Sprintf("最近24小时 stale 标记 %d", metrics.StaleTasksTotal), "在任务中心处理 stale/result_unknown 任务", now)
+			"停滞任务数量偏高", fmt.Sprintf("最近24小时停滞标记 %d", metrics.StaleTasksTotal), "在任务中心处理停滞或结果暂无法确认的任务", now)
 	} else {
 		sum.Resolved++
 		_ = s.ResolveDouyinAlert(ctx, "global", AlertStaleTasksHigh, now)
@@ -108,7 +108,7 @@ func (s *Service) ScanDouyinAlerts(ctx context.Context) (AlertScanSummary, error
 	if metrics.APIRateLimitedTotal >= int64(rateTh) {
 		sum.Generated++
 		_ = s.UpsertDouyinAlert(ctx, "global", AlertRateLimitSpike, failureclassifier.SeverityMedium,
-			"抖店 API 限流次数升高", fmt.Sprintf("最近24小时限流 %d 次", metrics.APIRateLimitedTotal), "降低并发、检查重试策略或联系平台", now)
+			"抖店接口限流次数升高", fmt.Sprintf("最近24小时限流 %d 次", metrics.APIRateLimitedTotal), "降低并发、检查重试策略或联系平台", now)
 	} else {
 		sum.Resolved++
 		_ = s.ResolveDouyinAlert(ctx, "global", AlertRateLimitSpike, now)

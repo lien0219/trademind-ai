@@ -215,9 +215,9 @@ export default function CustomerConversationsPage() {
           name="mode"
           label="同步模式"
           options={[
-            { label: '增量 incremental', value: 'incremental' },
-            { label: '全量 full', value: 'full' },
-            { label: '手动 manual', value: 'manual' },
+            { label: '增量', value: 'incremental' },
+            { label: '全量', value: 'full' },
+            { label: '手动', value: 'manual' },
           ]}
           rules={[{ required: true }]}
         />

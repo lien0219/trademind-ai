@@ -92,7 +92,7 @@ export default function InventorySyncTasksPage() {
         hideInTable: true,
       },
       {
-        title: 'SKU ID',
+        title: '规格编号',
         dataIndex: 'productSkuId',
         hideInTable: true,
       },
@@ -118,7 +118,7 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => r.productTitle || '—',
       },
       {
-        title: 'SKU 编码',
+        title: '规格编码',
         dataIndex: 'skuCode',
         width: 120,
         search: false,
@@ -217,10 +217,10 @@ export default function InventorySyncTasksPage() {
         type="info"
         style={{ marginBottom: 16 }}
         message="抖店库存同步说明"
-        description="须开启「启用库存同步」、商品已创建抖店平台草稿且全部 SKU 已绑定抖店 SKU ID（ambiguous / unmatched 会阻止同步）。可在商品详情 → 库存 Tab 或库存预警页发起同步；失败任务支持重试。"
+        description="须开启「启用库存同步」、商品已创建抖店平台草稿且全部规格已绑定抖店规格 ID（存在歧义 / 未匹配时会阻止同步）。可在商品详情 → 库存 Tab 或库存预警页发起同步；失败任务支持重试。"
       />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        TikTok Shop、Shopee、Lazada、抖店已支持库存同步（测试中 / beta）；Amazon 仍为 planned。mock 店铺仍走模拟库存同步。
+        TikTok Shop、Shopee、Lazada、抖店已支持库存同步（测试中）；Amazon 仍在规划中。模拟店铺仍走模拟库存同步。
       </Typography.Paragraph>
       <ProTable<InventorySyncTaskDTO>
         rowKey="id"

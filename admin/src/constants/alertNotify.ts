@@ -7,8 +7,8 @@ export const NOTIFICATION_CHANNEL_META: Record<
   string,
   { label: string; desc: string; planned?: boolean }
 > = {
-  mail: { label: '邮件', desc: '经 SMTP 发送；发信服务器请在「邮箱设置」中配置' },
-  webhook: { label: 'Webhook', desc: 'HTTP 推送到自定义 HTTPS 地址' },
+  mail: { label: '邮件', desc: '经邮件服务器发送；发信配置请在「邮箱设置」中完成' },
+  webhook: { label: '回调通知', desc: '推送到自定义 HTTPS 地址' },
   feishu: { label: '飞书', desc: '后续版本支持，当前保存后发送结果为 skipped', planned: true },
   wecom: { label: '企业微信', desc: '后续版本支持，当前保存后发送结果为 skipped', planned: true },
 };
