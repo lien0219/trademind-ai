@@ -48,12 +48,8 @@ func refreshFlightKey(c *Client, ctx context.Context) string {
 // EnsureFreshAccessSingleflight ensures at most one refresh HTTP call per shop at a time.
 func (c *Client) EnsureFreshAccessSingleflight(ctx context.Context) (string, error) {
 	now := c.now()
-	if c.accessFresh(now) {
-		return strings.TrimSpace(c.AccessToken), nil
-	}
-	if !c.refreshUsable(now) {
-		c.markAuthStatus(ctx, "expired")
-		return "", NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+	if token, ok := c.freshAccessToken(now); ok {
+		return token, nil
 	}
 
 	key := refreshFlightKey(c, ctx)
@@ -62,16 +58,16 @@ func (c *Client) EnsureFreshAccessSingleflight(ctx context.Context) (string, err
 	}
 
 	v, err, _ := tokenRefreshFlights.Do(key, func() (any, error) {
-		return c.RefreshAccessToken(ctx)
+		return c.ensureFreshAccessDirect(ctx)
 	})
 	if err != nil {
 		return "", err
 	}
-	tok, _ := v.(*TokenBundle)
-	if tok == nil || strings.TrimSpace(tok.AccessToken) == "" {
+	token, _ := v.(string)
+	if strings.TrimSpace(token) == "" {
 		return "", NewError(CodeDouyinTokenRefreshFailed, "douyin token refresh failed", "", "empty token", "")
 	}
-	return strings.TrimSpace(tok.AccessToken), nil
+	return strings.TrimSpace(token), nil
 }
 
 // ClearTokenRefreshState removes in-flight refresh tracking for a shop (e.g. on revoke).
