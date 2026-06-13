@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ProTable } from '@ant-design/pro-components';
+
 import { Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useRef } from 'react';

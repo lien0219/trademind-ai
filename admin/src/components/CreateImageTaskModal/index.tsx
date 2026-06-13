@@ -609,7 +609,7 @@ export function CreateImageTaskModal({
             name="provider"
             label="图片处理服务"
             options={optionsForTask(taskType ?? '')}
-            extra="默认使用「设置 → 图片 AI」中的默认 Provider；去背景推荐 remove.bg"
+            extra="默认使用「设置 → 图片 AI」中的默认图片服务；去背景推荐 remove.bg"
           />
         )}
       </ProFormDependency>

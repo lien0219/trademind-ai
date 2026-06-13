@@ -1,5 +1,5 @@
-import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { history } from '@umijs/max';
 import { formatDateTime } from '@/utils/formatTime';
 import { Button, Drawer, message, Modal, Table, Tag, Typography } from 'antd';
@@ -8,6 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchSettingsList } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 import type { TaskAlertDTO, TaskAlertNotificationDTO } from '@/services/taskCenter';
+import { failureCategoryLabel, resolveAlertRelatedLink, taskCenterTaskTypeLabel } from '@/constants/taskCenter';
+import { platformLabel } from '@/constants/userFriendly';
 import {
   markTaskAlertHandled,
   markTaskAlertIgnored,
@@ -109,27 +111,31 @@ export default function TaskCenterAlertsPage() {
         width: 104,
         valueType: 'select',
         valueEnum: {
-          critical: { text: 'CRITICAL', status: 'Error' },
-          high: { text: 'HIGH' },
-          medium: { text: 'MEDIUM' },
-          low: { text: 'LOW' },
+          critical: { text: '严重', status: 'Error' },
+          high: { text: '高' },
+          medium: { text: '中' },
+          low: { text: '低' },
         },
         render: (_, r) => sevTag(r.severity || ''),
       },
       {
         title: '类别',
         dataIndex: 'failureCategory',
-        width: 144,
+        width: 168,
+        ellipsis: true,
+        render: (_, r) => failureCategoryLabel(r.failureCategory),
       },
       {
         title: '任务类型',
         dataIndex: 'taskType',
         width: 120,
+        render: (_, r) => taskCenterTaskTypeLabel(r.taskType),
       },
       {
         title: '平台',
         dataIndex: 'platform',
         width: 90,
+        render: (_, r) => platformLabel(r.platform),
       },
       {
         title: '摘要',
@@ -178,18 +184,16 @@ export default function TaskCenterAlertsPage() {
         valueType: 'option',
         width: 300,
         fixed: 'right',
-        render: (_, r) => (
+        render: (_, r) => {
+          const related = resolveAlertRelatedLink(r);
+          return (
           <>
             <Button
               size="small"
               type="link"
-              onClick={() =>
-                history.push(
-                  `/ops/task-center/failures?taskType=${encodeURIComponent(r.taskType)}&jumpId=${encodeURIComponent(r.sourceId)}`,
-                )
-              }
+              onClick={() => history.push(related.href)}
             >
-              失败任务
+              {related.label}
             </Button>
             <Button
               size="small"
@@ -307,7 +311,8 @@ export default function TaskCenterAlertsPage() {
               </Button>
             ) : null}
           </>
-        ),
+          );
+        },
       },
     ],
     [configuredNotifyChannels],
@@ -316,7 +321,7 @@ export default function TaskCenterAlertsPage() {
   return (
     <TmPageContainer
       title={'告警中心'}
-      subTitle={'站内告警与可选外部通知（邮件 / Webhook；飞书与企业微信预留）'}
+      subTitle={'站内告警与可选外部通知（邮件 / 回调通知；飞书与企业微信预留）'}
       extra={[
         <Button
           key="scan"

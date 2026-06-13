@@ -12,6 +12,7 @@
   },
   "scripts": {
     "dev": "tsx scripts/dev-all.ts",
+    "check:ui-copy": "node scripts/check-ui-copy.mjs",
     "check:dev": "tsx scripts/check-dev-env.ts",
     "postinstall": "node scripts/patch-pro-field-antd-select.mjs",
     "dev:infra": "docker compose up -d postgres redis",

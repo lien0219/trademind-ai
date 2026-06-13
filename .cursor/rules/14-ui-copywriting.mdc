@@ -1,0 +1,33 @@
+---
+description: 用户可见文案中文化规范；禁止主界面裸英文技术词，统一术语与检查命令
+globs: admin/src/**/*.{ts,tsx},backend/internal/modules/**/*.go,backend/internal/providers/**/*.go
+alwaysApply: false
+---
+
+# 用户可见文案中文化
+
+## 适用范围
+
+管理端页面、组件、常量中的 **title / label / description / message / Alert / Tag / 表格列标题 / 表单 Help**；后端进入 API 响应的 **message、label、title、suggestedAction、预检项文案**。
+
+不约束：代码标识符、路由、类型名、JSON 字段键、日志、注释、`TechnicalDetails` 内原始数据。
+
+## 必须遵守
+
+1. 主界面**不得**裸写：`Worker`、`runtime`、`Provider`、`Storage`、`Stale`、`Endpoint`、`Webhook`（作名词）、`mock`、`blocked_by_*`、`Release Candidate` 等（见 `docs/ui-copywriting.md` 术语表）。
+2. 新增用户文案**优先**引用 `admin/src/constants/copywriting.ts`、`admin/src/constants/userFriendly.ts`。
+3. 状态/枚举展示用 `commonStatusLabel()`、`platformLabel()` 等映射，**禁止**直接渲染英文枚举值。
+4. 后端用户可见字符串与前端同一术语（如 Storage→存储、Token→访问令牌、SKU→规格）。
+5. 平台品牌（TikTok、Amazon SP-API）、协议（HTTPS）、云产品名（S3）可保留。
+
+## 改动后检查
+
+```bash
+pnpm check:ui-copy --strict
+```
+
+涉及大量文案时，同步更新 `docs/ui-copywriting.md` 术语表（若新增高频词）。
+
+## 详细规范
+
+完整术语表、禁止模式与 AI 工作流说明见 **`docs/ui-copywriting.md`** 与 **`docs/ai-workflow.md` § Admin 文案与 UI 规范**。

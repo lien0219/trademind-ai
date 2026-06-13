@@ -4,7 +4,10 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 )
 
 const (
@@ -44,10 +47,12 @@ func (f SafeLoggerFunc) LogDouyinRequest(ctx context.Context, entry SafeRequestL
 }
 
 type Client struct {
+	ShopID string
 	Config RuntimeConfig
 	HTTP   HTTPDoer
 	Now    func() time.Time
 
+	tokenMu               sync.RWMutex
 	AccessToken           string
 	RefreshTokenValue     string
 	AccessTokenExpiresAt  *time.Time
@@ -114,17 +119,17 @@ func (c *Client) markAuthStatus(ctx context.Context, status string) {
 }
 
 func (c *Client) accessFresh(now time.Time) bool {
-	if c == nil || strings.TrimSpace(c.AccessToken) == "" {
-		return false
-	}
-	if c.AccessTokenExpiresAt == nil {
-		return true
-	}
-	return c.AccessTokenExpiresAt.After(now.Add(tokenRefreshSkew))
+	_, ok := c.freshAccessToken(now)
+	return ok
 }
 
 func (c *Client) refreshUsable(now time.Time) bool {
-	if c == nil || strings.TrimSpace(c.RefreshTokenValue) == "" {
+	if c == nil {
+		return false
+	}
+	c.tokenMu.RLock()
+	defer c.tokenMu.RUnlock()
+	if strings.TrimSpace(c.RefreshTokenValue) == "" {
 		return false
 	}
 	if c.RefreshTokenExpiresAt == nil {
@@ -133,10 +138,29 @@ func (c *Client) refreshUsable(now time.Time) bool {
 	return c.RefreshTokenExpiresAt.After(now)
 }
 
-func (c *Client) EnsureFreshAccess(ctx context.Context) (string, error) {
+func (c *Client) freshAccessToken(now time.Time) (string, bool) {
+	if c == nil {
+		return "", false
+	}
+	c.tokenMu.RLock()
+	defer c.tokenMu.RUnlock()
+	token := strings.TrimSpace(c.AccessToken)
+	if token == "" {
+		return "", false
+	}
+	if c.AccessTokenExpiresAt == nil {
+		return token, true
+	}
+	if c.AccessTokenExpiresAt.After(now.Add(tokenRefreshSkew)) {
+		return token, true
+	}
+	return "", false
+}
+
+func (c *Client) ensureFreshAccessDirect(ctx context.Context) (string, error) {
 	now := c.now()
-	if c.accessFresh(now) {
-		return strings.TrimSpace(c.AccessToken), nil
+	if token, ok := c.freshAccessToken(now); ok {
+		return token, nil
 	}
 	if !c.refreshUsable(now) {
 		c.markAuthStatus(ctx, "expired")
@@ -149,13 +173,25 @@ func (c *Client) EnsureFreshAccess(ctx context.Context) (string, error) {
 	return strings.TrimSpace(tok.AccessToken), nil
 }
 
+func (c *Client) EnsureFreshAccess(ctx context.Context) (string, error) {
+	return c.EnsureFreshAccessSingleflight(ctx)
+}
+
 func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
-	if c == nil || strings.TrimSpace(c.RefreshTokenValue) == "" {
+	if c == nil {
 		c.markAuthStatus(ctx, "expired")
 		return nil, NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
 	}
-	tok, err := c.RefreshToken(ctx, c.RefreshTokenValue)
+	c.tokenMu.RLock()
+	refreshToken := strings.TrimSpace(c.RefreshTokenValue)
+	c.tokenMu.RUnlock()
+	if refreshToken == "" {
+		c.markAuthStatus(ctx, "expired")
+		return nil, NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+	}
+	tok, err := c.RefreshToken(ctx, refreshToken)
 	if err != nil {
+		douyinmetrics.RecordTokenRefresh(c.configEnvironment(), err)
 		var de *Error
 		if AsError(err, &de) && de.Code == CodeDouyinAuthExpired {
 			c.markAuthStatus(ctx, "expired")
@@ -163,26 +199,51 @@ func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
 		}
 		return nil, NewError(CodeDouyinTokenRefreshFailed, "douyin token refresh failed", platformCodeOf(err), safeMessageOf(err), requestIDOf(err))
 	}
+	douyinmetrics.RecordTokenRefresh(c.configEnvironment(), nil)
 	if strings.TrimSpace(tok.RefreshToken) == "" {
-		tok.RefreshToken = c.RefreshTokenValue
+		tok.RefreshToken = refreshToken
 	}
 	if c.PersistRefreshedToken != nil {
 		if err := c.PersistRefreshedToken(ctx, tok); err != nil {
 			return nil, err
 		}
 	}
+	c.tokenMu.Lock()
 	c.AccessToken = strings.TrimSpace(tok.AccessToken)
 	c.RefreshTokenValue = strings.TrimSpace(tok.RefreshToken)
 	c.AccessTokenExpiresAt = tok.AccessExpiresAt
 	c.RefreshTokenExpiresAt = tok.RefreshExpiresAt
+	c.tokenMu.Unlock()
 	c.markAuthStatus(ctx, "authorized")
 	return tok, nil
 }
 
 func (c *Client) Do(ctx context.Context, method string, params map[string]any, out any) error {
-	access, err := c.EnsureFreshAccess(ctx)
+	ctx = WithShopID(ctx, c.ShopID)
+	access, err := c.EnsureFreshAccessSingleflight(ctx)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, method, params, access, out)
+	policy := DefaultRetryPolicy()
+	attempts, err := ExecuteWithRetry(ctx, policy, func(ctx context.Context, attempt int) error {
+		if attempt > 1 {
+			douyinmetrics.RecordAPIRetry(method, c.configEnvironment())
+		}
+		doErr := c.do(ctx, method, params, access, out)
+		if doErr == nil {
+			return nil
+		}
+		var de *Error
+		if AsError(doErr, &de) && de != nil && de.AuthExpired {
+			newToken, refreshErr := c.RefreshOnceAfterAuthError(ctx)
+			if refreshErr != nil {
+				return refreshErr
+			}
+			access = newToken
+			return c.do(ctx, method, params, access, out)
+		}
+		return doErr
+	})
+	_ = attempts
+	return err
 }

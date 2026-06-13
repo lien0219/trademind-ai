@@ -271,7 +271,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
         columns={[
           { title: '明细标题', dataIndex: 'productTitle', key: 'productTitle', width: 160, ellipsis: true },
           {
-            title: '平台 SKU',
+            title: '平台规格',
             key: 'ext',
             width: 120,
             render: (_, r) => r.externalSkuId || '—',

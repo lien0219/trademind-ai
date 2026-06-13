@@ -12,9 +12,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
 	"golang.org/x/image/webp"
@@ -119,6 +118,9 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 	uploader, err := s.douyinUploaderForShop(c, ctx, shopID, adminID)
 	if err != nil {
 		return nil, err
+	}
+	if ge := platformdouyin.GuardWorker(ctx, platformdouyin.FeatureImageUpload, true); ge != nil {
+		return nil, ge
 	}
 	types := normalizeDouyinImageTypes(body.ImageTypes)
 	logDouyinProductImage(c, s, adminID, productID, "douyin.image.upload.start", "success", "", fmt.Sprintf("types=%s retryFailed=%v", strings.Join(types, ","), body.RetryFailed))
@@ -266,48 +268,21 @@ func (s *Service) readStorageDouyinImage(ctx context.Context, key string, img *D
 }
 
 func fetchDouyinRemoteImage(ctx context.Context, rawURL string) ([]byte, error) {
-	if err := validateExternalImageURL(rawURL); err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	res, err := safedownload.Download(ctx, rawURL, safedownload.DefaultOptions())
 	if err != nil {
-		return nil, imageCodeErr{code: ImageURLNotAccessible, msg: err.Error()}
-	}
-	req.Header.Set("User-Agent", "TradeMind-DouyinImageUpload/1.0")
-	req.Header.Set("Accept", "image/*")
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
-	if err != nil {
-		return nil, imageCodeErr{code: ImageDownloadFailed, msg: err.Error()}
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, imageCodeErr{code: ImageURLNotAccessible, msg: fmt.Sprintf("http %d", resp.StatusCode)}
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, douyinImageMaxBytes+1))
-	if err != nil {
-		return nil, imageCodeErr{code: ImageDownloadFailed, msg: err.Error()}
-	}
-	return data, nil
-}
-
-func validateExternalImageURL(raw string) error {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Hostname() == "" {
-		return imageCodeErr{code: ImageURLNotAccessible, msg: "invalid image url"}
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return imageCodeErr{code: ImageURLNotAccessible, msg: "only http/https image urls are allowed"}
-	}
-	ips, err := net.LookupIP(u.Hostname())
-	if err != nil || len(ips) == 0 {
-		return imageCodeErr{code: ImageURLNotAccessible, msg: "image host is not resolvable"}
-	}
-	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
-			return imageCodeErr{code: ImageURLNotAccessible, msg: "private network image urls are not allowed"}
+		code := safedownload.ErrCode(err)
+		switch code {
+		case safedownload.ErrPrivateHost, safedownload.ErrPrivateIP, safedownload.ErrMetadataEndpoint:
+			return nil, imageCodeErr{code: ImageURLNotAccessible, msg: "private network image urls are not allowed"}
+		case safedownload.ErrResponseTooLarge:
+			return nil, imageCodeErr{code: ImageSizeTooLarge, msg: "image exceeds size limit"}
+		case safedownload.ErrInvalidContentType, safedownload.ErrImageDecodeFailed:
+			return nil, imageCodeErr{code: ImageFormatUnsupported, msg: err.Error()}
+		default:
+			return nil, imageCodeErr{code: ImageDownloadFailed, msg: err.Error()}
 		}
 	}
-	return nil
+	return res.Data, nil
 }
 
 func validateDouyinImageBytes(data []byte, name string) (string, string, error) {

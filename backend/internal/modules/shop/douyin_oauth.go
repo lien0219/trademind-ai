@@ -420,6 +420,7 @@ func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopI
 		return nil, shopRow, tok, err
 	}
 	client := &platformdouyin.Client{
+		ShopID:                shopID.String(),
 		Config:                cfg,
 		AccessToken:           auth.AccessToken,
 		RefreshTokenValue:     auth.RefreshToken,
@@ -608,6 +609,7 @@ func (s *Service) DouyinOAuthRevoke(c *gin.Context, shopID uuid.UUID, adminID *u
 	}
 	_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).Updates(updates).Error
 	_ = s.setAuthStatusCtx(ctx, shopID, AuthUnauthorized)
+	platformdouyin.ClearTokenRefreshState(shopID.String())
 	s.douyinLog(c, adminID, &shopID, "douyin.auth.revoke", "success", "", "local authorization revoked")
 	return s.GetDetail(c, shopID)
 }

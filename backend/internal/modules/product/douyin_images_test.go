@@ -10,11 +10,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/gorm"
 )
@@ -36,9 +38,47 @@ func (s *stubDouyinUploader) UploadImage(ctx context.Context, shopID string, req
 	}, nil
 }
 
+func seedDouyinPlatformSettings(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	for k, v := range map[string]string{
+		"app_key": "test-key", "app_secret": "test-secret", "redirect_uri": "https://example.com/cb",
+		"timeout_sec": "30", "real_api_enabled": "true", "product_publish_enabled": "true",
+		"write_operations_enabled": "true",
+		"platform_runtime_status":  "normal",
+	} {
+		if err := db.Create(&settings.Setting{GroupKey: "platform_douyin_shop", ItemKey: k, ItemValue: v, ValueType: "string"}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	platformdouyin.BindShops(&stubDouyinBridge{settings: db})
+}
+
+type stubDouyinBridge struct {
+	settings *gorm.DB
+}
+
+func (b *stubDouyinBridge) PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error {
+	return nil
+}
+func (b *stubDouyinBridge) SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error {
+	return nil
+}
+func (b *stubDouyinBridge) DouyinGlobalSettings(ctx context.Context) (map[string]string, error) {
+	var rows []settings.Setting
+	if err := b.settings.WithContext(ctx).Where("group_key = ?", "platform_douyin_shop").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, r := range rows {
+		out[r.ItemKey] = r.ItemValue
+	}
+	return out, nil
+}
+
 func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newDouyinMappingTestDB(t)
+	seedDouyinPlatformSettings(t, db)
 	root := t.TempDir()
 	seedLocalStorage(t, db, root, "https://cdn.example.test/static")
 	settingsSvc := &settings.Service{DB: db}
@@ -97,6 +137,7 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 
 func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 	db := newDouyinMappingTestDB(t)
+	seedDouyinPlatformSettings(t, db)
 	root := t.TempDir()
 	seedLocalStorage(t, db, root, "https://cdn.example.test/static")
 	settingsSvc := &settings.Service{DB: db}
@@ -171,9 +212,9 @@ func TestDouyinValidationRequiresMainImageUpload(t *testing.T) {
 }
 
 func TestDouyinImageDownloadRejectsPrivateNetworkURL(t *testing.T) {
-	err := validateExternalImageURL("http://127.0.0.1/image.png")
-	if err == nil || imageErrCode(err) != ImageURLNotAccessible {
-		t.Fatalf("expected private url rejection, got %v", err)
+	err := safedownload.ValidateURL(context.Background(), "http://127.0.0.1/image.png")
+	if err == nil {
+		t.Fatalf("expected private url rejection, got nil")
 	}
 }
 

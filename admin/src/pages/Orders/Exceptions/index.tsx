@@ -1,5 +1,5 @@
-import { ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import {

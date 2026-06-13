@@ -1,5 +1,5 @@
-import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';

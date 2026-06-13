@@ -56,6 +56,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/product-publish/tasks", h.ListTasks)
 	g.GET("/product-publish/tasks/:id", h.GetTask)
 	g.POST("/product-publish/tasks/:id/retry", h.RetryTask)
+	g.POST("/product-publish/tasks/:id/recover-douyin-draft", h.RecoverDouyinDraftTask)
+	g.POST("/product-publish/tasks/:id/douyin/recover", h.RecoverDouyinDraftTask)
 	g.POST("/product-publish/tasks/:id/cancel", h.CancelTask)
 	g.GET("/product-publications/:id/douyin/sku-bindings", h.GetDouyinSKUBindings)
 	g.POST("/product-publications/:id/douyin/sync-sku-bindings", h.SyncDouyinSKUBindings)
@@ -209,6 +211,28 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) RecoverDouyinDraftTask(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if err := h.Svc.RecoverDouyinDraftStale(c.Request.Context(), id); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	out, err := h.Svc.GetDTO(c.Request.Context(), id)
+	if err != nil {
+		response.OK(c, gin.H{"recovered": true})
 		return
 	}
 	response.OK(c, out)

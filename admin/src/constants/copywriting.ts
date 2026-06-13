@@ -108,9 +108,9 @@ export const PLATFORM_COPY = {
   revoke: '解除授权',
   appConfig: '应用配置',
   provider: '接入方式',
-  appKey: '应用 Key（App Key）',
-  appSecret: '应用密钥（App Secret）',
-  serviceId: '服务编号（Service ID）',
+  appKey: '应用 Key',
+  appSecret: '应用密钥',
+  serviceId: '服务编号',
   authUrl: '授权地址',
   apiUrl: '接口地址',
   environment: '运行环境',
@@ -148,7 +148,7 @@ export const INVENTORY_COPY = {
   available: '可用库存',
   bindStatus: '规格绑定状态',
   skuBinding: '规格绑定',
-  platformSkuId: '平台规格编号（SKU ID）',
+  platformSkuId: '平台规格编号',
   externalProductId: '平台商品编号',
 } as const;
 

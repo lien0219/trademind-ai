@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ProTable } from '@ant-design/pro-components';
+
 import { CopyOutlined, EditOutlined } from '@ant-design/icons';
 import {
   Alert,
@@ -921,7 +921,7 @@ export default function ImageTasksPage() {
           ))}
         </Space>
         <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-          所有 AI 结果图会自动上传到「设置 → 存储设置」当前启用的存储位置，不会直接使用 Provider 临时 URL。
+          所有 AI 结果图会自动上传到「设置 → 存储设置」当前启用的存储位置，不会直接使用第三方临时链接。
         </Typography.Paragraph>
       </Card>
       <ProTable<ImageTaskListRow>

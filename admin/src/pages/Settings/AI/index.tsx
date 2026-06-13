@@ -151,7 +151,7 @@ export default function AISettingsPage() {
         name={key}
         rules={
           provider && AI_PROVIDER_FIELD_KEYS[provider]?.includes(key) && key.endsWith('_api_key')
-            ? [{ required: true, message: '请输入 API 密钥' }]
+            ? [{ required: true, message: '请输入接口密钥' }]
             : key.endsWith('_base_url') || key.endsWith('_model')
               ? [{ required: true, message: `请输入${spec.label}` }]
               : undefined
@@ -180,7 +180,7 @@ export default function AISettingsPage() {
         </Typography.Link>
         {providerDocs.consoleUrl ? (
           <Typography.Link href={providerDocs.consoleUrl} target="_blank" rel="noreferrer">
-            <LinkOutlined /> {providerDocs.consoleLabel ?? '申请 API Key'}
+            <LinkOutlined /> {providerDocs.consoleLabel ?? '申请接口密钥'}
           </Typography.Link>
         ) : null}
       </Space>
@@ -200,10 +200,10 @@ export default function AISettingsPage() {
             </div>
             <div className="tm-ai-settings__hero-body">
               <Typography.Title level={5} className="tm-ai-settings__hero-title">
-                自备大模型 API
+                自备大模型接口
               </Typography.Title>
               <Typography.Paragraph type="secondary" className="tm-ai-settings__hero-desc">
-                在 OpenAI、DeepSeek、通义千问、Ollama 等渠道申请 API 密钥。各服务商可分别保存配置；下方选择「当前默认使用」的服务商，保存时仅更新该服务商连接信息，不会影响其他已保存密钥。
+                在 OpenAI、DeepSeek、通义千问、Ollama 等渠道申请接口密钥。各服务商可分别保存配置；下方选择「当前默认使用」的服务商，保存时仅更新该服务商连接信息，不会影响其他已保存密钥。
               </Typography.Paragraph>
               <Space wrap size={[8, 8]}>
                 <Tag color="blue">统一后端调用</Tag>
@@ -336,7 +336,7 @@ export default function AISettingsPage() {
                     description={
                       <>
                         <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
-                          请参考官方文档确认接口地址、模型名称，并在控制台申请 API Key 后填入下方表单。
+                          请参考官方文档确认接口地址、模型名称，并在控制台申请接口密钥后填入下方表单。
                         </Typography.Paragraph>
                         {renderProviderDocLinks()}
                       </>

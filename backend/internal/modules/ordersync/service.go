@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -37,12 +38,13 @@ type SyncOrdersBody struct {
 }
 
 type syncInputSnapshot struct {
-	Mode     string `json:"mode"`
-	Start    string `json:"start"`
-	End      string `json:"end"`
-	Cursor   string `json:"cursor"`
-	Limit    int    `json:"limit"`
-	MaxPages int    `json:"maxPages"`
+	Mode           string `json:"mode"`
+	Start          string `json:"start"`
+	End            string `json:"end"`
+	Cursor         string `json:"cursor"`
+	Limit          int    `json:"limit"`
+	MaxPages       int    `json:"maxPages"`
+	RetryPagesOnly []int  `json:"retryPagesOnly,omitempty"`
 }
 
 // ListQuery filters GET /order-sync/tasks.
@@ -331,6 +333,10 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return nil
 	}
 
+	if err := s.guardDouyinOrderWorker(ctx, taskID, task); err != nil {
+		return err
+	}
+
 	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, lease)
 	defer stopRen()
 
@@ -410,16 +416,20 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	previousOutput := task.Output
+	isPageRetry := len(snap.RetryPagesOnly) > 0
+
 	res, err := syncer.SyncOrders(runCtx, platformp.SyncOrdersRequest{
-		ShopID:    task.ShopID,
-		Platform:  shopRow.Platform,
-		Auth:      authReq,
-		Mode:      snap.Mode,
-		StartTime: st,
-		EndTime:   et,
-		Cursor:    snap.Cursor,
-		Limit:     snap.Limit,
-		MaxPages:  snap.MaxPages,
+		ShopID:     task.ShopID,
+		Platform:   shopRow.Platform,
+		Auth:       authReq,
+		Mode:       snap.Mode,
+		StartTime:  st,
+		EndTime:    et,
+		Cursor:     snap.Cursor,
+		Limit:      snap.Limit,
+		MaxPages:   snap.MaxPages,
+		RetryPages: snap.RetryPagesOnly,
 	})
 	if err != nil {
 		return fail(err.Error())
@@ -539,16 +549,22 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	if len(res.PageErrors) > 0 {
 		outMap["pageErrors"] = res.PageErrors
 	}
+	if isPageRetry {
+		outMap["retryPagesOnly"] = snap.RetryPagesOnly
+	}
 	if len(res.RawSummary) > 0 {
 		outMap["providerSummary"] = res.RawSummary
 	}
-	outJSON, _ := json.Marshal(outMap)
+	var outJSON datatypes.JSON
+	if isPageRetry && len(previousOutput) > 0 {
+		outJSON = mergeSyncOutput(previousOutput, outMap)
+	} else {
+		b, _ := json.Marshal(outMap)
+		outJSON = datatypes.JSON(b)
+	}
 
 	fin := time.Now().UTC()
-	finalStatus := StatusSuccess
-	if res.FailedPages > 0 || (failedN > 0 && (successN > 0 || len(res.Orders) > 0)) {
-		finalStatus = StatusPartialSuccess
-	}
+	finalStatus := resolveFinalSyncStatus(res, failedN)
 	_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
 		Updates(map[string]any{
 			"status":        finalStatus,
@@ -584,6 +600,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				Message: fmt.Sprintf("taskId=%s shopId=%s successCount=%d failedCount=%d matched=%d unmatched=%d ambiguous=%d",
 					taskID.String(), task.ShopID.String(), successN, failedN, matchedN, unmatchedN, ambiguousN),
 			})
+			douyinmetrics.RecordOrderSyncOutcome(totalFetched, createdN, updatedN, finalStatus == StatusPartialSuccess, unmatchedN, deductedStockItems)
 		}
 	}
 	return nil
@@ -725,20 +742,31 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 
 	reset := time.Now().UTC()
+	retrySnap, retryInput, partialRetry, err := buildRetrySnapshotFromTask(&task)
+	if err != nil {
+		return nil, err
+	}
+	updates := map[string]any{
+		"status":        StatusPending,
+		"error_message": "",
+		"started_at":    nil,
+		"finished_at":   nil,
+		"locked_by":     nil,
+		"locked_until":  nil,
+		"updated_at":    reset,
+	}
+	if partialRetry {
+		updates["input"] = retryInput
+	} else {
+		updates["total_count"] = 0
+		updates["success_count"] = 0
+		updates["failed_count"] = 0
+		updates["output"] = datatypes.JSON(nil)
+	}
+	_ = retrySnap // snapshot validated
+
 	if err := s.DB.WithContext(c.Request.Context()).Model(&OrderSyncTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":        StatusPending,
-			"error_message": "",
-			"started_at":    nil,
-			"finished_at":   nil,
-			"total_count":   0,
-			"success_count": 0,
-			"failed_count":  0,
-			"output":        datatypes.JSON(nil),
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    reset,
-		}).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		return nil, err
 	}
 

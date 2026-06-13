@@ -21,15 +21,16 @@ type PageSyncError struct {
 
 // SyncOrdersRequest is passed to a provider adapter (never log Auth secrets).
 type SyncOrdersRequest struct {
-	ShopID    uuid.UUID
-	Platform  string
-	Auth      TestConnectionRequest
-	Mode      string
-	StartTime *time.Time
-	EndTime   *time.Time
-	Cursor    string
-	Limit     int
-	MaxPages  int // 0 = provider default (single page for legacy providers)
+	ShopID     uuid.UUID
+	Platform   string
+	Auth       TestConnectionRequest
+	Mode       string
+	StartTime  *time.Time
+	EndTime    *time.Time
+	Cursor     string
+	Limit      int
+	MaxPages   int // 0 = provider default (single page for legacy providers)
+	RetryPages []int
 }
 
 // SyncOrdersResult is normalized orders plus paging hints and optional multi-page summary.

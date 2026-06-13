@@ -107,6 +107,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateLegacyProductTextColumns(db); err != nil {
 		return err
 	}
+	if err := migrateDouyinPhase102Indexes(db); err != nil {
+		return err
+	}
 	return db.AutoMigrate(
 		&admin.AdminUser{},
 		&settings.Setting{},

@@ -1,10 +1,12 @@
-import { ApiOutlined, LinkOutlined, ReloadOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
+import { ApiOutlined, LinkOutlined, ReloadOutlined, SafetyCertificateOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
 import {
   Alert,
   Button,
+  Collapse,
   Form,
   Input,
   InputNumber,
+  Modal,
   Select,
   Space,
   Spin,
@@ -16,8 +18,9 @@ import {
 } from 'antd';
 import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TmPageContainer } from '@/components/ui';
+import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TechnicalDetails, TmPageContainer } from '@/components/ui';
 import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
+import { platformRuntimeHref } from '@/constants/platformRuntime';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import {
   PLATFORM_DEV_PORTALS,
@@ -38,6 +41,17 @@ import {
 } from '@/services/platformOpen';
 import { queryPlatformProviders, queryShops, type ShopListRow } from '@/services/shops';
 import { getDouyinCategoryStats, syncDouyinCategories } from '@/services/douyinCategories';
+import {
+  getDouyinProductionPreflightLatest,
+  runDouyinProductionPreflight,
+  getDouyinRuntimeStatus,
+  pauseDouyinRuntime,
+  resumeDouyinRuntime,
+  emergencyDisableDouyinRuntime,
+  type DouyinPreflightResult,
+  type DouyinRuntimeStatus,
+  type PreflightCheckItem,
+} from '@/services/douyinProduction';
 
 const { Paragraph, Text } = Typography;
 
@@ -166,6 +180,243 @@ function renderFormField(f: AppConfigFieldDTO) {
     >
       {renderFieldControl(f)}
     </Form.Item>
+  );
+}
+
+const PREFLIGHT_STATUS: Record<string, { label: string; color: string }> = {
+  passed: { label: '通过', color: 'success' },
+  warning: { label: '警告', color: 'warning' },
+  failed: { label: '未通过', color: 'error' },
+};
+
+function preflightOverallTag(status?: string) {
+  const st = PREFLIGHT_STATUS[status || ''] ?? { label: status || '未知', color: 'default' };
+  return (
+    <Tag color={st.color} style={{ margin: 0 }}>
+      {st.label}
+    </Tag>
+  );
+}
+
+function runtimeStatusTag(status?: string) {
+  switch (status) {
+    case 'paused':
+      return <Tag color="warning">已暂停</Tag>;
+    case 'emergency_disabled':
+      return <Tag color="error">紧急停用</Tag>;
+    default:
+      return <Tag color="success">正常运行</Tag>;
+  }
+}
+
+function DouyinRuntimePanel() {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<DouyinRuntimeStatus | null>(null);
+  const [reason, setReason] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getDouyinRuntimeStatus();
+      setStatus(res);
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '加载运行状态失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const confirmChange = (title: string, onOk: () => Promise<void>) => {
+    if (!reason.trim()) {
+      message.warning('请填写变更原因');
+      return;
+    }
+    Modal.confirm({
+      title,
+      content: (
+        <div>
+          <Paragraph type="secondary">此操作将影响抖店任务执行，请确认原因已记录。</Paragraph>
+          <Text>原因：{reason}</Text>
+        </div>
+      ),
+      okText: '确认',
+      cancelText: '取消',
+      onOk,
+    });
+  };
+
+  return (
+    <SectionCard
+      title="抖店运行状态"
+      description="暂停或紧急停用后，后台任务进程将不再调用抖店写接口；历史数据仍可查看。"
+      headerExtra={
+        <Link to={platformRuntimeHref('douyin_shop')}>
+          <Button type="link" size="small">
+            查看完整运行状态
+          </Button>
+        </Link>
+      }
+    >
+      <Spin spinning={loading}>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <Text strong>当前状态</Text>
+            {runtimeStatusTag(status?.status)}
+            {status?.message ? <Text type="secondary">{status.message}</Text> : null}
+          </Space>
+          {status?.reason ? <Text type="secondary">最近变更原因：{status.reason}</Text> : null}
+          {status?.changedAt ? <Text type="secondary">变更时间：{status.changedAt}</Text> : null}
+          <Input.TextArea
+            rows={2}
+            placeholder="填写本次操作原因（必填）"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <ActionBar>
+            <Button
+              onClick={() =>
+                confirmChange('暂停抖店任务？', async () => {
+                  const res = await pauseDouyinRuntime(reason.trim());
+                  setStatus(res);
+                  setReason('');
+                  message.success('已暂停');
+                })
+              }
+            >
+              暂停任务
+            </Button>
+            <Button
+              type="primary"
+              onClick={() =>
+                confirmChange('恢复抖店运行？', async () => {
+                  const res = await resumeDouyinRuntime(reason.trim());
+                  setStatus(res);
+                  setReason('');
+                  message.success('已恢复运行');
+                })
+              }
+            >
+              恢复运行
+            </Button>
+            <Button
+              danger
+              onClick={() =>
+                confirmChange('紧急停用抖店？', async () => {
+                  const res = await emergencyDisableDouyinRuntime(reason.trim());
+                  setStatus(res);
+                  setReason('');
+                  message.warning('已紧急停用');
+                })
+              }
+            >
+              紧急停用
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={() => void load()}>
+              刷新
+            </Button>
+          </ActionBar>
+        </Space>
+      </Spin>
+    </SectionCard>
+  );
+}
+
+function DouyinPreflightPanel() {
+  const [running, setRunning] = useState(false);
+  const [liveTest, setLiveTest] = useState(false);
+  const [result, setResult] = useState<DouyinPreflightResult | null>(null);
+
+  const loadLatest = useCallback(async () => {
+    try {
+      const res = await getDouyinProductionPreflightLatest();
+      if (res && 'checks' in res && Array.isArray(res.checks)) {
+        setResult(res);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLatest();
+  }, [loadLatest]);
+
+  const run = useCallback(async () => {
+    setRunning(true);
+    try {
+      const res = await runDouyinProductionPreflight(liveTest);
+      setResult(res);
+      if (res.status === 'passed') {
+        message.success('生产预检全部通过');
+      } else if (res.status === 'warning') {
+        message.warning(`预检完成：${res.warningCount} 项警告，${res.failedCount} 项未通过`);
+      } else {
+        message.error(`预检未通过：${res.failedCount} 项需处理`);
+      }
+    } catch (e: unknown) {
+      message.error((e as Error)?.message || '运行预检失败');
+    } finally {
+      setRunning(false);
+    }
+  }, [liveTest]);
+
+  return (
+    <SectionCard title="抖店生产预检" extra={result?.checkedAt ? `最近：${result.checkedAt}` : undefined}>
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          上线前一键检查应用配置、店铺授权、功能开关、存储公网访问与基础数据状态。不含自动写操作。
+        </Paragraph>
+        <Space wrap>
+          <Button type="primary" icon={<SafetyCertificateOutlined />} loading={running} onClick={() => void run()}>
+            运行生产预检
+          </Button>
+          <Switch checked={liveTest} onChange={setLiveTest} /> <Text type="secondary">包含真实访问令牌刷新联调（需已授权店铺）</Text>
+        </Space>
+        {result?.blockedByRealCredentials ? (
+          <Alert showIcon type="info" message="部分真实联调项需应用 Key / 密钥与已授权店铺，当前以结构检查为主" />
+        ) : null}
+        {result ? (
+          <>
+            <Space>
+              <Text strong>总体结果</Text>
+              {preflightOverallTag(result.status)}
+              <Text type="secondary">
+                通过 {result.passedCount} · 警告 {result.warningCount} · 未通过 {result.failedCount}
+              </Text>
+            </Space>
+            <Collapse
+              accordion
+              items={result.checks.map((c: PreflightCheckItem) => ({
+                key: c.key,
+                label: (
+                  <Space>
+                    {preflightOverallTag(c.status)}
+                    <span>{c.title}</span>
+                  </Space>
+                ),
+                children: (
+                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Text>{c.message}</Text>
+                    {c.suggestion ? <Text type="secondary">建议：{c.suggestion}</Text> : null}
+                    {c.technicalDetails && Object.keys(c.technicalDetails).length > 0 ? (
+                      <TechnicalDetails label="技术详情">
+                        <pre style={{ margin: 0, fontSize: 12 }}>{JSON.stringify(c.technicalDetails, null, 2)}</pre>
+                      </TechnicalDetails>
+                    ) : null}
+                  </Space>
+                ),
+              }))}
+            />
+          </>
+        ) : (
+          <Alert showIcon type="info" message="尚未运行预检，点击上方按钮开始检查" />
+        )}
+      </Space>
+    </SectionCard>
   );
 }
 
@@ -353,6 +604,9 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
             }
           />
         ) : null}
+
+        {meta.platform === 'douyin_shop' ? <DouyinRuntimePanel /> : null}
+        {meta.platform === 'douyin_shop' ? <DouyinPreflightPanel /> : null}
       </Space>
     </Spin>
   );

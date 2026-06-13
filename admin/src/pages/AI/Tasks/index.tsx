@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ProTable } from '@ant-design/pro-components';
+
 import { Button, Descriptions, Drawer, Spin, Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

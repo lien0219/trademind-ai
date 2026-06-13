@@ -315,7 +315,7 @@ func TestSyncOrdersPaginatedMultiPageSuccess(t *testing.T) {
 		}),
 	}
 
-	res, err := SyncOrdersPaginated(context.Background(), client, "", 20, 5, nil, nil)
+	res, err := SyncOrdersPaginated(context.Background(), client, "", 20, 5, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("SyncOrdersPaginated failed: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestSyncOrdersPaginatedPartialSuccess(t *testing.T) {
 		}),
 	}
 
-	res, err := SyncOrdersPaginated(context.Background(), client, "", 20, 2, nil, nil)
+	res, err := SyncOrdersPaginated(context.Background(), client, "", 20, 2, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("expected partial result without top-level error, got %v", err)
 	}
@@ -390,7 +390,7 @@ func TestSyncOrdersPaginatedMaxPagesCap(t *testing.T) {
 		}),
 	}
 
-	res, err := SyncOrdersPaginated(context.Background(), client, "", 10, 2, nil, nil)
+	res, err := SyncOrdersPaginated(context.Background(), client, "", 10, 2, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("SyncOrdersPaginated failed: %v", err)
 	}
@@ -426,5 +426,40 @@ func TestMapDouyinOrderDuplicateExternalIDStable(t *testing.T) {
 	b := mapDouyinOrder(raw)
 	if a.ExternalOrderID != b.ExternalOrderID {
 		t.Fatal("external id should be stable")
+	}
+}
+
+func TestSyncOrdersRetryPagesOnly(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	pagesHit := map[int]bool{}
+	client := &Client{
+		Config:      testRuntimeConfig(),
+		Now:         func() time.Time { return now },
+		AccessToken: "access",
+		HTTP: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body := orderListResponse(1, 20, 60, "O-RETRY-1")
+			pagesHit[1] = true
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+			}, nil
+		}),
+	}
+	res, err := SyncOrdersPaginated(context.Background(), client, "", 20, 5, nil, nil, []int{1})
+	if err != nil {
+		t.Fatalf("retry pages sync failed: %v", err)
+	}
+	if !pagesHit[1] {
+		t.Fatal("expected page 1 to be fetched")
+	}
+	if pagesHit[0] {
+		t.Fatal("page 0 should not be fetched on targeted retry")
+	}
+	if len(res.Orders) != 1 || res.Orders[0].ExternalOrderID != "O-RETRY-1" {
+		t.Fatalf("unexpected orders: %+v", res.Orders)
+	}
+	if res.FailedPages != 0 || len(res.PageErrors) != 0 {
+		t.Fatalf("unexpected failures: %+v", res.PageErrors)
 	}
 }

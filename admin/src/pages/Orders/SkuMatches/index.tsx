@@ -1,5 +1,5 @@
-import { ProTable, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { Button, Space } from 'antd';
 import { history, useSearchParams } from '@umijs/max';
 import { queryOrderSkuMatches, type OrderSkuMatchListRow } from '@/services/orders';

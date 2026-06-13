@@ -89,6 +89,16 @@ func runInventorySyncWorker(ctx context.Context, log *slog.Logger, svc *Service,
 		}
 		deferRate, rerr := svc.InventoryRateDefer(jobCtx, plat)
 		if rerr == nil && deferRate && svc.Redis != nil && svc.Redis.Client != nil {
+			deferCount := svc.inventoryRateDeferCount(jobCtx, tid)
+			if deferCount >= 5 {
+				if log != nil {
+					log.Warn("inventory_sync_rate_limit_give_up", "worker", slot, "taskId", tid.String(), "platform", plat)
+				}
+				_ = svc.markInventoryRateDeferFailed(jobCtx, tid, "inventory sync deferred too many times due to rate limit")
+				continue
+			}
+			svc.inventoryRateDeferIncr(jobCtx, tid)
+			time.Sleep(2 * time.Second)
 			_ = svc.Redis.RPush(ctx, queueName, payload).Err()
 			if log != nil {
 				log.Warn("inventory_sync_rate_limit_deferred", "worker", slot, "taskId", tid.String(), "platform", plat)

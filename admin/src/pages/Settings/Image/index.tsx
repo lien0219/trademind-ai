@@ -108,7 +108,7 @@ function ProviderMetaTags({ cap }: { cap: ImageProviderCapability }) {
     <Space size={4} wrap style={{ marginTop: 4 }}>
       <Tag>{providerDifficultyLabel(cap.difficulty)}</Tag>
       <Tag color="blue">{providerRegionLabel(cap.regionFriendly)}</Tag>
-      {cap.requiresApiKey ? <Tag>需 API Key</Tag> : null}
+      {cap.requiresApiKey ? <Tag>需接口密钥</Tag> : null}
       {cap.requiresSelfHosted ? <Tag color="orange">需自部署</Tag> : null}
       {cap.status !== 'available' ? <Tag color="default">{providerStatusLabel(cap.status)}</Tag> : null}
       {cap.supportedTasks.map((t) => (
@@ -534,7 +534,7 @@ export default function ImageSettingsPage() {
                   },
                 },
               ]}
-              extra="请到对应服务商控制台申请 API 密钥；留空占位 **** 不会覆盖已保存的密钥"
+              extra="请到对应服务商控制台申请接口密钥；留空占位 **** 不会覆盖已保存的密钥"
             >
               <Select options={providerOptions} size="large" />
             </Form.Item>
@@ -593,7 +593,7 @@ export default function ImageSettingsPage() {
                     配置建议
                   </Typography.Text>
                   <ul className="tm-image-settings__tips-list">
-                    <li>去背景：推荐 remove.bg，需单独申请 API Key</li>
+                    <li>去背景：推荐 remove.bg，需单独申请接口密钥</li>
                     <li>场景图：通义万相、OpenAI Image 等按尺寸计费</li>
                     <li>ComfyUI：需内网可访问实例与工作流 JSON</li>
                     <li>图片文字翻译：须在本页配置 OCR 并测试通过</li>
@@ -725,7 +725,7 @@ export default function ImageSettingsPage() {
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.label}
                           name="ocr_tencent_endpoint"
-                          rules={[{ required: true, message: '请填写腾讯云 OCR Endpoint' }]}
+                          rules={[{ required: true, message: '请填写腾讯云 OCR 接口地址' }]}
                         >
                           <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.placeholder} />
                         </Form.Item>

@@ -33,18 +33,20 @@ func (b douyinBridge) DouyinGlobalSettings(ctx context.Context) (map[string]stri
 		return nil, err
 	}
 	m := map[string]string{
-		"app_key":                 cfg.AppKey,
-		"app_secret":              cfg.AppSecret,
-		"service_id":              cfg.ServiceID,
-		"redirect_uri":            cfg.RedirectURI,
-		"environment":             cfg.Environment,
-		"auth_base_url":           cfg.AuthBaseURL,
-		"api_base_url":            cfg.APIBaseURL,
-		"real_api_enabled":        boolStr(cfg.RealAPIEnabled),
-		"order_sync_enabled":      boolStr(cfg.OrderSyncEnabled),
-		"inventory_sync_enabled":  boolStr(cfg.InventoryEnabled),
-		"product_publish_enabled": boolStr(cfg.ProductDraftEnabled),
-		"timeout_sec":             strconv.Itoa(int(cfg.HTTPTimeout.Seconds())),
+		"app_key":                        cfg.AppKey,
+		"app_secret":                     cfg.AppSecret,
+		"service_id":                     cfg.ServiceID,
+		"redirect_uri":                   cfg.RedirectURI,
+		"environment":                    cfg.Environment,
+		"auth_base_url":                  cfg.AuthBaseURL,
+		"api_base_url":                   cfg.APIBaseURL,
+		"real_api_enabled":               boolStr(cfg.RealAPIEnabled),
+		"order_sync_enabled":             boolStr(cfg.OrderSyncEnabled),
+		"inventory_sync_enabled":         boolStr(cfg.InventoryEnabled),
+		"product_publish_enabled":        boolStr(cfg.ProductDraftEnabled),
+		"platform_runtime_status":        cfg.RuntimeStatus,
+		"platform_runtime_status_reason": cfg.RuntimeStatusReason,
+		"timeout_sec":                    strconv.Itoa(int(cfg.HTTPTimeout.Seconds())),
 	}
 	out := map[string]string{}
 	for k, v := range m {

@@ -1,8 +1,8 @@
 import { Link } from '@umijs/renderer-react';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails } from '@/components/ui';
+import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
+import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import { Button, Popconfirm, Tag, Tooltip, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import {

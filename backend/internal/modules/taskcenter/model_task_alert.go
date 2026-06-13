@@ -8,9 +8,10 @@ import (
 
 // Alert row statuses (distinct from UnifiedTaskDTO.alertStatus view).
 const (
-	TaskAlertStatusOpen    = "open"
-	TaskAlertStatusHandled = "handled"
-	TaskAlertStatusIgnored = "ignored"
+	TaskAlertStatusOpen     = "open"
+	TaskAlertStatusHandled  = "handled"
+	TaskAlertStatusIgnored  = "ignored"
+	TaskAlertStatusResolved = "resolved"
 )
 
 // AlertStatusProjection for failure list rows linking to TaskAlert rows.

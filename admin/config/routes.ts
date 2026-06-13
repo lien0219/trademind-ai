@@ -60,6 +60,17 @@ export default [
         icon: 'BellOutlined',
         component: './TaskCenter/Alerts',
       },
+      {
+        path: '/ops/platform-runtime',
+        name: '平台运行状态',
+        icon: 'ApiOutlined',
+        component: './Ops/PlatformRuntime',
+      },
+      {
+        path: '/ops/douyin/runtime',
+        redirect: '/ops/platform-runtime?platform=douyin_shop',
+        hideInMenu: true,
+      },
     ],
   },
   {
@@ -141,9 +152,9 @@ export default [
         component: './Collect/Tasks',
       },
       {
-        path: '/collect/rules',
-        name: '采集规则',
-        component: './Collect/Rules',
+        path: '/collect/batches',
+        name: '批量采集',
+        component: './Collect/Batches',
       },
       {
         path: '/collect/browser-profiles',
@@ -151,9 +162,9 @@ export default [
         component: './Collect/BrowserProfiles',
       },
       {
-        path: '/collect/batches',
-        name: '批量采集',
-        component: './Collect/Batches',
+        path: '/collect/rules',
+        name: '采集规则',
+        component: './Collect/Rules',
       },
       {
         path: '/collect/monitor',

@@ -99,8 +99,8 @@ var rules = []rule{
 	{
 		id: "norm:lease_expired", substrs: nil, category: CategoryWorkerLeaseExpired,
 		severity:   SeverityMedium,
-		reason:     "任务租约已过期或 Worker 回收，需重新排队或检查 Worker 心跳。",
-		suggest:    "请在「运维 → Worker 监控」确认实例与队列健康，必要时人工重试任务。",
+		reason:     "任务租约已过期或后台任务进程回收，需重新排队或检查进程心跳。",
+		suggest:    "请在「运维 → 后台任务监控」确认实例与队列健康，必要时人工重试任务。",
 		onlyIfNorm: normLeaseExpired,
 	},
 	// Platform auth
@@ -113,8 +113,8 @@ var rules = []rule{
 	{
 		id: "sub:token_expired", substrs: []string{"token expired", "access token expired", "invalid access token", "unauthorized", "refresh token failed", "invalid refresh token"},
 		category: CategoryPlatformAuth, severity: SeverityHigh,
-		reason:  "鉴权失败或 Token 失效。",
-		suggest: "请重新完成店铺授权或检查 Token 是否过期，并在平台开放后台确认应用状态。",
+		reason:  "鉴权失败或访问令牌失效。",
+		suggest: "请重新完成店铺授权或检查访问令牌是否过期，并在平台开放后台确认应用状态。",
 	},
 	// Platform permission
 	{
@@ -141,14 +141,14 @@ var rules = []rule{
 	{
 		id: "sub:inv_mapping", substrs: []string{"product publication sku mapping incomplete", "external_sku_id missing", "external_product_id missing", "mapping incomplete"},
 		category: CategoryInventoryMappingMissing, severity: SeverityHigh,
-		reason:  "刊登或库存同步所需的平台 SKU 映射不完整。",
-		suggest: "请检查商品刊登映射 product_publications / product_publication_skus。",
+		reason:  "刊登或库存同步所需的平台规格映射不完整。",
+		suggest: "请检查商品刊登映射（刊登记录与规格映射）。",
 	},
 	{
 		id: "sub:sku_mapping", substrs: []string{"sku unmatched", "product_sku_id missing", "order item sku unmatched", "no matching sku"},
 		category: CategorySKUMappingMissing, severity: SeverityHigh,
-		reason:  "订单行与本地 SKU 未匹配。",
-		suggest: "请在订单 SKU 匹配页面人工绑定本地 SKU。",
+		reason:  "订单行与本地规格未匹配。",
+		suggest: "请在订单规格匹配页面人工绑定本地规格。",
 	},
 	// Network
 	{
@@ -162,7 +162,7 @@ var rules = []rule{
 		id: "sub:evaluate_script", substrs: []string{"__name is not defined", "evaluate_script_error"},
 		category: CategoryCollectorEvaluateScript, severity: SeverityHigh,
 		reason:    "采集脚本执行错误。",
-		suggest:   "页面解析脚本注入失败，请检查 page.evaluate 中是否引用了构建工具 helper 或外部函数。",
+		suggest:   "页面解析脚本注入失败，请检查脚本中是否引用了构建工具 helper 或外部函数。",
 		taskTypes: []string{taskTypeCollect},
 	},
 	// Collector — 1688 字段缺失（优先于 unknown）
@@ -171,7 +171,7 @@ var rules = []rule{
 		substrs:  []string{"missing_main_images"},
 		category: CategoryCollectorMissingImages, severity: SeverityMedium,
 		reason:    "商品页已打开，但未提取到主图字段。",
-		suggest:   "页面已打开，但未提取到主图。请打开原始快照确认页面是否正常显示主图；如果快照正常，请检查 1688 图片选择器或 JSON 提取逻辑。",
+		suggest:   "页面已打开，但未提取到主图。请打开原始快照确认页面是否正常显示主图；如果快照正常，请检查 1688 图片选择器或数据提取逻辑。",
 		taskTypes: []string{taskTypeCollect},
 	},
 	{
@@ -251,7 +251,7 @@ var rules = []rule{
 		category:  CategoryCollectorPlatformLogin,
 		severity:  SeverityMedium,
 		reason:    "页面疑似需要登录后才能查看商品详情。",
-		suggest:   "自定义链接采集器不做自动登录与账号密码保存。请确认该商品页是否公开可访问，或使用带登录态的采集浏览器（后续 Profile 扩展）。",
+		suggest:   "自定义链接采集器不做自动登录与账号密码保存。请确认该商品页是否公开可访问，或使用带登录态的采集浏览器（后续登录配置扩展）。",
 		taskTypes: []string{taskTypeCollect},
 	},
 	// 自定义采集器 — 非 1688 站点登录墙（须在 1688 规则之前，且仅 custom 源）
@@ -268,7 +268,7 @@ var rules = []rule{
 		category:  CategoryCollectorBlocked,
 		severity:  SeverityMedium,
 		reason:    "自定义采集打开的是目标站点登录/验证页，不是商品详情。",
-		suggest:   "当前为「自定义链接采集器」且目标站（如京东）需登录才能查看商品；系统未提供该站登录 Profile。请核对规则 CSS 选择器，或确认该链接是否必须在已登录浏览器中打开。",
+		suggest:   "当前为「自定义链接采集器」且目标站（如京东）需登录才能查看商品；系统未提供该站登录配置。请核对规则选择器，或确认该链接是否必须在已登录浏览器中打开。",
 		taskTypes: []string{taskTypeCollect},
 	},
 	// Collector — 1688 登录/验证失效（仅 1688 采集器或 custom+1688 链接）
@@ -322,7 +322,7 @@ var rules = []rule{
 		id: "sub:storage", substrs: []string{"storage", "s3", "cos", "oss", "upload failed", "put object", "bucket"},
 		category: CategoryStorageError, severity: SeverityHigh,
 		reason:  "对象存储读写失败。",
-		suggest: "请检查「设置 → 存储」与 Bucket/密钥/网络。",
+		suggest: "请检查「设置 → 存储」与存储桶/密钥/网络。",
 	},
 	{
 		id: "sub:douyin_image_storage", substrs: []string{"STORAGE_UPLOAD_FAILED"},
@@ -334,7 +334,7 @@ var rules = []rule{
 		id: "sub:douyin_image_url", substrs: []string{"IMAGE_URL_NOT_ACCESSIBLE", "IMAGE_DOWNLOAD_FAILED"},
 		category: CategoryNetworkTimeout, severity: SeverityMedium,
 		reason:  "抖店图片上传前读取外链图片失败。",
-		suggest: "请确认图片 URL 可公开访问且不是内网地址，必要时先手动上传到商品图片库。",
+		suggest: "请确认图片链接可公开访问且不是内网地址，必要时先手动上传到商品图片库。",
 	},
 	{
 		id: "sub:douyin_image_upload", substrs: []string{"DOUYIN_IMAGE_UPLOAD_FAILED"},
@@ -352,7 +352,7 @@ var rules = []rule{
 		id: "sub:douyin_store_auth", substrs: []string{"DOUYIN_STORE_NOT_AUTHORIZED", "DOUYIN_AUTH_EXPIRED", "shop is not authorized"},
 		category: CategoryPlatformAuth, severity: SeverityHigh,
 		reason:  "抖店店铺未授权或授权已过期。",
-		suggest: "请重新连接抖店店铺并完成 OAuth 授权。",
+		suggest: "请重新连接抖店店铺并完成店铺授权。",
 	},
 	{
 		id: "sub:douyin_order_sync", substrs: []string{"DOUYIN_ORDER_SYNC_FAILED", "DOUYIN_ORDER_LIST_FAILED", "DOUYIN_ORDER_DETAIL_FAILED", "DOUYIN_ORDER_PARSE_FAILED", "UNKNOWN_DOUYIN_ORDER_ERROR"},
@@ -376,7 +376,7 @@ var rules = []rule{
 		id: "sub:douyin_inventory_sync", substrs: []string{"DOUYIN_INVENTORY_SYNC_FAILED", "UNKNOWN_DOUYIN_INVENTORY_ERROR"},
 		category: CategoryPlatformAPIError, severity: SeverityHigh,
 		reason:  "抖店库存同步失败。",
-		suggest: "请检查抖店库存接口权限、商品/SKU 绑定与店铺授权，然后在库存同步任务页重试。",
+		suggest: "请检查抖店库存接口权限、商品/规格绑定与店铺授权，然后在库存同步任务页重试。",
 	},
 	{
 		id: "sub:douyin_inventory_permission", substrs: []string{"DOUYIN_INVENTORY_PERMISSION_DENIED"},
@@ -393,8 +393,8 @@ var rules = []rule{
 	{
 		id: "sub:douyin_inventory_binding", substrs: []string{"DOUYIN_PRODUCT_NOT_BOUND", "DOUYIN_SKU_NOT_BOUND", "external sku id missing"},
 		category: CategoryValidationError, severity: SeverityHigh,
-		reason:  "抖店商品或 SKU 尚未完成平台绑定。",
-		suggest: "请先在商品详情完成抖店刊登草稿创建，并确认 product_publication_skus 已写入 platformSkuId。",
+		reason:  "抖店商品或规格尚未完成平台绑定。",
+		suggest: "请先在商品详情完成抖店刊登草稿创建，并确认规格映射已写入平台规格编号。",
 	},
 	{
 		id: "sub:douyin_inventory_stock", substrs: []string{"DOUYIN_STOCK_INVALID", "stock must be >= 0"},
@@ -407,7 +407,7 @@ var rules = []rule{
 		id: "sub:publish_validation_code", substrs: []string{"PUBLISH_CHECK_FAILED", "PRICE_INVALID", "IMAGE_MISSING", "SKU_INVALID"},
 		category: CategoryValidationError, severity: SeverityHigh,
 		reason:  "刊登前商品资料未达到发布要求。",
-		suggest: "请回到商品详情，按发布检查提示补齐标题、描述、主图、SKU、价格、库存或利润保护项后再提交。",
+		suggest: "请回到商品详情，按发布检查提示补齐标题、描述、主图、规格、价格、库存或利润保护项后再提交。",
 	},
 	{
 		id: "sub:validation", substrs: []string{"invalid request", "validation", "bad request", "malformed", "422"},
@@ -433,8 +433,8 @@ var rules = []rule{
 	{
 		id: "sub:lease_msg", substrs: []string{"lease expired", "locked_until expired", "stale worker", "worker lease"},
 		category: CategoryWorkerLeaseExpired, severity: SeverityMedium,
-		reason:  "租约或 Worker 锁相关提示。",
-		suggest: "请在「运维 → Worker 监控」检查任务租约与实例心跳，必要时人工重试。",
+		reason:  "租约或后台任务进程锁相关提示。",
+		suggest: "请在「运维 → 后台任务监控」检查任务租约与实例心跳，必要时人工重试。",
 	},
 }
 
@@ -572,7 +572,7 @@ func Classify(in Input) Result {
 			Category: CategoryImageProviderError, Severity: SeverityMedium,
 			Reason:          "未能匹配细分规则的图片任务失败。",
 			MatchedRule:     "fallback:image_task",
-			SuggestedAction: "请核对图片任务类型、Provider 配置与源图可读性后重试。",
+			SuggestedAction: "请核对图片任务类型、图片服务配置与源图可读性后重试。",
 		}
 	}
 	return Result{

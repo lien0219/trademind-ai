@@ -232,7 +232,7 @@ export default function PricingApplyModal({
             <Form.Item name="costSource" label="成本价来源" rules={[{ required: true }]}>
               <Select
                 options={[
-                  { label: '采集价格 / SKU 成本价', value: 'collected' },
+                  { label: '采集价格 / 规格成本价', value: 'collected' },
                   { label: '手动填写', value: 'manual' },
                 ]}
               />
@@ -270,7 +270,7 @@ export default function PricingApplyModal({
             <Form.Item name="minMarginPercent" label="最低利润率保护（%）">
               <InputNumber min={0} max={95} precision={2} style={{ width: '100%' }} />
             </Form.Item>
-            <Form.Item name="minPublishPrice" label="最低发布价（可选，覆盖 SKU 级保护）">
+            <Form.Item name="minPublishPrice" label="最低发布价（可选，覆盖规格级保护）">
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="roundingMode" label="尾数规则">
@@ -292,7 +292,7 @@ export default function PricingApplyModal({
       {step === 'preview' && (
         <>
           <Typography.Paragraph>
-            将影响 <Typography.Text strong>{preview.length}</Typography.Text> 个 SKU。确认后将写入本地{' '}
+            将影响 <Typography.Text strong>{preview.length}</Typography.Text> 个规格。确认后将写入本地{' '}
             <Typography.Text code>price</Typography.Text> 字段。
           </Typography.Paragraph>
           <Table<PricingPreviewLine>
@@ -302,7 +302,7 @@ export default function PricingApplyModal({
             dataSource={preview}
             scroll={{ x: 720 }}
             columns={[
-              { title: 'SKU', dataIndex: 'skuName', ellipsis: true },
+              { title: '规格', dataIndex: 'skuName', ellipsis: true },
               { title: '成本价', dataIndex: 'costPrice', width: 90, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
               { title: '含运费成本', dataIndex: 'landedCost', width: 110, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
               { title: '当前价', dataIndex: 'currentPrice', width: 90, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
@@ -336,7 +336,7 @@ export default function PricingApplyModal({
             style={{ marginTop: 12 }}
             message={
               <Checkbox checked={confirmApply} onChange={(e) => setConfirmApply(e.target.checked)}>
-                我确认将上述计算结果写入本地 SKU 销售价（不自动刊登）
+                我确认将上述计算结果写入本地规格销售价（不自动刊登）
               </Checkbox>
             }
           />
@@ -344,7 +344,7 @@ export default function PricingApplyModal({
       )}
       {step === 'done' && summary && (
         <Typography.Paragraph>
-          已更新 <Typography.Text strong>{summary.updated ?? 0}</Typography.Text> / {summary.skuCount ?? 0} 个 SKU。
+          已更新 <Typography.Text strong>{summary.updated ?? 0}</Typography.Text> / {summary.skuCount ?? 0} 个规格。
         </Typography.Paragraph>
       )}
     </Modal>

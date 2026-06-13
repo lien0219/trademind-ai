@@ -86,6 +86,7 @@ git push -u origin feat/your-feature-name
 - 涉及前端或采集服务时，至少执行对应构建命令：
 
 ```bash
+pnpm check:ui-copy --strict
 pnpm build:admin
 pnpm build:collector
 ```

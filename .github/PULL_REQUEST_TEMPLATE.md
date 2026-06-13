@@ -18,6 +18,7 @@
 - [ ] `pnpm check:dev`
 - [ ] `pnpm dev`
 - [ ] `go test ./...`
+- [ ] `pnpm check:ui-copy --strict`
 - [ ] `pnpm build:admin`
 - [ ] `pnpm build:collector`
 - [ ] Docker Compose 启动验证

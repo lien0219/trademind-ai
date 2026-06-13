@@ -24,6 +24,7 @@
 </p>
 
 > 贸灵 TradeMind 是一个面向跨境电商卖家的开源 AI 运营工具，当前支持商品采集、商品草稿、AI 标题优化、AI 描述生成、图片管理、AI 图片任务、店铺授权、订单同步、SKU 匹配、商品刊登、库存同步和 AI 客服建议等运营能力。
+> **抖店（Douyin Shop）**：Phase 1–10.4 生产加固与 Release Candidate 文档/脚本/CI 已就绪；**真实 E2E 仍为 `blocked_by_real_credentials`**。见 [`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md)。
 
 ## 项目截图 / Demo
 
@@ -550,6 +551,7 @@ Go Gin API
 | --- | --- |
 | 快速开始 | [本地开发](docs/development.md) · [Docker 部署](docs/docker-deployment.md) · [环境变量](docs/env.md) |
 | 架构扩展 | [架构设计](docs/architecture.md) · [API 契约](docs/api.md) · [Provider 扩展](docs/provider.md) · [路线图](docs/roadmap.md) |
+| 抖店 RC（Phase 10.4） | [发布门禁](docs/DOUYIN_RELEASE_GATE.md) · [E2E 清单](docs/DOUYIN_E2E_CHECKLIST.md) · [生产 Runbook](docs/DOUYIN_PRODUCTION_RUNBOOK.md) · [生产审计](docs/DOUYIN_PRODUCTION_AUDIT.md) |
 | 协作规范 | [贡献指南](CONTRIBUTING.md) · [AI Agent 规则](AGENTS.md) · [AI 工作流](docs/ai-workflow.md) · [分支规则](docs/branching.md) · [AI 编程规则](docs/ai-coding-rules.md) · [模块关联索引](docs/module-map.md) |
 | 社区治理 | [安全策略](SECURITY.md) · [行为准则](CODE_OF_CONDUCT.md) · [赞助支持](docs/sponsor.md) · [NOTICE](NOTICE) |
 | 多语言 | [English README](README.en.md) |

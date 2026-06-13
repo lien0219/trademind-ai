@@ -1,5 +1,5 @@
-import { ProCard, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { ProCard, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
 import { formatDateTime } from '@/utils/formatTime';
 import {
@@ -32,6 +32,7 @@ import {
   ignoreTaskFailure,
   queryTaskFailureCategories,
   queryTaskFailures,
+  recoverDouyinDraftTask,
   retryTaskFailure,
   unmarkTaskFailure,
   type FailureDetailDTO,
@@ -40,12 +41,16 @@ import {
 } from '@/services/taskCenter';
 import { PAGE_COPY } from '@/constants/copywriting';
 import {
+  canOpenFailureDetail,
+  isPlatformAlertTaskType,
   TASK_CENTER_TASK_TYPE_LABEL,
   TASK_FAILURE_CATEGORY_LABEL,
   TASK_FAILURE_SEVERITY,
   TASK_FAILURE_SEVERITY_OPTIONS,
   TASK_NORMALIZED_STATUS,
+  TASK_RECOVERY_STATUS_OPTIONS,
   failureCategoryLabel,
+  recoveryStatusLabel,
 } from '@/constants/taskCenter';
 import { openPinduoduoLoginBrowser, openTaobaoTmallLoginBrowser } from '@/services/collectAuth';
 import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
@@ -105,6 +110,7 @@ export default function TaskCenterFailuresPage() {
   const [sel, setSel] = useState<UnifiedTaskDTO[]>([]);
   const [pddLoginOpening, setPddLoginOpening] = useState(false);
   const [tbLoginOpening, setTbLoginOpening] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   const isTbLoginFailure = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
     if (!row || row.taskType !== 'collect') return false;
@@ -134,6 +140,15 @@ export default function TaskCenterFailuresPage() {
     );
   };
 
+  const canRecoverDouyinDraft = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
+    if (!row || row.taskType !== 'product_publish') return false;
+    const pl = (row.platform ?? '').toLowerCase();
+    if (pl !== 'douyin_shop') return false;
+    const rs = (row.recoveryStatus ?? row.extra?.recoveryStatus ?? '').toString().trim();
+    const code = (row.errorCode ?? '').toUpperCase();
+    return rs === 'result_unknown' || code === 'DOUYIN_TASK_RESULT_UNKNOWN';
+  };
+
   useEffect(() => {
     void (async () => {
       try {
@@ -154,23 +169,45 @@ export default function TaskCenterFailuresPage() {
     const sp = new URLSearchParams(location.search || '');
     const jumpId = sp.get('jumpId');
     const taskType = sp.get('taskType');
-    if (jumpId && taskType) {
-      void (async () => {
-        try {
-          setDetail(null);
-          setDetailOpen(true);
-          setDetailLoading(true);
-          const d = await getTaskFailureDetail(taskType, jumpId);
-          setDetail(d);
-        } catch (e) {
-          message.error((e as Error).message);
-          setDetailOpen(false);
-        } finally {
-          setDetailLoading(false);
-        }
-      })();
+    if (!jumpId || !taskType) {
+      return;
     }
-  }, [location.search]);
+    if (!canOpenFailureDetail(taskType, jumpId)) {
+      if (taskType.trim() === 'douyin_platform') {
+        message.info('该平台级告警无对应失败任务详情，已跳转到平台运行状态页');
+        history.replace('/ops/platform-runtime?platform=douyin_shop');
+        return;
+      }
+      if (isPlatformAlertTaskType(taskType)) {
+        message.info('该平台级告警无对应失败任务详情，请在告警中心查看');
+        sp.delete('jumpId');
+        sp.delete('taskType');
+        const qs = sp.toString();
+        history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
+        return;
+      }
+      message.warning('链接中的任务类型或 ID 无效，无法打开失败详情');
+      sp.delete('jumpId');
+      sp.delete('taskType');
+      const qs = sp.toString();
+      history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
+      return;
+    }
+    void (async () => {
+      try {
+        setDetail(null);
+        setDetailOpen(true);
+        setDetailLoading(true);
+        const d = await getTaskFailureDetail(taskType, jumpId);
+        setDetail(d);
+      } catch (e) {
+        message.error((e as Error).message);
+        setDetailOpen(false);
+      } finally {
+        setDetailLoading(false);
+      }
+    })();
+  }, [location.pathname, location.search]);
 
   const columns: ProColumns<UnifiedTaskDTO>[] = useMemo(
     () => [
@@ -228,6 +265,22 @@ export default function TaskCenterFailuresPage() {
           placeholder: '请选择',
         },
         render: (_, r) => failureCategoryLabel(r.failureCategory),
+      },
+      {
+        title: '恢复状态',
+        dataIndex: 'recoveryStatus',
+        width: 148,
+        valueType: 'select',
+        fieldProps: {
+          options: TASK_RECOVERY_STATUS_OPTIONS,
+          allowClear: true,
+          placeholder: '请选择',
+        },
+        render: (_, r) => {
+          const label = recoveryStatusLabel(r.recoveryStatus);
+          if (label === '—') return '—';
+          return <Tag color="gold">{label}</Tag>;
+        },
       },
       {
         title: '严重等级',
@@ -498,7 +551,7 @@ export default function TaskCenterFailuresPage() {
           showIcon
           type="info"
           message="抖店相关失败"
-          description="刊登、图片上传、创建草稿、订单同步、库存同步、SKU 绑定失败会聚合到本页。错误信息已脱敏，不含 token 或 App Secret。抖店授权/类目/图片/SKU 未绑定类问题请按提示回到对应页面处理后再重试。"
+          description="刊登、图片上传、创建草稿、订单同步、库存同步、规格绑定失败会聚合到本页。错误信息已脱敏，不含授权凭证或应用密钥。抖店授权/类目/图片/规格未绑定类问题请按提示回到对应页面处理后再重试。"
         />
         <ProCard variant="outlined" size="small">
           {summary ? (
@@ -666,11 +719,11 @@ export default function TaskCenterFailuresPage() {
           actionRef={actionRef}
           search={{
             labelWidth: 'auto',
-            onReset: () => {
-              listFilterRef.current = { includeResolved: false, includeMarked: false };
-              setIncludeResolved(false);
-              setIncludeMarked(false);
-            },
+          }}
+          onReset={() => {
+            listFilterRef.current = { includeResolved: false, includeMarked: false };
+            setIncludeResolved(false);
+            setIncludeMarked(false);
           }}
           rowSelection={{
             selections: true,
@@ -692,6 +745,7 @@ export default function TaskCenterFailuresPage() {
                 keyword: kw || undefined,
                 failureCategory: (params.failureCategory as string | undefined)?.trim(),
                 severity: (params.severity as string | undefined)?.trim(),
+                recoveryStatus: (params.recoveryStatus as string | undefined)?.trim(),
               };
               if (listFilterRef.current.includeResolved) {
                 qp.includeResolved = 'true';
@@ -753,6 +807,29 @@ export default function TaskCenterFailuresPage() {
               <br />
               {detail.errorMessage || '—'}
             </Typography.Paragraph>
+            {detail.recoveryStatus || detail.extra?.recoveryStatus ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>恢复状态：</Typography.Text>{' '}
+                {recoveryStatusLabel(
+                  (detail.recoveryStatus || detail.extra?.recoveryStatus) as string | undefined,
+                )}
+              </Typography.Paragraph>
+            ) : null}
+            {typeof detail.extra?.userMessage === 'string' && detail.extra.userMessage ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>恢复说明：</Typography.Text> {detail.extra.userMessage}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.extra?.retryAttempts != null ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>恢复尝试次数：</Typography.Text> {String(detail.extra.retryAttempts)}
+              </Typography.Paragraph>
+            ) : null}
+            {typeof detail.extra?.lastErrorCode === 'string' && detail.extra.lastErrorCode ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>最近错误码：</Typography.Text> {detail.extra.lastErrorCode}
+              </Typography.Paragraph>
+            ) : null}
             {detail.relatedResourceTitle ? (
               <Typography.Paragraph type="secondary">关联：{detail.relatedResourceTitle}</Typography.Paragraph>
             ) : null}
@@ -803,6 +880,35 @@ export default function TaskCenterFailuresPage() {
                   }}
                 >
                   打开拼多多采集浏览器登录
+                </Button>
+              ) : null}
+              {canRecoverDouyinDraft(detail) ? (
+                <Button
+                  type="primary"
+                  loading={recovering}
+                  onClick={() => {
+                    Modal.confirm({
+                      title: '尝试从抖店回查恢复草稿？',
+                      content: '将通过 product.detail 确认平台侧是否已创建草稿，不会盲目重复提交 product.addV2。',
+                      okText: '尝试恢复',
+                      onOk: async () => {
+                        setRecovering(true);
+                        try {
+                          await recoverDouyinDraftTask(detail.id);
+                          message.success('已提交恢复，请刷新查看任务状态');
+                          actionRef.current?.reload?.();
+                          const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
+                          setDetail(refreshed);
+                        } catch (e) {
+                          message.error((e as Error).message);
+                        } finally {
+                          setRecovering(false);
+                        }
+                      },
+                    });
+                  }}
+                >
+                  尝试恢复
                 </Button>
               ) : null}
               {detail.retryable ? (

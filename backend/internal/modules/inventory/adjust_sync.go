@@ -124,6 +124,13 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 		if strings.TrimSpace(psku.ExternalSKUID) == "" {
 			continue
 		}
+		dup, err := s.hasDuplicateInventorySync(ctx, psku.ID, target)
+		if err != nil {
+			return n, err
+		}
+		if dup {
+			continue
+		}
 		extPID := strings.TrimSpace(pub.ExternalProductID)
 		if extPID == "" && pl != "amazon" {
 			continue
@@ -206,6 +213,13 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 		prodSku = *psku.ProductSKUID
 	} else {
 		return nil, fmt.Errorf("listing sku is not linked to a local sku id")
+	}
+	dup, err := s.hasDuplicateInventorySync(ctx, psku.ID, body.Stock)
+	if err != nil {
+		return nil, err
+	}
+	if dup {
+		return nil, fmt.Errorf("duplicate inventory sync task already pending for this listing sku and stock level")
 	}
 	task := InventorySyncTask{
 		ProductID:        pub.ProductID,

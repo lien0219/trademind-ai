@@ -91,7 +91,7 @@ func (provider) SyncOrders(ctx context.Context, req platformp.SyncOrdersRequest)
 		return nil, err
 	}
 	maxPages := ResolveOrderSyncMaxPages(req.MaxPages, cfg)
-	res, err := SyncOrdersPaginated(ctx, client, strings.TrimSpace(req.Cursor), req.Limit, maxPages, req.StartTime, req.EndTime)
+	res, err := SyncOrdersPaginated(ctx, client, strings.TrimSpace(req.Cursor), req.Limit, maxPages, req.StartTime, req.EndTime, req.RetryPages)
 	if err != nil {
 		_ = setAuthStatusMaybe(ctx, req.ShopID, "error")
 		return nil, err

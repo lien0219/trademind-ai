@@ -9,6 +9,7 @@
 | [development.md](development.md) | 本地开发、常用命令、端口、环境变量 | 开发者 |
 | [docker-deployment.md](docker-deployment.md) | Docker Compose 完整部署、端口、日志、数据卷 | 试用者 / 部署者 |
 | [ai-workflow.md](ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀 | 开发者 / AI Agent |
+| [ui-copywriting.md](ui-copywriting.md) | 管理端/API 用户可见文案中文化、术语表与 `pnpm check:ui-copy` | 开发者 / AI Agent |
 | [env.md](env.md) | 环境变量清单、敏感配置、安全规则与同步要求 | 开发者 / 部署者 / AI Agent |
 | [api.md](api.md) | API 公共约定、主要路由与前后端契约同步要求 | 前后端开发者 |
 | [architecture.md](architecture.md) | 总体架构、分层、数据与队列、安全原则 | 开发者 / 架构维护者 |

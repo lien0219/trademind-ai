@@ -265,7 +265,7 @@ export default function AlertNotifySettingsPage() {
               </Typography.Title>
               <Paragraph type="secondary" className="tm-system-settings__hero-desc">
                 站内告警生成规则在「系统设置」中配置；SMTP 发信服务器在「邮箱设置」中配置。本页负责选择通知通道、触发条件，以及各通道的收件人 /
-                Webhook 参数。敏感信息加密存库，接口脱敏展示。
+                回调通知参数。敏感信息加密存库，接口脱敏展示。
               </Paragraph>
             </div>
           </div>
@@ -285,7 +285,7 @@ export default function AlertNotifySettingsPage() {
                 <Link to="/settings/email">邮箱设置</Link>。
               </li>
               <li>飞书 / 企业微信当前为预留能力，可保存配置，实际发送结果为 skipped。</li>
-              <li>通知正文与 Webhook 内容均经裁剪，不会包含完整平台响应、客户消息全文或密钥。</li>
+              <li>通知正文与回调通知内容均经裁剪，不会包含完整平台响应、客户消息全文或密钥。</li>
             </ul>
           }
         />
@@ -368,7 +368,7 @@ export default function AlertNotifySettingsPage() {
                           <Select
                             mode="multiple"
                             allowClear
-                            placeholder="选择邮件、Webhook 等"
+                            placeholder="选择邮件、回调通知等"
                             options={NOTIFICATION_CHANNEL_OPTIONS}
                             disabled={!externalEnabled}
                           />
@@ -378,7 +378,7 @@ export default function AlertNotifySettingsPage() {
                         <Form.Item
                           label="详情链接公开前缀"
                           name="alert_detail_public_base"
-                          tooltip="拼接到站内路径前，用于邮件 / Webhook 中可点击的管理端地址"
+                          tooltip="拼接到站内路径前，用于邮件 / 回调通知中可点击的管理端地址"
                         >
                           <Input placeholder="https://ops.example.com" disabled={!externalEnabled} />
                         </Form.Item>
@@ -485,7 +485,7 @@ export default function AlertNotifySettingsPage() {
                         enabled={!!getFieldValue('feishu_enabled')}
                         groupEnabled={groupEnabled}
                       >
-                        <Form.Item label="Webhook 地址" name="feishu_webhook_url">
+                        <Form.Item label="回调通知地址" name="feishu_webhook_url">
                           <Input.Password autoComplete="off" placeholder="预留，后续版本启用" />
                         </Form.Item>
                         <Form.Item label="签名 Secret" name="feishu_secret">
@@ -502,7 +502,7 @@ export default function AlertNotifySettingsPage() {
                         enabled={!!getFieldValue('wecom_enabled')}
                         groupEnabled={groupEnabled}
                       >
-                        <Form.Item label="Webhook 地址" name="wecom_webhook_url">
+                        <Form.Item label="回调通知地址" name="wecom_webhook_url">
                           <Input.Password autoComplete="off" placeholder="预留，后续版本启用" />
                         </Form.Item>
                       </ChannelPanel>

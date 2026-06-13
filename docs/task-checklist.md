@@ -23,6 +23,7 @@
 ## 管理端 Admin
 
 - [ ] 执行或说明 `pnpm build:admin`。
+- [ ] 涉及用户可见文案时执行或说明 `pnpm check:ui-copy --strict`（CI 同命令，见 `docs/ui-copywriting.md`）。
 - [ ] 检查 `admin/config/routes.ts` 与页面文件是否一致。
 - [ ] 检查 `admin/src/services`、类型定义、表格列、表单校验和状态映射。
 - [ ] 用户可见行为变化时补截图、录屏或说明。

@@ -24,6 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -133,6 +134,14 @@ func main() {
 	}
 	tcSeedCancel()
 
+	dySeedCtx, dySeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := settings.EnsureDouyinAlertDefaults(dySeedCtx, db); err != nil {
+		dySeedCancel()
+		log.Error("douyin_alert_settings_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	dySeedCancel()
+
 	anSeedCtx, anSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	if err := settings.EnsureAlertNotifyDefaults(anSeedCtx, db); err != nil {
 		anSeedCancel()
@@ -170,7 +179,7 @@ func main() {
 	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc := api.Register(engine, &api.Deps{
 		Config:    cfg,
 		DB:        db,
 		Redis:     redisClient,
@@ -220,6 +229,7 @@ func main() {
 	})
 
 	taskcenter.StartAlertScanWorker(workerCtx, &workerWG, log, tcSvc, workerReg, cfg)
+	douyinruntime.StartDouyinAlertScanWorker(workerCtx, &workerWG, log, douyinRuntimeSvc, workerReg, cfg)
 
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
 		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc, workerReg)

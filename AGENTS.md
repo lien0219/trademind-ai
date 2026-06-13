@@ -68,6 +68,7 @@
 
 ```bash
 pnpm check:dev
+pnpm check:ui-copy --strict
 pnpm build:admin
 pnpm build:collector
 ```

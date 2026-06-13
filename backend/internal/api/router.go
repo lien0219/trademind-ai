@@ -23,6 +23,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectruleai"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
+	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -38,6 +40,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
+	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -140,7 +143,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -298,6 +301,24 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformamazon.BindShops(shopSvc.AmazonShopsBridge())
 	platformamazon.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
+
+	storagePublicSvc := &storagepublic.Service{Settings: settingsSvc, OpLog: opLogSvc}
+	storagePublicH := &storagepublic.Handler{Svc: storagePublicSvc, OpLog: opLogSvc}
+
+	douyinPreflightSvc := &douyinpreflight.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Shops:    shopSvc,
+		Storage:  storagePublicSvc,
+	}
+	douyinPreflightH := &douyinpreflight.Handler{Svc: douyinPreflightSvc, OpLog: opLogSvc}
+	douyinRuntimeSvc := &douyinruntime.Service{
+		DB:        dep.DB,
+		Settings:  settingsSvc,
+		Preflight: douyinPreflightSvc,
+		OpLog:     opLogSvc,
+	}
+	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
 	inventorySvc := &inventory.Service{
 		DB:       dep.DB,
@@ -496,6 +517,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	customerchat.Register(authed, customerChatH)
 	shop.RegisterPublic(v1, shopH)
 	shop.Register(authed, shopH)
+	storagepublic.Register(authed, storagePublicH)
+	douyinpreflight.Register(authed, douyinPreflightH)
+	douyinruntime.Register(authed, douyinRuntimeH)
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
@@ -525,7 +549,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	dashH := &operationdashboard.Handler{Svc: dashSvc}
 	operationdashboard.Register(authed, dashH)
 
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

@@ -260,6 +260,42 @@ body,
   .ant-table-container .ant-table-content {
     overflow-y: hidden !important;
   }
+
+  /* 工具栏密度/列设置：扩大可点击区域，避免图标点击落在容器上无响应 */
+  .ant-pro-table-list-toolbar {
+    position: relative;
+    z-index: 2;
+  }
+
+  .ant-pro-table-list-toolbar-setting-items {
+    position: relative;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .ant-pro-table-list-toolbar-setting-item {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 32px;
+    cursor: pointer;
+
+    > span {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      min-height: 32px;
+      cursor: pointer;
+    }
+
+    .anticon {
+      pointer-events: none;
+    }
+  }
 }
 
 /* 采集任务提交区：窄屏表单项自动换行 */

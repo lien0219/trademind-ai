@@ -272,6 +272,54 @@ func (c *Client) GetProductDetail(ctx context.Context, shopID string, platformPr
 	return res, nil
 }
 
+// GetProductDetailByOuterID queries product.detail using out_product_id (local product UUID).
+func (c *Client) GetProductDetailByOuterID(ctx context.Context, shopID string, outerProductID string) (*PlatformProductDetail, error) {
+	_ = strings.TrimSpace(shopID)
+	outer := strings.TrimSpace(outerProductID)
+	if outer == "" {
+		return nil, NewError(CodeDouyinProductDetailFailed, "douyin outer product id required", "", "", "")
+	}
+	params := map[string]any{
+		"out_product_id": outer,
+		"show_draft":     "true",
+	}
+	var data map[string]any
+	if err := c.Do(ctx, MethodProductDetail, params, &data); err != nil {
+		return nil, mapProductDetailError(err)
+	}
+	res := parseProductDetailResult(data)
+	if res == nil || strings.TrimSpace(res.PlatformProductID) == "" {
+		return nil, NewError(CodeDouyinProductNotFound, "douyin product not found", "", "", resRequestID(data))
+	}
+	if len(res.SKUs) == 0 {
+		return nil, NewError(CodeDouyinProductDetailFailed, "douyin product detail missing sku list", "", "", res.RequestID)
+	}
+	res.Raw = sanitizeRawMap(data)
+	return res, nil
+}
+
+// ProductResultFromDetail converts a detail response into create-result shape for idempotent recovery.
+func ProductResultFromDetail(d *PlatformProductDetail) *PlatformProductResult {
+	if d == nil {
+		return nil
+	}
+	out := &PlatformProductResult{
+		PlatformProductID: d.PlatformProductID,
+		PlatformStatus:    d.Status,
+		RequestID:         d.RequestID,
+		Raw:               d.Raw,
+	}
+	for _, sku := range d.SKUs {
+		out.SKUMappings = append(out.SKUMappings, SKUMapping{
+			OuterSKUID:    sku.OuterSKUID,
+			PlatformSKUID: sku.PlatformSKUID,
+			Price:         sku.PriceYuan,
+			Stock:         sku.Stock,
+		})
+	}
+	return out
+}
+
 func resRequestID(data map[string]any) string {
 	if data == nil {
 		return ""

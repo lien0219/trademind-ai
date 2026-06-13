@@ -54,6 +54,7 @@ type ListFailureParams struct {
 
 	FailureCategory string
 	Severity        string
+	RecoveryStatus  string
 }
 
 func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {
@@ -108,6 +109,9 @@ func passesUnifiedFilters(d UnifiedTaskDTO, p ListFailureParams) bool {
 		return false
 	}
 	if ws := strings.TrimSpace(p.Severity); ws != "" && !strings.EqualFold(ws, strings.TrimSpace(d.Severity)) {
+		return false
+	}
+	if wr := strings.TrimSpace(p.RecoveryStatus); wr != "" && !strings.EqualFold(wr, strings.TrimSpace(d.RecoveryStatus)) {
 		return false
 	}
 	if !keywordMatches(p.Keyword, d.Title, d.ErrorMessage, d.ID, d.Platform, d.ShopName, d.RelatedResourceTitle, d.FailureCategory) {

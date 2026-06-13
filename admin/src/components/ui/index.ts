@@ -8,3 +8,5 @@ export { default as ErrorAlert } from './ErrorAlert';
 export { default as TechnicalDetails } from './TechnicalDetails';
 export { default as TaskJsonBlock, formatTaskJson } from './TaskJsonBlock';
 export { default as ActionBar } from './ActionBar';
+export { default as TmProTable } from './TmProTable';
+export type { TmProTableProps } from './TmProTable';

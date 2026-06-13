@@ -1,8 +1,8 @@
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
-import { ProTable } from '@ant-design/pro-components';
+
 import { history } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
@@ -215,9 +215,9 @@ export default function CustomerConversationsPage() {
           name="mode"
           label="同步模式"
           options={[
-            { label: '增量 incremental', value: 'incremental' },
-            { label: '全量 full', value: 'full' },
-            { label: '手动 manual', value: 'manual' },
+            { label: '增量', value: 'incremental' },
+            { label: '全量', value: 'full' },
+            { label: '手动', value: 'manual' },
           ]}
           rules={[{ required: true }]}
         />

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safefields"
 )
 
 const (
@@ -101,7 +103,8 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 		CodeDouyinProductNotFound, CodeDouyinProductDetailPermissionDenied,
 		CodeDouyinSKUBindingUnmatched, CodeDouyinSKUBindingAmbiguous,
 		CodeDouyinSKUManualBindFailed, CodeDouyinSKUManualUnbindFailed, CodeDouyinPlatformSKUIDMissing,
-		CodeDouyinSKUBindingConflict, CodeDouyinSKUBindingRequired:
+		CodeDouyinSKUBindingConflict, CodeDouyinSKUBindingRequired,
+		CodeDouyinGrayReleaseNotEnabled, CodeDouyinShopNotInGrayList, CodeDouyinWriteOperationDisabled:
 		e.Retryable = false
 	}
 	return e
@@ -129,57 +132,11 @@ func AsError(err error, target **Error) bool {
 }
 
 func SanitizeErrorText(raw string) string {
-	msg := strings.TrimSpace(raw)
-	if msg == "" {
-		return ""
-	}
-	low := strings.ToLower(msg)
-	for _, marker := range []string{"app_secret", "appsecret", "access_token", "accesstoken", "refresh_token", "refreshtoken", "secret", "token"} {
-		if strings.Contains(low, marker) {
-			return "douyin openapi returned a sensitive error"
-		}
-	}
-	if len(msg) > 500 {
-		msg = msg[:500] + "..."
-	}
-	return msg
+	return safefields.RedactString(raw)
 }
 
 func sanitizeRawMap(in map[string]any) map[string]any {
-	if in == nil {
-		return nil
-	}
-	out := make(map[string]any, len(in))
-	for k, v := range in {
-		low := strings.ToLower(strings.TrimSpace(k))
-		if strings.Contains(low, "token") || strings.Contains(low, "secret") {
-			out[k] = "****"
-			continue
-		}
-		out[k] = sanitizeRawValue(v)
-	}
-	return out
-}
-
-func sanitizeRawValue(v any) any {
-	switch x := v.(type) {
-	case string:
-		return SanitizeErrorText(x)
-	case map[string]any:
-		return sanitizeRawMap(x)
-	case []any:
-		out := make([]any, 0, len(x))
-		for i, item := range x {
-			if i >= 20 {
-				out = append(out, "...truncated")
-				break
-			}
-			out = append(out, sanitizeRawValue(item))
-		}
-		return out
-	default:
-		return v
-	}
+	return safefields.RedactMap(in)
 }
 
 func MapHTTPError(status int, requestID string) *Error {
@@ -192,6 +149,10 @@ func MapHTTPError(status int, requestID string) *Error {
 		return NewError(CodeDouyinRateLimited, "douyin openapi rate limited", fmt.Sprint(status), "rate limited", requestID)
 	case http.StatusGatewayTimeout, http.StatusRequestTimeout:
 		return NewError(CodeDouyinRequestTimeout, "douyin openapi request timeout", fmt.Sprint(status), "timeout", requestID)
+	case http.StatusBadGateway, http.StatusServiceUnavailable:
+		e := NewError(CodeDouyinAPIError, "douyin openapi temporary error", fmt.Sprint(status), "", requestID)
+		e.Retryable = true
+		return e
 	default:
 		return NewError(CodeDouyinAPIError, "douyin openapi http error", fmt.Sprint(status), "", requestID)
 	}

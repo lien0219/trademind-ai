@@ -318,7 +318,7 @@ export default function IntegrationsHubPage() {
                   跨境平台
                 </Title>
                 <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                  此处为各平台开放平台应用参数（App Key / Secret 等）。店铺授权后的授权凭证保存在「店铺 →
+                  此处为各平台开放平台应用参数（应用 Key / 密钥等）。店铺授权后的授权凭证保存在「店铺 →
                   授权配置」，请勿写入此处。
                 </Paragraph>
                 <Row gutter={[16, 16]}>

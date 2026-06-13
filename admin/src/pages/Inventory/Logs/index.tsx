@@ -1,5 +1,5 @@
-﻿import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+﻿import { type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { Tag } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
@@ -52,7 +52,7 @@ export default function InventoryLogsPage() {
         render: (_, r) => formatDateTime(r.createdAt),
       },
       { title: '商品 ID', dataIndex: 'productId', hideInTable: true },
-      { title: 'SKU ID', dataIndex: 'productSkuId', hideInTable: true },
+      { title: '规格编号', dataIndex: 'productSkuId', hideInTable: true },
       { title: '订单 ID', dataIndex: 'orderId', hideInTable: true },
       {
         title: '变更类型',
