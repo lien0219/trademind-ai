@@ -10,7 +10,7 @@
     "setup": "max setup"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.6.1",
+    "@ant-design/icons": "^6.2.5",
     "@ant-design/pro-components": "^2.8.7",
     "@umijs/max": "^4.4.5",
     "@umijs/renderer-react": "^4.6.55",
