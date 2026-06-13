@@ -7,6 +7,7 @@ const { Text } = Typography;
 export type SectionCardProps = ProCardProps & {
   description?: ReactNode;
   headerExtra?: ReactNode;
+  variant?: 'borderless' | 'outlined' | 'filled';
 };
 
 /**
@@ -18,12 +19,15 @@ export default function SectionCard({
   headerExtra,
   children,
   className,
+  variant = 'outlined',
+  bordered,
   ...rest
 }: SectionCardProps) {
+  const showBorder = bordered ?? variant === 'outlined';
   return (
     <ProCard
       {...rest}
-      variant="outlined"
+      bordered={showBorder}
       className={['tm-section-card', className].filter(Boolean).join(' ')}
       title={
         title ? (

@@ -36,6 +36,24 @@ export const TASK_FAILURE_CATEGORY_LABEL: Record<string, string> = {
   worker_lease_expired: '后台任务执行超时',
   system_error: '系统错误',
   unknown: '未知',
+  // 抖店平台级站内告警（douyinruntime/alert.go）
+  douyin_token_refresh_failed: 'Token 刷新失败',
+  douyin_auth_expiring: '店铺授权即将过期',
+  douyin_auth_expired: '店铺授权已过期',
+  douyin_auth_need_check: '店铺授权需检查',
+  douyin_product_draft_failures: '商品草稿失败积压',
+  douyin_product_result_unknown: '商品结果暂时无法确认',
+  douyin_product_recovery_failed: '商品任务恢复失败',
+  douyin_image_upload_failure_rate: '图片上传失败率过高',
+  douyin_storage_public_failed: 'Storage 公网访问异常',
+  douyin_order_sync_failed: '订单同步失败',
+  douyin_order_partial_stale: '订单同步部分停滞',
+  douyin_inventory_sync_failed: '库存同步失败',
+  douyin_inventory_stale: '库存同步停滞',
+  douyin_runtime_emergency_disabled: '抖店紧急停用',
+  douyin_stale_tasks_high: '停滞任务过多',
+  douyin_failure_backlog: '失败任务积压',
+  douyin_rate_limit_spike: '平台限流激增',
 };
 
 export function failureCategoryLabel(cat?: string): string {
@@ -47,8 +65,26 @@ export function failureCategoryLabel(cat?: string): string {
 export function failureSeverityLabel(sev?: string): string {
   const k = (sev || '').trim().toLowerCase();
   if (!k) return '—';
-  return TASK_FAILURE_SEVERITY[k]?.text || sev;
+  return TASK_FAILURE_SEVERITY[k]?.text || k;
 }
+
+/** 失败任务中心可查询详情的任务类型（与后端 parseTaskType 一致） */
+export const TASK_CENTER_FAILURE_TASK_TYPES = [
+  'collect',
+  'image',
+  'order_sync',
+  'customer_message_sync',
+  'product_publish',
+  'inventory_sync',
+] as const;
+
+export type TaskCenterFailureTaskType = (typeof TASK_CENTER_FAILURE_TASK_TYPES)[number];
+
+/** 平台级站内告警 taskType（sourceId 非业务任务 UUID，不可走失败详情接口） */
+export const PLATFORM_ALERT_TASK_TYPES = ['douyin_platform'] as const;
+
+const TASK_FAILURE_DETAIL_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** 任务类型（失败任务中心列表） */
 export const TASK_CENTER_TASK_TYPE_LABEL: Record<string, string> = {
@@ -58,7 +94,54 @@ export const TASK_CENTER_TASK_TYPE_LABEL: Record<string, string> = {
   customer_message_sync: '客服消息同步',
   product_publish: '商品刊登',
   inventory_sync: '库存同步',
+  douyin_platform: '抖店平台告警',
 };
+
+export function isTaskCenterFailureTaskType(taskType?: string | null): boolean {
+  const k = (taskType || '').trim().toLowerCase();
+  return (TASK_CENTER_FAILURE_TASK_TYPES as readonly string[]).includes(k);
+}
+
+export function isPlatformAlertTaskType(taskType?: string | null): boolean {
+  const k = (taskType || '').trim().toLowerCase();
+  return (PLATFORM_ALERT_TASK_TYPES as readonly string[]).includes(k);
+}
+
+export function isTaskFailureDetailId(id?: string | null): boolean {
+  const k = (id || '').trim();
+  return TASK_FAILURE_DETAIL_ID_RE.test(k);
+}
+
+/** 是否可打开 GET /task-center/failures/:taskType/:id */
+export function canOpenFailureDetail(taskType?: string | null, sourceId?: string | null): boolean {
+  return isTaskCenterFailureTaskType(taskType) && isTaskFailureDetailId(sourceId);
+}
+
+/** 告警中心「相关入口」深链：平台告警走运维页，业务失败任务走详情深链 */
+export function resolveAlertRelatedLink(alert: {
+  taskType: string;
+  sourceId: string;
+  platform?: string;
+}): { href: string; label: string } {
+  const taskType = (alert.taskType || '').trim();
+  const sourceId = (alert.sourceId || '').trim();
+
+  if (taskType === 'douyin_platform') {
+    return { href: '/ops/douyin/runtime', label: '抖店运维' };
+  }
+  if (isPlatformAlertTaskType(taskType)) {
+    return { href: '/ops/task-center/alerts', label: '告警中心' };
+  }
+  if (canOpenFailureDetail(taskType, sourceId)) {
+    const sp = new URLSearchParams({ taskType, jumpId: sourceId });
+    return { href: `/ops/task-center/failures?${sp.toString()}`, label: '失败任务' };
+  }
+  if ((alert.platform || '').trim()) {
+    const sp = new URLSearchParams({ platform: alert.platform!.trim() });
+    return { href: `/ops/task-center/failures?${sp.toString()}`, label: '失败任务' };
+  }
+  return { href: '/ops/task-center/failures', label: '失败任务' };
+}
 
 /** 抖店任务恢复状态 → 用户可见文案（不展示 stale / result_unknown 等内部值） */
 export const TASK_RECOVERY_STATUS_LABEL: Record<string, string> = {
@@ -112,6 +195,11 @@ export function workerTypeLabel(type?: string): string {
   const k = (type || '').trim();
   if (!k) return '—';
   return TASK_CENTER_TASK_TYPE_LABEL[k] || k;
+}
+
+/** 告警中心任务类型显示名（与 workerTypeLabel 一致） */
+export function taskCenterTaskTypeLabel(taskType?: string): string {
+  return workerTypeLabel(taskType);
 }
 
 /** 归一化状态 */

@@ -41,6 +41,8 @@ import {
 } from '@/services/taskCenter';
 import { PAGE_COPY } from '@/constants/copywriting';
 import {
+  canOpenFailureDetail,
+  isPlatformAlertTaskType,
   TASK_CENTER_TASK_TYPE_LABEL,
   TASK_FAILURE_CATEGORY_LABEL,
   TASK_FAILURE_SEVERITY,
@@ -167,23 +169,45 @@ export default function TaskCenterFailuresPage() {
     const sp = new URLSearchParams(location.search || '');
     const jumpId = sp.get('jumpId');
     const taskType = sp.get('taskType');
-    if (jumpId && taskType) {
-      void (async () => {
-        try {
-          setDetail(null);
-          setDetailOpen(true);
-          setDetailLoading(true);
-          const d = await getTaskFailureDetail(taskType, jumpId);
-          setDetail(d);
-        } catch (e) {
-          message.error((e as Error).message);
-          setDetailOpen(false);
-        } finally {
-          setDetailLoading(false);
-        }
-      })();
+    if (!jumpId || !taskType) {
+      return;
     }
-  }, [location.search]);
+    if (!canOpenFailureDetail(taskType, jumpId)) {
+      if (taskType.trim() === 'douyin_platform') {
+        message.info('该平台级告警无对应失败任务详情，已跳转到抖店运行状态页');
+        history.replace('/ops/douyin/runtime');
+        return;
+      }
+      if (isPlatformAlertTaskType(taskType)) {
+        message.info('该平台级告警无对应失败任务详情，请在告警中心查看');
+        sp.delete('jumpId');
+        sp.delete('taskType');
+        const qs = sp.toString();
+        history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
+        return;
+      }
+      message.warning('链接中的任务类型或 ID 无效，无法打开失败详情');
+      sp.delete('jumpId');
+      sp.delete('taskType');
+      const qs = sp.toString();
+      history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
+      return;
+    }
+    void (async () => {
+      try {
+        setDetail(null);
+        setDetailOpen(true);
+        setDetailLoading(true);
+        const d = await getTaskFailureDetail(taskType, jumpId);
+        setDetail(d);
+      } catch (e) {
+        message.error((e as Error).message);
+        setDetailOpen(false);
+      } finally {
+        setDetailLoading(false);
+      }
+    })();
+  }, [location.pathname, location.search]);
 
   const columns: ProColumns<UnifiedTaskDTO>[] = useMemo(
     () => [
@@ -695,11 +719,11 @@ export default function TaskCenterFailuresPage() {
           actionRef={actionRef}
           search={{
             labelWidth: 'auto',
-            onReset: () => {
-              listFilterRef.current = { includeResolved: false, includeMarked: false };
-              setIncludeResolved(false);
-              setIncludeMarked(false);
-            },
+          }}
+          onReset={() => {
+            listFilterRef.current = { includeResolved: false, includeMarked: false };
+            setIncludeResolved(false);
+            setIncludeMarked(false);
           }}
           rowSelection={{
             selections: true,

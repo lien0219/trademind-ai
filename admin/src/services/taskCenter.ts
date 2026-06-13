@@ -38,6 +38,8 @@ export type UnifiedTaskDTO = {
   alertStatus?: string;
   relatedAlertId?: string;
   recoveryStatus?: string;
+  /** 详情接口附加字段；列表项通常无此字段 */
+  extra?: Record<string, unknown>;
 };
 
 export type FailuresSummary = {

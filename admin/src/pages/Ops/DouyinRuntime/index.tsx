@@ -101,6 +101,27 @@ function failuresHref(params: Record<string, string>): string {
   return `/ops/task-center/failures?${sp.toString()}`;
 }
 
+/** 抖店任务健康摘要 details 字段中文名（与后端 healthTasks 一致） */
+const DOUYIN_TASK_HEALTH_DETAIL_LABEL: Record<string, string> = {
+  failedPending: '待处理失败任务',
+  recoveryRequired: '需要人工检查',
+  resultUnknown: '平台结果暂时无法确认',
+  stale24h: '任务执行时间过长（24h）',
+  runtimeBlocked24h: '因运行状态被拦截（24h）',
+};
+
+const DOUYIN_TASK_HEALTH_DETAIL_ORDER = [
+  'failedPending',
+  'recoveryRequired',
+  'resultUnknown',
+  'stale24h',
+  'runtimeBlocked24h',
+] as const;
+
+function douyinTaskHealthDetailLabel(key: string): string {
+  return DOUYIN_TASK_HEALTH_DETAIL_LABEL[key] || key;
+}
+
 type IssueRow = {
   key: string;
   label: string;
@@ -129,7 +150,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if (num('resultUnknown') > 0) {
     rows.push({
       key: 'result_unknown',
-      label: '平台结果暂时无法确认',
+      label: DOUYIN_TASK_HEALTH_DETAIL_LABEL.resultUnknown,
       count: num('resultUnknown'),
       href: failuresHref({ platform: 'douyin_shop', recoveryStatus: 'result_unknown' }),
       severity: 'warning',
@@ -138,7 +159,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if (num('recoveryRequired') > 0) {
     rows.push({
       key: 'recovery_required',
-      label: '需要人工检查',
+      label: DOUYIN_TASK_HEALTH_DETAIL_LABEL.recoveryRequired,
       count: num('recoveryRequired'),
       href: failuresHref({ platform: 'douyin_shop', recoveryStatus: 'recovery_required' }),
       severity: 'error',
@@ -147,7 +168,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if (num('failedPending') > 0) {
     rows.push({
       key: 'failed_pending',
-      label: '待处理失败任务',
+      label: DOUYIN_TASK_HEALTH_DETAIL_LABEL.failedPending,
       count: num('failedPending'),
       href: failuresHref({ platform: 'douyin_shop' }),
       severity: 'error',
@@ -587,11 +608,20 @@ export default function DouyinRuntimePage() {
           {health?.tasks ? (
             <SectionCard title="任务健康摘要">
               <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
-                {Object.entries(health.tasks.details ?? {}).map(([k, v]) => (
-                  <Descriptions.Item key={k} label={k}>
-                    {String(v)}
-                  </Descriptions.Item>
-                ))}
+                {(() => {
+                  const details = health.tasks.details ?? {};
+                  const ordered = DOUYIN_TASK_HEALTH_DETAIL_ORDER.filter(
+                    (k) => details[k] !== undefined && details[k] !== null,
+                  );
+                  const extra = Object.keys(details).filter(
+                    (k) => !(DOUYIN_TASK_HEALTH_DETAIL_ORDER as readonly string[]).includes(k),
+                  );
+                  return [...ordered, ...extra].map((k) => (
+                    <Descriptions.Item key={k} label={douyinTaskHealthDetailLabel(k)}>
+                      {String(details[k])}
+                    </Descriptions.Item>
+                  ));
+                })()}
               </Descriptions>
             </SectionCard>
           ) : null}
