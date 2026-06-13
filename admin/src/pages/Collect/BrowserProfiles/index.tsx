@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ModalForm, ProFormText, ProTable } from '@ant-design/pro-components';
+import { ModalForm, ProFormText } from '@ant-design/pro-components';
 import { Button, Input, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { useRef, useState } from 'react';
 import {

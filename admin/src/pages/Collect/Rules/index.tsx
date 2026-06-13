@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails } from '@/components/ui';
+import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ModalForm, ProFormDependency, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea, ProTable } from '@ant-design/pro-components';
+import { ModalForm, ProFormDependency, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import { Alert, Button, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CollectRuleRow, CollectRuleTestResult } from '@/services/collectRules';

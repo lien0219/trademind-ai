@@ -1,5 +1,5 @@
-import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import {
   Badge,
   Alert,

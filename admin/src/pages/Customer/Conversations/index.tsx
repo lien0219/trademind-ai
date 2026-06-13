@@ -1,8 +1,8 @@
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
-import { ProTable } from '@ant-design/pro-components';
+
 import { history } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';

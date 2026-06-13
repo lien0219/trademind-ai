@@ -9,8 +9,8 @@ import {
   ShopOutlined,
 } from '@ant-design/icons';
 import { formatDateTime } from '@/utils/formatTime';
-import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText, ProFormTextArea, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails } from '@/components/ui';
+import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText, ProFormTextArea, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
 import {
   Alert,
   Button,

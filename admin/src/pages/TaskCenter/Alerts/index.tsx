@@ -1,5 +1,5 @@
-import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { history } from '@umijs/max';
 import { formatDateTime } from '@/utils/formatTime';
 import { Button, Drawer, message, Modal, Table, Tag, Typography } from 'antd';

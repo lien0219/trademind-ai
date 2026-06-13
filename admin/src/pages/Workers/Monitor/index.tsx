@@ -1,5 +1,5 @@
-import { ProCard, ProTable } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { ProCard } from '@ant-design/pro-components';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { commonStatusLabel } from '@/constants/copywriting';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';

@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ProCard, ProTable } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
 import { history, useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select, Typography } from 'antd';

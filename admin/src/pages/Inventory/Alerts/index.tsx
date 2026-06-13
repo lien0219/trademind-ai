@@ -1,5 +1,5 @@
-import { ProTable, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import {
   Button,
   Checkbox,

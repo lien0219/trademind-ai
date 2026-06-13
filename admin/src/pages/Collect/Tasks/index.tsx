@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { ProCard, ProTable } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
 import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import {
