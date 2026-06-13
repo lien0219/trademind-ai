@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 )
 
-func (s *Service) guardDouyinWorker(ctx context.Context, taskID uuid.UUID, feature string, createdBy *uuid.UUID) error {
-	if ge := platformdouyin.GuardWorker(ctx, feature, true); ge != nil {
+func (s *Service) guardDouyinWorker(ctx context.Context, taskID uuid.UUID, shopID uuid.UUID, feature string, isScheduled bool, createdBy *uuid.UUID) error {
+	if ge := platformdouyin.GuardWorkerWithShop(ctx, shopID.String(), feature, true, isScheduled); ge != nil {
+		douyinmetrics.RecordRuntimeBlockedTask()
 		return s.blockDouyinTask(ctx, taskID, ge, createdBy)
 	}
 	return nil
@@ -48,6 +50,7 @@ func (s *Service) markDouyinStale(ctx context.Context, taskID uuid.UUID, code, r
 	if s == nil || s.DB == nil {
 		return
 	}
+	douyinmetrics.RecordStaleTask()
 	fin := time.Now().UTC()
 	meta := platformdouyin.TaskRecoveryMeta{
 		RecoveryStatus: recoveryStatus,
@@ -109,7 +112,7 @@ func (s *Service) RecoverDouyinDraftStale(ctx context.Context, taskID uuid.UUID)
 	if task.Platform != "douyin_shop" || task.Status == TaskSuccess || task.Status == TaskCancelled {
 		return nil
 	}
-	if err := s.guardDouyinWorker(ctx, taskID, platformdouyin.FeatureProductDraft, task.CreatedBy); err != nil {
+	if err := s.guardDouyinWorker(ctx, taskID, task.ShopID, platformdouyin.FeatureProductDraft, false, task.CreatedBy); err != nil {
 		return err
 	}
 	client, _, err := s.Shops.DouyinClientForShopContext(ctx, task.ShopID, task.CreatedBy)
@@ -122,6 +125,7 @@ func (s *Service) RecoverDouyinDraftStale(ctx context.Context, taskID uuid.UUID)
 	}
 	if !recovered || res == nil {
 		s.markDouyinStale(ctx, taskID, platformdouyin.CodeDouyinTaskRecoveryRequired, platformdouyin.RecoveryRequired, task.CreatedBy)
+		douyinmetrics.RecordRecoveryFailed()
 		return nil
 	}
 	snap, ok := parseDouyinDraftSnapshot(task.Input)
@@ -132,5 +136,6 @@ func (s *Service) RecoverDouyinDraftStale(ctx context.Context, taskID uuid.UUID)
 	if err != nil {
 		return err
 	}
+	douyinmetrics.RecordRecoverySuccess()
 	return s.completeDouyinDraftSuccess(ctx, &task, taskID, snap, buildRes, res)
 }

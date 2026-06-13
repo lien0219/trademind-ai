@@ -138,7 +138,7 @@ func TestTokenRefreshSingleflight(t *testing.T) {
 
 func TestCheckWorkerExecutionPaused(t *testing.T) {
 	err := CheckWorkerExecution(WorkerGuardInput{
-		Config:  RuntimeConfig{RealAPIEnabled: true, ProductDraftEnabled: true},
+		Config:  RuntimeConfig{RealAPIEnabled: true, ProductDraftEnabled: true, WriteOperationsEnabled: true},
 		Runtime: RuntimeState{Status: RuntimePaused},
 		Feature: FeatureProductDraft,
 		IsWrite: true,

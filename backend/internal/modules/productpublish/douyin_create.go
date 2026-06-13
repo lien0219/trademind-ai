@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
@@ -218,7 +219,7 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 	if err != nil || !claimed || taskRow == nil {
 		return err
 	}
-	if err := s.guardDouyinWorker(ctx, taskID, platformdouyin.FeatureProductDraft, taskRow.CreatedBy); err != nil {
+	if err := s.guardDouyinWorker(ctx, taskID, taskRow.ShopID, platformdouyin.FeatureProductDraft, false, taskRow.CreatedBy); err != nil {
 		return err
 	}
 	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, s.publishLeaseTTL())
@@ -258,6 +259,7 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 				Message:     fmt.Sprintf("taskId=%s code=%s err=%s requestId=%s", taskID, code, truncateMsg(msg), requestID),
 			})
 		}
+		douyinmetrics.RecordProductDraftCreate(false)
 		return fmt.Errorf("%s", msg)
 	}
 
@@ -428,6 +430,7 @@ func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *Produ
 			Message:     fmt.Sprintf("taskId=%s platformProductId=%s", taskID, res.PlatformProductID),
 		})
 	}
+	douyinmetrics.RecordProductDraftCreate(true)
 	return nil
 }
 

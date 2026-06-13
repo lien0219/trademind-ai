@@ -43,7 +43,8 @@ func seedDouyinPlatformSettings(t *testing.T, db *gorm.DB) {
 	for k, v := range map[string]string{
 		"app_key": "test-key", "app_secret": "test-secret", "redirect_uri": "https://example.com/cb",
 		"timeout_sec": "30", "real_api_enabled": "true", "product_publish_enabled": "true",
-		"platform_runtime_status": "normal",
+		"write_operations_enabled": "true",
+		"platform_runtime_status":  "normal",
 	} {
 		if err := db.Create(&settings.Setting{GroupKey: "platform_douyin_shop", ItemKey: k, ItemValue: v, ValueType: "string"}).Error; err != nil {
 			t.Fatal(err)

@@ -19,6 +19,9 @@ const (
 	CodeDouyinTaskResultUnknown          = "DOUYIN_TASK_RESULT_UNKNOWN"
 	CodeDouyinTaskRecoveryRequired       = "DOUYIN_TASK_RECOVERY_REQUIRED"
 	CodeDouyinTaskRecoveryFailed         = "DOUYIN_TASK_RECOVERY_FAILED"
+	CodeDouyinGrayReleaseNotEnabled      = "DOUYIN_GRAY_RELEASE_NOT_ENABLED"
+	CodeDouyinShopNotInGrayList          = "DOUYIN_SHOP_NOT_IN_GRAY_LIST"
+	CodeDouyinWriteOperationDisabled     = "DOUYIN_WRITE_OPERATION_DISABLED"
 
 	FeatureProductDraft  = "product_draft"
 	FeatureOrderSync     = "order_sync"
@@ -26,6 +29,7 @@ const (
 	FeatureImageUpload   = "image_upload"
 
 	RuntimeBlockedUserMessage = "抖店相关任务目前已暂停，请联系管理员恢复后再重试。"
+	GrayBlockedUserMessage    = "当前店铺尚未加入抖店灰度范围，暂时不能执行此操作。"
 )
 
 // RuntimeState holds deploy-level Douyin runtime controls.
@@ -106,20 +110,49 @@ func RuntimeStateFromMergedMap(m map[string]string) (RuntimeState, StaleTimeouts
 
 // WorkerGuardInput combines runtime config and state for worker pre-checks.
 type WorkerGuardInput struct {
-	Config  RuntimeConfig
-	Runtime RuntimeState
-	Feature string
-	IsWrite bool
+	Config      RuntimeConfig
+	Runtime     RuntimeState
+	Feature     string
+	IsWrite     bool
+	ShopID      string
+	IsScheduled bool
 }
 
-// CheckWorkerExecution validates feature switches and platform runtime status before worker execution.
+// CheckWorkerExecution validates feature switches, gray release and platform runtime status before worker execution.
 func CheckWorkerExecution(in WorkerGuardInput) *Error {
 	cfg := in.Config
 	rt := in.Runtime
 	feature := strings.TrimSpace(in.Feature)
+	shopID := strings.TrimSpace(in.ShopID)
 
 	if !cfg.RealAPIEnabled {
 		return NewError(CodeDouyinFeatureDisabled, RuntimeBlockedUserMessage, "", "real_api_enabled is off", "")
+	}
+
+	if in.IsWrite && !cfg.WriteOperationsEnabled {
+		return NewError(CodeDouyinWriteOperationDisabled, GrayBlockedUserMessage, "", "write_operations_enabled is off", "")
+	}
+
+	if cfg.GrayReleaseEnabled && in.IsWrite {
+		if shopID == "" {
+			return NewError(CodeDouyinShopNotInGrayList, GrayBlockedUserMessage, "", "shop id required for gray release", "")
+		}
+		if !cfg.ShopInGrayList(shopID) {
+			return NewError(CodeDouyinShopNotInGrayList, GrayBlockedUserMessage, "", "shop not in gray_shop_ids", "")
+		}
+	}
+
+	if in.IsScheduled {
+		switch feature {
+		case FeatureOrderSync:
+			if !cfg.ScheduledOrderSyncEnabled {
+				return NewError(CodeDouyinFeatureDisabled, RuntimeBlockedUserMessage, "", "scheduled_order_sync_enabled is off", "")
+			}
+		case FeatureInventorySync:
+			if !cfg.ScheduledInventorySyncEnabled {
+				return NewError(CodeDouyinFeatureDisabled, RuntimeBlockedUserMessage, "", "scheduled_inventory_sync_enabled is off", "")
+			}
+		}
 	}
 
 	switch rt.Status {

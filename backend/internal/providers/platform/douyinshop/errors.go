@@ -103,7 +103,8 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 		CodeDouyinProductNotFound, CodeDouyinProductDetailPermissionDenied,
 		CodeDouyinSKUBindingUnmatched, CodeDouyinSKUBindingAmbiguous,
 		CodeDouyinSKUManualBindFailed, CodeDouyinSKUManualUnbindFailed, CodeDouyinPlatformSKUIDMissing,
-		CodeDouyinSKUBindingConflict, CodeDouyinSKUBindingRequired:
+		CodeDouyinSKUBindingConflict, CodeDouyinSKUBindingRequired,
+		CodeDouyinGrayReleaseNotEnabled, CodeDouyinShopNotInGrayList, CodeDouyinWriteOperationDisabled:
 		e.Retryable = false
 	}
 	return e

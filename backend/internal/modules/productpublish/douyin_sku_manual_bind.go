@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
@@ -92,6 +93,7 @@ func (s *Service) ManualBindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID
 			Message:     msg,
 		})
 	}
+	douyinmetrics.RecordSKUManualBound()
 
 	row, err := s.buildDouyinBindingRow(ctx, pub, publicationSkuID)
 	if err != nil {

@@ -24,6 +24,7 @@
 </p>
 
 > TradeMind is an open-source AI operation tool for cross-border commerce sellers. It currently supports product collection, product drafts, AI title optimization, AI description generation, image management, AI image tasks, store authorization, order sync, SKU matching, product publishing, inventory sync, and AI customer service reply suggestions.
+> **Douyin Shop**: Phase 1–10.4 Release Candidate docs/scripts/CI are ready; **real E2E remains `blocked_by_real_credentials`**. See [`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md).
 
 ## Screenshots / Demo
 
@@ -400,6 +401,7 @@ The full documentation index is available at [docs/README.md](docs/README.md).
 | --- | --- |
 | Quick Start | [Local Development](docs/development.md) · [Docker Deployment](docs/docker-deployment.md) · [Environment Variables](docs/env.md) |
 | Architecture | [Architecture](docs/architecture.md) · [API Contract](docs/api.md) · [Provider Extension](docs/provider.md) · [Roadmap](docs/roadmap.md) |
+| Douyin RC (Phase 10.4) | [Release Gate](docs/DOUYIN_RELEASE_GATE.md) · [E2E Checklist](docs/DOUYIN_E2E_CHECKLIST.md) · [Production Runbook](docs/DOUYIN_PRODUCTION_RUNBOOK.md) · [Production Audit](docs/DOUYIN_PRODUCTION_AUDIT.md) |
 | Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [AI Workflow](docs/ai-workflow.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
 | Community | [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Sponsor](docs/sponsor.md) · [NOTICE](NOTICE) |
 | Languages | [简体中文 README](README.md) |

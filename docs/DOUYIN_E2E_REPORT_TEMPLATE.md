@@ -99,13 +99,31 @@
 | 未通过 P0 项 | |
 | 未通过 P1 项 | |
 | `blocked_by_real_credentials` | 是 / 否 |
-| 是否允许灰度上线 | 是 / 否 / 待 Phase 10.3–10.4 |
+| 是否允许灰度上线 | 是 / 否 / 待真实 E2E |
 | 下一步 | |
+
+## 9. 发布结论（Phase 10.4 Release Gate）
+
+| 字段 | 值 | 说明 |
+| --- | --- | --- |
+| `release_candidate_status` | Release Candidate / production available | 当前固定 **Release Candidate** |
+| `real_e2e_status` | `blocked_by_real_credentials` / passed / partial | 脚本 exit `3` 表示 blocked |
+| `gray_release_approved` | 是 / 否 | 48–72h 观察通过后填「是」 |
+| `gray_observation_hours` | | 实际观察时长 |
+| `rollback_drill_status` | `environment_simulation_only` / passed | 见 `DOUYIN_ROLLBACK_DRILL_REPORT.md` |
+| `ci_backend_race` | pass / fail / n/a | `.github/workflows/go.yml` → `backend-race` |
+| `preflight_script` | pass / blocked / fail | `scripts/douyin-e2e-preflight` |
+| `readonly_script` | pass / blocked / fail | `scripts/douyin-e2e-readonly` |
+| `write_script` | pass / blocked / skipped | 需 `ALLOW_DOUYIN_WRITE_TEST=true` |
+| `production_available` | 否 | 全绿 + 灰度 + 回滚演练后才可改「是」 |
+| `release_tag_recommendation` | `v0.8.0-douyin-mvp-demo` / hold | |
+| `sign_off` | 执行人 / 日期 | |
 
 ---
 
-## 9. 变更记录
+## 10. 变更记录
 
 | 日期 | 摘要 |
 | --- | --- |
+| 2026-06-13 | Phase 10.4：发布结论字段、脚本 exit blocked 约定、Release Gate 联动 |
 | 2026-06-13 | Phase 10.2 初版模板（契约 Fixture + 幂等 + 断点恢复验收项） |

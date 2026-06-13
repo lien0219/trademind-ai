@@ -37,6 +37,7 @@ export type UnifiedTaskDTO = {
   suggestedAction?: string;
   alertStatus?: string;
   relatedAlertId?: string;
+  recoveryStatus?: string;
 };
 
 export type FailuresSummary = {
@@ -247,5 +248,12 @@ export async function notifyTaskAlert(alertId: string, channels?: string[]) {
 export async function unmarkTaskAlertRecord(id: string) {
   return deleteJSON<{ ok: boolean }>(
     `/api/v1/task-center/alerts/${encodeURIComponent(id)}/mark`,
+  );
+}
+
+/** POST /api/v1/product-publish/tasks/:id/recover-douyin-draft — product.detail 回查恢复 */
+export async function recoverDouyinDraftTask(id: string) {
+  return postJSON<FailureDetailDTO | { recovered?: boolean }>(
+    `/api/v1/product-publish/tasks/${encodeURIComponent(id)}/recover-douyin-draft`,
   );
 }

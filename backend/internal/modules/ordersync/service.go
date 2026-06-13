@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -599,6 +600,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				Message: fmt.Sprintf("taskId=%s shopId=%s successCount=%d failedCount=%d matched=%d unmatched=%d ambiguous=%d",
 					taskID.String(), task.ShopID.String(), successN, failedN, matchedN, unmatchedN, ambiguousN),
 			})
+			douyinmetrics.RecordOrderSyncOutcome(totalFetched, createdN, updatedN, finalStatus == StatusPartialSuccess, unmatchedN, deductedStockItems)
 		}
 	}
 	return nil

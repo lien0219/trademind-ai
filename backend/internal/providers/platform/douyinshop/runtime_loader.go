@@ -26,14 +26,21 @@ func LoadRuntimeFromBridge(ctx context.Context) (RuntimeState, StaleTimeouts, Ru
 
 // GuardWorker checks worker execution for a Douyin feature.
 func GuardWorker(ctx context.Context, feature string, isWrite bool) *Error {
+	return GuardWorkerWithShop(ctx, "", feature, isWrite, false)
+}
+
+// GuardWorkerWithShop checks worker execution with optional shop gray-release scope.
+func GuardWorkerWithShop(ctx context.Context, shopID, feature string, isWrite, isScheduled bool) *Error {
 	rt, _, cfg, err := LoadRuntimeFromBridge(ctx)
 	if err != nil {
 		return NewError(CodeDouyinFeatureDisabled, RuntimeBlockedUserMessage, "", err.Error(), "")
 	}
 	return CheckWorkerExecution(WorkerGuardInput{
-		Config:  cfg,
-		Runtime: rt,
-		Feature: strings.TrimSpace(feature),
-		IsWrite: isWrite,
+		Config:      cfg,
+		Runtime:     rt,
+		Feature:     strings.TrimSpace(feature),
+		IsWrite:     isWrite,
+		ShopID:      strings.TrimSpace(shopID),
+		IsScheduled: isScheduled,
 	})
 }

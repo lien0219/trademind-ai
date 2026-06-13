@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 )
 
 const (
@@ -161,6 +163,7 @@ func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
 	}
 	tok, err := c.RefreshToken(ctx, c.RefreshTokenValue)
 	if err != nil {
+		douyinmetrics.RecordTokenRefresh(c.configEnvironment(), err)
 		var de *Error
 		if AsError(err, &de) && de.Code == CodeDouyinAuthExpired {
 			c.markAuthStatus(ctx, "expired")
@@ -168,6 +171,7 @@ func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
 		}
 		return nil, NewError(CodeDouyinTokenRefreshFailed, "douyin token refresh failed", platformCodeOf(err), safeMessageOf(err), requestIDOf(err))
 	}
+	douyinmetrics.RecordTokenRefresh(c.configEnvironment(), nil)
 	if strings.TrimSpace(tok.RefreshToken) == "" {
 		tok.RefreshToken = c.RefreshTokenValue
 	}
@@ -192,6 +196,9 @@ func (c *Client) Do(ctx context.Context, method string, params map[string]any, o
 	}
 	policy := DefaultRetryPolicy()
 	attempts, err := ExecuteWithRetry(ctx, policy, func(ctx context.Context, attempt int) error {
+		if attempt > 1 {
+			douyinmetrics.RecordAPIRetry(method, c.configEnvironment())
+		}
 		doErr := c.do(ctx, method, params, access, out)
 		if doErr == nil {
 			return nil

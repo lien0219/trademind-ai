@@ -60,6 +60,12 @@ export default [
         icon: 'BellOutlined',
         component: './TaskCenter/Alerts',
       },
+      {
+        path: '/ops/douyin/runtime',
+        name: '抖店运行状态',
+        icon: 'ApiOutlined',
+        component: './Ops/DouyinRuntime',
+      },
     ],
   },
   {

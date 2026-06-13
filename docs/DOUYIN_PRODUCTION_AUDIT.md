@@ -1,7 +1,7 @@
-# 抖店生产审计报告（Phase 10.1）
+# 抖店生产审计报告（Phase 10.1–10.4）
 
 > **扫描日期**：2026-06-13  
-> **发布状态**：Release Candidate（生产加固 Phase 10.1 完成；**未**标记为 production available）  
+> **发布状态**：Release Candidate（生产加固 Phase 10.4 文档/脚本/CI 完成；**未**标记为 production available）
 > **真实 E2E**：`blocked_by_real_credentials`（本地/CI 无真实抖店 App Key、Secret 与授权店铺）
 
 ---
@@ -54,9 +54,9 @@
 | --- | --- | --- |
 | P1-1 | `real_api_enabled` / `product_publish_enabled` 配置存在但未在 Worker 强制校验 | 未修复（10.2） |
 | P1-2 | 平台设置「测试连接」不做真实 API，与店铺 OAuth 测试语义不一致 | 未修复；预检 + 店铺测试可部分替代 |
-| P1-3 | 无统一重试/限流/熔断策略 | 待 Phase 10.3 |
-| P1-4 | 无结构化 Prometheus 指标 | 待 Phase 10.4 |
-| P1-5 | 任务 stale 回收未统一 | 待 Phase 10.3 |
+| P1-3 | 无统一重试/限流/熔断策略 | **Phase 10.3 已加固**（见 §5.2） |
+| P1-4 | 无结构化 Prometheus 指标 | **Phase 10.4 决策：不引入 Prometheus**；复用 taskcenter 告警、operationlog、operationdashboard、`GET /health` 队列块 |
+| P1-5 | 任务 stale 回收未统一 | **Phase 10.3 已加固** |
 | P1-6 | 订单分页断点恢复生产化不足 | **Phase 10.2 已加固**（`retryPagesOnly`、输出 merge、`hasMore` → partial_success） |
 | P1-7 | 接口 Fixture / 契约测试缺失 | **Phase 10.2 已加**（`douyinshop/testdata/` + `contract_test.go`） |
 
@@ -135,21 +135,6 @@
 
 ## 5.2 Phase 10.3 已修复 / 新增（运行可靠性与安全加固）
 
-| 项 | 说明 |
-| --- | --- |
-| 统一重试策略 | `douyinshop/retry_policy.go` — `ExecuteWithRetry`、指数退避+抖动、最大 3 次；权限/参数错误不可重试 |
-| 限流处理 | `douyinshop/rate_limit.go` — `Retry-After` 解析；HTTP 429/5xx 可重试 |
-| Token 单飞 | `douyinshop/token_singleflight.go` — 同店铺并发刷新仅 1 次 HTTP；撤销时 `ClearTokenRefreshState` |
-| Worker 开关二次检查 | `GuardWorker` — 商品草稿/订单/库存/图片执行前检查 `real_api_enabled` 与各功能开关 |
-| 平台运行状态 | `normal` / `paused` / `emergency_disabled`；API + 管理端「抖店运行状态」 |
-| Stale 任务 | 租约过期标记 `DOUYIN_TASK_STALE`；商品超时 `result_unknown` + `product.detail` 回查 |
-| SSRF 加固 | `pkg/safedownload` — DNS+连接时 IP 校验、重定向限制、图片解码 |
-| 敏感信息脱敏 | `pkg/safefields` — 递归 map/URL/Header 脱敏；接入 `douyinshop/errors.go` |
-| 迁移前重复检查 | `migrateDouyinPhase102Indexes` 启动时自动检测；失败见 `DOUYIN_DUPLICATE_DATA_REPAIR.md` |
-| 库存限流 defer | 最多 defer 5 次 + 2s 等待，避免无限 requeue |
-
-### Phase 10.3 重试审计结论（改造前基线 → 现状）
-
 | 审计项 | 改造前 | Phase 10.3 后 |
 | --- | --- | --- |
 | HTTP 层散落重试 | 无统一策略，单次 `do()` | `Client.Do` 统一 `ExecuteWithRetry` |
@@ -162,13 +147,53 @@
 
 ---
 
+## 5.3 Phase 10.4 可观测性与发布收口（无 Prometheus）
+
+> **决策**：MVP 阶段 **不** 引入 Prometheus / Grafana；抖店生产可观测性复用已有模块，避免双轨指标。
+
+### 5.3.1 监控面审计
+
+| 能力 | 入口 | 抖店相关用法 |
+| --- | --- | --- |
+| 进程健康 | `GET /health`、`GET /api/v1/health` | `orderSyncQueue`、`productPublishQueue`、`inventorySyncQueue`、`workers` 块反映抖店 Worker 与 Redis 队列 |
+| 失败任务中心 | `GET /api/v1/task-center/failures` | 筛选 `DOUYIN_*` 错误码；重试 / 忽略 / 处理 |
+| 任务告警 | `GET /api/v1/task-center/alerts`、`POST .../alerts/scan` | 失败分类器含 `sub:douyin_*`；Webhook 通知（默认需运维开启） |
+| 任务摘要 | `GET /api/v1/task-center/summary` | 失败计数与分类汇总 |
+| 操作日志 | `GET /api/v1/operation-logs` | `douyin.*` / `platform.settings.update` / `storage.public_access.test` |
+| 运营看板 | `GET /api/v1/dashboard/product-operations` | 商品运营 KPI、异常、漏斗（只读聚合，不调抖店 API） |
+| 生产预检 | `POST/GET .../platform/douyin/production-preflight*` | 上线前配置/授权/Storage 门禁 |
+| 运行状态 | `GET .../platform/douyin/runtime-status` | `normal` / `paused` / `emergency_disabled` |
+| 抖店聚合健康 | `GET .../platform/douyin/health` | config/auth/storage/tasks/api 分区 + 灰度开关；**非** Prometheus |
+| 24h 指标摘要 | `GET .../platform/douyin/metrics-summary` | 进程内 rolling 计数（API、Token、任务、刊登/订单/库存） |
+| 发布门禁 API | `GET .../platform/douyin/release-gate` | RC 清单；`credentials` 项反映 `blocked_by_real_credentials` |
+| 健康检查 + 告警 scan | `POST .../platform/douyin/run-health-check` | 刷新 health 快照并触发 taskcenter 抖店告警扫描 |
+
+### 5.3.2 CI 与 E2E 脚本
+
+| 项 | 说明 |
+| --- | --- |
+| Race CI | `.github/workflows/go.yml` → job `backend-race`（`CGO_ENABLED=1`，`go test -race` 覆盖 `douyinshop`、`ordersync`、`inventory`、`productpublish`） |
+| E2E 脚本 | `scripts/douyin-e2e-preflight.{sh,ps1}`、`readonly`、`write`（需 `ALLOW_DOUYIN_WRITE_TEST=true`）、`report` |
+| 无凭证退出码 | 脚本 stderr 输出 `blocked_by_real_credentials`，exit `3` |
+| 发布门禁 | [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md) |
+| 灰度 Runbook | [`DOUYIN_PRODUCTION_RUNBOOK.md`](DOUYIN_PRODUCTION_RUNBOOK.md) § 灰度观察 |
+| 回滚演练 | [`DOUYIN_ROLLBACK_DRILL_REPORT.md`](DOUYIN_ROLLBACK_DRILL_REPORT.md)（`environment_simulation_only`） |
+
+### 5.3.3 仍缺项（不阻塞 RC 文档收口）
+
+- 专用 `/metrics` Prometheus 端点：**刻意不做**
+- 真实凭证全链路 E2E 报告：**blocked_by_real_credentials**
+- 48–72h 灰度观察记录：待有凭证环境执行
+
+---
+
 ## 6. 仍阻塞上线
 
 1. 真实凭证 E2E 全绿（见 §4）  
 2. P0-3 真实环境重复订单 / 重复扣减验证（代码加固已完成，见 §5.1）  
-3. P1 可观测 / 灰度演练（Phase 10.4）  
+3. P1 灰度演练与 E2E 报告（Phase 10.4 文档/脚本/CI 已完成；真实 E2E 仍 blocked）
 4. 灰度 48–72h 无阻断错误  
-5. 回滚演练（文档 Phase 10.4）
+5. 回滚演练（[`DOUYIN_ROLLBACK_RUNBOOK.md`](DOUYIN_ROLLBACK_RUNBOOK.md)；演练报告 `environment_simulation_only`）
 
 ---
 
@@ -176,6 +201,7 @@
 
 | 日期 | 摘要 |
 | --- | --- |
+| 2026-06-13 | Phase 10.4：可观测审计（复用 taskcenter/health/看板）、E2E 脚本、race CI、发布门禁与回滚演练文档 |
 | 2026-06-13 | Phase 10.3：统一重试/Token 单飞/运行状态/SSRF/脱敏/stale 恢复/迁移重复检查 |
 | 2026-06-13 | Phase 10.2：Fixture/契约测试、订单断点恢复、幂等 migration、草稿 platform 回查、库存 dedup |
 | 2026-06-13 | Phase 10.1：基线扫描、生产预检、Storage 公网验证、管理端入口 |

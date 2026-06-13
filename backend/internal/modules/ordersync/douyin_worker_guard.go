@@ -2,9 +2,11 @@ package ordersync
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 )
@@ -13,7 +15,9 @@ func (s *Service) guardDouyinOrderWorker(ctx context.Context, taskID uuid.UUID, 
 	if task == nil || task.Platform != "douyin_shop" {
 		return nil
 	}
-	if ge := platformdouyin.GuardWorker(ctx, platformdouyin.FeatureOrderSync, true); ge != nil {
+	isScheduled := strings.TrimSpace(task.Mode) != ModeManual
+	if ge := platformdouyin.GuardWorkerWithShop(ctx, task.ShopID.String(), platformdouyin.FeatureOrderSync, true, isScheduled); ge != nil {
+		douyinmetrics.RecordRuntimeBlockedTask()
 		return s.blockDouyinOrderTask(ctx, taskID, ge, task)
 	}
 	return nil
@@ -47,6 +51,7 @@ func (s *Service) markDouyinOrderStale(ctx context.Context, taskID uuid.UUID, co
 	if s == nil || s.DB == nil {
 		return
 	}
+	douyinmetrics.RecordStaleTask()
 	fin := time.Now().UTC()
 	meta := platformdouyin.TaskRecoveryMeta{
 		RecoveryStatus: recoveryStatus,

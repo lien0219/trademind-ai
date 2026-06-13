@@ -71,3 +71,55 @@ jobs:
       - name: Build
         working-directory: backend
         run: go build ./...
+
+  backend-race:
+    name: backend-race
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify backend module
+        run: |
+          if [ ! -d backend ]; then
+            echo "::error::CI requires a backend/ directory at the repository root, but it was not found."
+            exit 1
+          fi
+          if [ ! -f backend/go.mod ]; then
+            echo "::error::CI requires backend/go.mod to run Go checks, but the file was not found."
+            exit 1
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Download modules
+        working-directory: backend
+        run: go mod download
+
+      - name: Test
+        working-directory: backend
+        env:
+          CGO_ENABLED: 1
+        run: go test ./...
+
+      - name: Race test (Douyin critical packages)
+        working-directory: backend
+        env:
+          CGO_ENABLED: 1
+        run: |
+          go test -race ./internal/providers/platform/douyinshop/...
+          go test -race ./internal/modules/ordersync/...
+          go test -race ./internal/modules/inventory/...
+          go test -race ./internal/modules/productpublish/...
+
+      - name: Build server
+        working-directory: backend
+        env:
+          CGO_ENABLED: 1
+        run: go build ./cmd/server/...

@@ -11,4 +11,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/platform/douyin/runtime-status/pause", h.Pause)
 	g.POST("/platform/douyin/runtime-status/resume", h.Resume)
 	g.POST("/platform/douyin/runtime-status/emergency-disable", h.EmergencyDisable)
+	g.GET("/platform/douyin/health", h.GetHealth)
+	g.GET("/platform/douyin/metrics-summary", h.GetMetricsSummary)
+	g.GET("/platform/douyin/release-gate", h.GetReleaseGate)
+	g.POST("/platform/douyin/run-health-check", h.RunHealthCheck)
 }

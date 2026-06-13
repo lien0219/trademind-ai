@@ -50,6 +50,56 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
     title: '图片上传到抖店失败',
     detail: '请检查图片是否可以正常访问，然后重试。',
   },
+  DOUYIN_GRAY_RELEASE_NOT_ENABLED: {
+    title: '抖店灰度发布未启用',
+    detail: '当前环境尚未开启灰度发布，写操作已被拦截。',
+    action: '前往平台接入设置检查灰度开关',
+  },
+  DOUYIN_SHOP_NOT_IN_GRAY_LIST: {
+    title: '店铺不在灰度范围内',
+    detail: '该店铺尚未加入抖店灰度店铺列表，暂时不能执行写操作。',
+    action: '在平台接入设置中配置灰度店铺',
+  },
+  DOUYIN_WRITE_OPERATION_DISABLED: {
+    title: '抖店写操作已关闭',
+    detail: '写操作总开关已关闭，刊登、同步等写接口不会执行。',
+    action: '前往平台接入设置开启写操作',
+  },
+  DOUYIN_TASK_STALE: {
+    title: '任务执行时间过长',
+    detail: '任务长时间无进展，可能 Worker 异常或平台响应缓慢。',
+    action: '在失败任务中心查看详情并重试',
+  },
+  DOUYIN_TASK_RESULT_UNKNOWN: {
+    title: '平台处理结果暂时无法确认',
+    detail: '请求可能已到达平台，但本地未收到明确结果。商品草稿可先尝试回查恢复。',
+    action: '在失败任务中心尝试恢复或人工确认',
+  },
+  DOUYIN_TASK_RECOVERY_REQUIRED: {
+    title: '需要人工检查后才能继续',
+    detail: '自动恢复未成功，请确认平台侧状态后再重试。',
+    action: '在失败任务中心处理',
+  },
+  DOUYIN_TASK_RECOVERY_FAILED: {
+    title: '自动恢复失败',
+    detail: '平台回查未能确认结果，请人工核对后再操作。',
+    action: '在失败任务中心查看详情',
+  },
+  DOUYIN_PLATFORM_PAUSED: {
+    title: '抖店任务已暂停',
+    detail: '管理员已暂停抖店写操作，任务不会继续执行。',
+    action: '前往抖店运行状态页恢复',
+  },
+  DOUYIN_PLATFORM_EMERGENCY_DISABLED: {
+    title: '抖店已紧急停用',
+    detail: '所有抖店写接口已停用，需管理员恢复后才能继续。',
+    action: '前往抖店运行状态页',
+  },
+  DOUYIN_TASK_BLOCKED_BY_RUNTIME_STATUS: {
+    title: '任务被运行状态拦截',
+    detail: '抖店当前处于暂停或紧急停用状态。',
+    action: '前往抖店运行状态页',
+  },
   UNKNOWN_DOUYIN_AUTH_ERROR: {
     title: '抖店店铺授权失败',
     detail: '请检查应用信息是否正确，并确认授权回调地址与开放平台登记一致。',

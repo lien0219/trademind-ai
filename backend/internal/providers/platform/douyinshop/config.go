@@ -1,6 +1,7 @@
 package douyinshop
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -22,21 +23,26 @@ const (
 // Concrete OAuth/OpenAPI paths are added in later phases after checking the
 // current Douyin Open Platform docs for each API.
 type RuntimeConfig struct {
-	AppKey              string
-	AppSecret           string
-	ServiceID           string
-	RedirectURI         string
-	Environment         string
-	AuthBaseURL         string
-	APIBaseURL          string
-	RealAPIEnabled      bool
-	OrderSyncEnabled    bool
-	OrderSyncMaxPages   int
-	InventoryEnabled    bool
-	ProductDraftEnabled bool
-	RuntimeStatus       string
-	RuntimeStatusReason string
-	HTTPTimeout         time.Duration
+	AppKey                        string
+	AppSecret                     string
+	ServiceID                     string
+	RedirectURI                   string
+	Environment                   string
+	AuthBaseURL                   string
+	APIBaseURL                    string
+	RealAPIEnabled                bool
+	OrderSyncEnabled              bool
+	OrderSyncMaxPages             int
+	InventoryEnabled              bool
+	ProductDraftEnabled           bool
+	RuntimeStatus                 string
+	RuntimeStatusReason           string
+	GrayReleaseEnabled            bool
+	GrayShopIDs                   []string
+	WriteOperationsEnabled        bool
+	ScheduledOrderSyncEnabled     bool
+	ScheduledInventorySyncEnabled bool
+	HTTPTimeout                   time.Duration
 }
 
 const (
@@ -142,8 +148,60 @@ func RuntimeFromMergedMap(m map[string]string) (RuntimeConfig, error) {
 	cfg.ProductDraftEnabled = boolFromConfig(m, "product_publish_enabled")
 	cfg.RuntimeStatus = parseRuntimeStatus(mapGetCI(m, "platform_runtime_status"))
 	cfg.RuntimeStatusReason = strings.TrimSpace(mapGetCI(m, "platform_runtime_status_reason"))
+	cfg.GrayReleaseEnabled = boolFromConfig(m, "gray_release_enabled")
+	cfg.GrayShopIDs = parseGrayShopIDs(mapGetCI(m, "gray_shop_ids"))
+	cfg.WriteOperationsEnabled = boolFromConfig(m, "write_operations_enabled")
+	cfg.ScheduledOrderSyncEnabled = boolFromConfig(m, "scheduled_order_sync_enabled")
+	cfg.ScheduledInventorySyncEnabled = boolFromConfig(m, "scheduled_inventory_sync_enabled")
 
 	return cfg, nil
+}
+
+func parseGrayShopIDs(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" {
+		return nil
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(raw), &ids); err == nil {
+		return normalizeShopIDs(ids)
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || r == ' ' || r == '\n'
+	})
+	return normalizeShopIDs(parts)
+}
+
+func normalizeShopIDs(ids []string) []string {
+	out := make([]string, 0, len(ids))
+	seen := map[string]struct{}{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		key := strings.ToLower(id)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+// ShopInGrayList reports whether shopID is allowed when gray release is enabled.
+func (cfg RuntimeConfig) ShopInGrayList(shopID string) bool {
+	shopID = strings.TrimSpace(shopID)
+	if shopID == "" {
+		return false
+	}
+	for _, id := range cfg.GrayShopIDs {
+		if strings.EqualFold(strings.TrimSpace(id), shopID) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseOrderSyncMaxPages(raw string) int {

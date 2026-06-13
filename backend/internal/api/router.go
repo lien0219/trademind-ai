@@ -143,7 +143,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -312,7 +312,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Storage:  storagePublicSvc,
 	}
 	douyinPreflightH := &douyinpreflight.Handler{Svc: douyinPreflightSvc, OpLog: opLogSvc}
-	douyinRuntimeSvc := &douyinruntime.Service{Settings: settingsSvc, OpLog: opLogSvc}
+	douyinRuntimeSvc := &douyinruntime.Service{
+		DB:        dep.DB,
+		Settings:  settingsSvc,
+		Preflight: douyinPreflightSvc,
+		OpLog:     opLogSvc,
+	}
 	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
 	inventorySvc := &inventory.Service{
@@ -544,7 +549,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	dashH := &operationdashboard.Handler{Svc: dashSvc}
 	operationdashboard.Register(authed, dashH)
 
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

@@ -41,6 +41,7 @@ type UnifiedTaskDTO struct {
 	SuggestedAction      string     `json:"suggestedAction,omitempty"`
 	AlertStatus          string     `json:"alertStatus,omitempty"`
 	RelatedAlertID       string     `json:"relatedAlertId,omitempty"`
+	RecoveryStatus       string     `json:"recoveryStatus,omitempty"`
 }
 
 // FailuresSummary is returned with list and summary-only endpoints.

@@ -2,18 +2,22 @@ package inventory
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 )
 
 func (s *Service) guardDouyinInventoryWorker(ctx context.Context, taskID uuid.UUID, task *InventorySyncTask) error {
-	if task == nil || task.Platform != "douyin_shop" {
+	if task == nil || strings.TrimSpace(strings.ToLower(task.Platform)) != "douyin_shop" {
 		return nil
 	}
-	if ge := platformdouyin.GuardWorker(ctx, platformdouyin.FeatureInventorySync, true); ge != nil {
+	isScheduled := strings.TrimSpace(task.Mode) != ModeManual
+	if ge := platformdouyin.GuardWorkerWithShop(ctx, task.ShopID.String(), platformdouyin.FeatureInventorySync, true, isScheduled); ge != nil {
+		douyinmetrics.RecordRuntimeBlockedTask()
 		return s.blockDouyinInventoryTask(ctx, taskID, ge, task)
 	}
 	return nil
@@ -47,6 +51,7 @@ func (s *Service) markDouyinInventoryStale(ctx context.Context, taskID uuid.UUID
 	if s == nil || s.DB == nil {
 		return
 	}
+	douyinmetrics.RecordStaleTask()
 	fin := time.Now().UTC()
 	meta := platformdouyin.TaskRecoveryMeta{
 		RecoveryStatus: recoveryStatus,

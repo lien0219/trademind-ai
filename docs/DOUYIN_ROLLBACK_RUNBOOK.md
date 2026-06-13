@@ -1,4 +1,6 @@
-# 抖店回滚 Runbook（Phase 10.3）
+# 抖店回滚 Runbook（Phase 10.3–10.4）
+
+> 回滚演练报告模板（**environment_simulation_only**）：[`DOUYIN_ROLLBACK_DRILL_REPORT.md`](DOUYIN_ROLLBACK_DRILL_REPORT.md)
 
 ## 紧急停用（首选，不删数据）
 

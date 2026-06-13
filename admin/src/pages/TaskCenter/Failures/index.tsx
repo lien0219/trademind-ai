@@ -32,6 +32,7 @@ import {
   ignoreTaskFailure,
   queryTaskFailureCategories,
   queryTaskFailures,
+  recoverDouyinDraftTask,
   retryTaskFailure,
   unmarkTaskFailure,
   type FailureDetailDTO,
@@ -45,7 +46,9 @@ import {
   TASK_FAILURE_SEVERITY,
   TASK_FAILURE_SEVERITY_OPTIONS,
   TASK_NORMALIZED_STATUS,
+  TASK_RECOVERY_STATUS_OPTIONS,
   failureCategoryLabel,
+  recoveryStatusLabel,
 } from '@/constants/taskCenter';
 import { openPinduoduoLoginBrowser, openTaobaoTmallLoginBrowser } from '@/services/collectAuth';
 import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
@@ -105,6 +108,7 @@ export default function TaskCenterFailuresPage() {
   const [sel, setSel] = useState<UnifiedTaskDTO[]>([]);
   const [pddLoginOpening, setPddLoginOpening] = useState(false);
   const [tbLoginOpening, setTbLoginOpening] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   const isTbLoginFailure = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
     if (!row || row.taskType !== 'collect') return false;
@@ -132,6 +136,15 @@ export default function TaskCenterFailuresPage() {
       cat === 'login_required' ||
       (row.errorMessage ?? '').includes('open.weixin.qq.com')
     );
+  };
+
+  const canRecoverDouyinDraft = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
+    if (!row || row.taskType !== 'product_publish') return false;
+    const pl = (row.platform ?? '').toLowerCase();
+    if (pl !== 'douyin_shop') return false;
+    const rs = (row.recoveryStatus ?? row.extra?.recoveryStatus ?? '').toString().trim();
+    const code = (row.errorCode ?? '').toUpperCase();
+    return rs === 'result_unknown' || code === 'DOUYIN_TASK_RESULT_UNKNOWN';
   };
 
   useEffect(() => {
@@ -228,6 +241,22 @@ export default function TaskCenterFailuresPage() {
           placeholder: '请选择',
         },
         render: (_, r) => failureCategoryLabel(r.failureCategory),
+      },
+      {
+        title: '恢复状态',
+        dataIndex: 'recoveryStatus',
+        width: 148,
+        valueType: 'select',
+        fieldProps: {
+          options: TASK_RECOVERY_STATUS_OPTIONS,
+          allowClear: true,
+          placeholder: '请选择',
+        },
+        render: (_, r) => {
+          const label = recoveryStatusLabel(r.recoveryStatus);
+          if (label === '—') return '—';
+          return <Tag color="gold">{label}</Tag>;
+        },
       },
       {
         title: '严重等级',
@@ -692,6 +721,7 @@ export default function TaskCenterFailuresPage() {
                 keyword: kw || undefined,
                 failureCategory: (params.failureCategory as string | undefined)?.trim(),
                 severity: (params.severity as string | undefined)?.trim(),
+                recoveryStatus: (params.recoveryStatus as string | undefined)?.trim(),
               };
               if (listFilterRef.current.includeResolved) {
                 qp.includeResolved = 'true';
@@ -753,6 +783,29 @@ export default function TaskCenterFailuresPage() {
               <br />
               {detail.errorMessage || '—'}
             </Typography.Paragraph>
+            {detail.recoveryStatus || detail.extra?.recoveryStatus ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>恢复状态：</Typography.Text>{' '}
+                {recoveryStatusLabel(
+                  (detail.recoveryStatus || detail.extra?.recoveryStatus) as string | undefined,
+                )}
+              </Typography.Paragraph>
+            ) : null}
+            {typeof detail.extra?.userMessage === 'string' && detail.extra.userMessage ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Typography.Text strong>恢复说明：</Typography.Text> {detail.extra.userMessage}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.extra?.retryAttempts != null ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>恢复尝试次数：</Typography.Text> {String(detail.extra.retryAttempts)}
+              </Typography.Paragraph>
+            ) : null}
+            {typeof detail.extra?.lastErrorCode === 'string' && detail.extra.lastErrorCode ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>最近错误码：</Typography.Text> {detail.extra.lastErrorCode}
+              </Typography.Paragraph>
+            ) : null}
             {detail.relatedResourceTitle ? (
               <Typography.Paragraph type="secondary">关联：{detail.relatedResourceTitle}</Typography.Paragraph>
             ) : null}
@@ -803,6 +856,35 @@ export default function TaskCenterFailuresPage() {
                   }}
                 >
                   打开拼多多采集浏览器登录
+                </Button>
+              ) : null}
+              {canRecoverDouyinDraft(detail) ? (
+                <Button
+                  type="primary"
+                  loading={recovering}
+                  onClick={() => {
+                    Modal.confirm({
+                      title: '尝试从抖店回查恢复草稿？',
+                      content: '将通过 product.detail 确认平台侧是否已创建草稿，不会盲目重复提交 product.addV2。',
+                      okText: '尝试恢复',
+                      onOk: async () => {
+                        setRecovering(true);
+                        try {
+                          await recoverDouyinDraftTask(detail.id);
+                          message.success('已提交恢复，请刷新查看任务状态');
+                          actionRef.current?.reload?.();
+                          const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
+                          setDetail(refreshed);
+                        } catch (e) {
+                          message.error((e as Error).message);
+                        } finally {
+                          setRecovering(false);
+                        }
+                      },
+                    });
+                  }}
+                >
+                  尝试恢复
                 </Button>
               ) : null}
               {detail.retryable ? (

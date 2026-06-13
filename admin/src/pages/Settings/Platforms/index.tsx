@@ -249,7 +249,17 @@ function DouyinRuntimePanel() {
   };
 
   return (
-    <SectionCard title="抖店运行状态" description="暂停或紧急停用后，Worker 将不再调用抖店写接口；历史数据仍可查看。">
+    <SectionCard
+      title="抖店运行状态"
+      description="暂停或紧急停用后，Worker 将不再调用抖店写接口；历史数据仍可查看。"
+      headerExtra={
+        <Link to="/ops/douyin/runtime">
+          <Button type="link" size="small">
+            查看完整运行状态
+          </Button>
+        </Link>
+      }
+    >
       <Spin spinning={loading}>
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Space wrap>

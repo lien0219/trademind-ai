@@ -169,6 +169,7 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 			out.Extra["mode"] = row.Mode
 			out.Extra["successCount"] = row.SuccessCount
 			out.Extra["failedCount"] = row.FailedCount
+			mergeRecoveryExtra(out.Extra, row.Output)
 		}
 	case TaskTypeCustomerMessageSync:
 		var row customersync.CustomerMessageSyncTask
@@ -182,6 +183,7 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err == nil {
 			out.Extra["productId"] = row.ProductID.String()
 			out.Extra["platform"] = row.Platform
+			mergeRecoveryExtra(out.Extra, row.Output)
 			var pub productpublish.ProductPublication
 			if err := s.DB.WithContext(ctx).Where("publish_task_id = ?", id).Take(&pub).Error; err == nil {
 				out.Extra["externalProductId"] = truncateRunes(pub.ExternalProductID, 256)
@@ -192,6 +194,7 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err == nil {
 			out.Extra["targetStock"] = row.TargetStock
 			out.Extra["productId"] = row.ProductID.String()
+			mergeRecoveryExtra(out.Extra, row.Output)
 			if row.ProductSKUID != nil {
 				out.Extra["productSkuId"] = row.ProductSKUID.String()
 			}

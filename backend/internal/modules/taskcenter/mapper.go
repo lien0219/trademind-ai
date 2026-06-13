@@ -1,6 +1,7 @@
 package taskcenter
 
 import (
+	"encoding/json"
 	"net/url"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"gorm.io/datatypes"
 )
 
 func detailURL(taskType, id string) string {
@@ -215,6 +217,7 @@ func mapOrderSyncTask(row *ordersync.OrderSyncTask, shopNames map[uuid.UUID]stri
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	dto.RecoveryStatus = parseRecoveryStatusFromOutput(row.Output)
 	applyMarks(&dto, TaskTypeOrderSync, row.ID.String(), marks)
 	return dto
 }
@@ -308,8 +311,38 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	dto.RecoveryStatus = parseRecoveryStatusFromOutput(row.Output)
 	applyMarks(&dto, TaskTypeProductPublish, row.ID.String(), marks)
 	return dto
+}
+
+func parseRecoveryStatusFromOutput(raw datatypes.JSON) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ""
+	}
+	if v, ok := m["recoveryStatus"].(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+func mergeRecoveryExtra(extra map[string]any, raw datatypes.JSON) {
+	if extra == nil || len(raw) == 0 {
+		return
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return
+	}
+	for _, key := range []string{"recoveryStatus", "userMessage", "retryAttempts", "lastErrorCode", "technicalCode"} {
+		if v, ok := m[key]; ok && v != nil {
+			extra[key] = v
+		}
+	}
 }
 
 func mapInventorySyncTask(row *inventory.InventorySyncTask, shopNames map[uuid.UUID]string, productTitles map[uuid.UUID]string, marks markSet, now time.Time) UnifiedTaskDTO {
@@ -357,6 +390,7 @@ func mapInventorySyncTask(row *inventory.InventorySyncTask, shopNames map[uuid.U
 		dto.RelatedResourceID = row.ProductID.String()
 	}
 	dto.RelatedResourceTitle = truncateRunes(ptitle, 255)
+	dto.RecoveryStatus = parseRecoveryStatusFromOutput(row.Output)
 	applyMarks(&dto, TaskTypeInventorySync, row.ID.String(), marks)
 	return dto
 }

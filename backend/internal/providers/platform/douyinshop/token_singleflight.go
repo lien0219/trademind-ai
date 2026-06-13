@@ -33,6 +33,11 @@ func shopIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// ShopIDFromContext returns the shop ID attached to context for Douyin calls.
+func ShopIDFromContext(ctx context.Context) string {
+	return shopIDFromContext(ctx)
+}
+
 func refreshFlightKey(c *Client, ctx context.Context) string {
 	if c != nil && strings.TrimSpace(c.ShopID) != "" {
 		return strings.TrimSpace(c.ShopID)

@@ -4,6 +4,7 @@
 
 ## 抖店完整演示流程（MVP Demo，2026-06-07）
 
+> **Phase 10.4**：发布状态 **Release Candidate**；无真实凭证时 E2E 脚本 exit `3`（`blocked_by_real_credentials`）。预检脚本：`scripts/douyin-e2e-preflight.ps1`（Windows）或 `.sh`。门禁：[`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md)。
 > 真实抖店凭证 + 公网 Storage 环境下按顺序演示。详细每步预期/失败排查见 [`docs/DOUYIN_E2E_CHECKLIST.md`](docs/DOUYIN_E2E_CHECKLIST.md)。
 
 | # | 步骤 | 入口 | 勾选 |

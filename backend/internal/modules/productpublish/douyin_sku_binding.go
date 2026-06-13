@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -254,6 +255,9 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 				publicationID, sum.Bound, sum.Skipped, sum.Unmatched, sum.Ambiguous),
 		})
 	}
+	douyinmetrics.RecordSKUAutoBound(sum.Bound)
+	douyinmetrics.RecordSKUUnmatched(sum.Unmatched)
+	douyinmetrics.RecordSKUAmbiguous(sum.Ambiguous)
 	return &sum, nil
 }
 

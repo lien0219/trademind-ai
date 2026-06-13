@@ -1,11 +1,25 @@
 # 抖店整链路验收清单（E2E Checklist）
 
-> 用于 **真实抖店凭证 + 公网 Storage** 环境下的端到端验收。本阶段不新增功能，仅验证 Phase 1–9.2 主链路是否可演示、可小规模试用。  
-> 配套演示顺序见根目录 [`DEMO_CHECKLIST.md`](../DEMO_CHECKLIST.md)。
+> 用于 **真实抖店凭证 + 公网 Storage** 环境下的端到端验收。
+> **Phase 10.4**：可配合 `scripts/douyin-e2e-*.sh` / `*.ps1` 自动化预检与只读探针；写链路需 `ALLOW_DOUYIN_WRITE_TEST=true`。无凭证时脚本 exit `3` + `blocked_by_real_credentials`。
+> 配套演示顺序见根目录 [`DEMO_CHECKLIST.md`](../DEMO_CHECKLIST.md)；发布门禁见 [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md)。
 
 ---
 
 ## 1. 验收前准备
+
+### 1.1 自动化脚本（Phase 10.4，可选）
+
+| 脚本 | 用途 | 环境变量 |
+| --- | --- | --- |
+| `scripts/douyin-e2e-preflight.sh` / `.ps1` | 健康检查 + 生产预检 + 运行状态 | `TRADEMIND_API_BASE`、`TRADEMIND_ADMIN_ACCOUNT`、`TRADEMIND_ADMIN_PASSWORD` |
+| `scripts/douyin-e2e-readonly.sh` / `.ps1` | 类目统计、任务中心、操作日志、看板（只读） | 同上 |
+| `scripts/douyin-e2e-write.sh` / `.ps1` | 写链路脚手架（validate / 图片状态） | 同上 + **`ALLOW_DOUYIN_WRITE_TEST=true`** + 可选 `DOUYIN_E2E_PRODUCT_ID` / `DOUYIN_E2E_SHOP_ID` |
+| `scripts/douyin-e2e-report.sh` / `.ps1` | 汇总 JSON 工件为 Markdown 报告 | `DOUYIN_E2E_REPORT_DIR` |
+
+无 App Key / Secret 或未授权店铺时，脚本输出 **`blocked_by_real_credentials`** 并以 exit code **`3`** 退出（不得伪造通过）。
+
+### 1.2 手工检查项
 
 | 项 | 说明 | 如何确认 |
 | --- | --- | --- |
@@ -273,8 +287,11 @@ v0.8.0-douyin-mvp-demo
 **Tag 前检查：**
 
 - [ ] 本清单 2.1–2.18 全部通过或已知问题记入 PROGRESS 遗留
-- [ ] `go test ./...` 通过（backend）
+- [ ] `go test ./...` 与 CI `backend-race` job 通过（backend）
 - [ ] `pnpm build:admin` 通过
+- [ ] `scripts/douyin-e2e-preflight` 在无凭证环境 exit `3`（预期 blocked）
+- [ ] 有凭证环境：`readonly` + `report` 工件已归档
+- [ ] [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md) 门禁项已勾选
 - [ ] `git diff --check` 无冲突标记
 - [ ] `DEMO_CHECKLIST.md` 抖店演示流程可跟跑
 - [ ] `docs/PROGRESS.md` 已更新阶段状态
@@ -288,6 +305,8 @@ v0.8.0-douyin-mvp-demo
 ## 6. 相关文档
 
 - [`DEMO_CHECKLIST.md`](../DEMO_CHECKLIST.md) — 演示勾选清单
+- [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md) — 发布门禁
+- [`DOUYIN_E2E_REPORT_TEMPLATE.md`](DOUYIN_E2E_REPORT_TEMPLATE.md) — 人工/脚本报告模板
 - [`docs/PROGRESS.md`](PROGRESS.md) — 阶段进度与遗留
-- [`docs/api.md`](api.md) — API 契约
+- [`docs/api.md`](api.md) — API 契约（含抖店可观测性）
 - [`docs/provider.md`](provider.md) — Platform Provider 说明

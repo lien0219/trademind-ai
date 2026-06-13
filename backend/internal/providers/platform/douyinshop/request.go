@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 )
 
 func (c *Client) do(ctx context.Context, method string, params map[string]any, accessToken string, out any) error {
@@ -62,6 +64,7 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 			Success:   false,
 			ErrorCode: outErr.Code,
 		})
+		c.recordAPIFailure(method, started, outErr)
 		return outErr
 	}
 	defer resp.Body.Close()
@@ -88,6 +91,7 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 			Success:      false,
 			ErrorCode:    outErr.Code,
 		})
+		c.recordAPIFailure(method, started, outErr)
 		return outErr
 	}
 
@@ -101,6 +105,7 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 			Success:   false,
 			ErrorCode: codeOrUnknown(de),
 		})
+		c.recordAPIFailure(method, started, err)
 		return err
 	}
 	if env.RequestID != "" {
@@ -117,6 +122,7 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 			Success:      false,
 			ErrorCode:    outErr.Code,
 		})
+		c.recordAPIFailure(method, started, outErr)
 		return outErr
 	}
 	if err := env.decodeData(out); err != nil {
@@ -130,6 +136,7 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 			Success:      false,
 			ErrorCode:    codeOrUnknown(de),
 		})
+		c.recordAPIFailure(method, started, err)
 		return err
 	}
 	c.logRequest(ctx, SafeRequestLog{
@@ -139,6 +146,7 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 		PlatformCode: platformCode,
 		Success:      true,
 	})
+	douyinmetrics.RecordAPIRequest(method, c.configEnvironment(), time.Since(started), douyinmetrics.APIRequestOutcome{Success: true})
 	return nil
 }
 
@@ -168,4 +176,30 @@ func codeOrUnknown(e *Error) string {
 		return CodeUnknownDouyinError
 	}
 	return e.Code
+}
+
+func (c *Client) configEnvironment() string {
+	if c == nil {
+		return "production"
+	}
+	return strings.TrimSpace(c.Config.Environment)
+}
+
+func (c *Client) recordAPIFailure(method string, started time.Time, err error) {
+	douyinmetrics.RecordAPIRequest(method, c.configEnvironment(), time.Since(started), apiRequestOutcomeFromError(err))
+}
+
+func apiRequestOutcomeFromError(err error) douyinmetrics.APIRequestOutcome {
+	if err == nil {
+		return douyinmetrics.APIRequestOutcome{Success: true}
+	}
+	out := douyinmetrics.APIRequestOutcome{ErrorCode: CodeUnknownDouyinError}
+	var de *Error
+	if AsError(err, &de) && de != nil {
+		out.ErrorCode = de.Code
+		out.Retryable = de.Retryable
+		out.RateLimited = de.RateLimited
+		out.Timeout = de.Code == CodeDouyinRequestTimeout
+	}
+	return out
 }

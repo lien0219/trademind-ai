@@ -84,6 +84,7 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		Keyword:          strings.TrimSpace(c.Query("keyword")),
 		FailureCategory:  strings.TrimSpace(c.Query("failureCategory")),
 		Severity:         strings.TrimSpace(c.Query("severity")),
+		RecoveryStatus:   strings.TrimSpace(c.Query("recoveryStatus")),
 		IncludeResolved:  strings.EqualFold(c.Query("includeResolved"), "true") || c.Query("includeResolved") == "1",
 		IncludeMarked:    strings.EqualFold(c.Query("includeMarked"), "true") || c.Query("includeMarked") == "1",
 		Start:            startPtr,

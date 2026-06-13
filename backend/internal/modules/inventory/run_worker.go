@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -126,6 +127,9 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 					})
 				}
 			}
+		}
+		if strings.TrimSpace(strings.ToLower(taskRow.Platform)) == "douyin_shop" {
+			douyinmetrics.RecordInventorySync("failed")
 		}
 		s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 		return fmt.Errorf("%s", msg)
@@ -273,6 +277,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				Message: fmt.Sprintf("taskId=%s shop=%s sku=%s target=%d",
 					taskID.String(), taskRow.ShopID.String(), extSK, taskRow.TargetStock),
 			})
+			douyinmetrics.RecordInventorySync("success")
 		}
 	}
 	s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)

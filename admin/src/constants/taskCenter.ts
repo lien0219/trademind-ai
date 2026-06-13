@@ -60,6 +60,26 @@ export const TASK_CENTER_TASK_TYPE_LABEL: Record<string, string> = {
   inventory_sync: '库存同步',
 };
 
+/** 抖店任务恢复状态 → 用户可见文案（不展示 stale / result_unknown 等内部值） */
+export const TASK_RECOVERY_STATUS_LABEL: Record<string, string> = {
+  stale: '任务执行时间过长',
+  result_unknown: '平台结果暂时无法确认',
+  recovery_required: '需要人工检查',
+  recovery_failed: '恢复失败',
+  superseded: '已被新任务取代',
+  skipped: '已跳过',
+};
+
+export const TASK_RECOVERY_STATUS_OPTIONS = Object.entries(TASK_RECOVERY_STATUS_LABEL).map(
+  ([value, label]) => ({ value, label }),
+);
+
+export function recoveryStatusLabel(status?: string | null): string {
+  const k = (status ?? '').trim();
+  if (!k) return '—';
+  return TASK_RECOVERY_STATUS_LABEL[k] || '—';
+}
+
 /** Worker 进程有效状态（监控页） */
 export const WORKER_EFFECTIVE_STATUS: Record<string, { text: string; color: string }> = {
   running: { text: '运行中', color: 'success' },

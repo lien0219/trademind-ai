@@ -10,17 +10,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
+	"gorm.io/gorm"
 )
 
 const groupKey = "platform_douyin_shop"
 
 // Service manages Douyin platform runtime status.
 type Service struct {
-	Settings *settings.Service
-	OpLog    *operationlog.Service
+	DB        *gorm.DB
+	Settings  *settings.Service
+	Preflight *douyinpreflight.Service
+	OpLog     *operationlog.Service
 }
 
 // RuntimeStatusDTO is the API response for runtime status.
@@ -147,6 +151,44 @@ func (h *Handler) Resume(c *gin.Context) {
 
 func (h *Handler) EmergencyDisable(c *gin.Context) {
 	h.change(c, "emergency_disable")
+}
+
+func (h *Handler) GetHealth(c *gin.Context) {
+	out, err := h.Svc.GetHealth(c.Request.Context())
+	if err != nil {
+		c.JSON(500, gin.H{"code": 50000, "message": err.Error(), "data": nil})
+		return
+	}
+	h.Svc.saveHealthSnapshot(c.Request.Context(), out)
+	c.JSON(200, gin.H{"code": 0, "message": "ok", "data": out})
+}
+
+func (h *Handler) GetMetricsSummary(c *gin.Context) {
+	out := h.Svc.GetMetricsSummary(c.Request.Context())
+	c.JSON(200, gin.H{"code": 0, "message": "ok", "data": out})
+}
+
+func (h *Handler) GetReleaseGate(c *gin.Context) {
+	out, err := h.Svc.GetReleaseGate(c.Request.Context())
+	if err != nil {
+		c.JSON(500, gin.H{"code": 50000, "message": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(200, gin.H{"code": 0, "message": "ok", "data": out})
+}
+
+func (h *Handler) RunHealthCheck(c *gin.Context) {
+	out, err := h.Svc.GetHealth(c.Request.Context())
+	if err != nil {
+		c.JSON(500, gin.H{"code": 50000, "message": err.Error(), "data": nil})
+		return
+	}
+	if _, scanErr := h.Svc.ScanDouyinAlerts(c.Request.Context()); scanErr != nil {
+		c.JSON(500, gin.H{"code": 50000, "message": scanErr.Error(), "data": nil})
+		return
+	}
+	h.Svc.saveHealthSnapshot(c.Request.Context(), out)
+	c.JSON(200, gin.H{"code": 0, "message": "ok", "data": out})
 }
 
 func (h *Handler) change(c *gin.Context, action string) {
