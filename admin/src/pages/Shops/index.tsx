@@ -1,4 +1,13 @@
 import { Link } from '@umijs/renderer-react';
+import {
+  ApiOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  EyeOutlined,
+  MoreOutlined,
+  SafetyCertificateOutlined,
+  ShopOutlined,
+} from '@ant-design/icons';
 import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText, ProFormTextArea, ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
@@ -8,13 +17,16 @@ import {
   Descriptions,
   Divider,
   Drawer,
+  Dropdown,
   Form,
   Input,
+  Modal,
   Popconfirm,
   Space,
   Tag,
   Typography,
   message,
+  type MenuProps,
 } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -53,6 +65,16 @@ import { syncShopOrders } from '@/services/orderSync';
 import { syncCustomerMessages } from '@/services/customer';
 import { getPlatformAppSettings } from '@/services/platformOpen';
 import { isDeployAppConfigComplete } from '@/utils/platformAppConfig';
+import { shopCapabilityLabel } from '@/constants/shopCapabilities';
+
+const PLATFORM_TAG_COLORS: Record<string, string> = {
+  manual: 'default',
+  tiktok: 'magenta',
+  douyin_shop: 'volcano',
+  shopee: 'orange',
+  lazada: 'blue',
+  amazon: 'gold',
+};
 
 const STD_AUTH_KEYS = new Set([
   'appKey',
@@ -74,6 +96,49 @@ function tagFromMap(raw: string, map: Record<string, { text: string; color: stri
   const c = map[raw as keyof typeof map];
   if (!c) return <Tag>{raw}</Tag>;
   return <Tag color={c.color as never}>{c.text}</Tag>;
+}
+
+function cellText(val?: string | null) {
+  const t = (val ?? '').trim();
+  return t ? t : <Typography.Text type="secondary">—</Typography.Text>;
+}
+
+function renderPlatformCell(platform: string, providers: PlatformProviderMeta[]) {
+  const meta = providers.find((x) => x.platform === platform);
+  const label = meta?.name ?? platform;
+  const color = PLATFORM_TAG_COLORS[platform] ?? 'processing';
+  return (
+    <Space size={4} wrap>
+      <Tag color={color as never} style={{ margin: 0 }}>
+        {label}
+      </Tag>
+      {meta?.status === 'beta' ? (
+        <Tag color="processing" style={{ margin: 0 }}>
+          Beta
+        </Tag>
+      ) : null}
+      {meta?.status === 'planned' ? (
+        <Tag style={{ margin: 0 }}>规划中</Tag>
+      ) : null}
+    </Space>
+  );
+}
+
+function renderCapabilityTags(raw: unknown) {
+  const list = Array.isArray(raw) ? raw.map(String).filter(Boolean) : [];
+  if (!list.length) return <Typography.Text type="secondary">—</Typography.Text>;
+  const visible = list.slice(0, 2);
+  const rest = list.length - visible.length;
+  return (
+    <Space size={[4, 4]} wrap>
+      {visible.map((c) => (
+        <Tag key={c} style={{ margin: 0 }}>
+          {shopCapabilityLabel(c)}
+        </Tag>
+      ))}
+      {rest > 0 ? <Tag style={{ margin: 0 }}>+{rest}</Tag> : null}
+    </Space>
+  );
 }
 
 function summarizeShopTest(res: {
@@ -330,9 +395,44 @@ export default function ShopsPage() {
 
   const columns: ProColumns<ShopListRow>[] = useMemo(
     () => [
-      { title: '平台', dataIndex: 'platform', width: 120, copyable: true },
-      { title: '店铺名', dataIndex: 'shopName', ellipsis: true, width: 160 },
-      { title: '编码', dataIndex: 'shopCode', width: 120, search: false },
+      {
+        title: '平台',
+        dataIndex: 'platform',
+        width: 148,
+        valueType: 'select',
+        valueEnum: Object.fromEntries(providers.map((p) => [p.platform, { text: p.name }])),
+        fieldProps: { showSearch: true, optionFilterProp: 'label' },
+        render: (_, r) => renderPlatformCell(r.platform, providers),
+      },
+      {
+        title: '店铺名',
+        dataIndex: 'shopName',
+        width: 160,
+        ellipsis: true,
+        render: (_, r) => (
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0, height: 'auto', maxWidth: '100%', textAlign: 'left' }}
+            onClick={() => void openDetail(r)}
+          >
+            <Space size={6} style={{ maxWidth: '100%' }}>
+              <ShopOutlined style={{ color: 'var(--ant-color-primary)', flexShrink: 0 }} />
+              <Typography.Text ellipsis style={{ maxWidth: 140 }}>
+                {r.shopName}
+              </Typography.Text>
+            </Space>
+          </Button>
+        ),
+      },
+      {
+        title: '编码',
+        dataIndex: 'shopCode',
+        width: 108,
+        search: false,
+        ellipsis: true,
+        render: (_, r) => cellText(r.shopCode),
+      },
       {
         title: '状态',
         dataIndex: 'status',
@@ -344,124 +444,196 @@ export default function ShopsPage() {
       {
         title: '授权',
         dataIndex: 'authStatus',
-        width: 96,
+        width: 104,
         valueType: 'select',
         valueEnum: Object.fromEntries(Object.entries(SHOP_AUTH_STATUS).map(([k, v]) => [k, { text: v.text }])),
         render: (_, r) => tagFromMap(r.authStatus, SHOP_AUTH_STATUS),
       },
-      { title: '地区', dataIndex: 'region', width: 72, search: false },
-      { title: '币种', dataIndex: 'currency', width: 72, search: false },
+      {
+        title: '地区',
+        dataIndex: 'region',
+        width: 80,
+        search: false,
+        render: (_, r) => cellText(r.region),
+      },
+      {
+        title: '币种',
+        dataIndex: 'currency',
+        width: 72,
+        search: false,
+        render: (_, r) => cellText(r.currency),
+      },
       {
         title: '能力',
         dataIndex: 'capabilities',
+        width: 168,
         search: false,
-        ellipsis: true,
-        render: (_, r) => {
-          const c = r.capabilities;
-          if (Array.isArray(c)) return <Typography.Text ellipsis>{c.join(', ')}</Typography.Text>;
-          return '—';
-        },
+        render: (_, r) => renderCapabilityTags(r.capabilities),
       },
       {
         title: '更新时间',
         dataIndex: 'updatedAt',
         width: 168,
         search: false,
-        render: (_, r) => formatDateTime(r.updatedAt),
+        render: (_, r) => (
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            {formatDateTime(r.updatedAt)}
+          </Typography.Text>
+        ),
       },
       {
         title: '操作',
         valueType: 'option',
-        width: 340,
-        render: (_, r) => [
-          <a key="v" onClick={() => void openDetail(r)}>
-            查看
-          </a>,
-          <a
-            key="e"
-            onClick={async () => {
-              const d = await getShop(r.id);
-              setDetail(d);
-              setEditOpen(true);
-            }}
-          >
-            编辑
-          </a>,
-          <a key="a" onClick={() => void openAuthFor(r.id)}>
-            授权配置
-          </a>,
-          r.platform === 'douyin_shop' ? (
-            <a key="dy-oauth" onClick={() => void redirectDouyinOAuth(r.id)}>
-              重新授权
-            </a>
-          ) : null,
-          r.platform === 'douyin_shop' ? (
-            <a key="dy-refresh" onClick={() => void refreshDouyinFor(r.id)}>
-              刷新授权
-            </a>
-          ) : null,
-          r.platform === 'douyin_shop' ? (
-            <a key="dy-sync-shop" onClick={() => void syncDouyinInfoFor(r.id)}>
-              同步店铺信息
-            </a>
-          ) : null,
-          r.platform === 'douyin_shop' ? (
-            <Popconfirm
-              key="dy-revoke"
-              title="解除抖店授权？"
-              description="解除授权后无法继续同步该店铺，历史数据不会删除。"
-              onConfirm={() => void revokeDouyinFor(r.id)}
-            >
-              <a>解除授权</a>
-            </Popconfirm>
-          ) : null,
-          <a
-            key="cmsync"
-            onClick={() => {
-              openCustomerMessageSyncModal(r.platform, r.id);
-            }}
-          >
-            拉取客服消息
-          </a>,
-          <Link key="cmlog" to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(r.id)}`}>
-            客服同步记录
-          </Link>,
-          <a
-            key="osync"
-            onClick={() => {
-              openOrderSyncModal(r.platform, r.id);
-            }}
-          >
-            同步订单
-          </a>,
-          <Link key="olog" to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>
-            同步记录
-          </Link>,
-          <a
-            key="t"
-            onClick={async () => {
+        width: 280,
+        onCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+        render: (_, r) => {
+          const moreItems: MenuProps['items'] = [];
+
+          if (r.platform === 'douyin_shop') {
+            moreItems.push({
+              type: 'group',
+              label: '抖店授权',
+              children: [
+                {
+                  key: 'dy-oauth',
+                  label: '重新授权',
+                  onClick: () => void redirectDouyinOAuth(r.id),
+                },
+                {
+                  key: 'dy-refresh',
+                  label: '刷新授权',
+                  onClick: () => void refreshDouyinFor(r.id),
+                },
+                {
+                  key: 'dy-sync-shop',
+                  label: '同步店铺信息',
+                  onClick: () => void syncDouyinInfoFor(r.id),
+                },
+                {
+                  key: 'dy-revoke',
+                  label: '解除授权',
+                  danger: true,
+                  onClick: () => {
+                    Modal.confirm({
+                      title: '解除抖店授权？',
+                      content: '解除授权后无法继续同步该店铺，历史数据不会删除。',
+                      okType: 'danger',
+                      onOk: async () => {
+                        await revokeDouyinFor(r.id);
+                      },
+                    });
+                  },
+                },
+              ],
+            });
+          }
+
+          moreItems.push({
+            type: 'group',
+            label: '数据同步',
+            children: [
+              {
+                key: 'osync',
+                label: '同步订单',
+                onClick: () => openOrderSyncModal(r.platform, r.id),
+              },
+              {
+                key: 'olog',
+                label: (
+                  <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>订单同步记录</Link>
+                ),
+              },
+              {
+                key: 'cmsync',
+                label: '拉取客服消息',
+                onClick: () => openCustomerMessageSyncModal(r.platform, r.id),
+              },
+              {
+                key: 'cmlog',
+                label: (
+                  <Link to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(r.id)}`}>
+                    客服同步记录
+                  </Link>
+                ),
+              },
+            ],
+          });
+
+          moreItems.push({
+            key: 'test',
+            label: '测试连接',
+            icon: <ApiOutlined />,
+            onClick: async () => {
               try {
-                const res = r.platform === 'douyin_shop' ? await testDouyinOAuth(r.id) : await testShopConnection(r.id);
+                const res =
+                  r.platform === 'douyin_shop' ? await testDouyinOAuth(r.id) : await testShopConnection(r.id);
                 message.success(summarizeShopTest(res));
               } catch (e: unknown) {
                 message.error(formatPlatformPartnerErr(e));
               }
-            }}
-          >
-            测试连接
-          </a>,
-          <Popconfirm
-            key="d"
-            title="删除店铺？"
-            onConfirm={async () => {
-              await deleteShop(r.id);
-              message.success('已删除');
-              actionRef.current?.reload();
-            }}
-          >
-            <a style={{ color: 'var(--ant-color-error)' }}>删除</a>
-          </Popconfirm>,
-        ],
+            },
+          });
+          moreItems.push({ type: 'divider' });
+          moreItems.push({
+            key: 'delete',
+            label: '删除店铺',
+            icon: <DeleteOutlined />,
+            danger: true,
+            onClick: () => {
+              Modal.confirm({
+                title: '删除店铺？',
+                content: '删除后不可恢复，请确认是否继续。',
+                okType: 'danger',
+                onOk: async () => {
+                  await deleteShop(r.id);
+                  message.success('已删除');
+                  actionRef.current?.reload();
+                },
+              });
+            },
+          });
+
+          return (
+            <Space size={0} wrap={false}>
+              <Button
+                type="link"
+                size="small"
+                style={{ paddingInline: 4 }}
+                icon={<EyeOutlined />}
+                onClick={() => void openDetail(r)}
+              >
+                查看
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                style={{ paddingInline: 4 }}
+                icon={<EditOutlined />}
+                onClick={async () => {
+                  const d = await getShop(r.id);
+                  setDetail(d);
+                  setEditOpen(true);
+                }}
+              >
+                编辑
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                style={{ paddingInline: 4 }}
+                icon={<SafetyCertificateOutlined />}
+                onClick={() => void openAuthFor(r.id)}
+              >
+                授权
+              </Button>
+              <Dropdown menu={{ items: moreItems }} trigger={['click']}>
+                <Button type="link" size="small" style={{ paddingInline: 4 }} icon={<MoreOutlined />}>
+                  更多
+                </Button>
+              </Dropdown>
+            </Space>
+          );
+        },
       },
     ],
     [providers],
@@ -476,8 +648,15 @@ export default function ShopsPage() {
         rowKey="id"
         actionRef={actionRef}
         columns={columns}
-        search={{ labelWidth: 'auto' }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        tableStyle={{ tableLayout: 'fixed' }}
+        scroll={{ x: 1376 }}
+        search={{
+          labelWidth: 'auto',
+          defaultCollapsed: false,
+          span: { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 6 },
+        }}
+        options={{ reload: true, density: true, setting: true }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, showQuickJumper: true }}
         headerTitle="店铺列表"
         toolBarRender={() => [
           <Button key="n" type="primary" onClick={() => setCreateOpen(true)}>
