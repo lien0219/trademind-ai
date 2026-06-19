@@ -24,6 +24,16 @@ import (
 
 const defaultBatchMax = 100
 
+// detachedGinContext returns a gin copy whose request context survives after the HTTP handler returns.
+func detachedGinContext(c *gin.Context) *gin.Context {
+	if c == nil || c.Request == nil {
+		return c
+	}
+	cp := c.Copy()
+	cp.Request = cp.Request.WithContext(context.Background())
+	return cp
+}
+
 // Service orchestrates AI product text batch operations with human review.
 type Service struct {
 	DB       *gorm.DB
@@ -423,7 +433,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		})
 	}
 
-	go s.runGeneration(c.Copy(), batch.ID, ids, ops, req.Options, adminID)
+	go s.runGeneration(detachedGinContext(c), batch.ID, ids, ops, req.Options, adminID)
 	return batch, nil
 }
 
@@ -741,18 +751,20 @@ func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter
 	return detail, nil
 }
 
-// RetryFailed retries failed items only.
+// RetryFailed retries failed items and orphaned pending/running items (e.g. after server restart).
 func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.UUID) (*AIProductTextBatch, error) {
 	ctx := c.Request.Context()
 	b, err := s.GetBatchByID(ctx, batchID)
 	if err != nil {
 		return nil, err
 	}
-	var failed []AIProductTextItem
-	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND status = ?", batchID, ItemFailed).Find(&failed).Error; err != nil {
+	var retryItems []AIProductTextItem
+	if err := s.DB.WithContext(ctx).
+		Where("batch_id = ? AND status IN ?", batchID, []string{ItemFailed, ItemPending, ItemRunning}).
+		Find(&retryItems).Error; err != nil {
 		return nil, err
 	}
-	if len(failed) == 0 {
+	if len(retryItems) == 0 {
 		return b, nil
 	}
 	var in map[string]any
@@ -779,7 +791,7 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 	conc := s.batchConcurrency(ctx)
 	sem := make(chan struct{}, conc)
 	var wg sync.WaitGroup
-	for _, item := range failed {
+	for _, item := range retryItems {
 		item := item
 		wg.Add(1)
 		sem <- struct{}{}
@@ -800,7 +812,7 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 			Resource:    "ai_product_text_batch",
 			ResourceID:  batchID.String(),
 			Status:      "success",
-			Message:     fmt.Sprintf("batchNo=%s retried=%d", b.BatchNo, len(failed)),
+			Message:     fmt.Sprintf("batchNo=%s retried=%d", b.BatchNo, len(retryItems)),
 		})
 	}
 	return b, nil

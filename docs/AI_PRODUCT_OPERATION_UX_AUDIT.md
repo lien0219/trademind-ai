@@ -1,13 +1,20 @@
 # AI 商品运营体验 Phase A1 审计
 
-> 日期：2026-06-17（Phase A3.1.1 更新：2026-06-19）
+> 日期：2026-06-17（Phase A3.1.2 更新：2026-06-19）
+
+## Phase A3.1.2 记录（2026-06-19）
+
+- **路由 smoke**：13 条 ai-text 路由注册验收通过（`scripts/ai-text-route-smoke.ps1`）。
+- **真实 AI 试跑**：Qwen Provider；16 子项全部进入 `pending_review`；0 自动覆盖；质量 warning 10 条。
+- **P1 修复**：异步 generation detached context；`retry-failed` 含 pending/running 孤儿项。
+- **验收**：[`BATCH_AI_TEXT_UX_ACCEPTANCE.md`](BATCH_AI_TEXT_UX_ACCEPTANCE.md)
+- **未做**：A3.2 批量图片、自动上架。
 
 ## Phase A3.1.1 记录（2026-06-19）
 
 - **失败任务中心**：`ai_product_text_items` 聚合为 `taskType=ai_text`；分类 `ai_text_generation_failed` / `ai_text_apply_conflict` / `ai_text_quality_warning` 等；深链复核页 `?itemId=`。
 - **旧入口**：`/ai/batches` 隐藏菜单 + 旧版提示；主入口 `/ai/text-batches`。
 - **冲突文案**：应用冲突统一中文，不直出 `expectedUpdatedAt` / hash。
-- **真实 AI 试跑**：DB 已配 Provider；HTTP 试跑待重启后端（`blocked_by_server_restart`）。
 - **验收**：[`BATCH_AI_TEXT_UX_ACCEPTANCE.md`](BATCH_AI_TEXT_UX_ACCEPTANCE.md)
 - **未做**：A3.2 批量图片、自动上架。
 

@@ -97,7 +97,7 @@
 | `POST` | `/api/v1/products/ai-text/batches` | 创建批次；支持 `operationTypes`: `title` / `description`；幂等键 `idempotencyKey`；**不自动应用**。 |
 | `GET` | `/api/v1/products/ai-text/batches` | 批次列表。 |
 | `GET` | `/api/v1/products/ai-text/batches/:id` | 批次详情 + 复核子项；query `status` 筛选。 |
-| `POST` | `/api/v1/products/ai-text/batches/:id/retry-failed` | 只重试失败子项。 |
+| `POST` | `/api/v1/products/ai-text/batches/:id/retry-failed` | 重试失败、pending、running 子项（含服务重启后的孤儿项）。 |
 | `POST` | `/api/v1/products/ai-text/batches/:id/cancel-pending` | 取消 pending 子项。 |
 | `POST` | `/api/v1/products/ai-text/batches/:id/apply-selected` | 批量应用；body `itemIds[]`；逐条冲突保护，`partial_success`。 |
 | `POST` | `/api/v1/products/ai-text/batches/:id/undo-applied` | 撤销本批次已应用项。 |

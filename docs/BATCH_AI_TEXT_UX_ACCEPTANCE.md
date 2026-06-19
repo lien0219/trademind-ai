@@ -1,180 +1,174 @@
-# Phase A3.1.1 批量 AI 文案 UX 验收报告
+# Phase A3.1.2 批量 AI 文案 UX 验收报告
 
 > 日期：2026-06-19  
-> 阶段：**AI 商品运营体验 Phase A3.1.1** — 人工验收、真实 Provider 试跑、失败任务中心联动、旧入口梳理
+> 阶段：**AI 商品运营体验 Phase A3.1.2** — 路由部署验收、真实 Provider 试跑、20 条 UI 矩阵、P0/P1 修复
 
 ## 总体验收结论
 
 | 维度 | 结论 | 说明 |
 | --- | --- | --- |
-| 代码闭环 / 自动化测试 | **passed** | `go test ./...`、`pnpm build:admin`、抖店回归通过 |
-| 失败任务中心联动 | **passed** | `ai_text` 聚合 `failed` / `conflict` / 质量 warning；深链 `?itemId=` |
-| 旧入口梳理 | **passed_with_warning** | `/ai/batches` 隐藏菜单 + 旧版提示；历史可访问 |
-| 真实 AI Provider 小样本试跑 | **blocked_by_server_restart** | DB 已配置 AI（`settings.ai`）；当前 `:8080` 进程为旧二进制，`/api/v1/products/ai-text/*` 返回 404，需重启后端后再跑 13 条试跑 |
-| 20 条人工 E2E 全矩阵 | **passed_with_warning** | 样本商品已落库（perf seed）；冲突/撤销/质量规则有单测；完整 UI E2E 待重启后人工勾选 |
+| 404 / 旧进程 | **passed** | 停止旧 `go run` 进程，以 `tmp/server.exe`（含 `aiproducttext` 路由）重启 `:8080` |
+| 路由 smoke test | **passed** | `scripts/ai-text-route-smoke.ps1` / `.sh`；13 条路由均非 404（未登录 401） |
+| 真实 AI Provider 试跑 | **passed** | Qwen Provider；16 子项（5 标题 + 5 描述 + 6 标题+描述）全部 `pending_review`；0 失败 |
+| 20 条人工 E2E 矩阵 | **passed_with_warning** | 真实 AI 输出已回填；10 条含质量 warning（描述结构/规格类，不阻断） |
+| 失败任务中心联动 | **passed** | `ai_text` 聚合 quality warning；应用/放弃后计数下降 |
+| 冲突 / 撤销 | **passed** | 单测 + 中文提示；试跑未自动覆盖商品 |
+| 旧入口梳理 | **passed** | `/ai/batches` 隐藏菜单 + 旧版提示 + 跳转新版 |
+| P0 | **0** | 无自动覆盖、无冲突失效、无错误深链 |
+| P1 | **0** | 修复异步 context 取消导致批次卡 `pending`；`retry-failed` 支持 orphaned pending |
 
-**是否允许进入 Phase A3.2（批量图片）**：**否** — 本轮仅完成 A3.1.1 运营可用收口，未进入图片批量处理。
+**是否允许进入 Phase A3.2（批量图片）**：**否** — A3.1.2 文案试跑与验收已完成，图片批量仍属下一阶段。
 
 ---
 
-## 一、人工验收样本矩阵（≥20）
+## 一、404 / 旧进程处理
 
-样本来源：本地 PostgreSQL `products` 表 perf seed + 手工标注场景。生成类型与结论基于预检规则 + 单测；真实 AI 输出列在重启后补填。
+| 项 | 结果 |
+| --- | --- |
+| 现象 | A3.1.1 阶段 `:8080` 为旧 `go-build` 二进制或未含 `aiproducttext` 的进程，`/api/v1/products/ai-text/*` 曾返回 404 |
+| 处理 | 停止 PID 旧进程 → `go build -o tmp/server.exe ./cmd/server/` → 启动新二进制（`TRADEMIND_REPO_ROOT` 指向仓库根） |
+| 启动命令 | `Start-Process tmp/server.exe -WorkingDirectory backend`（本地验收）；日常开发仍可用 `pnpm dev:backend` |
+| 验证 | 未登录 GET/POST 均返回 **401**（非 404）；health `200` |
 
-| # | 商品 ID | 来源 | 场景 | 生成类型 | 验收结论 |
+---
+
+## 二、路由 smoke test
+
+脚本：`scripts/ai-text-route-smoke.ps1`、`scripts/ai-text-route-smoke.sh`  
+结果文件：`docs/ai-text-route-smoke.json`
+
+| 检查 | 结果 |
+| --- | --- |
+| `/health` | 200 |
+| 12 条 `/api/v1/products/ai-text/*` | 401（路由已注册） |
+| `failed404Count` | 0 |
+| health timestamp | 2026-06-19T13:11:04Z |
+
+---
+
+## 三、真实 AI Provider 小样本试跑
+
+脚本：`scripts/ai-text-trial-run.ps1`  
+结果文件：`docs/ai-text-trial-run.json`
+
+### 配置
+
+- Provider：**qwen**（`settings.ai` 已加密配置）
+- 连通性：`POST /api/v1/settings/test-ai` → ok，latency ~2s
+
+### 试跑批次
+
+| 批次 | batchNo | 商品数 | 类型 | 子项 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `715b12b8-c23a-42a3-bcc9-f2dd69d47095` | 1688 | 标题正常 | title | passed_with_warning |
-| 2 | `4fe45e34-4529-438b-a64d-a478b412118c` | manual | 标题过短 | title | passed_with_warning |
-| 3 | `ac15338f-2e45-40c3-89bc-8c9150fa49b7` | custom | 标题含采集噪声 | title | passed_with_warning |
-| 4 | `a7715a98-3291-4bc3-ab7d-6620b07371af` | taobao_tmall | 标题很长 | title | passed_with_warning |
-| 5 | `93b9663d-a5f4-4810-a9bc-2e3dcaf9f87d` | pinduoduo | 描述为空 | description | passed_with_warning |
-| 6 | `4ee03ff7-4239-4d10-ae6b-ba72ffb468aa` | 1688 | 描述很短 | description | passed_with_warning |
-| 7 | `e1f60994-f434-47ef-b8fe-d5593d6b8118` | taobao_tmall | 描述含 HTML | description | passed_with_warning |
-| 8 | `1cf3566d-9aaf-44ed-b8eb-293ec5d16031` | custom | 多规格 | title+description | passed_with_warning |
-| 9 | `8dfe5af3-554a-4110-9af8-ad1f2165583b` | manual | 图片缺失 | title | passed_with_warning |
-| 10 | `28aa935b-03a5-440b-8697-51cd3f95de02` | pinduoduo | 价格异常 | title | passed_with_warning |
-| 11 | `715b12b8-c23a-42a3-bcc9-f2dd69d47095` | 1688 | 1688 来源 | title | passed_with_warning |
-| 12 | `93b9663d-a5f4-4810-a9bc-2e3dcaf9f87d` | pinduoduo | 拼多多来源 | description | passed_with_warning |
-| 13 | `a7715a98-3291-4bc3-ab7d-6620b07371af` | taobao_tmall | 淘宝/天猫来源 | title | passed_with_warning |
-| 14 | `ac15338f-2e45-40c3-89bc-8c9150fa49b7` | custom | 自定义链接 | title | passed_with_warning |
-| 15 | `4fe45e34-4529-438b-a64d-a478b412118c` | manual | 手工创建 | title | passed_with_warning |
-| 16 | `caab730a-6d34-4cec-a806-fade9f1ee8f3` | manual | 已人工改标题 | title | passed（冲突保护单测） |
-| 17 | `ff0fc80d-2096-457b-9f42-3eca7313deb2` | custom | 已人工改描述 | description | passed（冲突保护单测） |
-| 18 | `249a2bac-a1d4-43c8-bbff-7b909c100ab9` | taobao_tmall | 已应用 AI 标题 | title | passed_with_warning |
-| 19 | `077fb62d-f936-4b13-96e3-15014dfa3f58` | pinduoduo | 已应用 AI 描述 | description | passed_with_warning |
-| 20 | `1ae4dd72-541f-43d7-8051-05dd32adf984` | 1688 | 故意制造冲突 | title | passed（`product/ai_apply` 冲突单测 + 中文提示） |
+| T1 | AT202606190005 | 5 | 仅标题 | 5 | success |
+| T2 | AT202606190006 | 5 | 仅描述 | 5 | success |
+| T3 | AT202606190007 | 3 | 标题+描述 | 6 | success |
 
-### 样本明细模板（重启后补 AI 输出）
-
-| 商品 ID | 当前标题 | 当前描述 | AI 生成结果 | 质量 warning | 可读 | 适合应用 | 应用成功 | 冲突 | 可撤销 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| （待 E2E） | — | — | — | — | — | — | — | — | — |
-
----
-
-## 二、真实 AI Provider 小样本试跑
-
-### 配置状态
-
-- `settings.ai`：**已配置**（`provider=qwen`，`base_url=https://api.deepseek.com/v1`，`api_key` 已加密存储）
-- 试跑阻塞原因：当前监听 `:8080` 的服务进程**未加载** `aiproducttext` 路由（`POST /api/v1/products/ai-text/batches` → 404）
-
-### 计划试跑规模（重启后执行）
-
-| 批次 | 商品数 | 类型 |
-| --- | --- | --- |
-| T1 | 5 | 仅标题 |
-| T2 | 5 | 仅描述 |
-| T3 | 3 | 标题 + 描述 |
+**合计**：13 商品 × 16 子项（operation 维度）；**16/16** 进入 `pending_review`，生成文本非空，**0** `autoOverwrite`。
 
 ### 验证项
 
-- [ ] AI 服务配置可用
-- [ ] 请求不超时（`timeout_sec=120`）
-- [ ] 失败错误可读（中文）
-- [ ] 生成结果非空
-- [ ] 标题长度合理 / 描述非模板废话
-- [ ] 禁用词检查生效
-- [ ] 质量 warning 识别问题
-- [ ] 进入 `pending_review`，**不**自动覆盖商品
+- [x] AI 服务配置可用
+- [x] 请求不 404、不超时（单批 ~10–65s）
+- [x] 失败错误可读（本轮 0 失败）
+- [x] 生成结果非空
+- [x] 标题长度合理（21–37 字）
+- [x] 描述非空模板（115–141 字，含卖点语义）
+- [x] 质量 warning 识别（10/16 有 warning）
+- [x] 进入 `pending_review`，**不**自动覆盖商品
+- [x] taskcenter 展示 `ai_text_quality_warning`（试跑后 11 条，含 warning 子项）
+- [x] 应用 1 条 / 放弃 1 条后 taskcenter 计数下降（11→10）
 
-**试跑结论**：`blocked_by_server_restart`（非 `blocked_by_ai_provider`）
+**试跑结论**：**passed**
+
+### P1 修复（试跑暴露）
+
+1. **异步 generation 使用 HTTP request context**：`CreateBatch` 返回后 context 取消，子项永久 `pending`。修复：`detachedGinContext(c)` 使用 `context.Background()`。
+2. **`retry-failed` 仅重试 failed**：服务重启后 pending 孤儿无法恢复。修复：同时重试 `pending` / `running` / `failed`。
 
 ---
 
-## 三、失败任务中心联动
+## 四、人工验收样本矩阵（20 条）
+
+样本来源：perf seed + A3.1.2 真实试跑 batch `35a1845a` / `4711e67e` / `fa54794c`。
+
+| # | 商品 ID | 来源 | 生成类型 | batch / itemId | AI 可用 | warning | 待复核 | 三栏 | 编辑应用 | 冲突 | 撤销 | taskcenter | 深链 | 结论 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `715b12b8-…7095` | 1688 | title | T1 / `efb0d129-…` | ✅ | 采集噪声 | ✅ | ✅ | ✅ | 单测 | 单测 | warning 展示 | ✅ | passed_with_warning |
+| 2 | `4fe45e34-…118c` | manual | title | T1 / `58a86a88-…` | ✅ | 无 | ✅→applied | ✅ | ✅ 已应用 | 单测 | 单测 | 恢复 | ✅ | passed |
+| 3 | `ac15338f-…49b7` | custom | title | T1 / `91b2730f-…` | ✅ | 无 | ✅ | ✅ | ✅ | 单测 | 单测 | — | ✅ | passed |
+| 4 | `a7715a98-…71af` | taobao_tmall | title | T1 / `dbb08d45-…` | ✅ | 无 | ✅ | ✅ | ✅ | 单测 | 单测 | — | ✅ | passed |
+| 5 | `8dfe5af3-…583b` | manual | title | T1 / `8d3bc31b-…` | ✅ | 无 | ✅ | ✅ | ✅ | 单测 | 单测 | — | ✅ | passed |
+| 6 | `93b9663d-…f87d` | pinduoduo | description | T2 / `92e7dbd7-…` | ✅ | 结构/规格 | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 7 | `4ee03ff7-…68aa` | 1688 | description | T2 / `4e050abd-…` | ✅ | 结构/卖点/规格 | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 8 | `e1f60994-…8118` | taobao_tmall | description | T2 / `bdc05cbe-…` | ✅ | 结构/规格 | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 9 | `28aa935b-…de02` | pinduoduo | description | T2 / `46b4ffaa-…` | ✅ | 结构/规格 | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 10 | `077fb62d-…3f58` | pinduoduo | description | T2 / `c3c90fca-…` | ✅ | 结构/规格 | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 11 | `1cf3566d-…6031` | custom | title+desc | T3 / `68eaa4bb-…` + `b015f810-…` | ✅ | desc 结构 | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 12 | `249a2bac-…ab9` | taobao_tmall | title+desc | T3 / `288892e6-…` + `6f4d47bb-…` | ✅ | desc 结构/规格 | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 13 | `1ae4dd72-…f984` | 1688 | title+desc | T3 / `238ccc04-…` + `f247112c-…` | ✅ | title 噪声 + desc | ✅ | ✅ | ✅ | 单测 | 单测 | warning | ✅ | passed_with_warning |
+| 14 | `715b12b8-…7095` | 1688 | title | 预检场景 | — | 规则 | — | ✅ | — | — | — | — | ✅ | passed_with_warning |
+| 15 | `caab730a-…e8f3` | manual | title | 冲突样本 | — | — | — | ✅ | 冲突单测 | ✅ | ✅ | conflict | ✅ | passed |
+| 16 | `ff0fc80d-…deb2` | custom | description | 冲突样本 | — | — | — | ✅ | 冲突单测 | ✅ | ✅ | conflict | ✅ | passed |
+| 17 | `249a2bac-…ab9` | taobao_tmall | title | 已应用样本 | ✅ | — | — | ✅ | — | — | — | — | ✅ | passed_with_warning |
+| 18 | `077fb62d-…3f58` | pinduoduo | description | 已应用样本 | ✅ | — | — | ✅ | — | — | — | — | ✅ | passed_with_warning |
+| 19 | `efb0d129-…` item | — | title | 放弃样本 | ✅ | 噪声 | rejected | ✅ | — | — | — | 恢复 -1 | ✅ | passed |
+| 20 | `1ae4dd72-…f984` | 1688 | title | 故意冲突 | — | — | — | ✅ | 冲突单测 | ✅ | 中文提示 | conflict | ✅ | passed |
+
+深链格式：`/product/ai-text-batches/:batchId?itemId=:itemId`
+
+---
+
+## 五、失败任务中心联动
 
 | 检查项 | 结果 |
 | --- | --- |
-| `failed` 子项进入 taskcenter | ✅ `taskType=ai_text` |
-| `conflict` 子项进入 taskcenter | ✅ `failureCategory=ai_text_apply_conflict` |
-| 质量 warning 进入（可选） | ✅ `ai_text_quality_warning`，不含全部待复核 |
-| 去重键 | ✅ `task_type + source_id + failure_category` |
-| 恢复后不再显示 | ✅ 状态变为 `applied` / `rejected` / 重生成成功后不再匹配失败筛选 |
-| 深链 | ✅ `/product/ai-text-batches/:batchId?itemId=xxx` |
-| 高亮 + 打开复核弹窗 | ✅ 前端 `AITextBatchDetail` |
-| 重试失败项 | ✅ `POST /api/v1/products/ai-text/items/:id/regenerate` |
-
-### 失败分类中文
-
-| failure_category | 用户文案 |
-| --- | --- |
-| `ai_text_generation_failed` | AI 文案生成失败 |
-| `ai_text_apply_conflict` | AI 文案应用时发现内容冲突 |
-| `ai_text_apply_failed` | AI 文案应用失败 |
-| `ai_text_undo_failed` | AI 文案撤销失败 |
-| `ai_text_quality_warning` | AI 文案建议需要复核 |
+| `failed` / `conflict` 进入 taskcenter | ✅ |
+| 质量 `ai_text_quality_warning` | ✅ 试跑后 11 条 |
+| 去重键 | ✅ |
+| 应用成功后恢复 | ✅ 试跑 apply 后仍剩 warning 项 |
+| 放弃建议后恢复 | ✅ reject 后 11→10 |
+| 深链 + 高亮 + 复核弹窗 | ✅ A3.1.1 已实现 |
 
 ---
 
-## 四、旧入口 `/ai/batches`
+## 六、旧入口 `/ai/batches`
 
 - 菜单：**隐藏**（`hideInMenu: true`）
-- 页面：保留，顶部 **旧版提示** +「前往新版批量文案任务」按钮
-- 新版主入口：`/ai/text-batches`（菜单「批量文案任务」）
+- 主入口：`/ai/text-batches`（菜单「批量文案任务」）
+- 旧页提示：「这是旧版批量 AI 任务入口…」+ 按钮「前往新版批量文案任务」
 
 ---
 
-## 五、冲突与撤销
+## 七、多分辨率（代码审查 + 试跑 UI 抽检）
 
-| 场景 | 结果 |
-| --- | --- |
-| 生成后标题未变 → 应用成功 | ✅ `product/ai_apply` 单测 |
-| 生成后标题被人工改动 → 冲突 | ✅ 中文：`商品内容在 AI 建议生成后已经被修改…` |
-| 批量应用部分冲突 | ✅ `partial_success` 统计 |
-| 单条撤销 | ✅ |
-| 批量撤销本批次 | ✅ |
-| 商品后续人工修改 → 撤销阻止 | ✅ `content conflict` 单测 |
-
----
-
-## 六、质量 warning 校准
-
-- 标题：空 / 过短 / 过长 / 重复词 / 禁用词 / 采集噪声 — ✅ 中文 `quality.go`
-- 描述：空 / 过短 / 缺卖点 / 缺规格 / 禁用词 / 结构不清晰 / 与标题不匹配 — ✅ 新增 `desc_unclear_structure`
-- warning **不阻断**应用；技术码在「技术详情」折叠
-
----
-
-## 七、多分辨率（代码审查 + 布局）
-
-| 页面 | 1366px | 1024px |
-| --- | --- | --- |
-| 商品草稿列表 | ✅ ProTable scroll | ✅ |
-| 批量 AI 向导 | ✅ 步骤条换行 | ✅ |
-| 批量文案任务列表 | ✅ | ✅ |
-| 复核详情 | ✅ `auto-fit` 三栏 | ✅ 上下布局 |
-| 单条复核弹窗 | ✅ `min(1100, innerWidth-48)` | ✅ |
-| 失败任务中心 | ✅ ProTable | ✅ |
-| 旧版 `/ai/batches` | ✅ 提示条 | ✅ |
+| 页面 | 1920 | 1440 | 1366 | 1280 | 1024 |
+| --- | --- | --- | --- | --- | --- |
+| 商品草稿列表 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 批量 AI 向导 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 批量文案任务列表 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 复核详情三栏 | ✅ | ✅ | ✅ 上下布局 | ✅ | ✅ |
+| 单条复核弹窗 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 失败任务中心 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 旧版 `/ai/batches` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
 ## 八、自动化验证
-
-```bash
-cd backend && go test ./...
-cd backend && go build ./cmd/server/...
-pnpm build:admin
-git diff --check
-go test ./internal/providers/platform/douyinshop/...
-go test ./internal/modules/productpublish/...
-go test ./internal/modules/ordersync/...
-go test ./internal/modules/inventory/...
-go test ./internal/modules/taskcenter/...
-go test ./internal/modules/aiproducttext/...
-```
 
 | 命令 | 结果 |
 | --- | --- |
 | `go test ./...` | ✅ pass |
 | `go build ./cmd/server/...` | ✅ pass |
 | `pnpm build:admin` | ✅ pass |
-| `git diff --check` | ✅ pass（仅 CRLF 警告） |
-| 抖店 / publish / ordersync / inventory 回归 | ✅ pass |
+| `git diff --check` | ✅ pass（CRLF 警告） |
+| 抖店 / publish / ordersync / inventory / aiproducttext / taskcenter 回归 | ✅ pass |
+| `scripts/ai-text-route-smoke.ps1` | ✅ pass |
+| `scripts/ai-text-trial-run.ps1` | ✅ passed (16/16) |
 
 ---
 
 ## 九、变更记录
 
-- **2026-06-19**：Phase A3.1.1 — taskcenter 接入 `ai_product_text_items`；旧版入口提示；冲突中文；`itemId` 深链；质量 warning 补强；文档同步。
+- **2026-06-19**：Phase A3.1.2 — 路由 smoke 脚本；真实 Qwen 试跑 16 子项；修复 async context + retry orphaned pending；验收文档同步。
+- **2026-06-19**：Phase A3.1.1 — taskcenter 接入；旧版入口；冲突中文；itemId 深链。

@@ -85,7 +85,7 @@ Phase A3.1 **不改造** A2.2 `commonConfig` / `overrides`。应用后的 `ai_ti
 - 去重：`task_type + source_id + failure_category`
 - 深链：`/product/ai-text-batches/:batchId?itemId=:itemId`
 - 恢复：应用成功 / 放弃 / 重生成成功后不再出现在未处理失败列表
-- 重试：`POST /api/v1/products/ai-text/items/:id/regenerate`（仅 `failed` 可重试）
+- 重试：`POST /api/v1/products/ai-text/batches/:id/retry-failed`（failed / pending / running）；单条 `POST .../items/:id/regenerate`
 
 ### 旧入口
 
@@ -95,4 +95,22 @@ Phase A3.1 **不改造** A2.2 `commonConfig` / `overrides`。应用后的 `ai_ti
 ### 真实 Provider 试跑
 
 - 见 [`BATCH_AI_TEXT_UX_ACCEPTANCE.md`](BATCH_AI_TEXT_UX_ACCEPTANCE.md)
-- 本轮：`blocked_by_server_restart`（需重启后端）；非 `blocked_by_ai_provider`
+- A3.1.2：**passed**（Qwen；16 子项；脚本 `scripts/ai-text-trial-run.ps1`）
+
+## Phase A3.1.2 补充（2026-06-19）
+
+### 路由 smoke
+
+- `scripts/ai-text-route-smoke.ps1` / `.sh`：health + 12 条 ai-text 路由不得 404
+- 结果：`docs/ai-text-route-smoke.json`
+
+### 真实试跑与 P1 修复
+
+- **异步 context**：`CreateBatch` 后台 goroutine 改用 `detachedGinContext`（`context.Background()`），避免 HTTP 返回后 generation 永久 `pending`
+- **retry-failed**：同时重试 `failed` / `pending` / `running`（服务重启孤儿项）
+- **试跑规模**：5 标题 + 5 描述 + 3 商品×双类型 = 16 子项；全部 `pending_review`，无自动覆盖
+
+### 验收脚本
+
+- `scripts/ai-text-route-smoke.ps1`
+- `scripts/ai-text-trial-run.ps1`（从 `.env` 读取登录，不写密钥到输出）
