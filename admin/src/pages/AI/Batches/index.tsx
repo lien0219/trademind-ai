@@ -169,11 +169,16 @@ export default function AiBatchesPage() {
         showIcon
         style={{ marginBottom: 16 }}
         message="这是旧版批量 AI 任务入口"
-        description="商品标题和描述批量优化请使用新版「批量文案任务」，支持人工复核、冲突保护与批量撤销。"
+        description="商品标题和描述批量优化请使用新版「批量文案任务」；商品图片批量处理请使用新版「批量图片任务」。支持人工复核、冲突保护与批量撤销。"
         action={
-          <Button type="primary" size="small" onClick={() => history.push('/ai/text-batches')}>
-            前往新版批量文案任务
-          </Button>
+          <Space size="small">
+            <Button type="primary" size="small" onClick={() => history.push('/ai/text-batches')}>
+              批量文案任务
+            </Button>
+            <Button size="small" onClick={() => history.push('/ai/image-batches')}>
+              批量图片任务
+            </Button>
+          </Space>
         }
       />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>

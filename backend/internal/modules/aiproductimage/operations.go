@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 )
 
 var (
@@ -65,4 +66,24 @@ func imagetaskApplyMode(mode string) string {
 	default:
 		return "ai_generated"
 	}
+}
+
+// resolveGenerationTaskType picks imagetask type; white_background uses replace_background when
+// the configured provider supports it but not remove_background (e.g. dashscope_image).
+func resolveGenerationTaskType(provider, operationType string) string {
+	base := operationToTaskType(operationType)
+	if operationType != OpWhiteBackground {
+		return base
+	}
+	prov := strings.TrimSpace(strings.ToLower(provider))
+	if prov == "" || prov == "noop" {
+		return base
+	}
+	if imgprov.SupportsTask(prov, imagetask.TaskTypeRemoveBackground) {
+		return imagetask.TaskTypeRemoveBackground
+	}
+	if imgprov.SupportsTask(prov, imagetask.TaskTypeReplaceBackground) {
+		return imagetask.TaskTypeReplaceBackground
+	}
+	return base
 }

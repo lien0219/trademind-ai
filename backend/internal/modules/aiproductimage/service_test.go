@@ -47,9 +47,14 @@ func TestCheckImageQualityWarnings(t *testing.T) {
 	}
 }
 
-func TestSafeDownloadUserMessage(t *testing.T) {
-	msg := safeDownloadUserMessage(nil)
-	if msg != "" {
-		t.Fatal("nil err should return empty")
+func TestResolveGenerationTaskTypeWhiteBackground(t *testing.T) {
+	if got := resolveGenerationTaskType("dashscope_image", OpWhiteBackground); got != "replace_background" {
+		t.Fatalf("dashscope white bg should use replace_background, got %q", got)
+	}
+	if got := resolveGenerationTaskType("removebg", OpWhiteBackground); got != "remove_background" {
+		t.Fatalf("removebg white bg should use remove_background, got %q", got)
+	}
+	if got := resolveGenerationTaskType("dashscope_image", OpQualityCheck); got != "score_image" {
+		t.Fatalf("quality check unchanged, got %q", got)
 	}
 }

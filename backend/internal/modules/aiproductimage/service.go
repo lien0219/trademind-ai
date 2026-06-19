@@ -69,6 +69,21 @@ func settingInt(ctx context.Context, svc *settings.Service, key string, def, max
 	return def
 }
 
+func (s *Service) configuredImageProvider(ctx context.Context) string {
+	if s == nil || s.Settings == nil {
+		return ""
+	}
+	m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(strings.ToLower(m["image_task_default_provider"]))
+	if v == "" {
+		v = strings.TrimSpace(strings.ToLower(m["provider"]))
+	}
+	return v
+}
+
 func (s *Service) imageConfigured(ctx context.Context) bool {
 	if s == nil || s.Settings == nil {
 		return false
@@ -532,7 +547,7 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 	}
 	_ = s.DB.WithContext(ctx).Model(&item).Update("status", ItemRunning).Error
 
-	taskType := operationToTaskType(item.OperationType)
+	taskType := resolveGenerationTaskType(s.configuredImageProvider(ctx), item.OperationType)
 	if taskType == "" {
 		s.failItem(ctx, item.ID, "unsupported_operation", "不支持的处理类型")
 		return
@@ -622,6 +637,21 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 	if len(warnings) > 0 {
 		warnJSON, _ := json.Marshal(warnings)
 		updates["quality_warnings"] = datatypes.JSON(warnJSON)
+	}
+	if item.ImageID != nil {
+		var img product.ProductImage
+		if err := s.DB.WithContext(ctx).First(&img, "id = ?", *item.ImageID).Error; err == nil {
+			curURL := strings.TrimSpace(img.PublicURL)
+			if curURL == "" {
+				curURL = strings.TrimSpace(img.OriginURL)
+			}
+			if curURL != "" {
+				updates["source_image_url"] = curURL
+				updates["source_snapshot_hash"] = imageURLHash(curURL)
+			}
+			t := img.UpdatedAt.UTC()
+			updates["image_updated_at"] = &t
+		}
 	}
 	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ?", item.ID).Updates(updates).Error
 }

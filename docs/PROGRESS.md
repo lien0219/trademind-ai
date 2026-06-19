@@ -1,5 +1,7 @@
 # TradeMind 开发进度记录
-**Stage update**: 2026-06-19 — **AI 商品运营体验 Phase A3.2 批量 AI 图片处理、复核、应用与撤销（代码交付）已完成**。新模块 `aiproductimage`；表 `ai_product_image_batches` / `ai_product_image_items` / `product_image_applications`；API `/api/v1/products/ai-images/batches*`；复用 `imagetask` + `safedownload`；商品列表「批量 AI 图片处理」五步向导；复核台 `/product/ai-image-batches/:id`；失败任务中心 `taskType=ai_image` 深链。支持质量检查、白底图、去水印/Logo 等；**不自动覆盖原图**；批量应用/撤销；`go test` / `pnpm build:admin` / 抖店回归通过。**待执行**：真实图片 Provider 小样本试跑（同 A3.1.2 文案试跑）。**未做**自动上架、抖店素材中心。**是否开闸 A3.3**：待真实试跑通过后决定。设计见 [`BATCH_AI_IMAGE_OPERATION_DESIGN.md`](BATCH_AI_IMAGE_OPERATION_DESIGN.md)。
+**Stage update**: 2026-06-19 — **AI 商品运营体验 Phase A3.2.1 批量 AI 图片真实 Provider 试跑与视觉验收完成（`passed_with_warning`）**。路由 smoke（`scripts/ai-image-route-smoke.ps1`）12 路由无 404；真实试跑 16 子项 10 成功（`scripts/ai-image-trial-run.ps1`）；应用/撤销/safedownload 验收（`scripts/ai-image-apply-undo-verify.ps1`）。修复 P1：① 运行后端需含 `aiproductimage` 路由的新二进制；② dashscope 白底图走 `replace_background` 而非硬编码 remove.bg；③ 质量评分写回 score 后刷新快照避免误报冲突。Provider `dashscope_image` 已配置；建议补 API Key 后复跑白底图 5 张。**建议可进入 A3.3 评审**。验收见 [`BATCH_AI_IMAGE_UX_ACCEPTANCE.md`](BATCH_AI_IMAGE_UX_ACCEPTANCE.md)。
+
+**Stage update**: 2026-06-19 — **AI 商品运营体验 Phase A3.2 批量 AI 图片处理、复核、应用与撤销（代码交付）已完成**。
 
 **Stage update**: 2026-06-19 — **AI 商品运营体验 Phase A3.1.2 批量文案真实试跑与路由部署验收已完成**。路由 smoke（`scripts/ai-text-route-smoke.ps1`）通过；真实 Qwen Provider 试跑 16 子项全部 `pending_review`（`scripts/ai-text-trial-run.ps1`）；修复 P1：异步 generation 使用 `detachedGinContext` 避免 HTTP context 取消导致卡 pending；`retry-failed` 同时重试 pending/running/failed。`go test` / `pnpm build:admin` / 抖店回归通过。**未做** A3.2 批量图片。验收见 [`BATCH_AI_TEXT_UX_ACCEPTANCE.md`](BATCH_AI_TEXT_UX_ACCEPTANCE.md)。
 

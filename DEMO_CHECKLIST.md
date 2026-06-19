@@ -20,8 +20,8 @@
 | 8b | **批量 AI 文案（A3.1）** | 商品草稿列表多选 → **批量 AI 优化** → 复核工作台 `/product/ai-text-batches/:id` | [ ] |
 | 8c | **失败任务 → 文案复核（A3.1.1）** | 运维 → 失败任务中心 → `AI 批量文案` → 点击深链定位子项 | [ ] |
 | 8d | **真实 AI 文案试跑（A3.1.2）** | 配置 AI Provider → `scripts/ai-text-route-smoke.ps1` → `scripts/ai-text-trial-run.ps1` | [ ] |
-| 8e | **批量 AI 图片（A3.2）** | 商品草稿列表多选 → **批量 AI 图片处理** → 复核 `/product/ai-image-batches/:id` | [ ] |
-| 8f | **失败任务 → 图片复核（A3.2）** | 运维 → 失败任务中心 → `AI 批量图片` → 深链 `?itemId=` | [ ] |
+| 8e | **批量 AI 图片（A3.2.1）** | 商品草稿列表多选 → **批量 AI 图片处理** → 复核 `/product/ai-image-batches/:id`；试跑见 `docs/ai-image-trial-run.json` | [x] |
+| 8f | **失败任务 → 图片复核（A3.2.1）** | 运维 → 失败任务中心 → `AI 批量图片` → 深链 `?itemId=` | [x] |
 | 9 | 定价规则 | 刊登 Tab → 应用定价规则 | [ ] |
 | 10 | 图片处理 | 同步图片到 Storage；可选 AI 图片任务 | [ ] |
 | 11 | 抖店刊登配置 | 刊登 Tab → 店铺 / 类目 / 属性 | [ ] |

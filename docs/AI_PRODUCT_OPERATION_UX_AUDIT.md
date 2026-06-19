@@ -1,6 +1,15 @@
 # AI 商品运营体验 Phase A1 审计
 
-> 日期：2026-06-17（Phase A3.2 更新：2026-06-19）
+> 日期：2026-06-17（Phase A3.2.1 更新：2026-06-19）
+
+## Phase A3.2.1 记录（2026-06-19）
+
+- **路由 smoke**：12 条 ai-images 路由无 404（`scripts/ai-image-route-smoke.ps1`）。
+- **真实图片试跑**：dashscope_image；16 子项 10 成功；质量检查/去水印/主图优选通过；白底图修复前 remove.bg 硬编码失败。
+- **P1 修复**：白底图 Provider 路由；质量评分后刷新冲突快照；旧 `/ai/batches` 增加「批量图片任务」入口提示。
+- **应用/撤销**：`scripts/ai-image-apply-undo-verify.ps1` 图库 apply + undo 通过。
+- **验收**：[`BATCH_AI_IMAGE_UX_ACCEPTANCE.md`](BATCH_AI_IMAGE_UX_ACCEPTANCE.md)
+- **建议**：可进入 A3.3 评审；补 dashscope API Key 后复跑白底图。
 
 ## Phase A3.2 记录（2026-06-19）
 

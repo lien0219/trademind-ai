@@ -17,7 +17,7 @@
 | 图片质量检查 | `score_image` |
 | 去水印 | `remove_watermark` |
 | 去 Logo | `remove_logo` |
-| 白底图 | `remove_background` |
+| 白底图 | `remove_background`（remove.bg 等）；通义万相等无抠图能力时批次层降级为 `replace_background` + 白底 prompt |
 | 优化背景 | `replace_background` |
 | 翻译图片文字 | `translate_image_text` |
 | 主图优选建议 | `select_best_main` |
