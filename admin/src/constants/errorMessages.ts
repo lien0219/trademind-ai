@@ -142,7 +142,7 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
   SKU_INCOMPLETE: { title: '规格信息不完整', detail: '请核对规格、价格与库存。' },
   PLATFORM_NOT_SUPPORTED: {
     title: '当前平台暂未接入真实发布',
-    detail: '将仅生成本地刊登草稿，不会调用平台 API。',
+    detail: '将仅生成本地刊登草稿，不会调用平台接口。',
   },
   PUBLISH_CONFIG_MISSING: {
     title: '刊登配置未完成',

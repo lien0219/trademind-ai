@@ -365,7 +365,7 @@ func (s *Service) checkOnePublishTarget(ctx context.Context, productID uuid.UUID
 	issues := make([]PublishTargetIssue, 0, 8)
 	if capability == CapLocalDraftOnly {
 		issues = append(issues, issueFromCode("PLATFORM_NOT_SUPPORTED", "warning",
-			"当前平台暂未接入真实发布", "将仅生成本地刊登草稿与任务快照，不会调用平台 API。"))
+			"当前平台暂未接入真实发布", "将仅生成本地刊登草稿与任务快照，不会调用平台接口。"))
 	}
 
 	if s.Readiness != nil {

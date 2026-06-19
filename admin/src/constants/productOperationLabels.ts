@@ -81,7 +81,7 @@ export const PUBLISH_CHECK_CODE_LABEL: Record<string, { title: string; message: 
   SHOP_NOT_AUTHORIZED: { title: '店铺尚未授权', message: '请前往店铺管理完成授权。' },
   PLATFORM_NOT_SUPPORTED: {
     title: '当前平台暂未接入真实发布',
-    message: '将仅生成本地刊登草稿，不会调用平台 API。',
+    message: '将仅生成本地刊登草稿，不会调用平台接口。',
   },
   PUBLISH_CONFIG_MISSING: { title: '刊登配置未完成', message: '请补齐平台刊登配置。' },
 };
