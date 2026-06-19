@@ -1,6 +1,16 @@
 # AI 商品运营体验 Phase A1 审计
 
-> 日期：2026-06-17（Phase A3.1.2 更新：2026-06-19）
+> 日期：2026-06-17（Phase A3.2 更新：2026-06-19）
+
+## Phase A3.2 记录（2026-06-19）
+
+- **批量 AI 图片处理**：新模块 `aiproductimage`；表 `ai_product_image_batches` + `ai_product_image_items`；API 前缀 `/api/v1/products/ai-images/batches`。
+- **复用**：`imagetask` 引擎（`CreateAndPersist` / `FinalizeNewImageTask` / `ApplyTaskResult`）、`safedownload` 预检、`product_images` 图库、`product_image_applications` 撤销快照。
+- **不复用**：旧 `aioperationbatch` 图片批次直跑无复核；不自动替换商品图片；不调用抖店素材中心。
+- **处理方式**：质量检查、去水印、去 Logo、白底图、优化背景、翻译图片文字、主图优选建议（映射 `imagetask` 任务类型）。
+- **前端**：商品列表「批量 AI 图片处理」五步向导；复核台 `/product/ai-image-batches/:id`；AI 工具「批量图片任务」；失败任务中心 `taskType=ai_image` 深链 `?itemId=`。
+- **设计 / 验收**：[`BATCH_AI_IMAGE_OPERATION_DESIGN.md`](BATCH_AI_IMAGE_OPERATION_DESIGN.md)、[`BATCH_AI_IMAGE_UX_ACCEPTANCE.md`](BATCH_AI_IMAGE_UX_ACCEPTANCE.md)
+- **未做**：自动上架、抖店素材中心同步、营销图模板系统。
 
 ## Phase A3.1.2 记录（2026-06-19）
 

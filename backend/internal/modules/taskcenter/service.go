@@ -342,7 +342,7 @@ func taskTypesFor(p ListFailureParams) []string {
 	all := []string{
 		TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync,
 		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync,
-		TaskTypeAIText,
+		TaskTypeAIText, TaskTypeAIImage,
 	}
 	tt := strings.TrimSpace(p.TaskType)
 	if tt == "" {
@@ -360,7 +360,7 @@ func parseTaskType(s string) (string, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	switch s {
 	case TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync,
-		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText:
+		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText, TaskTypeAIImage:
 		return s, nil
 	default:
 		return "", fmt.Errorf("unknown taskType")

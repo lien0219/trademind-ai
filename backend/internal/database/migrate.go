@@ -5,6 +5,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
@@ -123,6 +124,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&product.ProductSKU{},
 		&product.ProductPlatformPublishConfig{},
 		&product.ProductAIContentApplication{},
+		&product.ProductImageApplication{},
 		&productpublish.ProductPublishTask{},
 		&productpublish.ProductPublishBatch{},
 		&productpublish.ProductPublication{},
@@ -152,6 +154,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&aioperationbatch.AIOperationBatch{},
 		&aiproducttext.AIProductTextBatch{},
 		&aiproducttext.AIProductTextItem{},
+		&aiproductimage.AIProductImageBatch{},
+		&aiproductimage.AIProductImageItem{},
 		&customerchat.CustomerConversation{},
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},

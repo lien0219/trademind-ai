@@ -156,3 +156,27 @@ type ProductAIContentApplication struct {
 }
 
 func (ProductAIContentApplication) TableName() string { return "product_ai_content_applications" }
+
+const (
+	ImageApplyStatusApplied = "applied"
+	ImageApplyStatusUndone  = "undone"
+)
+
+// ProductImageApplication stores snapshot for safely undoing AI image apply.
+type ProductImageApplication struct {
+	model.HardDeleteBase
+	ProductID          uuid.UUID      `gorm:"type:char(36);index;not null" json:"productId"`
+	ProductImageID     uuid.UUID      `gorm:"type:char(36);index;not null" json:"productImageId"`
+	ApplyMode          string         `gorm:"size:32;index;not null" json:"applyMode"`
+	ImageTaskID        *uuid.UUID     `gorm:"type:char(36);index" json:"imageTaskId,omitempty"`
+	BatchItemID        *uuid.UUID     `gorm:"type:char(36);index" json:"batchItemId,omitempty"`
+	PreviousSnapshot   datatypes.JSON `gorm:"type:jsonb" json:"previousSnapshot,omitempty"`
+	SourceSnapshotHash string         `gorm:"size:128;index" json:"sourceSnapshotHash,omitempty"`
+	AppliedBy          *uuid.UUID     `gorm:"type:char(36);index" json:"appliedBy,omitempty"`
+	AppliedAt          time.Time      `gorm:"index" json:"appliedAt"`
+	UndoneBy           *uuid.UUID     `gorm:"type:char(36);index" json:"undoneBy,omitempty"`
+	UndoneAt           *time.Time     `json:"undoneAt,omitempty"`
+	Status             string         `gorm:"size:32;index;not null" json:"status"`
+}
+
+func (ProductImageApplication) TableName() string { return "product_image_applications" }

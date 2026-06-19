@@ -108,6 +108,24 @@
 
 设计见 [`BATCH_AI_TEXT_OPERATION_DESIGN.md`](BATCH_AI_TEXT_OPERATION_DESIGN.md)。
 
+### 批量 AI 图片（Phase A3.2）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/products/ai-images/batches/check` | 创建前检查；body 含 `productIds`、`imageIds`、`operationTypes`；返回每图×处理方式 `items`。 |
+| `POST` | `/api/v1/products/ai-images/batches` | 创建批次；**不自动应用**；幂等键 `idempotencyKey`。 |
+| `GET` | `/api/v1/products/ai-images/batches` | 批次列表。 |
+| `GET` | `/api/v1/products/ai-images/batches/:id` | 批次详情 + 复核子项。 |
+| `POST` | `/api/v1/products/ai-images/batches/:id/retry-failed` | 重试失败 / pending / running 子项。 |
+| `POST` | `/api/v1/products/ai-images/batches/:id/cancel-pending` | 取消 pending 子项。 |
+| `POST` | `/api/v1/products/ai-images/batches/:id/apply-selected` | 批量应用；body `itemIds[]`、`applyMode`。 |
+| `POST` | `/api/v1/products/ai-images/batches/:id/undo-applied` | 撤销本批次已应用项。 |
+| `POST` | `/api/v1/products/ai-images/items/:id/regenerate` | 单条重新处理。 |
+| `POST` | `/api/v1/products/ai-images/items/:id/apply` | 单条应用；body `applyMode`；冲突 409。 |
+| `POST` | `/api/v1/products/ai-images/items/:id/reject` | 放弃结果。 |
+
+`operationTypes`：`quality_check` / `remove_watermark` / `remove_logo` / `white_background` / `optimize_background` / `translate_text` / `select_best_main`。设计见 [`BATCH_AI_IMAGE_OPERATION_DESIGN.md`](BATCH_AI_IMAGE_OPERATION_DESIGN.md)。
+
 | `POST` | `/api/v1/products/:id/images/select-best-main` | 自动评分并选择最佳主图；JSON `mode`: `score_only` / `recommend` / `auto_set`。 |
 | `POST` | `/api/v1/products/:id/sync-images` | 将商品外链图片（如淘宝 alicdn）下载并保存到当前 Storage Provider；JSON `scope`: `all` / `main` / `detail`（默认 `all`）。 |
 | `POST` | `/api/v1/pricing/calculate` | 单 SKU 发布价试算（不写入数据库）。 |

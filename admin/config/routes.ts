@@ -111,6 +111,11 @@ export default [
         name: '批量文案任务',
         component: './AI/TextBatches',
       },
+      {
+        path: '/ai/image-batches',
+        name: '批量图片任务',
+        component: './AI/ImageBatches',
+      },
     ],
   },
   {
@@ -146,6 +151,18 @@ export default [
         path: '/product/ai-text-batches/:id',
         name: 'AI 文案批次复核',
         component: './Product/AITextBatchDetail',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-image-batch',
+        name: '批量 AI 图片处理',
+        component: './Product/AIImageBatch',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-image-batches/:id',
+        name: 'AI 图片批次复核',
+        component: './Product/AIImageBatchDetail',
         hideInMenu: true,
       },
       {

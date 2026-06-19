@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
@@ -254,6 +255,15 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		OpLog:    opLogSvc,
 	}
 	aiProductTextH := &aiproducttext.Handler{Svc: aiProductTextSvc}
+
+	aiProductImageSvc := &aiproductimage.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Products: productSvc,
+		Image:    imageTaskSvc,
+		OpLog:    opLogSvc,
+	}
+	aiProductImageH := &aiproductimage.Handler{Svc: aiProductImageSvc}
 
 	promptH := &aiprompt.Handler{Svc: promptSvc}
 	aiTaskH := &aitask.Handler{Svc: aiTaskSvc}
@@ -517,6 +527,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)
 	aiproducttext.Register(authed, aiProductTextH)
+	aiproductimage.Register(authed, aiProductImageH)
 	pricingSvc := &pricing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc}
 	pricingH := &pricing.Handler{Svc: pricingSvc}
 	pricing.Register(authed, pricingH)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
@@ -32,6 +33,8 @@ func (s *Service) listOneType(ctx context.Context, taskType string, p ListFailur
 		return s.listInventorySync(ctx, p, now, fetchLimit)
 	case TaskTypeAIText:
 		return s.listAIProductText(ctx, p, now, fetchLimit)
+	case TaskTypeAIImage:
+		return s.listAIProductImage(ctx, p, now, fetchLimit)
 	default:
 		return nil, gorm.ErrRecordNotFound
 	}
@@ -324,6 +327,58 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 	out := make([]UnifiedTaskDTO, 0, len(rows))
 	for i := range rows {
 		dto := mapAIProductTextItem(&rows[i], titles, ms, now)
+		if fc := strings.TrimSpace(p.FailureCategory); fc != "" && !strings.EqualFold(fc, dto.FailureCategory) {
+			continue
+		}
+		out = append(out, dto)
+	}
+	return out, nil
+}
+
+func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+	q := s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{})
+	q = aiImageFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
+	q = s.applyMarkFilters(q, TaskTypeAIImage, "ai_product_image_items.id::text", p)
+	if lk := likePat(p.Keyword); lk != "" {
+		q = q.Where(`(
+			COALESCE(error_message,'') ILIKE ?
+			OR CAST(id AS TEXT) ILIKE ?
+			OR CAST(batch_id AS TEXT) ILIKE ?
+			OR CAST(product_id AS TEXT) ILIKE ?
+			OR operation_type ILIKE ?
+		)`, lk, lk, lk, lk, lk)
+	}
+	if fc := strings.TrimSpace(p.FailureCategory); fc != "" {
+		switch fc {
+		case CategoryAIImageProcessFailed:
+			q = q.Where("status = ?", aiproductimage.ItemFailed)
+		case CategoryAIImageApplyConflict:
+			q = q.Where("status = ?", aiproductimage.ItemConflict)
+		case CategoryAIImageQualityWarn:
+			q = q.Where("status IN ?", []string{aiproductimage.ItemPendingReview, aiproductimage.ItemSuccess}).
+				Where("quality_warnings IS NOT NULL AND TRIM(quality_warnings::text) NOT IN ('null', '[]', '')")
+		}
+	}
+	var rows []aiproductimage.AIProductImageItem
+	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	prodIDs := make([]uuid.UUID, 0, len(rows))
+	for i := range rows {
+		prodIDs = append(prodIDs, rows[i].ProductID)
+	}
+	titles := s.batchProductTitles(ctx, prodIDs)
+	ids := make([]string, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].ID.String()
+	}
+	ms, err := s.fetchMarks(ctx, TaskTypeAIImage, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]UnifiedTaskDTO, 0, len(rows))
+	for i := range rows {
+		dto := mapAIProductImageItem(&rows[i], titles, ms, now)
 		if fc := strings.TrimSpace(p.FailureCategory); fc != "" && !strings.EqualFold(fc, dto.FailureCategory) {
 			continue
 		}
