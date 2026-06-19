@@ -15,6 +15,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -39,6 +40,7 @@ func newBatchIntegrationDB(t *testing.T) *gorm.DB {
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},
+		&shop.Shop{},
 		&ProductPublishBatch{},
 		&ProductPublishTask{},
 		&ProductPublication{},
@@ -101,6 +103,16 @@ func seedBatchProduct(t *testing.T, db *gorm.DB) (uuid.UUID, uuid.UUID) {
 		Stock:          &stock,
 	}
 	if err := db.Create(&sku).Error; err != nil {
+		t.Fatal(err)
+	}
+	sh := shop.Shop{
+		Base:       model.Base{ID: sid},
+		Platform:   "shopee",
+		ShopName:   "Test Shop",
+		Status:     shop.StatusActive,
+		AuthStatus: shop.AuthAuthorized,
+	}
+	if err := db.Create(&sh).Error; err != nil {
 		t.Fatal(err)
 	}
 	return pid, sid

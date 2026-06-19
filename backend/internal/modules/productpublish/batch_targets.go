@@ -204,6 +204,9 @@ func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRe
 	if err != nil {
 		return nil, err
 	}
+	if err := s.validateBatchPublishConfig(ctx, productIDs, req.Targets, req.CommonConfig, req.Overrides); err != nil {
+		return nil, err
+	}
 
 	items := make([]BatchTargetCheckItem, 0, len(productIDs)*len(req.Targets))
 	var readyN, warnN, blockedN, localN int
@@ -287,6 +290,9 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	}
 	products, err := s.loadProductsForBatch(ctx, productIDs)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateBatchPublishConfig(ctx, productIDs, req.Targets, req.CommonConfig, req.Overrides); err != nil {
 		return nil, err
 	}
 

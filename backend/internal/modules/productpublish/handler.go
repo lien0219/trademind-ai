@@ -519,6 +519,15 @@ func (h *Handler) CheckBatchTargets(c *gin.Context) {
 	}
 	out, err := h.Svc.CheckBatchTargets(c.Request.Context(), body)
 	if err != nil {
+		if pe, ok := err.(*PublishConfigInvalidError); ok {
+			response.JSON(c, 400, response.CodePublishConfigInvalid, pe.Message, gin.H{
+				"code":             ErrorPublishConfigInvalid,
+				"title":            pe.Title,
+				"message":          pe.Message,
+				"technicalDetails": pe.TechnicalDetails,
+			})
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -548,6 +557,15 @@ func (h *Handler) CreateBatchTargetDrafts(c *gin.Context) {
 	}
 	out, err := h.Svc.CreateBatchTargetDrafts(c, body, adminUUID(c))
 	if err != nil {
+		if pe, ok := err.(*PublishConfigInvalidError); ok {
+			response.JSON(c, 400, response.CodePublishConfigInvalid, pe.Message, gin.H{
+				"code":             ErrorPublishConfigInvalid,
+				"title":            pe.Title,
+				"message":          pe.Message,
+				"technicalDetails": pe.TechnicalDetails,
+			})
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

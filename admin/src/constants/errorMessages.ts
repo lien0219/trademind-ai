@@ -149,6 +149,10 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
     detail: '请先在平台接入设置或商品刊登配置中补齐必填项。',
     action: '前往平台接入设置',
   },
+  PUBLISH_CONFIG_INVALID: {
+    title: '刊登配置不正确',
+    detail: '请检查统一配置与单独覆盖中的数值和策略选项。',
+  },
 };
 
 /** 根据错误码获取用户可见提示 */

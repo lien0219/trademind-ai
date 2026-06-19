@@ -123,6 +123,12 @@
 
 **幂等**：`create-drafts` 对相同 admin + 商品 + 目标 + 配置 hash 返回已有活跃批次；任务级 dedup 按 `product + platform + shop + config hash` 跳过已成功项。
 
+**配置校验（Phase A2.2）**：`batch-targets/check` 与 `create-drafts` 校验 `commonConfig` / `overrides`（数值非负、策略枚举、商品 / 平台 / 店铺越权与匹配）。失败时 HTTP 400，`code=40004`（`PUBLISH_CONFIG_INVALID`），`data` 含 `title`、`message`、`technicalDetails.field`。
+
+**`commonConfig` 结构**：嵌套 `price` / `image` / `inventory` / `package` + `remark`（详见 [`MULTI_PLATFORM_PUBLISHING_DESIGN.md`](MULTI_PLATFORM_PUBLISHING_DESIGN.md) §A2.2）。
+
+**`overrides` 结构**：`products`、`platforms`、`shops`、`productTargets` 四层局部覆盖；合并优先级见设计文档。
+
 **数据库**：显式 migration 见 [`docs/PUBLISH_BATCH_MIGRATION.md`](PUBLISH_BATCH_MIGRATION.md)。
 
 详见 [`docs/MULTI_PLATFORM_PUBLISHING_DESIGN.md`](MULTI_PLATFORM_PUBLISHING_DESIGN.md)。

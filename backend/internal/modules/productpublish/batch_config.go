@@ -45,13 +45,7 @@ func mergeEffectiveConfig(
 	pid := strings.TrimSpace(productID)
 
 	applyLayer := func(layer map[string]any, source string) {
-		if len(layer) == 0 {
-			return
-		}
-		for k, v := range layer {
-			out[k] = v
-			sources[k] = source
-		}
+		deepMergeConfigLayer(out, sources, layer, source, "")
 	}
 
 	if len(common) > 0 {
@@ -80,6 +74,38 @@ func mergeEffectiveConfig(
 	}
 
 	return EffectivePublishConfig{Config: out, ConfigSources: sources}
+}
+
+func deepMergeConfigLayer(
+	dst map[string]any,
+	sources map[string]string,
+	layer map[string]any,
+	source string,
+	prefix string,
+) {
+	if len(layer) == 0 {
+		return
+	}
+	for k, v := range layer {
+		path := k
+		if prefix != "" {
+			path = prefix + "." + k
+		}
+		if nested, ok := v.(map[string]any); ok {
+			existing, has := dst[k].(map[string]any)
+			if has && len(existing) > 0 {
+				deepMergeConfigLayer(existing, sources, nested, source, path)
+				dst[k] = existing
+			} else {
+				clone := make(map[string]any, len(nested))
+				deepMergeConfigLayer(clone, sources, nested, source, path)
+				dst[k] = clone
+			}
+			continue
+		}
+		dst[k] = v
+		sources[path] = source
+	}
 }
 
 func configHash(parts ...any) string {

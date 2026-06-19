@@ -115,9 +115,9 @@ MVP 统一字段：`priceRule`、`imageStrategy`、`stockStrategy`、`packageWei
 - 一个子任务失败导致整个批次回滚
 - 把 `local_draft_only` 伪装成真实平台发布成功
 
-## 下一阶段（不在 A2）
+## 下一阶段（不在 A2.2）
 
-- 统一配置 UI 完整表单（标题 / 描述策略等）
+- 标题 / 描述策略纳入统一配置（Phase A3 前可选）
 - 各跨境平台真实 `ProductPublishProvider` 草稿创建升级
 - 批次异步队列化（当前同步创建子任务，抖店异步 worker 照旧）
 
@@ -149,3 +149,85 @@ MVP 统一字段：`priceRule`、`imageStrategy`、`stockStrategy`、`packageWei
 - 集成测试：`backend/internal/modules/productpublish/batch_targets_integration_test.go`
 - 性能脚本：`scripts/publish-batch-perf.ps1` → [`PUBLISH_BATCH_PERF_REPORT.md`](PUBLISH_BATCH_PERF_REPORT.md)
 - UX 验收：[`PUBLISH_BATCH_UX_ACCEPTANCE.md`](PUBLISH_BATCH_UX_ACCEPTANCE.md)
+
+## Phase A2.2 统一配置与覆盖配置 UI（2026-06-19）
+
+### 现状审计（改造前）
+
+| 项 | 改造前 | 改造后 |
+| --- | --- | --- |
+| 第 3 步统一配置 | MVP 平铺字段（`priceRule` 文本等） | 结构化表单：价格 / 图片 / 库存 / 包裹 / 备注 |
+| 第 4 步单独覆盖 | `window.prompt` + 硬编码默认值 | Tab 表格 + Modal 编辑器，支持增删改复制 |
+| 生效配置预览 | 无 | 第 5 步「查看生效配置」 |
+| 配置校验 | 仅矩阵规模 | 前后端数值 / 策略 / 越权校验 |
+| 向导状态 | 切换步骤易丢 | `localStorage` 草稿（含 user + productIds hash） |
+
+### 统一配置字段（`commonConfig`）
+
+嵌套结构（兼容 A2 平铺 legacy 字段）：
+
+```json
+{
+  "price": { "strategy", "markupValue", "minProfitMargin", "decimalHandling" },
+  "image": { "mainImageStrategy", "detailImageStrategy", "preferProcessedImages", "skipFailedImages" },
+  "inventory": { "strategy", "safetyStock", "fixedQuantity", "outOfStockAction" },
+  "package": { "weight", "weightUnit", "length", "width", "height", "sizeUnit" },
+  "remark": "内部备注"
+}
+```
+
+### 覆盖层级（`overrides`）
+
+```text
+products[productId]
+platforms[platform]
+shops[shopId]
+productTargets[productId:platform:shopId]
+```
+
+### 配置优先级（运营可见）
+
+```text
+系统默认 → 平台默认 → 店铺默认 → 统一配置 → 商品覆盖 → 平台覆盖 → 店铺覆盖 → 商品目标覆盖
+```
+
+子任务 `input` 仍保存 `effectiveConfig` + `configSources`（叶子路径，如 `price.markupValue`）。`retry-failed` 从批次 `input` 重算配置，**不改变**已成功子任务快照。
+
+### 配置校验错误
+
+HTTP 400，`code=40004`，`data`：
+
+```json
+{
+  "code": "PUBLISH_CONFIG_INVALID",
+  "title": "刊登配置不正确",
+  "message": "统一库存必须是大于或等于 0 的整数。",
+  "technicalDetails": { "field": "commonConfig.inventory.fixedQuantity" }
+}
+```
+
+### 前端组件
+
+- `admin/src/pages/Product/PublishBatch/components/PublishConfigEditor.tsx`
+- `admin/src/pages/Product/PublishBatch/components/OverrideConfigTabs.tsx`
+- `admin/src/pages/Product/PublishBatch/components/EffectiveConfigPreviewModal.tsx`
+- `admin/src/constants/publishConfig.ts`
+- `admin/src/utils/publishConfigMerge.ts`
+
+### window.prompt 清理
+
+批量刊登向导内 **0 处** `window.prompt`（全项目 `admin` 扫描通过）。
+
+### 仍不做
+
+- 自动直接上架
+- 新增真实跨境平台 OpenAPI
+- 修改抖店 OpenAPI 字段
+- 批次异步队列化
+- Phase A3 批量 AI
+
+### 下一阶段
+
+- 标题 / 描述策略纳入统一配置
+- 各跨境平台真实 `ProductPublishProvider` 草稿创建升级
+- 批次异步队列化（可选）

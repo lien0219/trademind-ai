@@ -100,6 +100,19 @@
 - [x] 1366px 可用（见 [`docs/PUBLISH_BATCH_UX_ACCEPTANCE.md`](docs/PUBLISH_BATCH_UX_ACCEPTANCE.md)）
 - [ ] 在有 ≥100 draft 商品的环境运行 perf 脚本并填入报告表（可选生产基准）
 
+## Phase A2.2 批量刊登统一配置与覆盖 UI
+
+- [x] 第 3 步：统一刊登配置表单（价格 / 图片 / 库存 / 包裹 / 备注）
+- [x] 第 4 步：单独配置 Tab（商品 / 平台 / 店铺 / 商品目标）
+- [x] 覆盖配置编辑 / 删除 / 复制
+- [x] 第 5 步：查看生效配置 + 配置提醒
+- [x] 配置优先级说明（运营中文）
+- [x] 后端 `PUBLISH_CONFIG_INVALID` 校验
+- [x] 向导 localStorage 草稿持久化
+- [x] 已移除批量刊登 `window.prompt`
+- [x] `go test` / `pnpm build:admin` / 抖店回归通过
+- [ ] 标题 / 描述策略字段（后续阶段）
+
 ### AI 商品运营体验 Phase A1.1（2026-06-19）
 
 > Phase A1.1 验收已通过，详见 [`docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md`](docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md)。

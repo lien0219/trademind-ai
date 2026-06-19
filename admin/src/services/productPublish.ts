@@ -421,7 +421,17 @@ export async function checkBatchPublishTargets(body: {
   commonConfig?: Record<string, unknown>;
   overrides?: PublishConfigOverrides;
 }): Promise<BatchTargetsCheckResponse> {
-  return postJSON('/api/v1/product-publish/batch-targets/check', body);
+  const res = await request<ApiResponse<BatchTargetsCheckResponse>>(`/api/v1/product-publish/batch-targets/check`, {
+    method: 'POST',
+    data: body,
+  });
+  if (res.code !== 0) {
+    const err = new Error(res.message || 'check_failed') as Error & { businessCode?: number; data?: unknown };
+    err.businessCode = res.code;
+    err.data = res.data;
+    throw err;
+  }
+  return res.data as BatchTargetsCheckResponse;
 }
 
 export async function createBatchPublishDrafts(body: {
@@ -434,7 +444,17 @@ export async function createBatchPublishDrafts(body: {
   force?: boolean;
   name?: string;
 }): Promise<BatchTargetsCreateDraftsResponse> {
-  return postJSON('/api/v1/product-publish/batch-targets/create-drafts', body);
+  const res = await request<ApiResponse<BatchTargetsCreateDraftsResponse>>(
+    '/api/v1/product-publish/batch-targets/create-drafts',
+    { method: 'POST', data: body },
+  );
+  if (res.code !== 0) {
+    const err = new Error(res.message || 'create_failed') as Error & { businessCode?: number; data?: unknown };
+    err.businessCode = res.code;
+    err.data = res.data;
+    throw err;
+  }
+  return res.data as BatchTargetsCreateDraftsResponse;
 }
 
 export async function queryPublishBatches(params?: {
