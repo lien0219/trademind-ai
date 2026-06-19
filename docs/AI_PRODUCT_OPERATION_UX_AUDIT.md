@@ -1,8 +1,15 @@
 # AI 商品运营体验 Phase A1 审计
 
-> 日期：2026-06-17（Phase A3.1 更新：2026-06-19）
-> 阶段：AI 商品运营体验 Phase A1 / 商品草稿全链路体验收口  
-> 范围：采集商品 → 采集质量检查 → AI 标题 → AI 描述 → 图片处理 → 定价 → 发布检查 → 平台刊登草稿
+> 日期：2026-06-17（Phase A3.1.1 更新：2026-06-19）
+
+## Phase A3.1.1 记录（2026-06-19）
+
+- **失败任务中心**：`ai_product_text_items` 聚合为 `taskType=ai_text`；分类 `ai_text_generation_failed` / `ai_text_apply_conflict` / `ai_text_quality_warning` 等；深链复核页 `?itemId=`。
+- **旧入口**：`/ai/batches` 隐藏菜单 + 旧版提示；主入口 `/ai/text-batches`。
+- **冲突文案**：应用冲突统一中文，不直出 `expectedUpdatedAt` / hash。
+- **真实 AI 试跑**：DB 已配 Provider；HTTP 试跑待重启后端（`blocked_by_server_restart`）。
+- **验收**：[`BATCH_AI_TEXT_UX_ACCEPTANCE.md`](BATCH_AI_TEXT_UX_ACCEPTANCE.md)
+- **未做**：A3.2 批量图片、自动上架。
 
 ## Phase A3.1 记录（2026-06-19）
 
@@ -10,7 +17,6 @@
 - **复用**：`OptimizeTitleWithBatch` / `GenerateDescriptionWithBatch`（`SaveAIField=false`）、`ApplyAITitle` / `ApplyAIDescription`（冲突保护）、`product_ai_content_applications`、撤销链路。
 - **不复用**：旧 `aioperationbatch.ApplyBatchResults` 直写字段（A3.1 应用走复核 + `applyAIContent`）。
 - **前端**：商品列表「批量 AI 优化」四步向导；复核台 `/product/ai-text-batches/:id`；AI 工具「批量文案任务」列表。
-- **未做**：批量图片、自动上架、平台独立标题策略、taskcenter 聚合 ai_product_text（失败可跳转复核页）。
 - **设计文档**：[`BATCH_AI_TEXT_OPERATION_DESIGN.md`](BATCH_AI_TEXT_OPERATION_DESIGN.md)
 
 ## Phase A2 记录（2026-06-19）

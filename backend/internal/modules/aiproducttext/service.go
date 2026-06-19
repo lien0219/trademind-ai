@@ -951,7 +951,7 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 			_ = s.DB.WithContext(c.Request.Context()).Model(item).Update("status", ItemConflict).Error
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
-			result.ErrorMessage = "商品内容已变化，无法覆盖"
+			result.ErrorMessage = ConflictUserMessage
 			return result
 		}
 		result.Status = "failed"

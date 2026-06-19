@@ -75,3 +75,24 @@ Phase A3.1 **不改造** A2.2 `commonConfig` / `overrides`。应用后的 `ai_ti
 - 商品草稿列表 → **批量 AI 优化** → `/product/ai-text-batch`
 - AI 工具 → **批量文案任务** → `/ai/text-batches`
 - 复核工作台 → `/product/ai-text-batches/:id`
+
+## Phase A3.1.1 补充（2026-06-19）
+
+### 失败任务中心
+
+- `taskType=ai_text`，`sourceTable=ai_product_text_items`
+- 聚合状态：`failed`、`conflict`；可选 `pending_review`/`success` 且 `quality_warnings` 非空 → `ai_text_quality_warning`
+- 去重：`task_type + source_id + failure_category`
+- 深链：`/product/ai-text-batches/:batchId?itemId=:itemId`
+- 恢复：应用成功 / 放弃 / 重生成成功后不再出现在未处理失败列表
+- 重试：`POST /api/v1/products/ai-text/items/:id/regenerate`（仅 `failed` 可重试）
+
+### 旧入口
+
+- `/ai/batches`：菜单隐藏，页面保留 + 旧版提示，链到 `/ai/text-batches`
+- 禁止删除旧页（历史 `ai_operation_batches` 可查）
+
+### 真实 Provider 试跑
+
+- 见 [`BATCH_AI_TEXT_UX_ACCEPTANCE.md`](BATCH_AI_TEXT_UX_ACCEPTANCE.md)
+- 本轮：`blocked_by_server_restart`（需重启后端）；非 `blocked_by_ai_provider`

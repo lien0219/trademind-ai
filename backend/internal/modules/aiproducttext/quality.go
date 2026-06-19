@@ -70,6 +70,9 @@ func checkDescriptionQuality(desc, productTitle string, forbidden []string) []Qu
 	if !strings.Contains(d, "•") && !strings.Contains(d, "-") && !strings.Contains(d, "：") && n < 120 {
 		out = append(out, QualityWarning{Code: "desc_no_bullets", Message: "描述缺少卖点列表，建议补充核心卖点。"})
 	}
+	if n >= 80 && !strings.Contains(d, "\n") && !strings.Contains(d, "<") && !strings.Contains(d, "•") {
+		out = append(out, QualityWarning{Code: "desc_unclear_structure", Message: "描述结构不够清晰，建议分段或使用列表呈现卖点。"})
+	}
 	if !strings.Contains(strings.ToLower(d), "规格") && !strings.Contains(strings.ToLower(d), "参数") && n < 200 {
 		out = append(out, QualityWarning{Code: "desc_no_specs", Message: "描述缺少规格信息，建议保留原参数。"})
 	}

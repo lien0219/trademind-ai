@@ -18,7 +18,7 @@ import {
   type AIProductTextItemRow,
 } from '@/services/aiProductText';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, history, useParams } from '@umijs/max';
+import { Link, history, useParams, useSearchParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -37,6 +37,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function AITextBatchDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const focusItemId = (searchParams.get('itemId') || '').trim();
   const [detail, setDetail] = useState<AIProductTextBatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -49,15 +51,15 @@ export default function AITextBatchDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const sf = statusFilter === 'all' ? undefined : statusFilter;
-      const res = await fetchAiProductTextBatchDetail(id, sf);
+      const useFilter = focusItemId ? undefined : statusFilter === 'all' ? undefined : statusFilter;
+      const res = await fetchAiProductTextBatchDetail(id, useFilter);
       setDetail(res);
     } catch (e: unknown) {
       message.error((e as Error)?.message || '加载失败');
     } finally {
       setLoading(false);
     }
-  }, [id, statusFilter]);
+  }, [id, statusFilter, focusItemId]);
 
   useEffect(() => {
     void reload();
@@ -66,6 +68,17 @@ export default function AITextBatchDetailPage() {
     }, 5000);
     return () => clearInterval(timer);
   }, [reload, detail?.status]);
+
+  useEffect(() => {
+    if (!focusItemId || !detail?.items?.length) return;
+    const target = detail.items.find((it) => it.id === focusItemId);
+    if (!target) return;
+    setReviewItem(target);
+    setReviewOpen(true);
+    if (target.status === 'failed' || target.status === 'conflict') {
+      setStatusFilter('all');
+    }
+  }, [focusItemId, detail?.items]);
 
   const reviewableIds = useMemo(
     () =>
@@ -199,6 +212,9 @@ export default function AITextBatchDetailPage() {
             size="small"
             scroll={{ x: 1100 }}
             dataSource={detail.items}
+            onRow={(row) => ({
+              style: row.id === focusItemId ? { background: '#fffbe6' } : undefined,
+            })}
             rowSelection={{
               selectedRowKeys: selectedKeys,
               onChange: (keys) => setSelectedKeys(keys as string[]),

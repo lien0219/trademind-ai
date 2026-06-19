@@ -44,6 +44,11 @@ func batchStatusLabel(status string) string {
 	}
 }
 
+// OperationTypeLabel returns user-facing label for title/description ops.
+func OperationTypeLabel(op string) string {
+	return operationTypeLabel(op)
+}
+
 func operationTypeLabel(op string) string {
 	switch strings.TrimSpace(op) {
 	case OpTitle:

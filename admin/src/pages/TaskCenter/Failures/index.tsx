@@ -90,7 +90,7 @@ function alertStatusUi(st?: string) {
 
 function relatedHref(row: UnifiedTaskDTO): string | undefined {
   const detail = (row.detailUrl || '').trim();
-  if (detail.includes('/product/publish-batches/')) {
+  if (detail.includes('/product/publish-batches/') || detail.includes('/product/ai-text-batches/')) {
     return detail;
   }
   const t = row.relatedResourceType || '';
@@ -104,6 +104,9 @@ function detailLinkLabel(detailUrl?: string | null): string {
   const url = (detailUrl || '').trim();
   if (url.includes('/product/publish-batches/')) {
     return '批次详情';
+  }
+  if (url.includes('/product/ai-text-batches/')) {
+    return '复核工作台';
   }
   return '打开任务详情';
 }

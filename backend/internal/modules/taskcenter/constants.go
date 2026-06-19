@@ -8,6 +8,7 @@ const (
 	TaskTypeCustomerMessageSync = "customer_message_sync"
 	TaskTypeProductPublish      = "product_publish"
 	TaskTypeInventorySync       = "inventory_sync"
+	TaskTypeAIText              = "ai_text"
 )
 
 // NormalizedStatus is a coarse status for operations views.
@@ -34,6 +35,16 @@ const (
 	SourceTableCustomerMessageSyncTasks = "customer_message_sync_tasks"
 	SourceTableProductPublishTasks      = "product_publish_tasks"
 	SourceTableInventorySyncTasks       = "inventory_sync_tasks"
+	SourceTableAIProductTextItems       = "ai_product_text_items"
+)
+
+// AI product text failure categories (taskcenter dedup: task_type + source_id + failure_category).
+const (
+	CategoryAITextGenerationFailed = "ai_text_generation_failed"
+	CategoryAITextApplyConflict    = "ai_text_apply_conflict"
+	CategoryAITextApplyFailed      = "ai_text_apply_failed"
+	CategoryAITextUndoFailed       = "ai_text_undo_failed"
+	CategoryAITextQualityWarning   = "ai_text_quality_warning"
 )
 
 const (

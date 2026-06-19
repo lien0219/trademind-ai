@@ -102,7 +102,8 @@ export default [
       },
       {
         path: '/ai/batches',
-        name: 'AI 批次',
+        name: 'AI 批次（旧版）',
+        hideInMenu: true,
         component: './AI/Batches',
       },
       {

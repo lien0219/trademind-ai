@@ -24,6 +24,9 @@ const (
 	ItemConflict      = "conflict"
 	ItemCancelled     = "cancelled"
 
+	// ConflictUserMessage is shown when apply detects product content changed after AI generation.
+	ConflictUserMessage = "商品内容在 AI 建议生成后已经被修改。为避免覆盖人工修改，请重新对比后再应用。"
+
 	BatchPending        = "pending"
 	BatchRunning        = "running"
 	BatchSuccess        = "success"

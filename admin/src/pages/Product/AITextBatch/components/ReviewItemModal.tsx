@@ -113,7 +113,13 @@ export default function ReviewItemModal({
       ) : null}
 
       {item.status === 'conflict' && (
-        <Alert type="error" showIcon style={{ marginTop: 12 }} message="商品内容已变化，请重新生成或放弃该建议。" />
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginTop: 12 }}
+          message="商品内容在 AI 建议生成后已经被修改"
+          description="为避免覆盖人工修改，请重新对比后再应用，或重新生成、放弃该建议。"
+        />
       )}
 
       <Space style={{ marginTop: 12 }}>

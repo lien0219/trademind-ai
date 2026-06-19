@@ -11,7 +11,9 @@ import {
   Tag,
   Typography,
   message,
+  Alert,
 } from 'antd';
+import { history } from '@umijs/max';
 import { useRef, useState } from 'react';
 import { Link } from '@umijs/renderer-react';
 import { AI_FIELD_COPY, commonStatusLabel } from '@/constants/copywriting';
@@ -159,9 +161,21 @@ export default function AiBatchesPage() {
 
   return (
     <TmPageContainer
-      title="AI 批次"
+      title="AI 批次（旧版）"
       subTitle="查看批量 AI 标题优化、描述生成等任务的执行进度与结果。"
     >
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="这是旧版批量 AI 任务入口"
+        description="商品标题和描述批量优化请使用新版「批量文案任务」，支持人工复核、冲突保护与批量撤销。"
+        action={
+          <Button type="primary" size="small" onClick={() => history.push('/ai/text-batches')}>
+            前往新版批量文案任务
+          </Button>
+        }
+      />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         批量结果默认写入商品的 {AI_FIELD_COPY.aiTitle} / {AI_FIELD_COPY.aiDescription} 字段，或进入图片任务列表，不会自动覆盖正式标题、详情或替换主图。详情见{' '}
         <Link to="/settings/ai">AI 设置</Link>。
@@ -284,9 +298,9 @@ export default function AiBatchesPage() {
           search={false}
           options={false}
           pagination={{ pageSize: 20 }}
-          request={async (p) => {
+          request={async (p, _sort, _filter) => {
             if (!currentId)
-              return { data: [], success: true, total: 0 };
+              return { data: [] as Record<string, unknown>[], success: true, total: 0 };
             const res = await fetchAiBatchTasks(currentId, {
               page: p.current,
               pageSize: p.pageSize,
@@ -294,7 +308,7 @@ export default function AiBatchesPage() {
             const d = res;
             setTasksKind(d?.kind ?? '');
             return {
-              data: (d?.list ?? []) as object[],
+              data: (d?.list ?? []) as Record<string, unknown>[],
               success: true,
               total: d?.pagination?.total ?? 0,
             };

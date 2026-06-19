@@ -295,7 +295,7 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 	}
 	types := []string{
 		TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync, TaskTypeCustomerMessageSync,
-		TaskTypeProductPublish, TaskTypeInventorySync,
+		TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText,
 	}
 	perTypeLimit := 400
 	gen := 0

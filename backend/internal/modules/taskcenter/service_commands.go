@@ -2,6 +2,7 @@ package taskcenter
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
@@ -88,6 +90,13 @@ func (s *Service) unifiedOne(ctx context.Context, taskType string, id uuid.UUID,
 		names := s.batchShopNames(ctx, []uuid.UUID{row.ShopID})
 		titles := s.batchProductTitles(ctx, []uuid.UUID{row.ProductID})
 		return mapInventorySyncTask(&row, names, titles, ms, now), nil
+	case TaskTypeAIText:
+		var row aiproducttext.AIProductTextItem
+		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+			return zero, err
+		}
+		titles := s.batchProductTitles(ctx, []uuid.UUID{row.ProductID})
+		return mapAIProductTextItem(&row, titles, ms, now), nil
 	default:
 		return zero, fmt.Errorf("unknown task type")
 	}
@@ -199,6 +208,20 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 				out.Extra["productSkuId"] = row.ProductSKUID.String()
 			}
 		}
+	case TaskTypeAIText:
+		var row aiproducttext.AIProductTextItem
+		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err == nil {
+			out.Extra["batchId"] = row.BatchID.String()
+			out.Extra["productId"] = row.ProductID.String()
+			out.Extra["operationType"] = row.OperationType
+			out.Extra["operationLabel"] = aiproducttext.OperationTypeLabel(row.OperationType)
+			if hasQualityWarnings(row.QualityWarnings) {
+				var warnings []map[string]string
+				_ = json.Unmarshal(row.QualityWarnings, &warnings)
+				out.Extra["qualityWarningCount"] = len(warnings)
+			}
+			out.Extra["reviewUrl"] = aiTextDetailURL(row.BatchID.String(), row.ID.String())
+		}
 	}
 	return out, nil
 }
@@ -295,6 +318,14 @@ func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID)
 			return fmt.Errorf("inventory sync unavailable")
 		}
 		_, execErr = s.Inventory.RetryFailed(c, id, admin)
+	case TaskTypeAIText:
+		if s.AIProductText == nil {
+			return fmt.Errorf("ai product text unavailable")
+		}
+		if !base.Retryable {
+			return fmt.Errorf("该子项当前不可重试，请在复核页处理冲突或质量提醒")
+		}
+		_, execErr = s.AIProductText.RegenerateItem(c, id, admin)
 	default:
 		return fmt.Errorf("unsupported task type for retry")
 	}
