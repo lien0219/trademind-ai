@@ -17,9 +17,10 @@ export const PUBLISH_TARGET_STATUS_LABEL: Record<string, string> = {
 export const PUBLISH_BATCH_STATUS_LABEL: Record<string, string> = {
   pending: '等待处理',
   running: '处理中',
-  success: '成功',
+  success: '全部成功',
   partial_success: '部分成功',
   failed: '失败',
+  cancelled: '已取消',
 };
 
 export function publishCapabilityLabel(cap?: string | null): string {
@@ -46,4 +47,5 @@ export const COMMON_PUBLISH_CONFIG_LABEL: Record<string, string> = {
   packageWeight: '统一包裹重量',
   packageSize: '统一包裹尺寸',
   stockStrategy: '统一库存策略',
+  remark: '备注',
 };

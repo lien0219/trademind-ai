@@ -500,6 +500,9 @@ func shopIDString(sid *uuid.UUID) string {
 }
 
 func (s *Service) loadProductForPublish(ctx context.Context, productID uuid.UUID) (*product.Product, error) {
+	if productID == uuid.Nil {
+		return &product.Product{}, nil
+	}
 	var prod product.Product
 	if err := s.DB.WithContext(ctx).First(&prod, "id = ?", productID).Error; err != nil {
 		return nil, err
@@ -541,10 +544,13 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 	}
 
 	inRaw, _ := json.Marshal(req)
+	pid := productID
 	batch := ProductPublishBatch{
-		ProductID:   productID,
+		BatchType:   BatchTypeSingleProduct,
+		ProductID:   &pid,
 		Status:      BatchRunning,
 		TargetCount: len(targets),
+		TaskCount:   len(targets),
 		Input:       datatypes.JSON(inRaw),
 		CreatedBy:   adminID,
 	}

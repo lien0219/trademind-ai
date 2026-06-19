@@ -321,3 +321,140 @@ export async function listDouyinPublishTasks(
 }> {
   return getWithParams(`/api/v1/products/${encodeURIComponent(productId)}/platform-configs/douyin_shop/publish-tasks`, params ?? {});
 }
+
+export type PublishConfigOverrides = {
+  products?: Record<string, Record<string, unknown>>;
+  platforms?: Record<string, Record<string, unknown>>;
+  shops?: Record<string, Record<string, unknown>>;
+  productTargets?: Record<string, Record<string, unknown>>;
+};
+
+export type BatchTargetCheckItem = {
+  productId: string;
+  productTitle: string;
+  targetKey: string;
+  platform: string;
+  platformLabel: string;
+  shopId?: string;
+  shopName?: string;
+  capability: string;
+  status: string;
+  statusLabel: string;
+  canCreateDraft: boolean;
+  issues: PublishTargetIssue[];
+};
+
+export type BatchTargetsCheckResponse = {
+  summary: {
+    productCount: number;
+    targetCount: number;
+    taskCount: number;
+    readyCount: number;
+    warningCount: number;
+    blockedCount: number;
+    localDraftOnlyCount: number;
+  };
+  items: BatchTargetCheckItem[];
+};
+
+export type BatchTargetTaskResult = {
+  productId: string;
+  productTitle: string;
+  targetKey: string;
+  platform: string;
+  platformLabel: string;
+  shopId?: string;
+  shopName?: string;
+  taskId?: string;
+  publicationId?: string;
+  status: string;
+  statusLabel: string;
+  capability: string;
+  localDraftOnly?: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  platformProductId?: string;
+};
+
+export type BatchTargetsCreateDraftsResponse = {
+  batchId: string;
+  status: string;
+  statusLabel: string;
+  productCount: number;
+  targetCount: number;
+  taskCount: number;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  items: BatchTargetTaskResult[];
+};
+
+export type PublishBatchListItem = {
+  id: string;
+  batchType: string;
+  name?: string;
+  status: string;
+  statusLabel: string;
+  productCount: number;
+  targetCount: number;
+  taskCount: number;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  createdBy?: string;
+  createdAt: string;
+  finishedAt?: string;
+};
+
+export type PublishBatchDetail = PublishBatchListItem & {
+  items: BatchTargetTaskResult[];
+  input?: Record<string, unknown>;
+};
+
+export async function fetchGlobalPublishTargets(): Promise<PublishTargetsResponse> {
+  return getJSON('/api/v1/product-publish/targets');
+}
+
+export async function checkBatchPublishTargets(body: {
+  productIds: string[];
+  targets: PublishTargetRef[];
+  commonConfig?: Record<string, unknown>;
+  overrides?: PublishConfigOverrides;
+}): Promise<BatchTargetsCheckResponse> {
+  return postJSON('/api/v1/product-publish/batch-targets/check', body);
+}
+
+export async function createBatchPublishDrafts(body: {
+  productIds: string[];
+  targets: PublishTargetRef[];
+  commonConfig?: Record<string, unknown>;
+  overrides?: PublishConfigOverrides;
+  onlyReady?: boolean;
+  includeWarnings?: boolean;
+  force?: boolean;
+  name?: string;
+}): Promise<BatchTargetsCreateDraftsResponse> {
+  return postJSON('/api/v1/product-publish/batch-targets/create-drafts', body);
+}
+
+export async function queryPublishBatches(params?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<{
+  list: PublishBatchListItem[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}> {
+  return getWithParams('/api/v1/product-publish/batches', params ?? {});
+}
+
+export async function getPublishBatch(id: string): Promise<PublishBatchDetail> {
+  return getJSON(`/api/v1/product-publish/batches/${encodeURIComponent(id)}`);
+}
+
+export async function retryFailedPublishBatch(id: string): Promise<BatchTargetsCreateDraftsResponse> {
+  return postJSON(`/api/v1/product-publish/batches/${encodeURIComponent(id)}/retry-failed`, {});
+}
+
+export async function cancelPendingPublishBatch(id: string): Promise<PublishBatchDetail> {
+  return postJSON(`/api/v1/product-publish/batches/${encodeURIComponent(id)}/cancel-pending`, {});
+}

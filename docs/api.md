@@ -111,6 +111,13 @@
 | `GET` | `/api/v1/products/:id/publish-targets` | 可刊登平台、店铺与能力分级（`real_draft_create` / `local_draft_only` / …） |
 | `POST` | `/api/v1/products/:id/publish-targets/check` | 多目标独立预检查；body 含 `targets[]`、`commonConfig`、`targetConfigs` |
 | `POST` | `/api/v1/products/:id/publish-targets/create-drafts` | 批量创建刊登草稿；形成 `product_publish_batches` + 子任务；支持 `onlyReady`、`retryFailedOnly` + `batchId` |
+| `GET` | `/api/v1/product-publish/targets` | 全局可刊登平台与店铺（批量向导） |
+| `POST` | `/api/v1/product-publish/batch-targets/check` | 多商品 × 多目标矩阵预检查；body 含 `productIds[]`、`targets[]`、`commonConfig`、`overrides` |
+| `POST` | `/api/v1/product-publish/batch-targets/create-drafts` | 多商品批量创建刊登草稿；`onlyReady`、`includeWarnings` |
+| `GET` | `/api/v1/product-publish/batches` | 多商品刊登批次列表 |
+| `GET` | `/api/v1/product-publish/batches/:id` | 批次详情与子任务 |
+| `POST` | `/api/v1/product-publish/batches/:id/retry-failed` | 只重试失败子任务 |
+| `POST` | `/api/v1/product-publish/batches/:id/cancel-pending` | 只取消 pending 子任务 |
 
 详见 [`docs/MULTI_PLATFORM_PUBLISHING_DESIGN.md`](MULTI_PLATFORM_PUBLISHING_DESIGN.md)。
 

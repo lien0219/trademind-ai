@@ -4,6 +4,11 @@
 > 阶段：AI 商品运营体验 Phase A1 / 商品草稿全链路体验收口  
 > 范围：采集商品 → 采集质量检查 → AI 标题 → AI 描述 → 图片处理 → 定价 → 发布检查 → 平台刊登草稿
 
+## Phase A2 记录（2026-06-19）
+
+- **多商品批量创建刊登草稿**：商品草稿列表多选 → `/product/publish-batch` 五步向导；`POST /api/v1/product-publish/batch-targets/check|create-drafts`；批次 `batch_type=multi_product`；子任务矩阵；`partial_success`、只重试失败项、取消 pending。
+- **未做**：自动直接上架、新增真实平台 OpenAPI、统一配置完整表单（标题/描述策略）。
+
 ## Phase A1.2 记录（2026-06-19）
 
 - **目标**：运营可见文案中文化 + 商品详情「刊登」Tab 改造为多平台刊登中心。
@@ -12,7 +17,7 @@
   - 前端常量：`errorMessages.ts`、`productOperationLabels.ts`、`publishLabels.ts`、`platformLabels.ts`；`copywriting.commonStatusLabel` 扩展 `ready` / `warning` / `draft_created` 等。
   - 新增 `MultiPlatformPublishCenter` 组件：平台 / 店铺多选、多目标检查、批量创建刊登草稿、重试失败目标。
   - API：`publish-targets`、`publish-targets/check`、`publish-targets/create-drafts`；批次表 `product_publish_batches`。
-- **未做（留下一阶段）**：多商品批量刊登、统一配置完整表单、跨境平台真实 API 草稿创建升级。
+- **未做（留下一阶段）**：~~多商品批量刊登~~（A2 已完成）、统一配置完整表单、跨境平台真实 API 草稿创建升级。
 - **抖店**：现有图片同步 / 类目属性 / create-draft / SKU 校准 / 库存同步链路未改 OpenAPI 字段。
 
 ## Phase A1.1 补强记录（2026-06-19）

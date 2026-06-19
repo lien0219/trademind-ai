@@ -1,17 +1,20 @@
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Button, Drawer, Popconfirm, Space, Tabs, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
-import { useLocation } from '@umijs/max';
+import { Link, useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { publishBatchStatusLabel } from '@/constants/publishLabels';
 import { platformLabel } from '@/constants/userFriendly';
 import {
   getProductPublishTask,
   queryProductPublishTasks,
+  queryPublishBatches,
   retryProductPublishTask,
   type ProductPublishTaskDTO,
+  type PublishBatchListItem,
 } from '@/services/productPublish';
 
 function tagFromStatus(raw: string) {
@@ -31,6 +34,15 @@ export default function ProductPublishTasksPage() {
       return undefined;
     }
   }, [location.search]);
+  const tabFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('tab')?.trim() || 'tasks';
+    } catch {
+      return 'tasks';
+    }
+  }, [location.search]);
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
+  const batchActionRef = useRef<ActionType>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductPublishTaskDTO | null>(null);
 
@@ -160,29 +172,106 @@ export default function ProductPublishTasksPage() {
     [],
   );
 
+  useEffect(() => {
+    setActiveTab(tabFromUrl);
+  }, [tabFromUrl]);
+
+  const batchColumns: ProColumns<PublishBatchListItem>[] = useMemo(
+    () => [
+      {
+        title: '创建时间',
+        dataIndex: 'createdAt',
+        width: 168,
+        search: false,
+        render: (_, r) => formatDateTime(r.createdAt),
+      },
+      {
+        title: '批次名称',
+        dataIndex: 'name',
+        ellipsis: true,
+        search: false,
+        render: (_, r) => r.name || `批次 ${r.id.slice(0, 8)}`,
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        width: 110,
+        search: false,
+        render: (_, r) => (
+          <Tag>{r.statusLabel || publishBatchStatusLabel(r.status)}</Tag>
+        ),
+      },
+      { title: '商品数', dataIndex: 'productCount', width: 80, search: false },
+      { title: '目标数', dataIndex: 'targetCount', width: 80, search: false },
+      { title: '任务数', dataIndex: 'taskCount', width: 80, search: false },
+      { title: '成功', dataIndex: 'successCount', width: 72, search: false },
+      { title: '失败', dataIndex: 'failedCount', width: 72, search: false },
+      {
+        title: '操作',
+        valueType: 'option',
+        width: 100,
+        render: (_, r) => <Link to={`/product/publish-batches/${r.id}`}>查看</Link>,
+      },
+    ],
+    [],
+  );
+
   return (
-    <TmPageContainer title="商品刊登任务" subTitle="查看商品刊登到各平台的任务进度与结果。">
-      <ProTable<ProductPublishTaskDTO>
-        rowKey="id"
-        actionRef={actionRef}
-        formRef={formRef}
-        columns={columns}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ pageSize: 20, showSizeChanger: true }}
-        headerTitle="刊登记录"
-        request={async (params) => {
-          const res = await queryProductPublishTasks({
-            page: params.current,
-            pageSize: params.pageSize,
-            shopId: params.shopId as string | undefined,
-            productId: params.productId as string | undefined,
-            platform: params.platform as string | undefined,
-            status: params.status as string | undefined,
-            start: typeof params.start === 'string' ? params.start : undefined,
-            end: typeof params.end === 'string' ? params.end : undefined,
-          });
-          return { data: res.list, total: res.pagination.total, success: true };
-        }}
+    <TmPageContainer title="商品刊登任务" subTitle="查看刊登子任务与批量刊登批次进度。">
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'tasks',
+            label: '子任务',
+            children: (
+              <ProTable<ProductPublishTaskDTO>
+                rowKey="id"
+                actionRef={actionRef}
+                formRef={formRef}
+                columns={columns}
+                search={{ labelWidth: 'auto', defaultCollapsed: false }}
+                pagination={{ pageSize: 20, showSizeChanger: true }}
+                headerTitle="刊登记录"
+                request={async (params) => {
+                  const res = await queryProductPublishTasks({
+                    page: params.current,
+                    pageSize: params.pageSize,
+                    shopId: params.shopId as string | undefined,
+                    productId: params.productId as string | undefined,
+                    platform: params.platform as string | undefined,
+                    status: params.status as string | undefined,
+                    start: typeof params.start === 'string' ? params.start : undefined,
+                    end: typeof params.end === 'string' ? params.end : undefined,
+                  });
+                  return { data: res.list, total: res.pagination.total, success: true };
+                }}
+              />
+            ),
+          },
+          {
+            key: 'batches',
+            label: '刊登批次',
+            children: (
+              <ProTable<PublishBatchListItem>
+                rowKey="id"
+                actionRef={batchActionRef}
+                columns={batchColumns}
+                search={false}
+                pagination={{ pageSize: 20, showSizeChanger: true }}
+                headerTitle="批量刊登批次"
+                request={async (params) => {
+                  const res = await queryPublishBatches({
+                    page: params.current,
+                    pageSize: params.pageSize,
+                  });
+                  return { data: res.list, total: res.pagination.total, success: true };
+                }}
+              />
+            ),
+          },
+        ]}
       />
 
       <Drawer

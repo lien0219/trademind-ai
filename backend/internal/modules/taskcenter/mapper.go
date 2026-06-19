@@ -281,6 +281,10 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 	if title == "" {
 		title = "商品刊登"
 	}
+	detailPath := detailURL(TaskTypeProductPublish, row.ID.String())
+	if row.BatchID != nil && *row.BatchID != uuid.Nil {
+		detailPath = "/product/publish-batches/" + row.BatchID.String()
+	}
 	dto := UnifiedTaskDTO{
 		ID:                   row.ID.String(),
 		TaskType:             TaskTypeProductPublish,
@@ -302,7 +306,7 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 		UpdatedAt:            row.UpdatedAt,
 		StartedAt:            row.StartedAt,
 		FinishedAt:           row.FinishedAt,
-		DetailURL:            detailURL(TaskTypeProductPublish, row.ID.String()),
+		DetailURL:            detailPath,
 		RetryAction:          retryActionFor(TaskTypeProductPublish),
 		RawSummary:           truncateRunes("mode="+row.Mode, maxRawSummaryLen),
 		SortKey:              row.UpdatedAt,

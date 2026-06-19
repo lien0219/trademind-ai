@@ -1,6 +1,6 @@
-# 多平台刊登设计（Phase A1.2）
+# 多平台刊登设计（Phase A2）
 
-> 单商品多平台 / 多店铺刊登中心；批量多商品发布留待下一阶段。
+> 单商品多平台 / 多店铺刊登中心（A1.2）+ **多商品批量创建刊登草稿**（A2）。
 
 ## 平台能力分级
 
@@ -14,43 +14,109 @@
 
 能力来源：`GET /api/v1/platform/providers` 注册表 + 店铺表 + 平台开放配置完整性；**不在页面写死平台列表**。
 
-## 单商品多目标刊登
+## 单商品多目标刊登（A1.2）
 
 1. **刊登目标**：按平台展示已授权店铺，支持多选。
 2. **统一配置**：标题 / 描述 / 价格 / 图片 / 包裹 / 库存策略（接口预留 `commonConfig`）。
 3. **单独配置**：各平台 Tab 内覆盖（抖店类目属性、图片同步等）；**单独配置优先生效**。
 
-## API
+### 单商品 API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/v1/products/:id/publish-targets` | 可刊登平台与店铺及能力分级 |
 | POST | `/api/v1/products/:id/publish-targets/check` | 多目标独立预检查（不写库、不调平台写接口） |
-| POST | `/api/v1/products/:id/publish-targets/create-drafts` | 批量创建刊登草稿；每目标一子任务，汇总为 `product_publish_batches` |
+| POST | `/api/v1/products/:id/publish-targets/create-drafts` | 批量创建刊登草稿；每目标一子任务，汇总为 `product_publish_batches`（`batch_type=single_product`） |
+
+## 多商品批量刊登（Phase A2）
+
+### 场景
+
+```text
+多个商品 → 单平台单店铺
+多个商品 → 单平台多店铺
+多个商品 → 多平台多店铺
+```
+
+### 运营入口
+
+- 商品草稿列表：多选 → **批量创建刊登草稿**
+- 向导页：`/product/publish-batch?productIds=...`（5 步）
+- 批次列表：商品 → 刊登任务 → **刊登批次** Tab
+- 批次详情：`/product/publish-batches/:id`
+
+### 批量 API
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/v1/product-publish/targets` | 全局平台 / 店铺能力（向导第 2 步） |
+| POST | `/api/v1/product-publish/batch-targets/check` | 多商品 × 多目标矩阵预检查 |
+| POST | `/api/v1/product-publish/batch-targets/create-drafts` | 创建多商品批次与子任务 |
+| GET | `/api/v1/product-publish/batches` | 批次列表 |
+| GET | `/api/v1/product-publish/batches/:id` | 批次详情 + 子任务 |
+| POST | `/api/v1/product-publish/batches/:id/retry-failed` | 只重试失败子任务 |
+| POST | `/api/v1/product-publish/batches/:id/cancel-pending` | 只取消 pending 子任务 |
 
 ### 检查响应摘要
 
 - `ready` → 可以创建草稿
-- `warning` → 需要检查（可继续，需人工确认）
+- `warning` → 建议检查（可继续，需人工确认）
 - `blocked` → 暂不能创建草稿
 
-每个目标的 `issues[]` 含 `title` / `message` / `severity`；内部码在 `technicalDetails.rawCode`，默认不在主文案展示。
+每个 **商品 × 目标** 的 `issues[]` 含中文化 `title` / `message`；内部码在 `technicalDetails.rawCode`。
 
-### 创建草稿
+创建参数：
 
-- 抖店目标：复用 `POST .../douyin_shop/create-draft` 同款链路（`product.addV2` 保存平台草稿）。
-- `local_draft_only`：同步写入本地 publication + `TaskTypeLocalDraftCreate` 成功任务。
-- 部分失败 → 批次 `partial_success`；成功项不回滚。
-- `retryFailedOnly` + `batchId` 仅重试失败子任务。
+- `onlyReady=true`：只创建 ready 项
+- `includeWarnings=false`：跳过 warning 项
+- `blocked` 项默认跳过，不可强行提交
+
+### 批次与子任务模型
+
+- `product_publish_batches`：`batch_type=multi_product` 时 `product_id` 可为空；保存 `product_count`、`target_count`、`task_count`、配置快照 `input`
+- `product_publish_tasks.batch_id` + `target_key`：每个商品 × 每个目标一条子任务
+- 子任务 `input` 保存 `effectiveConfig` + `configSources` 快照
+
+批次状态：`pending` / `running` / `partial_success` / `success` / `failed` / `cancelled`
+
+### 配置优先级
+
+```text
+系统默认 → 平台默认 → 店铺默认 → 批量统一配置 → 商品覆盖 → 平台覆盖 → 店铺覆盖 → 商品+平台+店铺覆盖
+```
+
+MVP 统一字段：`priceRule`、`imageStrategy`、`stockStrategy`、`packageWeight`、`packageSize`、`remark`
+
+### 幂等
+
+- 批次：`publish-batch:{userId}:{productIdsHash}:{targetsHash}:{configHash}`
+- 子任务：同一商品 + 店铺 + 平台已有成功抖店 / 本地草稿时不重复创建
+
+### 操作日志
+
+- `product.publish.batch.check`
+- `product.publish.batch.create`
+- `product.publish.batch.retry_failed`
+- `product.publish.batch.cancel_pending`
+
+失败任务中心：子任务 `batch_id` 存在时，详情链接跳转批次详情页。
 
 ## 与直接上架的边界
 
 - 本阶段名称准确为 **批量创建刊登草稿**，不是「一键发布 / 直接上架」。
 - 未接入真实 Provider 的平台**不得**伪装为已发布成功。
-- 抖店仍为 **Release Candidate**；OpenAPI 字段未改。
+- 抖店仍为 **Release Candidate**；OpenAPI 字段未改；复用现有 `create-draft` 链路。
 
-## 下一阶段（不在 A1.2）
+## Phase A2 实施边界（禁止）
 
-- 多商品批量选择 + 批量刊登中心
-- 统一配置 UI 完整表单
-- 各跨境平台真实 `ProductPublishProvider` 草稿创建（在 Provider 就绪后由 `real_draft_create` 升级）
+- 自动直接上架
+- 新增真实平台 OpenAPI
+- 修改抖店 OpenAPI 字段
+- 一个子任务失败导致整个批次回滚
+- 把 `local_draft_only` 伪装成真实平台发布成功
+
+## 下一阶段（不在 A2）
+
+- 统一配置 UI 完整表单（标题 / 描述策略等）
+- 各跨境平台真实 `ProductPublishProvider` 草稿创建升级
+- 批次异步队列化（当前同步创建子任务，抖店异步 worker 照旧）

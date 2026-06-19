@@ -320,10 +320,17 @@ export default function ProductDraftsPage() {
           type: 'checkbox',
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys(keys as string[]),
+          getCheckboxProps: (row) => ({
+            disabled: row.status === 'archived' || row.status === 'deleted',
+            title:
+              row.status === 'archived' || row.status === 'deleted'
+                ? '已归档或已删除的商品不能批量刊登'
+                : undefined,
+          }),
         }}
         tableAlertRender={({ selectedRowKeys: keys }) => (
           <Space>
-            <span>已选 {keys.length} 项</span>
+            <span>已选择 {keys.length} 个商品</span>
           </Space>
         )}
         columns={columns}
@@ -350,6 +357,24 @@ export default function ProductDraftsPage() {
             }}
           >
             批量 AI
+          </Button>,
+          <Button
+            key="publishBatch"
+            type="primary"
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => {
+              if (selectedRowKeys.length === 0) {
+                message.warning('请先勾选商品');
+                return;
+              }
+              if (selectedRowKeys.length > 100) {
+                message.error('单次最多选择 100 个商品');
+                return;
+              }
+              history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量创建刊登草稿
           </Button>,
           <Button
             key="readiness"

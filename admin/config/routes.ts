@@ -125,6 +125,18 @@ export default [
         component: './Product/Drafts',
       },
       {
+        path: '/product/publish-batch',
+        name: '批量创建刊登草稿',
+        component: './Product/PublishBatch',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/publish-batches/:id',
+        name: '刊登批次详情',
+        component: './Product/PublishBatchDetail',
+        hideInMenu: true,
+      },
+      {
         path: '/product/publish-tasks',
         name: '刊登任务',
         component: './Product/PublishTasks',

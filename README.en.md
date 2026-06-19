@@ -93,7 +93,7 @@ The screenshots below come from the local development environment and show the m
 - Store authorization with a working Douyin Shop OAuth loop, encrypted secrets, and connection tests.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
-- Product publishing via a multi-platform listing center (single-product, multi-shop pre-check and batch draft creation), draft mapping, publish tasks, recovery paths, and manual correction; Douyin Shop supports real platform drafts; other platforms currently use local draft snapshots.
+- Product publishing via a multi-platform listing center (single-product, multi-shop pre-check and batch draft creation), **multi-product batch publish wizard** (list multi-select → batches and sub-tasks), draft mapping, publish tasks, recovery paths, and manual correction; Douyin Shop supports real platform drafts; other platforms currently use local draft snapshots.
 - AI customer-service reply suggestions with manual confirmation before sending.
 
 ### Engineering and Extensibility
