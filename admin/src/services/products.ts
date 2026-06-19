@@ -389,6 +389,7 @@ export type UpdateProductImageBody = {
   originUrl?: string;
   publicUrl?: string;
   sortOrder?: number;
+  isBestMain?: boolean;
 };
 
 export type ReorderProductImagesBody = {

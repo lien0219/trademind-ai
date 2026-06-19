@@ -101,8 +101,10 @@ import {
   type GenerateDescriptionResult,
   type OptimizeTitleResult,
   type ProductOperationProgress,
+  type ProductOperationIssue,
   type ProductDetail,
   type DouyinDraftImage,
+  type DouyinDraftAttribute,
   type DouyinDraftMapping,
   type DouyinMappingIssue,
   type ProductImageRow,
@@ -564,13 +566,13 @@ function OperationProgressPanel({
     );
   }
 
-  const issues = [
+  const issues: ProductOperationIssue[] = [
     ...(progress.blockers ?? []),
     ...(progress.warnings ?? []).map((w) => ({
       code: w.code,
       title: w.title,
       message: w.message,
-      severity: 'warning',
+      severity: 'warning' as const,
     })),
   ].slice(0, 5);
 
@@ -617,9 +619,9 @@ function OperationProgressPanel({
                   description={
                     <Space direction="vertical" size={4}>
                       <Typography.Text>{x.message}</Typography.Text>
-                      {'actionUrl' in x && x.actionUrl ? (
+                      {x.actionUrl ? (
                         <Button type="link" size="small" style={{ padding: 0 }} onClick={() => onAction(x.actionUrl)}>
-                          {'actionLabel' in x && x.actionLabel ? x.actionLabel : '去处理'}
+                          {x.actionLabel || '去处理'}
                         </Button>
                       ) : null}
                     </Space>
@@ -1145,7 +1147,7 @@ export default function ProductDraftDetailPage() {
       platformAttributes?: Record<string, unknown>;
     };
     const attrValues = vals.platformAttributes ?? douyinConfig.platformAttributes ?? {};
-    const attrs = (douyinMapping?.attributes ?? douyinAttrs.map((a) => ({
+    const attrs = (douyinMapping?.attributes ?? douyinAttrs.map((a): DouyinDraftAttribute => ({
       attrId: a.attrId,
       name: a.name,
       required: a.required,
@@ -2823,7 +2825,7 @@ export default function ProductDraftDetailPage() {
               key: 'readiness',
               label: '发布检查',
               children: (
-                <Card variant="borderless">
+                <Card id="publish-check" variant="borderless">
                   <Space direction="vertical" style={{ width: '100%' }} size="large">
                     <Space wrap align="center">
                       <Typography.Text strong>目标平台</Typography.Text>
@@ -2832,7 +2834,7 @@ export default function ProductDraftDetailPage() {
                         value={readinessPlat}
                         onChange={(v) => setReadinessPlat(v)}
                         options={['douyin_shop', 'tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
-                          label: p,
+                          label: platformDisplayLabel(p),
                           value: p,
                         }))}
                       />
@@ -2846,7 +2848,7 @@ export default function ProductDraftDetailPage() {
                         value={readinessShopId || undefined}
                         onChange={(v) => setReadinessShopId(v ? String(v) : '')}
                         options={shopsForReadinessPlat.map((s) => ({
-                          label: `${s.shopName} (${s.platform})`,
+                          label: `${s.shopName} (${platformDisplayLabel(s.platform)})`,
                           value: s.id,
                         }))}
                       />
@@ -3038,7 +3040,7 @@ export default function ProductDraftDetailPage() {
                           { title: '库存', dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
                         ]}
                       />
-                      <Card size="small" title="抖店类目与属性" variant="borderless">
+                      <Card id="publish-config" size="small" title="抖店类目与属性" variant="borderless">
                         <Space direction="vertical" style={{ width: '100%' }} size="middle">
                           {douyinCategoryFlat.length === 0 ? (
                             <Alert

@@ -201,6 +201,7 @@ export default function MultiPlatformPublishCenter({
 
   return (
     <Spin spinning={loading}>
+      <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <Alert
           type="info"
@@ -357,6 +358,7 @@ export default function MultiPlatformPublishCenter({
           />
         ) : null}
       </Space>
+      </div>
     </Spin>
   );
 }

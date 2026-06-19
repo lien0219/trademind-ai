@@ -296,6 +296,60 @@ func TestListOperationStepFiltersReuseEffectiveTitleDescriptionAndImageRules(t *
 	}
 }
 
+func TestListAttachOperationProgressUsesFixedBatchQueries(t *testing.T) {
+	db := newOperationProgressTestDB(t)
+	c := testGinContext()
+	svc := &Service{DB: db}
+	price := 12.5
+
+	for i := 0; i < 25; i++ {
+		p := Product{
+			Source:      "manual",
+			Title:       fmt.Sprintf("Batch progress product %d", i),
+			Description: "Enough description text for list operation progress summary attachment.",
+			Currency:    "CNY",
+			Status:      StatusDraft,
+		}
+		if err := db.Create(&p).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(&ProductImage{ProductID: p.ID, ImageType: ImageTypeMain, PublicURL: fmt.Sprintf("https://example.com/%d.jpg", i)}).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(&ProductSKU{ProductID: p.ID, SKUName: "Default", Price: &price}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+
+	var queryCount int
+	db.Callback().Query().Before("gorm:query").Register("count_queries", func(tx *gorm.DB) {
+		queryCount++
+	})
+
+	res, err := svc.List(c, ListQuery{Page: 1, PageSize: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 25 {
+		t.Fatalf("expected 25 items, got %d", len(res.Items))
+	}
+	for _, item := range res.Items {
+		if item.OperationProgress == nil {
+			t.Fatalf("expected operation progress summary for %s", item.ID)
+		}
+	}
+	// products + images + skus + image_tasks (batch, not per-row)
+	if queryCount > 8 {
+		t.Fatalf("expected bounded batch queries, got %d SQL queries for 25-row list", queryCount)
+	}
+}
+
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)
