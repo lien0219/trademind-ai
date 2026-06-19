@@ -1,8 +1,19 @@
 # TradeMind 文档中心
 
-这里是 TradeMind 的文档入口。README 只保留项目首页重点信息；更细的开发、部署、架构、协作和维护规则统一放在 `docs/` 下维护。
+TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 的开源平台。仓库首页负责展示项目定位与产品预览，`docs/` 负责承载开发、部署、架构、协作与维护细节。
 
-## 快速入口
+如果你是第一次进入这个项目，建议先按角色找到入口，而不是从头顺着文件名阅读。
+
+## 按角色开始
+
+| 你现在想做什么 | 建议先看 |
+| --- | --- |
+| 我想快速了解项目能做什么 | [../README.md](../README.md) · [roadmap.md](roadmap.md) · [PROGRESS.md](PROGRESS.md) |
+| 我想本地跑起来或用 Docker 试用 | [development.md](development.md) · [docker-deployment.md](docker-deployment.md) · [env.md](env.md) |
+| 我想接 API、改功能、扩 Provider | [architecture.md](architecture.md) · [api.md](api.md) · [provider.md](provider.md) |
+| 我想参与协作或用 AI 工具开发 | [../AGENTS.md](../AGENTS.md) · [ai-workflow.md](ai-workflow.md) · [module-map.md](module-map.md) |
+
+## 核心入口
 
 | 文档 | 说明 | 适合谁 |
 | --- | --- | --- |
@@ -16,9 +27,20 @@
 | [provider.md](provider.md) | AI / Storage / Image / Platform / Collector Provider 扩展机制 | Provider 贡献者 |
 | [collector-1688-pitfalls.md](collector-1688-pitfalls.md) | 1688 采集已知 bug、防复发约束与回归命令 | Collector / AI Agent |
 | [custom-collect-rules.md](custom-collect-rules.md) | 自定义链接采集规则 JSON、API 与错误码 | collect / admin / Collector |
+| [github-repo-presentation.md](github-repo-presentation.md) | GitHub 仓库首页、About、Topics、Social Preview 配置清单 | 维护者 / 开源协作者 |
+| [open-source-presentation-checklist.md](open-source-presentation-checklist.md) | 开源展示发布前自检：README、About、Topics、头图与文档入口一致性 | 维护者 / 开源协作者 |
 | [AI_PRODUCT_OPERATION_UX_AUDIT.md](AI_PRODUCT_OPERATION_UX_AUDIT.md) / [AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md](AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md) | AI 商品运营体验审计、A1.1 稳定性补强与验收状态 | 产品 / 前后端 / AI Agent |
 | [module-map.md](module-map.md) | 模块关联索引，说明改 A 时要检查哪些 B / C / D | 开发者 / AI Agent |
 | [roadmap.md](roadmap.md) | 版本路线图与阶段目标 | 所有人 |
+
+## 文档分层
+
+| 层级 | 作用 |
+| --- | --- |
+| `README.md` / `README.en.md` | 对外首页：项目定位、能力概览、界面预览、快速开始。 |
+| `docs/README.md` | 文档导航首页：帮助不同角色找到正确入口。 |
+| `docs/*.md` | 详细规则与实现说明：开发、部署、架构、契约、协作。 |
+| `.cursor/rules/` 与 `AGENTS.md` | AI 协作规则入口，约束工程实践与文档同步。 |
 
 ## 开发与部署
 

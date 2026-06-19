@@ -65,6 +65,7 @@
 
 - [ ] README 与 README.en 链接和结构保持一致。
 - [ ] 新文档已加入 `docs/README.md`。
+- [ ] 涉及 GitHub 首页、About、Topics、头图或 Social Preview 变更时，对照 [`docs/open-source-presentation-checklist.md`](open-source-presentation-checklist.md) 自检。
 - [ ] 新增 AI 工作流或 Agent 规则已同步 `AGENTS.md`、`docs/ai-coding-rules.md`、`docs/module-map.md`、`.cursorrules`、`.cursor/rules/README.md` 和 `docs/cursor-rules-usage.md`。
 - [ ] 分支或协作规则变化已同步 `CONTRIBUTING.md` 和 PR 模板。
 - [ ] 用户可见版本变化已更新 `CHANGELOG.md`。

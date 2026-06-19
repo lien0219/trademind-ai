@@ -1,11 +1,11 @@
-<h1 align="center" id="trademind">TradeMind</h1>
+<h1 align="center">TradeMind</h1>
 
 <p align="center">
-  <strong>Open-source AI Commerce Operation Platform</strong>
+  <strong>Open-source AI Commerce Operations Platform</strong>
 </p>
 
 <p align="center">
-  Product Collection · Product Drafts · AI Titles · AI Descriptions · Image Management · Store Authorization · Order Sync · AI Reply Suggestions
+  Focused on product collection → drafts → AI content optimization → publishing → order and inventory workflows
 </p>
 
 <p align="center">
@@ -14,135 +14,114 @@
   <img alt="React" src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=111">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5+-3178C6?logo=typescript&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white">
-  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-9.15+-F69220?logo=pnpm&logoColor=white">
-  <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
-  <img alt="Stars Welcome" src="https://img.shields.io/badge/Stars-welcome-yellow.svg">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/Self--hosted-supported-2EA043">
 </p>
 
 <p align="center">
   <a href="README.md">简体中文</a> | English
 </p>
 
-> TradeMind is an open-source AI operation tool for cross-border commerce sellers. It currently supports product collection, product drafts, AI title optimization, AI description generation, image management, AI image tasks, store authorization, order sync, SKU matching, product publishing, inventory sync, and AI customer service reply suggestions.
-> **Douyin Shop**: Phase 1–10.4 Release Candidate docs/scripts/CI are ready; **real E2E remains `blocked_by_real_credentials`**. See [`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md).
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#core-capabilities">Core Capabilities</a> ·
+  <a href="#architecture-and-stack">Architecture & Stack</a> ·
+  <a href="docs/README.md">Docs</a> ·
+  <a href="docs/roadmap.md">Roadmap</a>
+</p>
 
-## Screenshots / Demo
+<p align="center">
+  <img src="docs/assets/img/readme-hero-en.png" alt="TradeMind Product Preview" width="100%" />
+</p>
 
-Screenshots from the admin console (local dev), illustrating the main flow: **collect → draft → AI content optimization**.
+TradeMind is an open-source platform for cross-border commerce sellers and developer teams. It is designed around the operational flow that happens every day: collect products, organize drafts, optimize content with AI, publish listings, and keep orders and inventory in sync.
 
-| Collection Center | Collection Tasks |
+The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
+
+> Current status: the AI product-operations flow is runnable today; the Douyin Shop integration is in Release Candidate hardening, and real platform E2E still depends on real credentials. See [`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md).
+
+## Positioning
+
+| Area | What TradeMind focuses on |
 | --- | --- |
-| Collector hub (1688, etc.), quick & batch collect | Submit URLs, task status, linked product drafts |
-| ![Collection Center](docs/assets/img/2.png) | ![Collection Tasks](docs/assets/img/3.png) |
+| AI Product Operations | Product collection, drafts, AI titles and descriptions, image processing, and readiness checks. |
+| Cross-platform ERP MVP | Store authorization, order sync, SKU matching, inventory sync, and product publishing as a practical MVP loop. |
+| Self-hosted Extensibility | Provider-based architecture for AI, storage, image, platform, and collector integrations. |
 
-| Collection Monitor | AI Description (Product Draft) |
+## Screenshots
+
+The screenshots below come from the local development environment and show the most mature flow today: **collection → draft → AI content optimization**.
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/2.png" alt="Collection Center" width="100%" />
+      <br />
+      <sub><strong>Collection Center</strong>: collector entry points and batch collection</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/3.png" alt="Collection Tasks" width="100%" />
+      <br />
+      <sub><strong>Collection Tasks</strong>: URL submission, task tracking, and linked drafts</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/4.png" alt="Collection Monitor" width="100%" />
+      <br />
+      <sub><strong>Collection Monitor</strong>: worker, task, and batch status visibility</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/img/1.png" alt="AI Description Generation" width="100%" />
+      <br />
+      <sub><strong>AI Description Generation</strong>: generate highlights, specs, and descriptions for drafts</sub>
+    </td>
+  </tr>
+</table>
+
+## Core Capabilities
+
+### AI Product Operations
+
+- Product collection from 1688, Pinduoduo, Taobao / Tmall, and custom rules.
+- Product draft management for products, SKUs, images, inventory thresholds, collection warnings, and readiness checks.
+- AI title optimization and description generation with prompt templates, task records, compare/apply flows, and safe rollback.
+- AI image workflows through remove.bg, OpenAI Image, ComfyUI, and async task queues.
+
+### Cross-platform ERP MVP
+
+- Store authorization with a working Douyin Shop OAuth loop, encrypted secrets, and connection tests.
+- Order collaboration with sync, SKU matching, and exception handling.
+- Inventory collaboration with stock mirrors, alerts, and sync tasks.
+- Product publishing with draft mapping, publishing tasks, recovery paths, and manual correction.
+- AI customer-service reply suggestions with manual confirmation before sending.
+
+### Engineering and Extensibility
+
+- Provider abstractions for AI, storage, image, platform, and collector integrations.
+- Self-host-friendly setup with PostgreSQL + Redis and a full Docker Compose deployment path.
+- Monorepo structure for backend, admin, collector, and docs, making team collaboration easier.
+
+## Architecture and Stack
+
+| Layer | Stack |
 | --- | --- |
-| Worker health, task/batch status | Generated description, highlights, specs; apply to draft |
-| ![Collection Monitor](docs/assets/img/4.png) | ![AI Description](docs/assets/img/1.png) |
-
-> The same stack also covers **AI title optimization**, image tasks, store authorization, order sync, and more—see [Core Features](#core-features) and [Documentation](#documentation). PRs with additional screenshots are welcome.
-
-## Table of Contents
-
-- [Introduction](#introduction)
-- [Why This Project](#why-this-project)
-- [Core Features](#core-features)
-- [Product Capability Map](#product-capability-map)
-- [Quick Start](#quick-start)
-- [Docker Deployment](#docker-deployment)
-- [Local Development](#local-development)
-- [Environment Variables](#environment-variables)
-- [Project Structure](#project-structure)
-- [Technical Architecture](#technical-architecture)
-- [Current Development Priorities](#current-development-priorities)
-- [Roadmap](#roadmap)
-- [Documentation](#documentation)
-- [Partners](#partners)
-- [Contributors Board](#contributors-board)
-- [Sponsors Board](#sponsors-board)
-- [Open Source Usage](#open-source-usage)
-- [Contributing](#contributing)
-- [Sponsor](#sponsor)
-- [License](#license)
-- [Acknowledgements](#acknowledgements)
-
-## Introduction
-
-TradeMind is an open-source AI commerce operation platform for cross-border sellers and developer teams that need to handle product onboarding, content optimization, image processing, store operations, and order workflows more efficiently.
-
-The project already provides a runnable product operation workflow: collect product links, create product drafts, manage SKUs and images, generate AI titles and descriptions, run image processing tasks, configure platform stores, sync orders, match SKUs, sync inventory, publish products, and generate AI-assisted customer service replies. TradeMind uses provider abstractions for AI, storage, image processing, collection sources, and commerce platforms, making it suitable for private deployment and secondary development.
-
-```text
-Product collection → Product drafts → AI title optimization → AI description generation → Image management
-  → AI image processing → Store authorization → Product publishing → Order sync
-  → SKU matching → Inventory sync → AI reply suggestions
-```
-
-## Why This Project
-
-Cross-border commerce sellers repeatedly collect products, rewrite titles, generate multilingual descriptions, process images, maintain platform stores, sync orders, and reply to buyers. Traditional ERP systems are usually stronger at data entry and workflow management, while TradeMind focuses on embedding AI into product operations and cross-platform collaboration.
-
-TradeMind aims to provide an open-source, deployable, and extensible platform for individual sellers, operation teams, and developers. You can connect your own AI Provider, Storage Provider, Image Provider, Collector Provider, and Platform Provider around your actual business workflow.
-
-## Core Features
-
-| Module | Capability | Status |
-| --- | --- | --- |
-| Product Collection | 1688 collection, AliExpress beta, custom rule beta, collection tasks and batches | Supported |
-| Product Drafts | Products, SKUs, images, inventory thresholds, operation progress, readiness checks | Supported |
-| AI Title Optimization | OpenAI-compatible Provider, prompt templates, task records, compare/apply results, safe undo | Supported |
-| AI Description Generation | Product description generation, prompt templates, AI task tracking, compare/apply results, safe undo | Supported |
-| SKU Candidate Recommendation | Candidate SKUs for order items, manual binding, match audit | Supported |
-| Image Management | Local / cloud file upload, product image management, storage providers | Supported |
-| AI Image Processing | remove.bg, OpenAI Image, ComfyUI Provider, async task queue | Supported |
-| Store Authorization | Douyin Shop OAuth loop, OpenAPI client / signing layer, encrypted tokens with auto-refresh, refresh / revoke / real connection test, category / attribute cache, platform product draft creation, order sync MVP, **inventory sync MVP**, **SKU binding calibration + manual fallback**; TikTok Shop / Shopee / Lazada / Amazon foundation retained | Douyin Phase 9.2 supported |
-| Multi-platform Configuration | Platform app config schema, Douyin Shop config, Service ID, encrypted and masked sensitive settings | Supported |
-| Order Sync | Multi-platform order sync framework, task queue, exception workspace; **Douyin `order.searchList` auto-pagination** (default 5 pages / 500 orders) | Douyin Phase 8.1 supported |
-| Product Publishing | Pricing rules, readiness checks, Douyin listing draft mapping preview, manual adjustment / save, publishing tasks, publication snapshots | In progress |
-| Inventory Sync | Local stock, platform stock mirror, inventory alerts, sync tasks; **Douyin `sku.syncStock` MVP** (manual, after SKU binding validation, gated by `inventory_sync_enabled`) | Douyin Phase 9.2 supported |
-| AI Customer Service | Message sync, AI suggested replies, manual send confirmation | In progress |
-| Operation Automation | Failure task center, alerts, batch AI, task retry | Architecture reserved |
-
-## Product Capability Map
-
-```text
-AI Product Operation Tool
-├── Product collection: 1688 / AliExpress / custom rules
-├── Product drafts: titles, descriptions, SKUs, images, inventory thresholds, operation progress and next-action guidance
-├── AI text: title optimization, description generation, prompt templates, call records, compare/apply and safe undo
-├── AI image: background removal, background replacement, scene images, async image tasks
-└── Readiness checks and batch AI operations
-
-Multi-platform Cross-border ERP MVP
-├── First real platform loop: Douyin Shop first (OAuth, API client / signing, category / attribute cache, listing draft field mapping, image upload, platform product draft creation, order sync MVP, **inventory sync MVP** done)
-├── Store authorization: Douyin Shop OAuth supported; TikTok Shop / Shopee / Lazada / Amazon retained for later platform rollout
-├── Order sync: platform order import, local orders, SKU matching
-├── Inventory sync: stock alerts, platform inventory tasks, failure retry
-├── Product publishing: publishing tasks, platform mappings, publication snapshots
-└── AI customer service: message sync, suggested replies, manual send confirmation
-```
+| Backend | Go + Gin + GORM |
+| Admin | React + TypeScript + Ant Design Pro |
+| Collector | Node.js + TypeScript + Playwright |
+| Data | PostgreSQL + Redis |
+| Deploy | pnpm workspace + Docker Compose |
+| Extension Points | AI / Storage / Image / Platform / Collector Providers |
 
 ## Quick Start
 
-TradeMind provides two startup paths:
-
-1. **One-command local development**: for development and secondary customization.
-2. **Docker deployment**: for quickly running the full project.
-
-### Option 1: Local Development
+### Local Development
 
 ```bash
 pnpm install
 pnpm install:collector:browsers
 pnpm dev
 ```
-
-`pnpm dev` starts the root development script and runs:
-
-- PostgreSQL / Redis infrastructure (Docker Compose by default; skips Compose when Docker is unavailable but local PostgreSQL / Redis are reachable)
-- backend Go service
-- admin console
-- collector service
 
 Useful commands:
 
@@ -152,18 +131,11 @@ pnpm dev:infra
 pnpm dev:backend
 pnpm dev:admin
 pnpm dev:collector
-pnpm dev:stop
-pnpm dev:reset
 pnpm build:admin
 pnpm build:collector
-pnpm collect:test
 ```
 
-> `pnpm dev:reset` resets the default Compose volumes and may clear your local PostgreSQL data.
-
-### Option 2: Full Docker Deployment
-
-The repository includes `docker-compose.full.yml`, `backend/Dockerfile`, `admin/Dockerfile`, `collector/Dockerfile`, and `admin/nginx.conf`.
+### Docker Deployment
 
 ```bash
 cp .env.docker.example .env
@@ -185,294 +157,39 @@ Default URLs:
 | Backend Health | <http://127.0.0.1:8080/health> |
 | Collector Health | <http://127.0.0.1:3001/health> |
 
-Stop services:
+Further reading:
 
-```bash
-docker compose -f docker-compose.full.yml down
-```
+- [docs/development.md](docs/development.md)
+- [docs/docker-deployment.md](docs/docker-deployment.md)
+- [docs/env.md](docs/env.md)
 
-View logs:
+## Current Priorities
 
-```bash
-docker compose -f docker-compose.full.yml logs -f backend
-docker compose -f docker-compose.full.yml logs -f admin
-docker compose -f docker-compose.full.yml logs -f collector
-```
-
-## Docker Deployment
-
-The full Docker Compose setup includes:
-
-- PostgreSQL 16
-- Redis 7
-- Go Gin backend
-- React / Ant Design Pro admin served by nginx
-- Node.js / Playwright collector
-
-Default host ports can be overridden in `.env`:
-
-| Variable | Default | Description |
-| --- | ---: | --- |
-| `ADMIN_PUBLISH_PORT` | `8000` | Admin host port |
-| `BACKEND_PUBLISH_PORT` | `8080` | Backend API host port |
-| `COLLECTOR_PUBLISH_PORT` | `3001` | Collector host port |
-| `POSTGRES_PUBLISH_PORT` | `5432` | PostgreSQL host port |
-| `REDIS_PUBLISH_PORT` | `6379` | Redis host port |
-
-Before production or public deployment, update `JWT_SECRET`, `APP_MASTER_KEY`, `ADMIN_BOOTSTRAP_PASSWORD`, database passwords, and all other sensitive values in `.env`.
-
-**1688 collector browser profile directories**: `docker-compose.full.yml` mounts `./data/browser-profiles` and `./data/storage-states` into the collector container to persist Playwright login cookies (Login Data, Cookies, History, Local Storage, Session Storage, etc.). These paths must stay on the host or in volumes only — **never commit them to Git**. Local dev under `collector/data/browser-profiles/` is ignored the same way.
-
-See [docs/docker-deployment.md](docs/docker-deployment.md) for more details.
-
-## Local Development
-
-Local development requires:
-
-- Node.js
-- pnpm `9.15+`
-- Go `1.22+`
-- Docker / Docker Compose
-
-Start infrastructure:
-
-```bash
-pnpm dev:infra
-```
-
-Start services separately:
-
-```bash
-pnpm dev:backend
-pnpm dev:admin
-pnpm dev:collector
-```
-
-Install Collector browser dependency:
-
-```bash
-pnpm install:collector:browsers
-```
-
-See [docs/development.md](docs/development.md) for more details.
-
-## Environment Variables
-
-The repository provides two environment templates:
-
-| File | Purpose |
+| Priority | Focus |
 | --- | --- |
-| `.env.example` | Local development environment template |
-| `.env.docker.example` | Full Docker deployment environment template |
+| Priority 1 | Strengthen the AI product-operations flow: collection, drafts, AI copy, image processing, and readiness checks. |
+| Priority 2 | Improve the cross-platform ERP MVP, with Douyin Shop as the first real platform loop. |
+| Not the current goal | Multi-warehouse, procurement, finance, heavy WMS / OMS, and complex BI are intentionally out of scope for now. |
 
-Key variables:
-
-| Variable | Default / Example | Description |
-| --- | --- | --- |
-| `APP_HTTP_ADDR` | `:8080` | backend listen address |
-| `DB_DRIVER` | `postgres` | PostgreSQL by default; MySQL is optional compatibility |
-| `DB_PORT` | `5432` | PostgreSQL default port |
-| `REDIS_ADDR` | `127.0.0.1:6379` | Redis address |
-| `COLLECTOR_BASE_URL` | `http://127.0.0.1:3100` | backend to collector URL for local development |
-| `COLLECTOR_HTTP_ADDR` | `:3100` | local collector listen address |
-| `JWT_SECRET` | `change-me-in-production` | JWT secret; must be changed in production |
-| `APP_MASTER_KEY` | empty / example secret | AES-GCM master key for encrypted settings |
-| `ADMIN_BOOTSTRAP_EMAIL` | empty / example account | first admin email |
-| `ADMIN_BOOTSTRAP_PASSWORD` | empty / example password | first admin password; must be changed in production |
-
-Do not commit sensitive information. AI keys, storage secrets, platform app secrets, and store tokens should be configured in the admin console and stored encrypted by the backend.
-
-### AI text providers (`settings.ai`)
-
-Configure under **Settings → AI** in the admin console. All text AI flows (title/description optimization, customer reply suggestions, batch AI) go through the backend **AI Gateway**; the browser never calls model vendors directly. `api_key` is stored with **AES-GCM** and masked as `****` in the UI.
-
-| `provider` | Notes | Example `base_url` | Example `model` |
-| --- | --- | --- | --- |
-| `openai` | Official OpenAI Chat Completions | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| `openai_compatible` | Any OpenAI-compatible endpoint (e.g. Ollama) | Per vendor docs | Per vendor docs |
-| `deepseek` | DeepSeek (v1: Chat Completions only) | `https://api.deepseek.com/v1` | `deepseek-chat` |
-| `qwen` | Alibaba Qwen via DashScope compatible mode | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
-
-Use the API root for `base_url` (no `/chat/completions` suffix). Confirm URLs and model IDs in the vendor console. Run **Test connection** (`POST /api/v1/settings/test-ai`) after saving in production.
-
-### Image AI (`settings.image`)
-
-Configure under **Settings → Image AI**. All image jobs run through backend **`image_tasks` + Image Worker**; the admin UI never calls image vendors directly. API keys are encrypted (AES-GCM) and masked as `****` in the UI—bring your own keys from each vendor console.
-
-Supported providers include **remove.bg**, **OpenAI Image**, **ComfyUI** (self-hosted), **DashScope Wan** (`dashscope_image`), **Volcengine Ark** (`volcengine_image`), **SiliconFlow** (`siliconflow_image`, beta), and **Hunyuan** (`hunyuan_image`, planned). Capability matrix: `GET /api/v1/image/providers`. Test config: `POST /api/v1/settings/test-image` (default `config_only`). Live runs and real generation may incur fees.
-
-## Project Structure
-
-```text
-trademind-ai/
-├── .github/                 # GitHub config: CI, issue / PR templates, CODEOWNERS, Dependabot, Labeler
-├── .cursor/rules/           # Cursor / AI Agent persistent rules
-├── backend/                 # Go + Gin + GORM main service
-├── admin/                   # React + TypeScript + Ant Design Pro admin console
-├── collector/               # Node.js + TypeScript + Playwright collector service
-├── docs/                    # docs, API contract, env reference, Provider templates, AI collaboration rules
-├── scripts/                 # local development orchestration scripts
-├── data/uploads/            # local upload directory
-├── docker-compose.yml       # local development infrastructure: PostgreSQL + Redis
-├── docker-compose.full.yml  # full Docker deployment compose file
-├── .env.example             # local development env template
-├── .env.docker.example      # Docker deployment env template
-├── AGENTS.md                # general AI Agent collaboration entry point
-├── CHANGELOG.md             # version and notable change log
-├── README.en.md             # English README
-├── README.md                # Simplified Chinese README
-├── CONTRIBUTING.md          # contribution guide
-└── LICENSE                  # Apache-2.0 License
-```
-
-## Technical Architecture
-
-```text
-React + Ant Design Pro Admin
-        ↓
-Go Gin API
-        ↓
-PostgreSQL + Redis
-        ↓
-Node Playwright Collector
-```
-
-Provider architecture:
-
-```text
-Go Gin API
-├── AI Provider
-│   ├── OpenAI-compatible
-│   ├── DeepSeek / Qwen (Chat Completions via compatclient)
-│   ├── Doubao / Gemini / Claude / Ollama (also via openai_compatible)
-│   └── prompt templates and call records
-├── Storage Provider
-│   ├── local
-│   ├── S3 / R2 / MinIO
-│   ├── Tencent COS
-│   └── Aliyun OSS
-├── Image Provider
-│   ├── remove.bg
-│   ├── OpenAI Image
-│   └── ComfyUI
-├── Platform Provider
-│   ├── Douyin Shop (next real-platform priority)
-│   ├── TikTok Shop
-│   ├── Shopee
-│   ├── Lazada
-│   └── Amazon
-└── Collector Provider
-    ├── 1688
-    ├── AliExpress
-    └── custom rules
-```
-
-See [docs/architecture.md](docs/architecture.md) and [docs/provider.md](docs/provider.md) for more details.
-
-## Current Development Priorities
-
-1. **First priority: AI product operation tool**
-   - Product collection, product drafts, AI titles, AI descriptions, image management, AI image processing, batch AI operations.
-2. **Second priority: multi-platform cross-border ERP MVP**
-   - First run a real Douyin Shop loop: store authorization, category / attribute cache, product field mapping / listing draft preview, image upload, and platform product draft creation are done; next comes order sync and inventory sync. TikTok Shop / Shopee / Lazada / Amazon remain later platform rollouts instead of parallel work.
-3. **Later iteration: full ERP enhancement**
-   - Multi-warehouse, purchasing, complex after-sales refunds, complex finance settlement, WMS / OMS, complex BI, auto replenishment, and automatic direct listing are deferred.
-
-## Roadmap
-
-| Version | Focus | Status |
-| --- | --- | --- |
-| v0.1.0 | foundation, login, settings, local storage, Docker | completed / improving |
-| v0.2.0 | AI text capability, prompt templates, title and description generation | supported |
-| v0.3.0 | product drafts, SKUs, image management, applying AI results | supported |
-| v0.4.0 | collector service, collection tasks, 1688 / custom rules | supported |
-| v0.5.0 | AI image tasks, remove.bg / OpenAI Image / ComfyUI | in progress |
-| v0.6.0 | store authorization, platform configuration, order sync, publishing / inventory | in progress |
-| v0.7.0 | AI reply suggestions, platform message sync, manual send confirmation | in progress |
-| v1.0.0 | stable open-source release, complete docs, deployable and extensible ecosystem | planned |
-
-See [docs/roadmap.md](docs/roadmap.md) for the detailed roadmap.
+For more detail, see [docs/roadmap.md](docs/roadmap.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Documentation
 
-The full documentation index is available at [docs/README.md](docs/README.md).
+- [docs/README.md](docs/README.md): documentation hub.
+- [docs/development.md](docs/development.md): local development, debugging, and commands.
+- [docs/docker-deployment.md](docs/docker-deployment.md): full Docker Compose deployment and operations.
+- [docs/api.md](docs/api.md): API contracts, response conventions, and auth notes.
+- [docs/provider.md](docs/provider.md): provider extension model and safety constraints.
+- [docs/architecture.md](docs/architecture.md): architecture, layering, and data flow.
+- [docs/branching.md](docs/branching.md): branch strategy and PR workflow.
 
-| Category | Documents |
-| --- | --- |
-| Quick Start | [Local Development](docs/development.md) · [Docker Deployment](docs/docker-deployment.md) · [Environment Variables](docs/env.md) |
-| Architecture | [Architecture](docs/architecture.md) · [API Contract](docs/api.md) · [Provider Extension](docs/provider.md) · [Roadmap](docs/roadmap.md) |
-| AI Product Operation UX | [Phase A1 Audit](docs/AI_PRODUCT_OPERATION_UX_AUDIT.md) · [Phase A1.1 Acceptance](docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md) |
-| Douyin RC (Phase 10.4) | [Release Gate](docs/DOUYIN_RELEASE_GATE.md) · [E2E Checklist](docs/DOUYIN_E2E_CHECKLIST.md) · [Production Runbook](docs/DOUYIN_PRODUCTION_RUNBOOK.md) · [Production Audit](docs/DOUYIN_PRODUCTION_AUDIT.md) |
-| Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [AI Workflow](docs/ai-workflow.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
-| Community | [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Sponsor](docs/sponsor.md) · [NOTICE](NOTICE) |
-| Languages | [简体中文 README](README.md) |
+## Contributing and Community
 
-## Partners
-
-| Partner | Area | Status |
-| --- | --- | --- |
-| Coming soon | AI / Platform / Storage / Collector / Operation Service | Reserved |
-
-## Contributors Board
-
-| Contributor | Contribution Area | Link |
-| --- | --- | --- |
-| Coming soon | Code / Docs / Provider / Prompt / Docker | - |
-
-## Sponsors Board
-
-| Sponsor | Support Method | Link |
-| --- | --- | --- |
-| Coming soon | WeChat / Alipay / GitHub Sponsor | - |
-
-## Open Source Usage
-
-This project is licensed under Apache-2.0. You may use, modify, distribute, and commercialize it, but you must comply with the following requirements:
-
-1. Keep the original `LICENSE` file.
-2. Mention this project as the source in your derived project's README, documentation, or about page.
-3. Clearly include the original project repository URL.
-4. Do not remove copyright notices from source files.
-5. If you modify the source code, it is recommended to document the major changes.
-
-Original project repository:
-
-<https://github.com/lien0219/trademind-ai>
-
-## Contributing
-
-All kinds of contributions are welcome:
-
-- Report bugs
-- Suggest features
-- Improve documentation
-- Add new AI Providers
-- Add new Storage Providers
-- Add new commerce Platform Providers
-- Improve collector rules
-- Improve prompt templates
-- Improve Docker deployment
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. If you are unsure whether a direction fits the current stage, open an Issue first.
-
-## Sponsor
-
-If this project helps you, you can support it by:
-
-- Starring the project
-- Forking and contributing
-- Opening Issues / PRs
-- Sharing it with cross-border commerce sellers or developers
-- Sponsoring ongoing maintenance
-
-WeChat Pay and Alipay sponsor QR codes are available in [docs/sponsor.md](docs/sponsor.md).
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
+- Review [SECURITY.md](SECURITY.md) for security reporting.
+- PRs that improve screenshots, sample data, or docs are also welcome.
+- Sponsorship info is available in [docs/sponsor.md](docs/sponsor.md).
 
 ## License
 
-This project is licensed under the [Apache License 2.0](LICENSE).
-
-## Acknowledgements
-
-Thanks to everyone who follows, uses, and contributes to TradeMind. Thanks also to Go, Gin, GORM, PostgreSQL, Redis, React, Ant Design Pro, TypeScript, Playwright, and the open-source AI ecosystem.
-
-If TradeMind is useful to you, please Star, Fork, open Issues, or submit PRs to help build a better open-source AI commerce operation platform.
+This project is open-sourced under the [Apache License 2.0](LICENSE).
