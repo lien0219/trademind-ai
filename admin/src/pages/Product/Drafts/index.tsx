@@ -7,6 +7,11 @@ import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, mes
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
 import { PAGE_COPY } from '@/constants/copywriting';
+import {
+  PUBLISH_BATCH_LIMIT_MESSAGE,
+  PUBLISH_BATCH_MAX_PRODUCTS,
+  validatePublishBatchMatrix,
+} from '@/constants/publishLimits';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
@@ -195,8 +200,8 @@ export default function ProductDraftsPage() {
       message.warning('请先勾选商品');
       return;
     }
-    if (selectedRowKeys.length > 100) {
-      message.error('单次最多检查 100 个商品');
+    if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+      message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
       return;
     }
     setBatchOpen(true);
@@ -367,8 +372,8 @@ export default function ProductDraftsPage() {
                 message.warning('请先勾选商品');
                 return;
               }
-              if (selectedRowKeys.length > 100) {
-                message.error('单次最多选择 100 个商品');
+              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
                 return;
               }
               history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);

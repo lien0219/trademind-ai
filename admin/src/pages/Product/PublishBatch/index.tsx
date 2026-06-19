@@ -3,9 +3,15 @@ import { TmPageContainer } from '@/components/ui';
 import {
   COMMON_PUBLISH_CONFIG_LABEL,
   publishBatchStatusLabel,
+  publishBatchStatusTag,
   publishCapabilityLabel,
   publishTargetStatusLabel,
 } from '@/constants/publishLabels';
+import {
+  PUBLISH_BATCH_LIMIT_MESSAGE,
+  PUBLISH_BATCH_MAX_PRODUCTS,
+  validatePublishBatchMatrix,
+} from '@/constants/publishLimits';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { productSourceLabel } from '@/constants/userFriendly';
 import { fetchProductDetail, fetchProductOperationProgress, type ProductListRow } from '@/services/products';
@@ -89,12 +95,19 @@ export default function PublishBatchWizardPage() {
   const productIds = useMemo(() => products.map((p) => p.id), [products]);
   const selectedTargetList = useMemo(() => Object.values(selectedTargets), [selectedTargets]);
   const expectedTasks = productIds.length * selectedTargetList.length;
+  const matrixLimitError = useMemo(
+    () => validatePublishBatchMatrix(productIds.length, selectedTargetList.length),
+    [productIds.length, selectedTargetList.length],
+  );
 
   const loadProducts = useCallback(async (ids: string[]) => {
     if (!ids.length) {
       setProducts([]);
       setLoadingProducts(false);
       return;
+    }
+    if (ids.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+      message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
     }
     setLoadingProducts(true);
     try {
@@ -174,6 +187,10 @@ export default function PublishBatchWizardPage() {
       message.warning('请先选择商品和刊登目标');
       return;
     }
+    if (matrixLimitError) {
+      message.error(matrixLimitError);
+      return;
+    }
     setChecking(true);
     try {
       const res = await checkBatchPublishTargets({
@@ -192,6 +209,10 @@ export default function PublishBatchWizardPage() {
   };
 
   const runCreate = async (onlyReady: boolean) => {
+    if (matrixLimitError) {
+      message.error(matrixLimitError);
+      return;
+    }
     setCreating(true);
     try {
       const res = await createBatchPublishDrafts({
@@ -397,10 +418,13 @@ export default function PublishBatchWizardPage() {
             </Space>
           )}
           <Alert
-            type="info"
+            type={matrixLimitError ? 'error' : 'info'}
             showIcon
             style={{ marginTop: 16 }}
-            message={`已选 ${selectedTargetList.length} 个刊登目标，预计 ${expectedTasks} 个子任务`}
+            message={
+              matrixLimitError ||
+              `已选 ${selectedTargetList.length} 个刊登目标，预计 ${expectedTasks} 个子任务`
+            }
           />
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
             <Button onClick={() => setStep(0)}>上一步</Button>

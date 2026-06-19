@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import { Link, useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
-import { publishBatchStatusLabel } from '@/constants/publishLabels';
+import { publishBatchStatusTag } from '@/constants/publishLabels';
 import { platformLabel } from '@/constants/userFriendly';
 import {
   getProductPublishTask,
@@ -41,6 +41,13 @@ export default function ProductPublishTasksPage() {
       return 'tasks';
     }
   }, [location.search]);
+  const taskIdFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('id')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
   const [activeTab, setActiveTab] = useState(tabFromUrl);
   const batchActionRef = useRef<ActionType>();
   const [detailOpen, setDetailOpen] = useState(false);
@@ -51,6 +58,19 @@ export default function ProductPublishTasksPage() {
     formRef.current?.setFieldsValue?.({ status: statusFromUrl });
     actionRef.current?.reload?.();
   }, [statusFromUrl]);
+
+  useEffect(() => {
+    if (!taskIdFromUrl) return;
+    void (async () => {
+      try {
+        const row = await getProductPublishTask(taskIdFromUrl);
+        setDetail(row);
+        setDetailOpen(true);
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '加载任务失败');
+      }
+    })();
+  }, [taskIdFromUrl]);
 
   const columns: ProColumns<ProductPublishTaskDTO>[] = useMemo(
     () => [
@@ -197,9 +217,10 @@ export default function ProductPublishTasksPage() {
         dataIndex: 'status',
         width: 110,
         search: false,
-        render: (_, r) => (
-          <Tag>{r.statusLabel || publishBatchStatusLabel(r.status)}</Tag>
-        ),
+        render: (_, r) => {
+          const meta = publishBatchStatusTag(r.status, r.statusLabel);
+          return <Tag color={meta.color}>{meta.text}</Tag>;
+        },
       },
       { title: '商品数', dataIndex: 'productCount', width: 80, search: false },
       { title: '目标数', dataIndex: 'targetCount', width: 80, search: false },

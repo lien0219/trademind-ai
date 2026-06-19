@@ -1,6 +1,10 @@
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
-import { publishBatchStatusLabel, publishCapabilityLabel } from '@/constants/publishLabels';
-import { COLLECT_TASK_STATUS } from '@/constants/status';
+import {
+  publishBatchStatusLabel,
+  publishBatchStatusTag,
+  publishCapabilityLabel,
+  publishTargetStatusLabel,
+} from '@/constants/publishLabels';
 import {
   cancelPendingPublishBatch,
   getPublishBatch,
@@ -9,13 +13,30 @@ import {
 } from '@/services/productPublish';
 import { formatDateTime } from '@/utils/formatTime';
 import { Link, history, useParams } from '@umijs/max';
-import { Button, Card, Descriptions, Popconfirm, Space, Table, Tag, Typography, message } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { Alert, Button, Card, Descriptions, Popconfirm, Space, Table, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-function statusTag(status: string, label?: string) {
-  const c = COLLECT_TASK_STATUS[status as keyof typeof COLLECT_TASK_STATUS];
-  const text = label || c?.text || status;
-  return <Tag color={c?.color}>{text}</Tag>;
+const TASK_STATUS_FILTER = [
+  { text: '成功', value: 'success' },
+  { text: '失败', value: 'failed' },
+  { text: '等待处理', value: 'pending' },
+  { text: '处理中', value: 'running' },
+  { text: '已取消', value: 'cancelled' },
+  { text: '已跳过', value: 'skipped' },
+];
+
+function batchStatusTag(status: string, label?: string) {
+  const meta = publishBatchStatusTag(status, label);
+  return <Tag color={meta.color}>{meta.text}</Tag>;
+}
+
+function taskStatusTag(status: string, label?: string) {
+  const k = (status || '').trim().toLowerCase();
+  if (k === 'skipped') {
+    return <Tag>{publishTargetStatusLabel('skipped')}</Tag>;
+  }
+  const meta = publishBatchStatusTag(k, label);
+  return <Tag color={meta.color}>{meta.text}</Tag>;
 }
 
 export default function PublishBatchDetailPage() {
@@ -23,6 +44,7 @@ export default function PublishBatchDetailPage() {
   const [detail, setDetail] = useState<PublishBatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -40,6 +62,12 @@ export default function PublishBatchDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const filteredItems = useMemo(() => {
+    const items = detail?.items ?? [];
+    if (!statusFilter.length) return items;
+    return items.filter((it) => statusFilter.includes((it.status || '').toLowerCase()));
+  }, [detail?.items, statusFilter]);
 
   const onRetryFailed = async () => {
     if (!id) return;
@@ -78,10 +106,19 @@ export default function PublishBatchDetailPage() {
     >
       {detail && (
         <>
+          {detail.status === 'partial_success' && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="部分子任务失败"
+              description="本批次部分商品或目标未能创建草稿，可点击下方「重试失败项」再次尝试。"
+            />
+          )}
           <Card style={{ marginBottom: 16 }}>
             <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }}>
               <Descriptions.Item label="批次状态">
-                {statusTag(detail.status, detail.statusLabel || publishBatchStatusLabel(detail.status))}
+                {batchStatusTag(detail.status, detail.statusLabel || publishBatchStatusLabel(detail.status))}
               </Descriptions.Item>
               <Descriptions.Item label="商品数量">{detail.productCount}</Descriptions.Item>
               <Descriptions.Item label="目标数量">{detail.targetCount}</Descriptions.Item>
@@ -113,8 +150,8 @@ export default function PublishBatchDetailPage() {
             <Table
               rowKey={(r) => `${r.productId}:${r.targetKey}:${r.taskId || 'skip'}`}
               size="small"
-              pagination={{ pageSize: 20, showSizeChanger: true }}
-              dataSource={detail.items ?? []}
+              pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
+              dataSource={filteredItems}
               scroll={{ x: 1100 }}
               columns={[
                 {
@@ -147,7 +184,10 @@ export default function PublishBatchDetailPage() {
                   title: '状态',
                   dataIndex: 'status',
                   width: 100,
-                  render: (_: unknown, r) => statusTag(r.status, r.statusLabel),
+                  filters: TASK_STATUS_FILTER,
+                  filteredValue: statusFilter.length ? statusFilter : null,
+                  onFilter: (value, r) => (r.status || '').toLowerCase() === String(value),
+                  render: (_: unknown, r) => taskStatusTag(r.status, r.statusLabel),
                 },
                 {
                   title: '失败原因',
@@ -158,9 +198,10 @@ export default function PublishBatchDetailPage() {
                 {
                   title: '操作',
                   key: 'ops',
-                  width: 120,
+                  width: 200,
                   render: (_: unknown, r) => (
-                    <Space>
+                    <Space wrap>
+                      <Link to={`/product/drafts/${r.productId}?tab=publish`}>平台配置</Link>
                       {r.taskId ? (
                         <Link to={`/product/publish-tasks?id=${r.taskId}`}>查看任务</Link>
                       ) : (
@@ -170,6 +211,14 @@ export default function PublishBatchDetailPage() {
                   ),
                 },
               ]}
+              onChange={(_, filters) => {
+                const st = filters.status;
+                if (Array.isArray(st)) {
+                  setStatusFilter(st.map(String));
+                } else {
+                  setStatusFilter([]);
+                }
+              }}
             />
           </Card>
 

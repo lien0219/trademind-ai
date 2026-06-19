@@ -83,12 +83,47 @@ func mergeEffectiveConfig(
 }
 
 func configHash(parts ...any) string {
-	b, err := json.Marshal(parts)
+	canonical := make([]any, len(parts))
+	for i, p := range parts {
+		canonical[i] = canonicalizeForHash(p)
+	}
+	b, err := json.Marshal(canonical)
 	if err != nil {
 		return ""
 	}
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:16])
+}
+
+func canonicalizeForHash(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		out := make(map[string]any, len(keys))
+		for _, k := range keys {
+			out[k] = canonicalizeForHash(x[k])
+		}
+		return out
+	case PublishConfigOverrides:
+		return canonicalizeForHash(map[string]any{
+			"products":       x.Products,
+			"platforms":      x.Platforms,
+			"shops":          x.Shops,
+			"productTargets": x.ProductTargets,
+		})
+	case []any:
+		out := make([]any, len(x))
+		for i, item := range x {
+			out[i] = canonicalizeForHash(item)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 func batchIdempotencyKey(adminID string, productIDs []string, targets []PublishTargetRef, common map[string]any, overrides PublishConfigOverrides) string {

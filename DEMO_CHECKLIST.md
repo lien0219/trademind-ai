@@ -89,7 +89,16 @@
 - [x] 创建后跳转批次详情；刊登任务页「刊登批次」Tab
 - [x] 批次详情：子任务列表、重试失败项、取消等待项
 - [x] 失败任务中心子任务可跳转批次详情
-- [ ] 50 商品 × 2 目标性能人工验收（接口已支持最多 100 商品）
+
+## Phase A2.1 批量刊登验收与生产安全收口
+
+- [x] 显式 DB migration（[`docs/PUBLISH_BATCH_MIGRATION.md`](docs/PUBLISH_BATCH_MIGRATION.md)）
+- [x] 批量上限 100 商品 / 20 目标 / 300 子任务（前后端）
+- [x] 幂等与并发集成测试（`batch_targets_integration_test.go`）
+- [x] 性能脚本 `scripts/publish-batch-perf.ps1`（见 [`docs/PUBLISH_BATCH_PERF_REPORT.md`](docs/PUBLISH_BATCH_PERF_REPORT.md)）
+- [x] 批次详情 UX / 失败任务「批次详情」链接
+- [x] 1366px 可用（见 [`docs/PUBLISH_BATCH_UX_ACCEPTANCE.md`](docs/PUBLISH_BATCH_UX_ACCEPTANCE.md)）
+- [ ] 在有 ≥100 draft 商品的环境运行 perf 脚本并填入报告表（可选生产基准）
 
 ### AI 商品运营体验 Phase A1.1（2026-06-19）
 

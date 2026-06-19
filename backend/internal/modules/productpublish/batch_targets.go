@@ -16,9 +16,6 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 )
 
-const maxBatchProducts = 100
-const maxBatchTargets = 20
-
 // BatchTargetsCheckRequest POST batch-targets/check body.
 type BatchTargetsCheckRequest struct {
 	ProductIDs   []string               `json:"productIds"`
@@ -135,8 +132,8 @@ func (s *Service) parseBatchProductIDs(raw []string) ([]uuid.UUID, error) {
 	if len(raw) == 0 {
 		return nil, fmt.Errorf("productIds required")
 	}
-	if len(raw) > maxBatchProducts {
-		return nil, fmt.Errorf("at most %d products per batch", maxBatchProducts)
+	if len(raw) > s.batchMaxProducts() {
+		return nil, batchLimitExceeded()
 	}
 	ids := make([]uuid.UUID, 0, len(raw))
 	seen := map[uuid.UUID]struct{}{}
@@ -158,8 +155,8 @@ func (s *Service) validateBatchTargets(targets []PublishTargetRef) error {
 	if len(targets) == 0 {
 		return fmt.Errorf("targets required")
 	}
-	if len(targets) > maxBatchTargets {
-		return fmt.Errorf("at most %d targets per batch", maxBatchTargets)
+	if len(targets) > s.batchMaxTargets() {
+		return batchLimitExceeded()
 	}
 	return nil
 }
@@ -198,6 +195,9 @@ func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRe
 		return nil, err
 	}
 	if err := s.validateBatchTargets(req.Targets); err != nil {
+		return nil, err
+	}
+	if err := s.validateBatchTaskCount(len(productIDs), len(req.Targets)); err != nil {
 		return nil, err
 	}
 	products, err := s.loadProductsForBatch(ctx, productIDs)
@@ -279,6 +279,9 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	if err := s.validateBatchTargets(req.Targets); err != nil {
 		return nil, err
 	}
+	if err := s.validateBatchTaskCount(len(productIDs), len(req.Targets)); err != nil {
+		return nil, err
+	}
 	if !req.IncludeWarnings && !req.OnlyReady {
 		req.IncludeWarnings = true
 	}
@@ -327,6 +330,13 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		CreatedBy:      adminID,
 	}
 	if err := s.DB.WithContext(ctx).Create(&batch).Error; err != nil {
+		if isDuplicateKeyError(err) && idemKey != "" {
+			var dupBatch ProductPublishBatch
+			if err2 := s.DB.WithContext(ctx).Where("idempotency_key = ? AND status NOT IN ?", idemKey, []string{BatchFailed, BatchCancelled}).
+				Order("created_at DESC").First(&dupBatch).Error; err2 == nil {
+				return s.batchCreateResponseFromExisting(ctx, &dupBatch)
+			}
+		}
 		return nil, err
 	}
 
@@ -483,18 +493,46 @@ func (s *Service) createLocalDraftForBatchTarget(ctx context.Context, productID 
 	return out
 }
 
+func extractTaskIdempotencyKey(raw datatypes.JSON) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ""
+	}
+	if v, ok := m["idempotencyKey"].(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
 func (s *Service) findExistingSuccessfulTask(ctx context.Context, productID uuid.UUID, plat string, sid *uuid.UUID, eff EffectivePublishConfig) (*ProductPublishTask, bool) {
 	if sid == nil {
 		return nil, false
 	}
-	var row ProductPublishTask
+	wantKey := taskIdempotencyKey(productID.String(), plat, shopIDString(sid), eff)
+	var rows []ProductPublishTask
 	q := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ? AND shop_id = ? AND status = ?",
 		productID, plat, *sid, TaskSuccess)
-	if err := q.Order("created_at DESC").First(&row).Error; err != nil {
+	if err := q.Order("created_at DESC").Find(&rows).Error; err != nil || len(rows) == 0 {
 		return nil, false
 	}
-	if row.TaskType == TaskTypeLocalDraftCreate || row.TaskType == TaskTypeDouyinDraftCreate {
-		return &row, true
+	for i := range rows {
+		row := &rows[i]
+		if row.TaskType != TaskTypeLocalDraftCreate && row.TaskType != TaskTypeDouyinDraftCreate {
+			continue
+		}
+		storedKey := extractTaskIdempotencyKey(row.Input)
+		if storedKey == "" {
+			if len(eff.Config) == 0 {
+				return row, true
+			}
+			continue
+		}
+		if storedKey == wantKey {
+			return row, true
+		}
 	}
 	return nil, false
 }
@@ -583,9 +621,12 @@ func batchToListItem(r ProductPublishBatch) PublishBatchListItem {
 }
 
 // GetPublishBatchDetail returns batch summary with child task rows.
-func (s *Service) GetPublishBatchDetail(ctx context.Context, batchID uuid.UUID) (*PublishBatchDetailDTO, error) {
+func (s *Service) GetPublishBatchDetail(ctx context.Context, batchID uuid.UUID, adminID *uuid.UUID) (*PublishBatchDetailDTO, error) {
 	batch, tasks, err := s.GetPublishBatch(ctx, batchID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.assertBatchAccess(batch, adminID); err != nil {
 		return nil, err
 	}
 	item := batchToListItem(*batch)
@@ -668,6 +709,9 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
 		return nil, err
 	}
+	if err := s.assertBatchAccess(&batch, adminID); err != nil {
+		return nil, err
+	}
 	var in BatchTargetsCreateDraftsRequest
 	_ = json.Unmarshal(batch.Input, &in)
 
@@ -682,6 +726,18 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	results := make([]BatchTargetTaskResult, 0, len(failedTasks))
 	var successN, failedN int
 	for _, ft := range failedTasks {
+		claimFin := time.Now().UTC()
+		claim := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
+			Where("id = ? AND status = ?", ft.ID, TaskFailed).
+			Updates(map[string]any{
+				"status":        TaskCancelled,
+				"finished_at":   &claimFin,
+				"error_message": "已由重试替代",
+			})
+		if claim.RowsAffected == 0 {
+			continue
+		}
+
 		sid := ft.ShopID
 		t := PublishTargetRef{Platform: ft.Platform, ShopID: ptrString(sid.String())}
 		chk := s.checkOnePublishTarget(ctx, ft.ProductID, t)
@@ -779,6 +835,9 @@ func (s *Service) CancelPendingBatchTasks(c *gin.Context, batchID uuid.UUID, adm
 	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
 		return nil, err
 	}
+	if err := s.assertBatchAccess(&batch, adminID); err != nil {
+		return nil, err
+	}
 	fin := time.Now().UTC()
 	res := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
 		Where("batch_id = ? AND status IN ?", batchID, []string{TaskPending}).
@@ -812,7 +871,7 @@ func (s *Service) CancelPendingBatchTasks(c *gin.Context, batchID uuid.UUID, adm
 
 	s.writeBatchOpLog(c, batchID, batchStatus, int(cancelled), 0, int(totalSkipped), "product.publish.batch.cancel_pending")
 
-	return s.GetPublishBatchDetail(ctx, batchID)
+	return s.GetPublishBatchDetail(ctx, batchID, adminID)
 }
 
 func (s *Service) writeBatchOpLog(c *gin.Context, batchID uuid.UUID, status string, successN, failedN, skippedN int, action string) {

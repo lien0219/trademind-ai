@@ -465,6 +465,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		if dep.Config.ProductPublishTaskTimeoutSeconds > 0 {
 			productPublishSvc.TaskTimeout = time.Duration(dep.Config.ProductPublishTaskTimeoutSeconds) * time.Second
 		}
+		productPublishSvc.BatchMaxProducts = dep.Config.PublishBatchMaxProducts
+		productPublishSvc.BatchMaxTargets = dep.Config.PublishBatchMaxTargets
+		productPublishSvc.BatchMaxTasks = dep.Config.PublishBatchMaxTasks
 	}
 	productPublishH := &productpublish.Handler{Svc: productPublishSvc}
 	readinessH := &productcheck.Handler{

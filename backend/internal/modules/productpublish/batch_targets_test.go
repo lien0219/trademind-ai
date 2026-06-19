@@ -52,6 +52,14 @@ func TestShouldCreateForCheck(t *testing.T) {
 	}
 }
 
+func TestConfigHashStableForMaps(t *testing.T) {
+	a := configHash(map[string]any{"b": 2, "a": 1})
+	b := configHash(map[string]any{"a": 1, "b": 2})
+	if a != b {
+		t.Fatalf("config hash should be order-independent, got %s vs %s", a, b)
+	}
+}
+
 func TestBatchIdempotencyKeyStable(t *testing.T) {
 	targets := []PublishTargetRef{{Platform: "shopee", ShopID: ptrString("s1")}}
 	k1 := batchIdempotencyKey("admin", []string{"p2", "p1"}, targets, nil, PublishConfigOverrides{})

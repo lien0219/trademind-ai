@@ -588,10 +588,14 @@ func (h *Handler) GetPublishBatch(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetPublishBatchDetail(c.Request.Context(), id)
+	out, err := h.Svc.GetPublishBatchDetail(c.Request.Context(), id, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if errors.Is(err, ErrBatchAccessDenied) {
+			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
 			return
 		}
 		response.HandleError(c, err)
@@ -612,6 +616,10 @@ func (h *Handler) RetryFailedBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailedBatchTasks(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrBatchAccessDenied) {
+			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -630,6 +638,10 @@ func (h *Handler) CancelPendingBatch(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelPendingBatchTasks(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrBatchAccessDenied) {
+			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

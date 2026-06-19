@@ -23,19 +23,38 @@ export const PUBLISH_BATCH_STATUS_LABEL: Record<string, string> = {
   cancelled: '已取消',
 };
 
+export const PUBLISH_BATCH_STATUS: Record<
+  string,
+  { text: string; color: 'default' | 'processing' | 'success' | 'warning' | 'error' }
+> = {
+  pending: { text: '等待处理', color: 'default' },
+  running: { text: '处理中', color: 'processing' },
+  success: { text: '全部成功', color: 'success' },
+  partial_success: { text: '部分成功', color: 'warning' },
+  failed: { text: '失败', color: 'error' },
+  cancelled: { text: '已取消', color: 'default' },
+};
+
 export function publishCapabilityLabel(cap?: string | null): string {
   const k = (cap ?? '').trim();
-  return PUBLISH_CAPABILITY_LABEL[k] ?? (k || '—');
+  return PUBLISH_CAPABILITY_LABEL[k] ?? '—';
 }
 
 export function publishTargetStatusLabel(status?: string | null): string {
   const k = (status ?? '').trim().toLowerCase();
-  return PUBLISH_TARGET_STATUS_LABEL[k] ?? (k || '—');
+  return PUBLISH_TARGET_STATUS_LABEL[k] ?? '—';
 }
 
 export function publishBatchStatusLabel(status?: string | null): string {
   const k = (status ?? '').trim().toLowerCase();
-  return PUBLISH_BATCH_STATUS_LABEL[k] ?? (k || '—');
+  return PUBLISH_BATCH_STATUS_LABEL[k] ?? '—';
+}
+
+export function publishBatchStatusTag(status?: string | null, label?: string) {
+  const k = (status ?? '').trim().toLowerCase();
+  const meta = PUBLISH_BATCH_STATUS[k];
+  const text = label || meta?.text || publishBatchStatusLabel(k);
+  return { text, color: meta?.color ?? ('default' as const) };
 }
 
 /** 统一刊登配置字段标签 */

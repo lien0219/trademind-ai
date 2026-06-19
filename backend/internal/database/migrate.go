@@ -110,6 +110,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateDouyinPhase102Indexes(db); err != nil {
 		return err
 	}
+	if err := migratePublishBatchA21(db); err != nil {
+		return err
+	}
 	return db.AutoMigrate(
 		&admin.AdminUser{},
 		&settings.Setting{},

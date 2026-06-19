@@ -120,3 +120,32 @@ MVP 统一字段：`priceRule`、`imageStrategy`、`stockStrategy`、`packageWei
 - 统一配置 UI 完整表单（标题 / 描述策略等）
 - 各跨境平台真实 `ProductPublishProvider` 草稿创建升级
 - 批次异步队列化（当前同步创建子任务，抖店异步 worker 照旧）
+
+## Phase A2.1 验收与生产安全收口
+
+### 批量规模上限
+
+| 环境变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `PUBLISH_BATCH_MAX_PRODUCTS` | 100 | 单批最多商品数 |
+| `PUBLISH_BATCH_MAX_TARGETS` | 20 | 单批最多刊登目标数 |
+| `PUBLISH_BATCH_MAX_TASKS` | 300 | 商品数 × 目标数上限 |
+
+超限 HTTP 400：`本次选择的商品和刊登目标较多，请分批创建刊登草稿。`
+
+### 数据库 migration
+
+显式 Postgres migration：[`PUBLISH_BATCH_MIGRATION.md`](PUBLISH_BATCH_MIGRATION.md)（`product_id` 可空、查询索引、活跃批次 `idempotency_key` 部分唯一索引）。
+
+### 执行策略（本阶段结论）
+
+- **保持** create-drafts 同步 orchestration；单批 ≤300 子任务。
+- `local_draft_only`：同步 DB，预计可接受。
+- 抖店：子任务 pending + Redis worker；生产应保持 `PRODUCT_PUBLISH_QUEUE_ENABLED=true`。
+- 未引入独立批次 worker 队列。
+
+### 测试与脚本
+
+- 集成测试：`backend/internal/modules/productpublish/batch_targets_integration_test.go`
+- 性能脚本：`scripts/publish-batch-perf.ps1` → [`PUBLISH_BATCH_PERF_REPORT.md`](PUBLISH_BATCH_PERF_REPORT.md)
+- UX 验收：[`PUBLISH_BATCH_UX_ACCEPTANCE.md`](PUBLISH_BATCH_UX_ACCEPTANCE.md)

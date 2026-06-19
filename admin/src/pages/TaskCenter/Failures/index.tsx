@@ -89,11 +89,23 @@ function alertStatusUi(st?: string) {
 }
 
 function relatedHref(row: UnifiedTaskDTO): string | undefined {
+  const detail = (row.detailUrl || '').trim();
+  if (detail.includes('/product/publish-batches/')) {
+    return detail;
+  }
   const t = row.relatedResourceType || '';
   const id = row.relatedResourceId || '';
   if (!id) return undefined;
   if (t === 'product') return `/product/drafts/${id}`;
   return undefined;
+}
+
+function detailLinkLabel(detailUrl?: string | null): string {
+  const url = (detailUrl || '').trim();
+  if (url.includes('/product/publish-batches/')) {
+    return '批次详情';
+  }
+  return '打开任务详情';
 }
 
 export default function TaskCenterFailuresPage() {
@@ -404,7 +416,7 @@ export default function TaskCenterFailuresPage() {
             </Button>
             {r.detailUrl ? (
               <Button size="small" type="link" onClick={() => history.push(r.detailUrl!)}>
-                原页面
+                {detailLinkLabel(r.detailUrl)}
               </Button>
             ) : null}
             <Button
@@ -965,7 +977,7 @@ export default function TaskCenterFailuresPage() {
               ) : null}
               {detail.detailUrl ? (
                 <Button onClick={() => history.push(detail.detailUrl!)}>
-                  打开任务详情
+                  {detailLinkLabel(detail.detailUrl)}
                 </Button>
               ) : null}
             </Space>
