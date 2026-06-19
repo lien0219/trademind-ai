@@ -121,6 +121,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&product.ProductImage{},
 		&product.ProductSKU{},
 		&product.ProductPlatformPublishConfig{},
+		&product.ProductAIContentApplication{},
 		&productpublish.ProductPublishTask{},
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},

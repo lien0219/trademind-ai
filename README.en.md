@@ -89,9 +89,9 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 | Module | Capability | Status |
 | --- | --- | --- |
 | Product Collection | 1688 collection, AliExpress beta, custom rule beta, collection tasks and batches | Supported |
-| Product Drafts | Products, SKUs, images, inventory thresholds, readiness checks | Supported |
-| AI Title Optimization | OpenAI-compatible Provider, prompt templates, task records, apply results | Supported |
-| AI Description Generation | Product description generation, prompt templates, AI task tracking | Supported |
+| Product Drafts | Products, SKUs, images, inventory thresholds, operation progress, readiness checks | Supported |
+| AI Title Optimization | OpenAI-compatible Provider, prompt templates, task records, compare/apply results, safe undo | Supported |
+| AI Description Generation | Product description generation, prompt templates, AI task tracking, compare/apply results, safe undo | Supported |
 | SKU Candidate Recommendation | Candidate SKUs for order items, manual binding, match audit | Supported |
 | Image Management | Local / cloud file upload, product image management, storage providers | Supported |
 | AI Image Processing | remove.bg, OpenAI Image, ComfyUI Provider, async task queue | Supported |
@@ -108,8 +108,8 @@ TradeMind aims to provide an open-source, deployable, and extensible platform fo
 ```text
 AI Product Operation Tool
 ├── Product collection: 1688 / AliExpress / custom rules
-├── Product drafts: titles, descriptions, SKUs, images, inventory thresholds
-├── AI text: title optimization, description generation, prompt templates, call records
+├── Product drafts: titles, descriptions, SKUs, images, inventory thresholds, operation progress and next-action guidance
+├── AI text: title optimization, description generation, prompt templates, call records, compare/apply and safe undo
 ├── AI image: background removal, background replacement, scene images, async image tasks
 └── Readiness checks and batch AI operations
 

@@ -129,3 +129,30 @@ type ProductPlatformPublishConfig struct {
 }
 
 func (ProductPlatformPublishConfig) TableName() string { return "product_platform_publish_configs" }
+
+const (
+	AIContentFieldTitle         = "ai_title"
+	AIContentFieldDescription   = "ai_description"
+	AIContentApplyStatusApplied = "applied"
+	AIContentApplyStatusUndone  = "undone"
+)
+
+// ProductAIContentApplication stores the minimal snapshot needed to safely undo
+// an AI suggestion application without overwriting later manual edits.
+type ProductAIContentApplication struct {
+	model.HardDeleteBase
+	ProductID          uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
+	FieldType          string     `gorm:"size:32;index;not null" json:"fieldType"`
+	AITaskID           *uuid.UUID `gorm:"type:char(36);index" json:"aiTaskId,omitempty"`
+	PreviousValue      string     `gorm:"type:text" json:"previousValue,omitempty"`
+	AppliedValue       string     `gorm:"type:text" json:"appliedValue,omitempty"`
+	SourceSnapshotHash string     `gorm:"size:128;index" json:"sourceSnapshotHash,omitempty"`
+	ExpectedUpdatedAt  *time.Time `json:"expectedUpdatedAt,omitempty"`
+	AppliedBy          *uuid.UUID `gorm:"type:char(36);index" json:"appliedBy,omitempty"`
+	AppliedAt          time.Time  `gorm:"index" json:"appliedAt"`
+	UndoneBy           *uuid.UUID `gorm:"type:char(36);index" json:"undoneBy,omitempty"`
+	UndoneAt           *time.Time `json:"undoneAt,omitempty"`
+	Status             string     `gorm:"size:32;index;not null" json:"status"`
+}
+
+func (ProductAIContentApplication) TableName() string { return "product_ai_content_applications" }

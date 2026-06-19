@@ -3,7 +3,7 @@ import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 
-import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber } from 'antd';
+import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber, Progress } from 'antd';
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
 import { PAGE_COPY } from '@/constants/copywriting';
@@ -14,6 +14,24 @@ import { createProduct, fetchProducts, type ProductListRow } from '@/services/pr
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
+
+const OPERATION_STEP_OPTIONS = [
+  { label: '全部', value: '' },
+  { label: '待检查采集结果', value: 'collect_review' },
+  { label: '待优化标题', value: 'title' },
+  { label: '待生成描述', value: 'description' },
+  { label: '待处理图片', value: 'images' },
+  { label: '待设置价格', value: 'pricing' },
+  { label: '发布检查未通过', value: 'publish_check' },
+  { label: '可以生成刊登草稿', value: 'ready' },
+];
+
+function operationStepColor(step?: string) {
+  if (step === 'ready') return 'green';
+  if (step === 'publish_check') return 'orange';
+  if (step === 'pricing' || step === 'images') return 'gold';
+  return 'blue';
+}
 
 export default function ProductDraftsPage() {
   const location = useLocation();
@@ -38,7 +56,7 @@ export default function ProductDraftsPage() {
   const [batchShopId, setBatchShopId] = useState<string>('');
   const [batchResult, setBatchResult] = useState<ProductReadinessResult[]>([]);
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
-  const [listFilters, setListFilters] = useState<{ keyword?: string; status?: string; source?: string }>({});
+  const [listFilters, setListFilters] = useState<{ keyword?: string; status?: string; source?: string; operationStep?: string }>({});
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkForm] = Form.useForm();
@@ -116,6 +134,36 @@ export default function ProductDraftsPage() {
       },
     },
     {
+      title: '运营进度',
+      dataIndex: 'operationStep',
+      width: 220,
+      valueType: 'select',
+      fieldProps: {
+        options: OPERATION_STEP_OPTIONS,
+      },
+      search: {
+        transform: (v) => ({ operationStep: v }),
+      },
+      render: (_, row) => {
+        const p = row.operationProgress;
+        if (!p) return <Typography.Text type="secondary">—</Typography.Text>;
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Progress percent={p.completionPercent ?? 0} size="small" showInfo={false} />
+            <Space size={6} wrap>
+              <Typography.Text>{p.completionPercent ?? 0}%</Typography.Text>
+              <Tag color={operationStepColor(p.currentStep)}>{p.currentStepLabel || '继续完善'}</Tag>
+            </Space>
+            {(p.blockerCount || p.warningCount) ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                待处理 {p.blockerCount ?? 0}，建议检查 {p.warningCount ?? 0}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 172,
@@ -126,10 +174,10 @@ export default function ProductDraftsPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 88,
+      width: 116,
       render: (_, row) => [
-        <Typography.Link key="detail" href={`/product/drafts/${row.id}`}>
-          详情
+        <Typography.Link key="detail" href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}>
+          {row.operationProgress?.nextActionLabel || '继续完善'}
         </Typography.Link>,
       ],
     },
@@ -322,6 +370,7 @@ export default function ProductDraftsPage() {
             keyword: params.keyword as string | undefined,
             status: params.status as string | undefined,
             source: params.source as string | undefined,
+            operationStep: params.operationStep as string | undefined,
           });
           const res = await fetchProducts({
             page: params.current,
@@ -329,6 +378,7 @@ export default function ProductDraftsPage() {
             status: urlFilters.status || (params.status as string | undefined),
             source: params.source as string | undefined,
             keyword: params.keyword as string | undefined,
+            operationStep: params.operationStep as string | undefined,
             missingAiTitle: urlFilters.missingAiTitle || undefined,
             missingAiDescription: urlFilters.missingAiDescription || undefined,
             readinessBlocked: urlFilters.readinessBlocked || undefined,

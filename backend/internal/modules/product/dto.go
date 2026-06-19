@@ -155,11 +155,12 @@ type ImageReorderBody struct {
 
 // ListQuery binds GET /products.
 type ListQuery struct {
-	Page     int
-	PageSize int
-	Status   string
-	Source   string
-	Keyword  string
+	Page          int
+	PageSize      int
+	Status        string
+	Source        string
+	Keyword       string
+	OperationStep string
 	// Dashboard deep-link filters (optional).
 	MissingAiTitle       bool
 	MissingAiDescription bool
@@ -169,17 +170,18 @@ type ListQuery struct {
 
 // ListItem is one row for draft list (includes optional cover).
 type ListItem struct {
-	ID        uuid.UUID  `json:"id"`
-	TenantID  int64      `json:"tenantId"`
-	CreatedBy *uuid.UUID `json:"createdBy,omitempty"`
-	Source    string     `json:"source"`
-	SourceURL string     `json:"sourceUrl"`
-	Title     string     `json:"title"`
-	Status    string     `json:"status"`
-	Currency  string     `json:"currency"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	CoverURL  string     `json:"coverUrl,omitempty"`
+	ID                uuid.UUID                        `json:"id"`
+	TenantID          int64                            `json:"tenantId"`
+	CreatedBy         *uuid.UUID                       `json:"createdBy,omitempty"`
+	Source            string                           `json:"source"`
+	SourceURL         string                           `json:"sourceUrl"`
+	Title             string                           `json:"title"`
+	Status            string                           `json:"status"`
+	Currency          string                           `json:"currency"`
+	CreatedAt         time.Time                        `json:"createdAt"`
+	UpdatedAt         time.Time                        `json:"updatedAt"`
+	CoverURL          string                           `json:"coverUrl,omitempty"`
+	OperationProgress *ProductOperationProgressSummary `json:"operationProgress,omitempty"`
 }
 
 // ListResult paginates products.
@@ -273,8 +275,10 @@ type OptimizeTitleResult struct {
 
 // ApplyAITitleBody binds POST /products/:id/apply-ai-title.
 type ApplyAITitleBody struct {
-	AITitle string `json:"aiTitle"`
-	TaskID  string `json:"taskId"`
+	AITitle            string `json:"aiTitle"`
+	TaskID             string `json:"taskId"`
+	ExpectedUpdatedAt  string `json:"expectedUpdatedAt,omitempty"`
+	SourceSnapshotHash string `json:"sourceSnapshotHash,omitempty"`
 }
 
 // GenerateDescriptionBody binds POST /products/:id/ai/generate-description.
@@ -305,6 +309,94 @@ type AIDescriptionRunExtra struct {
 
 // ApplyAIDescriptionBody binds POST /products/:id/apply-ai-description.
 type ApplyAIDescriptionBody struct {
-	AIDescription string `json:"aiDescription"`
-	TaskID        string `json:"taskId"`
+	AIDescription      string `json:"aiDescription"`
+	TaskID             string `json:"taskId"`
+	ExpectedUpdatedAt  string `json:"expectedUpdatedAt,omitempty"`
+	SourceSnapshotHash string `json:"sourceSnapshotHash,omitempty"`
+}
+
+type ProductOperationStep string
+
+const (
+	OperationStepCollectReview ProductOperationStep = "collect_review"
+	OperationStepTitle         ProductOperationStep = "title"
+	OperationStepDescription   ProductOperationStep = "description"
+	OperationStepImages        ProductOperationStep = "images"
+	OperationStepPricing       ProductOperationStep = "pricing"
+	OperationStepAttributes    ProductOperationStep = "attributes"
+	OperationStepPublishCheck  ProductOperationStep = "publish_check"
+	OperationStepReady         ProductOperationStep = "ready"
+)
+
+type ProductOperationProgressSummary struct {
+	CompletionPercent int                  `json:"completionPercent"`
+	CurrentStep       ProductOperationStep `json:"currentStep"`
+	CurrentStepLabel  string               `json:"currentStepLabel"`
+	NextActionLabel   string               `json:"nextActionLabel"`
+	NextActionKey     string               `json:"nextActionKey"`
+	NextActionURL     string               `json:"nextActionUrl,omitempty"`
+	BlockerCount      int                  `json:"blockerCount"`
+	WarningCount      int                  `json:"warningCount"`
+	PublishReady      bool                 `json:"publishReady"`
+}
+
+type ProductOperationIssue struct {
+	Code        string `json:"code"`
+	Title       string `json:"title"`
+	Message     string `json:"message"`
+	Severity    string `json:"severity"`
+	ActionLabel string `json:"actionLabel,omitempty"`
+	ActionKey   string `json:"actionKey,omitempty"`
+	ActionURL   string `json:"actionUrl,omitempty"`
+}
+
+type ProductOperationWarning struct {
+	Code    string `json:"code"`
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
+
+type ProductOperationProgress struct {
+	ProductID         uuid.UUID                       `json:"productId"`
+	CompletionPercent int                             `json:"completionPercent"`
+	CurrentStep       ProductOperationStep            `json:"currentStep"`
+	CurrentStepLabel  string                          `json:"currentStepLabel"`
+	NextActionLabel   string                          `json:"nextActionLabel"`
+	NextActionKey     string                          `json:"nextActionKey"`
+	NextActionURL     string                          `json:"nextActionUrl,omitempty"`
+	CompletedSteps    []ProductOperationStep          `json:"completedSteps"`
+	PendingSteps      []ProductOperationStep          `json:"pendingSteps"`
+	Blockers          []ProductOperationIssue         `json:"blockers"`
+	Warnings          []ProductOperationWarning       `json:"warnings"`
+	PublishReady      bool                            `json:"publishReady"`
+	UpdatedAt         time.Time                       `json:"updatedAt"`
+	StepStatus        map[ProductOperationStep]string `json:"stepStatus,omitempty"`
+}
+
+type OperationReadinessRequest struct {
+	ProductID uuid.UUID
+	Platform  string
+	Mode      string
+}
+
+type OperationReadinessResult struct {
+	Status       string
+	Result       string
+	CanPublish   bool
+	ErrorCount   int
+	WarningCount int
+	Checks       []OperationReadinessCheck
+}
+
+type OperationReadinessCheck struct {
+	Group      string
+	Code       string
+	Level      string
+	Message    string
+	Suggestion string
+}
+
+type UndoAIContentBody struct {
+	ApplicationID     string `json:"applicationId,omitempty"`
+	ExpectedUpdatedAt string `json:"expectedUpdatedAt,omitempty"`
 }

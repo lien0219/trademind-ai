@@ -72,6 +72,7 @@ func (h *Handler) List(c *gin.Context) {
 		Status:               c.Query("status"),
 		Source:               c.Query("source"),
 		Keyword:              c.Query("keyword"),
+		OperationStep:        c.Query("operationStep"),
 		MissingAiTitle:       queryTruthy(c, "missingAiTitle"),
 		MissingAiDescription: queryTruthy(c, "missingAiDescription"),
 		ReadinessBlocked:     strings.TrimSpace(strings.ToLower(c.Query("readiness"))) == "blocked",
@@ -93,6 +94,39 @@ func (h *Handler) List(c *gin.Context) {
 	})
 }
 
+// GetOperationProgress GET /api/v1/products/:id/operation-progress
+func (h *Handler) GetOperationProgress(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetOperationProgress(c.Request.Context(), id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminUUID(c),
+			Action:      "product.operation_progress.view",
+			Resource:    "product",
+			ResourceID:  id.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("step=%s percent=%d", out.CurrentStep, out.CompletionPercent),
+		})
+	}
+	response.OK(c, out)
+}
+
 // Create POST /api/v1/products
 func (h *Handler) Create(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -106,6 +140,49 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+// UndoAITitle POST /api/v1/products/:id/undo-ai-title
+func (h *Handler) UndoAITitle(c *gin.Context) {
+	h.undoAIContent(c, AIContentFieldTitle)
+}
+
+// UndoAIDescription POST /api/v1/products/:id/undo-ai-description
+func (h *Handler) UndoAIDescription(c *gin.Context) {
+	h.undoAIContent(c, AIContentFieldDescription)
+}
+
+func (h *Handler) undoAIContent(c *gin.Context, field string) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body UndoAIContentBody
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	out, err := h.Svc.UndoAIContent(c, id, field, body, adminUUID(c))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "conflict") {
+			response.JSON(c, 409, response.CodeBadRequest, err.Error(), gin.H{"errorCode": "AI_CONTENT_UNDO_CONFLICT"})
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -521,6 +598,10 @@ func (h *Handler) ApplyAITitle(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		if strings.Contains(strings.ToLower(err.Error()), "content conflict") {
+			response.JSON(c, 409, response.CodeBadRequest, err.Error(), gin.H{"errorCode": "AI_CONTENT_APPLY_CONFLICT"})
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -577,6 +658,10 @@ func (h *Handler) ApplyAIDescription(c *gin.Context) {
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "content conflict") {
+			response.JSON(c, 409, response.CodeBadRequest, err.Error(), gin.H{"errorCode": "AI_CONTENT_APPLY_CONFLICT"})
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

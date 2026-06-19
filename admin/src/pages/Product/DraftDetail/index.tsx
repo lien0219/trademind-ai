@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import { SectionCard, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { commonStatusLabel, publishModeLabel, readinessLevelLabel } from '@/constants/copywriting';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
@@ -29,6 +29,7 @@ import {
   Tooltip,
   Typography,
   Alert,
+  Progress,
   Upload,
   Table,
   message,
@@ -71,6 +72,7 @@ import {
   deleteProductSku,
   fetchProductAITasks,
   fetchProductDetail,
+  fetchProductOperationProgress,
   generateDescription,
   optimizeProductTitle,
   reorderProductImages,
@@ -90,12 +92,15 @@ import {
   type AITaskRow,
   type GenerateDescriptionResult,
   type OptimizeTitleResult,
+  type ProductOperationProgress,
   type ProductDetail,
   type DouyinDraftImage,
   type DouyinDraftMapping,
   type DouyinMappingIssue,
   type ProductImageRow,
   type ProductSKURow,
+  undoAiDescription,
+  undoProductAITitle,
 } from '@/services/products';
 import { Link } from '@umijs/renderer-react';
 import {
@@ -441,6 +446,135 @@ function readinessCheckList(items: ReadinessCheckItem[], limit?: number) {
   ));
 }
 
+const PRODUCT_DRAFT_TABS = new Set(['basic', 'ai', 'images', 'skus', 'inventory', 'readiness', 'publish']);
+
+function tabFromOperationUrl(raw?: string): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, window.location.origin);
+    const tab = url.searchParams.get('tab') || '';
+    return PRODUCT_DRAFT_TABS.has(tab) ? tab : null;
+  } catch {
+    return null;
+  }
+}
+
+function operationStepColor(step?: string) {
+  if (step === 'ready') return 'green';
+  if (step === 'publish_check') return 'orange';
+  if (step === 'pricing' || step === 'images') return 'gold';
+  return 'blue';
+}
+
+function OperationProgressPanel({
+  progress,
+  loading,
+  error,
+  onReload,
+  onAction,
+}: {
+  progress: ProductOperationProgress | null;
+  loading: boolean;
+  error?: string;
+  onReload: () => void;
+  onAction: (url?: string) => void;
+}) {
+  if (error && !progress) {
+    return (
+      <SectionCard
+        title="商品运营进度"
+        headerExtra={<Button icon={<ReloadOutlined />} onClick={onReload}>重新加载</Button>}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message="商品运营进度暂时无法加载"
+          description="商品内容仍可以正常编辑，请稍后重新加载进度。"
+        />
+      </SectionCard>
+    );
+  }
+
+  if (!progress) {
+    return (
+      <SectionCard title="商品运营进度">
+        <Spin spinning={loading}>
+          <Typography.Text type="secondary">正在计算商品运营进度...</Typography.Text>
+        </Spin>
+      </SectionCard>
+    );
+  }
+
+  const issues = [
+    ...(progress.blockers ?? []),
+    ...(progress.warnings ?? []).map((w) => ({
+      code: w.code,
+      title: w.title,
+      message: w.message,
+      severity: 'warning',
+    })),
+  ].slice(0, 5);
+
+  return (
+    <SectionCard
+      title="商品运营进度"
+      headerExtra={
+        <Space wrap>
+          <Button icon={<ReloadOutlined />} onClick={onReload} loading={loading}>
+            刷新
+          </Button>
+          <Button type="primary" onClick={() => onAction(progress.nextActionUrl)}>
+            {progress.nextActionLabel || '继续完善'}
+          </Button>
+        </Space>
+      }
+    >
+      <Spin spinning={loading}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} md={7}>
+            <Progress percent={progress.completionPercent ?? 0} status={progress.publishReady ? 'success' : 'active'} />
+            <Typography.Text type="secondary">完成度由商品内容、图片、价格和发布检查实时计算。</Typography.Text>
+          </Col>
+          <Col xs={24} md={17}>
+            <Descriptions size="small" column={{ xs: 1, md: 3 }} bordered>
+              <Descriptions.Item label="当前需要">
+                <Tag color={operationStepColor(progress.currentStep)}>{progress.currentStepLabel || '继续完善'}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="阻断问题">{progress.blockerCount ?? progress.blockers?.length ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="建议检查">{progress.warningCount ?? progress.warnings?.length ?? 0}</Descriptions.Item>
+            </Descriptions>
+          </Col>
+        </Row>
+        {issues.length ? (
+          <div style={{ marginTop: 16 }}>
+            <Typography.Text strong>还需处理</Typography.Text>
+            <Space direction="vertical" style={{ width: '100%', marginTop: 8 }} size={6}>
+              {issues.map((x) => (
+                <Alert
+                  key={`${x.code}-${x.title}`}
+                  type={x.severity === 'failed' ? 'error' : 'warning'}
+                  showIcon
+                  message={x.title}
+                  description={
+                    <Space direction="vertical" size={4}>
+                      <Typography.Text>{x.message}</Typography.Text>
+                      {'actionUrl' in x && x.actionUrl ? (
+                        <Button type="link" size="small" style={{ padding: 0 }} onClick={() => onAction(x.actionUrl)}>
+                          {'actionLabel' in x && x.actionLabel ? x.actionLabel : '去处理'}
+                        </Button>
+                      ) : null}
+                    </Space>
+                  }
+                />
+              ))}
+            </Space>
+          </div>
+        ) : null}
+      </Spin>
+    </SectionCard>
+  );
+}
+
 function douyinIssueTag(level?: string) {
   return <Tag color={level === 'error' ? 'red' : 'orange'}>{level === 'error' ? '校验失败' : '需要确认'}</Tag>;
 }
@@ -628,12 +762,17 @@ export default function ProductDraftDetailPage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiResult, setAiResult] = useState<OptimizeTitleResult | null>(null);
+  const [aiPreparedTitle, setAiPreparedTitle] = useState('');
   const [aiTasks, setAiTasks] = useState<AITaskRow[]>([]);
   const [aiForm] = Form.useForm();
   const [descOpen, setDescOpen] = useState(false);
   const [descBusy, setDescBusy] = useState(false);
   const [descResult, setDescResult] = useState<GenerateDescriptionResult | null>(null);
+  const [descPreparedText, setDescPreparedText] = useState('');
   const [descForm] = Form.useForm();
+  const [operationProgress, setOperationProgress] = useState<ProductOperationProgress | null>(null);
+  const [operationProgressLoading, setOperationProgressLoading] = useState(false);
+  const [operationProgressError, setOperationProgressError] = useState('');
   const [skuRows, setSkuRows] = useState<SKUEditable[]>([]);
   const [imgModalOpen, setImgModalOpen] = useState(false);
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
@@ -809,6 +948,20 @@ export default function ProductDraftDetailPage() {
     [id],
   );
 
+  const reloadOperationProgress = useCallback(async () => {
+    if (!id) return;
+    setOperationProgressLoading(true);
+    setOperationProgressError('');
+    try {
+      const progress = await fetchProductOperationProgress(id);
+      setOperationProgress(progress);
+    } catch (e: unknown) {
+      setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+    } finally {
+      setOperationProgressLoading(false);
+    }
+  }, [id]);
+
   const reloadDetail = useCallback(async () => {
     if (!id) return;
     const d = await fetchProductDetail(id);
@@ -819,7 +972,8 @@ export default function ProductDraftDetailPage() {
         attrsText: attrsToText(s.attrs),
       })),
     );
-  }, [id]);
+    await reloadOperationProgress();
+  }, [id, reloadOperationProgress]);
 
   const reloadTasks = useCallback(async () => {
     if (!id) return;
@@ -1168,6 +1322,17 @@ export default function ProductDraftDetailPage() {
             if (!cancelled) setAiTasks([]);
           }
         }
+        if (!cancelled) {
+          try {
+            const progress = await fetchProductOperationProgress(id);
+            if (!cancelled) {
+              setOperationProgress(progress);
+              setOperationProgressError('');
+            }
+          } catch (e: unknown) {
+            if (!cancelled) setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+          }
+        }
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
       } finally {
@@ -1186,17 +1351,31 @@ export default function ProductDraftDetailPage() {
   useEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search);
-      if (q.get('tab') === 'inventory') {
-        setDraftTabKey('inventory');
-        void reloadPublicationSkus();
+      const tab = q.get('tab') || '';
+      if (PRODUCT_DRAFT_TABS.has(tab)) {
+        setDraftTabKey(tab);
+      } else if (tab) {
+        setDraftTabKey('basic');
       }
-      if (q.get('tab') === 'readiness') {
-        setDraftTabKey('readiness');
+      if (tab === 'inventory') {
+        void reloadPublicationSkus();
       }
     } catch {
       /* noop */
     }
   }, [id, reloadPublicationSkus]);
+
+  const openOperationAction = useCallback(
+    (url?: string) => {
+      const tab = tabFromOperationUrl(url) || 'basic';
+      setDraftTabKey(tab);
+      if (tab === 'inventory') void reloadPublicationSkus();
+      if (url) {
+        window.history.replaceState(null, '', url);
+      }
+    },
+    [reloadPublicationSkus],
+  );
 
   const sortedImages = useMemo(() => {
     const typeRank = (t: string) => {
@@ -1675,10 +1854,21 @@ export default function ProductDraftDetailPage() {
       ) : err ? (
         <Typography.Text type="danger">{err}</Typography.Text>
       ) : data ? (
-        <Tabs
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <OperationProgressPanel
+            progress={operationProgress}
+            loading={operationProgressLoading}
+            error={operationProgressError}
+            onReload={() => void reloadOperationProgress()}
+            onAction={openOperationAction}
+          />
+          <Tabs
           activeKey={draftTabKey}
           onChange={(k) => {
             setDraftTabKey(k);
+            const q = new URLSearchParams(window.location.search);
+            q.set('tab', k);
+            window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
             if (k === 'inventory') void reloadPublicationSkus();
           }}
           items={[
@@ -1799,6 +1989,7 @@ export default function ProductDraftDetailPage() {
                         type="primary"
                         onClick={() => {
                           setAiResult(null);
+                          setAiPreparedTitle('');
                           aiForm.resetFields();
                           aiForm.setFieldsValue({ language: 'en', platform: 'TikTok Shop', maxLength: 120 });
                           setAiOpen(true);
@@ -1810,6 +2001,7 @@ export default function ProductDraftDetailPage() {
                         type="primary"
                         onClick={() => {
                           setDescResult(null);
+                          setDescPreparedText('');
                           descForm.resetFields();
                           descForm.setFieldsValue({
                             language: 'en',
@@ -3502,7 +3694,8 @@ export default function ProductDraftDetailPage() {
               ),
             },
           ]}
-        />
+          />
+        </Space>
       ) : null}
 
       <ModalForm
@@ -3640,6 +3833,7 @@ export default function ProductDraftDetailPage() {
                 maxLength: Number(v.maxLength ?? 120),
               });
               setAiResult(res);
+              setAiPreparedTitle(res.optimizedTitle || '');
               message.success('优化完成');
               await reloadTasks();
             } catch (e: unknown) {
@@ -3671,6 +3865,7 @@ export default function ProductDraftDetailPage() {
               输出
             </Typography.Title>
             <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="原始内容">{data?.title || data?.originalTitle || '—'}</Descriptions.Item>
               <Descriptions.Item label="优化标题">{aiResult.optimizedTitle || '—'}</Descriptions.Item>
               <Descriptions.Item label="关键词">
                 {(aiResult.keywords ?? []).length ? aiResult.keywords.join('、') : '—'}
@@ -3678,24 +3873,35 @@ export default function ProductDraftDetailPage() {
               <Descriptions.Item label="说明">{aiResult.reason || '—'}</Descriptions.Item>
               <Descriptions.Item label="任务 ID">{aiResult.taskId}</Descriptions.Item>
             </Descriptions>
+            <Form.Item label="准备应用的内容">
+              <Input.TextArea rows={3} value={aiPreparedTitle} onChange={(e) => setAiPreparedTitle(e.target.value)} />
+            </Form.Item>
+            <Space wrap>
             <Button
               type="primary"
-              disabled={!aiResult.optimizedTitle}
+              disabled={!aiPreparedTitle.trim()}
               loading={aiBusy}
               onClick={async () => {
                 if (!aiResult?.taskId) return;
                 setAiBusy(true);
                 try {
                   await applyProductAITitle(id, {
-                    aiTitle: aiResult.optimizedTitle,
+                    aiTitle: aiPreparedTitle,
                     taskId: aiResult.taskId,
+                    expectedUpdatedAt: data?.updatedAt,
                   });
                   message.success('已应用为 AI 标题');
                   setAiOpen(false);
                   setAiResult(null);
+                  setAiPreparedTitle('');
                   await reloadDetail();
                   await reloadTasks();
                 } catch (e: unknown) {
+                  const msg = (e as Error)?.message || '';
+                  if (msg.includes('conflict')) {
+                    message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
+                    return;
+                  }
                   message.error((e as Error)?.message || '应用失败');
                 } finally {
                   setAiBusy(false);
@@ -3704,6 +3910,30 @@ export default function ProductDraftDetailPage() {
             >
               应用为 AI 标题
             </Button>
+            <Button
+              loading={aiBusy}
+              onClick={async () => {
+                setAiBusy(true);
+                try {
+                  await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
+                  message.success('已撤销最近一次 AI 标题应用');
+                  await reloadDetail();
+                  await reloadTasks();
+                } catch (e: unknown) {
+                  const msg = (e as Error)?.message || '撤销失败';
+                  if (msg.includes('conflict')) {
+                    message.warning('AI 标题已经被再次修改，不能静默撤销。');
+                  } else {
+                    message.error(msg);
+                  }
+                } finally {
+                  setAiBusy(false);
+                }
+              }}
+            >
+              撤销最近一次应用
+            </Button>
+            </Space>
           </div>
         ) : null}
       </Modal>
@@ -3730,6 +3960,7 @@ export default function ProductDraftDetailPage() {
                 tone: String(v.tone ?? ''),
               });
               setDescResult(res);
+              setDescPreparedText(buildAiDescriptionText(res));
               message.success('生成完成');
               await reloadTasks();
             } catch (e: unknown) {
@@ -3762,6 +3993,7 @@ export default function ProductDraftDetailPage() {
             </Typography.Title>
             <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="描述">{descResult.description || '—'}</Descriptions.Item>
+              <Descriptions.Item label="原始内容">{data?.description || '—'}</Descriptions.Item>
               <Descriptions.Item label="Highlights">
                 {(descResult.highlights ?? []).length ? descResult.highlights.join('；') : '—'}
               </Descriptions.Item>
@@ -3775,26 +4007,37 @@ export default function ProductDraftDetailPage() {
               <Descriptions.Item label="Reason">{descResult.reason || '—'}</Descriptions.Item>
               <Descriptions.Item label="任务 ID">{descResult.taskId}</Descriptions.Item>
             </Descriptions>
+            <Form.Item label="准备应用的内容">
+              <Input.TextArea rows={6} value={descPreparedText} onChange={(e) => setDescPreparedText(e.target.value)} />
+            </Form.Item>
+            <Space wrap>
             <Button
               type="primary"
-              disabled={!descResult.taskId || !buildAiDescriptionText(descResult)}
+              disabled={!descResult.taskId || !descPreparedText.trim()}
               loading={descBusy}
               onClick={async () => {
                 if (!descResult?.taskId) return;
-                const text = buildAiDescriptionText(descResult);
+                const text = descPreparedText.trim();
                 if (!text) return;
                 setDescBusy(true);
                 try {
                   await applyAiDescription(id, {
                     aiDescription: text,
                     taskId: descResult.taskId,
+                    expectedUpdatedAt: data?.updatedAt,
                   });
                   message.success('已应用为 AI 描述');
                   setDescOpen(false);
                   setDescResult(null);
+                  setDescPreparedText('');
                   await reloadDetail();
                   await reloadTasks();
                 } catch (e: unknown) {
+                  const msg = (e as Error)?.message || '';
+                  if (msg.includes('conflict')) {
+                    message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
+                    return;
+                  }
                   message.error((e as Error)?.message || '应用失败');
                 } finally {
                   setDescBusy(false);
@@ -3803,6 +4046,30 @@ export default function ProductDraftDetailPage() {
             >
               应用为 AI 描述
             </Button>
+            <Button
+              loading={descBusy}
+              onClick={async () => {
+                setDescBusy(true);
+                try {
+                  await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
+                  message.success('已撤销最近一次 AI 描述应用');
+                  await reloadDetail();
+                  await reloadTasks();
+                } catch (e: unknown) {
+                  const msg = (e as Error)?.message || '撤销失败';
+                  if (msg.includes('conflict')) {
+                    message.warning('AI 描述已经被再次修改，不能静默撤销。');
+                  } else {
+                    message.error(msg);
+                  }
+                } finally {
+                  setDescBusy(false);
+                }
+              }}
+            >
+              撤销最近一次应用
+            </Button>
+            </Space>
           </div>
         ) : null}
       </Modal>

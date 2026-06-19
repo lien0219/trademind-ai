@@ -194,11 +194,13 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	}
 
 	inputPayload := map[string]any{
-		"promptCode": aiprompt.CodeProductTitleOptimize,
-		"productId":  p.ID.String(),
-		"language":   lang,
-		"platform":   platform,
-		"maxLength":  maxLen,
+		"promptCode":         aiprompt.CodeProductTitleOptimize,
+		"productId":          p.ID.String(),
+		"language":           lang,
+		"platform":           platform,
+		"maxLength":          maxLen,
+		"sourceSnapshotHash": productContentHash(productPromptTitle(&p)),
+		"productUpdatedAt":   p.UpdatedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
 	}
 	inputJSON, _ := json.Marshal(inputPayload)
 
@@ -341,14 +343,13 @@ func (s *Service) ApplyAITitle(c *gin.Context, productID uuid.UUID, body ApplyAI
 	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", productID).Error; err != nil {
 		return nil, err
 	}
-	p.AITitle = title
-	if err := s.DB.WithContext(c.Request.Context()).Save(&p).Error; err != nil {
+	if err := s.applyAIContent(c, &p, AIContentFieldTitle, title, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
-			Action:      "ai.title.apply",
+			Action:      "product.ai_title.apply",
 			Resource:    "product",
 			ResourceID:  p.ID.String(),
 			Status:      "success",

@@ -32,6 +32,7 @@ type Service struct {
 
 	Shops               DouyinShopClientFactory
 	DouyinImageUploader DouyinImageUploader
+	Readiness           func(context.Context, OperationReadinessRequest) (*OperationReadinessResult, error)
 }
 
 type DouyinShopClientFactory interface {
@@ -80,6 +81,46 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if v := strings.TrimSpace(q.Keyword); v != "" {
 		pat := "%" + strings.ToLower(v) + "%"
 		tx = tx.Where("LOWER(title) LIKE ? OR LOWER(original_title) LIKE ?", pat, pat)
+	}
+	switch strings.TrimSpace(strings.ToLower(q.OperationStep)) {
+	case string(OperationStepCollectReview):
+		tx = tx.Where(`(
+			TRIM(COALESCE(source,'')) = ''
+			OR (TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '')
+			OR NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id AND ps.deleted_at IS NULL AND ((ps.price IS NOT NULL AND ps.price > 0) OR (ps.cost_price IS NOT NULL AND ps.cost_price > 0)))
+		)`, ImageTypeMain)
+	case string(OperationStepTitle):
+		tx = tx.Where("(TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '') OR LENGTH(TRIM(COALESCE(title, original_title, ''))) < ?", 4)
+	case string(OperationStepDescription):
+		tx = tx.Where("(TRIM(COALESCE(description,'')) = '' AND TRIM(COALESCE(ai_description,'')) = '') OR LENGTH(TRIM(COALESCE(description, ai_description, ''))) < ?", 20)
+	case string(OperationStepImages):
+		tx = tx.Where(`NOT EXISTS (
+			SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL
+		)`, ImageTypeMain)
+	case string(OperationStepPricing):
+		tx = tx.Where(`(
+			TRIM(COALESCE(currency,'')) = ''
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id AND ps.deleted_at IS NULL)
+			OR EXISTS (SELECT 1 FROM product_skus ps2 WHERE ps2.product_id = products.id AND ps2.deleted_at IS NULL AND (ps2.price IS NULL OR ps2.price <= 0))
+		)`)
+	case string(OperationStepPublishCheck):
+		tx = tx.Where("status <> ?", StatusArchived).
+			Where(`(
+			(TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '')
+			OR TRIM(COALESCE(currency,'')) = ''
+			OR NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps0 WHERE ps0.product_id = products.id AND ps0.deleted_at IS NULL)
+			OR EXISTS (SELECT 1 FROM product_skus ps1 WHERE ps1.product_id = products.id AND ps1.deleted_at IS NULL AND (ps1.price IS NULL OR ps1.price <= 0))
+		)`, ImageTypeMain)
+	case string(OperationStepReady):
+		tx = tx.Where("status IN ?", []string{StatusDraft, StatusReady}).
+			Where("( TRIM(COALESCE(title,'')) <> '' OR TRIM(COALESCE(original_title,'')) <> '' )").
+			Where("LENGTH(TRIM(COALESCE(description, ai_description, ''))) >= ?", 20).
+			Where("TRIM(COALESCE(currency,'')) <> ''").
+			Where(`EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)`, ImageTypeMain).
+			Where(`EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id AND ps.deleted_at IS NULL)`).
+			Where(`NOT EXISTS (SELECT 1 FROM product_skus ps2 WHERE ps2.product_id = products.id AND ps2.deleted_at IS NULL AND (ps2.price IS NULL OR ps2.price <= 0))`)
 	}
 	if q.MissingAiTitle {
 		tx = tx.Where("status <> ?", StatusArchived).
@@ -166,6 +207,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			UpdatedAt: r.UpdatedAt,
 			CoverURL:  covers[r.ID],
 		})
+	}
+	var err error
+	items, err = s.attachOperationProgressSummaries(c.Request.Context(), rows, items)
+	if err != nil {
+		return nil, err
 	}
 
 	pages := int(total) / ps

@@ -418,6 +418,34 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Settings: settingsSvc,
 		Shops:    shopSvc,
 	}
+	productSvc.Readiness = func(ctx context.Context, req product.OperationReadinessRequest) (*product.OperationReadinessResult, error) {
+		res, err := readinessSvc.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
+			ProductID: req.ProductID,
+			Platform:  req.Platform,
+			Mode:      req.Mode,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out := &product.OperationReadinessResult{
+			Status:       res.Status,
+			Result:       res.Result,
+			CanPublish:   res.CanPublish,
+			ErrorCount:   res.ErrorCount,
+			WarningCount: res.WarningCount,
+			Checks:       make([]product.OperationReadinessCheck, 0, len(res.Checks)),
+		}
+		for _, c := range res.Checks {
+			out.Checks = append(out.Checks, product.OperationReadinessCheck{
+				Group:      c.Group,
+				Code:       c.Code,
+				Level:      c.Level,
+				Message:    c.Message,
+				Suggestion: c.Suggestion,
+			})
+		}
+		return out, nil
+	}
 
 	productPublishSvc := &productpublish.Service{
 		DB:        dep.DB,

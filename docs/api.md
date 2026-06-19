@@ -78,13 +78,16 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/products` | 商品草稿列表。 |
+| `GET` | `/api/v1/products` | 商品草稿列表；支持 `operationStep`（`collect_review` / `title` / `description` / `images` / `pricing` / `publish_check` / `ready`）筛选，并在列表行返回轻量 `operationProgress` 摘要。 |
 | `POST` | `/api/v1/products` | 创建商品草稿。 |
 | `GET` | `/api/v1/products/:id` | 商品详情。 |
+| `GET` | `/api/v1/products/:id/operation-progress` | 商品运营进度摘要；只读聚合商品、图片、SKU 与既有发布前检查，不调用平台 API、不创建任务、不修改商品。 |
 | `PUT` | `/api/v1/products/:id` | 更新商品草稿。 |
 | `DELETE` | `/api/v1/products/:id` | 删除或归档商品。 |
-| `POST` | `/api/v1/products/:id/apply-ai-title` | 应用 AI 标题。 |
-| `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述。 |
+| `POST` | `/api/v1/products/:id/apply-ai-title` | 应用 AI 标题；body 支持 `aiTitle`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`，不会静默覆盖人工修改。 |
+| `POST` | `/api/v1/products/:id/undo-ai-title` | 安全撤销最近一次 AI 标题应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
+| `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述；body 支持 `aiDescription`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`。 |
+| `POST` | `/api/v1/products/:id/undo-ai-description` | 安全撤销最近一次 AI 描述应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/images/select-best-main` | 自动评分并选择最佳主图；JSON `mode`: `score_only` / `recommend` / `auto_set`。 |
 | `POST` | `/api/v1/products/:id/sync-images` | 将商品外链图片（如淘宝 alicdn）下载并保存到当前 Storage Provider；JSON `scope`: `all` / `main` / `detail`（默认 `all`）。 |
 | `POST` | `/api/v1/pricing/calculate` | 单 SKU 发布价试算（不写入数据库）。 |
@@ -92,6 +95,8 @@
 | `POST` | `/api/v1/products/pricing/batch-apply` | 批量应用定价规则；需 `productIds` 或 `filters`，空条件须 `confirmAll=true`。 |
 
 `GET /api/v1/products/:id` 商品详情会返回统一商品草稿视图：基础字段 `source`、`sourceUrl`、`title`、`originalTitle`、`aiTitle`、`description`、`aiDescription`、`currency`、`status`；图片字段 `mainImages`、`descriptionImages`；结构字段 `attributes`、`skuGroups`、`skus`；价格 / 库存聚合字段 `costPrice`、`salePrice`、`stock`；采集与发布字段 `collectWarnings`、`publishStatus`；高级调试字段 `raw` / `rawData`。前端普通视图只展示标准字段与 warning，`raw` 仅用于高级详情。
+
+`operationProgress` 统一使用实际数据实时计算：采集结果、标题、描述、图片、价格、通用参数、发布检查、刊登草稿准备。返回字段包括 `completionPercent`、`currentStep`、`currentStepLabel`、`nextActionLabel`、`nextActionKey`、`nextActionUrl`、`completedSteps`、`pendingSteps`、`blockers`、`warnings`、`publishReady`、`updatedAt`。列表摘要只返回完成度、当前步骤、下一步入口、阻断/建议数量和可刊登状态；列表聚合批量读取图片、SKU 与图片任务状态，禁止逐行调用平台或自动创建任务。
 
 `pricing.rule` 支持：`costSource`（`collected` / `manual`）、`manualCostPrice`、`markupType`（`fixed` / `percent` / `multiplier` / `none`）、`markupAmount`、`markupPercent`、`markupMultiplier`、`shippingCost`、`weight`、`shippingCostPerWeight`、`platformCommissionPercent`、`exchangeRate`、`minProfit`、`minMarginPercent`、`minPublishPrice`、`roundingMode`（`none` / `integer` / `.9` / `.95` / `.99` / `9.99` / `19.90`）。试算返回 `landedCost`、`commissionFee`、`estimatedProfit`、`profitMarginPercent`；应用后写入 `product_skus.price` 并写操作日志。
 
