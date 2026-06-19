@@ -345,6 +345,24 @@ export default function ProductDraftsPage() {
         headerTitle={false}
         toolBarRender={() => [
           <Button
+            key="aiTextBatch"
+            type="primary"
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => {
+              if (selectedRowKeys.length === 0) {
+                message.warning('请先勾选商品');
+                return;
+              }
+              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
+                return;
+              }
+              history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量 AI 优化
+          </Button>,
+          <Button
             key="bulkAi"
             onClick={() => {
               bulkForm.resetFields();

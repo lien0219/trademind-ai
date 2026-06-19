@@ -88,6 +88,26 @@
 | `POST` | `/api/v1/products/:id/undo-ai-title` | 安全撤销最近一次 AI 标题应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述；body 支持 `aiDescription`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/undo-ai-description` | 安全撤销最近一次 AI 描述应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
+
+**批量 AI 文案（Phase A3.1）**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/products/ai-text/batches/check` | 创建前检查；返回 `summary` + 每商品×类型 `items`（`ready` / `warning` / `blocked`）。 |
+| `POST` | `/api/v1/products/ai-text/batches` | 创建批次；支持 `operationTypes`: `title` / `description`；幂等键 `idempotencyKey`；**不自动应用**。 |
+| `GET` | `/api/v1/products/ai-text/batches` | 批次列表。 |
+| `GET` | `/api/v1/products/ai-text/batches/:id` | 批次详情 + 复核子项；query `status` 筛选。 |
+| `POST` | `/api/v1/products/ai-text/batches/:id/retry-failed` | 只重试失败子项。 |
+| `POST` | `/api/v1/products/ai-text/batches/:id/cancel-pending` | 取消 pending 子项。 |
+| `POST` | `/api/v1/products/ai-text/batches/:id/apply-selected` | 批量应用；body `itemIds[]`；逐条冲突保护，`partial_success`。 |
+| `POST` | `/api/v1/products/ai-text/batches/:id/undo-applied` | 撤销本批次已应用项。 |
+| `POST` | `/api/v1/products/ai-text/items/:id/regenerate` | 单条重新生成。 |
+| `POST` | `/api/v1/products/ai-text/items/:id/update-edited-text` | 保存编辑文案。 |
+| `POST` | `/api/v1/products/ai-text/items/:id/apply` | 单条应用；冲突 409 + `AI_CONTENT_APPLY_CONFLICT`。 |
+| `POST` | `/api/v1/products/ai-text/items/:id/reject` | 放弃建议。 |
+
+设计见 [`BATCH_AI_TEXT_OPERATION_DESIGN.md`](BATCH_AI_TEXT_OPERATION_DESIGN.md)。
+
 | `POST` | `/api/v1/products/:id/images/select-best-main` | 自动评分并选择最佳主图；JSON `mode`: `score_only` / `recommend` / `auto_set`。 |
 | `POST` | `/api/v1/products/:id/sync-images` | 将商品外链图片（如淘宝 alicdn）下载并保存到当前 Storage Provider；JSON `scope`: `all` / `main` / `detail`（默认 `all`）。 |
 | `POST` | `/api/v1/pricing/calculate` | 单 SKU 发布价试算（不写入数据库）。 |

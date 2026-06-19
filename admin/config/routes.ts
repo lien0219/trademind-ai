@@ -105,6 +105,11 @@ export default [
         name: 'AI 批次',
         component: './AI/Batches',
       },
+      {
+        path: '/ai/text-batches',
+        name: '批量文案任务',
+        component: './AI/TextBatches',
+      },
     ],
   },
   {
@@ -128,6 +133,18 @@ export default [
         path: '/product/publish-batch',
         name: '批量创建刊登草稿',
         component: './Product/PublishBatch',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-text-batch',
+        name: '批量 AI 优化',
+        component: './Product/AITextBatch',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-text-batches/:id',
+        name: 'AI 文案批次复核',
+        component: './Product/AITextBatchDetail',
         hideInMenu: true,
       },
       {

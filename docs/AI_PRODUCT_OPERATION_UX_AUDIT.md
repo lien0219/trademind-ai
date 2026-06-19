@@ -1,8 +1,17 @@
 # AI 商品运营体验 Phase A1 审计
 
-> 日期：2026-06-17  
+> 日期：2026-06-17（Phase A3.1 更新：2026-06-19）
 > 阶段：AI 商品运营体验 Phase A1 / 商品草稿全链路体验收口  
 > 范围：采集商品 → 采集质量检查 → AI 标题 → AI 描述 → 图片处理 → 定价 → 发布检查 → 平台刊登草稿
+
+## Phase A3.1 记录（2026-06-19）
+
+- **批量 AI 标题 / 描述**：新模块 `aiproducttext`；表 `ai_product_text_batches` + `ai_product_text_items`；API 前缀 `/api/v1/products/ai-text/batches`。
+- **复用**：`OptimizeTitleWithBatch` / `GenerateDescriptionWithBatch`（`SaveAIField=false`）、`ApplyAITitle` / `ApplyAIDescription`（冲突保护）、`product_ai_content_applications`、撤销链路。
+- **不复用**：旧 `aioperationbatch.ApplyBatchResults` 直写字段（A3.1 应用走复核 + `applyAIContent`）。
+- **前端**：商品列表「批量 AI 优化」四步向导；复核台 `/product/ai-text-batches/:id`；AI 工具「批量文案任务」列表。
+- **未做**：批量图片、自动上架、平台独立标题策略、taskcenter 聚合 ai_product_text（失败可跳转复核页）。
+- **设计文档**：[`BATCH_AI_TEXT_OPERATION_DESIGN.md`](BATCH_AI_TEXT_OPERATION_DESIGN.md)
 
 ## Phase A2 记录（2026-06-19）
 
