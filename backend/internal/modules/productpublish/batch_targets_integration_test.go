@@ -23,7 +23,8 @@ import (
 func newBatchIntegrationDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	safeName := strings.NewReplacer("/", "_", " ", "_", ":", "_").Replace(t.Name())
-	dsn := fmt.Sprintf("file:batchtest_%s?mode=memory&cache=shared", safeName)
+	// Unique DSN per invocation so -count reruns and parallel subtests do not share sqlite memory.
+	dsn := fmt.Sprintf("file:batchtest_%s_%s?mode=memory", safeName, uuid.New().String())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -33,6 +34,7 @@ func newBatchIntegrationDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	if err := db.AutoMigrate(
 		&product.Product{},
 		&product.ProductImage{},
@@ -282,13 +284,13 @@ func TestRetryConcurrentSingleClaim(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if okCount != 2 {
-		t.Fatalf("both retries should return ok, got %d", okCount)
-	}
 	var newSuccess int64
 	db.Model(&ProductPublishTask{}).Where("batch_id = ? AND status = ? AND id <> ?", batchID, TaskSuccess, ft.ID).Count(&newSuccess)
 	if newSuccess != 1 {
 		t.Fatalf("expected exactly 1 new success task from concurrent retry, got %d", newSuccess)
+	}
+	if okCount != 2 {
+		t.Fatalf("both concurrent retries should succeed (idempotent when already retried), got ok=%d", okCount)
 	}
 }
 

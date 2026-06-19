@@ -720,7 +720,8 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		return nil, err
 	}
 	if len(failedTasks) == 0 {
-		return nil, fmt.Errorf("没有可重试的失败任务")
+		// Concurrent or duplicate retry: another caller may have already claimed failures.
+		return s.batchCreateResponseFromExisting(ctx, &batch)
 	}
 
 	results := make([]BatchTargetTaskResult, 0, len(failedTasks))
