@@ -401,6 +401,7 @@ The full documentation index is available at [docs/README.md](docs/README.md).
 | --- | --- |
 | Quick Start | [Local Development](docs/development.md) · [Docker Deployment](docs/docker-deployment.md) · [Environment Variables](docs/env.md) |
 | Architecture | [Architecture](docs/architecture.md) · [API Contract](docs/api.md) · [Provider Extension](docs/provider.md) · [Roadmap](docs/roadmap.md) |
+| AI Product Operation UX | [Phase A1 Audit](docs/AI_PRODUCT_OPERATION_UX_AUDIT.md) · [Phase A1.1 Acceptance](docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md) |
 | Douyin RC (Phase 10.4) | [Release Gate](docs/DOUYIN_RELEASE_GATE.md) · [E2E Checklist](docs/DOUYIN_E2E_CHECKLIST.md) · [Production Runbook](docs/DOUYIN_PRODUCTION_RUNBOOK.md) · [Production Audit](docs/DOUYIN_PRODUCTION_AUDIT.md) |
 | Collaboration | [Contributing](CONTRIBUTING.md) · [AI Agent Rules](AGENTS.md) · [AI Workflow](docs/ai-workflow.md) · [Branching Rules](docs/branching.md) · [AI Coding Rules](docs/ai-coding-rules.md) · [Module Map](docs/module-map.md) |
 | Community | [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Sponsor](docs/sponsor.md) · [NOTICE](NOTICE) |

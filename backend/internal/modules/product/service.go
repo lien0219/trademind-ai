@@ -64,12 +64,33 @@ func pickCoverURL(origin, pub string) string {
 	return strings.TrimSpace(origin)
 }
 
+func preferredDraftTextExpr(primary, fallback string) string {
+	return fmt.Sprintf("COALESCE(NULLIF(TRIM(%s), ''), NULLIF(TRIM(%s), ''), '')", primary, fallback)
+}
+
+func progressImageExistsClause(alias string) string {
+	urlExpr := fmt.Sprintf("(TRIM(COALESCE(%[1]s.public_url,'')) <> '' OR TRIM(COALESCE(%[1]s.origin_url,'')) <> '' OR TRIM(COALESCE(%[1]s.object_key,'')) <> '' OR TRIM(COALESCE(%[1]s.storage_key,'')) <> '')", alias)
+	imageType := fmt.Sprintf("LOWER(TRIM(COALESCE(%s.image_type,'')))", alias)
+	return fmt.Sprintf(`EXISTS (
+		SELECT 1
+		FROM product_images %s
+		WHERE %s.product_id = products.id
+		  AND (
+			(%s = '%s' AND %s)
+			OR (%s <> '%s' AND %s <> '%s' AND %s)
+		  )
+	)`, alias, alias, imageType, ImageTypeMain, urlExpr, imageType, ImageTypeMain, imageType, ImageTypeSKU, urlExpr)
+}
+
 // List returns paginated drafts with optional filters.
 func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
 	page, ps := clampPage(q.Page, q.PageSize)
+	titleExpr := preferredDraftTextExpr("title", "original_title")
+	descriptionExpr := preferredDraftTextExpr("description", "ai_description")
+	hasProgressImage := progressImageExistsClause("pi")
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&Product{})
 	if v := strings.TrimSpace(q.Status); v != "" {
@@ -86,41 +107,39 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	case string(OperationStepCollectReview):
 		tx = tx.Where(`(
 			TRIM(COALESCE(source,'')) = ''
-			OR (TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '')
-			OR NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)
-			OR NOT EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id AND ps.deleted_at IS NULL AND ((ps.price IS NOT NULL AND ps.price > 0) OR (ps.cost_price IS NOT NULL AND ps.cost_price > 0)))
-		)`, ImageTypeMain)
+			OR ` + titleExpr + ` = ''
+			OR NOT ` + hasProgressImage + `
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id AND ((ps.price IS NOT NULL AND ps.price > 0) OR (ps.cost_price IS NOT NULL AND ps.cost_price > 0)))
+		)`)
 	case string(OperationStepTitle):
-		tx = tx.Where("(TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '') OR LENGTH(TRIM(COALESCE(title, original_title, ''))) < ?", 4)
+		tx = tx.Where(titleExpr+" = '' OR LENGTH("+titleExpr+") < ?", 4)
 	case string(OperationStepDescription):
-		tx = tx.Where("(TRIM(COALESCE(description,'')) = '' AND TRIM(COALESCE(ai_description,'')) = '') OR LENGTH(TRIM(COALESCE(description, ai_description, ''))) < ?", 20)
+		tx = tx.Where(descriptionExpr+" = '' OR LENGTH("+descriptionExpr+") < ?", 20)
 	case string(OperationStepImages):
-		tx = tx.Where(`NOT EXISTS (
-			SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL
-		)`, ImageTypeMain)
+		tx = tx.Where("NOT " + hasProgressImage)
 	case string(OperationStepPricing):
 		tx = tx.Where(`(
 			TRIM(COALESCE(currency,'')) = ''
-			OR NOT EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id AND ps.deleted_at IS NULL)
-			OR EXISTS (SELECT 1 FROM product_skus ps2 WHERE ps2.product_id = products.id AND ps2.deleted_at IS NULL AND (ps2.price IS NULL OR ps2.price <= 0))
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id)
+			OR EXISTS (SELECT 1 FROM product_skus ps2 WHERE ps2.product_id = products.id AND (ps2.price IS NULL OR ps2.price <= 0))
 		)`)
 	case string(OperationStepPublishCheck):
 		tx = tx.Where("status <> ?", StatusArchived).
 			Where(`(
-			(TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '')
+			` + titleExpr + ` = ''
 			OR TRIM(COALESCE(currency,'')) = ''
-			OR NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)
-			OR NOT EXISTS (SELECT 1 FROM product_skus ps0 WHERE ps0.product_id = products.id AND ps0.deleted_at IS NULL)
-			OR EXISTS (SELECT 1 FROM product_skus ps1 WHERE ps1.product_id = products.id AND ps1.deleted_at IS NULL AND (ps1.price IS NULL OR ps1.price <= 0))
-		)`, ImageTypeMain)
+			OR NOT ` + hasProgressImage + `
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps0 WHERE ps0.product_id = products.id)
+			OR EXISTS (SELECT 1 FROM product_skus ps1 WHERE ps1.product_id = products.id AND (ps1.price IS NULL OR ps1.price <= 0))
+		)`)
 	case string(OperationStepReady):
 		tx = tx.Where("status IN ?", []string{StatusDraft, StatusReady}).
-			Where("( TRIM(COALESCE(title,'')) <> '' OR TRIM(COALESCE(original_title,'')) <> '' )").
-			Where("LENGTH(TRIM(COALESCE(description, ai_description, ''))) >= ?", 20).
+			Where(titleExpr+" <> ''").
+			Where("LENGTH("+descriptionExpr+") >= ?", 20).
 			Where("TRIM(COALESCE(currency,'')) <> ''").
-			Where(`EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)`, ImageTypeMain).
-			Where(`EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id AND ps.deleted_at IS NULL)`).
-			Where(`NOT EXISTS (SELECT 1 FROM product_skus ps2 WHERE ps2.product_id = products.id AND ps2.deleted_at IS NULL AND (ps2.price IS NULL OR ps2.price <= 0))`)
+			Where(hasProgressImage).
+			Where(`EXISTS (SELECT 1 FROM product_skus ps WHERE ps.product_id = products.id)`).
+			Where(`NOT EXISTS (SELECT 1 FROM product_skus ps2 WHERE ps2.product_id = products.id AND (ps2.price IS NULL OR ps2.price <= 0))`)
 	}
 	if q.MissingAiTitle {
 		tx = tx.Where("status <> ?", StatusArchived).
@@ -135,28 +154,26 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if q.ReadinessBlocked {
 		tx = tx.Where("status <> ?", StatusArchived).
 			Where(`(
-			(TRIM(COALESCE(title,'')) = '' AND TRIM(COALESCE(original_title,'')) = '')
+			` + titleExpr + ` = ''
 			OR TRIM(COALESCE(currency,'')) = ''
-			OR NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL)
-			OR NOT EXISTS (SELECT 1 FROM product_skus ps0 WHERE ps0.product_id = products.id AND ps0.deleted_at IS NULL)
-			OR EXISTS (SELECT 1 FROM product_skus ps1 WHERE ps1.product_id = products.id AND ps1.deleted_at IS NULL AND (ps1.price IS NULL OR ps1.price <= 0))
-		)`, ImageTypeMain)
+			OR NOT ` + hasProgressImage + `
+			OR NOT EXISTS (SELECT 1 FROM product_skus ps0 WHERE ps0.product_id = products.id)
+			OR EXISTS (SELECT 1 FROM product_skus ps1 WHERE ps1.product_id = products.id AND (ps1.price IS NULL OR ps1.price <= 0))
+		)`)
 	}
 	if q.Publishable {
 		tx = tx.Where("status IN ?", []string{StatusDraft, StatusReady}).
-			Where("( TRIM(COALESCE(title,'')) <> '' OR TRIM(COALESCE(original_title,'')) <> '' )").
+			Where(titleExpr+" <> ''").
+			Where("LENGTH("+descriptionExpr+") >= ?", 20).
 			Where("TRIM(COALESCE(currency,'')) <> ''").
-			Where(`EXISTS (
-			SELECT 1 FROM product_images pi
-			WHERE pi.product_id = products.id AND pi.image_type = ? AND pi.deleted_at IS NULL
-		)`, ImageTypeMain).
+			Where(hasProgressImage).
 			Where(`EXISTS (
 			SELECT 1 FROM product_skus ps
-			WHERE ps.product_id = products.id AND ps.deleted_at IS NULL
+			WHERE ps.product_id = products.id
 		)`).
 			Where(`NOT EXISTS (
 			SELECT 1 FROM product_skus ps2
-			WHERE ps2.product_id = products.id AND ps2.deleted_at IS NULL AND (ps2.price IS NULL OR ps2.price <= 0)
+			WHERE ps2.product_id = products.id AND (ps2.price IS NULL OR ps2.price <= 0)
 		)`)
 	}
 

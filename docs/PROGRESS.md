@@ -1,4 +1,5 @@
 # TradeMind 开发进度记录
+**Stage update**: 2026-06-19 — **AI 商品运营体验 Phase A1.1 稳定性补强已完成，真实样本验收待执行**。本轮未扩展新平台或重型 ERP，只收口 A1 链路：AI 标题/描述应用与撤销增加事务内重读、失败任务拒绝应用、`expectedUpdatedAt` / `sourceSnapshotHash` 冲突保护与条件更新；商品列表 `operationStep` / `publishable` / `readinessBlocked` 查询与真实进度规则对齐；商品详情补强 `tab + section` 深链、发布检查问题直达和多分辨率滚动定位。新增验收记录见 [`AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md`](AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md)。当前代码级回归已通过，但 **20 个真实商品样本试跑、人工视觉验收与截图证据尚未完成**，因此 **Phase A2 暂不开闸**。
 
 **Stage closure**: 2026-06-17 — **AI 商品运营体验 Phase A1 商品草稿全链路体验收口完成**。新增商品运营进度只读模型与 `GET /api/v1/products/:id/operation-progress`，商品草稿列表返回轻量 `operationProgress` 摘要并支持按当前步骤筛选；商品详情顶部展示完成度、当前步骤、阻断/建议数量和下一步入口，可直接打开基础信息、图片、规格、发布检查或刊登 Tab。发布前检查继续复用既有 readiness 结果，不复制前端判断；AI 标题/描述应用改为原始内容、AI 建议、准备应用内容对比，应用时校验 `expectedUpdatedAt` / 任务快照，写入 `product_ai_content_applications` 快照并支持安全撤销，避免静默覆盖后续人工修改。阶段未修改抖店 Provider 或抖店接口字段，抖店状态仍为 **Release Candidate**；未新增售后、财务、多仓、WMS、复杂 BI 或自动直接上架能力。
 

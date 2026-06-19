@@ -5,6 +5,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { SectionCard, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { commonStatusLabel, publishModeLabel, readinessLevelLabel } from '@/constants/copywriting';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
+import { getProductReadinessAction } from '@/constants/productReadinessActions';
 import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import {
   Button,
@@ -459,6 +460,16 @@ function tabFromOperationUrl(raw?: string): string | null {
   }
 }
 
+function sectionFromOperationUrl(raw?: string): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, window.location.origin);
+    return (url.searchParams.get('section') || '').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function operationStepColor(step?: string) {
   if (step === 'ready') return 'green';
   if (step === 'publish_check') return 'orange';
@@ -728,32 +739,6 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
   return null;
 }
 
-function fixLinkForReadinessCode(code: string): { tab?: string; href?: string; label: string } | null {
-  const c = (code || '').toLowerCase();
-  if (c.startsWith('product.title') || c === 'product.currency_missing' || c === 'product.archived') {
-    return { tab: 'basic', label: '去基础信息' };
-  }
-  if (c.startsWith('product.description')) {
-    return { tab: 'ai', label: '去 AI 描述' };
-  }
-  if (c.startsWith('sku.')) {
-    return { tab: 'skus', label: '去商品规格' };
-  }
-  if (c.startsWith('image.')) {
-    return { tab: 'images', label: '去图片' };
-  }
-  if (c.startsWith('inventory.')) {
-    return { tab: 'inventory', label: '去库存' };
-  }
-  if (c.startsWith('platform.shop') || c === 'platform.shop_inactive' || c === 'platform.shop_not_authorized') {
-    return { href: '/shops', label: '店铺管理' };
-  }
-  if (c.startsWith('platform.')) {
-    return { href: '/settings/platform-publish', label: '平台刊登配置' };
-  }
-  return null;
-}
-
 export default function ProductDraftDetailPage() {
   const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
   const [loading, setLoading] = useState(true);
@@ -773,6 +758,7 @@ export default function ProductDraftDetailPage() {
   const [operationProgress, setOperationProgress] = useState<ProductOperationProgress | null>(null);
   const [operationProgressLoading, setOperationProgressLoading] = useState(false);
   const [operationProgressError, setOperationProgressError] = useState('');
+  const [pendingSection, setPendingSection] = useState<string>('');
   const [skuRows, setSkuRows] = useState<SKUEditable[]>([]);
   const [imgModalOpen, setImgModalOpen] = useState(false);
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
@@ -1352,11 +1338,13 @@ export default function ProductDraftDetailPage() {
     try {
       const q = new URLSearchParams(window.location.search);
       const tab = q.get('tab') || '';
+      const section = (q.get('section') || '').trim();
       if (PRODUCT_DRAFT_TABS.has(tab)) {
         setDraftTabKey(tab);
       } else if (tab) {
         setDraftTabKey('basic');
       }
+      setPendingSection(section);
       if (tab === 'inventory') {
         void reloadPublicationSkus();
       }
@@ -1365,17 +1353,76 @@ export default function ProductDraftDetailPage() {
     }
   }, [id, reloadPublicationSkus]);
 
+  const scrollToSection = useCallback((section?: string) => {
+    const target = (section || '').trim();
+    if (!target) return false;
+    const el =
+      document.getElementById(target) ||
+      ({
+        title: document.querySelector('[id="title"]'),
+        description: document.querySelector('textarea[id$="description"], [data-name="description"]'),
+        'collect-review': document.getElementById('collect-review'),
+        attributes: document.getElementById('attributes'),
+        'image-list': document.getElementById('image-list') || document.querySelector('.ant-tabs-tabpane-active .ant-pro-table'),
+        pricing:
+          document.getElementById('pricing') ||
+          document.querySelector('.ant-tabs-tabpane-active .ant-btn-primary, .ant-tabs-tabpane-active .ant-table-wrapper'),
+        'local-skus':
+          document.getElementById('local-skus') ||
+          document.querySelector('.ant-tabs-tabpane-active .ant-alert, .ant-tabs-tabpane-active .ant-table-wrapper'),
+        'publish-check':
+          document.getElementById('publish-check') || document.querySelector('.ant-tabs-tabpane-active .ant-card'),
+        'publish-config':
+          document.getElementById('publish-config') || document.querySelector('.ant-tabs-tabpane-active .ant-card'),
+      } as Record<string, Element | null | undefined>)[target] ||
+      null;
+    if (!el) return false;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
+  }, []);
+
+  const openDraftLocation = useCallback(
+    (tab: string, section?: string) => {
+      const safeTab = PRODUCT_DRAFT_TABS.has(tab) ? tab : 'basic';
+      const safeSection = (section || '').trim();
+      setDraftTabKey(safeTab);
+      setPendingSection(safeSection);
+      if (safeTab === 'inventory') void reloadPublicationSkus();
+      const q = new URLSearchParams(window.location.search);
+      q.set('tab', safeTab);
+      if (safeSection) {
+        q.set('section', safeSection);
+      } else {
+        q.delete('section');
+      }
+      window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
+      if (safeTab === draftTabKey) {
+        window.requestAnimationFrame(() => {
+          void scrollToSection(safeSection);
+        });
+      }
+    },
+    [draftTabKey, reloadPublicationSkus, scrollToSection],
+  );
+
   const openOperationAction = useCallback(
     (url?: string) => {
       const tab = tabFromOperationUrl(url) || 'basic';
-      setDraftTabKey(tab);
-      if (tab === 'inventory') void reloadPublicationSkus();
-      if (url) {
-        window.history.replaceState(null, '', url);
-      }
+      const section = sectionFromOperationUrl(url) || undefined;
+      openDraftLocation(tab, section);
     },
-    [reloadPublicationSkus],
+    [openDraftLocation],
   );
+
+  useEffect(() => {
+    if (!pendingSection) return;
+    const timer = window.setTimeout(() => {
+      if (scrollToSection(pendingSection)) {
+        setPendingSection('');
+      }
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [draftTabKey, pendingSection, scrollToSection]);
 
   const sortedImages = useMemo(() => {
     const typeRank = (t: string) => {
@@ -1866,8 +1913,10 @@ export default function ProductDraftDetailPage() {
           activeKey={draftTabKey}
           onChange={(k) => {
             setDraftTabKey(k);
+            setPendingSection('');
             const q = new URLSearchParams(window.location.search);
             q.set('tab', k);
+            q.delete('section');
             window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
             if (k === 'inventory') void reloadPublicationSkus();
           }}
@@ -1877,6 +1926,7 @@ export default function ProductDraftDetailPage() {
               label: '基础信息',
               children: (
                 <Card variant="borderless">
+                  <div id="collect-review" />
                   {(isPinduoduoProduct(data) || isTaobaoTmallProduct(data)) ? (
                     <ProductCollectQualityAlert product={data} />
                   ) : null}
@@ -1914,6 +1964,8 @@ export default function ProductDraftDetailPage() {
                   </Descriptions>
 
                   {Object.keys(collectedAttrs).length > 0 ? (
+                    <>
+                    <div id="attributes" />
                     <Card title="采集属性" size="small" style={{ marginBottom: 16 }}>
                       <Table
                         size="small"
@@ -1926,6 +1978,7 @@ export default function ProductDraftDetailPage() {
                         ]}
                       />
                     </Card>
+                    </>
                   ) : null}
 
                   <ProForm
@@ -1967,6 +2020,7 @@ export default function ProductDraftDetailPage() {
                     }}
                     colProps={{ span: 12 }}
                   >
+                    <div id="title" />
                     <ProFormText name="title" label="主标题" rules={[{ required: true, message: '必填' }]} />
                     <ProFormTextArea name="originalTitle" label="原始标题" fieldProps={{ rows: 2 }} />
                     <ProFormTextArea name="aiTitle" label="AI 标题" fieldProps={{ rows: 2 }} />
@@ -2782,7 +2836,7 @@ export default function ProductDraftDetailPage() {
                                     title: '建议 / 操作',
                                     width: 220,
                                     render: (_: unknown, row: ReadinessCheckItem) => {
-                                      const fx = fixLinkForReadinessCode(row.code);
+                                      const fx = getProductReadinessAction(row.code);
                                       return (
                                         <Space direction="vertical" size={4}>
                                           <Typography.Text type="secondary">{row.suggestion}</Typography.Text>
@@ -2792,7 +2846,7 @@ export default function ProductDraftDetailPage() {
                                                 type="link"
                                                 size="small"
                                                 style={{ padding: 0 }}
-                                                onClick={() => setDraftTabKey(fx.tab!)}
+                                                onClick={() => openDraftLocation(fx.tab!, fx.section)}
                                               >
                                                 {fx.label}
                                               </Button>
