@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"gorm.io/gorm"
 )
 
@@ -58,16 +59,25 @@ func createPublishBatchA21Indexes(db *gorm.DB) error {
 		`CREATE INDEX IF NOT EXISTS ix_publish_batches_status ON product_publish_batches (status)`,
 	}
 	if db.Migrator().HasTable("product_publish_tasks") {
-		stmts = append(stmts,
-			`CREATE INDEX IF NOT EXISTS ix_publish_tasks_batch_id ON product_publish_tasks (batch_id)`,
-			`CREATE INDEX IF NOT EXISTS ix_publish_tasks_target_key ON product_publish_tasks (target_key)`,
-			`CREATE INDEX IF NOT EXISTS ix_publish_tasks_batch_status ON product_publish_tasks (batch_id, status)`,
-		)
+		taskModel := &productpublish.ProductPublishTask{}
+		if db.Migrator().HasColumn(taskModel, "batch_id") {
+			stmts = append(stmts, `CREATE INDEX IF NOT EXISTS ix_publish_tasks_batch_id ON product_publish_tasks (batch_id)`)
+		}
+		if db.Migrator().HasColumn(taskModel, "target_key") {
+			stmts = append(stmts, `CREATE INDEX IF NOT EXISTS ix_publish_tasks_target_key ON product_publish_tasks (target_key)`)
+		}
+		if db.Migrator().HasColumn(taskModel, "batch_id") && db.Migrator().HasColumn(taskModel, "status") {
+			stmts = append(stmts, `CREATE INDEX IF NOT EXISTS ix_publish_tasks_batch_status ON product_publish_tasks (batch_id, status)`)
+		}
 	}
 	for _, sql := range stmts {
 		if err := db.Exec(sql).Error; err != nil {
 			return fmt.Errorf("publish batch a21 index: %w", err)
 		}
+	}
+	batchModel := &productpublish.ProductPublishBatch{}
+	if !db.Migrator().HasColumn(batchModel, "idempotency_key") {
+		return nil
 	}
 	dupes, err := checkPublishBatchIdempotencyDuplicates(db)
 	if err != nil {

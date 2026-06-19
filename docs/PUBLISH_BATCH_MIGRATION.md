@@ -12,7 +12,7 @@ Phase A2 通过 GORM AutoMigrate 扩展 `product_publish_batches` / `product_pub
 
 ## 执行时机
 
-服务启动时在 `AutoMigrate` **之前**调用，与 `migrateDouyinPhase102Indexes` 相同。可重复执行（`IF NOT EXISTS`）。
+服务启动时在 GORM **`AutoMigrate` 完成之后**调用（先由 model 补齐 `idempotency_key`、`batch_id` 等列，再建索引与约束）。可重复执行（`IF NOT EXISTS`）。
 
 ## 变更内容
 

@@ -110,10 +110,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateDouyinPhase102Indexes(db); err != nil {
 		return err
 	}
-	if err := migratePublishBatchA21(db); err != nil {
-		return err
-	}
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&admin.AdminUser{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
@@ -158,5 +155,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&taskcenter.TaskFailureMark{},
 		&taskcenter.TaskAlert{},
 		&taskcenter.TaskAlertNotification{},
-	)
+	); err != nil {
+		return err
+	}
+	return migratePublishBatchA21(db)
 }
