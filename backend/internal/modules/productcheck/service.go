@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/gorm"
 )
@@ -553,15 +554,44 @@ func checkCollectWarnings(p product.Product) []CheckItem {
 	}
 	out := make([]CheckItem, 0, len(warnings))
 	for _, w := range warnings {
+		raw := strings.TrimSpace(w)
+		code := raw
+		if looksLikeCollectWarningCode(raw) {
+			code = strings.ToUpper(raw)
+		} else {
+			code = "collect.warning_requires_confirmation"
+		}
+		title, msg := opslabels.LocalizeCollectWarning(raw)
 		out = append(out, CheckItem{
 			Group:      "collect",
-			Code:       "collect.warning_requires_confirmation",
+			Code:       code,
+			Title:      title,
 			Level:      levelWarning,
-			Message:    "采集提示需人工确认：" + w,
-			Suggestion: "请在商品详情顶部确认采集提示，必要时补齐标题、图片、SKU、库存或价格后再发布。",
+			Message:    msg,
+			Suggestion: "请在商品详情顶部确认采集提示，必要时补齐标题、图片、规格、库存或价格后再发布。",
+			TechnicalDetails: map[string]any{
+				"rawCode": raw,
+			},
 		})
 	}
 	return out
+}
+
+func looksLikeCollectWarningCode(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if strings.Contains(s, ".") {
+		return false
+	}
+	for _, r := range s {
+		if (r >= 'A' && r <= 'Z') || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func collectWarningsFromRaw(raw []byte) []string {

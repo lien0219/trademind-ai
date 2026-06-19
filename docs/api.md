@@ -102,7 +102,17 @@
 
 `settings` 分组 **`pricing`**：默认加价方式/比例/倍率、固定运费、按重量运费单价（预留）、平台佣金、最低利润、最低利润率、汇率、尾数、平台覆盖、`batch_max_size`（默认 500）。**不**创建刊登任务、**不**调用平台 API。
 
-发布前检查 `GET /api/v1/products/:id/readiness` 返回兼容字段 `status=ready|warning|blocked`，并新增 `result=passed|warning|failed`。`failed` 阻止创建刊登任务；`warning` 可继续但前端必须人工确认。当前检查项包括标题、AI 标题建议、描述、主图、SKU、价格、售价低于成本、最低利润 / 利润率保护、库存、外链图片同步提示、平台必填字段、采集 warning。`platform=douyin_shop` 时还会读取已保存的抖店刊登草稿映射，校验抖店标题、主图、类目、必填属性、SKU、价格、库存、图片待同步和采集来源复核提示。
+发布前检查 `GET /api/v1/products/:id/readiness` 返回兼容字段 `status=ready|warning|blocked`，并新增 `result=passed|warning|failed`，以及用户可见 `statusLabel` / `resultLabel`。每个 `checks[]` 项含 `title`、`message`、`severity`（同 `level`）与 `technicalDetails.rawCode`（内部码，前端默认折叠）。`failed` 阻止创建刊登任务；`warning` 可继续但前端必须人工确认。采集 warning 码（如 `DETAIL_IMAGES_INCOMPLETE`）在后端统一中文化。
+
+**多平台刊登中心（Phase A1.2）**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/products/:id/publish-targets` | 可刊登平台、店铺与能力分级（`real_draft_create` / `local_draft_only` / …） |
+| `POST` | `/api/v1/products/:id/publish-targets/check` | 多目标独立预检查；body 含 `targets[]`、`commonConfig`、`targetConfigs` |
+| `POST` | `/api/v1/products/:id/publish-targets/create-drafts` | 批量创建刊登草稿；形成 `product_publish_batches` + 子任务；支持 `onlyReady`、`retryFailedOnly` + `batchId` |
+
+详见 [`docs/MULTI_PLATFORM_PUBLISHING_DESIGN.md`](MULTI_PLATFORM_PUBLISHING_DESIGN.md)。
 
 刊登任务 `POST /api/v1/products/:id/publish` 会保存 `product_publish_tasks`，任务字段包括 `productId`、`targetPlatform`、`targetStoreId`、`status`（队列态，兼容旧值）、`publishStatus`（业务态：`draft` / `checking` / `ready` / `publishing` / `success` / `failed` / `cancelled`）、`publishMode`、`title`、`description`、`images`、`skus`、`price`、`currency`、`checkResult`、`platformPayload`、`platformResult`、`errorCode`、`errorMessage`、`createdAt`、`updatedAt`。平台字段映射快照包含 `platformTitle`、`platformDescription`、`platformImages`、`platformSkus`、`platformPrice`、`platformStock`、`platformCategory`、`platformAttributes`。
 

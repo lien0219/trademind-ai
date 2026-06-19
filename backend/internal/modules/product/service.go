@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
@@ -501,7 +502,7 @@ func collectWarningsFromRaw(raw json.RawMessage) []string {
 			add(readList(rawObj, k))
 		}
 	}
-	return out
+	return opslabels.LocalizeCollectWarnings(out)
 }
 
 func draftPublishStatus(status string) string {

@@ -50,6 +50,9 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g.POST("/products/:id/publish", h.Publish)
+	g.GET("/products/:id/publish-targets", h.ListPublishTargets)
+	g.POST("/products/:id/publish-targets/check", h.CheckPublishTargets)
+	g.POST("/products/:id/publish-targets/create-drafts", h.CreatePublishTargetDrafts)
 	g.POST("/products/:id/platform-configs/douyin_shop/create-draft", h.CreateDouyinDraft)
 	g.GET("/products/:id/platform-configs/douyin_shop/publish-tasks", h.ListDouyinPublishTasks)
 	g.GET("/products/:id/publications", h.ListByProduct)
@@ -84,7 +87,7 @@ func (h *Handler) Publish(c *gin.Context) {
 	if err != nil {
 		var blocked *productcheck.BlockedError
 		if errors.As(err, &blocked) && blocked.Result != nil {
-			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", blocked.Result)
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
 			return
 		}
 		switch {
@@ -107,6 +110,75 @@ func (h *Handler) Publish(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, msg)
 			return
 		}
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) ListPublishTargets(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.ListPublishTargets(c.Request.Context(), pid)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CheckPublishTargets(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body PublishTargetsCheckRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CheckPublishTargets(c.Request.Context(), pid, body)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CreatePublishTargetDrafts(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body PublishTargetsCreateDraftsRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CreateDraftsForTargets(c, pid, body, adminUUID(c))
+	if err != nil {
+		var blocked *productcheck.BlockedError
+		if errors.As(err, &blocked) && blocked.Result != nil {
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
 	}
 	response.OK(c, out)
 }
@@ -257,7 +329,7 @@ func (h *Handler) CreateDouyinDraft(c *gin.Context) {
 	if err != nil {
 		var blocked *productcheck.BlockedError
 		if errors.As(err, &blocked) && blocked.Result != nil {
-			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", blocked.Result)
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

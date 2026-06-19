@@ -3,6 +3,124 @@ import type { ApiResponse } from '@/services/request';
 import { getWithParams, getJSON, postJSON } from '@/services/request';
 import type { ProductReadinessResult } from '@/services/productReadiness';
 
+export type PublishTargetShop = {
+  shopId: string;
+  shopName: string;
+  authStatus: string;
+  authStatusLabel?: string;
+  enabled: boolean;
+};
+
+export type PublishTargetPlatform = {
+  platform: string;
+  platformLabel: string;
+  capability: string;
+  capabilityLabel: string;
+  shops: PublishTargetShop[];
+  settingsGroupKey?: string;
+  settingsPath?: string;
+};
+
+export type PublishTargetsResponse = {
+  productId: string;
+  platforms: PublishTargetPlatform[];
+};
+
+export type PublishTargetRef = {
+  platform: string;
+  shopId?: string | null;
+};
+
+export type PublishTargetIssue = {
+  code: string;
+  title: string;
+  message: string;
+  severity: string;
+  suggestion?: string;
+  technicalDetails?: Record<string, unknown>;
+};
+
+export type PublishTargetCheckResult = {
+  targetKey: string;
+  platform: string;
+  platformLabel: string;
+  shopId?: string;
+  shopName?: string;
+  capability: string;
+  status: string;
+  statusLabel: string;
+  canCreateDraft: boolean;
+  issues: PublishTargetIssue[];
+};
+
+export type PublishTargetsCheckResponse = {
+  summary: {
+    targetCount: number;
+    readyCount: number;
+    warningCount: number;
+    blockedCount: number;
+  };
+  targets: PublishTargetCheckResult[];
+};
+
+export type PublishTargetTaskResult = {
+  targetKey: string;
+  platform: string;
+  platformLabel: string;
+  shopId?: string;
+  shopName?: string;
+  taskId?: string;
+  publicationId?: string;
+  status: string;
+  statusLabel: string;
+  capability: string;
+  localDraftOnly?: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  platformProductId?: string;
+};
+
+export type PublishTargetsCreateDraftsResponse = {
+  batchId: string;
+  status: string;
+  statusLabel: string;
+  targetCount: number;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  targets: PublishTargetTaskResult[];
+};
+
+export async function fetchPublishTargets(productId: string): Promise<PublishTargetsResponse> {
+  return getJSON(`/api/v1/products/${encodeURIComponent(productId)}/publish-targets`);
+}
+
+export async function checkPublishTargets(
+  productId: string,
+  body: {
+    targets: PublishTargetRef[];
+    commonConfig?: Record<string, unknown>;
+    targetConfigs?: Record<string, unknown>;
+  },
+): Promise<PublishTargetsCheckResponse> {
+  return postJSON(`/api/v1/products/${encodeURIComponent(productId)}/publish-targets/check`, body);
+}
+
+export async function createPublishTargetDrafts(
+  productId: string,
+  body: {
+    targets: PublishTargetRef[];
+    commonConfig?: Record<string, unknown>;
+    targetConfigs?: Record<string, unknown>;
+    onlyReady?: boolean;
+    retryFailedOnly?: boolean;
+    batchId?: string;
+    force?: boolean;
+  },
+): Promise<PublishTargetsCreateDraftsResponse> {
+  return postJSON(`/api/v1/products/${encodeURIComponent(productId)}/publish-targets/create-drafts`, body);
+}
+
 export type ProductPublicationRow = {
   id: string;
   productId: string;

@@ -70,6 +70,17 @@
 
 ## 发布刊登生产级闭环
 
+### AI 商品运营体验 Phase A1.2（2026-06-19）
+
+- [ ] 商品详情顶部 / 发布检查 / 采集 warning **不再直接显示** `DETAIL_IMAGES_INCOMPLETE` 等英文码
+- [ ] `ready` / `warning` / `draft` 等状态显示中文（如「已准备好」「建议检查」）
+- [ ] 刊登 Tab → **多平台刊登中心**：可选择多个平台、多个店铺
+- [ ] 未授权店铺提示去授权；未配置平台提示「尚未配置」
+- [ ] `local_draft_only` 平台提示「仅生成本地草稿」，创建后任务成功但不调用外部 API
+- [ ] 抖店目标仍可走「创建抖店商品草稿」原链路
+- [ ] 「检查所选目标」→「创建刊登草稿」→ 部分失败时批次 `partial_success`
+- [ ] 1366px 宽度下刊登 Tab 不溢出；技术详情默认折叠
+
 ### AI 商品运营体验 Phase A1.1（2026-06-19）
 
 > 代码级补强与自动化回归已完成；真实商品样本试跑、多分辨率人工视觉验收与截图证据仍待执行。详见 [`docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md`](docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md)。

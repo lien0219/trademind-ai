@@ -5,6 +5,13 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { SectionCard, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { commonStatusLabel, publishModeLabel, readinessLevelLabel } from '@/constants/copywriting';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
+import MultiPlatformPublishCenter from '@/components/MultiPlatformPublishCenter';
+import {
+  localizeCollectWarningCode,
+  localizePublishCheckItem,
+  readinessStatusLabel,
+} from '@/constants/productOperationLabels';
+import { platformDisplayLabel } from '@/constants/platformLabels';
 import { getProductReadinessAction } from '@/constants/productReadinessActions';
 import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import {
@@ -207,10 +214,31 @@ function collectQualityWarningsFromRaw(rawData: unknown): string[] {
   if (!rawData || typeof rawData !== 'object') return [];
   const root = rawData as Record<string, unknown>;
   const raw = root.raw;
-  if (!raw || typeof raw !== 'object') return [];
-  const w = (raw as Record<string, unknown>).qualityWarnings;
-  if (!Array.isArray(w)) return [];
-  return w.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+  const codes: string[] = [];
+  const addList = (v: unknown) => {
+    if (!Array.isArray(v)) return;
+    for (const x of v) {
+      if (typeof x === 'string' && x.trim()) codes.push(x.trim());
+    }
+  };
+  addList(root.qualityWarnings);
+  addList(root.warnings);
+  addList(root.collectWarnings);
+  if (raw && typeof raw === 'object') {
+    const inner = raw as Record<string, unknown>;
+    addList(inner.qualityWarnings);
+    addList(inner.warnings);
+    addList(inner.collectWarnings);
+  }
+  const seen = new Set<string>();
+  return codes
+    .map((c) => localizeCollectWarningCode(c))
+    .filter((line) => {
+      const k = line.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
 }
 
 /** @deprecated use collectQualityWarningsFromRaw */
@@ -418,17 +446,30 @@ const READINESS_GROUP_LABEL: Record<string, string> = {
   inventory: '库存',
   collect: '采集提示',
   platform: '平台配置',
+  pricing: '价格',
+  attribute: '商品参数',
 };
+
+function readinessCheckDisplay(c: ReadinessCheckItem) {
+  const loc = localizePublishCheckItem(c);
+  return (
+    <>
+      {loc.title}
+      {loc.message && loc.message !== loc.title ? `：${loc.message}` : ''}
+    </>
+  );
+}
 
 function readinessStatusTag(r: ProductReadinessResult | null) {
   if (!r) return null;
+  const statusText = r.statusLabel || readinessStatusLabel(r.status);
   if (r.status === 'blocked' || (r.errorCount ?? 0) > 0) {
-    return <Tag color="red">阻止发布</Tag>;
+    return <Tag color="red">{statusText || '暂不能继续'}</Tag>;
   }
   if (r.status === 'warning' || (r.warningCount ?? 0) > 0) {
-    return <Tag color="orange">有警告</Tag>;
+    return <Tag color="orange">{statusText || '建议检查'}</Tag>;
   }
-  return <Tag color="green">可发布</Tag>;
+  return <Tag color="green">{statusText || '已准备好'}</Tag>;
 }
 
 function readinessLevelTag(level?: string) {
@@ -442,7 +483,14 @@ function readinessCheckList(items: ReadinessCheckItem[], limit?: number) {
   const list = limit != null ? items.slice(0, limit) : items;
   return list.map((c, i) => (
     <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
-      {readinessLevelTag(c.level)} {c.message}
+      {readinessLevelTag(c.level)} {readinessCheckDisplay(c)}
+      {c.technicalDetails?.rawCode ? (
+        <TechnicalDetails label="技术详情">
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            内部编号：{String(c.technicalDetails.rawCode)}
+          </Typography.Text>
+        </TechnicalDetails>
+      ) : null}
     </div>
   ));
 }
@@ -2879,12 +2927,21 @@ export default function ProductDraftDetailPage() {
               label: '刊登',
               children: (
                 <Spin spinning={pubCtxLoading || publishReadinessLoading}>
-                  <Card variant="borderless">
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <MultiPlatformPublishCenter
+                      productId={id}
+                      onDraftsCreated={async () => {
+                        await reloadPublishContext();
+                        await reloadDouyinPublishTasks();
+                        await reloadPublicationSkus();
+                      }}
+                    />
+                    <Card variant="borderless">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Alert
                         type="info"
                         showIcon
-                        message="多平台刊登"
+                        message="三、各平台 / 店铺单独配置"
                         description={
                           <>
                             可为已授权且支持刊登的店铺创建刊登任务。提交前请先在{' '}
@@ -2904,7 +2961,7 @@ export default function ProductDraftDetailPage() {
                       <Descriptions bordered size="small" column={3}>
                         <Descriptions.Item label="当前发布状态">
                           <Tag color={data.publishStatus === 'success' ? 'green' : data.publishStatus === 'ready' ? 'blue' : 'default'}>
-                            {data.publishStatus || 'draft'}
+                            {commonStatusLabel(data.publishStatus || 'draft')}
                           </Tag>
                         </Descriptions.Item>
                         <Descriptions.Item label="定价结果">
@@ -3726,8 +3783,8 @@ export default function ProductDraftDetailPage() {
                         pagination={false}
                         columns={[
                           { title: '店铺', render: (_, r) => r.shopName || r.shopId },
-                          { title: '平台', dataIndex: 'platform', width: 96 },
-                          { title: '状态', dataIndex: 'publishStatus', width: 100 },
+                          { title: '平台', dataIndex: 'platform', width: 120, render: (v) => platformDisplayLabel(String(v ?? '')) },
+                          { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => commonStatusLabel(String(v ?? '')) },
                           { title: '外部商品 ID', dataIndex: 'externalProductId', ellipsis: true },
                           {
                             title: '外链',
@@ -3744,6 +3801,7 @@ export default function ProductDraftDetailPage() {
                       />
                     </Space>
                   </Card>
+                  </Space>
                 </Spin>
               ),
             },

@@ -123,6 +123,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&product.ProductPlatformPublishConfig{},
 		&product.ProductAIContentApplication{},
 		&productpublish.ProductPublishTask{},
+		&productpublish.ProductPublishBatch{},
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},
 		&order.Order{},

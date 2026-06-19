@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	"gorm.io/gorm"
 )
 
@@ -218,7 +219,8 @@ func buildOperationProgress(f operationFacts) *ProductOperationProgress {
 		addBlocker(OperationStepCollectReview, "collect.price_missing", "价格信息缺失", "采集结果没有价格或成本信息，请设置销售价格。")
 	}
 	for _, w := range collectWarnings {
-		addWarning(OperationStepCollectReview, "collect.warning_requires_confirmation", "采集提示需检查", w)
+		title, msg := opslabels.LocalizeCollectWarning(w)
+		addWarning(OperationStepCollectReview, "collect.warning_requires_confirmation", title, msg)
 	}
 	if titleOK && sourceOK && mainOK && priceInfoOK && stepStatus[OperationStepCollectReview] == "" {
 		stepStatus[OperationStepCollectReview] = "done"

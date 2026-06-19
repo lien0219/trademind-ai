@@ -193,7 +193,8 @@ export const EMPTY_COPY = {
 /** 发布检查项级别 */
 export const READINESS_LEVEL_LABEL: Record<string, string> = {
   error: '错误',
-  warning: '警告',
+  warning: '建议检查',
+  failed: '错误',
 };
 
 export function readinessLevelLabel(level?: string | null): string {
@@ -240,12 +241,25 @@ export const COMMON_STATUS_LABEL: Record<string, string> = {
   ambiguous: '需要人工确认',
   skipped: '已跳过',
   retryable: '可以重试',
+  ready: '已准备好',
+  draft: '草稿',
+  draft_created: '平台草稿已创建',
+  warning: '建议检查',
+  blocked: '暂不能继续',
+  passed: '检查通过',
+  checking: '检查中',
+  publishing: '刊登中',
 };
 
 export function commonStatusLabel(status?: string | null): string {
-  const k = (status ?? '').trim().toLowerCase();
+  const raw = (status ?? '').trim();
+  const k = raw.toLowerCase();
   if (!k) return '—';
-  return COMMON_STATUS_LABEL[k] ?? status ?? '—';
+  if (/^[A-Z][A-Z0-9_]+$/.test(raw)) {
+    const mapped = mapErrorCodeToUserMessage(raw);
+    if (mapped) return mapped.title;
+  }
+  return COMMON_STATUS_LABEL[k] ?? raw ?? '—';
 }
 
 /** 空值展示 */
