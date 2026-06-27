@@ -190,8 +190,8 @@ func TestCollectPublishBatchFailedAndPartial(t *testing.T) {
 		BatchType: productpublish.BatchTypeSingleProduct,
 	}
 	partial := productpublish.ProductPublishBatch{
-		Status:    productpublish.BatchPartialSuccess,
-		BatchType: productpublish.BatchTypeMultiProduct,
+		Status:       productpublish.BatchPartialSuccess,
+		BatchType:    productpublish.BatchTypeMultiProduct,
 		ProductCount: 3,
 	}
 	if err := db.Create(&failed).Error; err != nil {
@@ -226,7 +226,7 @@ func TestCollectPublishCheckFailedAndWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{
-		DB: db,
+		DB:           db,
 		ProductCheck: &productcheck.Service{DB: db},
 	}
 	all, err := svc.collectAllTodos(context.Background(), Query{})

@@ -4,34 +4,34 @@ import "time"
 
 // Query binds list/summary filters.
 type Query struct {
-	Type       string
-	Priority   string
-	Platform   string
-	ShopID     string
-	Keyword    string
-	Status     string // open | resolved (open default)
-	Start      *time.Time
-	End        *time.Time
-	Page       int
-	PageSize   int
+	Type     string
+	Priority string
+	Platform string
+	ShopID   string
+	Keyword  string
+	Status   string // open | resolved (open default)
+	Start    *time.Time
+	End      *time.Time
+	Page     int
+	PageSize int
 }
 
 // SummaryDTO is the workbench headline counts.
 type SummaryDTO struct {
-	AITextReviewCount       int64 `json:"aiTextReviewCount"`
-	AIImageReviewCount      int64 `json:"aiImageReviewCount"`
-	PublishCheckIssueCount  int64 `json:"publishCheckIssueCount"`
-	PublishTaskIssueCount   int64 `json:"publishTaskIssueCount"`
-	TodayResolvedCount      int64 `json:"todayResolvedCount"`
-	HighPriorityCount       int64 `json:"highPriorityCount"`
-	AITextReviewHigh        int64 `json:"aiTextReviewHighPriority,omitempty"`
-	AIImageReviewHigh       int64 `json:"aiImageReviewHighPriority,omitempty"`
-	PublishCheckHigh        int64 `json:"publishCheckHighPriority,omitempty"`
-	PublishTaskHigh         int64 `json:"publishTaskIssueHighPriority,omitempty"`
-	AITextReviewTodayNew    int64 `json:"aiTextReviewTodayNew,omitempty"`
-	AIImageReviewTodayNew   int64 `json:"aiImageReviewTodayNew,omitempty"`
-	PublishCheckTodayNew    int64 `json:"publishCheckTodayNew,omitempty"`
-	PublishTaskTodayNew     int64 `json:"publishTaskIssueTodayNew,omitempty"`
+	AITextReviewCount      int64 `json:"aiTextReviewCount"`
+	AIImageReviewCount     int64 `json:"aiImageReviewCount"`
+	PublishCheckIssueCount int64 `json:"publishCheckIssueCount"`
+	PublishTaskIssueCount  int64 `json:"publishTaskIssueCount"`
+	TodayResolvedCount     int64 `json:"todayResolvedCount"`
+	HighPriorityCount      int64 `json:"highPriorityCount"`
+	AITextReviewHigh       int64 `json:"aiTextReviewHighPriority,omitempty"`
+	AIImageReviewHigh      int64 `json:"aiImageReviewHighPriority,omitempty"`
+	PublishCheckHigh       int64 `json:"publishCheckHighPriority,omitempty"`
+	PublishTaskHigh        int64 `json:"publishTaskIssueHighPriority,omitempty"`
+	AITextReviewTodayNew   int64 `json:"aiTextReviewTodayNew,omitempty"`
+	AIImageReviewTodayNew  int64 `json:"aiImageReviewTodayNew,omitempty"`
+	PublishCheckTodayNew   int64 `json:"publishCheckTodayNew,omitempty"`
+	PublishTaskTodayNew    int64 `json:"publishTaskIssueTodayNew,omitempty"`
 }
 
 // SummaryResponse wraps summary for API.
