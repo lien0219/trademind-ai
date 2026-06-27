@@ -22,6 +22,7 @@
 | 8d | **真实 AI 文案试跑（A3.1.2）** | 配置 AI Provider → `scripts/ai-text-route-smoke.ps1` → `scripts/ai-text-trial-run.ps1` | [ ] |
 | 8e | **批量 AI 图片（A3.2.1）** | 商品草稿列表多选 → **批量 AI 图片处理** → 复核 `/product/ai-image-batches/:id`；试跑见 `docs/ai-image-trial-run.json` | [x] |
 | 8f | **失败任务 → 图片复核（A3.2.1）** | 运维 → 失败任务中心 → `AI 批量图片` → 深链 `?itemId=` | [x] |
+| 8g | **AI 商品运营工作台（A3.3）** | AI 工具 → 商品运营工作台 `/ai/operation-workbench` → 筛选待办 → 跳转复核/发布检查/批次 | [ ] |
 | 9 | 定价规则 | 刊登 Tab → 应用定价规则 | [ ] |
 | 10 | 图片处理 | 同步图片到 Storage；可选 AI 图片任务 | [ ] |
 | 11 | 抖店刊登配置 | 刊登 Tab → 店铺 / 类目 / 属性 | [ ] |

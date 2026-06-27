@@ -1,4 +1,6 @@
 # TradeMind 开发进度记录
+**Stage update**: 2026-06-27 — **AI 商品运营体验 Phase A3.3 AI 商品运营工作台已完成**。新模块 `aiopsworkbench`；API `/api/v1/ai/operation-workbench/summary|todos|todos/:id|todos/refresh`；前端 **AI 工具 → 商品运营工作台**（`/ai/operation-workbench`）。聚合 AI 文案/图片待复核与冲突、发布检查 failed/warning（复用 `productcheck`）、刊登批次 failed/partial_success、taskcenter 失败（去重）；支持筛选、分页、详情抽屉与跳转；**不**自动应用 AI、**不**自动上架、**不**调外部平台 API。`go test ./...`、`pnpm build:admin`、抖店回归通过。设计见 [`AI_OPERATION_WORKBENCH_DESIGN.md`](AI_OPERATION_WORKBENCH_DESIGN.md)。**抖店仍 Release Candidate**。
+
 **Stage update**: 2026-06-19 — **AI 商品运营体验 Phase A3.2.1 批量 AI 图片真实 Provider 试跑与视觉验收完成（`passed_with_warning`）**。路由 smoke（`scripts/ai-image-route-smoke.ps1`）12 路由无 404；真实试跑 16 子项 10 成功（`scripts/ai-image-trial-run.ps1`）；应用/撤销/safedownload 验收（`scripts/ai-image-apply-undo-verify.ps1`）。修复 P1：① 运行后端需含 `aiproductimage` 路由的新二进制；② dashscope 白底图走 `replace_background` 而非硬编码 remove.bg；③ 质量评分写回 score 后刷新快照避免误报冲突。Provider `dashscope_image` 已配置；建议补 API Key 后复跑白底图 5 张。**建议可进入 A3.3 评审**。验收见 [`BATCH_AI_IMAGE_UX_ACCEPTANCE.md`](BATCH_AI_IMAGE_UX_ACCEPTANCE.md)。
 
 **Stage update**: 2026-06-19 — **AI 商品运营体验 Phase A3.2 批量 AI 图片处理、复核、应用与撤销（代码交付）已完成**。
@@ -590,6 +592,7 @@ trademind-ai/
 | 2026-05-19 | **通用 AI Agent 入口**：新增根目录 **`AGENTS.md`**，作为 Cursor 以外 AI 编辑器 / Agent 的通用协作入口，集中说明必读文档、技术栈、开发规则、文档同步要求、检查命令与禁止事项；README / README.en / docs index 增加入口。 |
 | 2026-05-19 | **Cursor rules 轻整理**：新增 **`.cursor/rules/README.md`**，按全局规则与领域规则列出每个 `.mdc` 的用途、适用范围和新增规则 checklist；`docs/README.md` 增加 Cursor rules 索引入口。 |
 | 2026-05-19 | **文档中心整理**：新增 **`docs/README.md`**，统一收口开发、部署、架构、Provider、路线图、分支规则、AI 编程规则、赞助、安全、行为准则等入口；README / README.en 文档导航改为分组式入口，首页更清爽，后续新增文档优先维护 docs index。 |
+| 2026-06-27 | **AI 商品运营工作台 Phase A3.3**：**`internal/modules/aiopsworkbench`**、**`/api/v1/ai/operation-workbench/*`**、**`/ai/operation-workbench`**；聚合 AI 文案/图片待复核、发布检查、刊登批次异常、taskcenter 失败；设计见 **`AI_OPERATION_WORKBENCH_DESIGN.md`** |
 | 2026-05-19 | **AI 编程规则与文档同步要求**：新增 **`docs/ai-coding-rules.md`** 与 Cursor 持久规则 **`.cursor/rules/12-ai-coding-doc-sync.mdc`**，明确代码、配置、环境变量、Docker、CI、API、Provider、页面、任务、数据库与安全变更必须同步相关文档；同步 **README / README.en / CONTRIBUTING / PR 模板**。 |
 | 2026-05-19 | **CI 与分支策略文档**：新增 **`.github/workflows/node.yml`**，对 **admin** 执行 `pnpm build:admin`、对 **collector** 执行 `pnpm build:collector`（push / PR 到 `main`、`dev`）；新增 **`docs/branching.md`**，固化 `main` / `dev` / `feat/*` / `fix/*` / `release/*` 分支策略与 PR 合并规则；更新 **README / README.en / CONTRIBUTING / PR 模板** 导航与检查项。 |
 | 2026-05-19 | **开源社区治理文件补齐**：新增 **`.github/ISSUE_TEMPLATE/config.yml`**（关闭空 Issue，提供文档 / 安全 / 赞助入口）、**`SECURITY.md`**、**`CODE_OF_CONDUCT.md`**、**`NOTICE`**，并同步 README / README.en 文档导航。 |

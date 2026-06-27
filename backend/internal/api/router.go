@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiopsworkbench"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
@@ -601,6 +602,14 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	dashH := &operationdashboard.Handler{Svc: dashSvc}
 	operationdashboard.Register(authed, dashH)
+
+	aiOpsWorkbenchSvc := &aiopsworkbench.Service{
+		DB:           dep.DB,
+		ProductCheck: readinessSvc,
+		TaskCenter:   tcSvc,
+	}
+	aiOpsWorkbenchH := &aiopsworkbench.Handler{Svc: aiOpsWorkbenchSvc}
+	aiopsworkbench.Register(authed, aiOpsWorkbenchH)
 
 	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
 }

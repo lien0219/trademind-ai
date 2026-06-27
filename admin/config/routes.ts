@@ -116,6 +116,11 @@ export default [
         name: '批量图片任务',
         component: './AI/ImageBatches',
       },
+      {
+        path: '/ai/operation-workbench',
+        name: '商品运营工作台',
+        component: './AI/OperationWorkbench',
+      },
     ],
   },
   {

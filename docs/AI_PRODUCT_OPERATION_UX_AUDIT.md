@@ -2,6 +2,14 @@
 
 > 日期：2026-06-17（Phase A3.2.1 更新：2026-06-19）
 
+## Phase A3.3 记录（2026-06-27）
+
+- **AI 商品运营工作台**：新模块 `aiopsworkbench`；API `/api/v1/ai/operation-workbench/*`；前端 `/ai/operation-workbench`。
+- **聚合来源**：`ai_product_text_items`、`ai_product_image_items`、`productcheck.CheckProductReadiness`、`product_publish_batches`、`taskcenter.ListFailures`。
+- **复用**：`operationdashboard` 仍负责广义 KPI；工作台负责待办明细与跳转；发布检查必须走后端 readiness，不复制前端逻辑。
+- **不做**：新增 AI 生成、自动应用、自动刊登、外部平台 API、忽略 P1（本阶段未做忽略）。
+- **设计 / 验收**：[`AI_OPERATION_WORKBENCH_DESIGN.md`](AI_OPERATION_WORKBENCH_DESIGN.md)、[`AI_OPERATION_WORKBENCH_UX_ACCEPTANCE.md`](AI_OPERATION_WORKBENCH_UX_ACCEPTANCE.md)
+
 ## Phase A3.2.1 记录（2026-06-19）
 
 - **路由 smoke**：12 条 ai-images 路由无 404（`scripts/ai-image-route-smoke.ps1`）。
