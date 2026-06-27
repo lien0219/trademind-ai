@@ -15,7 +15,7 @@
     "@umijs/max": "^4.4.5",
     "@umijs/renderer-react": "^4.6.55",
     "antd": "^5.24.0",
-    "dayjs": "^1.11.13",
+    "dayjs": "^1.11.21",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },
