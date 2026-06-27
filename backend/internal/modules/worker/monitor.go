@@ -95,6 +95,8 @@ type leasedCustomerMessageSyncTask struct {
 	UpdatedAt   time.Time  `gorm:"column:updated_at"`
 }
 
+func (leasedCustomerMessageSyncTask) TableName() string { return "customer_message_sync_tasks" }
+
 type leasedProductPublishTask struct {
 	ID          uuid.UUID  `gorm:"column:id"`
 	Status      string     `gorm:"column:status"`
