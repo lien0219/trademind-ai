@@ -2,6 +2,7 @@ package productpublish
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -50,6 +52,16 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g.POST("/products/:id/publish", h.Publish)
+	g.GET("/products/:id/publish-targets", h.ListPublishTargets)
+	g.POST("/products/:id/publish-targets/check", h.CheckPublishTargets)
+	g.POST("/products/:id/publish-targets/create-drafts", h.CreatePublishTargetDrafts)
+	g.GET("/product-publish/targets", h.ListGlobalPublishTargets)
+	g.POST("/product-publish/batch-targets/check", h.CheckBatchTargets)
+	g.POST("/product-publish/batch-targets/create-drafts", h.CreateBatchTargetDrafts)
+	g.GET("/product-publish/batches", h.ListPublishBatches)
+	g.GET("/product-publish/batches/:id", h.GetPublishBatch)
+	g.POST("/product-publish/batches/:id/retry-failed", h.RetryFailedBatch)
+	g.POST("/product-publish/batches/:id/cancel-pending", h.CancelPendingBatch)
 	g.POST("/products/:id/platform-configs/douyin_shop/create-draft", h.CreateDouyinDraft)
 	g.GET("/products/:id/platform-configs/douyin_shop/publish-tasks", h.ListDouyinPublishTasks)
 	g.GET("/products/:id/publications", h.ListByProduct)
@@ -84,7 +96,7 @@ func (h *Handler) Publish(c *gin.Context) {
 	if err != nil {
 		var blocked *productcheck.BlockedError
 		if errors.As(err, &blocked) && blocked.Result != nil {
-			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", blocked.Result)
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
 			return
 		}
 		switch {
@@ -107,6 +119,75 @@ func (h *Handler) Publish(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, msg)
 			return
 		}
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) ListPublishTargets(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.ListPublishTargets(c.Request.Context(), pid)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CheckPublishTargets(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body PublishTargetsCheckRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CheckPublishTargets(c.Request.Context(), pid, body)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CreatePublishTargetDrafts(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body PublishTargetsCreateDraftsRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CreateDraftsForTargets(c, pid, body, adminUUID(c))
+	if err != nil {
+		var blocked *productcheck.BlockedError
+		if errors.As(err, &blocked) && blocked.Result != nil {
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
 	}
 	response.OK(c, out)
 }
@@ -257,7 +338,7 @@ func (h *Handler) CreateDouyinDraft(c *gin.Context) {
 	if err != nil {
 		var blocked *productcheck.BlockedError
 		if errors.As(err, &blocked) && blocked.Result != nil {
-			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", blocked.Result)
+			response.JSON(c, 400, response.CodeBadRequest, "product readiness check failed", productcheck.LocalizeReadinessResult(blocked.Result))
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -407,6 +488,178 @@ func (h *Handler) CancelTask(c *gin.Context) {
 	}
 	out, err := h.Svc.CancelTask(c, id, adminUUID(c))
 	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) ListGlobalPublishTargets(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	out, err := h.Svc.ListPublishTargets(c.Request.Context(), uuid.Nil)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CheckBatchTargets(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	var body BatchTargetsCheckRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CheckBatchTargets(c.Request.Context(), body)
+	if err != nil {
+		if pe, ok := err.(*PublishConfigInvalidError); ok {
+			response.JSON(c, 400, response.CodePublishConfigInvalid, pe.Message, gin.H{
+				"code":             ErrorPublishConfigInvalid,
+				"title":            pe.Title,
+				"message":          pe.Message,
+				"technicalDetails": pe.TechnicalDetails,
+			})
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "product.publish.batch.check",
+			Resource:   "product_publish_batch",
+			ResourceID: "check",
+			Status:     "success",
+			Message: fmt.Sprintf("products=%d targets=%d tasks=%d ready=%d warn=%d blocked=%d",
+				out.Summary.ProductCount, out.Summary.TargetCount, out.Summary.TaskCount,
+				out.Summary.ReadyCount, out.Summary.WarningCount, out.Summary.BlockedCount),
+		})
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CreateBatchTargetDrafts(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	var body BatchTargetsCreateDraftsRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.CreateBatchTargetDrafts(c, body, adminUUID(c))
+	if err != nil {
+		if pe, ok := err.(*PublishConfigInvalidError); ok {
+			response.JSON(c, 400, response.CodePublishConfigInvalid, pe.Message, gin.H{
+				"code":             ErrorPublishConfigInvalid,
+				"title":            pe.Title,
+				"message":          pe.Message,
+				"technicalDetails": pe.TechnicalDetails,
+			})
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) ListPublishBatches(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	page := atoiQ(c, "page", 1)
+	pageSize := atoiQ(c, "pageSize", 20)
+	list, total, err := h.Svc.ListPublishBatches(c.Request.Context(), page, pageSize)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize != 0 {
+		totalPages++
+	}
+	response.OK(c, gin.H{
+		"list": list,
+		"pagination": gin.H{
+			"page": page, "pageSize": pageSize, "total": total, "totalPages": totalPages,
+		},
+	})
+}
+
+func (h *Handler) GetPublishBatch(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.GetPublishBatchDetail(c.Request.Context(), id, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if errors.Is(err, ErrBatchAccessDenied) {
+			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) RetryFailedBatch(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.RetryFailedBatchTasks(c, id, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, ErrBatchAccessDenied) {
+			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) CancelPendingBatch(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	out, err := h.Svc.CancelPendingBatchTasks(c, id, adminUUID(c))
+	if err != nil {
+		if errors.Is(err, ErrBatchAccessDenied) {
+			response.Fail(c, 403, response.CodeForbidden, "无权访问该批次")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

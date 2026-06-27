@@ -7,6 +7,11 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 export type TmProTableProps<T extends Record<string, unknown>, U extends Record<string, unknown> = Record<string, unknown>> =
   ProTableProps<T, U>;
 
+type TmToolBarRender<T extends Record<string, unknown>, U extends Record<string, unknown>> = Exclude<
+  ProTableProps<T, U>['toolBarRender'],
+  false | undefined
+>;
+
 /**
  * 统一 ProTable：用可点击的 Button 承接刷新（修复工具栏内置 span 图标在某些布局下点击无效的问题）。
  */
@@ -33,8 +38,8 @@ export default function TmProTable<
   }, [options]);
 
   const mergedToolBarRender = useCallback(
-    (action: ActionType | undefined, config: Parameters<NonNullable<ProTableProps<T, U>['toolBarRender']>>[1]) => {
-      const userNodes = toolBarRender?.(action, config) ?? [];
+    (action: ActionType | undefined, config: Parameters<TmToolBarRender<T, U>>[1]) => {
+      const userNodes = typeof toolBarRender === 'function' ? toolBarRender(action, config) ?? [] : [];
       if (mergedOptions === false) {
         return userNodes;
       }

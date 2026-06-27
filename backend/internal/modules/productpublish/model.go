@@ -13,6 +13,8 @@ type ProductPublishTask struct {
 	model.HardDeleteBase
 	ProductID         uuid.UUID      `gorm:"type:char(36);index;not null" json:"productId"`
 	ShopID            uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
+	BatchID           *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
+	TargetKey         string         `gorm:"size:128;index" json:"targetKey,omitempty"`
 	Platform          string         `gorm:"size:64;index;not null" json:"platform"`
 	TargetStoreID     uuid.UUID      `gorm:"type:char(36);index" json:"targetStoreId"`
 	TaskType          string         `gorm:"size:64;index;not null" json:"taskType"`

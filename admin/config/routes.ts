@@ -102,8 +102,24 @@ export default [
       },
       {
         path: '/ai/batches',
-        name: 'AI 批次',
+        name: 'AI 批次（旧版）',
+        hideInMenu: true,
         component: './AI/Batches',
+      },
+      {
+        path: '/ai/text-batches',
+        name: '批量文案任务',
+        component: './AI/TextBatches',
+      },
+      {
+        path: '/ai/image-batches',
+        name: '批量图片任务',
+        component: './AI/ImageBatches',
+      },
+      {
+        path: '/ai/operation-workbench',
+        name: '商品运营工作台',
+        component: './AI/OperationWorkbench',
       },
     ],
   },
@@ -123,6 +139,42 @@ export default [
         path: '/product/drafts',
         name: '商品草稿',
         component: './Product/Drafts',
+      },
+      {
+        path: '/product/publish-batch',
+        name: '批量创建刊登草稿',
+        component: './Product/PublishBatch',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-text-batch',
+        name: '批量 AI 优化',
+        component: './Product/AITextBatch',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-text-batches/:id',
+        name: 'AI 文案批次复核',
+        component: './Product/AITextBatchDetail',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-image-batch',
+        name: '批量 AI 图片处理',
+        component: './Product/AIImageBatch',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/ai-image-batches/:id',
+        name: 'AI 图片批次复核',
+        component: './Product/AIImageBatchDetail',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/publish-batches/:id',
+        name: '刊登批次详情',
+        component: './Product/PublishBatchDetail',
+        hideInMenu: true,
       },
       {
         path: '/product/publish-tasks',

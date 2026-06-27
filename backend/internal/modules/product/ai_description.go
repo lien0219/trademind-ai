@@ -158,11 +158,13 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	}
 
 	inputPayload := map[string]any{
-		"promptCode": aiprompt.CodeProductDescriptionGenerate,
-		"productId":  p.ID.String(),
-		"language":   lang,
-		"platform":   platform,
-		"tone":       tone,
+		"promptCode":         aiprompt.CodeProductDescriptionGenerate,
+		"productId":          p.ID.String(),
+		"language":           lang,
+		"platform":           platform,
+		"tone":               tone,
+		"sourceSnapshotHash": productContentHash(p.Description),
+		"productUpdatedAt":   p.UpdatedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
 	}
 	inputJSON, _ := json.Marshal(inputPayload)
 
@@ -291,14 +293,13 @@ func (s *Service) ApplyAIDescription(c *gin.Context, productID uuid.UUID, body A
 	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", productID).Error; err != nil {
 		return nil, err
 	}
-	p.AIDescription = text
-	if err := s.DB.WithContext(c.Request.Context()).Save(&p).Error; err != nil {
+	if err := s.applyAIContent(c, &p, AIContentFieldDescription, text, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
-			Action:      "ai.description.apply",
+			Action:      "product.ai_description.apply",
 			Resource:    "product",
 			ResourceID:  p.ID.String(),
 			Status:      "success",

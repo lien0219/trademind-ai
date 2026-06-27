@@ -36,6 +36,17 @@ export const TASK_FAILURE_CATEGORY_LABEL: Record<string, string> = {
   worker_lease_expired: '后台任务执行超时',
   system_error: '系统错误',
   unknown: '未知',
+  // AI 批量文案（aiproducttext）
+  ai_text_generation_failed: 'AI 文案生成失败',
+  ai_text_apply_conflict: 'AI 文案应用时发现内容冲突',
+  ai_text_apply_failed: 'AI 文案应用失败',
+  ai_text_undo_failed: 'AI 文案撤销失败',
+  ai_text_quality_warning: 'AI 文案建议需要复核',
+  ai_image_process_failed: 'AI 图片处理失败',
+  ai_image_apply_conflict: 'AI 图片应用时发现冲突',
+  ai_image_apply_failed: 'AI 图片应用失败',
+  ai_image_undo_failed: 'AI 图片撤销失败',
+  ai_image_quality_warning: 'AI 图片质量提醒',
   // 抖店平台级站内告警（douyinruntime/alert.go）
   douyin_token_refresh_failed: '访问令牌刷新失败',
   douyin_auth_expiring: '店铺授权即将过期',
@@ -76,6 +87,8 @@ export const TASK_CENTER_FAILURE_TASK_TYPES = [
   'customer_message_sync',
   'product_publish',
   'inventory_sync',
+  'ai_text',
+  'ai_image',
 ] as const;
 
 export type TaskCenterFailureTaskType = (typeof TASK_CENTER_FAILURE_TASK_TYPES)[number];
@@ -94,6 +107,8 @@ export const TASK_CENTER_TASK_TYPE_LABEL: Record<string, string> = {
   customer_message_sync: '客服消息同步',
   product_publish: '商品刊登',
   inventory_sync: '库存同步',
+  ai_text: 'AI 批量文案',
+  ai_image: 'AI 批量图片',
   douyin_platform: '抖店平台告警',
 };
 
@@ -187,6 +202,7 @@ export const WORKER_MONITOR_TYPE_KEYS = [
   'customer_message_sync',
   'product_publish',
   'inventory_sync',
+  'ai_text',
 ] as const;
 
 export type WorkerMonitorTypeKey = (typeof WORKER_MONITOR_TYPE_KEYS)[number];

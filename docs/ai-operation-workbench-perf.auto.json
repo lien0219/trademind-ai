@@ -1,0 +1,58 @@
+﻿{
+    "scenarios":  [
+                      {
+                          "loadsLargeAiFields":  false,
+                          "sqlQueryCount":  null,
+                          "todosPage2Ms":  89.9,
+                          "summaryTodoSum":  782,
+                          "todosTotal":  810,
+                          "nPlusOneObserved":  null,
+                          "externalApiCalled":  false,
+                          "summaryMs":  91.1,
+                          "todosPage1Count":  50,
+                          "targetTodoProducts":  100,
+                          "note":  "SQL count not instrumented in MVP; external API not called by design",
+                          "todosPage1Ms":  90.2,
+                          "paginationOk":  true
+                      },
+                      {
+                          "loadsLargeAiFields":  false,
+                          "sqlQueryCount":  null,
+                          "todosPage2Ms":  92.2,
+                          "summaryTodoSum":  782,
+                          "todosTotal":  810,
+                          "nPlusOneObserved":  null,
+                          "externalApiCalled":  false,
+                          "summaryMs":  89.8,
+                          "todosPage1Count":  50,
+                          "targetTodoProducts":  500,
+                          "note":  "SQL count not instrumented in MVP; external API not called by design",
+                          "todosPage1Ms":  88.9,
+                          "paginationOk":  true
+                      },
+                      {
+                          "loadsLargeAiFields":  false,
+                          "sqlQueryCount":  null,
+                          "todosPage2Ms":  94.4,
+                          "summaryTodoSum":  782,
+                          "todosTotal":  810,
+                          "nPlusOneObserved":  null,
+                          "externalApiCalled":  false,
+                          "summaryMs":  87.7,
+                          "todosPage1Count":  50,
+                          "targetTodoProducts":  1000,
+                          "note":  "SQL count not instrumented in MVP; external API not called by design",
+                          "todosPage1Ms":  90.7,
+                          "paginationOk":  true
+                      }
+                  ],
+    "generatedAt":  "2026-06-27T06:25:54.6229647Z",
+    "apiBase":  "http://127.0.0.1:8080",
+    "conclusion":  {
+                       "todosUnder1000ms":  true,
+                       "noLargeAiFields":  true,
+                       "summaryUnder500ms":  true,
+                       "noExternalApi":  true,
+                       "paginationCorrect":  true
+                   }
+}

@@ -25,7 +25,9 @@ type CheckProductReadinessResult struct {
 	ShopID       *uuid.UUID  `json:"shopId,omitempty"`
 	Mode         string      `json:"mode,omitempty"`
 	Status       string      `json:"status"`
+	StatusLabel  string      `json:"statusLabel,omitempty"`
 	Result       string      `json:"result"`
+	ResultLabel  string      `json:"resultLabel,omitempty"`
 	Score        int         `json:"score"`
 	CanPublish   bool        `json:"canPublish"`
 	ErrorCount   int         `json:"errorCount"`
@@ -35,11 +37,13 @@ type CheckProductReadinessResult struct {
 
 // CheckItem is one non-pass finding (warnings and errors only).
 type CheckItem struct {
-	Group               string `json:"group"`
-	Code                string `json:"code"`
-	Level               string `json:"level"`
-	Message             string `json:"message"`
-	Suggestion          string `json:"suggestion,omitempty"`
-	RelatedResourceType string `json:"relatedResourceType,omitempty"`
-	RelatedResourceID   string `json:"relatedResourceId,omitempty"`
+	Group               string         `json:"group"`
+	Code                string         `json:"code"`
+	Title               string         `json:"title,omitempty"`
+	Level               string         `json:"level"`
+	Message             string         `json:"message"`
+	Suggestion          string         `json:"suggestion,omitempty"`
+	RelatedResourceType string         `json:"relatedResourceType,omitempty"`
+	RelatedResourceID   string         `json:"relatedResourceId,omitempty"`
+	TechnicalDetails    map[string]any `json:"technicalDetails,omitempty"`
 }

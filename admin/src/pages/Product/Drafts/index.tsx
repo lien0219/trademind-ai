@@ -3,10 +3,15 @@ import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 
-import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber } from 'antd';
+import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber, Progress } from 'antd';
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
 import { PAGE_COPY } from '@/constants/copywriting';
+import {
+  PUBLISH_BATCH_LIMIT_MESSAGE,
+  PUBLISH_BATCH_MAX_PRODUCTS,
+  validatePublishBatchMatrix,
+} from '@/constants/publishLimits';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
 import { createProductImagesBatch, createProductTextBatch } from '@/services/aiBatches';
@@ -14,6 +19,24 @@ import { createProduct, fetchProducts, type ProductListRow } from '@/services/pr
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
+
+const OPERATION_STEP_OPTIONS = [
+  { label: '全部', value: '' },
+  { label: '待检查采集结果', value: 'collect_review' },
+  { label: '待优化标题', value: 'title' },
+  { label: '待生成描述', value: 'description' },
+  { label: '待处理图片', value: 'images' },
+  { label: '待设置价格', value: 'pricing' },
+  { label: '发布检查未通过', value: 'publish_check' },
+  { label: '可以生成刊登草稿', value: 'ready' },
+];
+
+function operationStepColor(step?: string) {
+  if (step === 'ready') return 'green';
+  if (step === 'publish_check') return 'orange';
+  if (step === 'pricing' || step === 'images') return 'gold';
+  return 'blue';
+}
 
 export default function ProductDraftsPage() {
   const location = useLocation();
@@ -38,7 +61,7 @@ export default function ProductDraftsPage() {
   const [batchShopId, setBatchShopId] = useState<string>('');
   const [batchResult, setBatchResult] = useState<ProductReadinessResult[]>([]);
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
-  const [listFilters, setListFilters] = useState<{ keyword?: string; status?: string; source?: string }>({});
+  const [listFilters, setListFilters] = useState<{ keyword?: string; status?: string; source?: string; operationStep?: string }>({});
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkForm] = Form.useForm();
@@ -116,6 +139,36 @@ export default function ProductDraftsPage() {
       },
     },
     {
+      title: '运营进度',
+      dataIndex: 'operationStep',
+      width: 220,
+      valueType: 'select',
+      fieldProps: {
+        options: OPERATION_STEP_OPTIONS,
+      },
+      search: {
+        transform: (v) => ({ operationStep: v }),
+      },
+      render: (_, row) => {
+        const p = row.operationProgress;
+        if (!p) return <Typography.Text type="secondary">—</Typography.Text>;
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Progress percent={p.completionPercent ?? 0} size="small" showInfo={false} />
+            <Space size={6} wrap>
+              <Typography.Text>{p.completionPercent ?? 0}%</Typography.Text>
+              <Tag color={operationStepColor(p.currentStep)}>{p.currentStepLabel || '继续完善'}</Tag>
+            </Space>
+            {(p.blockerCount || p.warningCount) ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                待处理 {p.blockerCount ?? 0}，建议检查 {p.warningCount ?? 0}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 172,
@@ -126,10 +179,10 @@ export default function ProductDraftsPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 88,
+      width: 116,
       render: (_, row) => [
-        <Typography.Link key="detail" href={`/product/drafts/${row.id}`}>
-          详情
+        <Typography.Link key="detail" href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}>
+          {row.operationProgress?.nextActionLabel || '继续完善'}
         </Typography.Link>,
       ],
     },
@@ -147,8 +200,8 @@ export default function ProductDraftsPage() {
       message.warning('请先勾选商品');
       return;
     }
-    if (selectedRowKeys.length > 100) {
-      message.error('单次最多检查 100 个商品');
+    if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+      message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
       return;
     }
     setBatchOpen(true);
@@ -272,10 +325,17 @@ export default function ProductDraftsPage() {
           type: 'checkbox',
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys(keys as string[]),
+          getCheckboxProps: (row) => ({
+            disabled: row.status === 'archived' || row.status === 'deleted',
+            title:
+              row.status === 'archived' || row.status === 'deleted'
+                ? '已归档或已删除的商品不能批量刊登'
+                : undefined,
+          }),
         }}
         tableAlertRender={({ selectedRowKeys: keys }) => (
           <Space>
-            <span>已选 {keys.length} 项</span>
+            <span>已选择 {keys.length} 个商品</span>
           </Space>
         )}
         columns={columns}
@@ -284,6 +344,41 @@ export default function ProductDraftsPage() {
         options={{ reload: true, density: true, setting: true }}
         headerTitle={false}
         toolBarRender={() => [
+          <Button
+            key="aiTextBatch"
+            type="primary"
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => {
+              if (selectedRowKeys.length === 0) {
+                message.warning('请先勾选商品');
+                return;
+              }
+              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
+                return;
+              }
+              history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量 AI 优化
+          </Button>,
+          <Button
+            key="aiImageBatch"
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => {
+              if (selectedRowKeys.length === 0) {
+                message.warning('请先勾选商品');
+                return;
+              }
+              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
+                return;
+              }
+              history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量 AI 图片处理
+          </Button>,
           <Button
             key="bulkAi"
             onClick={() => {
@@ -301,7 +396,25 @@ export default function ProductDraftsPage() {
               setBulkOpen(true);
             }}
           >
-            批量 AI
+            旧版批量 AI
+          </Button>,
+          <Button
+            key="publishBatch"
+            type="primary"
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => {
+              if (selectedRowKeys.length === 0) {
+                message.warning('请先勾选商品');
+                return;
+              }
+              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
+                return;
+              }
+              history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量创建刊登草稿
           </Button>,
           <Button
             key="readiness"
@@ -322,6 +435,7 @@ export default function ProductDraftsPage() {
             keyword: params.keyword as string | undefined,
             status: params.status as string | undefined,
             source: params.source as string | undefined,
+            operationStep: params.operationStep as string | undefined,
           });
           const res = await fetchProducts({
             page: params.current,
@@ -329,6 +443,7 @@ export default function ProductDraftsPage() {
             status: urlFilters.status || (params.status as string | undefined),
             source: params.source as string | undefined,
             keyword: params.keyword as string | undefined,
+            operationStep: params.operationStep as string | undefined,
             missingAiTitle: urlFilters.missingAiTitle || undefined,
             missingAiDescription: urlFilters.missingAiDescription || undefined,
             readinessBlocked: urlFilters.readinessBlocked || undefined,
@@ -437,7 +552,7 @@ export default function ProductDraftsPage() {
       </Drawer>
 
       <Drawer
-        title="批量 AI（商品草稿）"
+        title="旧版批量 AI（商品草稿）"
         width={560}
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
@@ -456,7 +571,7 @@ export default function ProductDraftsPage() {
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="不会自动覆盖正式标题/详情，不会替换主图，不会刊登。文本结果见 AI 任务与草稿「AI 标题/描述」；图片结果见「图片任务」。"
+          message="旧版入口保留用于历史批次兼容。不会自动覆盖正式标题/详情，不会替换主图，不会刊登。新任务建议优先使用上方「批量 AI 优化」或「批量 AI 图片处理」。"
         />
         <Typography.Paragraph type="secondary">
           已勾选 <strong>{selectedRowKeys.length}</strong> 个商品。
@@ -496,11 +611,11 @@ export default function ProductDraftsPage() {
               <Form.Item name="tone" label="语气 / 风格">
                 <Input placeholder="例如 professional" />
               </Form.Item>
-              <Form.Item name="applyMode" label="应用策略" tooltip="save_ai_field：成功后写入草稿的 ai_title / ai_description">
+              <Form.Item name="applyMode" label="应用策略" tooltip="成功后写入草稿中的 AI 优化标题 / AI 优化描述">
                 <Select
                   options={[
                     { label: '仅任务记录（不写 AI 草稿字段）', value: 'task_only' },
-                    { label: '写入 AI 草稿字段（ai_title / ai_description）', value: 'save_ai_field' },
+                    { label: '写入 AI 优化标题 / AI 优化描述', value: 'save_ai_field' },
                   ]}
                 />
               </Form.Item>

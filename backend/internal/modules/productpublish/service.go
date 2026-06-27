@@ -24,6 +24,10 @@ type Service struct {
 	QueueEnabled bool
 	QueueName    string
 	TaskTimeout  time.Duration
+
+	BatchMaxProducts int
+	BatchMaxTargets  int
+	BatchMaxTasks    int
 }
 
 func (s *Service) normalizedQueueName() string {

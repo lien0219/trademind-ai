@@ -25,6 +25,12 @@ func AllCategories() []string {
 		CategoryWorkerLeaseExpired,
 		CategorySystemError,
 		CategoryUnknown,
+		// AI product text batch review (aiproducttext module)
+		"ai_text_generation_failed",
+		"ai_text_apply_conflict",
+		"ai_text_apply_failed",
+		"ai_text_undo_failed",
+		"ai_text_quality_warning",
 	}
 }
 

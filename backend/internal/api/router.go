@@ -14,6 +14,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiopsworkbench"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
@@ -246,6 +249,23 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	aiBatchH := &aioperationbatch.Handler{Svc: aiBatchSvc}
 
+	aiProductTextSvc := &aiproducttext.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Products: productSvc,
+		OpLog:    opLogSvc,
+	}
+	aiProductTextH := &aiproducttext.Handler{Svc: aiProductTextSvc}
+
+	aiProductImageSvc := &aiproductimage.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Products: productSvc,
+		Image:    imageTaskSvc,
+		OpLog:    opLogSvc,
+	}
+	aiProductImageH := &aiproductimage.Handler{Svc: aiProductImageSvc}
+
 	promptH := &aiprompt.Handler{Svc: promptSvc}
 	aiTaskH := &aitask.Handler{Svc: aiTaskSvc}
 
@@ -418,6 +438,34 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Settings: settingsSvc,
 		Shops:    shopSvc,
 	}
+	productSvc.Readiness = func(ctx context.Context, req product.OperationReadinessRequest) (*product.OperationReadinessResult, error) {
+		res, err := readinessSvc.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
+			ProductID: req.ProductID,
+			Platform:  req.Platform,
+			Mode:      req.Mode,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out := &product.OperationReadinessResult{
+			Status:       res.Status,
+			Result:       res.Result,
+			CanPublish:   res.CanPublish,
+			ErrorCount:   res.ErrorCount,
+			WarningCount: res.WarningCount,
+			Checks:       make([]product.OperationReadinessCheck, 0, len(res.Checks)),
+		}
+		for _, c := range res.Checks {
+			out.Checks = append(out.Checks, product.OperationReadinessCheck{
+				Group:      c.Group,
+				Code:       c.Code,
+				Level:      c.Level,
+				Message:    c.Message,
+				Suggestion: c.Suggestion,
+			})
+		}
+		return out, nil
+	}
 
 	productPublishSvc := &productpublish.Service{
 		DB:        dep.DB,
@@ -437,6 +485,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		if dep.Config.ProductPublishTaskTimeoutSeconds > 0 {
 			productPublishSvc.TaskTimeout = time.Duration(dep.Config.ProductPublishTaskTimeoutSeconds) * time.Second
 		}
+		productPublishSvc.BatchMaxProducts = dep.Config.PublishBatchMaxProducts
+		productPublishSvc.BatchMaxTargets = dep.Config.PublishBatchMaxTargets
+		productPublishSvc.BatchMaxTasks = dep.Config.PublishBatchMaxTasks
 	}
 	productPublishH := &productpublish.Handler{Svc: productPublishSvc}
 	readinessH := &productcheck.Handler{
@@ -476,6 +527,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	aitask.Register(authed, aiTaskH)
 	imagetask.Register(authed, imageTaskH)
 	product.Register(authed, productH)
+	aiproducttext.Register(authed, aiProductTextH)
+	aiproductimage.Register(authed, aiProductImageH)
 	pricingSvc := &pricing.Service{DB: dep.DB, Settings: settingsSvc, OpLog: opLogSvc}
 	pricingH := &pricing.Handler{Svc: pricingSvc}
 	pricing.Register(authed, pricingH)
@@ -536,6 +589,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		CustomerSync:   customerSyncSvc,
 		ProductPublish: productPublishSvc,
 		Inventory:      inventorySvc,
+		AIProductText:  aiProductTextSvc,
 	}
 	tcH := &taskcenter.Handler{Svc: tcSvc}
 	taskcenter.Register(authed, tcH)
@@ -548,6 +602,14 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	dashH := &operationdashboard.Handler{Svc: dashSvc}
 	operationdashboard.Register(authed, dashH)
+
+	aiOpsWorkbenchSvc := &aiopsworkbench.Service{
+		DB:           dep.DB,
+		ProductCheck: readinessSvc,
+		TaskCenter:   tcSvc,
+	}
+	aiOpsWorkbenchH := &aiopsworkbench.Handler{Svc: aiOpsWorkbenchSvc}
+	aiopsworkbench.Register(authed, aiOpsWorkbenchH)
 
 	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
 }

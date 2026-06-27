@@ -1,0 +1,139 @@
+﻿{
+    "healthStatus":  "up",
+    "passed":  true,
+    "apiBase":  "http://127.0.0.1:8080",
+    "appEnv":  "development",
+    "healthTimestamp":  "2026-06-27T06:18:38Z",
+    "unauthenticated":  [
+                            {
+                                "path":  "/api/v1/products",
+                                "authGateOk":  true,
+                                "statusCode":  401,
+                                "durationMs":  7.8
+                            },
+                            {
+                                "path":  "/api/v1/products/ai-text/batches",
+                                "authGateOk":  true,
+                                "statusCode":  401,
+                                "durationMs":  6.9
+                            },
+                            {
+                                "path":  "/api/v1/products/ai-images/batches",
+                                "authGateOk":  true,
+                                "statusCode":  401,
+                                "durationMs":  8.2
+                            },
+                            {
+                                "path":  "/api/v1/product-publish/batches",
+                                "authGateOk":  true,
+                                "statusCode":  401,
+                                "durationMs":  7.8
+                            },
+                            {
+                                "path":  "/api/v1/ai/operation-workbench/summary",
+                                "authGateOk":  true,
+                                "statusCode":  401,
+                                "durationMs":  7.4
+                            },
+                            {
+                                "path":  "/api/v1/ai/operation-workbench/todos?page=1\u0026pageSize=50",
+                                "authGateOk":  true,
+                                "statusCode":  401,
+                                "durationMs":  7.9
+                            },
+                            {
+                                "path":  "/api/v1/task-center/failures",
+                                "authGateOk":  true,
+                                "statusCode":  401,
+                                "durationMs":  7.2
+                            }
+                        ],
+    "failed500Count":  0,
+    "failed404Count":  0,
+    "routeCount":  8,
+    "note":  "task-center path is /api/v1/task-center/failures (not taskcenter)",
+    "loggedIn":  true,
+    "routes":  [
+                   {
+                       "not500":  true,
+                       "durationMs":  13.7,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  false,
+                       "path":  "/health",
+                       "not404":  true,
+                       "note":  "ok"
+                   },
+                   {
+                       "not500":  true,
+                       "durationMs":  9.5,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  true,
+                       "path":  "/api/v1/products",
+                       "not404":  true,
+                       "note":  "authenticated_ok"
+                   },
+                   {
+                       "not500":  true,
+                       "durationMs":  8,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  true,
+                       "path":  "/api/v1/products/ai-text/batches",
+                       "not404":  true,
+                       "note":  "authenticated_ok"
+                   },
+                   {
+                       "not500":  true,
+                       "durationMs":  8.1,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  true,
+                       "path":  "/api/v1/products/ai-images/batches",
+                       "not404":  true,
+                       "note":  "authenticated_ok"
+                   },
+                   {
+                       "not500":  true,
+                       "durationMs":  7.6,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  true,
+                       "path":  "/api/v1/product-publish/batches",
+                       "not404":  true,
+                       "note":  "authenticated_ok"
+                   },
+                   {
+                       "not500":  true,
+                       "durationMs":  93.4,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  true,
+                       "path":  "/api/v1/ai/operation-workbench/summary",
+                       "not404":  true,
+                       "note":  "authenticated_ok"
+                   },
+                   {
+                       "not500":  true,
+                       "durationMs":  93.2,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  true,
+                       "path":  "/api/v1/ai/operation-workbench/todos?page=1\u0026pageSize=50",
+                       "not404":  true,
+                       "note":  "authenticated_ok"
+                   },
+                   {
+                       "not500":  true,
+                       "durationMs":  15.2,
+                       "method":  "GET",
+                       "statusCode":  200,
+                       "auth":  true,
+                       "path":  "/api/v1/task-center/failures",
+                       "not404":  true,
+                       "note":  "authenticated_ok"
+                   }
+               ],
+    "generatedAt":  "2026-06-27T06:18:38.8812638Z"
+}

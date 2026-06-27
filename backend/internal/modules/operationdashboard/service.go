@@ -637,7 +637,7 @@ func defaultQuickLinks() []QuickLink {
 	return []QuickLink{
 		{Title: "采集中心", Link: "/collect/hub", Description: "输入商品链接开始采集"},
 		{Title: "商品草稿", Link: "/product/drafts", Description: "查看和编辑商品草稿"},
-		{Title: "批量 AI 优化", Link: "/ai/batches", Description: "批量优化标题与描述"},
+		{Title: "批量文案任务", Link: "/ai/text-batches", Description: "批量生成并复核标题与描述"},
 		{Title: "AI 图片任务", Link: "/ai/image-tasks", Description: "去水印、营销图等图片处理"},
 		{Title: "发布检查", Link: "/product/drafts?readiness=blocked", Description: "查看未通过发布检查的商品"},
 		{Title: "商品刊登任务", Link: "/product/publish-tasks", Description: "管理刊登到平台的任务"},

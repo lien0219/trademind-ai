@@ -1,0 +1,103 @@
+﻿{
+    "healthTimestamp":  "2026-06-27T06:18:39Z",
+    "appEnv":  "development",
+    "routeCount":  13,
+    "failed404Count":  0,
+    "generatedAt":  "2026-06-27T06:18:39.8132779Z",
+    "passed":  true,
+    "healthStatus":  "up",
+    "apiBase":  "http://127.0.0.1:8080",
+    "routes":  [
+                   {
+                       "not404":  true,
+                       "method":  "GET",
+                       "path":  "/health",
+                       "statusCode":  200,
+                       "note":  "ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "GET",
+                       "path":  "/api/v1/products/ai-text/batches",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/batches/check",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/batches",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "GET",
+                       "path":  "/api/v1/products/ai-text/batches/00000000-0000-0000-0000-000000000001",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/batches/00000000-0000-0000-0000-000000000001/retry-failed",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/batches/00000000-0000-0000-0000-000000000001/cancel-pending",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/batches/00000000-0000-0000-0000-000000000001/apply-selected",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/batches/00000000-0000-0000-0000-000000000001/undo-applied",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/items/00000000-0000-0000-0000-000000000001/regenerate",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/items/00000000-0000-0000-0000-000000000001/update-edited-text",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/items/00000000-0000-0000-0000-000000000001/apply",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-text/items/00000000-0000-0000-0000-000000000001/reject",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   }
+               ]
+}

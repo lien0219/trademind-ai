@@ -125,6 +125,34 @@ const ERROR_MAP: Record<string, UserErrorMessage> = {
     title: '库存映射缺失',
     detail: '请确认商品与规格绑定关系完整后再同步库存。',
   },
+  DETAIL_IMAGES_INCOMPLETE: {
+    title: '详情图不完整',
+    detail: '建议补充商品详情图，帮助买家了解商品细节。',
+  },
+  ATTRIBUTES_EMPTY: {
+    title: '商品参数未完善',
+    detail: '未识别到商品参数，建议手动补充品牌、材质等信息。',
+  },
+  STOCK_UNKNOWN: {
+    title: '库存信息不明确',
+    detail: '库存状态未知，发布前请人工确认各规格库存。',
+  },
+  PRICE_MISSING: { title: '销售价格未设置', detail: '请为商品或规格填写有效销售价。' },
+  MAIN_IMAGES_EMPTY: { title: '商品主图缺失', detail: '至少需要一张有效主图。' },
+  SKU_INCOMPLETE: { title: '规格信息不完整', detail: '请核对规格、价格与库存。' },
+  PLATFORM_NOT_SUPPORTED: {
+    title: '当前平台暂未接入真实发布',
+    detail: '将仅生成本地刊登草稿，不会调用平台接口。',
+  },
+  PUBLISH_CONFIG_MISSING: {
+    title: '刊登配置未完成',
+    detail: '请先在平台接入设置或商品刊登配置中补齐必填项。',
+    action: '前往平台接入设置',
+  },
+  PUBLISH_CONFIG_INVALID: {
+    title: '刊登配置不正确',
+    detail: '请检查统一配置与单独覆盖中的数值和策略选项。',
+  },
 };
 
 /** 根据错误码获取用户可见提示 */

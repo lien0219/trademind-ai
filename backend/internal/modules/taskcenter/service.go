@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
@@ -33,6 +34,7 @@ type Service struct {
 	CustomerSync   *customersync.Service
 	ProductPublish *productpublish.Service
 	Inventory      *inventory.Service
+	AIProductText  *aiproducttext.Service
 }
 
 // ListFailureParams binds list query options.
@@ -340,6 +342,7 @@ func taskTypesFor(p ListFailureParams) []string {
 	all := []string{
 		TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync,
 		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync,
+		TaskTypeAIText, TaskTypeAIImage,
 	}
 	tt := strings.TrimSpace(p.TaskType)
 	if tt == "" {
@@ -357,7 +360,7 @@ func parseTaskType(s string) (string, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	switch s {
 	case TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync,
-		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync:
+		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText, TaskTypeAIImage:
 		return s, nil
 	default:
 		return "", fmt.Errorf("unknown taskType")

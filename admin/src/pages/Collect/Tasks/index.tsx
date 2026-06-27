@@ -70,7 +70,7 @@ export default function CollectTasksPage() {
   const formRef = useRef<ProFormInstance>();
   const [form] = Form.useForm<{ source: string; url: string; ruleId?: string }>();
   const [submitting, setSubmitting] = useState(false);
-  const [polling, setPolling] = useState(4000);
+  const [polling, setPolling] = useState<number | undefined>(4000);
   const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
   const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
 

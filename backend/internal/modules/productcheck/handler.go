@@ -86,7 +86,7 @@ func (h *Handler) GetReadiness(c *gin.Context) {
 			),
 		})
 	}
-	response.OK(c, res)
+	response.OK(c, LocalizeReadinessResult(res))
 }
 
 func (h *Handler) BatchReadiness(c *gin.Context) {
@@ -145,7 +145,7 @@ func (h *Handler) BatchReadiness(c *gin.Context) {
 		}
 		sumE += res.ErrorCount
 		sumW += res.WarningCount
-		list = append(list, res)
+		list = append(list, LocalizeReadinessResult(res))
 	}
 	if h.OpLog != nil {
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{

@@ -21,6 +21,9 @@ func classificationInput(d UnifiedTaskDTO) failureclassifier.Input {
 }
 
 func applyClassification(d *UnifiedTaskDTO) failureclassifier.Result {
+	if d != nil && strings.EqualFold(strings.TrimSpace(d.TaskType), TaskTypeAIText) {
+		return applyAITextClassification(d)
+	}
 	in := classificationInput(*d)
 	r := failureclassifier.Classify(in)
 	d.FailureCategory = r.Category

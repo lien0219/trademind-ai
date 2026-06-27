@@ -3,11 +3,13 @@ import { getWithParams, postJSON } from '@/services/request';
 export type ReadinessCheckItem = {
   group: string;
   code: string;
+  title?: string;
   level: 'warning' | 'error' | string;
   message: string;
   suggestion?: string;
   relatedResourceType?: string;
   relatedResourceId?: string;
+  technicalDetails?: Record<string, unknown>;
 };
 
 export type ProductReadinessResult = {
@@ -16,7 +18,9 @@ export type ProductReadinessResult = {
   shopId?: string;
   mode?: string;
   status: string;
+  statusLabel?: string;
   result?: 'passed' | 'warning' | 'failed' | string;
+  resultLabel?: string;
   score: number;
   canPublish: boolean;
   errorCount: number;

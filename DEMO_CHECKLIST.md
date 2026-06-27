@@ -1,6 +1,86 @@
 # TradeMind 演示验收清单（Demo Checklist）
 
 > 用于本地 / 预发环境快速验收核心 MVP 能力。按模块勾选。
+> **Release 状态（Phase R1）**：`MVP Demo Ready` — 见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+
+## Phase R1.3-Codex 模拟人工测试与体验问题扫描（2026-06-27）
+
+| 项 | 文档 / 结果 | 状态 |
+| --- | --- | --- |
+| 模拟人工测试报告 | `docs/CODEX_MANUAL_SIMULATION_REPORT.md` | [x] |
+| 机器可读结果 | `docs/codex-manual-simulation.json` | [x] `codex_simulation_passed_with_warning` |
+| 新手 / 熟练运营 / 管理员角色覆盖 | 工作台、复核、刊登、失败中心 | [x] |
+| P0 问题 | 无 | [x] |
+| P1 问题 | 旧入口跳转与深链定位、Admin build 类型风险 | [x] 已修 |
+| P2 问题 | 旧版入口文案、内部字段提示、多分辨率截图 | [x] 文案已修；截图 `manual_required` |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+
+## Phase R1.2-Auto 自动化验收（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| 总控自动化 | `scripts/demo-auto-acceptance.ps1` | [x] passed |
+| 总报告 | `docs/DEMO_AUTO_ACCEPTANCE_REPORT.md` | [x] |
+| go test / build / admin build | 总控内 | [x] |
+| 路由 smoke | `docs/demo-route-smoke.auto.json` | [x] |
+| Demo 数据校验 | `docs/demo-dataset.auto.json` | [x] 20 slot + 7 samples |
+| AI 文案试跑 | `docs/ai-text-trial-run.auto.json` | [x] 16/16 |
+| AI 图片试跑 | `docs/ai-image-trial-run.auto.json` | [x] 14/16 warning |
+| 批量刊登 perf | `docs/publish-batch-perf.auto.json` | [x] |
+| 工作台 perf | `docs/ai-operation-workbench-perf.auto.json` | [x] |
+| 中文文案扫描 | `docs/COPYWRITING_AUDIT.auto.md` | [x] |
+| 权限安全 | `docs/SECURITY_RELEASE_CHECK.auto.md` | [x] |
+| 文档一致性 | `docs/DOCS_CONSISTENCY_CHECK.md` | [x] |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+
+## Phase R1.2 真实预发部署与 Demo Tag（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| 部署前检查 | `docs/DEPLOYMENT_PRECHECK.md` | [x] 本地 dev 等价（真实预发 SSH/HTTPS 待接入） |
+| 后端二进制构建 | `backend/tmp/server.exe` | [x] |
+| Admin dist 构建 | `pnpm build:admin` → `admin/dist` | [x] |
+| Nginx / HTTPS | 真实预发 / Docker 模拟 | [ ] Docker 未安装；真实 HTTPS 待运维 |
+| Storage 公网访问 | `POST /api/v1/storage/test-public-access` | [ ] skipped（本地 local storage） |
+| 路由 smoke | `docs/demo-route-smoke.preprod.json` | [x] 8 路由无 404（本地 API） |
+| Demo 数据 | `docs/demo-dataset.preprod.json` | [x] 20 slot + 7 samples |
+| 12 步 Demo 走查 | `docs/DEMO_RELEASE_UX_ACCEPTANCE.md` | [x] 复验通过 / 图片步骤沿用警告 |
+| UI 多分辨率 | 1366 / 1024 浏览器 CDP | [x] |
+| 备份与回滚 | `docs/DEPLOYMENT_PRECHECK.md` | [ ] 待真实预发机人工勾选 |
+| go test / build / 抖店回归 | — | [x] |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending**（待真实预发 HTTPS） |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+
+## Phase R1.1 预发部署与人工走查（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| 部署前检查 | `docs/DEPLOYMENT_PRECHECK.md` | [x] 本地 dev 等价环境 |
+| 路由 smoke（R1.1 复跑） | `scripts/demo-route-smoke.ps1` | [x] 8 路由无 404 |
+| Demo 数据（R1.1 复跑） | `scripts/seed-demo-data.ps1` | [x] 20 slot + 7 samples |
+| 12 步 Demo 走查 | `docs/DEMO_RELEASE_UX_ACCEPTANCE.md` | [x] 11 通过 / 1 警告 |
+| UI 多分辨率 | 1366 / 1024 浏览器 CDP | [x] |
+| go test / build（R1.1） | `go test ./...` / `pnpm build:admin` | [x] |
+| Git tag `v0.1.0-demo` | — | [ ] Tag pending（待预发 Nginx/HTTPS） |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+
+## Phase R1 Demo Release 自动化验收（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| Demo 数据 | `scripts/seed-demo-data.ps1` → `docs/DEMO_DATASET.md` | [x] 20 商品 slot |
+| 路由 smoke | `scripts/demo-route-smoke.ps1` → `docs/demo-route-smoke.json` | [x] 8 路由无 404 |
+| 工作台性能 | `scripts/ai-operation-workbench-perf.ps1` | [x] 757 待办，todos <100ms |
+| 批量刊登性能 | `scripts/publish-batch-perf.ps1` | [x] 20×2 / 50×2 / 100×3 |
+| AI 文案试跑 | `scripts/ai-text-trial-run.ps1` | [x] 16/16 passed |
+| AI 图片试跑 | `scripts/ai-image-trial-run.ps1` | [x] passed_with_warning 14/16 |
+| 文案审计 | `docs/COPYWRITING_AUDIT.md` | [x] strict 通过 |
+| 安全检查 | `docs/SECURITY_RELEASE_CHECK.md` | [x] |
+| 部署前检查 | `docs/DEPLOYMENT_PRECHECK.md` | [x] 本地 dev |
+| UI 多分辨率 | `docs/DEMO_RELEASE_UX_ACCEPTANCE.md` | [x] 1366/1024 |
+| go test / build | `go test ./...` / `pnpm build:admin` | [x] |
 
 ## 抖店完整演示流程（MVP Demo，2026-06-07）
 
@@ -17,6 +97,12 @@
 | 6 | 采集商品 | 采集中心（1688 / 拼多多 / 淘宝天猫） | [ ] |
 | 7 | 商品草稿查看 | 商品 → 草稿 → 详情 | [ ] |
 | 8 | AI 标题 / 描述 | 商品详情 → AI 优化 | [ ] |
+| 8b | **批量 AI 文案（A3.1）** | 商品草稿列表多选 → **批量 AI 优化** → 复核工作台 `/product/ai-text-batches/:id` | [ ] |
+| 8c | **失败任务 → 文案复核（A3.1.1）** | 运维 → 失败任务中心 → `AI 批量文案` → 点击深链定位子项 | [ ] |
+| 8d | **真实 AI 文案试跑（A3.1.2）** | 配置 AI Provider → `scripts/ai-text-route-smoke.ps1` → `scripts/ai-text-trial-run.ps1` | [ ] |
+| 8e | **批量 AI 图片（A3.2.1）** | 商品草稿列表多选 → **批量 AI 图片处理** → 复核 `/product/ai-image-batches/:id`；试跑见 `docs/ai-image-trial-run.json` | [x] |
+| 8f | **失败任务 → 图片复核（A3.2.1）** | 运维 → 失败任务中心 → `AI 批量图片` → 深链 `?itemId=` | [x] |
+| 8g | **AI 商品运营工作台（A3.3）** | AI 工具 → 商品运营工作台 `/ai/operation-workbench` → 筛选待办 → 跳转复核/发布检查/批次 | [ ] |
 | 9 | 定价规则 | 刊登 Tab → 应用定价规则 | [ ] |
 | 10 | 图片处理 | 同步图片到 Storage；可选 AI 图片任务 | [ ] |
 | 11 | 抖店刊登配置 | 刊登 Tab → 店铺 / 类目 / 属性 | [ ] |
@@ -69,6 +155,69 @@
 - [ ] 当前采集能力阶段性验收记录：1688 已可用、拼多多已可用、淘宝/天猫已可用、自定义链接基础可用、速卖通测试中、SHEIN/Temu 规划中
 
 ## 发布刊登生产级闭环
+
+### AI 商品运营体验 Phase A1.2（2026-06-19）
+
+- [x] 商品详情顶部 / 发布检查 / 采集 warning **不再直接显示** `DETAIL_IMAGES_INCOMPLETE` 等英文码
+- [x] `ready` / `warning` / `draft` 等状态显示中文（如「已准备好」「建议检查」）
+- [x] 刊登 Tab → **多平台刊登中心**：可选择多个平台、多个店铺
+- [x] 未授权店铺提示去授权；未配置平台提示「尚未配置」
+- [x] `local_draft_only` 平台提示「仅生成本地草稿」，创建后任务成功但不调用外部 API
+- [x] 抖店目标仍可走「创建抖店商品草稿」原链路
+- [x] 「检查所选目标」→「创建刊登草稿」→ 部分失败时批次 `partial_success`
+- [x] 1366px 宽度下刊登 Tab 不溢出；技术详情默认折叠
+
+## Phase A2 多商品批量刊登草稿
+
+- [x] 商品草稿列表多选 →「批量创建刊登草稿」
+- [x] 向导 5 步：确认商品 / 选择平台店铺 / 统一配置 / 单独覆盖 / 检查并创建
+- [x] 矩阵检查：可创建 / 建议检查 / 暂不能创建；blocked 项不可强行提交
+- [x] 创建后跳转批次详情；刊登任务页「刊登批次」Tab
+- [x] 批次详情：子任务列表、重试失败项、取消等待项
+- [x] 失败任务中心子任务可跳转批次详情
+
+## Phase A2.1 批量刊登验收与生产安全收口
+
+- [x] 显式 DB migration（[`docs/PUBLISH_BATCH_MIGRATION.md`](docs/PUBLISH_BATCH_MIGRATION.md)）
+- [x] 批量上限 100 商品 / 20 目标 / 300 子任务（前后端）
+- [x] 幂等与并发集成测试（`batch_targets_integration_test.go`）
+- [x] 性能脚本 `scripts/publish-batch-perf.ps1`（见 [`docs/PUBLISH_BATCH_PERF_REPORT.md`](docs/PUBLISH_BATCH_PERF_REPORT.md)）
+- [x] 批次详情 UX / 失败任务「批次详情」链接
+- [x] 1366px 可用（见 [`docs/PUBLISH_BATCH_UX_ACCEPTANCE.md`](docs/PUBLISH_BATCH_UX_ACCEPTANCE.md)）
+- [ ] 在有 ≥100 draft 商品的环境运行 perf 脚本并填入报告表（可选生产基准）
+
+## Phase A2.2 批量刊登统一配置与覆盖 UI
+
+- [x] 第 3 步：统一刊登配置表单（价格 / 图片 / 库存 / 包裹 / 备注）
+- [x] 第 4 步：单独配置 Tab（商品 / 平台 / 店铺 / 商品目标）
+- [x] 覆盖配置编辑 / 删除 / 复制
+- [x] 第 5 步：查看生效配置 + 配置提醒
+- [x] 配置优先级说明（运营中文）
+- [x] 后端 `PUBLISH_CONFIG_INVALID` 校验
+- [x] 向导 localStorage 草稿持久化
+- [x] 已移除批量刊登 `window.prompt`
+- [x] `go test` / `pnpm build:admin` / 抖店回归通过
+- [ ] 标题 / 描述策略字段（后续阶段）
+
+### AI 商品运营体验 Phase A1.1（2026-06-19）
+
+> Phase A1.1 验收已通过，详见 [`docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md`](docs/AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md)。
+
+- [x] 至少抽取 20 个真实商品草稿样本，覆盖 1688、拼多多、淘宝/天猫、自定义链接
+- [x] 商品列表完成度、当前步骤、继续处理入口在桌面宽屏 / 笔记本宽度 / 窄屏窗口下显示正常
+- [x] 商品详情顶部进度卡、发布检查问题跳转、Tab + section 深链在多分辨率下可用
+- [x] AI 标题 / 描述应用后可撤销；人工修改后再次应用或撤销会提示冲突，不静默覆盖
+- [x] 本轮人工验收完成，可开启 Phase A2 评估
+
+- [x] 商品草稿列表显示运营完成度、当前步骤、待处理数量和一个主要操作「继续完善」
+- [x] 商品草稿列表可按待检查采集结果、待优化标题、待生成描述、待处理图片、待设置价格、发布检查未通过、可以生成刊登草稿筛选
+- [x] 商品详情顶部显示商品运营进度；下一步按钮可直接打开对应 Tab（图片、规格、发布检查、刊登等）
+- [x] 运营进度加载失败时只显示局部错误，商品内容仍可编辑并可重新加载
+- [x] 发布前检查问题按 failed 优先、warning 其次展示，每条问题有建议操作和直达入口，技术详情默认折叠
+- [x] AI 标题优化结果展示原始内容、AI 建议、准备应用内容；可编辑后应用，也可撤销最近一次安全应用
+- [x] AI 描述生成结果展示原始内容、AI 建议、准备应用内容；可编辑后应用，也可撤销最近一次安全应用
+- [ ] AI 应用遇到商品内容已被人工修改时提示冲突，不静默覆盖人工内容
+- [ ] 抖店仍为 Release Candidate；本阶段不新增售后、财务、多仓、WMS、复杂 BI 或自动直接上架
 
 - [ ] 分别采集 1 个 1688、拼多多、淘宝/天猫商品，并进入对应商品草稿
 - [ ] 商品详情顶部显示采集 warning；普通用户不默认查看 raw，高级详情可展开原始调试数据

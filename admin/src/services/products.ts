@@ -12,6 +12,7 @@ export type ProductListRow = {
   createdAt: string;
   updatedAt?: string;
   coverUrl?: string;
+  operationProgress?: ProductOperationProgressSummary;
 };
 
 export type Pagination = {
@@ -27,6 +28,7 @@ export async function fetchProducts(params: {
   status?: string;
   source?: string;
   keyword?: string;
+  operationStep?: string;
   missingAiTitle?: boolean;
   missingAiDescription?: boolean;
   readinessBlocked?: boolean;
@@ -38,12 +40,46 @@ export async function fetchProducts(params: {
     status: params.status,
     source: params.source,
     keyword: params.keyword,
+    operationStep: params.operationStep,
     missingAiTitle: params.missingAiTitle ? '1' : undefined,
     missingAiDescription: params.missingAiDescription ? '1' : undefined,
     readiness: params.readinessBlocked ? 'blocked' : undefined,
     publishable: params.publishable ? '1' : undefined,
   });
 }
+
+export type ProductOperationProgressSummary = {
+  completionPercent: number;
+  currentStep: string;
+  currentStepLabel: string;
+  nextActionLabel: string;
+  nextActionKey: string;
+  nextActionUrl?: string;
+  blockerCount: number;
+  warningCount: number;
+  publishReady: boolean;
+};
+
+export type ProductOperationIssue = {
+  code: string;
+  title: string;
+  message: string;
+  severity: 'warning' | 'failed' | string;
+  actionLabel?: string;
+  actionKey?: string;
+  actionUrl?: string;
+};
+
+export type ProductOperationProgress = ProductOperationProgressSummary & {
+  productId: string;
+  nextActionUrl?: string;
+  completedSteps: string[];
+  pendingSteps: string[];
+  blockers: ProductOperationIssue[];
+  warnings: Array<{ code: string; title: string; message: string }>;
+  updatedAt: string;
+  stepStatus?: Record<string, string>;
+};
 
 export type ProductImageRow = {
   id: string;
@@ -231,6 +267,10 @@ export async function fetchProductDetail(id: string) {
   return getJSON<ProductDetail>(`/api/v1/products/${id}`);
 }
 
+export async function fetchProductOperationProgress(id: string) {
+  return getJSON<ProductOperationProgress>(`/api/v1/products/${encodeURIComponent(id)}/operation-progress`);
+}
+
 export async function getProductPlatformPublishConfig(productId: string, platform: string) {
   return getJSON<ProductPlatformPublishConfig>(
     `/api/v1/products/${encodeURIComponent(productId)}/platform-configs/${encodeURIComponent(platform)}`,
@@ -349,6 +389,7 @@ export type UpdateProductImageBody = {
   originUrl?: string;
   publicUrl?: string;
   sortOrder?: number;
+  isBestMain?: boolean;
 };
 
 export type ReorderProductImagesBody = {
@@ -492,8 +533,18 @@ export async function optimizeProductTitle(
   return postJSON<OptimizeTitleResult>(`/api/v1/products/${id}/ai/optimize-title`, body);
 }
 
-export async function applyProductAITitle(id: string, body: { aiTitle: string; taskId: string }) {
+export async function applyProductAITitle(
+  id: string,
+  body: { aiTitle: string; taskId: string; expectedUpdatedAt?: string; sourceSnapshotHash?: string },
+) {
   return postJSON<ProductDetail>(`/api/v1/products/${id}/apply-ai-title`, body);
+}
+
+export async function undoProductAITitle(
+  id: string,
+  body: { applicationId?: string; expectedUpdatedAt?: string } = {},
+) {
+  return postJSON<ProductDetail>(`/api/v1/products/${id}/undo-ai-title`, body);
 }
 
 export type GenerateDescriptionResult = {
@@ -513,8 +564,18 @@ export async function generateDescription(
   return postJSON<GenerateDescriptionResult>(`/api/v1/products/${id}/ai/generate-description`, body);
 }
 
-export async function applyAiDescription(id: string, body: { aiDescription: string; taskId: string }) {
+export async function applyAiDescription(
+  id: string,
+  body: { aiDescription: string; taskId: string; expectedUpdatedAt?: string; sourceSnapshotHash?: string },
+) {
   return postJSON<ProductDetail>(`/api/v1/products/${id}/apply-ai-description`, body);
+}
+
+export async function undoAiDescription(
+  id: string,
+  body: { applicationId?: string; expectedUpdatedAt?: string } = {},
+) {
+  return postJSON<ProductDetail>(`/api/v1/products/${id}/undo-ai-description`, body);
 }
 
 export type AITaskRow = {

@@ -5,6 +5,8 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
@@ -110,7 +112,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateDouyinPhase102Indexes(db); err != nil {
 		return err
 	}
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&admin.AdminUser{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
@@ -121,7 +123,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&product.ProductImage{},
 		&product.ProductSKU{},
 		&product.ProductPlatformPublishConfig{},
+		&product.ProductAIContentApplication{},
+		&product.ProductImageApplication{},
 		&productpublish.ProductPublishTask{},
+		&productpublish.ProductPublishBatch{},
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},
 		&order.Order{},
@@ -147,11 +152,18 @@ func AutoMigrate(db *gorm.DB) error {
 		&aiprompt.AIPrompt{},
 		&aitask.AITask{},
 		&aioperationbatch.AIOperationBatch{},
+		&aiproducttext.AIProductTextBatch{},
+		&aiproducttext.AIProductTextItem{},
+		&aiproductimage.AIProductImageBatch{},
+		&aiproductimage.AIProductImageItem{},
 		&customerchat.CustomerConversation{},
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},
 		&taskcenter.TaskFailureMark{},
 		&taskcenter.TaskAlert{},
 		&taskcenter.TaskAlertNotification{},
-	)
+	); err != nil {
+		return err
+	}
+	return migratePublishBatchA21(db)
 }
