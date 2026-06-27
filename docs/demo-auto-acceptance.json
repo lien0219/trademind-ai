@@ -1,0 +1,152 @@
+﻿{
+    "automatableConclusion":  "passed",
+    "steps":  [
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "go test regression",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:17:43.2931901Z"
+                  },
+                  {
+                      "detail":  "-SkipBuild",
+                      "status":  "skipped",
+                      "name":  "go build backend",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:17:43.2971915Z"
+                  },
+                  {
+                      "detail":  "-SkipBuild",
+                      "status":  "skipped",
+                      "name":  "pnpm build:admin",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:17:43.2971915Z"
+                  },
+                  {
+                      "detail":  "-SkipBuild",
+                      "status":  "skipped",
+                      "name":  "git diff --check",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:17:43.2981903Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "check-ui-copy",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:17:43.4755703Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "security-release-check",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:17:45.7381815Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "check-doc-links",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:18:38.4578783Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "demo-route-smoke",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:18:38.8872660Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "seed-demo-data",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:18:39.6874824Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "ai-text-route-smoke",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:18:39.8152770Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "ai-text-trial-run",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:19:50.1634516Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "ai-image-route-smoke",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:19:50.2916550Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "ai-image-trial-run",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:25:52.7163750Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "publish-batch-perf",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:25:53.5883661Z"
+                  },
+                  {
+                      "detail":  "",
+                      "status":  "passed",
+                      "name":  "ai-operation-workbench-perf",
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-27T06:25:54.6325263Z"
+                  }
+              ],
+    "finishedAt":  "2026-06-27T06:25:54.6325263Z",
+    "finalStatus":  {
+                        "douyin":  "Douyin Release Candidate",
+                        "production":  "Not Production Ready",
+                        "tag":  "Tag pending",
+                        "release":  "MVP Demo Ready"
+                    },
+    "startedAt":  "2026-06-27T06:17:40.1094155Z",
+    "manualTestItems":  [
+                            "Real preprod SSH deployment",
+                            "Nginx / HTTPS",
+                            "Storage public access",
+                            "Preprod backup and rollback",
+                            "1366 / 1024 visual walkthrough",
+                            "Douyin real OAuth",
+                            "Douyin readonly E2E",
+                            "Douyin write E2E",
+                            "48-72h gray observation",
+                            "v0.1.0-demo tag final confirmation"
+                        ],
+    "failedStepCount":  0,
+    "phase":  "Phase R1.2-Auto",
+    "artifacts":  {
+                      "securityCheck":  "docs/SECURITY_RELEASE_CHECK.auto.md",
+                      "aiTextTrial":  "docs/ai-text-trial-run.auto.json",
+                      "publishBatchPerf":  "docs/publish-batch-perf.auto.json",
+                      "aiImageTrial":  "docs/ai-image-trial-run.auto.json",
+                      "routeSmoke":  "docs/demo-route-smoke.auto.json",
+                      "workbenchPerf":  "docs/ai-operation-workbench-perf.auto.json",
+                      "docsConsistency":  "docs/DOCS_CONSISTENCY_CHECK.md",
+                      "copywritingAudit":  "docs/COPYWRITING_AUDIT.auto.md",
+                      "demoDataset":  "docs/demo-dataset.auto.json"
+                  },
+    "testEnvironment":  {
+                            "backendUp":  true,
+                            "apiBase":  "http://127.0.0.1:8080",
+                            "hostname":  "SK-20250814VKAY",
+                            "appEnv":  "development",
+                            "startedAt":  "2026-06-27T06:17:40.1094155Z",
+                            "phase":  "Phase R1.2-Auto"
+                        },
+    "blockedStepCount":  0
+}

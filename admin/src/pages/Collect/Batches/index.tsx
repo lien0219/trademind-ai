@@ -65,7 +65,7 @@ export default function CollectBatchesPage() {
   const taskActionRef = useRef<ActionType>();
   const [form] = Form.useForm<{ source: string; urls: string }>();
   const [submitting, setSubmitting] = useState(false);
-  const [polling, setPolling] = useState(POLL_MS);
+  const [polling, setPolling] = useState<number | undefined>(POLL_MS);
   const [taskPolling, setTaskPolling] = useState<number | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeBatch, setActiveBatch] = useState<CollectBatchRow | null>(null);
@@ -649,7 +649,7 @@ export default function CollectBatchesPage() {
                 type="warning"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message="本批次部分链接失败（partial_success）"
+                message="本批次部分链接失败（部分成功）"
                 description={
                   isTaobaoTmallSource(activeBatch.source)
                     ? '成功的链接已生成商品草稿；失败链接可在下方重试，或到失败任务中心处理。若出现登录/验证失败，请先在采集浏览器完成后再重试。'

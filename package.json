@@ -14,6 +14,7 @@
     "dev": "tsx scripts/dev-all.ts",
     "check:ui-copy": "node scripts/check-ui-copy.mjs",
     "check:dev": "tsx scripts/check-dev-env.ts",
+    "demo:auto-acceptance": "powershell -ExecutionPolicy Bypass -File scripts/demo-auto-acceptance.ps1",
     "postinstall": "node scripts/patch-pro-field-antd-select.mjs",
     "dev:infra": "docker compose up -d postgres redis",
     "dev:backend": "tsx scripts/dev-backend.ts",

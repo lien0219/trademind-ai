@@ -1,13 +1,24 @@
 #!/usr/bin/env node
 /**
- * 扫描用户可见路径中的常见英文/技术混排。
- * 用法: node scripts/check-ui-copy.mjs [--strict]
+ * 扫描用户可见路径中的常见英文/技术混排与内部码直出。
+ * 用法: node scripts/check-ui-copy.mjs [--strict] [--report docs/COPYWRITING_AUDIT.auto.md]
  */
-import { readFileSync, readdirSync, statSync } from 'fs';
-import { join, relative } from 'path';
+import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'fs';
+import { join, relative, dirname } from 'path';
 
 const ROOT = join(import.meta.dirname, '..');
 const STRICT = process.argv.includes('--strict');
+const reportIdx = process.argv.indexOf('--report');
+const REPORT_FILE = reportIdx >= 0 ? process.argv[reportIdx + 1] : null;
+
+const INTERNAL_SCAN_DIRS = [
+  join(ROOT, 'admin/src/pages'),
+  join(ROOT, 'admin/src/components'),
+];
+
+/** 代码逻辑 / 映射层 — 不算 UI 主文案直出 */
+const INTERNAL_CODE_ALLOW =
+  /===|!==|dataIndex:|rowKey=|rowKey:|operationTypes|operationType:|filter\(|includes\(|\.status|value:\s*['"`]|label:\s*['"`]|text:\s*['"`]|color:|OP_LABEL|statusTag|getStatus|publishLabels|aiProductText|aiProductImage|TechnicalDetails|TaskJsonBlock|copywriting|\/\*\*|\/\/|params\.|detail\.batch|bulkOp|selectedOps|opChoice|form\.|API|ConvertToJson|type\s+\w+|来源类型|来源编号|问题代码|内容快照|qualityWarnings\?|qualityWarnings\.|qualityWarnings\[|expectedUpdatedAt:|sourceType:|sourceId:|postOrderException|deleteOrderException|relatedResource|partial_success:|partial_success,|\['partial_success'|StatusTag\.tsx|addList\(|undoProduct|undoAiDescription|await\s+/i;
 
 /** @type {{ pattern: RegExp; hint: string; allow?: RegExp }[]} */
 const RULES = [
@@ -72,10 +83,12 @@ const SCAN_DIRS = [
   join(ROOT, 'admin/src/pages'),
   join(ROOT, 'admin/src/constants'),
   join(ROOT, 'admin/src/components'),
-  join(ROOT, 'backend/internal/modules/douyinpreflight'),
-  join(ROOT, 'backend/internal/modules/douyinruntime'),
-  join(ROOT, 'backend/internal/modules/taskcenter/failureclassifier'),
 ];
+
+const ALL_RULES = RULES;
+
+/** @type {{ file: string; line: number; text: string; hint: string; term: string }[]} */
+const internalHits = [];
 
 const EXT = new Set(['.ts', '.tsx', '.go']);
 
@@ -98,6 +111,23 @@ function walk(dir) {
 /** @type {{ file: string; line: number; text: string; hint: string }[]} */
 const hits = [];
 
+const INTERNAL_TERMS = [
+  'pending_review',
+  'partial_success',
+  'sourceSnapshotHash',
+  'expectedUpdatedAt',
+  'sourceType',
+  'sourceId',
+  'target_key',
+  'batch_id',
+  'real_draft_create',
+  'local_draft_only',
+  'qualityWarnings',
+  'blocked_by_real_credentials',
+  'blocked_by_provider_config',
+  'unsupported_by_provider',
+];
+
 for (const dir of SCAN_DIRS) {
   let files;
   try {
@@ -114,7 +144,7 @@ for (const dir of SCAN_DIRS) {
       if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('import ')) return;
       if (trimmed.startsWith('/**') || trimmed.endsWith('*/')) return;
       if (trimmed.includes('TechnicalDetails') || trimmed.includes('JSON.stringify')) return;
-      for (const rule of RULES) {
+      for (const rule of ALL_RULES) {
         if (!rule.pattern.test(line)) continue;
         if (rule.allow && rule.allow.test(line)) continue;
         hits.push({
@@ -129,19 +159,93 @@ for (const dir of SCAN_DIRS) {
   }
 }
 
-if (hits.length === 0) {
-  console.log('check-ui-copy: 未发现常见混排英文术语。');
+for (const dir of INTERNAL_SCAN_DIRS) {
+  let files;
+  try {
+    files = walk(dir);
+  } catch {
+    continue;
+  }
+  for (const file of files) {
+    const content = readFileSync(file, 'utf8');
+    const lines = content.split('\n');
+    lines.forEach((line, i) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('import ')) return;
+      if (INTERNAL_CODE_ALLOW.test(line)) return;
+      for (const term of INTERNAL_TERMS) {
+        if (!line.includes(term)) continue;
+        internalHits.push({
+          file: relative(ROOT, file).replace(/\\/g, '/'),
+          line: i + 1,
+          text: trimmed.slice(0, 120),
+          hint: `内部码 "${term}" 可能直出 UI 主文案`,
+          term,
+        });
+        break;
+      }
+    });
+  }
+}
+
+const allHits = [...hits, ...internalHits.map(({ term, ...rest }) => rest)];
+
+if (allHits.length === 0) {
+  console.log('check-ui-copy: 未发现常见混排英文术语或内部码直出。');
+  if (REPORT_FILE) {
+    writeReport([]);
+  }
   process.exit(0);
 }
 
-console.log(`check-ui-copy: 发现 ${hits.length} 处可能需中文化的用户文案：\n`);
-for (const h of hits.slice(0, 80)) {
+console.log(`check-ui-copy: 发现 ${allHits.length} 处可能需中文化的用户文案：\n`);
+for (const h of allHits.slice(0, 80)) {
   console.log(`${h.file}:${h.line}  ${h.hint}`);
   console.log(`  ${h.text}\n`);
 }
-if (hits.length > 80) {
-  console.log(`… 另有 ${hits.length - 80} 处，请本地运行完整扫描。\n`);
+if (allHits.length > 80) {
+  console.log(`… 另有 ${allHits.length - 80} 处，请本地运行完整扫描。\n`);
 }
 console.log('详见 docs/ui-copywriting.md');
 
+if (REPORT_FILE) {
+  writeReport(allHits);
+}
+
 process.exit(STRICT ? 1 : 0);
+
+/** @param {typeof hits} items */
+function writeReport(items) {
+  const dir = dirname(REPORT_FILE);
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    /* exists */
+  }
+  const lines = [
+    '# Demo Release 中文文案自动审计（Phase R1.2-Auto）',
+    '',
+    `> 生成时间：${new Date().toISOString()}`,
+    `> 工具：\`node scripts/check-ui-copy.mjs --strict --report\``,
+    '',
+    `## 结论：${items.length === 0 ? '✅ 通过' : '❌ 未通过'}`,
+    '',
+    `共发现 **${items.length}** 处可能直出内部码/英文术语。`,
+    '',
+  ];
+  if (items.length === 0) {
+    lines.push('- UI 主路径无 P1 级内部码直出', '- 技术详情折叠区允许出现 JSON 键名', '');
+  } else {
+    lines.push('## 命中明细', '', '| 文件 | 行 | 提示 | 上下文 |', '| --- | --- | --- | --- |');
+    for (const h of items.slice(0, 200)) {
+      lines.push(`| \`${h.file}\` | ${h.line} | ${h.hint} | \`${h.text.replace(/\|/g, '\\|')}\` |`);
+    }
+    if (items.length > 200) {
+      lines.push('', `… 另有 ${items.length - 200} 处未列出。`);
+    }
+  }
+  lines.push('', '## 白名单说明', '', '- `TechnicalDetails` / `TaskJsonBlock` 折叠区允许 JSON 键名', '- `constants/*Labels*` 映射文件允许内部码作为 key', '- 文档、测试、脚本路径不在扫描范围', '');
+  writeFileSync(REPORT_FILE, lines.join('\n'), 'utf8');
+  console.log(`Wrote ${REPORT_FILE}`);
+}

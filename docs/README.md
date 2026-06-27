@@ -30,6 +30,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [github-repo-presentation.md](github-repo-presentation.md) | GitHub 仓库首页、About、Topics、Social Preview 配置清单 | 维护者 / 开源协作者 |
 | [open-source-presentation-checklist.md](open-source-presentation-checklist.md) | 开源展示发布前自检：README、About、Topics、头图与文档入口一致性 | 维护者 / 开源协作者 |
 | [AI_PRODUCT_OPERATION_UX_AUDIT.md](AI_PRODUCT_OPERATION_UX_AUDIT.md) / [AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md](AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md) | AI 商品运营体验审计、A1.1 稳定性补强与验收状态 | 产品 / 前后端 / AI Agent |
+| [CODEX_MANUAL_SIMULATION_REPORT.md](CODEX_MANUAL_SIMULATION_REPORT.md) | Phase R1.3-Codex 模拟人工测试与体验问题扫描报告 | 产品 / 前后端 / AI Agent |
 | [module-map.md](module-map.md) | 模块关联索引，说明改 A 时要检查哪些 B / C / D | 开发者 / AI Agent |
 | [roadmap.md](roadmap.md) | 版本路线图与阶段目标 | 所有人 |
 

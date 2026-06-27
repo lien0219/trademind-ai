@@ -1,6 +1,13 @@
 # AI 商品运营体验 Phase A1 审计
 
-> 日期：2026-06-17（Phase A3.2.1 更新：2026-06-19）
+> 日期：2026-06-17（Phase R1 Demo Release：2026-06-27）
+
+## Phase R1 记录（2026-06-27）
+
+- **Release 状态**：`MVP Demo Ready`（非 Production Ready）
+- **收口文档**：[`DEMO_SCRIPT.md`](DEMO_SCRIPT.md)、[`DEMO_DATASET.md`](DEMO_DATASET.md)、[`DEMO_RELEASE_UX_ACCEPTANCE.md`](DEMO_RELEASE_UX_ACCEPTANCE.md)、[`COPYWRITING_AUDIT.md`](COPYWRITING_AUDIT.md)
+- **性能**：工作台 757 待办 [`AI_OPERATION_WORKBENCH_PERF_REPORT.md`](AI_OPERATION_WORKBENCH_PERF_REPORT.md)；批量刊登 [`PUBLISH_BATCH_PERF_REPORT.md`](PUBLISH_BATCH_PERF_REPORT.md)
+- **抖店**：仍 Release Candidate；不进入真实 E2E / 生产灰度
 
 ## Phase A3.3 记录（2026-06-27）
 

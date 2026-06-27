@@ -13,8 +13,8 @@ import {
   message,
   Alert,
 } from 'antd';
-import { history } from '@umijs/max';
-import { useRef, useState } from 'react';
+import { history, useSearchParams } from '@umijs/max';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from '@umijs/renderer-react';
 import { AI_FIELD_COPY, commonStatusLabel } from '@/constants/copywriting';
 import { taskTypeLabel } from '@/services/imageTasks';
@@ -50,6 +50,8 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function AiBatchesPage() {
   const actionRef = useRef<ActionType>();
+  const [searchParams] = useSearchParams();
+  const openedQueryIdRef = useRef<string>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -158,6 +160,13 @@ export default function AiBatchesPage() {
       message.error((e as Error)?.message || '应用失败');
     }
   };
+
+  useEffect(() => {
+    const queryId = (searchParams.get('id') || '').trim();
+    if (!queryId || openedQueryIdRef.current === queryId) return;
+    openedQueryIdRef.current = queryId;
+    void openDetail(queryId);
+  }, [searchParams]);
 
   return (
     <TmPageContainer

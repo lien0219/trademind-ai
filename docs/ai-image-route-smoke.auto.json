@@ -1,0 +1,105 @@
+﻿{
+    "healthTimestamp":  "2026-06-27T06:19:50Z",
+    "imageQueue":  {
+                       "enabled":  true,
+                       "name":  "image:tasks",
+                       "redisAvailable":  true,
+                       "depth":  0,
+                       "workerEnabled":  true,
+                       "workerRunning":  true,
+                       "concurrency":  2
+                   },
+    "appEnv":  "development",
+    "routeCount":  12,
+    "failed404Count":  0,
+    "generatedAt":  "2026-06-27T06:19:50.2858014Z",
+    "passed":  true,
+    "healthStatus":  "up",
+    "apiBase":  "http://127.0.0.1:8080",
+    "routes":  [
+                   {
+                       "not404":  true,
+                       "method":  "GET",
+                       "path":  "/health",
+                       "statusCode":  200,
+                       "note":  "ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "GET",
+                       "path":  "/api/v1/products/ai-images/batches",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/batches/check",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/batches",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "GET",
+                       "path":  "/api/v1/products/ai-images/batches/00000000-0000-0000-0000-000000000001",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/batches/00000000-0000-0000-0000-000000000001/retry-failed",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/batches/00000000-0000-0000-0000-000000000001/cancel-pending",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/batches/00000000-0000-0000-0000-000000000001/apply-selected",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/batches/00000000-0000-0000-0000-000000000001/undo-applied",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/items/00000000-0000-0000-0000-000000000001/regenerate",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/items/00000000-0000-0000-0000-000000000001/apply",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   },
+                   {
+                       "not404":  true,
+                       "method":  "POST",
+                       "path":  "/api/v1/products/ai-images/items/00000000-0000-0000-0000-000000000001/reject",
+                       "statusCode":  401,
+                       "note":  "auth_required_ok"
+                   }
+               ]
+}

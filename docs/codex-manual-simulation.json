@@ -1,0 +1,177 @@
+{
+  "phase": "R1.3-Codex",
+  "name": "模拟人工测试与体验问题扫描",
+  "date": "2026-06-27",
+  "projectStatus": [
+    "MVP Demo Ready",
+    "Auto Acceptance Passed",
+    "Tag pending",
+    "非 Production Ready",
+    "抖店 Release Candidate"
+  ],
+  "environment": {
+    "branch": "dev",
+    "method": [
+      "route_config_review",
+      "page_code_review",
+      "existing_acceptance_report_review"
+    ],
+    "browserClickThrough": "manual_required",
+    "douyinRealE2E": "not_run",
+    "tagCreated": false,
+    "productionReadyMarked": false
+  },
+  "roles": [
+    {
+      "role": "new_operator",
+      "covered": true,
+      "focus": [
+        "entry_clarity",
+        "next_step_copy",
+        "internal_code_exposure",
+        "legacy_entry_guidance"
+      ]
+    },
+    {
+      "role": "experienced_operator",
+      "covered": true,
+      "focus": [
+        "batch_ai_text",
+        "batch_ai_image",
+        "publish_batch",
+        "partial_success",
+        "retry_failed"
+      ]
+    },
+    {
+      "role": "admin",
+      "covered": true,
+      "focus": [
+        "failure_task_center",
+        "provider_config_status",
+        "credential_blocking",
+        "technical_details_collapsed"
+      ]
+    }
+  ],
+  "pageCoverage": [
+    { "path": "/ai/operation-workbench", "result": "passed" },
+    { "path": "/products/drafts", "result": "not_applicable", "actualPath": "/product/drafts" },
+    { "path": "/product/ai-text-batch", "result": "passed" },
+    { "path": "/product/ai-text-batches/:id", "result": "passed" },
+    { "path": "/ai/text-batches", "result": "passed" },
+    { "path": "/product/ai-image-batch", "result": "passed" },
+    { "path": "/product/ai-image-batches/:id", "result": "passed" },
+    { "path": "/ai/image-batches", "result": "passed" },
+    { "path": "/product/publish-batch", "result": "passed" },
+    { "path": "/product/publish-batches/:id", "result": "passed" },
+    { "path": "/ops/task-center/failures", "result": "passed" },
+    { "path": "/ai/batches", "result": "passed_with_warning" },
+    { "path": "/products/:id", "result": "not_applicable", "actualPath": "/product/drafts/:id" }
+  ],
+  "mainFlow": {
+    "stepsTotal": 24,
+    "result": "passed_with_warning",
+    "manualRequired": [
+      "login_clickthrough",
+      "browser_back_continue",
+      "refresh_state_retention",
+      "real_modal_visual_check"
+    ]
+  },
+  "exceptionFlows": [
+    { "name": "AI 文案生成失败", "result": "passed" },
+    { "name": "AI 文案应用冲突", "result": "passed" },
+    { "name": "AI 文案撤销冲突", "result": "passed" },
+    { "name": "AI 图片处理失败", "result": "passed" },
+    { "name": "AI 图片应用冲突", "result": "passed" },
+    { "name": "AI 图片撤销冲突", "result": "passed" },
+    { "name": "批量刊登 partial_success", "result": "passed" },
+    { "name": "local_draft_only 平台", "result": "passed" },
+    { "name": "抖店凭证未配置", "result": "passed" },
+    { "name": "Storage public access 未配置", "result": "passed_with_warning" },
+    { "name": "图片 Provider Key 缺失", "result": "passed_with_warning" },
+    { "name": "发布检查 failed", "result": "passed" },
+    { "name": "店铺未授权", "result": "passed" },
+    { "name": "用户直接访问旧版 /ai/batches", "result": "passed_with_warning" }
+  ],
+  "statusConsistency": [
+    { "module": "ai_text", "result": "passed_with_warning" },
+    { "module": "ai_image", "result": "passed_with_warning" },
+    { "module": "publish_batch", "result": "passed" },
+    { "module": "publish_check", "result": "passed_with_warning" }
+  ],
+  "copywriting": {
+    "result": "passed_with_warning",
+    "fixed": [
+      "legacy_bulk_ai_button_label",
+      "legacy_bulk_ai_apply_mode_copy",
+      "operation_dashboard_quick_link_copy"
+    ]
+  },
+  "navigation": {
+    "result": "passed_with_warning",
+    "fixed": [
+      "operation_dashboard_ai_batch_quick_link",
+      "legacy_ai_batches_id_query_detail_open"
+    ]
+  },
+  "resolutions": [
+    { "size": "1920x1080", "result": "manual_required" },
+    { "size": "1440x900", "result": "manual_required" },
+    { "size": "1366x768", "result": "manual_required" },
+    { "size": "1280x800", "result": "manual_required" },
+    { "size": "1024x768", "result": "manual_required" }
+  ],
+  "issues": {
+    "P0": [],
+    "P1": [
+      {
+        "id": "R13-P1-001",
+        "title": "商品运营看板快捷入口误导到旧版 AI 批次页",
+        "status": "fixed"
+      },
+      {
+        "id": "R13-P1-002",
+        "title": "旧版 AI 批次 ?id= 深链不能定位目标批次",
+        "status": "fixed"
+      },
+      {
+        "id": "R13-P1-003",
+        "title": "TechnicalDetails style props 类型缺失，存在 Admin build 风险",
+        "status": "fixed"
+      }
+    ],
+    "P2": [
+      {
+        "id": "R13-P2-001",
+        "title": "商品草稿页旧版批量 AI 入口文案不够明确",
+        "status": "fixed"
+      },
+      {
+        "id": "R13-P2-002",
+        "title": "旧版批量 AI 应用策略提示出现内部字段名",
+        "status": "fixed"
+      },
+      {
+        "id": "R13-P2-003",
+        "title": "多分辨率真实截图未在本轮自动完成",
+        "status": "manual_required"
+      }
+    ]
+  },
+  "fixedItems": [
+    "backend/internal/modules/operationdashboard/service.go",
+    "admin/src/pages/AI/Batches/index.tsx",
+    "admin/src/pages/Product/Drafts/index.tsx",
+    "admin/src/components/ui/TechnicalDetails.tsx"
+  ],
+  "unfixedItems": [
+    "browser_clickthrough_manual_required",
+    "responsive_screenshots_manual_required",
+    "real_douyin_e2e_not_in_scope",
+    "storage_public_access_requires_real_environment"
+  ],
+  "finalConclusion": "codex_simulation_passed_with_warning"
+}
+

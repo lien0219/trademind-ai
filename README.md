@@ -38,7 +38,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-> 当前状态：AI 商品运营主线已可运行；Douyin Shop 集成处于 Release Candidate 加固阶段，真实平台 E2E 仍依赖真实凭证，详见 [`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md)。
+> 当前状态：**MVP Demo Ready**（2026-06-27 Phase R1 / R1.1 / R1.2）。R1.2 构建与 smoke 已通过；**`v0.1.0-demo` tag 仍 pending**（待真实预发 HTTPS + 备份勾选）。AI 商品运营与多平台刊登主链路可演示；Douyin Shop 仍为 **Release Candidate**，真实 E2E 待凭证。详见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)、[`docs/DEPLOYMENT_PRECHECK.md`](docs/DEPLOYMENT_PRECHECK.md)、[`docs/DEMO_RELEASE_UX_ACCEPTANCE.md`](docs/DEMO_RELEASE_UX_ACCEPTANCE.md)、[`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md)。
 
 ## 项目定位
 

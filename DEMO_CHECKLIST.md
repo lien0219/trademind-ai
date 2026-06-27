@@ -1,6 +1,86 @@
 # TradeMind 演示验收清单（Demo Checklist）
 
 > 用于本地 / 预发环境快速验收核心 MVP 能力。按模块勾选。
+> **Release 状态（Phase R1）**：`MVP Demo Ready` — 见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+
+## Phase R1.3-Codex 模拟人工测试与体验问题扫描（2026-06-27）
+
+| 项 | 文档 / 结果 | 状态 |
+| --- | --- | --- |
+| 模拟人工测试报告 | `docs/CODEX_MANUAL_SIMULATION_REPORT.md` | [x] |
+| 机器可读结果 | `docs/codex-manual-simulation.json` | [x] `codex_simulation_passed_with_warning` |
+| 新手 / 熟练运营 / 管理员角色覆盖 | 工作台、复核、刊登、失败中心 | [x] |
+| P0 问题 | 无 | [x] |
+| P1 问题 | 旧入口跳转与深链定位、Admin build 类型风险 | [x] 已修 |
+| P2 问题 | 旧版入口文案、内部字段提示、多分辨率截图 | [x] 文案已修；截图 `manual_required` |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+
+## Phase R1.2-Auto 自动化验收（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| 总控自动化 | `scripts/demo-auto-acceptance.ps1` | [x] passed |
+| 总报告 | `docs/DEMO_AUTO_ACCEPTANCE_REPORT.md` | [x] |
+| go test / build / admin build | 总控内 | [x] |
+| 路由 smoke | `docs/demo-route-smoke.auto.json` | [x] |
+| Demo 数据校验 | `docs/demo-dataset.auto.json` | [x] 20 slot + 7 samples |
+| AI 文案试跑 | `docs/ai-text-trial-run.auto.json` | [x] 16/16 |
+| AI 图片试跑 | `docs/ai-image-trial-run.auto.json` | [x] 14/16 warning |
+| 批量刊登 perf | `docs/publish-batch-perf.auto.json` | [x] |
+| 工作台 perf | `docs/ai-operation-workbench-perf.auto.json` | [x] |
+| 中文文案扫描 | `docs/COPYWRITING_AUDIT.auto.md` | [x] |
+| 权限安全 | `docs/SECURITY_RELEASE_CHECK.auto.md` | [x] |
+| 文档一致性 | `docs/DOCS_CONSISTENCY_CHECK.md` | [x] |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+
+## Phase R1.2 真实预发部署与 Demo Tag（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| 部署前检查 | `docs/DEPLOYMENT_PRECHECK.md` | [x] 本地 dev 等价（真实预发 SSH/HTTPS 待接入） |
+| 后端二进制构建 | `backend/tmp/server.exe` | [x] |
+| Admin dist 构建 | `pnpm build:admin` → `admin/dist` | [x] |
+| Nginx / HTTPS | 真实预发 / Docker 模拟 | [ ] Docker 未安装；真实 HTTPS 待运维 |
+| Storage 公网访问 | `POST /api/v1/storage/test-public-access` | [ ] skipped（本地 local storage） |
+| 路由 smoke | `docs/demo-route-smoke.preprod.json` | [x] 8 路由无 404（本地 API） |
+| Demo 数据 | `docs/demo-dataset.preprod.json` | [x] 20 slot + 7 samples |
+| 12 步 Demo 走查 | `docs/DEMO_RELEASE_UX_ACCEPTANCE.md` | [x] 复验通过 / 图片步骤沿用警告 |
+| UI 多分辨率 | 1366 / 1024 浏览器 CDP | [x] |
+| 备份与回滚 | `docs/DEPLOYMENT_PRECHECK.md` | [ ] 待真实预发机人工勾选 |
+| go test / build / 抖店回归 | — | [x] |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending**（待真实预发 HTTPS） |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+
+## Phase R1.1 预发部署与人工走查（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| 部署前检查 | `docs/DEPLOYMENT_PRECHECK.md` | [x] 本地 dev 等价环境 |
+| 路由 smoke（R1.1 复跑） | `scripts/demo-route-smoke.ps1` | [x] 8 路由无 404 |
+| Demo 数据（R1.1 复跑） | `scripts/seed-demo-data.ps1` | [x] 20 slot + 7 samples |
+| 12 步 Demo 走查 | `docs/DEMO_RELEASE_UX_ACCEPTANCE.md` | [x] 11 通过 / 1 警告 |
+| UI 多分辨率 | 1366 / 1024 浏览器 CDP | [x] |
+| go test / build（R1.1） | `go test ./...` / `pnpm build:admin` | [x] |
+| Git tag `v0.1.0-demo` | — | [ ] Tag pending（待预发 Nginx/HTTPS） |
+| 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
+
+## Phase R1 Demo Release 自动化验收（2026-06-27）
+
+| 项 | 脚本 / 文档 | 结果 |
+| --- | --- | --- |
+| Demo 数据 | `scripts/seed-demo-data.ps1` → `docs/DEMO_DATASET.md` | [x] 20 商品 slot |
+| 路由 smoke | `scripts/demo-route-smoke.ps1` → `docs/demo-route-smoke.json` | [x] 8 路由无 404 |
+| 工作台性能 | `scripts/ai-operation-workbench-perf.ps1` | [x] 757 待办，todos <100ms |
+| 批量刊登性能 | `scripts/publish-batch-perf.ps1` | [x] 20×2 / 50×2 / 100×3 |
+| AI 文案试跑 | `scripts/ai-text-trial-run.ps1` | [x] 16/16 passed |
+| AI 图片试跑 | `scripts/ai-image-trial-run.ps1` | [x] passed_with_warning 14/16 |
+| 文案审计 | `docs/COPYWRITING_AUDIT.md` | [x] strict 通过 |
+| 安全检查 | `docs/SECURITY_RELEASE_CHECK.md` | [x] |
+| 部署前检查 | `docs/DEPLOYMENT_PRECHECK.md` | [x] 本地 dev |
+| UI 多分辨率 | `docs/DEMO_RELEASE_UX_ACCEPTANCE.md` | [x] 1366/1024 |
+| go test / build | `go test ./...` / `pnpm build:admin` | [x] |
 
 ## 抖店完整演示流程（MVP Demo，2026-06-07）
 

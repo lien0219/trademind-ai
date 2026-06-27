@@ -58,6 +58,9 @@ function Measure-BatchScenario {
         if ($shops.Count -ge $TargetCount) { break }
     }
     if ($shops.Count -lt $TargetCount) {
+        $shops = Ensure-LocalDraftShops -Token $Token -Need $TargetCount
+    }
+    if ($shops.Count -lt $TargetCount) {
         throw "Need $TargetCount local_draft_only targets, found $($shops.Count)"
     }
     $targets = @($shops | Select-Object -First $TargetCount)
@@ -110,6 +113,37 @@ function Measure-BatchScenario {
 if (-not $Account -or -not $Password) {
     Write-Error "Set ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD"
     exit 1
+}
+
+function Ensure-LocalDraftShops {
+    param([string]$Token, [int]$Need)
+    $targetsResp = (Invoke-ApiJson -Method Get -Url "$ApiV1/product-publish/targets" -Token $Token).data
+    $shops = @()
+    foreach ($p in ($targetsResp.platforms | Where-Object { $_.capability -eq 'local_draft_only' })) {
+        foreach ($s in ($p.shops | Where-Object { $_.shopId })) {
+            $shops += @{ platform = $p.platform; shopId = $s.shopId }
+        }
+    }
+    if ($shops.Count -ge $Need) { return $shops }
+
+    $platforms = @("tiktok", "shopee", "lazada", "amazon")
+    foreach ($plat in $platforms) {
+        if ($shops.Count -ge $Need) { break }
+        $body = @{
+            platform = $plat
+            shopName = "R1 demo $plat shop"
+        } | ConvertTo-Json -Depth 4
+        try {
+            $created = (Invoke-ApiJson -Method Post -Url "$ApiV1/shops" -Body $body -Token $Token).data
+            if ($created.id) {
+                $shops += @{ platform = $plat; shopId = $created.id }
+                Write-Host "  Created demo shop for $plat ($($created.id))"
+            }
+        } catch {
+            Write-Warning "Could not create shop for ${plat}: $_"
+        }
+    }
+    return @($shops | Select-Object -First $Need)
 }
 
 Write-Host "Logging in..."

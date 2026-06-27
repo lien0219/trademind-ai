@@ -396,7 +396,7 @@ export default function ProductDraftsPage() {
               setBulkOpen(true);
             }}
           >
-            批量 AI
+            旧版批量 AI
           </Button>,
           <Button
             key="publishBatch"
@@ -552,7 +552,7 @@ export default function ProductDraftsPage() {
       </Drawer>
 
       <Drawer
-        title="批量 AI（商品草稿）"
+        title="旧版批量 AI（商品草稿）"
         width={560}
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
@@ -571,7 +571,7 @@ export default function ProductDraftsPage() {
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="不会自动覆盖正式标题/详情，不会替换主图，不会刊登。文本结果见 AI 任务与草稿「AI 标题/描述」；图片结果见「图片任务」。"
+          message="旧版入口保留用于历史批次兼容。不会自动覆盖正式标题/详情，不会替换主图，不会刊登。新任务建议优先使用上方「批量 AI 优化」或「批量 AI 图片处理」。"
         />
         <Typography.Paragraph type="secondary">
           已勾选 <strong>{selectedRowKeys.length}</strong> 个商品。
@@ -611,11 +611,11 @@ export default function ProductDraftsPage() {
               <Form.Item name="tone" label="语气 / 风格">
                 <Input placeholder="例如 professional" />
               </Form.Item>
-              <Form.Item name="applyMode" label="应用策略" tooltip="save_ai_field：成功后写入草稿的 ai_title / ai_description">
+              <Form.Item name="applyMode" label="应用策略" tooltip="成功后写入草稿中的 AI 优化标题 / AI 优化描述">
                 <Select
                   options={[
                     { label: '仅任务记录（不写 AI 草稿字段）', value: 'task_only' },
-                    { label: '写入 AI 草稿字段（ai_title / ai_description）', value: 'save_ai_field' },
+                    { label: '写入 AI 优化标题 / AI 优化描述', value: 'save_ai_field' },
                   ]}
                 />
               </Form.Item>
