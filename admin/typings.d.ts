@@ -7,6 +7,7 @@ declare namespace API {
     email?: string;
     phone?: string;
     displayName: string;
+    role?: string;
     createdAt?: string;
     updatedAt?: string;
   };

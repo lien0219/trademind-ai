@@ -35,12 +35,14 @@ import {
 } from '@/services/orders';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
+import { PRODUCT_COPY } from '@/constants/copywriting';
 import {
   INVENTORY_DEDUCT_STATUS,
   INVENTORY_SKU_AMBIGUOUS_MESSAGE,
   INVENTORY_SKU_NOT_BOUND_MESSAGE,
   inventoryTagFromMap,
 } from '@/constants/inventoryLabels';
+import { canWriteOrders } from '@/utils/orderPerm';
 
 function tagFromMap(raw: string, map: Record<string, { text: string; color: string }>) {
   const cfg = map[raw];
@@ -52,8 +54,10 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const itemIdFocus = searchParams.get('itemId')?.trim();
-  const { initialState } = useModel('@@initialState');
-  const writable = canWriteOrders((initialState?.currentUser as { role?: string } | undefined)?.role);
+  const { initialState } = useModel('@@initialState') as {
+    initialState?: { currentUser?: API.CurrentUser };
+  };
+  const writable = canWriteOrders(initialState?.currentUser?.role);
 
   const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
   const [skuRows, setSkuRows] = useState<OrderSkuMatchRow[]>([]);
@@ -366,7 +370,7 @@ export default function OrderDetailPage() {
                           return <Tag color={cfg.color}>{cfg.text}</Tag>;
                         },
                       },
-                      { title: 'SKU', dataIndex: 'skuCode', width: 120, render: (v) => v || '—' },
+                      { title: PRODUCT_COPY.sku, dataIndex: 'skuCode', width: 120, render: (v) => v || '—' },
                       { title: '数量', dataIndex: 'quantity', width: 64 },
                       { title: '扣减前', dataIndex: 'beforeStock', width: 72, render: (v) => v ?? '—' },
                       { title: '扣减后', dataIndex: 'afterStock', width: 72, render: (v) => v ?? '—' },
@@ -404,7 +408,7 @@ export default function OrderDetailPage() {
               key: 'tech',
               label: '技术详情',
               children: (
-                <TechnicalDetails defaultCollapsed>
+                <TechnicalDetails>
                   <TaskJsonBlock title="订单 ID" value={{ id: detail.id, tenantId: detail.tenantId }} />
                   <TaskJsonBlock title="原始 items 数量" value={{ count: detail.items.length }} last />
                 </TechnicalDetails>

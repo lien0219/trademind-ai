@@ -1,5 +1,6 @@
 import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PRODUCT_COPY } from '@/constants/copywriting';
 import {
   INVENTORY_DEDUCT_SOURCE,
   INVENTORY_DEDUCT_STATUS,
@@ -76,7 +77,7 @@ export default function InventoryDeductionsPage() {
           ),
       },
       {
-        title: 'SKU',
+        title: PRODUCT_COPY.sku,
         dataIndex: 'skuCode',
         width: 120,
         search: false,

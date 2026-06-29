@@ -9,8 +9,9 @@ import {
   INVENTORY_SYNC_STATUS,
   inventoryTagFromMap,
 } from '@/constants/inventoryLabels';
+import { INVENTORY_COPY, PRODUCT_COPY } from '@/constants/copywriting';
 import { queryInventoryCenter, type InventoryCenterRow } from '@/services/inventory';
-import { Empty, Space, Tag, Typography, message } from 'antd';
+import { Button, Empty, Space, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import { Link, history, useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef } from 'react';
@@ -58,7 +59,7 @@ export default function InventoryCenterPage() {
         valueEnum: Object.fromEntries(Object.entries(INVENTORY_STOCK_STATUS).map(([k, v]) => [k, { text: v.text }])),
       },
       {
-        title: 'SKU 绑定',
+        title: INVENTORY_COPY.skuBinding,
         dataIndex: 'skuBindStatus',
         hideInTable: true,
         valueType: 'select',
@@ -89,7 +90,7 @@ export default function InventoryCenterPage() {
         ),
       },
       {
-        title: 'SKU',
+        title: PRODUCT_COPY.sku,
         dataIndex: 'skuCode',
         width: 120,
         search: false,
@@ -115,7 +116,7 @@ export default function InventoryCenterPage() {
         render: (_, r) => tagFrom(r.stockStatus, INVENTORY_STOCK_STATUS),
       },
       {
-        title: 'SKU 绑定',
+        title: INVENTORY_COPY.skuBinding,
         dataIndex: 'skuBindStatus',
         width: 96,
         search: false,
