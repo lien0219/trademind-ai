@@ -264,7 +264,7 @@ export default function OrdersPage() {
         render: (_, r) => r.itemCount ?? '—',
       },
       {
-        title: 'SKU 匹配',
+        title: '规格匹配',
         dataIndex: 'skuMatchStatus',
         width: 108,
         valueType: 'select',

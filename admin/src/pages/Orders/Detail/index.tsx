@@ -199,7 +199,7 @@ export default function OrderDetailPage() {
                     </Card>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Card size="small" title="SKU 匹配">
+                    <Card size="small" title="规格匹配">
                       {listSummary ? tagFromMap(listSummary.skuStatus, ORDER_SKU_MATCH_SUMMARY) : '—'}
                       <div style={{ marginTop: 8 }}>
                         {listSummary ? `${listSummary.matched}/${listSummary.total} 行已匹配` : ''}
@@ -245,7 +245,7 @@ export default function OrderDetailPage() {
                   rowClassName={(r) => (itemIdFocus && r.id === itemIdFocus ? 'ant-table-row-selected' : '')}
                   columns={[
                     { title: '平台商品 ID', dataIndex: 'externalItemId', width: 120, render: (v) => v || '—' },
-                    { title: '平台 SKU ID', dataIndex: 'externalSkuId', width: 120, render: (v) => v || '—' },
+                    { title: '平台规格编号', dataIndex: 'externalSkuId', width: 120, render: (v) => v || '—' },
                     { title: '标题', dataIndex: 'productTitle', ellipsis: true },
                     { title: '规格', dataIndex: 'skuName', width: 120, render: (v) => v || '—' },
                     { title: '数量', dataIndex: 'quantity', width: 64 },
@@ -259,7 +259,7 @@ export default function OrderDetailPage() {
                       },
                     },
                     {
-                      title: '本地 SKU',
+                      title: '本地规格编号',
                       width: 120,
                       render: (_, row) => {
                         const m = skuRows.find((s) => s.orderItemId === row.id);
@@ -280,7 +280,7 @@ export default function OrderDetailPage() {
             },
             {
               key: 'sku',
-              label: 'SKU 匹配',
+              label: '规格匹配',
               children: (
                 <OrderSkuMatchTab
                   orderId={detail.id}

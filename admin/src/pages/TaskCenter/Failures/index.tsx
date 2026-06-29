@@ -96,9 +96,6 @@ function relatedHref(row: UnifiedTaskDTO): string | undefined {
   if (detail.includes('/orders/sync-tasks')) {
     return detail;
   }
-  if (row.taskType === 'order_sync' && row.sourceId) {
-    return `/orders/sync-tasks?id=${encodeURIComponent(row.sourceId)}`;
-  }
   const t = row.relatedResourceType || '';
   const id = row.relatedResourceId || '';
   if (!id) return undefined;
