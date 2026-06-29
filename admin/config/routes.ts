@@ -330,6 +330,15 @@ export default [
     component: '@/layouts/CustomerGroupLayout',
     routes: [
       {
+        path: '/customer',
+        redirect: '/customer/hub',
+      },
+      {
+        path: '/customer/hub',
+        name: '客服中心',
+        component: './Customer/Hub',
+      },
+      {
         path: '/customer/conversations',
         name: '会话列表',
         component: './Customer/Conversations',

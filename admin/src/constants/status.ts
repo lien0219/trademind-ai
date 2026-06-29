@@ -68,6 +68,25 @@ export const CUSTOMER_CONVERSATION_STATUS = {
   closed: { text: '已关闭', color: 'default' as const },
 };
 
+/** AI 回复建议状态 */
+export const CUSTOMER_SUGGESTION_STATUS = {
+  generated: { text: '待确认', color: 'processing' as const },
+  edited: { text: '已编辑', color: 'blue' as const },
+  accepted: { text: '已发送', color: 'success' as const },
+  discarded: { text: '已废弃', color: 'default' as const },
+  rejected: { text: '已拒绝', color: 'default' as const },
+  generate_failed: { text: '生成失败', color: 'error' as const },
+  send_failed: { text: '发送失败', color: 'error' as const },
+};
+
+/** 会话发送状态（列表汇总） */
+export const CUSTOMER_SEND_STATUS = {
+  none: { text: '—', color: 'default' as const },
+  pending_confirm: { text: '待确认', color: 'processing' as const },
+  sent: { text: '已发送', color: 'success' as const },
+  failed: { text: '发送失败', color: 'error' as const },
+};
+
 /** 手工订单 orders.status（与后端 order/constants 对齐） */
 export const ORDER_STATUS = {
   pending: { text: '待处理', color: 'default' as const },

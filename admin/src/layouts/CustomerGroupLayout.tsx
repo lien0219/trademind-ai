@@ -2,7 +2,7 @@ import { Outlet, history, useLocation } from '@umijs/max';
 import { useLayoutEffect } from 'react';
 
 const PARENT = '/customer';
-const DEFAULT_CHILD = '/customer/conversations';
+const DEFAULT_CHILD = '/customer/hub';
 
 export default function CustomerGroupLayout() {
   const { pathname } = useLocation();

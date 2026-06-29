@@ -35,14 +35,21 @@ type Service struct {
 
 // ListQuery binds GET /customer/conversations
 type ListQuery struct {
-	Page         int
-	PageSize     int
-	Platform     string
-	Status       string
-	ShopID       *uuid.UUID
-	CustomerName string
-	Start        *time.Time
-	End          *time.Time
+	Page            int
+	PageSize        int
+	Platform        string
+	Status          string
+	ShopID          *uuid.UUID
+	CustomerName    string
+	Keyword         string
+	PendingReply    bool
+	HasAiSuggestion bool
+	SendFailed      bool
+	HasOrder        bool
+	Start           *time.Time
+	End             *time.Time
+	UpdatedStart    *time.Time
+	UpdatedEnd      *time.Time
 }
 
 // ListResult paginates conversations.
@@ -56,19 +63,26 @@ type ListResult struct {
 
 // ConversationListItem is one row for ProTable (includes summary fields).
 type ConversationListItem struct {
-	ID               uuid.UUID  `json:"id"`
-	Platform         string     `json:"platform"`
-	ShopID           *uuid.UUID `json:"shopId,omitempty"`
-	ShopName         string     `json:"shopName,omitempty"`
-	ShopPlatform     string     `json:"shopPlatform,omitempty"`
-	CustomerName     string     `json:"customerName"`
-	CustomerLanguage string     `json:"customerLanguage"`
-	Status           string     `json:"status"`
-	LastMessageAt    *time.Time `json:"lastMessageAt,omitempty"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	UpdatedAt        time.Time  `json:"updatedAt"`
-	MessageCount     int64      `json:"messageCount"`
-	LatestMessage    string     `json:"latestMessage,omitempty"`
+	ID                 uuid.UUID  `json:"id"`
+	Platform           string     `json:"platform"`
+	ShopID             *uuid.UUID `json:"shopId,omitempty"`
+	ShopName           string     `json:"shopName,omitempty"`
+	ShopPlatform       string     `json:"shopPlatform,omitempty"`
+	CustomerName       string     `json:"customerName"`
+	CustomerNameMasked string     `json:"customerNameMasked,omitempty"`
+	CustomerLanguage   string     `json:"customerLanguage"`
+	Status             string     `json:"status"`
+	LastMessageAt      *time.Time `json:"lastMessageAt,omitempty"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
+	MessageCount       int64      `json:"messageCount"`
+	LatestMessage      string     `json:"latestMessage,omitempty"`
+	OrderID            *uuid.UUID `json:"orderId,omitempty"`
+	OrderNo            string     `json:"orderNo,omitempty"`
+	ProductTitle       string     `json:"productTitle,omitempty"`
+	AiSuggestionStatus string     `json:"aiSuggestionStatus,omitempty"`
+	SendStatus         string     `json:"sendStatus,omitempty"`
+	OpenFailureCount   int        `json:"openFailureCount"`
 }
 
 func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
@@ -106,6 +120,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
+	tx = s.applyListFilters(c, tx, q)
 
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
@@ -193,6 +208,7 @@ ORDER BY conversation_id, created_at DESC
 				item.ShopPlatform = ssum.Platform
 			}
 		}
+		s.enrichListItem(c, &item, r)
 		out = append(out, item)
 	}
 
@@ -300,6 +316,7 @@ type ConversationDetailDTO struct {
 	ShopID                 *uuid.UUID                      `json:"shopId,omitempty"`
 	ExternalConversationID *string                         `json:"externalConversationId,omitempty"`
 	CustomerName           string                          `json:"customerName"`
+	CustomerNameMasked     string                          `json:"customerNameMasked,omitempty"`
 	CustomerAvatar         string                          `json:"customerAvatar,omitempty"`
 	CustomerLanguage       string                          `json:"customerLanguage"`
 	Status                 string                          `json:"status"`
@@ -307,21 +324,27 @@ type ConversationDetailDTO struct {
 	OrderID                *uuid.UUID                      `json:"orderId,omitempty"`
 	OrderSummary           *order.ConversationOrderSummary `json:"orderSummary,omitempty"`
 	ShopSummary            *shop.SummaryDTO                `json:"shopSummary,omitempty"`
+	ProductContexts        []ProductContextItem            `json:"productContexts,omitempty"`
+	InventoryContexts      []InventoryContextItem          `json:"inventoryContexts,omitempty"`
+	ContextSummary         *ContextSummary                 `json:"contextSummary,omitempty"`
+	OpenFailureCount       int                             `json:"openFailureCount"`
+	CanWrite               bool                            `json:"canWrite"`
 	CreatedBy              *uuid.UUID                      `json:"createdBy,omitempty"`
 	CreatedAt              time.Time                       `json:"createdAt"`
 	UpdatedAt              time.Time                       `json:"updatedAt"`
 }
 
-func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary, shopSum *shop.SummaryDTO) *ConversationDetailDTO {
+func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary, shopSum *shop.SummaryDTO, extra *ConversationDetailDTO) *ConversationDetailDTO {
 	if r == nil {
 		return nil
 	}
-	return &ConversationDetailDTO{
+	dto := &ConversationDetailDTO{
 		ID:                     r.ID,
 		Platform:               r.Platform,
 		ShopID:                 r.ShopID,
 		ExternalConversationID: r.ExternalConversationID,
 		CustomerName:           r.CustomerName,
+		CustomerNameMasked:     maskCustomerName(r.CustomerName),
 		CustomerAvatar:         r.CustomerAvatar,
 		CustomerLanguage:       r.CustomerLanguage,
 		Status:                 r.Status,
@@ -333,6 +356,14 @@ func convToDTO(r *CustomerConversation, sum *order.ConversationOrderSummary, sho
 		CreatedAt:              r.CreatedAt,
 		UpdatedAt:              r.UpdatedAt,
 	}
+	if extra != nil {
+		dto.ProductContexts = extra.ProductContexts
+		dto.InventoryContexts = extra.InventoryContexts
+		dto.ContextSummary = extra.ContextSummary
+		dto.OpenFailureCount = extra.OpenFailureCount
+		dto.CanWrite = extra.CanWrite
+	}
+	return dto
 }
 
 func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDetailDTO, error) {
@@ -357,7 +388,24 @@ func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDe
 			shopSum = got
 		}
 	}
-	return convToDTO(&row, sum, shopSum), nil
+	return convToDTO(&row, sum, shopSum, s.buildDetailExtra(c, &row)), nil
+}
+
+func (s *Service) buildDetailExtra(c *gin.Context, row *CustomerConversation) *ConversationDetailDTO {
+	if row == nil {
+		return nil
+	}
+	extra := &ConversationDetailDTO{
+		OpenFailureCount: int(s.countOpenFailures(c.Request.Context(), row.ID)),
+		CanWrite:         true,
+	}
+	if row.OrderID != nil {
+		extra.ProductContexts = s.buildProductContexts(c, *row.OrderID)
+		extra.InventoryContexts = s.buildInventoryContexts(c, *row.OrderID)
+	}
+	cs := s.buildContextSummary(c, row, "")
+	extra.ContextSummary = &cs
+	return extra
 }
 
 // UpdateConversationBody PUT
@@ -494,7 +542,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 			shopSum = got
 		}
 	}
-	return convToDTO(&row, sum, shopSum), nil
+	return convToDTO(&row, sum, shopSum, s.buildDetailExtra(c, &row)), nil
 }
 
 func uuidToStrPtr(id *uuid.UUID) string {

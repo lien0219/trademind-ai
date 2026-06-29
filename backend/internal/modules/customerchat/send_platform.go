@@ -87,6 +87,25 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		IdempotencyKey:         strings.TrimSpace(body.IdempotencyKey),
 	})
 	if err != nil {
+		cat := classifySendFailure(err)
+		var sugID *uuid.UUID
+		if sid := strings.TrimSpace(body.SuggestionID); sid != "" {
+			if u, perr := uuid.Parse(sid); perr == nil {
+				sugID = &u
+				_ = s.DB.WithContext(c.Request.Context()).Model(&CustomerReplySuggestion{}).
+					Where("id = ? AND conversation_id = ?", u, conv.ID).
+					Updates(map[string]any{"status": SuggestionSendFailed, "updated_at": time.Now().UTC()}).Error
+			}
+		}
+		_ = s.recordFailure(c.Request.Context(), CustomerFailureEvent{
+			ConversationID: conv.ID,
+			SuggestionID:   sugID,
+			Platform:       strings.TrimSpace(conv.Platform),
+			ShopID:         conv.ShopID,
+			Category:       cat,
+			ErrorMessage:   err.Error(),
+			Status:         FailureEventStatusOpen,
+		})
 		if s.OpLog != nil {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
@@ -99,6 +118,9 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		}
 		return nil, err
 	}
+
+	s.resolveFailures(c.Request.Context(), conv.ID, FailureCategoryReplySendFailed, nil)
+	s.resolveFailures(c.Request.Context(), conv.ID, FailureCategoryReplyPermissionDenied, nil)
 
 	extMid := strings.TrimSpace(res.ExternalMessageID)
 	var extPtr *string

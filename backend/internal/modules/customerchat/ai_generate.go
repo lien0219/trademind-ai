@@ -28,13 +28,14 @@ type GenerateReplyBody struct {
 
 // GenerateReplyResult response
 type GenerateReplyResult struct {
-	SuggestionID uuid.UUID `json:"suggestionId"`
-	Reply        string    `json:"reply"`
-	Intent       string    `json:"intent"`
-	Sentiment    string    `json:"sentiment"`
-	RiskLevel    string    `json:"riskLevel"`
-	Notes        string    `json:"notes"`
-	TaskID       uuid.UUID `json:"taskId"`
+	SuggestionID   uuid.UUID      `json:"suggestionId"`
+	Reply          string         `json:"reply"`
+	Intent         string         `json:"intent"`
+	Sentiment      string         `json:"sentiment"`
+	RiskLevel      string         `json:"riskLevel"`
+	Notes          string         `json:"notes"`
+	TaskID         uuid.UUID      `json:"taskId"`
+	ContextSummary ContextSummary `json:"contextSummary"`
 }
 
 type customerReplyAIOut struct {
@@ -243,6 +244,10 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 
 	history := buildHistoryLines(msgs, 20, 800)
 	productInfo := ""
+	if conv.OrderID != nil {
+		productInfo = s.firstOrderProductTitle(c, *conv.OrderID)
+	}
+	ctxSummary := s.buildContextSummary(c, &conv, customerMsg)
 
 	var octx *order.AIContext
 	cautiousOrder := false
@@ -368,6 +373,14 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	resp, err := s.AIGateway.Chat(c.Request.Context(), req)
 	if err != nil {
 		_ = s.AITasks.MarkFailed(c.Request.Context(), taskID, err.Error())
+		_ = s.recordFailure(c.Request.Context(), CustomerFailureEvent{
+			ConversationID: conversationID,
+			Platform:       strings.TrimSpace(conv.Platform),
+			ShopID:         conv.ShopID,
+			Category:       FailureCategoryReplyGenerateFailed,
+			ErrorMessage:   err.Error(),
+			Status:         FailureEventStatusOpen,
+		})
 		if s.OpLog != nil {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
@@ -385,6 +398,14 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	if perr != nil {
 		msg := fmt.Sprintf("parse ai json: %v", perr)
 		_ = s.AITasks.MarkFailed(c.Request.Context(), taskID, msg)
+		_ = s.recordFailure(c.Request.Context(), CustomerFailureEvent{
+			ConversationID: conversationID,
+			Platform:       strings.TrimSpace(conv.Platform),
+			ShopID:         conv.ShopID,
+			Category:       FailureCategoryReplyGenerateFailed,
+			ErrorMessage:   msg,
+			Status:         FailureEventStatusOpen,
+		})
 		if s.OpLog != nil {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
@@ -438,6 +459,8 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 		return nil, err
 	}
 
+	s.resolveFailures(c.Request.Context(), conversationID, FailureCategoryReplyGenerateFailed, nil)
+
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
@@ -450,12 +473,13 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	}
 
 	return &GenerateReplyResult{
-		SuggestionID: sugg.ID,
-		Reply:        parsed.Reply,
-		Intent:       parsed.Intent,
-		Sentiment:    parsed.Sentiment,
-		RiskLevel:    parsed.RiskLevel,
-		Notes:        parsed.Notes,
-		TaskID:       taskID,
+		SuggestionID:   sugg.ID,
+		Reply:          parsed.Reply,
+		Intent:         parsed.Intent,
+		Sentiment:      parsed.Sentiment,
+		RiskLevel:      parsed.RiskLevel,
+		Notes:          parsed.Notes,
+		TaskID:         taskID,
+		ContextSummary: ctxSummary,
 	}, nil
 }

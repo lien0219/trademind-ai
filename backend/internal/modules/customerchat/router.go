@@ -7,7 +7,15 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	if g == nil || h == nil {
 		return
 	}
-	c := g.Group("/customer")
+	registerCustomerRoutes(g.Group("/customer"), h)
+	registerCustomerRoutes(g.Group("/customer-service"), h)
+}
+
+func registerCustomerRoutes(c *gin.RouterGroup, h *Handler) {
+	if c == nil || h == nil {
+		return
+	}
+	c.GET("/dashboard", h.GetDashboard)
 	c.GET("/conversations", h.ListConversations)
 	c.POST("/conversations", h.CreateConversation)
 
@@ -15,6 +23,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	c.POST("/conversations/:id/messages", h.CreateMessage)
 	c.POST("/conversations/:id/mark-replied", h.MarkReplied)
 	c.POST("/conversations/:id/ai/generate-reply", h.GenerateReply)
+	c.POST("/conversations/:id/ai-suggestions", h.GenerateAISuggestion)
+	c.GET("/conversations/:id/ai-suggestions", h.ListSuggestions)
 	c.POST("/conversations/:id/send-platform-message", h.SendPlatformMessage)
 
 	c.GET("/conversations/:id", h.GetConversation)
@@ -24,4 +34,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	c.PUT("/reply-suggestions/:id", h.UpdateSuggestion)
 	c.POST("/reply-suggestions/:id/accept", h.AcceptSuggestion)
 	c.POST("/reply-suggestions/:id/discard", h.DiscardSuggestion)
+	c.POST("/ai-suggestions/:id/apply", h.ApplySuggestion)
+	c.POST("/ai-suggestions/:id/reject", h.RejectSuggestion)
 }

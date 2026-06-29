@@ -33,6 +33,8 @@ func detailURL(taskType, id string) string {
 		return "/inventory/sync-tasks?id=" + url.QueryEscape(id)
 	case TaskTypeAIText:
 		return ""
+	case TaskTypeCustomerFailure:
+		return "/customer/conversations?id=" + url.QueryEscape(id)
 	default:
 		return ""
 	}
@@ -54,6 +56,8 @@ func retryActionFor(taskType string) string {
 		return "POST /api/v1/inventory-sync/tasks/:id/retry"
 	case TaskTypeAIText:
 		return "POST /api/v1/products/ai-text/items/:id/regenerate"
+	case TaskTypeCustomerFailure:
+		return "POST /api/v1/customer/conversations/:id/ai/generate-reply"
 	default:
 		return ""
 	}

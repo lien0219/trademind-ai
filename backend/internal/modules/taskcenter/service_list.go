@@ -35,6 +35,8 @@ func (s *Service) listOneType(ctx context.Context, taskType string, p ListFailur
 		return s.listAIProductText(ctx, p, now, fetchLimit)
 	case TaskTypeAIImage:
 		return s.listAIProductImage(ctx, p, now, fetchLimit)
+	case TaskTypeCustomerFailure:
+		return s.listCustomerFailures(ctx, p, now, fetchLimit)
 	default:
 		return nil, gorm.ErrRecordNotFound
 	}

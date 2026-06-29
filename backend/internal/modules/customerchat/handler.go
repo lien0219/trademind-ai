@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -72,6 +73,21 @@ func (h *Handler) ListConversations(c *gin.Context) {
 			q.End = &t
 		}
 	}
+	q.Keyword = c.Query("keyword")
+	q.PendingReply = parseBoolQuery(c.Query("pendingReply"))
+	q.HasAiSuggestion = parseBoolQuery(c.Query("hasAiSuggestion"))
+	q.SendFailed = parseBoolQuery(c.Query("sendFailed"))
+	q.HasOrder = parseBoolQuery(c.Query("hasOrder"))
+	if raw := strings.TrimSpace(c.Query("updatedStart")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.UpdatedStart = &t
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("updatedEnd")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.UpdatedEnd = &t
+		}
+	}
 	res, err := h.Svc.List(c, q)
 	if err != nil {
 		response.HandleError(c, err)
@@ -126,6 +142,9 @@ func (h *Handler) GetConversation(c *gin.Context) {
 		}
 		response.HandleError(c, err)
 		return
+	}
+	if out != nil {
+		out.CanWrite = adminperm.CanWriteCustomer(c, h.Svc.DB)
 	}
 	response.OK(c, out)
 }
@@ -261,6 +280,10 @@ func (h *Handler) GenerateReply(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
 		return
 	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可生成 AI 建议")
+		return
+	}
 	cid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -365,6 +388,10 @@ func (h *Handler) SendPlatformMessage(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
 		return
 	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可发送客服消息")
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -390,4 +417,108 @@ func (h *Handler) SendPlatformMessage(c *gin.Context) {
 		return
 	}
 	response.OK(c, out)
+}
+
+// GetDashboard GET /api/v1/customer/dashboard
+func (h *Handler) GetDashboard(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	out, err := h.Svc.GetDashboard(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// ListSuggestions GET /api/v1/customer/conversations/:id/ai-suggestions
+func (h *Handler) ListSuggestions(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	cid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	rows, err := h.Svc.ListSuggestions(c, cid)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": rows})
+}
+
+// GenerateAISuggestion POST alias for generate-reply
+func (h *Handler) GenerateAISuggestion(c *gin.Context) {
+	h.GenerateReply(c)
+}
+
+// ApplySuggestion POST /api/v1/customer/ai-suggestions/:id/apply
+func (h *Handler) ApplySuggestion(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可编辑 AI 建议")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body ApplySuggestionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if err := h.Svc.ApplySuggestion(c, id, body, adminUUID(c)); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
+// RejectSuggestion POST /api/v1/customer/ai-suggestions/:id/reject
+func (h *Handler) RejectSuggestion(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "readonly 账号不可拒绝 AI 建议")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body RejectSuggestionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if err := h.Svc.RejectSuggestion(c, id, body, adminUUID(c)); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
 }

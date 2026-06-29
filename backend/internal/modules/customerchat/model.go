@@ -62,6 +62,7 @@ type CustomerReplySuggestion struct {
 	PromptCode     string         `gorm:"size:64;index" json:"promptCode,omitempty"`
 	SuggestedReply string         `gorm:"type:text" json:"suggestedReply,omitempty"`
 	EditedReply    string         `gorm:"type:text" json:"editedReply,omitempty"`
+	RejectReason   string         `gorm:"type:text" json:"rejectReason,omitempty"`
 	Status         string         `gorm:"size:32;index;not null" json:"status"`
 	Language       string         `gorm:"size:32" json:"language,omitempty"`
 	Tone           string         `gorm:"size:64" json:"tone,omitempty"`

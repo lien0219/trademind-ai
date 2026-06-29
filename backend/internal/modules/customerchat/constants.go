@@ -33,10 +33,13 @@ const (
 
 // Suggestion statuses
 const (
-	SuggestionGenerated = "generated"
-	SuggestionEdited    = "edited"
-	SuggestionAccepted  = "accepted"
-	SuggestionDiscarded = "discarded"
+	SuggestionGenerated      = "generated"
+	SuggestionEdited         = "edited"
+	SuggestionAccepted       = "accepted"
+	SuggestionDiscarded      = "discarded"
+	SuggestionRejected       = "rejected"
+	SuggestionGenerateFailed = "generate_failed"
+	SuggestionSendFailed     = "send_failed"
 )
 
 // TaskTypeCustomerReplyGenerate is recorded on ai_tasks.task_type

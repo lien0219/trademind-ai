@@ -1,4 +1,6 @@
 # TradeMind 开发进度记录
+**Stage update**: 2026-06-29 — **Phase F4 客服中心与 AI 回复建议完善完成**。新增客服中心 `/customer/hub` + `GET /api/v1/customer/dashboard`；会话列表增强（脱敏买家、关联订单/商品、AI/发送状态筛选）；会话详情订单/SKU/库存上下文与 AI 上下文摘要；AI 建议列表/拒绝 API；发送/生成失败写入 `customer_failure_events` 并聚合至失败任务中心 `customer_failure`；只读 RBAC（`CanWriteCustomer`）；API 别名 `/api/v1/customer-service/*`；Demo 种子 F4（`docs/demo-dataset.customer-service.json`）；设计文档 `CUSTOMER_*`。商品详情库存 Tab 接入 `InventorySyncDisabledBanner`（F3 遗留）。`go test`（taskcenter 等）、`go build ./...`、`pnpm build:admin` 通过。**仍为 MVP Demo Ready / 非 Production Ready**；**抖店 Release Candidate**；**Tag pending**。未进入最终人工测试、真实预发、抖店 E2E、生产灰度。下一阶段建议：**Phase F5 权限与审计完善**。
+
 **Stage update**: 2026-06-29 — **Phase F3 库存中心与库存同步完善完成**。新增库存中心 `/inventory` + `GET /api/v1/inventory`；库存扣减记录 `/inventory/deductions`；统一 SKU 未绑定/歧义阻断文案；`inventory_sync_enabled` 引导横幅；订单详情库存 Tab 深链；失败任务/异常工作台库存联动；只读 RBAC（`CanWriteInventory`）；Demo 种子 Phase F3（`docs/demo-dataset.inventory.json`）；设计文档 `INVENTORY_*`。`go test ./...`、`go build ./cmd/server/...`、`pnpm build:admin` 通过。**仍为 MVP Demo Ready / 非 Production Ready**；**抖店 Release Candidate**；**Tag pending**。未进入最终人工测试、真实预发、抖店 E2E、生产灰度。下一阶段建议：**Phase F4 客服中心完善**。
 
 **Stage update**: 2026-06-29 — **Phase F2 订单中心与订单异常工作台完善完成**。

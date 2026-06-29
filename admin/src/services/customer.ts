@@ -7,6 +7,7 @@ export type ConversationRow = {
   shopName?: string;
   shopPlatform?: string;
   customerName: string;
+  customerNameMasked?: string;
   customerLanguage: string;
   status: string;
   lastMessageAt?: string;
@@ -14,6 +15,12 @@ export type ConversationRow = {
   updatedAt: string;
   messageCount: number;
   latestMessage?: string;
+  orderId?: string;
+  orderNo?: string;
+  productTitle?: string;
+  aiSuggestionStatus?: string;
+  sendStatus?: string;
+  openFailureCount?: number;
 };
 
 export type ConversationShopSummary = {
@@ -43,6 +50,9 @@ export type ConversationOrderSummary = {
   fulfillmentStatus: string;
   currency: string;
   totalAmount: number;
+  itemCount?: number;
+  skuMatchStatus?: string;
+  inventoryDeductStatus?: string;
   orderedAt?: string;
   latestShipmentStatus?: string;
   shipments?: ConversationOrderShipment[];
@@ -54,6 +64,7 @@ export type ConversationDetail = {
   shopId?: string;
   externalConversationId?: string;
   customerName: string;
+  customerNameMasked?: string;
   customerAvatar?: string;
   customerLanguage: string;
   status: string;
@@ -64,6 +75,63 @@ export type ConversationDetail = {
   orderId?: string;
   orderSummary?: ConversationOrderSummary | null;
   shopSummary?: ConversationShopSummary | null;
+  productContexts?: ProductContextItem[];
+  inventoryContexts?: InventoryContextItem[];
+  contextSummary?: ContextSummary | null;
+  openFailureCount?: number;
+  canWrite?: boolean;
+};
+
+export type ContextSummary = {
+  orderStatus?: string;
+  skuMatchStatus?: string;
+  inventoryStatus?: string;
+  productTitle?: string;
+  customerQuestion?: string;
+  incompleteWarning?: string;
+};
+
+export type ProductContextItem = {
+  productId?: string;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+  stockStatus?: string;
+  publishStatus?: string;
+  aiOpsStatus?: string;
+};
+
+export type InventoryContextItem = {
+  skuCode?: string;
+  skuName?: string;
+  stock?: number;
+  stockStatus?: string;
+  bindStatus?: string;
+};
+
+export type CustomerDashboardSummary = {
+  pendingReplyCount: number;
+  todayNewMessages: number;
+  aiSuggestionPendingCount: number;
+  sendFailureCount: number;
+  unauthorizedShopCount: number;
+  syncTaskFailureCount: number;
+  openConversationCount: number;
+};
+
+export type SuggestionRow = {
+  id: string;
+  conversationId: string;
+  messageId?: string;
+  status: string;
+  suggestedReply?: string;
+  editedReply?: string;
+  rejectReason?: string;
+  language?: string;
+  tone?: string;
+  contextSummary?: ContextSummary;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type CustomerMessageRow = {
@@ -88,12 +156,18 @@ export type GenerateReplyResult = {
   riskLevel: string;
   notes: string;
   taskId: string;
+  contextSummary?: ContextSummary;
 };
 
 type Paginated<T> = {
   list: T[];
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 };
+
+function boolQueryFlag(v: boolean | string | undefined): string | undefined {
+  if (v === true || v === 'true' || v === '1') return '1';
+  return undefined;
+}
 
 export async function queryConversations(params: {
   page?: number;
@@ -102,8 +176,15 @@ export async function queryConversations(params: {
   status?: string;
   shopId?: string;
   customerName?: string;
+  keyword?: string;
+  pendingReply?: boolean | string;
+  hasAiSuggestion?: boolean | string;
+  sendFailed?: boolean | string;
+  hasOrder?: boolean | string;
   start?: string;
   end?: string;
+  updatedStart?: string;
+  updatedEnd?: string;
 }): Promise<Paginated<ConversationRow>> {
   return getWithParams('/api/v1/customer/conversations', {
     page: params.page,
@@ -112,9 +193,28 @@ export async function queryConversations(params: {
     status: params.status,
     shopId: params.shopId,
     customerName: params.customerName,
+    keyword: params.keyword,
+    pendingReply: boolQueryFlag(params.pendingReply),
+    hasAiSuggestion: boolQueryFlag(params.hasAiSuggestion),
+    sendFailed: boolQueryFlag(params.sendFailed),
+    hasOrder: boolQueryFlag(params.hasOrder),
     start: params.start,
     end: params.end,
+    updatedStart: params.updatedStart,
+    updatedEnd: params.updatedEnd,
   });
+}
+
+export async function getCustomerDashboard(): Promise<CustomerDashboardSummary> {
+  return getJSON('/api/v1/customer/dashboard');
+}
+
+export async function querySuggestions(conversationId: string): Promise<{ list: SuggestionRow[] }> {
+  return getJSON(`/api/v1/customer/conversations/${conversationId}/ai-suggestions`);
+}
+
+export async function rejectReplySuggestion(id: string, payload: { reason?: string }): Promise<{ ok: boolean }> {
+  return postJSON(`/api/v1/customer/ai-suggestions/${id}/reject`, payload);
 }
 
 export async function createConversation(payload: {

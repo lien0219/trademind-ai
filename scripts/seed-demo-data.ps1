@@ -420,6 +420,70 @@ $ordersOutFile = Join-Path $repoRoot "docs/demo-dataset.orders.json"
 } | ConvertTo-Json -Depth 6 | Set-Content -Path $ordersOutFile -Encoding UTF8
 Write-Host "Wrote $ordersOutFile with $($orderSamples.Count) order samples"
 
+Write-Host "Phase F4: customer service demo samples..."
+$customerSamples = @()
+function Add-CsSample($tag, $note, $extra) {
+    $script:customerSamples += @{ tag = $tag; note = $note } + $extra
+}
+
+$mockShops = Invoke-Api -Method Get -Url "$ApiV1/shops?page=1&pageSize=20&platform=mock" -Token $token
+$mockShopId = $null
+if ($mockShops.list -and @($mockShops.list).Count -gt 0) { $mockShopId = $mockShops.list[0].id }
+
+function New-DemoConversation($bodyObj, $tag) {
+    $c = Invoke-Api -Method Post -Url "$ApiV1/customer/conversations" -Body ($bodyObj | ConvertTo-Json -Depth 6 -Compress) -Token $token
+    if ($c.id) {
+        Add-CsSample $tag "customer conversation" @{ conversationId = $c.id; platform = $c.platform; status = $c.status }
+    }
+    return $c
+}
+
+$csPending = New-DemoConversation @{
+    platform = "manual"; customerName = "Demo Buyer Pending"; customerLanguage = "zh-CN"
+} "pending_reply_conversation"
+if ($csPending.id) {
+    Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csPending.id)/messages" -Body (@{
+        role = "customer"; content = "请问什么时候发货？"; language = "zh-CN"
+    } | ConvertTo-Json -Compress) -Token $token | Out-Null
+}
+
+$csOrder = New-DemoConversation @{
+    platform = "manual"; customerName = "Demo Buyer With Order"; customerLanguage = "zh-CN"
+} "order_linked_conversation"
+if ($csOrder.id -and $ordNormal.id) {
+    Invoke-Api -Method Put -Url "$ApiV1/customer/conversations/$($csOrder.id)" -Body (@{ orderId = $ordNormal.id } | ConvertTo-Json -Compress) -Token $token | Out-Null
+    Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csOrder.id)/messages" -Body (@{
+        role = "customer"; content = "我的订单还没发货吗？"; language = "zh-CN"
+    } | ConvertTo-Json -Compress) -Token $token | Out-Null
+}
+
+$csInv = New-DemoConversation @{
+    platform = "manual"; customerName = "Demo Inventory Ask"; customerLanguage = "zh-CN"
+} "inventory_consult_conversation"
+if ($csInv.id -and $ordNormal.id) {
+    Invoke-Api -Method Put -Url "$ApiV1/customer/conversations/$($csInv.id)" -Body (@{ orderId = $ordNormal.id } | ConvertTo-Json -Compress) -Token $token | Out-Null
+    Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csInv.id)/messages" -Body (@{
+        role = "customer"; content = "这个规格还有库存吗？"; language = "zh-CN"
+    } | ConvertTo-Json -Compress) -Token $token | Out-Null
+}
+
+if ($mockShopId) {
+    New-DemoConversation @{
+        platform = "mock"; shopId = $mockShopId; customerName = "Mock Platform Buyer"; customerLanguage = "en"
+    } "platform_linked_conversation" | Out-Null
+}
+
+Add-CsSample "unauthorized_platform_hint" "shops without auth show pending authorization in UI" @{ probe = "settings/platforms" }
+Add-CsSample "send_failure_requires_platform" "send failures recorded when platform send fails" @{ note = "use mock shop + externalConversationId to exercise send" }
+
+$customerOutFile = Join-Path $repoRoot "docs/demo-dataset.customer-service.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F4 customer service demo samples; AI suggestions require configured AI provider"
+    samples = $customerSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $customerOutFile -Encoding UTF8
+Write-Host "Wrote $customerOutFile with $($customerSamples.Count) customer samples"
+
 Write-Host "Phase F3: inventory demo samples..."
 $inventorySamples = @()
 

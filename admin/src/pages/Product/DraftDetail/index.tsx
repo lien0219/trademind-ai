@@ -153,6 +153,7 @@ import {
   type InventoryChangeLogRow,
   type PublicationSkuListingRow,
 } from '@/services/inventory';
+import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
 
 function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
@@ -2411,7 +2412,9 @@ export default function ProductDraftDetailPage() {
               key: 'inventory',
               label: '库存',
               children: (
-                <Card variant="borderless">
+                <>
+                  <InventorySyncDisabledBanner />
+                  <Card variant="borderless">
                   <Alert
                     type="info"
                     showIcon
@@ -2819,6 +2822,7 @@ export default function ProductDraftDetailPage() {
                     />
                   </Spin>
                 </Card>
+                </>
               ),
             },
             {

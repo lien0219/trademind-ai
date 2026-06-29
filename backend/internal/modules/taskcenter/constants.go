@@ -10,6 +10,7 @@ const (
 	TaskTypeInventorySync       = "inventory_sync"
 	TaskTypeAIText              = "ai_text"
 	TaskTypeAIImage             = "ai_image"
+	TaskTypeCustomerFailure     = "customer_failure"
 )
 
 // NormalizedStatus is a coarse status for operations views.
@@ -39,6 +40,7 @@ const (
 	SourceTableInventorySyncTasks       = "inventory_sync_tasks"
 	SourceTableAIProductTextItems       = "ai_product_text_items"
 	SourceTableAIProductImageItems      = "ai_product_image_items"
+	SourceTableCustomerFailureEvents    = "customer_failure_events"
 )
 
 // AI product text failure categories (taskcenter dedup: task_type + source_id + failure_category).

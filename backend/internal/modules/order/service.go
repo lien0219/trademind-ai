@@ -36,17 +36,20 @@ type AIContext struct {
 
 // ConversationOrderSummary is safe for admin detail (omit email/phone in AI prompt).
 type ConversationOrderSummary struct {
-	ID                   uuid.UUID      `json:"id"`
-	OrderNo              string         `json:"orderNo"`
-	Platform             string         `json:"platform"`
-	Status               string         `json:"status"`
-	PaymentStatus        string         `json:"paymentStatus"`
-	FulfillmentStatus    string         `json:"fulfillmentStatus"`
-	Currency             string         `json:"currency"`
-	TotalAmount          float64        `json:"totalAmount"`
-	OrderedAt            *time.Time     `json:"orderedAt,omitempty"`
-	LatestShipmentStatus string         `json:"latestShipmentStatus,omitempty"`
-	Shipments            []ShipmentCard `json:"shipments,omitempty"`
+	ID                    uuid.UUID      `json:"id"`
+	OrderNo               string         `json:"orderNo"`
+	Platform              string         `json:"platform"`
+	Status                string         `json:"status"`
+	PaymentStatus         string         `json:"paymentStatus"`
+	FulfillmentStatus     string         `json:"fulfillmentStatus"`
+	Currency              string         `json:"currency"`
+	TotalAmount           float64        `json:"totalAmount"`
+	ItemCount             int            `json:"itemCount"`
+	SkuMatchStatus        string         `json:"skuMatchStatus,omitempty"`
+	InventoryDeductStatus string         `json:"inventoryDeductStatus,omitempty"`
+	OrderedAt             *time.Time     `json:"orderedAt,omitempty"`
+	LatestShipmentStatus  string         `json:"latestShipmentStatus,omitempty"`
+	Shipments             []ShipmentCard `json:"shipments,omitempty"`
 }
 
 // ShipmentCard is a compact shipment row for UI + AI summaries.
@@ -604,18 +607,34 @@ func (s *Service) ConversationSummary(c *gin.Context, orderID uuid.UUID) (*Conve
 		return nil, err
 	}
 	shList, lat := s.shipmentCards(c, o.ID)
+	var itemCount int64
+	_ = s.DB.WithContext(c.Request.Context()).Model(&OrderItem{}).Where("order_id = ?", orderID).Count(&itemCount).Error
+
+	rows := []Order{o}
+	outRows := []ListOrderRow{{ID: o.ID}}
+	enrichListRows(c.Request.Context(), s.DB, rows, outRows)
+	skuSt := ""
+	invSt := ""
+	if len(outRows) > 0 {
+		skuSt = outRows[0].SkuMatchStatus
+		invSt = outRows[0].InventoryDeductStatus
+	}
+
 	return &ConversationOrderSummary{
-		ID:                   o.ID,
-		OrderNo:              o.OrderNo,
-		Platform:             o.Platform,
-		Status:               o.Status,
-		PaymentStatus:        o.PaymentStatus,
-		FulfillmentStatus:    o.FulfillmentStatus,
-		Currency:             o.Currency,
-		TotalAmount:          o.TotalAmount,
-		OrderedAt:            o.OrderedAt,
-		LatestShipmentStatus: lat,
-		Shipments:            shList,
+		ID:                    o.ID,
+		OrderNo:               o.OrderNo,
+		Platform:              o.Platform,
+		Status:                o.Status,
+		PaymentStatus:         o.PaymentStatus,
+		FulfillmentStatus:     o.FulfillmentStatus,
+		Currency:              o.Currency,
+		TotalAmount:           o.TotalAmount,
+		ItemCount:             int(itemCount),
+		SkuMatchStatus:        skuSt,
+		InventoryDeductStatus: invSt,
+		OrderedAt:             o.OrderedAt,
+		LatestShipmentStatus:  lat,
+		Shipments:             shList,
 	}, nil
 }
 
