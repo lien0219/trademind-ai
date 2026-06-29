@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
-import { PERMISSIONS } from '@/utils/permission';
+import { PAGE_COPY } from '@/constants/copywriting';
 import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import { formatDateTime } from '@/utils/formatTime';
 import {
@@ -15,6 +15,7 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { Button, Form, Input, Modal, Select, Space, Tag, message } from 'antd';
 import { useCallback, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
+import { PERMISSIONS } from '@/utils/permission';
 
 const ROLE_OPTIONS = [
   { label: '管理员', value: 'admin' },
@@ -188,7 +189,7 @@ export default function SettingsUsersPage() {
 
   return (
     <PermissionGuard require={PERMISSIONS.USER_MANAGE} showForbiddenPage>
-      <TmPageContainer title="用户与权限" subTitle="管理员可管理后台账号、角色与店铺授权">
+      <TmPageContainer title={PAGE_COPY.usersSettings.title} subTitle={PAGE_COPY.usersSettings.description}>
         <ProTable<AdminUserRow>
           actionRef={actionRef}
           rowKey="id"
@@ -203,9 +204,9 @@ export default function SettingsUsersPage() {
             const res = await fetchAdminUsers({
               page: params.current,
               pageSize: params.pageSize,
-              role: params.role,
-              status: params.status,
-              keyword: params.displayName,
+              role: params.role as string | undefined,
+              status: params.status as string | undefined,
+              keyword: params.displayName as string | undefined,
             });
             return {
               data: res.list || [],

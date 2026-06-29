@@ -3,6 +3,8 @@
  * 用户可见文案优先从此处引用，避免各页面叫法不一致。
  */
 
+import { mapErrorCodeToUserMessage } from '@/constants/errorMessages';
+
 /** 页面标题与说明 */
 export const PAGE_COPY = {
   platformSettings: {
@@ -75,6 +77,17 @@ export const PAGE_COPY = {
   integrations: {
     title: '第三方集成总览',
     description: '查看 AI、存储、采集与平台接入的整体配置状态。',
+  },
+  configStatus: {
+    title: '配置状态中心',
+    description: '聚合 AI / OCR / 存储 / 平台凭证 / 后台任务进程 等配置健康状态（不含密钥明文）。',
+    snapshotAt: '快照时间',
+    nextStep: '下一步',
+    goConfigure: '前往配置',
+  },
+  usersSettings: {
+    title: '用户与权限',
+    description: '管理员可管理后台账号、角色与店铺授权。',
   },
 } as const;
 

@@ -3,6 +3,7 @@ import { history } from '@umijs/max';
 import { useEffect, useState } from 'react';
 import { TmPageContainer } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
+import { PAGE_COPY } from '@/constants/copywriting';
 import { fetchConfigStatusOverview, type ConfigStatusItem } from '@/services/configStatus';
 import { PERMISSIONS } from '@/utils/permission';
 
@@ -20,12 +21,12 @@ function StatusCard({ item }: { item: ConfigStatusItem }) {
       {item.summary ? <Typography.Paragraph type="secondary">{item.summary}</Typography.Paragraph> : null}
       {item.nextAction ? (
         <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          下一步：{item.nextAction}
+          {PAGE_COPY.configStatus.nextStep}：{item.nextAction}
         </Typography.Text>
       ) : null}
       {item.settingsUrl && item.settingsUrl.startsWith('/') ? (
         <Button type="link" size="small" onClick={() => history.push(item.settingsUrl!)}>
-          前往配置
+          {PAGE_COPY.configStatus.goConfigure}
         </Button>
       ) : null}
     </Card>
@@ -52,12 +53,12 @@ export default function ConfigStatusPage() {
   return (
     <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} showForbiddenPage>
       <TmPageContainer
-        title="配置状态中心"
-        subTitle="聚合 AI / OCR / Storage / 平台凭证 / Worker 等配置健康状态（不含密钥明文）"
+        title={PAGE_COPY.configStatus.title}
+        subTitle={PAGE_COPY.configStatus.description}
       >
         {generatedAt ? (
           <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-            快照时间：{generatedAt}
+            {PAGE_COPY.configStatus.snapshotAt}：{generatedAt}
           </Typography.Text>
         ) : null}
         <Row gutter={[16, 16]}>
