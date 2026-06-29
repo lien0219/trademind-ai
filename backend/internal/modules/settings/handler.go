@@ -5,8 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	"gorm.io/gorm"
 )
 
 // Handler serves settings HTTP API.
@@ -14,6 +16,15 @@ type Handler struct {
 	Svc       *Service
 	OpLog     *operationlog.Service
 	AIGateway *aigate.Gateway
+	DB        *gorm.DB
+}
+
+func (h *Handler) requireSettingsManage(c *gin.Context) bool {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+		return false
+	}
+	return adminperm.RequireWrite(c, h.DB, adminperm.PermSettingsManage)
 }
 
 type putBody struct {
@@ -32,8 +43,7 @@ type putItemJSON struct {
 
 // List GET /api/v1/settings
 func (h *Handler) List(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	rows, err := h.Svc.List(c.Request.Context())
@@ -46,8 +56,7 @@ func (h *Handler) List(c *gin.Context) {
 
 // Put PUT /api/v1/settings
 func (h *Handler) Put(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	var body putBody
@@ -128,8 +137,7 @@ func (h *Handler) Put(c *gin.Context) {
 
 // TestPlatformTikTok POST /api/v1/settings/test-platform-tiktok validates platform_tiktok settings structure (no live TikTok call).
 func (h *Handler) TestPlatformTikTok(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	if err := h.Svc.ValidateTikTokPlatformConfig(c.Request.Context()); err != nil {
@@ -150,8 +158,7 @@ type testAIBody struct {
 // TestAI POST /api/v1/settings/test-ai
 // Optional JSON body lets the admin test unsaved form values; empty body uses saved settings.ai only.
 func (h *Handler) TestAI(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	if h.AIGateway == nil {
@@ -210,8 +217,7 @@ func (h *Handler) TestAI(c *gin.Context) {
 
 // TestStorage POST /api/v1/settings/test-storage
 func (h *Handler) TestStorage(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	if err := h.Svc.TestStorageConnection(c.Request.Context()); err != nil {
@@ -242,8 +248,7 @@ type testEmailBody struct {
 
 // TestEmail POST /api/v1/settings/test-email
 func (h *Handler) TestEmail(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	var body testEmailBody
@@ -275,8 +280,7 @@ func (h *Handler) TestEmail(c *gin.Context) {
 
 // IntegrationSchemas GET /api/v1/settings/integration-schemas — static registry for admin UX.
 func (h *Handler) IntegrationSchemas(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	response.OK(c, gin.H{"schemas": IntegrationConfigDefinitions()})
@@ -284,8 +288,7 @@ func (h *Handler) IntegrationSchemas(c *gin.Context) {
 
 // IntegrationOverview GET /api/v1/settings/integrations/overview
 func (h *Handler) IntegrationOverview(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
+	if !h.requireSettingsManage(c) {
 		return
 	}
 	out, err := h.Svc.BuildIntegrationOverview(c.Request.Context())

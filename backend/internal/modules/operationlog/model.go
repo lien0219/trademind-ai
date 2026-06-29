@@ -12,10 +12,13 @@ import (
 type OperationLog struct {
 	ID          uuid.UUID  `gorm:"type:char(36);primaryKey" json:"id"`
 	AdminUserID *uuid.UUID `gorm:"type:char(36);index" json:"adminUserId,omitempty"`
+	AdminRole   string     `gorm:"size:32;index" json:"adminRole,omitempty"`
 	Username    string     `gorm:"size:64;index" json:"username"`
 	Action      string     `gorm:"size:64;index;not null" json:"action"`
 	Resource    string     `gorm:"size:64;index" json:"resource"`
 	ResourceID  string     `gorm:"size:128" json:"resourceId,omitempty"`
+	ShopID      *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	Platform    string     `gorm:"size:32;index" json:"platform,omitempty"`
 	Method      string     `gorm:"size:16" json:"method"`
 	Path        string     `gorm:"size:512" json:"path"`
 	IP          string     `gorm:"size:64" json:"ip"`

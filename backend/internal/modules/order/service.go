@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -448,6 +449,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
+	}
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
 	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
@@ -1094,6 +1100,9 @@ func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemIn
 func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, error) {
 	var o Order
 	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
 		return nil, err
 	}
 	return &o, nil

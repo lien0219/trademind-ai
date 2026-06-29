@@ -30,6 +30,15 @@ export async function putJSON<T, B extends object>(path: string, body: B): Promi
   return unwrap(res);
 }
 
+/** 通用 PATCH */
+export async function patchJSON<T, B extends object>(path: string, body: B): Promise<T> {
+  const res = await request<ApiResponse<T>>(path, {
+    method: 'PATCH',
+    data: body,
+  });
+  return unwrap(res);
+}
+
 /** 通用 POST */
 export async function postJSON<T>(path: string, body?: object): Promise<T> {
   const res = await request<ApiResponse<T>>(path, {

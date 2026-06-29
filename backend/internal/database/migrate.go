@@ -114,6 +114,7 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
+		&admin.UserStorePermission{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
 		&files.FileRecord{},

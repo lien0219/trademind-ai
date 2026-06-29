@@ -9,6 +9,11 @@ const (
 	CodePublishConfigInvalid          = 40004
 	CodeUnauthorized                  = 40101
 	CodeForbidden                     = 40301
+	CodePermissionDenied              = 40302
+	CodeStorePermissionDenied         = 40303
+	CodeReadonlyForbidden             = 40304
+	CodeSettingsPermissionRequired    = 40305
+	CodeUserManagePermissionRequired  = 40306
 	CodeNotFound                      = 40401
 	CodeInternalError                 = 50000
 	// CodeServiceUnavailable indicates dependency unavailable (e.g. Redis queue).

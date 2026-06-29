@@ -57,6 +57,7 @@ type ListFailureParams struct {
 	FailureCategory string
 	Severity        string
 	RecoveryStatus  string
+	AllowedShopIDs  []uuid.UUID
 }
 
 func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {
@@ -106,6 +107,26 @@ func passesUnifiedFilters(d UnifiedTaskDTO, p ListFailureParams) bool {
 	}
 	if p.ShopID != "" && !strings.EqualFold(strings.TrimSpace(p.ShopID), strings.TrimSpace(d.ShopID)) {
 		return false
+	}
+	if len(p.AllowedShopIDs) > 0 {
+		shopRaw := strings.TrimSpace(d.ShopID)
+		if shopRaw == "" {
+			return false
+		}
+		sid, err := uuid.Parse(shopRaw)
+		if err != nil {
+			return false
+		}
+		allowed := false
+		for _, id := range p.AllowedShopIDs {
+			if id == sid {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return false
+		}
 	}
 	if wf := strings.TrimSpace(p.FailureCategory); wf != "" && !strings.EqualFold(wf, strings.TrimSpace(d.FailureCategory)) {
 		return false

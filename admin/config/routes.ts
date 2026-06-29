@@ -427,6 +427,16 @@ export default [
         name: '第三方集成总览',
         component: './Settings/Integrations',
       },
+      {
+        path: '/settings/config-status',
+        name: '配置状态中心',
+        component: './Settings/ConfigStatus',
+      },
+      {
+        path: '/settings/users',
+        name: '用户与权限',
+        component: './Settings/Users',
+      },
     ],
   },
   {

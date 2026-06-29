@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/gorm"
 )
@@ -16,10 +17,13 @@ import (
 // WriteOpts is a single audit row to append.
 type WriteOpts struct {
 	AdminUserID *uuid.UUID
+	AdminRole   string
 	Username    string
 	Action      string
 	Resource    string
 	ResourceID  string
+	ShopID      *uuid.UUID
+	Platform    string
 	Status      string
 	Message     string
 }
@@ -62,10 +66,13 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 
 	row := &OperationLog{
 		AdminUserID: adminID,
+		AdminRole:   strings.TrimSpace(opts.AdminRole),
 		Username:    username,
 		Action:      strings.TrimSpace(opts.Action),
 		Resource:    strings.TrimSpace(opts.Resource),
 		ResourceID:  strings.TrimSpace(opts.ResourceID),
+		ShopID:      opts.ShopID,
+		Platform:    strings.TrimSpace(opts.Platform),
 		Method:      c.Request.Method,
 		Path:        path,
 		IP:          c.ClientIP(),
@@ -73,6 +80,11 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 		RequestID:   rid,
 		Status:      strings.TrimSpace(opts.Status),
 		Message:     truncateRunes(opts.Message, 2000),
+	}
+	if row.AdminRole == "" && s.DB != nil {
+		if p, err := adminperm.LoadPrincipal(c, s.DB); err == nil && p != nil {
+			row.AdminRole = p.Role
+		}
 	}
 	return s.DB.WithContext(c.Request.Context()).Create(row).Error
 }
@@ -110,6 +122,7 @@ type ListQuery struct {
 	Action   string
 	Username string
 	Resource string
+	ShopID   *uuid.UUID
 	Start    *time.Time
 	End      *time.Time
 }
@@ -141,6 +154,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&OperationLog{})
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if v := strings.TrimSpace(q.Action); v != "" {
 		tx = tx.Where("action = ?", v)
 	}
@@ -150,6 +168,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if v := strings.TrimSpace(q.Resource); v != "" {
 		tx = tx.Where("resource = ?", v)
+	}
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		tx = tx.Where("shop_id = ?", *q.ShopID)
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)

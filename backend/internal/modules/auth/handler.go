@@ -9,6 +9,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -22,6 +23,7 @@ type Handler struct {
 	OpLog    *operationlog.Service
 	Redis    *rdb.Client
 	Settings *settings.Service
+	DB       *gorm.DB
 }
 
 type loginBody struct {
@@ -106,15 +108,31 @@ func (h *Handler) Profile(c *gin.Context) {
 	if dn == "" {
 		dn = u.LoginLabel()
 	}
+	p, _ := adminperm.LoadPrincipal(c, h.DB)
+	perms := adminperm.PermissionsForRole(strings.TrimSpace(u.Role))
+	storePerms := make([]gin.H, 0)
+	if p != nil && !p.IsAdmin() {
+		perms = p.Permissions
+		for _, g := range p.StoreGrants {
+			storePerms = append(storePerms, gin.H{
+				"storeId":         g.StoreID.String(),
+				"platform":        g.Platform,
+				"permissionScope": g.PermissionScope,
+			})
+		}
+	}
 	response.OK(c, gin.H{
-		"id":          u.ID.String(),
-		"username":    u.LoginLabel(),
-		"email":       u.Email,
-		"phone":       u.Phone,
-		"displayName": dn,
-		"role":        strings.TrimSpace(u.Role),
-		"createdAt":   u.CreatedAt,
-		"updatedAt":   u.UpdatedAt,
+		"id":               u.ID.String(),
+		"username":         u.LoginLabel(),
+		"email":            u.Email,
+		"phone":            u.Phone,
+		"displayName":      dn,
+		"role":             strings.TrimSpace(u.Role),
+		"status":           strings.TrimSpace(u.Status),
+		"permissions":      perms,
+		"storePermissions": storePerms,
+		"createdAt":        u.CreatedAt,
+		"updatedAt":        u.UpdatedAt,
 	})
 }
 

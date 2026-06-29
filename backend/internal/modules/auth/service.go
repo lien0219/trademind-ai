@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
@@ -45,6 +46,9 @@ func (s *LoginService) Login(ctx context.Context, account, password string) (*Lo
 	}
 	if err := admin.CheckPassword(u.PasswordHash, password); err != nil {
 		return nil, errors.New("invalid account or password")
+	}
+	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
+		return nil, errors.New("账号已禁用，请联系管理员")
 	}
 	label := u.LoginLabel()
 	token, exp, err := MintToken(s.Cfg, u.ID, label)

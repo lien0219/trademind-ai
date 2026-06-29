@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -121,6 +122,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
 	tx = s.applyListFilters(c, tx, q)
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
@@ -372,6 +378,9 @@ func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDe
 	}
 	var row CustomerConversation
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, row.ShopID); err != nil {
 		return nil, err
 	}
 	var sum *order.ConversationOrderSummary

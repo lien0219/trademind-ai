@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/adminuser"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiopsworkbench"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
@@ -24,6 +25,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectruleai"
+	"github.com/trademind-ai/trademind/backend/internal/modules/configstatus"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
@@ -165,9 +167,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 
-	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc}
-	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc, AIGateway: aiGateway}
-	opLogH := &operationlog.Handler{Svc: opLogSvc}
+	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc, DB: dep.DB}
+	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc, AIGateway: aiGateway, DB: dep.DB}
+	opLogH := &operationlog.Handler{Svc: opLogSvc, DB: dep.DB}
 
 	maxUp := int64(10 << 20)
 	if dep.Config != nil {
@@ -610,6 +612,20 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	aiOpsWorkbenchH := &aiopsworkbench.Handler{Svc: aiOpsWorkbenchSvc}
 	aiopsworkbench.Register(authed, aiOpsWorkbenchH)
+
+	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
+	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
+	adminuser.Register(authed, adminUserH)
+
+	configStatusSvc := &configstatus.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Redis:    dep.Redis,
+		Config:   dep.Config,
+		Shops:    shopSvc,
+	}
+	configStatusH := &configstatus.Handler{Svc: configStatusSvc}
+	configstatus.Register(authed, configStatusH)
 
 	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
 }
