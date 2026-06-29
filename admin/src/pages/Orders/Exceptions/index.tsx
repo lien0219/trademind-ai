@@ -45,7 +45,7 @@ const EX_TYPES: Record<string, { text: string }> = {
   inventory_deduct_failed: { text: '扣库存失败' },
   inventory_restore_failed: { text: '恢复库存失败' },
   inventory_sync_failed: { text: '库存同步失败' },
-  order_sync_partial_failed: { text: '订单同步部分失败' },
+  order_sync_partial_failed: { text: '页级同步失败' },
   missing_order_item: { text: '缺明细' },
   unknown: { text: '未知' },
 };
@@ -386,10 +386,30 @@ export default function OrderExceptionsPage() {
             {r.orderId ? (
               <a
                 onClick={() => {
-                  history.push(`/orders?jumpOrder=${encodeURIComponent(r.orderId!)}`);
+                  history.push(`/orders/${encodeURIComponent(r.orderId!)}`);
                 }}
               >
                 订单
+              </a>
+            ) : null}
+            {r.taskCenterUrl ? (
+              <a onClick={() => history.push(r.taskCenterUrl!)}>失败任务</a>
+            ) : r.orderId ? (
+              <a
+                onClick={() =>
+                  history.push(`/ops/task-center/failures?taskType=order_sync&keyword=${encodeURIComponent(r.orderId!)}`)
+                }
+              >
+                失败任务
+              </a>
+            ) : null}
+            {r.syncTaskId ? (
+              <a
+                onClick={() =>
+                  history.push(`/orders/sync-tasks?id=${encodeURIComponent(r.syncTaskId!)}`)
+                }
+              >
+                同步任务
               </a>
             ) : null}
             {(r.exceptionType === 'sku_unmatched' || r.exceptionType === 'sku_ambiguous') && (

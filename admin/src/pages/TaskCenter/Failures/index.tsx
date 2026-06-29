@@ -93,6 +93,12 @@ function relatedHref(row: UnifiedTaskDTO): string | undefined {
   if (detail.includes('/product/publish-batches/') || detail.includes('/product/ai-text-batches/') || detail.includes('/product/ai-image-batches/')) {
     return detail;
   }
+  if (detail.includes('/orders/sync-tasks')) {
+    return detail;
+  }
+  if (row.taskType === 'order_sync' && row.sourceId) {
+    return `/orders/sync-tasks?id=${encodeURIComponent(row.sourceId)}`;
+  }
   const t = row.relatedResourceType || '';
   const id = row.relatedResourceId || '';
   if (!id) return undefined;
@@ -107,6 +113,9 @@ function detailLinkLabel(detailUrl?: string | null): string {
   }
   if (url.includes('/product/ai-text-batches/') || url.includes('/product/ai-image-batches/')) {
     return '复核工作台';
+  }
+  if (url.includes('/orders/sync-tasks')) {
+    return '订单同步任务';
   }
   return '打开任务详情';
 }

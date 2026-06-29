@@ -258,6 +258,12 @@ export default [
         component: './Orders/index',
       },
       {
+        path: '/orders/:id',
+        name: '订单详情',
+        hideInMenu: true,
+        component: './Orders/Detail',
+      },
+      {
         path: '/orders/sync-tasks',
         name: '同步任务',
         component: './Orders/SyncTasks',

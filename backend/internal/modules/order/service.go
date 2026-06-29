@@ -61,36 +61,51 @@ type ShipmentCard struct {
 
 // ListQuery GET /orders
 type ListQuery struct {
-	Page              int
-	PageSize          int
-	Platform          string
-	ShopID            *uuid.UUID
-	OrderNo           string
-	CustomerName      string
-	Status            string
-	FulfillmentStatus string
-	Start             *time.Time
-	End               *time.Time
+	Page                  int
+	PageSize              int
+	Platform              string
+	ShopID                *uuid.UUID
+	OrderNo               string
+	CustomerName          string
+	Keyword               string
+	Status                string
+	PaymentStatus         string
+	FulfillmentStatus     string
+	SkuMatchStatus        string
+	InventoryDeductStatus string
+	SyncStatus            string
+	HasException          bool
+	Start                 *time.Time
+	End                   *time.Time
 }
 
 // ListOrderRow is returned from list endpoint.
 type ListOrderRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Platform             string     `json:"platform"`
-	ShopID               *uuid.UUID `json:"shopId,omitempty"`
-	ShopName             string     `json:"shopName,omitempty"`
-	ShopPlatform         string     `json:"shopPlatform,omitempty"`
-	ExternalOrderID      string     `json:"externalOrderId,omitempty"`
-	OrderNo              string     `json:"orderNo"`
-	CustomerName         string     `json:"customerName"`
-	Status               string     `json:"status"`
-	PaymentStatus        string     `json:"paymentStatus"`
-	FulfillmentStatus    string     `json:"fulfillmentStatus"`
-	Currency             string     `json:"currency"`
-	TotalAmount          float64    `json:"totalAmount"`
-	OrderedAt            *time.Time `json:"orderedAt,omitempty"`
-	CreatedAt            time.Time  `json:"createdAt"`
-	LatestShipmentStatus string     `json:"latestShipmentStatus,omitempty"`
+	ID                    uuid.UUID  `json:"id"`
+	Platform              string     `json:"platform"`
+	ShopID                *uuid.UUID `json:"shopId,omitempty"`
+	ShopName              string     `json:"shopName,omitempty"`
+	ShopPlatform          string     `json:"shopPlatform,omitempty"`
+	ExternalOrderID       string     `json:"externalOrderId,omitempty"`
+	OrderNo               string     `json:"orderNo"`
+	CustomerName          string     `json:"customerName"`
+	Status                string     `json:"status"`
+	PaymentStatus         string     `json:"paymentStatus"`
+	FulfillmentStatus     string     `json:"fulfillmentStatus"`
+	Currency              string     `json:"currency"`
+	TotalAmount           float64    `json:"totalAmount"`
+	ItemCount             int        `json:"itemCount"`
+	SkuMatchStatus        string     `json:"skuMatchStatus,omitempty"`
+	SkuMatchedCount       int        `json:"skuMatchedCount"`
+	SkuTotalCount         int        `json:"skuTotalCount"`
+	InventoryDeductStatus string     `json:"inventoryDeductStatus,omitempty"`
+	SyncStatus            string     `json:"syncStatus,omitempty"`
+	OpenExceptionCount    int        `json:"openExceptionCount"`
+	DetailURL             string     `json:"detailUrl,omitempty"`
+	OrderedAt             *time.Time `json:"orderedAt,omitempty"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
+	LatestShipmentStatus  string     `json:"latestShipmentStatus,omitempty"`
 }
 
 // ListResult pagination bundle.
@@ -409,8 +424,18 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if v := strings.TrimSpace(q.CustomerName); v != "" {
 		tx = tx.Where("customer_name ILIKE ?", "%"+v+"%")
 	}
+	if v := strings.TrimSpace(q.Keyword); v != "" {
+		like := "%" + v + "%"
+		tx = tx.Where(
+			"order_no ILIKE ? OR customer_name ILIKE ? OR external_order_id ILIKE ?",
+			like, like, like,
+		)
+	}
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
+	}
+	if v := strings.TrimSpace(q.PaymentStatus); v != "" {
+		tx = tx.Where("payment_status = ?", v)
 	}
 	if v := strings.TrimSpace(q.FulfillmentStatus); v != "" {
 		tx = tx.Where("fulfillment_status = ?", v)
@@ -482,6 +507,13 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		}
 		out[i] = row
 	}
+	enrichListRows(c.Request.Context(), s.DB, rows, out)
+
+	if q.SkuMatchStatus != "" || q.InventoryDeductStatus != "" || q.HasException || q.SyncStatus != "" {
+		out = applyListPostFilters(out, q)
+		total = int64(len(out))
+	}
+
 	return &ListResult{
 		Items:      out,
 		Total:      total,

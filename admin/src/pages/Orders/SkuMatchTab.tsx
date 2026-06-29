@@ -13,6 +13,8 @@ import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products
 type Props = {
   orderId: string;
   onRefreshOrder: () => Promise<void>;
+  readOnly?: boolean;
+  focusItemId?: string;
 };
 
 function candTrustBadge(conf: number) {
@@ -39,7 +41,7 @@ function statusColor(s: string | undefined) {
   }
 }
 
-export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
+export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = false, focusItemId }: Props) {
   const [rows, setRows] = useState<OrderSkuMatchRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -227,26 +229,30 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
         />
       ) : null}
       <Space wrap style={{ marginBottom: 12 }}>
-        <Popconfirm
-          title="对未锁定行执行自动匹配？已 manual_bound 默认不覆盖。"
-          onConfirm={async () => {
-            setMatchLoading(true);
-            try {
-              await matchOrderSKUs(orderId, { overwrite: false, force: false });
-              message.success('已触发匹配');
-              await load();
-              await onRefreshOrder();
-            } catch (e: unknown) {
-              message.error((e as Error)?.message || '失败');
-            } finally {
-              setMatchLoading(false);
-            }
-          }}
-        >
-          <Button type="primary" loading={matchLoading}>
-            自动匹配整单
-          </Button>
-        </Popconfirm>
+        {!readOnly ? (
+          <Popconfirm
+            title="对未锁定行执行自动匹配？已 manual_bound 默认不覆盖。"
+            onConfirm={async () => {
+              setMatchLoading(true);
+              try {
+                await matchOrderSKUs(orderId, { overwrite: false, force: false });
+                message.success('已触发匹配');
+                await load();
+                await onRefreshOrder();
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '失败');
+              } finally {
+                setMatchLoading(false);
+              }
+            }}
+          >
+            <Button type="primary" loading={matchLoading}>
+              自动匹配整单
+            </Button>
+          </Popconfirm>
+        ) : (
+          <Typography.Text type="secondary">只读账号不可执行匹配或绑定操作</Typography.Text>
+        )}
         <Typography.Link href={`/orders/sku-matches?orderId=${encodeURIComponent(orderId)}`}>
           全局匹配记录
         </Typography.Link>
@@ -259,6 +265,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
         dataSource={rows}
         expandable={{
           expandRowByClick: true,
+          defaultExpandedRowKeys: focusItemId ? [focusItemId] : undefined,
           onExpand: (expanded, record) => {
             const id = record.orderItemId;
             if (!expanded || !id) return;
@@ -333,10 +340,12 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
                         去工作台处理
                       </Typography.Link>
                     ) : null}
-                    <Button size="small" onClick={() => openBind(r.orderItemId!)}>
-                      绑定 SKU
-                    </Button>
-                    <Popconfirm
+                    {!readOnly ? (
+                      <>
+                        <Button size="small" onClick={() => openBind(r.orderItemId!)}>
+                          绑定 SKU
+                        </Button>
+                        <Popconfirm
                       title="使用当前行已绑定的本地商品规格扣减库存？"
                       onConfirm={async () => {
                         if (!r.productSkuId) {
@@ -386,6 +395,8 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder }: Props) {
                         扣库+同步
                       </Button>
                     </Popconfirm>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
               </Space>

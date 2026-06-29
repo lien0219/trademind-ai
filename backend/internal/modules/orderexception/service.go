@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"gorm.io/gorm"
@@ -153,6 +154,13 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 			}
 		}
 	}
+	if req.ExceptionType == "" || req.ExceptionType == TypeOrderSyncPartialFailed {
+		if xs, err := s.collectOrderSyncPartialFailed(ctx, req); err == nil {
+			for _, x := range xs {
+				appendUniqueAgg(&rows, x)
+			}
+		}
+	}
 
 	sum := ExceptionSummaryDTO{}
 	for _, r := range rows {
@@ -174,6 +182,8 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 			sum.InventoryRestoreFailed++
 		case TypeInventorySyncFailed:
 			sum.InventorySyncFailed++
+		case TypeOrderSyncPartialFailed:
+			sum.OrderSyncPartial++
 		}
 	}
 
@@ -317,6 +327,17 @@ func exceptionToDTO(ctx context.Context, s *Service, r aggRow) OrderExceptionDTO
 	}
 	if r.orderID != uuid.Nil {
 		d.OrderID = r.orderID.String()
+		d.OrderURL = "/orders/" + r.orderID.String()
+	}
+	if r.sourceType == SourceOrderSyncTask {
+		d.SyncTaskID = r.sourceID.String()
+		d.TaskCenterURL = "/ops/task-center/failures?taskType=order_sync&keyword=" + r.sourceID.String()
+		d.DetailURL = "/orders/sync-tasks?id=" + r.sourceID.String()
+	} else if r.orderID != uuid.Nil {
+		d.DetailURL = "/orders/" + r.orderID.String()
+		if r.orderItemID != nil {
+			d.DetailURL += "?itemId=" + r.orderItemID.String()
+		}
 	}
 	if r.shopID != nil && *r.shopID != uuid.Nil {
 		d.ShopID = r.shopID.String()
@@ -972,6 +993,51 @@ func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID
 	default:
 		return nil, nil, fmt.Errorf("unsupported sourceType")
 	}
+}
+
+func (s *Service) collectOrderSyncPartialFailed(ctx context.Context, req ListOrderExceptionsRequest) ([]aggRow, error) {
+	if s == nil || s.DB == nil {
+		return nil, nil
+	}
+	dst := &ordersync.OrderSyncTask{}
+	if !s.DB.Migrator().HasTable(dst) {
+		return nil, nil
+	}
+	var tasks []ordersync.OrderSyncTask
+	tx := s.DB.WithContext(ctx).Model(dst).Where("status = ?", ordersync.StatusPartialSuccess)
+	if req.Platform != "" {
+		tx = tx.Where("LOWER(platform) = ?", strings.ToLower(strings.TrimSpace(req.Platform)))
+	}
+	if req.ShopID != "" {
+		if sid, err := uuid.Parse(strings.TrimSpace(req.ShopID)); err == nil {
+			tx = tx.Where("shop_id = ?", sid)
+		}
+	}
+	if err := tx.Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+	out := make([]aggRow, 0, len(tasks))
+	for _, t := range tasks {
+		msg := strings.TrimSpace(t.ErrorMessage)
+		if msg == "" {
+			msg = "订单同步部分成功：存在失败页，请查看同步任务详情并重试失败页"
+		}
+		out = append(out, aggRow{
+			exceptionType:   TypeOrderSyncPartialFailed,
+			severity:        SeverityHigh,
+			sourceType:      SourceOrderSyncTask,
+			sourceID:        t.ID,
+			orderID:         uuid.Nil,
+			platform:        t.Platform,
+			shopID:          &t.ShopID,
+			orderNo:         "",
+			errorMessage:    msg,
+			suggestedAction: "打开同步任务详情，查看失败页列表并重试失败页；或在失败任务中心处理",
+			createdAt:       t.CreatedAt,
+			updatedAt:       t.UpdatedAt,
+		})
+	}
+	return out, nil
 }
 
 // ResolveOrderItemForBind maps an exception source to an order line id when bind-sku applies.

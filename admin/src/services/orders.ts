@@ -92,8 +92,17 @@ export type OrderListRow = {
   fulfillmentStatus: string;
   currency: string;
   totalAmount: number;
+  itemCount?: number;
+  skuMatchStatus?: string;
+  skuMatchedCount?: number;
+  skuTotalCount?: number;
+  inventoryDeductStatus?: string;
+  syncStatus?: string;
+  openExceptionCount?: number;
+  detailUrl?: string;
   orderedAt?: string;
   createdAt: string;
+  updatedAt?: string;
   latestShipmentStatus?: string;
   externalOrderId?: string;
 };
@@ -105,8 +114,14 @@ export async function queryOrders(params: {
   shopId?: string;
   orderNo?: string;
   customerName?: string;
+  keyword?: string;
   status?: string;
+  paymentStatus?: string;
   fulfillmentStatus?: string;
+  skuMatchStatus?: string;
+  inventoryDeductStatus?: string;
+  syncStatus?: string;
+  hasException?: boolean;
   start?: string;
   end?: string;
 }): Promise<{

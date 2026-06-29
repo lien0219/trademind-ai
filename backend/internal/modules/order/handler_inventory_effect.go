@@ -26,6 +26,9 @@ func (h *Handler) PostDeductInventory(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -59,6 +62,9 @@ func (h *Handler) PostDeductInventory(c *gin.Context) {
 func (h *Handler) PostRestoreInventory(c *gin.Context) {
 	if h == nil || h.Svc == nil || h.Inv == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

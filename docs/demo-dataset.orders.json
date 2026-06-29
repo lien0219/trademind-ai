@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-06-29T00:00:00.000Z",
+  "note": "F2 order demo sample catalog. Run scripts/seed-demo-data.ps1 to populate via API.",
+  "scenarios": [
+    { "tag": "normal_order", "description": "手工正常订单" },
+    { "tag": "sku_unmatched_order", "description": "平台 SKU 未匹配" },
+    { "tag": "sku_ambiguous_order", "description": "多候选待确认" },
+    { "tag": "insufficient_stock_order", "description": "库存不足（需绑定 SKU + 低库存商品）" },
+    { "tag": "inventory_deduct_failed_order", "description": "扣减失败流水" },
+    { "tag": "order_sync_partial_success", "description": "partial_success 同步任务 + pageErrors" },
+    { "tag": "order_sync_page_failed", "description": "页级失败条目" },
+    { "tag": "platform_auth_failed_sync", "description": "平台权限/授权失败任务" }
+  ],
+  "orders": []
+}

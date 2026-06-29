@@ -29,6 +29,8 @@ func normalizeFromLease(now time.Time, lf leaseFields) string {
 		return NormRetrying
 	case "failed":
 		return NormFailed
+	case "partial_success":
+		return NormPartialSuccess
 	case "running":
 		if lf.LockedUntil != nil && lf.LockedBy != nil && strings.TrimSpace(*lf.LockedBy) != "" &&
 			!lf.LockedUntil.After(now) {
@@ -42,7 +44,7 @@ func normalizeFromLease(now time.Time, lf leaseFields) string {
 
 func isFailureFamily(norm string) bool {
 	switch norm {
-	case NormFailed, NormRetrying, NormStale, NormLeaseExpired:
+	case NormFailed, NormPartialSuccess, NormRetrying, NormStale, NormLeaseExpired:
 		return true
 	default:
 		return false

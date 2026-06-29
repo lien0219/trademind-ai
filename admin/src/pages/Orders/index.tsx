@@ -25,9 +25,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_COPY } from '@/constants/copywriting';
 import {
   ORDER_FULFILLMENT_STATUS,
+  ORDER_INVENTORY_DEDUCT_SUMMARY,
   ORDER_PAYMENT_STATUS,
   ORDER_SHIPMENT_STATUS,
+  ORDER_SKU_MATCH_SUMMARY,
   ORDER_STATUS,
+  ORDER_SYNC_SUMMARY,
 } from '@/constants/status';
 import {
   createOrder,
@@ -86,15 +89,10 @@ const SHIP_OPTS = Object.keys(ORDER_SHIPMENT_STATUS).map((v) => ({
   value: v,
 }));
 
-function statusTag(
-  raw: string,
-  map:
-    | typeof ORDER_STATUS
-    | typeof ORDER_PAYMENT_STATUS
-    | typeof ORDER_FULFILLMENT_STATUS
-    | typeof ORDER_SHIPMENT_STATUS,
-) {
-  const cfg = map[raw as keyof typeof map];
+type StatusTagMap = Record<string, { text: string; color: string }>;
+
+function statusTag(raw: string, map: StatusTagMap) {
+  const cfg = map[raw];
   if (!cfg) return <Tag>{raw}</Tag>;
   return <Tag color={cfg.color}>{cfg.text}</Tag>;
 }
@@ -191,13 +189,8 @@ export default function OrdersPage() {
     const q = new URLSearchParams(ordersSearch);
     const jid = q.get('jumpOrder')?.trim();
     if (!jid) return;
-    history.replace('/orders');
-    setDrawerOpen(true);
-    void (async () => {
-      await refreshDetail(jid);
-      await loadInvEffects(jid);
-    })();
-  }, [ordersSearch, refreshDetail, loadInvEffects]);
+    history.replace(`/orders/${encodeURIComponent(jid)}`);
+  }, [ordersSearch]);
 
   const columns: ProColumns<OrderListRow>[] = useMemo(
     () => [
@@ -207,6 +200,12 @@ export default function OrdersPage() {
         hideInTable: true,
         valueType: 'select',
         fieldProps: { options: shopOptions, allowClear: true, showSearch: true },
+      },
+      {
+        title: '关键词',
+        dataIndex: 'keyword',
+        hideInTable: true,
+        fieldProps: { placeholder: '订单号 / 买家 / 平台单号' },
       },
       { title: '订单号', dataIndex: 'orderNo', copyable: true, width: 148 },
       {
@@ -253,16 +252,96 @@ export default function OrdersPage() {
         title: '支付',
         dataIndex: 'paymentStatus',
         width: 94,
-        search: false,
+        valueType: 'select',
+        valueEnum: ORDER_PAYMENT_STATUS,
         render: (_, r) => statusTag(r.paymentStatus, ORDER_PAYMENT_STATUS),
+      },
+      {
+        title: '商品数',
+        dataIndex: 'itemCount',
+        search: false,
+        width: 72,
+        render: (_, r) => r.itemCount ?? '—',
+      },
+      {
+        title: 'SKU 匹配',
+        dataIndex: 'skuMatchStatus',
+        width: 108,
+        valueType: 'select',
+        valueEnum: ORDER_SKU_MATCH_SUMMARY,
+        render: (_, r) => {
+          const st = r.skuMatchStatus || 'none';
+          const cfg = ORDER_SKU_MATCH_SUMMARY[st as keyof typeof ORDER_SKU_MATCH_SUMMARY];
+          const label = cfg?.text || st;
+          return (
+            <span>
+              <Tag color={cfg?.color}>{label}</Tag>
+              {r.skuTotalCount ? (
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  {' '}
+                  {r.skuMatchedCount ?? 0}/{r.skuTotalCount}
+                </Typography.Text>
+              ) : null}
+            </span>
+          );
+        },
+      },
+      {
+        title: '库存扣减',
+        dataIndex: 'inventoryDeductStatus',
+        width: 100,
+        valueType: 'select',
+        valueEnum: ORDER_INVENTORY_DEDUCT_SUMMARY,
+        search: false,
+        render: (_, r) => {
+          const st = r.inventoryDeductStatus || 'none';
+          const cfg = ORDER_INVENTORY_DEDUCT_SUMMARY[st as keyof typeof ORDER_INVENTORY_DEDUCT_SUMMARY];
+          return <Tag color={cfg?.color}>{cfg?.text || st}</Tag>;
+        },
+      },
+      {
+        title: '同步',
+        dataIndex: 'syncStatus',
+        width: 96,
+        valueType: 'select',
+        valueEnum: ORDER_SYNC_SUMMARY,
+        search: false,
+        render: (_, r) => {
+          const st = r.syncStatus || 'unknown';
+          const cfg = ORDER_SYNC_SUMMARY[st as keyof typeof ORDER_SYNC_SUMMARY];
+          return <Tag color={cfg?.color}>{cfg?.text || st}</Tag>;
+        },
+      },
+      {
+        title: '是否有异常',
+        dataIndex: 'hasException',
+        hideInTable: true,
+        valueType: 'select',
+        valueEnum: {
+          true: { text: '有异常' },
+          false: { text: '无异常' },
+        },
+      },
+      {
+        title: '异常',
+        dataIndex: 'openExceptionCount',
+        width: 72,
+        search: false,
+        render: (_, r) =>
+          (r.openExceptionCount ?? 0) > 0 ? (
+            <Badge count={r.openExceptionCount} size="small">
+              <Tag color="error">待处理</Tag>
+            </Badge>
+          ) : (
+            <Tag>无</Tag>
+          ),
       },
       {
         title: '履约',
         dataIndex: 'fulfillmentStatus',
-        width: 94,
+        hideInTable: true,
         valueType: 'select',
         valueEnum: ORDER_FULFILLMENT_STATUS,
-        render: (_, r) => statusTag(r.fulfillmentStatus, ORDER_FULFILLMENT_STATUS),
       },
       {
         title: '金额',
@@ -299,18 +378,33 @@ export default function OrdersPage() {
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
+        title: '更新时间',
+        dataIndex: 'updatedAt',
+        width: 160,
+        search: false,
+        render: (_, r) => (r.updatedAt ? formatDateTime(r.updatedAt) : '—'),
+      },
+      {
         title: '操作',
         valueType: 'option',
-        width: 80,
+        width: 220,
+        fixed: 'right',
         render: (_, r) => (
-          <a
-            onClick={() => {
-              setDrawerOpen(true);
-              void refreshDetail(r.id);
-            }}
-          >
-            详情
-          </a>
+          <Space wrap size={4}>
+            <a onClick={() => history.push(`/orders/${encodeURIComponent(r.id)}`)}>详情</a>
+            {(r.openExceptionCount ?? 0) > 0 ? (
+              <a
+                onClick={() =>
+                  history.push(`/orders/exceptions?orderId=${encodeURIComponent(r.id)}`)
+                }
+              >
+                异常
+              </a>
+            ) : null}
+            <a onClick={() => history.push(`/orders/sync-tasks?shopId=${encodeURIComponent(r.shopId || '')}`)}>
+              同步
+            </a>
+          </Space>
         ),
       },
     ],
@@ -484,8 +578,15 @@ export default function OrdersPage() {
             shopId: params.shopId as string | undefined,
             orderNo: params.orderNo as string | undefined,
             customerName: params.customerName as string | undefined,
+            keyword: params.keyword as string | undefined,
             status: params.status as string | undefined,
+            paymentStatus: params.paymentStatus as string | undefined,
             fulfillmentStatus: params.fulfillmentStatus as string | undefined,
+            skuMatchStatus: params.skuMatchStatus as string | undefined,
+            inventoryDeductStatus: params.inventoryDeductStatus as string | undefined,
+            syncStatus: params.syncStatus as string | undefined,
+            hasException:
+              params.hasException === 'true' || params.hasException === true ? true : undefined,
             start: typeof params.start === 'string' ? params.start : undefined,
             end: typeof params.end === 'string' ? params.end : undefined,
           });

@@ -371,6 +371,55 @@ if (-not $SkipAiBatches -and $aiTextReview.id) {
     }
 }
 
+Write-Host "Phase F2: order demo samples..."
+$orderSamples = @()
+function New-DemoOrder($bodyObj, $tag) {
+    $o = Invoke-Api -Method Post -Url "$ApiV1/orders" -Body ($bodyObj | ConvertTo-Json -Depth 8 -Compress) -Token $token
+    if ($o.id) {
+        $script:orderSamples += @{ tag = $tag; orderId = $o.id; orderNo = $o.orderNo }
+    }
+    return $o
+}
+
+$ordNormal = New-DemoOrder @{
+    platform = "manual"; orderNo = "F2-DEMO-NORMAL-$(Get-Random -Maximum 99999)"
+    customerName = "Demo Buyer Normal"; status = "paid"; paymentStatus = "paid"
+    fulfillmentStatus = "unfulfilled"; currency = "CNY"; totalAmount = 88.5
+    items = @(@{ productTitle = "Demo matched item"; skuCode = "DEMO-SKU-OK"; quantity = 2; unitPrice = 44.25; totalPrice = 88.5 })
+} "normal_order"
+
+$ordUnmatched = New-DemoOrder @{
+    platform = "douyin_shop"; orderNo = "F2-DEMO-UNMATCH-$(Get-Random -Maximum 99999)"
+    externalOrderId = "DY-UNMATCH-DEMO"; customerName = "Demo Unmatched"
+    status = "paid"; paymentStatus = "paid"; fulfillmentStatus = "unfulfilled"; currency = "CNY"; totalAmount = 59
+    items = @(@{
+        productTitle = "Unknown platform SKU item"; externalSkuId = "EXT-SKU-NO-MAP"
+        skuName = "Color:Red"; quantity = 1; unitPrice = 59; totalPrice = 59
+    })
+} "sku_unmatched_order"
+
+if ($ordUnmatched.id) {
+    Invoke-Api -Method Post -Url "$ApiV1/orders/$($ordUnmatched.id)/match-skus" -Body '{}' -Token $token | Out-Null
+}
+
+$ordAmbiguous = New-DemoOrder @{
+    platform = "douyin_shop"; orderNo = "F2-DEMO-AMBIG-$(Get-Random -Maximum 99999)"
+    externalOrderId = "DY-AMBIG-DEMO"; customerName = "Demo Ambiguous"
+    status = "paid"; paymentStatus = "paid"; currency = "CNY"; totalAmount = 39
+    items = @(@{
+        productTitle = "Ambiguous SKU demo"; externalSkuId = "EXT-SKU-AMBIG"; sellerSku = "SELLER-AMBIG"
+        quantity = 1; unitPrice = 39; totalPrice = 39
+    })
+} "sku_ambiguous_order"
+
+$ordersOutFile = Join-Path $repoRoot "docs/demo-dataset.orders.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F2 order demo samples; partial_success sync tasks require shop sync or DB seed in dev"
+    orders = $orderSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $ordersOutFile -Encoding UTF8
+Write-Host "Wrote $ordersOutFile with $($orderSamples.Count) order samples"
+
 $validation = @{
     productSlots20          = ($productSlots.Count -ge 20)
     taskSamples7          = ($taskSamples.Count -ge 7)
@@ -402,6 +451,7 @@ $report = @{
     productSlotCount = $productSlots.Count
     productSlots = $productSlots
     taskSampleCount = $taskSamples.Count
+    orders = $orderSamples
     taskSamples = $taskSamples
     validation = $validation
     releaseStatus = "MVP Demo Ready"

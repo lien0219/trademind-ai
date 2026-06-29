@@ -202,7 +202,7 @@ func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool, trackRet
 			AND TRIM(locked_by) <> ''
 			AND locked_until < ?
 		)`
-	args := []any{[]string{"failed", "retrying"}, now}
+	args := []any{[]string{"failed", "retrying", "partial_success"}, now}
 	if trackRetryStale {
 		staleCut := now.Add(-staleRetryAfterDrift * time.Minute)
 		q += `

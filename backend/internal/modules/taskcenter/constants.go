@@ -14,14 +14,15 @@ const (
 
 // NormalizedStatus is a coarse status for operations views.
 const (
-	NormFailed       = "failed"
-	NormRetrying     = "retrying"
-	NormStale        = "stale"
-	NormLeaseExpired = "lease_expired"
-	NormCancelled    = "cancelled"
-	NormSuccess      = "success"
-	NormRunning      = "running"
-	NormPending      = "pending"
+	NormFailed         = "failed"
+	NormPartialSuccess = "partial_success"
+	NormRetrying       = "retrying"
+	NormStale          = "stale"
+	NormLeaseExpired   = "lease_expired"
+	NormCancelled      = "cancelled"
+	NormSuccess        = "success"
+	NormRunning        = "running"
+	NormPending        = "pending"
 )
 
 const (

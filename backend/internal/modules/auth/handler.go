@@ -112,6 +112,7 @@ func (h *Handler) Profile(c *gin.Context) {
 		"email":       u.Email,
 		"phone":       u.Phone,
 		"displayName": dn,
+		"role":        strings.TrimSpace(u.Role),
 		"createdAt":   u.CreatedAt,
 		"updatedAt":   u.UpdatedAt,
 	})

@@ -48,6 +48,9 @@ func (h *Handler) PostMatchOrderSKUs(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -153,6 +156,9 @@ type bindOrderItemSKUBody struct {
 func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	itemID, err := uuid.Parse(strings.TrimSpace(c.Param("itemId")))

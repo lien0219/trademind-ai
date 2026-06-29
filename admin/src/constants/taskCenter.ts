@@ -221,6 +221,7 @@ export function taskCenterTaskTypeLabel(taskType?: string): string {
 /** 归一化状态 */
 export const TASK_NORMALIZED_STATUS: Record<string, { text: string; color: string }> = {
   failed: { text: '失败', color: 'error' },
+  partial_success: { text: '部分成功', color: 'warning' },
   retrying: { text: '重试中', color: 'processing' },
   stale: { text: '停滞', color: 'warning' },
   lease_expired: { text: '执行超时', color: 'warning' },

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -32,6 +33,17 @@ func adminUUID(c *gin.Context) *uuid.UUID {
 		}
 	}
 	return nil
+}
+
+func (h *Handler) denyWrite(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		return false
+	}
+	if !adminperm.CanWriteOrders(c, h.Svc.DB) {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "当前账号为只读权限，无法执行此操作")
+		return true
+	}
+	return false
 }
 
 func parseRFC3339(s string) (*time.Time, error) {
@@ -216,6 +228,9 @@ func (h *Handler) Unmark(c *gin.Context) {
 func (h *Handler) BindSKU(c *gin.Context) {
 	if h == nil || h.Cmds == nil {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	var body BindSKURequest

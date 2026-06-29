@@ -9,10 +9,23 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/mask"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
+
+func (h *Handler) denyWrite(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		return false
+	}
+	if !adminperm.CanWriteOrders(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "当前账号为只读权限，无法执行此操作")
+		return true
+	}
+	return false
+}
 
 // Handler exposes order HTTP routes.
 type Handler struct {
@@ -64,13 +77,20 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	q := ListQuery{
-		Page:              atoiQ(c, "page", 1),
-		PageSize:          atoiQ(c, "pageSize", 20),
-		Platform:          c.Query("platform"),
-		OrderNo:           c.Query("orderNo"),
-		CustomerName:      c.Query("customerName"),
-		Status:            c.Query("status"),
-		FulfillmentStatus: c.Query("fulfillmentStatus"),
+		Page:                  atoiQ(c, "page", 1),
+		PageSize:              atoiQ(c, "pageSize", 20),
+		Platform:              c.Query("platform"),
+		OrderNo:               c.Query("orderNo"),
+		CustomerName:          c.Query("customerName"),
+		Keyword:               c.Query("keyword"),
+		Status:                c.Query("status"),
+		PaymentStatus:         c.Query("paymentStatus"),
+		FulfillmentStatus:     c.Query("fulfillmentStatus"),
+		SkuMatchStatus:        c.Query("skuMatchStatus"),
+		InventoryDeductStatus: c.Query("inventoryDeductStatus"),
+		SyncStatus:            c.Query("syncStatus"),
+		HasException: strings.EqualFold(strings.TrimSpace(c.Query("hasException")), "true") ||
+			strings.TrimSpace(c.Query("hasException")) == "1",
 	}
 	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
 		if u, err := uuid.Parse(raw); err == nil {
@@ -161,7 +181,20 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 	h.enrichOrderInventoryMini(c, out)
+	maskDetailPII(out)
 	response.OK(c, out)
+}
+
+func maskDetailPII(out *DetailDTO) {
+	if out == nil {
+		return
+	}
+	if out.CustomerPhone != "" {
+		out.CustomerPhone = mask.Phone(out.CustomerPhone)
+	}
+	if out.CustomerEmail != "" {
+		out.CustomerEmail = mask.Email(out.CustomerEmail)
+	}
 }
 
 // Update PUT /orders/:id

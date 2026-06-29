@@ -1,5 +1,29 @@
 import { getJSON, getWithParams, postJSON } from '@/services/request';
 
+export type OrderSyncPageError = {
+  page: number;
+  error: string;
+  cursor?: string;
+  nextPage?: string;
+  errorCode?: string;
+  retryable?: boolean;
+};
+
+export type OrderSyncTaskOutput = {
+  totalFetched?: number;
+  totalPages?: number;
+  successPages?: number;
+  failedPages?: number;
+  pageErrors?: OrderSyncPageError[];
+  createdOrders?: number;
+  updatedOrders?: number;
+  matchedItems?: number;
+  unmatchedItems?: number;
+  deductedStockItems?: number;
+  hasMore?: boolean;
+  retryPagesOnly?: boolean;
+};
+
 export type OrderSyncTaskDTO = {
   id: string;
   shopId: string;

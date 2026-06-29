@@ -206,7 +206,7 @@ func mapOrderSyncTask(row *ordersync.OrderSyncTask, shopNames map[uuid.UUID]stri
 		RelatedResourceTitle: truncateRunes(shopNames[row.ShopID], 255),
 		Status:               row.Status,
 		NormalizedStatus:     norm,
-		Retryable:            norm == NormFailed,
+		Retryable:            norm == NormFailed || norm == NormPartialSuccess,
 		ErrorMessage:         truncateRunes(row.ErrorMessage, maxErrorMessageLen),
 		CreatedAt:            row.CreatedAt,
 		UpdatedAt:            row.UpdatedAt,
