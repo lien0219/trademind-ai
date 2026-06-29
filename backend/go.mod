@@ -20,7 +20,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/redis/go-redis/v9 v9.20.1
-	github.com/tencentyun/cos-go-sdk-v5 v0.7.73
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.74
 	golang.org/x/crypto v0.51.0
 	golang.org/x/image v0.40.0
 	golang.org/x/sync v0.20.0
