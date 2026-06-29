@@ -47,3 +47,8 @@ func RoleFromContext(c *gin.Context, db *gorm.DB) string {
 func CanWriteOrders(c *gin.Context, db *gorm.DB) bool {
 	return RoleFromContext(c, db) != RoleReadonly
 }
+
+// CanWriteInventory returns false for readonly admins (F3 lightweight RBAC until F5).
+func CanWriteInventory(c *gin.Context, db *gorm.DB) bool {
+	return RoleFromContext(c, db) != RoleReadonly
+}

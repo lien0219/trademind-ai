@@ -50,7 +50,10 @@ export type OrderInventoryEffectRow = {
   orderNo?: string;
   orderItemId: string;
   productId?: string;
+  productTitle?: string;
   productSkuId: string;
+  skuCode?: string;
+  skuName?: string;
   effectType: string;
   quantity: number;
   status: string;
@@ -59,6 +62,15 @@ export type OrderInventoryEffectRow = {
   reason?: string;
   errorMessage?: string;
   inventoryChangeLogId?: string;
+};
+
+export type InventoryCenterRow = InventoryAlertRow & {
+  availableStock: number;
+  skuBindStatus: string;
+  platformSyncStatus: string;
+  lastDeductAt?: string;
+  exceptionCount: number;
+  affectedOrderCount?: number;
 };
 
 export type InventorySyncTaskDTO = {
@@ -191,6 +203,42 @@ export type InventoryAlertRow = {
   lastSyncError?: string;
   lastSyncAt?: string;
 };
+
+export async function queryInventoryCenter(params?: {
+  keyword?: string;
+  productId?: string;
+  productSkuId?: string;
+  platform?: string;
+  shopId?: string;
+  stockStatus?: string;
+  alertStatus?: string;
+  skuBindStatus?: string;
+  syncStatus?: string;
+  hasException?: boolean;
+  page?: number;
+  pageSize?: number;
+}) {
+  const q: Record<string, string | number | undefined> = {
+    keyword: params?.keyword?.trim() || undefined,
+    productId: params?.productId,
+    productSkuId: params?.productSkuId,
+    platform: params?.platform?.trim() || undefined,
+    shopId: params?.shopId,
+    stockStatus: params?.stockStatus?.trim() || undefined,
+    alertStatus: params?.alertStatus?.trim() || undefined,
+    skuBindStatus: params?.skuBindStatus?.trim() || undefined,
+    syncStatus: params?.syncStatus?.trim() || undefined,
+    page: params?.page,
+    pageSize: params?.pageSize,
+  };
+  if (params?.hasException) {
+    q.hasException = 'true';
+  }
+  return getWithParams<{ list: InventoryCenterRow[]; pagination: PaginatedInventory<InventoryCenterRow>['pagination'] }>(
+    '/api/v1/inventory',
+    q,
+  );
+}
 
 export async function queryInventoryAlerts(params?: {
   keyword?: string;

@@ -291,6 +291,10 @@
 | `GET` | `/api/v1/products/:id/publication-skus` | 商品详情库存 Tab 读取刊登 SKU 映射与 `inventorySyncCapability`（`douyin_shop` 为 `beta`）。 |
 | `POST` | `/api/v1/product-publication-skus/:id/sync-inventory` | 单 SKU 库存同步；body：`stock`、`options`、`fromInventoryAlert`。要求 `product_publications.external_product_id` 与 `product_publication_skus.external_sku_id` 已绑定。 |
 | `POST` | `/api/v1/products/:id/sync-inventory` | 单商品多 SKU 库存同步；body：`shopId`、`skuIds[]`、`options`。 |
+| `GET` | `/api/v1/inventory` | 库存中心 SKU 列表（F3）；筛选 stockStatus / skuBindStatus / syncStatus / hasException 等。 |
+| `GET` | `/api/v1/inventory/alerts` | 库存预警列表。 |
+| `GET` | `/api/v1/inventory/effects` | 订单库存扣减/回滚影响（扣减记录页数据源）。 |
+| `GET` | `/api/v1/inventory/logs` | 本地库存变更流水。 |
 | `GET` | `/api/v1/inventory-sync/tasks` | 库存同步任务列表。 |
 | `GET` | `/api/v1/inventory-sync/tasks/:id` | 任务详情。 |
 | `POST` | `/api/v1/inventory-sync/tasks/:id/retry` | 重试 failed 任务。 |

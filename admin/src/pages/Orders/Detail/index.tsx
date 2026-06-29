@@ -35,7 +35,12 @@ import {
 } from '@/services/orders';
 import type { OrderInventoryEffectRow } from '@/services/inventory';
 import OrderSkuMatchTab from '@/pages/Orders/SkuMatchTab';
-import { canWriteOrders } from '@/utils/orderPerm';
+import {
+  INVENTORY_DEDUCT_STATUS,
+  INVENTORY_SKU_AMBIGUOUS_MESSAGE,
+  INVENTORY_SKU_NOT_BOUND_MESSAGE,
+  inventoryTagFromMap,
+} from '@/constants/inventoryLabels';
 
 function tagFromMap(raw: string, map: Record<string, { text: string; color: string }>) {
   const cfg = map[raw];
@@ -83,6 +88,13 @@ export default function OrderDetailPage() {
     if (itemIdFocus) setActiveTab('sku');
   }, [itemIdFocus]);
 
+  useEffect(() => {
+    const tab = searchParams.get('tab')?.trim();
+    if (tab === 'inventory' || tab === 'inv') setActiveTab('inv');
+    else if (tab === 'sku') setActiveTab('sku');
+    else if (tab === 'exceptions') setActiveTab('exceptions');
+  }, [searchParams]);
+
   const listSummary = useMemo(() => {
     if (!detail) return null;
     const matched = skuRows.filter((r) => ['matched', 'manual_bound'].includes(String(r.matchStatus))).length;
@@ -124,8 +136,11 @@ export default function OrderDetailPage() {
           <Button onClick={() => history.push(`/orders/exceptions?orderId=${encodeURIComponent(id)}`)}>
             异常工作台
           </Button>
-          <Button onClick={() => history.push('/ops/task-center/failures?taskType=order_sync')}>
+          <Button onClick={() => history.push('/ops/task-center/failures?taskType=inventory_sync')}>
             失败任务中心
+          </Button>
+          <Button onClick={() => history.push(`/inventory/deductions?orderId=${encodeURIComponent(id)}`)}>
+            扣减记录
           </Button>
           <Button type="link" onClick={() => history.push('/orders/list')}>
             返回列表
@@ -295,6 +310,20 @@ export default function OrderDetailPage() {
               label: '库存影响',
               children: (
                 <>
+                  {listSummary?.invStatus === 'blocked' ? (
+                    <Alert
+                      showIcon
+                      type="warning"
+                      style={{ marginBottom: 12 }}
+                      message="SKU 未就绪，暂不能扣减库存"
+                      description={
+                        <>
+                          {INVENTORY_SKU_NOT_BOUND_MESSAGE} {INVENTORY_SKU_AMBIGUOUS_MESSAGE}{' '}
+                          <Typography.Link onClick={() => setActiveTab('sku')}>前往规格匹配</Typography.Link>
+                        </>
+                      }
+                    />
+                  ) : null}
                   <Space wrap style={{ marginBottom: 12 }}>
                     {detail.inventorySummary ? (
                       <>
@@ -306,8 +335,14 @@ export default function OrderDetailPage() {
                         </Tag>
                       </>
                     ) : null}
-                    <Typography.Link href={`/inventory/effects?orderId=${encodeURIComponent(detail.id)}`}>
-                      全局影响流水
+                    <Typography.Link href={`/inventory/deductions?orderId=${encodeURIComponent(detail.id)}`}>
+                      扣减记录
+                    </Typography.Link>
+                    <Typography.Link href={`/inventory/sync-tasks?orderId=${encodeURIComponent(detail.id)}`}>
+                      同步任务
+                    </Typography.Link>
+                    <Typography.Link href={`/orders/exceptions?orderId=${encodeURIComponent(detail.id)}&exceptionType=inventory`}>
+                      库存异常
                     </Typography.Link>
                   </Space>
                   <Table
@@ -316,9 +351,25 @@ export default function OrderDetailPage() {
                     dataSource={invRows}
                     pagination={{ pageSize: 10 }}
                     columns={[
-                      { title: '类型', dataIndex: 'effectType', width: 88 },
-                      { title: '状态', dataIndex: 'status', width: 88 },
+                      {
+                        title: '类型',
+                        dataIndex: 'effectType',
+                        width: 100,
+                        render: (v) => (v === 'deduct' ? '扣减' : v === 'restore' ? '回滚' : v),
+                      },
+                      {
+                        title: '状态',
+                        dataIndex: 'status',
+                        width: 88,
+                        render: (v) => {
+                          const cfg = inventoryTagFromMap(String(v), INVENTORY_DEDUCT_STATUS);
+                          return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                        },
+                      },
+                      { title: 'SKU', dataIndex: 'skuCode', width: 120, render: (v) => v || '—' },
                       { title: '数量', dataIndex: 'quantity', width: 64 },
+                      { title: '扣减前', dataIndex: 'beforeStock', width: 72, render: (v) => v ?? '—' },
+                      { title: '扣减后', dataIndex: 'afterStock', width: 72, render: (v) => v ?? '—' },
                       {
                         title: '原因 / 错误',
                         render: (_, r) => r.errorMessage || r.reason || '—',

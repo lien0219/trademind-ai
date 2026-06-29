@@ -333,6 +333,19 @@ func exceptionToDTO(ctx context.Context, s *Service, r aggRow) OrderExceptionDTO
 		d.SyncTaskID = r.sourceID.String()
 		d.TaskCenterURL = "/ops/task-center/failures?taskType=order_sync&keyword=" + r.sourceID.String()
 		d.DetailURL = "/orders/sync-tasks?id=" + r.sourceID.String()
+	} else if r.sourceType == SourceInventorySyncTask {
+		d.SyncTaskID = r.sourceID.String()
+		d.TaskCenterURL = "/ops/task-center/failures?taskType=inventory_sync&jumpId=" + r.sourceID.String()
+		d.DetailURL = "/inventory/sync-tasks?id=" + r.sourceID.String()
+		if r.productSkuID != "" {
+			d.InventoryURL = "/inventory?productSkuId=" + r.productSkuID
+		}
+	} else if r.sourceType == SourceOrderInventoryEffect {
+		d.DetailURL = "/inventory/deductions?orderId=" + r.orderID.String()
+		d.TaskCenterURL = "/ops/task-center/failures?taskType=inventory_sync"
+		if r.productSkuID != "" {
+			d.InventoryURL = "/inventory?productSkuId=" + r.productSkuID
+		}
 	} else if r.orderID != uuid.Nil {
 		d.DetailURL = "/orders/" + r.orderID.String()
 		if r.orderItemID != nil {

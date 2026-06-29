@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -62,10 +63,25 @@ func parseBoolQuery(c *gin.Context, key string) bool {
 	return v == "1" || v == "true" || v == "yes" || v == "on"
 }
 
+func (h *Handler) requireInventoryWrite(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return false
+	}
+	if !adminperm.CanWriteInventory(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "只读账号不可执行库存写操作")
+		return false
+	}
+	return true
+}
+
 // AdjustStock POST /products/:id/skus/:skuId/adjust-stock
 func (h *Handler) AdjustStock(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryWrite(c) {
 		return
 	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -159,6 +175,9 @@ func (h *Handler) SyncPublicationSku(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -184,6 +203,9 @@ func (h *Handler) SyncPublicationSku(c *gin.Context) {
 func (h *Handler) BatchSyncProduct(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryWrite(c) {
 		return
 	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -292,6 +314,54 @@ func (h *Handler) ListGlobalOrderEffects(c *gin.Context) {
 		}
 	}
 	res, err := h.Svc.ListOrderEffectsGlobal(c.Request.Context(), q)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"list": res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
+}
+
+// ListCenter GET /inventory
+func (h *Handler) ListCenter(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	q := CenterListQuery{
+		Keyword:       strings.TrimSpace(c.Query("keyword")),
+		Platform:      strings.TrimSpace(c.Query("platform")),
+		StockStatus:   strings.TrimSpace(c.Query("stockStatus")),
+		AlertStatus:   strings.TrimSpace(c.Query("alertStatus")),
+		SkuBindStatus: strings.TrimSpace(c.Query("skuBindStatus")),
+		SyncStatus:    strings.TrimSpace(c.Query("syncStatus")),
+		HasException:  parseBoolQuery(c, "hasException"),
+		Page:          atoiQ(c, "page", 1),
+		PageSize:      atoiQ(c, "pageSize", 20),
+	}
+	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ProductID = &u
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("productSkuId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ProductSkuID = &u
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.ShopID = &u
+		}
+	}
+	res, err := h.Svc.ListInventoryCenter(c.Request.Context(), q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -441,6 +511,9 @@ func (h *Handler) RetryTask(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -470,6 +543,9 @@ func parseUUIDQueryPtr(c *gin.Context, key string) *uuid.UUID {
 func (h *Handler) CreateInventorySyncBatch(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryWrite(c) {
 		return
 	}
 	var body CreateInventorySyncBatchBody
@@ -605,6 +681,9 @@ func (h *Handler) RetryInventorySyncBatchFailed(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -622,6 +701,9 @@ func (h *Handler) RetryInventorySyncBatchFailed(c *gin.Context) {
 func (h *Handler) RetryInventorySyncTasksBatch(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryWrite(c) {
 		return
 	}
 	var body RetryInventorySyncTasksBatchBody
@@ -673,6 +755,9 @@ func (h *Handler) BatchPreviewStockSettings(c *gin.Context) {
 func (h *Handler) BatchUpdateStockSettings(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryWrite(c) {
 		return
 	}
 	var body StockSettingsBatchUpdateBody

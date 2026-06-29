@@ -28,7 +28,10 @@ type OrderInventoryEffectDTO struct {
 	OrderNo              string     `json:"orderNo,omitempty"`
 	OrderItemID          uuid.UUID  `json:"orderItemId"`
 	ProductID            *uuid.UUID `json:"productId,omitempty"`
+	ProductTitle         string     `json:"productTitle,omitempty"`
 	ProductSKUID         uuid.UUID  `json:"productSkuId"`
+	SKUCode              string     `json:"skuCode,omitempty"`
+	SKUName              string     `json:"skuName,omitempty"`
 	EffectType           string     `json:"effectType"`
 	Quantity             int        `json:"quantity"`
 	Status               string     `json:"status"`
@@ -109,13 +112,20 @@ func (s *Service) ListOrderEffectsGlobal(ctx context.Context, q OrderEffectsQuer
 
 func (s *Service) effectsPage(rows []OrderInventoryEffect, total int64, page, ps int) (*PaginatedOrderEffects, error) {
 	orderIDs := make([]uuid.UUID, 0)
+	skuIDs := make([]uuid.UUID, 0)
 	seen := map[uuid.UUID]struct{}{}
+	skuSeen := map[uuid.UUID]struct{}{}
 	for _, r := range rows {
-		if _, ok := seen[r.OrderID]; ok {
-			continue
+		if _, ok := seen[r.OrderID]; !ok {
+			seen[r.OrderID] = struct{}{}
+			orderIDs = append(orderIDs, r.OrderID)
 		}
-		seen[r.OrderID] = struct{}{}
-		orderIDs = append(orderIDs, r.OrderID)
+		if r.ProductSKUID != uuid.Nil {
+			if _, ok := skuSeen[r.ProductSKUID]; !ok {
+				skuSeen[r.ProductSKUID] = struct{}{}
+				skuIDs = append(skuIDs, r.ProductSKUID)
+			}
+		}
 	}
 	no := map[uuid.UUID]string{}
 	if len(orderIDs) > 0 {
@@ -129,9 +139,28 @@ func (s *Service) effectsPage(rows []OrderInventoryEffect, total int64, page, ps
 			no[m.ID] = m.OrderNo
 		}
 	}
+	type skuMini struct {
+		ID           uuid.UUID `gorm:"column:id"`
+		SKUCode      string    `gorm:"column:sku_code"`
+		SKUName      string    `gorm:"column:sku_name"`
+		ProductID    uuid.UUID `gorm:"column:product_id"`
+		ProductTitle string    `gorm:"column:product_title"`
+	}
+	skuInfo := map[uuid.UUID]skuMini{}
+	if len(skuIDs) > 0 {
+		var sm []skuMini
+		_ = s.DB.Table("product_skus AS sk").
+			Select("sk.id, sk.sku_code, sk.sku_name, sk.product_id, p.title AS product_title").
+			Joins("INNER JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL").
+			Where("sk.id IN ?", skuIDs).
+			Scan(&sm).Error
+		for _, m := range sm {
+			skuInfo[m.ID] = m
+		}
+	}
 	out := make([]OrderInventoryEffectDTO, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, OrderInventoryEffectDTO{
+		dto := OrderInventoryEffectDTO{
 			ID:                   r.ID,
 			CreatedAt:            r.CreatedAt,
 			UpdatedAt:            r.UpdatedAt,
@@ -148,7 +177,17 @@ func (s *Service) effectsPage(rows []OrderInventoryEffect, total int64, page, ps
 			Reason:               r.Reason,
 			ErrorMessage:         r.ErrorMessage,
 			InventoryChangeLogID: r.LogID,
-		})
+		}
+		if si, ok := skuInfo[r.ProductSKUID]; ok {
+			dto.SKUCode = si.SKUCode
+			dto.SKUName = si.SKUName
+			if dto.ProductID == nil || *dto.ProductID == uuid.Nil {
+				pid := si.ProductID
+				dto.ProductID = &pid
+			}
+			dto.ProductTitle = si.ProductTitle
+		}
+		out = append(out, dto)
 	}
 	return &PaginatedOrderEffects{
 		Items:      out,

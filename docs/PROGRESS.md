@@ -1,5 +1,7 @@
 # TradeMind 开发进度记录
-**Stage update**: 2026-06-29 — **Phase F2 订单中心与订单异常工作台完善完成**。新增独立订单详情 `/orders/:id`；列表增强 SKU/库存/同步/异常汇总列与筛选；`partial_success` 页级错误 UX（同步任务 Drawer + 失败页重试）；失败任务中心纳入 `partial_success`；异常工作台 ↔ 订单/同步/失败任务双向深链；轻量只读权限（`adminperm`）；订单 Demo 种子（`seed-demo-data` Phase F2）；设计文档 `ORDER_*`。`go test ./...`、`go build ./cmd/server/...`、`pnpm build:admin` 通过。**仍为 MVP Demo Ready / 非 Production Ready**；**抖店 Release Candidate**；**Tag pending**。未进入最终人工测试、真实预发、抖店 E2E、生产灰度。下一阶段建议：**Phase F3 库存中心完善**。
+**Stage update**: 2026-06-29 — **Phase F3 库存中心与库存同步完善完成**。新增库存中心 `/inventory` + `GET /api/v1/inventory`；库存扣减记录 `/inventory/deductions`；统一 SKU 未绑定/歧义阻断文案；`inventory_sync_enabled` 引导横幅；订单详情库存 Tab 深链；失败任务/异常工作台库存联动；只读 RBAC（`CanWriteInventory`）；Demo 种子 Phase F3（`docs/demo-dataset.inventory.json`）；设计文档 `INVENTORY_*`。`go test ./...`、`go build ./cmd/server/...`、`pnpm build:admin` 通过。**仍为 MVP Demo Ready / 非 Production Ready**；**抖店 Release Candidate**；**Tag pending**。未进入最终人工测试、真实预发、抖店 E2E、生产灰度。下一阶段建议：**Phase F4 客服中心完善**。
+
+**Stage update**: 2026-06-29 — **Phase F2 订单中心与订单异常工作台完善完成**。
 
 **Stage update**: 2026-06-29 — **Phase F1 全项目功能缺口审计与后续开发路线规划完成**。新增 [`FULL_PROJECT_FUNCTION_MAP.md`](FULL_PROJECT_FUNCTION_MAP.md)（34 模块完成度）、[`FULL_PROJECT_MVP_MAIN_FLOW.md`](FULL_PROJECT_MVP_MAIN_FLOW.md)（16 步主链路）、[`FULL_PROJECT_DEVELOPMENT_PLAN.md`](FULL_PROJECT_DEVELOPMENT_PLAN.md)（F2–F9 阶段）、[`FULL_PROJECT_MVP_GAP_AUDIT.md`](FULL_PROJECT_MVP_GAP_AUDIT.md)（P0–P3 缺口）。结论：**Full Project Development Planning Completed**；状态仍为 **`MVP Demo Ready`**（**非 Production Ready**）。**`v0.1.0-demo` Tag pending**。**抖店仍 Release Candidate**。`go test ./...`、`go build ./cmd/server/...`、`pnpm build:admin` 通过。**未**进入最终人工测试、真实预发、抖店真实 E2E、生产灰度。下一阶段建议：**Phase F2 订单中心与订单异常工作台完善**。
 

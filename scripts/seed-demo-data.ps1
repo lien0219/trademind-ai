@@ -420,6 +420,69 @@ $ordersOutFile = Join-Path $repoRoot "docs/demo-dataset.orders.json"
 } | ConvertTo-Json -Depth 6 | Set-Content -Path $ordersOutFile -Encoding UTF8
 Write-Host "Wrote $ordersOutFile with $($orderSamples.Count) order samples"
 
+Write-Host "Phase F3: inventory demo samples..."
+$inventorySamples = @()
+
+function Add-InvSample($tag, $note, $extra) {
+    $script:inventorySamples += @{ tag = $tag; note = $note } + $extra
+}
+
+$invNormal = New-Product @{
+    source = "manual"; title = "F3 demo normal stock SKU"
+    description = "Inventory center normal stock sample."
+    currency = "CNY"; status = "draft"
+    skus = @(@{ skuCode = "F3-NORMAL"; skuName = "Default"; price = 29; stock = 120; warningStock = 10; safetyStock = 2 })
+}
+if ($invNormal.id) { Add-InvSample "normal_stock_sku" "local stock 120" @{ productId = $invNormal.id } }
+
+$invLow = New-Product @{
+    source = "manual"; title = "F3 demo low stock SKU"
+    description = "Low stock alert sample."
+    currency = "CNY"; status = "draft"
+    skus = @(@{ skuCode = "F3-LOW"; skuName = "Default"; price = 19; stock = 3; warningStock = 10; safetyStock = 2 })
+}
+if ($invLow.id) { Add-InvSample "low_stock_sku" "stock below warning line" @{ productId = $invLow.id } }
+
+$invZero = New-Product @{
+    source = "manual"; title = "F3 demo zero stock SKU"
+    description = "Out of stock sample."
+    currency = "CNY"; status = "draft"
+    skus = @(@{ skuCode = "F3-ZERO"; skuName = "Default"; price = 9; stock = 0; warningStock = 5; safetyStock = 1 })
+}
+if ($invZero.id) { Add-InvSample "zero_stock_sku" "stock is 0" @{ productId = $invZero.id } }
+
+if ($ordNormal.id) {
+    $deduct = Invoke-Api -Method Post -Url "$ApiV1/orders/$($ordNormal.id)/deduct-inventory" -Body '{}' -Token $token
+    Add-InvSample "deduct_success_order" "manual deduct attempt on F2 normal order" @{
+        orderId = $ordNormal.id; deductResult = $(if ($deduct.error) { $deduct.error } else { "ok" })
+    }
+}
+
+if ($ordUnmatched.id) {
+    $deductFail = Invoke-Api -Method Post -Url "$ApiV1/orders/$($ordUnmatched.id)/deduct-inventory" -Body '{}' -Token $token
+    Add-InvSample "deduct_blocked_unmatched_order" "SKU not matched blocks deduct" @{
+        orderId = $ordUnmatched.id; deductResult = $(if ($deductFail.error) { $deductFail.error } else { "unexpected_ok" })
+    }
+}
+
+$alertsProbe = Invoke-Api -Method Get -Url "$ApiV1/inventory/alerts?page=1&pageSize=5" -Token $token
+$centerProbe = Invoke-Api -Method Get -Url "$ApiV1/inventory?page=1&pageSize=5" -Token $token
+Add-InvSample "inventory_sync_disabled_default" "inventory_sync_enabled defaults off in platform config" @{ probe = "settings.platforms" }
+Add-InvSample "inventory_alerts_api" "GET /inventory/alerts reachable" @{
+    alertCount = if ($alertsProbe.list) { @($alertsProbe.list).Count } else { 0 }
+}
+Add-InvSample "inventory_center_api" "GET /inventory center reachable" @{
+    centerCount = if ($centerProbe.list) { @($centerProbe.list).Count } else { 0 }
+}
+
+$inventoryOutFile = Join-Path $repoRoot "docs/demo-dataset.inventory.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F3 inventory demo samples; sync task failures may require publication SKU binding in dev DB"
+    samples = $inventorySamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $inventoryOutFile -Encoding UTF8
+Write-Host "Wrote $inventoryOutFile with $($inventorySamples.Count) inventory samples"
+
 $validation = @{
     productSlots20          = ($productSlots.Count -ge 20)
     taskSamples7          = ($taskSamples.Count -ge 7)

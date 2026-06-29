@@ -31,6 +31,7 @@ type pubJoinScan struct {
 	ExternalProductID string     `gorm:"column:external_product_id"`
 	ExternalSkuID     string     `gorm:"column:external_sku_id"`
 	SKUCode           string     `gorm:"column:sku_code"`
+	BindStatus        string     `gorm:"column:bind_status"`
 	PlatformStock     *int       `gorm:"column:platform_stock"`
 	LastSyncedAt      *time.Time `gorm:"column:last_synced_at"`
 }

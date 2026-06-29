@@ -20,6 +20,10 @@ import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  INVENTORY_SKU_AMBIGUOUS_MESSAGE,
+  INVENTORY_SKU_NOT_BOUND_MESSAGE,
+} from '@/constants/inventoryLabels';
+import {
   INVENTORY_SYNC_BATCHES_LABEL,
   INVENTORY_SYNC_TASKS_LABEL,
 } from '@/constants/userFriendly';
@@ -399,7 +403,7 @@ export default function InventoryAlertsPage() {
         <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
         （可勾选规格行后批量创建{' '}
         <Link to="/inventory/sync-batches">{INVENTORY_SYNC_BATCHES_LABEL}</Link>
-        ）。抖店规格须先在商品详情完成规格绑定后再同步库存。
+        ）。{INVENTORY_SKU_NOT_BOUND_MESSAGE}
       </Typography.Paragraph>
       <ProTable<InventoryAlertRow>
         rowKey={(r) => r.productSkuId}

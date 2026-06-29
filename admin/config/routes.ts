@@ -287,9 +287,19 @@ export default [
     component: '@/layouts/InventoryGroupLayout',
     routes: [
       {
+        path: '/inventory',
+        name: '库存中心',
+        component: './Inventory',
+      },
+      {
         path: '/inventory/alerts',
         name: '库存预警',
         component: './Inventory/Alerts',
+      },
+      {
+        path: '/inventory/deductions',
+        name: '库存扣减记录',
+        component: './Inventory/Deductions',
       },
       {
         path: '/inventory/sync-tasks',
@@ -303,8 +313,8 @@ export default [
       },
       {
         path: '/inventory/effects',
-        name: '订单库存影响',
-        component: './Inventory/Effects',
+        redirect: '/inventory/deductions',
+        hideInMenu: true,
       },
       {
         path: '/inventory/logs',

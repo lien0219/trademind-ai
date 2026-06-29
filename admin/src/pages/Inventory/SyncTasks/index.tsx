@@ -5,8 +5,11 @@ import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PAGE_COPY } from '@/constants/copywriting';
-import { COLLECT_TASK_STATUS } from '@/constants/status';
+import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
+import {
+  INVENTORY_SKU_AMBIGUOUS_MESSAGE,
+  INVENTORY_SKU_NOT_BOUND_MESSAGE,
+} from '@/constants/inventoryLabels';
 import { platformLabel } from '@/constants/userFriendly';
 import {
   getInventorySyncTask,
@@ -36,6 +39,22 @@ export default function InventorySyncTasksPage() {
     }
   }, [location.search]);
 
+  const taskIdFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('id')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
+
+  const skuIdFromUrl = useMemo(() => {
+    try {
+      return new URLSearchParams(location.search || '').get('productSkuId')?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [location.search]);
+
   const statusFromUrl = useMemo(() => {
     try {
       return new URLSearchParams(location.search || '').get('status')?.trim() || undefined;
@@ -59,6 +78,25 @@ export default function InventorySyncTasksPage() {
     formRef.current?.setFieldsValue?.({ status: statusFromUrl });
     actionRef.current?.reload?.();
   }, [statusFromUrl]);
+
+  useEffect(() => {
+    if (!skuIdFromUrl) return;
+    formRef.current?.setFieldsValue?.({ productSkuId: skuIdFromUrl });
+    actionRef.current?.reload?.();
+  }, [skuIdFromUrl]);
+
+  useEffect(() => {
+    if (!taskIdFromUrl) return;
+    void (async () => {
+      try {
+        const d = await getInventorySyncTask(taskIdFromUrl);
+        setDetail(d);
+        setDetailOpen(true);
+      } catch {
+        /* ignore invalid id */
+      }
+    })();
+  }, [taskIdFromUrl]);
 
   const columns: ProColumns<InventorySyncTaskDTO>[] = useMemo(
     () => [
@@ -189,7 +227,7 @@ export default function InventorySyncTasksPage() {
             >
               查看
             </a>
-            {r.status === 'failed' ? (
+            {r.status === 'failed' || r.status === 'partial_success' ? (
               <Popconfirm
                 title="确认重试该库存同步任务？"
                 onConfirm={async () => {
@@ -212,12 +250,18 @@ export default function InventorySyncTasksPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.inventorySyncTasks.title} subTitle={PAGE_COPY.inventorySyncTasks.description}>
+      <InventorySyncDisabledBanner />
       <Alert
         showIcon
         type="info"
         style={{ marginBottom: 16 }}
-        message="抖店库存同步说明"
-        description="须开启「启用库存同步」、商品已创建抖店平台草稿且全部规格已绑定抖店规格 ID（存在歧义 / 未匹配时会阻止同步）。可在商品详情 → 库存 Tab 或库存预警页发起同步；失败任务支持重试。"
+        message="库存同步前置条件"
+        description={
+          <>
+            {INVENTORY_SKU_NOT_BOUND_MESSAGE} {INVENTORY_SKU_AMBIGUOUS_MESSAGE}
+            须开启「启用库存同步」后，可在商品详情 → 库存 Tab 或库存预警页人工发起同步；失败任务支持重试。
+          </>
+        }
       />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         TikTok Shop、Shopee、Lazada、抖店已支持库存同步（测试中）；Amazon 仍在规划中。模拟店铺仍走模拟库存同步。

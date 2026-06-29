@@ -69,6 +69,7 @@ type OrderExceptionDTO struct {
 	DetailURL       string    `json:"detailUrl"`
 	OrderURL        string    `json:"orderUrl,omitempty"`
 	TaskCenterURL   string    `json:"taskCenterUrl,omitempty"`
+	InventoryURL    string    `json:"inventoryUrl,omitempty"`
 	SyncTaskID      string    `json:"syncTaskId,omitempty"`
 	Handled         bool      `json:"handled"`
 	Ignored         bool      `json:"ignored"`
