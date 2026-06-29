@@ -3,9 +3,9 @@ module github.com/trademind-ai/trademind/backend
 go 1.25.0
 
 require (
-	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.1
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.2
 	github.com/alibabacloud-go/ocr-api-20210707/v3 v3.1.3
-	github.com/alibabacloud-go/tea v1.5.0
+	github.com/alibabacloud-go/tea v1.5.1
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.9
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
 	github.com/aws/aws-sdk-go-v2 v1.42.0
