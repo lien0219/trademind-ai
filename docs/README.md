@@ -8,7 +8,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 
 | 你现在想做什么 | 建议先看 |
 | --- | --- |
-| 我想快速了解项目能做什么 | [../README.md](../README.md) · [roadmap.md](roadmap.md) · [PROGRESS.md](PROGRESS.md) |
+| 我想快速了解项目能做什么 | [../README.md](../README.md) · [roadmap.md](roadmap.md) · [PROGRESS.md](PROGRESS.md) · [FULL_PROJECT_FUNCTION_MAP.md](FULL_PROJECT_FUNCTION_MAP.md) |
 | 我想本地跑起来或用 Docker 试用 | [development.md](development.md) · [docker-deployment.md](docker-deployment.md) · [env.md](env.md) |
 | 我想接 API、改功能、扩 Provider | [architecture.md](architecture.md) · [api.md](api.md) · [provider.md](provider.md) |
 | 我想参与协作或用 AI 工具开发 | [../AGENTS.md](../AGENTS.md) · [ai-workflow.md](ai-workflow.md) · [module-map.md](module-map.md) |
@@ -31,6 +31,10 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [open-source-presentation-checklist.md](open-source-presentation-checklist.md) | 开源展示发布前自检：README、About、Topics、头图与文档入口一致性 | 维护者 / 开源协作者 |
 | [AI_PRODUCT_OPERATION_UX_AUDIT.md](AI_PRODUCT_OPERATION_UX_AUDIT.md) / [AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md](AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md) | AI 商品运营体验审计、A1.1 稳定性补强与验收状态 | 产品 / 前后端 / AI Agent |
 | [CODEX_MANUAL_SIMULATION_REPORT.md](CODEX_MANUAL_SIMULATION_REPORT.md) | Phase R1.3-Codex 模拟人工测试与体验问题扫描报告 | 产品 / 前后端 / AI Agent |
+| [FULL_PROJECT_FUNCTION_MAP.md](FULL_PROJECT_FUNCTION_MAP.md) | Phase F1 全项目 34 模块功能地图与完成度 | 产品 / 开发者 / AI Agent |
+| [FULL_PROJECT_MVP_MAIN_FLOW.md](FULL_PROJECT_MVP_MAIN_FLOW.md) | Phase F1 MVP 主链路 16 步定义 | 产品 / 开发者 |
+| [FULL_PROJECT_DEVELOPMENT_PLAN.md](FULL_PROJECT_DEVELOPMENT_PLAN.md) | Phase F2–F9 后续开发计划 | 产品 / 开发者 |
+| [FULL_PROJECT_MVP_GAP_AUDIT.md](FULL_PROJECT_MVP_GAP_AUDIT.md) | Phase F1 P0–P3 缺口审计 | 产品 / 开发者 |
 | [module-map.md](module-map.md) | 模块关联索引，说明改 A 时要检查哪些 B / C / D | 开发者 / AI Agent |
 | [roadmap.md](roadmap.md) | 版本路线图与阶段目标 | 所有人 |
 

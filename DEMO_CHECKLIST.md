@@ -1,7 +1,24 @@
 # TradeMind 演示验收清单（Demo Checklist）
 
 > 用于本地 / 预发环境快速验收核心 MVP 能力。按模块勾选。
-> **Release 状态（Phase R1）**：`MVP Demo Ready` — 见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+> **Release 状态（Phase R1 / F1）**：`MVP Demo Ready` — 见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+> **开发策略（Phase F1 起）**：先按 [`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md) 补齐全项目功能，**再**统一进入 Phase F9 总体验收。
+
+## Phase F1 全项目功能缺口审计与路线规划（2026-06-29）
+
+| 项 | 文档 | 状态 |
+| --- | --- | --- |
+| 全项目功能地图（34 模块） | `docs/FULL_PROJECT_FUNCTION_MAP.md` | [x] |
+| MVP 主链路（16 步） | `docs/FULL_PROJECT_MVP_MAIN_FLOW.md` | [x] |
+| 后续开发计划 F2–F9 | `docs/FULL_PROJECT_DEVELOPMENT_PLAN.md` | [x] |
+| P0–P3 缺口审计 | `docs/FULL_PROJECT_MVP_GAP_AUDIT.md` | [x] |
+| go test / build / admin build | — | [x] |
+| 最终人工测试 | — | [ ] **未进入**（留 Phase F9） |
+| 真实预发部署 | — | [ ] **未进入**（留 Phase F9） |
+| 抖店真实 E2E | — | [ ] **未进入**（Release Candidate） |
+| 生产灰度 | — | [ ] **未进入** |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+| Production Ready | — | [ ] **否** |
 
 ## Phase R1.3-Codex 模拟人工测试与体验问题扫描（2026-06-27）
 

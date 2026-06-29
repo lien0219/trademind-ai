@@ -38,7 +38,7 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **MVP Demo Ready** (Phase R1 / R1.1 / R1.2, 2026-06-27). R1.2 build and smoke passed; **`v0.1.0-demo` tag still pending** until real pre-release HTTPS and backup checks. AI product operations and multi-platform publish drafts are demo-ready; Douyin Shop remains **Release Candidate** until real E2E credentials. See [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md), [`docs/DEPLOYMENT_PRECHECK.md`](docs/DEPLOYMENT_PRECHECK.md), [`docs/DEMO_RELEASE_UX_ACCEPTANCE.md`](docs/DEMO_RELEASE_UX_ACCEPTANCE.md), [`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md).
+> Current status: **MVP Demo Ready** (Phase F1 full-project planning completed, 2026-06-29). Strategy: **complete planned features (F2–F8) first, then unified acceptance (F9)**. This phase does **not** include final manual QA, real pre-release deployment, Douyin E2E, or production gray release. **`v0.1.0-demo` tag still pending**. Douyin Shop remains **Release Candidate**. See [`docs/FULL_PROJECT_FUNCTION_MAP.md`](docs/FULL_PROJECT_FUNCTION_MAP.md), [`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md), [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 ## Positioning
 
