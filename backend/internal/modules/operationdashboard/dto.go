@@ -9,6 +9,7 @@ type Query struct {
 	Platform string
 	ShopID   string // raw UUID string
 	Source   string
+	Scope    Scope
 }
 
 // Summary aggregates MVP operational KPIs (read-only; local DB only).
@@ -62,6 +63,7 @@ type Summary struct {
 	InventoryAlerts      int64 `json:"inventoryAlerts"`
 	OrderExceptions      int64 `json:"orderExceptions"`
 	CollectFailedCount   int64 `json:"collectFailedCount"`
+	ConfigRiskCount      int64 `json:"configRiskCount"`
 	AiTitleCompleted     int64 `json:"aiTitleCompletedCount"`
 	AiDescCompleted      int64 `json:"aiDescriptionCompletedCount"`
 	CollectedProducts    int64 `json:"collectedProductsCount"`

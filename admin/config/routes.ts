@@ -25,7 +25,7 @@ export default [
       },
       {
         path: '/dashboard/product-operations',
-        name: '商品运营看板',
+        name: '运营总览',
         component: './Dashboard/ProductOperations',
       },
     ],

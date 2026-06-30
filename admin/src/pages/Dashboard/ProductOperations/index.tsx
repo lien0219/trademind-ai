@@ -451,71 +451,86 @@ function buildKpiCards(summary: DashboardSummary): {
   value: number;
   link: string;
   tone?: string;
+  emptyHint?: string;
 }[] {
   return [
     {
-      title: '商品草稿总数',
+      title: '今日采集任务',
+      value: summary.collectFailedCount ?? 0,
+      link: '/collect/tasks',
+      tone: '#2563eb',
+      emptyHint: '暂无采集任务',
+    },
+    {
+      title: '商品草稿',
       value: summary.draftTotal ?? summary.draftProducts + summary.readyProducts,
       link: '/product/drafts',
+      emptyHint: '还没有商品草稿',
     },
     {
-      title: '今日新增商品',
-      value: summary.todayNewProducts ?? 0,
-      link: '/product/drafts',
-      tone: '#2563eb',
-    },
-    {
-      title: '待补 AI 标题',
-      value: summary.missingAiTitle ?? summary.missingAiTitleCount ?? 0,
-      link: '/product/drafts?missingAiTitle=1',
+      title: 'AI 待复核',
+      value: (summary.aiPendingProducts ?? 0) + (summary.aiReplySuggestionPendingCount ?? 0),
+      link: '/ai/operation-workbench',
       tone: '#7c3aed',
+      emptyHint: '暂无待复核项',
     },
     {
-      title: '待补 AI 描述',
-      value: summary.missingAiDescription ?? summary.missingAiDescriptionCount ?? 0,
-      link: '/product/drafts?missingAiDescription=1',
-      tone: '#7c3aed',
-    },
-    {
-      title: 'AI 图片待处理',
-      value: summary.imageTaskPending ?? 0,
-      link: '/ai/image-tasks',
-      tone: '#0891b2',
-    },
-    {
-      title: '发布检查未通过',
+      title: '发布检查问题',
       value: summary.readinessBlocked ?? summary.readinessBlockedProducts ?? 0,
       link: '/product/drafts?readiness=blocked',
       tone: '#ea580c',
+      emptyHint: '发布检查均通过',
     },
     {
-      title: '可发布商品',
-      value: summary.publishable ?? 0,
-      link: '/product/drafts?publishable=1',
-      tone: '#059669',
+      title: '刊登任务异常',
+      value: summary.publishFailedTasks ?? 0,
+      link: '/product/publish-tasks?status=failed',
+      tone: '#dc2626',
+      emptyHint: '暂无刊登异常',
     },
     {
-      title: '已刊登商品',
-      value: summary.published ?? summary.publishedProducts ?? 0,
-      link: '/product/drafts?status=published',
-      tone: '#0d9488',
+      title: '订单异常',
+      value: summary.orderExceptions ?? summary.orderExceptionTotal ?? 0,
+      link: '/orders/exceptions',
+      tone: '#dc2626',
+      emptyHint: '暂无订单异常',
     },
     {
-      title: '库存预警',
-      value: summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus,
+      title: '库存异常',
+      value:
+        (summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus) +
+        (summary.inventorySyncFailedCount ?? 0),
       link: '/inventory/alerts',
       tone: '#dc2626',
+      emptyHint: '库存状态正常',
+    },
+    {
+      title: '客服待回复',
+      value: summary.customerPendingReplyCount ?? summary.customerPendingConversations ?? 0,
+      link: '/customer/conversations?status=pending_reply',
+      tone: '#0891b2',
+      emptyHint: '暂无待回复会话',
     },
     {
       title: '失败任务',
       value: summary.failedTaskTotal ?? summary.failedTasks ?? 0,
       link: '/ops/task-center/failures',
       tone: '#b91c1c',
+      emptyHint: '暂无失败任务',
+    },
+    {
+      title: '配置风险',
+      value: summary.configRiskCount ?? 0,
+      link: '/settings/config-status',
+      tone: '#b45309',
+      emptyHint: '核心配置已完成',
     },
   ];
 }
 
-function mergeRecentItems(recent: ProductOperationDashboard['recent']): (DashboardRecentItem & { bucket: string })[] {
+function mergeRecentItems(
+  recent: ProductOperationDashboard['recent'] | undefined,
+): (DashboardRecentItem & { bucket: string })[] {
   if (!recent) return [];
   const buckets: { items: DashboardRecentItem[]; label: string }[] = [
     { items: recent.collectedProducts ?? [], label: '采集' },
@@ -819,7 +834,7 @@ export default function ProductOperationsDashboardPage() {
             showSearch
             optionFilterProp="label"
             options={shops.map((s) => ({
-              label: s.name || s.id,
+              label: s.shopName || s.id,
               value: s.id,
             }))}
             value={filters.shopId}

@@ -2,6 +2,7 @@ import { ProCard, type ActionType, type ProColumns } from '@ant-design/pro-compo
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
 import { formatDateTime } from '@/utils/formatTime';
+import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import {
   Badge,
   Button,
@@ -500,18 +501,16 @@ export default function TaskCenterFailuresPage() {
   }
 
   function confirmRetry(row: UnifiedTaskDTO) {
-    Modal.confirm({
-      title: '确认重试此任务？',
+    confirmSensitiveAction({
+      title: '确认重试此失败任务？',
       content: `${TASK_CENTER_TASK_TYPE_LABEL[row.taskType] || row.taskType} · ${row.id}`,
-      okText: '重试',
+      impacts: ['将重新提交该任务到队列', '可能再次调用外部平台接口（取决于任务类型）'],
+      externalCall: true,
+      failureHint: '失败任务中心 / 对应业务任务页',
       onOk: async () => {
-        try {
-          await retryTaskFailure(row.taskType, row.id);
-          message.success('已提交重试');
-          actionRef.current?.reload?.();
-        } catch (e) {
-          message.error((e as Error).message);
-        }
+        await retryTaskFailure(row.taskType, row.id);
+        message.success('已提交重试');
+        actionRef.current?.reload?.();
       },
     });
   }
@@ -628,18 +627,18 @@ export default function TaskCenterFailuresPage() {
                       disabled={!batchRows.length}
                       type="primary"
                       onClick={() => {
-                        Modal.confirm({
-                          title: `批量重试（${batchRows.length} 条，最多 50）？`,
+                        confirmSensitiveAction({
+                          title: `批量重试 ${batchRows.length} 条失败任务？`,
+                          content: '最多一次重试 50 条，超出部分将被忽略。',
+                          impacts: batchRows.slice(0, 5).map((r) => `${TASK_CENTER_TASK_TYPE_LABEL[r.taskType] || r.taskType}`),
+                          externalCall: true,
+                          failureHint: '失败任务中心',
                           onOk: async () => {
-                            try {
-                              const res = await batchRetryTaskFailures(
-                                batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                              );
-                              message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
-                              actionRef.current?.reload?.();
-                            } catch (e) {
-                              message.error((e as Error).message);
-                            }
+                            const res = await batchRetryTaskFailures(
+                              batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                            );
+                            message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                            actionRef.current?.reload?.();
                           },
                         });
                       }}

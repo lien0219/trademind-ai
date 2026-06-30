@@ -61,7 +61,8 @@ func (s *Service) productTimeScope(ctx context.Context, q Query) *gorm.DB {
 	if soft, _ := s.schemaFlags(ctx); soft {
 		tx = tx.Where("products.deleted_at IS NULL")
 	}
-	return s.applyProductScope(tx, q)
+	tx = s.applyProductScope(tx, q)
+	return q.Scope.applyProductScope(tx)
 }
 
 func (s *Service) aiDescMissingExpr(ctx context.Context) string {

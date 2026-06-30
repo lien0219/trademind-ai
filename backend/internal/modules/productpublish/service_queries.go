@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func (s *Service) shopNameLookup(ctx context.Context, id uuid.UUID) string {
@@ -116,7 +117,7 @@ func (s *Service) GetDTO(ctx context.Context, taskID uuid.UUID) (TaskDTO, error)
 	return s.taskToDTO(ctx, &t), nil
 }
 
-func (s *Service) ListTasks(ctx context.Context, q ListTasksQuery) (*ListTasksResult, error) {
+func (s *Service) ListTasks(c *gin.Context, q ListTasksQuery) (*ListTasksResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("productpublish: no db")
 	}
@@ -131,7 +132,7 @@ func (s *Service) ListTasks(ctx context.Context, q ListTasksQuery) (*ListTasksRe
 	if ps > 100 {
 		ps = 100
 	}
-	tx := s.DB.WithContext(ctx).Model(&ProductPublishTask{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{})
 	if q.ProductID != nil {
 		tx = tx.Where("product_id = ?", *q.ProductID)
 	}
@@ -150,6 +151,11 @@ func (s *Service) ListTasks(ctx context.Context, q ListTasksQuery) (*ListTasksRe
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
@@ -161,7 +167,7 @@ func (s *Service) ListTasks(ctx context.Context, q ListTasksQuery) (*ListTasksRe
 	}
 	items := make([]TaskDTO, 0, len(rows))
 	for i := range rows {
-		items = append(items, s.taskToDTO(ctx, &rows[i]))
+		items = append(items, s.taskToDTO(c.Request.Context(), &rows[i]))
 	}
 	return &ListTasksResult{
 		Items:      items,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 )
 
@@ -575,14 +576,24 @@ func (s *Service) batchCreateResponseFromExisting(ctx context.Context, batch *Pr
 }
 
 // ListPublishBatches returns paginated multi-product batches.
-func (s *Service) ListPublishBatches(ctx context.Context, page, pageSize int) ([]PublishBatchListItem, int64, error) {
+func (s *Service) ListPublishBatches(c *gin.Context, page, pageSize int) ([]PublishBatchListItem, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	q := s.DB.WithContext(ctx).Model(&ProductPublishBatch{}).Where("batch_type = ?", BatchTypeMultiProduct)
+	q := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishBatch{}).Where("batch_type = ?", BatchTypeMultiProduct)
+	taskSub := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Select("DISTINCT batch_id").Where("batch_id IS NOT NULL")
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, taskSub, "shop_id"); err != nil {
+		return nil, 0, err
+	} else {
+		taskSub = scoped
+	}
+	p, _ := adminperm.LoadPrincipal(c, s.DB)
+	if p != nil && !p.IsAdmin() {
+		q = q.Where("id IN (?)", taskSub)
+	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err

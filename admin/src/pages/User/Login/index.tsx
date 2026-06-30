@@ -12,7 +12,8 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { Form, Input, Checkbox, Button, Tabs, Row, Col } from 'antd';
-import { history, useModel } from '@umijs/max';
+import { history } from '@umijs/max';
+import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import { message } from 'antd';
 import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
@@ -32,7 +33,7 @@ const FEATURE_TAGS = [
 const PLATFORM_ITEMS = ['1688', 'Shopee', 'Lazada', 'Temu'];
 
 export default function LoginPage() {
-  const { setInitialState, initialState } = useModel('@@initialState');
+  const { setInitialState, initialState } = useInitialStateModel();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
 

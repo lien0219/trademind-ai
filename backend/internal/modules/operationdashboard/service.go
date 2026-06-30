@@ -10,6 +10,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/configstatus"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -32,11 +33,12 @@ type Service struct {
 	Inventory       *inventory.Service
 	TaskCenter      *taskcenter.Service
 	OrderExceptions *orderexception.Service
+	ConfigStatus    *configstatus.Service
 	flags           schemaFlags
 }
 
 // GetProductOperationDashboard returns dashboard data (local DB only; no side effects).
-func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query) (*ProductOperationsDTO, error) {
+func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc Scope) (*ProductOperationsDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("operationdashboard: no db")
 	}
@@ -132,25 +134,47 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query) (*P
 	_ = s.suggestionPendingScope(ctx, q).Count(&sum.AiReplySuggestionPendingCount).Error
 
 	// Inventory alert totals via existing policy-aware listing (count-only)
-	invQBase := inventory.AlertsListQuery{
-		Platform:      strings.TrimSpace(q.Platform),
-		ShopID:        shopPtr,
-		Page:          1,
-		PageSize:      1,
-		IncludeNormal: false,
-		OnlyPublished: false,
-	}
-	if r, err := s.invCount(ctx, invQBase, inventory.AlertTypeLowStock); err == nil {
-		sum.LowStockSkus = r
-	}
-	if r, err := s.invCount(ctx, invQBase, inventory.AlertTypeOutOfStock); err == nil {
-		sum.OutOfStockSkus = r
-	}
-	if r, err := s.invCount(ctx, invQBase, inventory.AlertTypePlatformStockMismatch); err == nil {
-		sum.PlatformStockMismatchCount = r
-	}
-	if r, err := s.invCount(ctx, invQBase, inventory.AlertTypeInventorySyncFailed); err == nil {
-		sum.InventorySyncFailedCount = r
+	if shopPtr == nil && !q.Scope.IsAdmin && len(q.Scope.AllowedShopIDs) > 0 {
+		for _, sid := range q.Scope.AllowedShopIDs {
+			id := sid
+			invQ := inventory.AlertsListQuery{
+				Platform: strings.TrimSpace(q.Platform), ShopID: &id,
+				Page: 1, PageSize: 1, IncludeNormal: false, OnlyPublished: false,
+			}
+			if r, err := s.invCount(ctx, invQ, inventory.AlertTypeLowStock); err == nil {
+				sum.LowStockSkus += r
+			}
+			if r, err := s.invCount(ctx, invQ, inventory.AlertTypeOutOfStock); err == nil {
+				sum.OutOfStockSkus += r
+			}
+			if r, err := s.invCount(ctx, invQ, inventory.AlertTypePlatformStockMismatch); err == nil {
+				sum.PlatformStockMismatchCount += r
+			}
+			if r, err := s.invCount(ctx, invQ, inventory.AlertTypeInventorySyncFailed); err == nil {
+				sum.InventorySyncFailedCount += r
+			}
+		}
+	} else {
+		invQBase := inventory.AlertsListQuery{
+			Platform:      strings.TrimSpace(q.Platform),
+			ShopID:        shopPtr,
+			Page:          1,
+			PageSize:      1,
+			IncludeNormal: false,
+			OnlyPublished: false,
+		}
+		if r, err := s.invCount(ctx, invQBase, inventory.AlertTypeLowStock); err == nil {
+			sum.LowStockSkus = r
+		}
+		if r, err := s.invCount(ctx, invQBase, inventory.AlertTypeOutOfStock); err == nil {
+			sum.OutOfStockSkus = r
+		}
+		if r, err := s.invCount(ctx, invQBase, inventory.AlertTypePlatformStockMismatch); err == nil {
+			sum.PlatformStockMismatchCount = r
+		}
+		if r, err := s.invCount(ctx, invQBase, inventory.AlertTypeInventorySyncFailed); err == nil {
+			sum.InventorySyncFailedCount = r
+		}
 	}
 
 	// Task center failure + alerts
@@ -162,6 +186,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query) (*P
 			IncludeMarked:   false,
 			Start:           q.Start,
 			End:             q.End,
+			AllowedShopIDs:  q.Scope.AllowedShopIDs,
 		}
 		if su, err := s.TaskCenter.Summary(ctx, p); err == nil {
 			sum.FailedTaskTotal = su.TotalFailed
@@ -251,6 +276,12 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query) (*P
 	// Collect failures
 	collectFailTx := s.collectTaskScope(ctx, q).Where("status = ?", collect.StatusFailed)
 	_ = collectFailTx.Count(&sum.CollectFailedCount).Error
+
+	if s.ConfigStatus != nil {
+		if cs, err := s.ConfigStatus.DashboardSummary(ctx); err == nil && cs != nil {
+			sum.ConfigRiskCount = int64(cs.RiskCount)
+		}
+	}
 
 	// Today new products
 	todayStart := startOfDayUTC(time.Now().UTC())
@@ -356,7 +387,7 @@ func (s *Service) publishTaskScope(ctx context.Context, q Query) *gorm.DB {
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
-	return tx
+	return q.Scope.applyShopColumn(tx, "shop_id")
 }
 
 func (s *Service) publicationScope(ctx context.Context, q Query) *gorm.DB {
@@ -373,7 +404,7 @@ func (s *Service) publicationScope(ctx context.Context, q Query) *gorm.DB {
 	if q.End != nil {
 		tx = tx.Where("updated_at <= ?", *q.End)
 	}
-	return tx
+	return q.Scope.applyShopColumn(tx, "shop_id")
 }
 
 func (s *Service) customerConvScope(ctx context.Context, q Query) *gorm.DB {
@@ -390,7 +421,7 @@ func (s *Service) customerConvScope(ctx context.Context, q Query) *gorm.DB {
 	if q.End != nil {
 		tx = tx.Where("customer_conversations.updated_at <= ?", *q.End)
 	}
-	return tx
+	return q.Scope.applyShopColumn(tx, "customer_conversations.shop_id")
 }
 
 func (s *Service) suggestionPendingScope(ctx context.Context, q Query) *gorm.DB {
@@ -488,6 +519,10 @@ func buildTodoCards(sum *Summary, publishable int64) []TodoCard {
 			"刊登到平台时出错，请查看详情后重试", "/product/publish-tasks?status=failed"),
 		todoCard("order_exceptions", "订单异常", sum.OrderExceptionTotal, failureclassifier.SeverityHigh,
 			"含未匹配 SKU 等需人工处理的订单问题", "/orders/exceptions"),
+		todoCard("customer_pending", "客服待回复", sum.CustomerPendingReplyCount, failureclassifier.SeverityHigh,
+			"买家消息等待人工处理", "/customer/conversations?status=pending_reply"),
+		todoCard("failed_tasks", "失败任务待处理", sum.FailedTaskTotal, failureclassifier.SeverityCritical,
+			"统一失败任务中心有待处理项", "/ops/task-center/failures"),
 	}
 }
 

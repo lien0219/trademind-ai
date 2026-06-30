@@ -1,4 +1,4 @@
-import { useModel } from '@umijs/max';
+import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import {
   canManageSettings,
   canManageUsers,
@@ -14,9 +14,7 @@ import {
 } from '@/utils/permission';
 
 export function usePermission() {
-  const { initialState } = useModel('@@initialState') as {
-    initialState?: { currentUser?: API.CurrentUser };
-  };
+  const { initialState } = useInitialStateModel();
   const user = initialState?.currentUser;
   const role = user?.role;
   const perms = permissionsForRole(role, user?.permissions);

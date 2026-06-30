@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
@@ -178,6 +179,12 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		)`)
 	}
 
+	if scoped, err := adminperm.ApplyProductScope(c, s.DB, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
+
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
@@ -325,6 +332,9 @@ func (s *Service) Get(c *gin.Context, id uuid.UUID) (*DetailDTO, error) {
 			return db.Order("created_at ASC")
 		}).
 		First(&p, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
 		return nil, err
 	}
 	return toDetailDTO(&p), nil

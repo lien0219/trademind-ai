@@ -596,11 +596,22 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	tcH := &taskcenter.Handler{Svc: tcSvc}
 	taskcenter.Register(authed, tcH)
 
+	configStatusSvc := &configstatus.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Redis:    dep.Redis,
+		Config:   dep.Config,
+		Shops:    shopSvc,
+	}
+	configStatusH := &configstatus.Handler{Svc: configStatusSvc}
+	configstatus.Register(authed, configStatusH)
+
 	dashSvc := &operationdashboard.Service{
 		DB:              dep.DB,
 		Inventory:       inventorySvc,
 		TaskCenter:      tcSvc,
 		OrderExceptions: excSvc,
+		ConfigStatus:    configStatusSvc,
 	}
 	dashH := &operationdashboard.Handler{Svc: dashSvc}
 	operationdashboard.Register(authed, dashH)
@@ -616,16 +627,6 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
-
-	configStatusSvc := &configstatus.Service{
-		DB:       dep.DB,
-		Settings: settingsSvc,
-		Redis:    dep.Redis,
-		Config:   dep.Config,
-		Shops:    shopSvc,
-	}
-	configStatusH := &configstatus.Handler{Svc: configStatusSvc}
-	configstatus.Register(authed, configStatusH)
 
 	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
 }

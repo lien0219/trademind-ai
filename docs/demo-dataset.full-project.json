@@ -1,0 +1,26 @@
+{
+  "phase": "F6",
+  "generatedAt": "2026-06-30",
+  "description": "全项目 Demo 数据集索引；运行 scripts/seed-demo-data 与 seed-demo-permissions 后各子文件会更新",
+  "datasets": {
+    "products": "docs/demo-dataset.json",
+    "orders": "docs/demo-dataset.orders.json",
+    "inventory": "docs/demo-dataset.inventory.json",
+    "customer": "docs/demo-dataset.customer.json",
+    "permissions": "docs/demo-dataset.permissions.json"
+  },
+  "dashboardSamples": {
+    "collectFailed": "采集失败任务 ≥1",
+    "orderPartialSuccess": "订单同步 partial_success 样本",
+    "inventorySyncFailed": "库存同步失败样本",
+    "customerAiSuggestion": "客服 AI 已生成待确认",
+    "customerSendFailed": "客服发送失败样本",
+    "configRisk": "配置状态中心风险项",
+    "storeIsolation": "demo_operator 仅授权店铺 A"
+  },
+  "accounts": {
+    "admin": "demo_admin",
+    "operator": "demo_operator",
+    "readonly": "demo_readonly"
+  }
+}

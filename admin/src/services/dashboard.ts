@@ -48,6 +48,7 @@ export type DashboardSummary = {
   inventoryAlerts: number;
   orderExceptions: number;
   collectFailedCount: number;
+  configRiskCount?: number;
   aiTitleCompletedCount: number;
   aiDescriptionCompletedCount: number;
   collectedProductsCount: number;
@@ -120,6 +121,18 @@ export type ProductOperationDashboard = {
   };
   filters?: Record<string, unknown>;
 };
+
+export async function queryDashboardOverview(params?: Record<string, string | undefined>) {
+  return getWithParams('/api/v1/dashboard/overview', params);
+}
+
+export async function queryDashboardTodos(params?: Record<string, string | undefined>) {
+  return getWithParams('/api/v1/dashboard/todos', params);
+}
+
+export async function queryDashboardHealth(params?: Record<string, string | undefined>) {
+  return getWithParams('/api/v1/dashboard/health', params);
+}
 
 export async function queryProductOperationDashboard(params?: {
   start?: string;

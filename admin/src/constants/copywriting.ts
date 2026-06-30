@@ -31,8 +31,8 @@ export const PAGE_COPY = {
     description: '编辑商品标题、描述、图片与规格，完成 AI 优化与刊登准备。',
   },
   dashboard: {
-    title: '商品运营看板',
-    description: '查看商品、采集、AI 与任务的整体运营概况。',
+    title: '运营总览',
+    description: '查看采集、商品、AI、刊登、订单、库存、客服与配置的整体运营概况。',
   },
   aiImageTasks: {
     title: 'AI 图片任务',
@@ -262,6 +262,17 @@ export const COMMON_STATUS_LABEL: Record<string, string> = {
   passed: '检查通过',
   checking: '检查中',
   publishing: '刊登中',
+  pending_review: '待复核',
+  local_draft_only: '仅本地草稿',
+  real_draft_create: '创建平台草稿',
+  blocked_by_real_credentials: '缺少真实凭证',
+  blocked_by_provider_config: 'Provider 未配置',
+  unsupported_by_provider: '当前 Provider 不支持',
+  permission_denied: '无权限',
+  readonly_operation_forbidden: '只读账号不可操作',
+  store_permission_denied: '无店铺权限',
+  inventory_sync_enabled: '库存同步已开启',
+  manual_bound: '人工绑定',
 };
 
 export function commonStatusLabel(status?: string | null): string {
