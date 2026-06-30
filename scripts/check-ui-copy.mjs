@@ -48,7 +48,7 @@ const RULES = [
     hint: '→ 发布候选',
     allow: /RELEASE_GATE|RELEASE_GATE_CONCLUSION|'Release Candidate':|\/\*\*|\/\//,
   },
-  { pattern: /\bblocked_by_/i, hint: '→ 中文说明' },
+  { pattern: /\bblocked_by_/i, hint: '→ 中文说明', allow: /blocked_by_[a-z_]+:\s*['"`]/i },
   {
     pattern: /\bneed_check\b/,
     hint: '→ 需要检查',
