@@ -373,7 +373,22 @@ if (-not $SkipAiBatches -and $aiTextReview.id) {
 
 Write-Host "Phase F2: order demo samples..."
 $orderSamples = @()
+function Find-DemoOrderByExternalId($externalOrderId) {
+    if (-not $externalOrderId) { return $null }
+    $list = Invoke-Api -Method Get -Url ($ApiV1 + "/orders?page=1&pageSize=20&keyword=" + [uri]::EscapeDataString($externalOrderId)) -Token $token
+    if ($list.list) {
+        $hit = @($list.list | Where-Object { $_.externalOrderId -eq $externalOrderId } | Select-Object -First 1)
+        if ($hit) { return $hit }
+    }
+    return $null
+}
 function New-DemoOrder($bodyObj, $tag) {
+    $existing = $null
+    if ($bodyObj.externalOrderId) { $existing = Find-DemoOrderByExternalId $bodyObj.externalOrderId }
+    if ($existing -and $existing.id) {
+        $script:orderSamples += @{ tag = $tag; orderId = $existing.id; orderNo = $existing.orderNo; note = "reused existing demo order" }
+        return $existing
+    }
     $o = Invoke-Api -Method Post -Url "$ApiV1/orders" -Body ($bodyObj | ConvertTo-Json -Depth 8 -Compress) -Token $token
     if ($o.id) {
         $script:orderSamples += @{ tag = $tag; orderId = $o.id; orderNo = $o.orderNo }
@@ -423,7 +438,13 @@ Write-Host "Wrote $ordersOutFile with $($orderSamples.Count) order samples"
 Write-Host "Phase F4: customer service demo samples..."
 $customerSamples = @()
 function Add-CsSample($tag, $note, $extra) {
-    $script:customerSamples += @{ tag = $tag; note = $note } + $extra
+    $item = @{ tag = $tag; note = $note }
+    if ($extra) {
+        foreach ($k in $extra.Keys) {
+            if ($k -eq 'note') { $item.detail = $extra[$k] } else { $item[$k] = $extra[$k] }
+        }
+    }
+    $script:customerSamples += $item
 }
 
 $mockShops = Invoke-Api -Method Get -Url "$ApiV1/shops?page=1&pageSize=20&platform=mock" -Token $token
@@ -550,7 +571,13 @@ Write-Host "Wrote $inventoryOutFile with $($inventorySamples.Count) inventory sa
 Write-Host "Phase F7: dashboard aggregation probes..."
 $dashboardSamples = @()
 function Add-DashSample($tag, $note, $extra) {
-    $script:dashboardSamples += @{ tag = $tag; note = $note } + $extra
+    $item = @{ tag = $tag; note = $note }
+    if ($extra) {
+        foreach ($k in $extra.Keys) {
+            if ($k -eq 'note') { $item.detail = $extra[$k] } else { $item[$k] = $extra[$k] }
+        }
+    }
+    $script:dashboardSamples += $item
 }
 
 $dashOverview = Invoke-Api -Method Get -Url "$ApiV1/dashboard/overview" -Token $token

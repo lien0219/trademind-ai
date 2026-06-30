@@ -4,18 +4,18 @@
 
 ## 基础设施
 
-- [ ] 运行中 **backend**（`go build ./cmd/server/...` 或 Docker）
+- [x] 运行中 **backend**（F8.1 已复跑：`backend/tmp/server.exe`，`/health` ok）
 - [ ] 运行中 **admin**（`pnpm build:admin` + 静态服务或 dev）
-- [ ] **PostgreSQL** 可连接（默认 5432）
-- [ ] **Redis** 可连接
+- [x] **PostgreSQL** 可连接（默认 5432）
+- [x] **Redis** 可连接
 - [ ] **Collector** 服务（1688/PDD/淘宝采集走查时需要）
 
 ## Demo 与账号
 
-- [ ] 执行 `scripts/seed-demo-data.ps1`
-- [ ] 执行 `scripts/seed-demo-permissions.ps1`
-- [ ] （可选）`POST /api/v1/dev/demo-seed/full-project-edge-cases`（dev/demo）
-- [ ] **demo_admin** / **demo_operator** / **demo_readonly** 可登录
+- [x] 执行 `scripts/seed-demo-data.ps1`（F8.1 2026-06-30）
+- [x] 执行 `scripts/seed-demo-permissions.ps1`（F8.1 2026-06-30）
+- [x] `POST /api/v1/dev/demo-seed/full-project-edge-cases`（dev/demo，200，4 样本）
+- [x] **demo_admin** / **demo_operator** / **demo_readonly** 可登录（RBAC smoke passed）
 
 ## 配置
 
@@ -48,6 +48,8 @@
 - [ ] [`docs/FULL_PROJECT_MVP_MAIN_FLOW.md`](FULL_PROJECT_MVP_MAIN_FLOW.md) 对照表
 
 ## 自动化（F9 首日复跑）
+
+F8.1 已执行（2026-06-30）：结论 **passed**，报告 [`DEMO_AUTO_ACCEPTANCE_FULL_PROJECT_REPORT.md`](DEMO_AUTO_ACCEPTANCE_FULL_PROJECT_REPORT.md)。
 
 ```bash
 pnpm demo:auto-acceptance

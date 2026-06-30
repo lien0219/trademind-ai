@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -41,6 +42,17 @@ func adminUUID(c *gin.Context) *uuid.UUID {
 		}
 	}
 	return nil
+}
+
+func (h *Handler) denyWrite(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		return false
+	}
+	if !adminperm.CanWriteProduct(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "当前账号为只读权限，无法执行此操作")
+		return true
+	}
+	return false
 }
 
 func atoiQP(c *gin.Context, key string, def int) int {
@@ -131,6 +143,9 @@ func (h *Handler) GetOperationProgress(c *gin.Context) {
 func (h *Handler) Create(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	var body CreateBody

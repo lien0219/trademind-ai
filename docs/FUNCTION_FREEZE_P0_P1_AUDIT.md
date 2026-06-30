@@ -58,7 +58,7 @@
 | Demo worker 依赖 edge-case 样本 | 方案 A：`POST /api/v1/dev/demo-seed/full-project-edge-cases` | **已实现**（dev/demo only） |
 | 商品刊登配置 sensitiveConfirm | `confirmPlatformPublishConfigSave` | **已接入** DraftDetail |
 | 采集目标店铺提示 | Collect Hub/Tasks + 空状态 + 成功提示 | **已落地** |
-| demo:auto-acceptance 未跑 | F8 复跑或记录 backend 不可用 | **见测试报告** |
+| demo:auto-acceptance 未跑 | F8 复跑或记录 backend 不可用 | **F8.1 已复跑 passed**（见 [`DEMO_AUTO_ACCEPTANCE_FULL_PROJECT_REPORT.md`](DEMO_AUTO_ACCEPTANCE_FULL_PROJECT_REPORT.md)） |
 
 ---
 

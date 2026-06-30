@@ -8,6 +8,22 @@ $ErrorActionPreference = "Continue"
 $ApiV1 = "$ApiBase/api/v1"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
+function Import-DotEnv {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return }
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq "" -or $line.StartsWith("#")) { return }
+        $idx = $line.IndexOf("=")
+        if ($idx -lt 1) { return }
+        $key = $line.Substring(0, $idx).Trim()
+        $val = $line.Substring($idx + 1).Trim()
+        if ($val.StartsWith('"') -and $val.EndsWith('"')) { $val = $val.Substring(1, $val.Length - 2) }
+        if (-not [string]::IsNullOrWhiteSpace($key) -and -not (Test-Path "env:$key")) { Set-Item -Path "env:$key" -Value $val }
+    }
+}
+Import-DotEnv (Join-Path $repoRoot ".env")
+
 function Login($account, $password) {
     $r = Invoke-RestMethod -Method Post -Uri "$ApiV1/auth/login" -ContentType "application/json" `
         -Body (@{ account = $account; password = $password } | ConvertTo-Json)

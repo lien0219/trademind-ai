@@ -17,11 +17,40 @@
                              "orderPartialSuccess":  "order sync partial_success sample",
                              "configRisk":  "config status risk items"
                          },
-    "generatedAt":  "2026-06-30T10:08:15.4455511Z",
+    "generatedAt":  "2026-06-30T10:36:59.1302052Z",
     "accounts":  {
                      "admin":  "demo_admin@trademind.local",
                      "operator":  "demo_operator@trademind.local",
                      "readonly":  "demo_readonly@trademind.local"
                  },
-    "phase":  "F8"
+    "phase":  "F8",
+    "edgeCaseSeed":  {
+                         "phase":  "F8",
+                         "samples":  [
+                                         {
+                                             "tag":  "order_sync_partial_success",
+                                             "id":  "5c00dd69-9346-4f4e-b628-8c493ff0511b",
+                                             "note":  "订单同步 partial_success + 页级错误",
+                                             "status":  "created"
+                                         },
+                                         {
+                                             "tag":  "inventory_sync_failed",
+                                             "id":  "5beb40d4-9919-4f0b-8d7a-23792fc9d0f6",
+                                             "note":  "库存同步失败（SKU 未绑定）",
+                                             "status":  "created"
+                                         },
+                                         {
+                                             "tag":  "customer_reply_send_failed",
+                                             "id":  "fa8e32e5-a81a-4c7e-9101-98d8cf4fc2a1",
+                                             "note":  "客服发送失败 + 失败任务中心",
+                                             "status":  "created"
+                                         },
+                                         {
+                                             "tag":  "platform_not_authorized",
+                                             "id":  "33da66b2-5fe5-484a-8632-217274eb1d6e",
+                                             "note":  "平台未授权店铺 + 客服失败分类",
+                                             "status":  "created"
+                                         }
+                                     ]
+                     }
 }

@@ -8,6 +8,22 @@ $ErrorActionPreference = "Continue"
 $ApiV1 = "$ApiBase/api/v1"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
+function Import-DotEnv {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return }
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq "" -or $line.StartsWith("#")) { return }
+        $idx = $line.IndexOf("=")
+        if ($idx -lt 1) { return }
+        $key = $line.Substring(0, $idx).Trim()
+        $val = $line.Substring($idx + 1).Trim()
+        if ($val.StartsWith('"') -and $val.EndsWith('"')) { $val = $val.Substring(1, $val.Length - 2) }
+        if (-not [string]::IsNullOrWhiteSpace($key) -and -not (Test-Path "env:$key")) { Set-Item -Path "env:$key" -Value $val }
+    }
+}
+Import-DotEnv (Join-Path $repoRoot ".env")
+
 $login = Invoke-RestMethod -Method Post -Uri "$ApiV1/auth/login" -ContentType "application/json" `
     -Body (@{ account = $env:ADMIN_BOOTSTRAP_EMAIL; password = $env:ADMIN_BOOTSTRAP_PASSWORD } | ConvertTo-Json)
 $token = $login.data.token
@@ -27,7 +43,7 @@ function Probe($name, $url) {
 }
 
 Probe "orders_list" "$ApiV1/orders?page=1&pageSize=5"
-Probe "order_exceptions" "$ApiV1/order-exceptions?page=1&pageSize=5"
+Probe "order_exceptions" "$ApiV1/orders/exceptions?page=1&pageSize=5"
 Probe "inventory_center" "$ApiV1/inventory?page=1&pageSize=5"
 Probe "inventory_sync_tasks" "$ApiV1/inventory-sync/tasks?page=1&pageSize=5"
 Probe "customer_conversations" "$ApiV1/customer/conversations?page=1&pageSize=5"

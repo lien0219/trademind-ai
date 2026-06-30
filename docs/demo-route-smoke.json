@@ -3,49 +3,49 @@
     "passed":  true,
     "apiBase":  "http://127.0.0.1:8080",
     "appEnv":  "development",
-    "healthTimestamp":  "2026-06-30T10:36:52Z",
+    "healthTimestamp":  "2026-06-30T10:14:54Z",
     "unauthenticated":  [
                             {
                                 "path":  "/api/v1/products",
                                 "authGateOk":  true,
                                 "statusCode":  401,
-                                "durationMs":  7.2
+                                "durationMs":  7.4
                             },
                             {
                                 "path":  "/api/v1/products/ai-text/batches",
                                 "authGateOk":  true,
                                 "statusCode":  401,
-                                "durationMs":  6.8
+                                "durationMs":  7.1
                             },
                             {
                                 "path":  "/api/v1/products/ai-images/batches",
                                 "authGateOk":  true,
                                 "statusCode":  401,
-                                "durationMs":  6.9
+                                "durationMs":  7.2
                             },
                             {
                                 "path":  "/api/v1/product-publish/batches",
                                 "authGateOk":  true,
                                 "statusCode":  401,
-                                "durationMs":  7.1
+                                "durationMs":  7
                             },
                             {
                                 "path":  "/api/v1/ai/operation-workbench/summary",
                                 "authGateOk":  true,
                                 "statusCode":  401,
-                                "durationMs":  7.4
+                                "durationMs":  7.5
                             },
                             {
                                 "path":  "/api/v1/ai/operation-workbench/todos?page=1\u0026pageSize=50",
                                 "authGateOk":  true,
                                 "statusCode":  401,
-                                "durationMs":  7
+                                "durationMs":  7.1
                             },
                             {
                                 "path":  "/api/v1/task-center/failures",
                                 "authGateOk":  true,
                                 "statusCode":  401,
-                                "durationMs":  7.2
+                                "durationMs":  7.4
                             }
                         ],
     "failed500Count":  0,
@@ -56,7 +56,7 @@
     "routes":  [
                    {
                        "not500":  true,
-                       "durationMs":  15.6,
+                       "durationMs":  16.7,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  false,
@@ -66,7 +66,7 @@
                    },
                    {
                        "not500":  true,
-                       "durationMs":  13,
+                       "durationMs":  11.2,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  true,
@@ -76,7 +76,7 @@
                    },
                    {
                        "not500":  true,
-                       "durationMs":  9.5,
+                       "durationMs":  8.3,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  true,
@@ -86,7 +86,7 @@
                    },
                    {
                        "not500":  true,
-                       "durationMs":  9,
+                       "durationMs":  9.1,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  true,
@@ -96,7 +96,7 @@
                    },
                    {
                        "not500":  true,
-                       "durationMs":  10.7,
+                       "durationMs":  8.6,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  true,
@@ -106,7 +106,7 @@
                    },
                    {
                        "not500":  true,
-                       "durationMs":  114.5,
+                       "durationMs":  100.2,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  true,
@@ -116,7 +116,7 @@
                    },
                    {
                        "not500":  true,
-                       "durationMs":  105.8,
+                       "durationMs":  97.6,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  true,
@@ -126,7 +126,7 @@
                    },
                    {
                        "not500":  true,
-                       "durationMs":  23.7,
+                       "durationMs":  20.4,
                        "method":  "GET",
                        "statusCode":  200,
                        "auth":  true,
@@ -135,5 +135,5 @@
                        "note":  "authenticated_ok"
                    }
                ],
-    "generatedAt":  "2026-06-30T10:36:53.3553513Z"
+    "generatedAt":  "2026-06-30T10:14:54.7831046Z"
 }

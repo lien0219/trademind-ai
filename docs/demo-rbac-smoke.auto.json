@@ -1,7 +1,7 @@
 ﻿{
     "phase":  "F7",
-    "failed":  1,
-    "generatedAt":  "2026-06-30T09:51:04.9712826Z",
+    "failed":  0,
+    "generatedAt":  "2026-06-30T10:36:59.9118150Z",
     "results":  [
                     {
                         "detail":  "",
@@ -19,8 +19,8 @@
                         "name":  "readonly_profile"
                     },
                     {
-                        "detail":  "expected 403",
-                        "status":  "failed",
+                        "detail":  "http 403",
+                        "status":  "passed",
                         "name":  "readonly_write_403"
                     }
                 ]

@@ -1,162 +1,162 @@
 ﻿{
-    "automatableConclusion":  "failed",
+    "automatableConclusion":  "passed",
     "steps":  [
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "go test regression",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:49:31.3263010Z"
+                      "finishedAt":  "2026-06-30T10:35:50.7325200Z"
                   },
                   {
-                      "detail":  "",
-                      "status":  "passed",
+                      "detail":  "-SkipBuild",
+                      "status":  "skipped",
                       "name":  "go build backend",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:49:33.6351695Z"
+                      "finishedAt":  "2026-06-30T10:35:50.7365236Z"
                   },
                   {
-                      "detail":  "",
-                      "status":  "passed",
+                      "detail":  "-SkipBuild",
+                      "status":  "skipped",
                       "name":  "pnpm build:admin",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:50:04.2200733Z"
+                      "finishedAt":  "2026-06-30T10:35:50.7375027Z"
                   },
                   {
-                      "detail":  "",
-                      "status":  "passed",
+                      "detail":  "-SkipBuild",
+                      "status":  "skipped",
                       "name":  "git diff --check",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:50:04.2637388Z"
+                      "finishedAt":  "2026-06-30T10:35:50.7380078Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "check-ui-copy",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:50:04.4098483Z"
+                      "finishedAt":  "2026-06-30T10:35:50.9322224Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-empty-state-scan",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:50:04.4508476Z"
+                      "finishedAt":  "2026-06-30T10:35:50.9987323Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-sensitive-confirm-scan",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:50:04.4638501Z"
+                      "finishedAt":  "2026-06-30T10:35:51.0278398Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "security-release-check",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:50:06.8378374Z"
+                      "finishedAt":  "2026-06-30T10:35:55.4590667Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "check-doc-links",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:51:03.7338413Z"
+                      "finishedAt":  "2026-06-30T10:36:52.8832667Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-route-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:51:04.2367404Z"
+                      "finishedAt":  "2026-06-30T10:36:53.3596932Z"
                   },
                   {
-                      "detail":  "所在位置 D:\\project\\trademind-ai\\scripts\\seed-demo-data.ps1:587 字符: 61\r\n+ $shopsAll = Invoke-Api -Method Get -Url \"$ApiV1/shops?page=1\u0026pageSize ...\r\n+                                                             ~\n不允许使用与号(\u0026)。\u0026 运算符是为将来使用而保留的；请用双引号将与号引起来(\"\u0026\")，以将其作为字符串的一部分传递。\r\n\r\n所在位置 D:\\project\\trademind-ai\\scripts\\seed-demo-data.ps1:690 字符: 80\r\n+ ... es | Where-Object { $_.note -match \u0027local_draft_only\u0027 }).Count -ge 1)\r\n+                                                         ~~~~~~~~~~~~~~~~~\n字符串缺少终止符: \u0027。",
-                      "status":  "failed",
+                      "detail":  "",
+                      "status":  "passed",
                       "name":  "seed-demo-data",
-                      "exitCode":  1,
-                      "finishedAt":  "2026-06-30T09:51:04.2598559Z"
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-30T10:36:59.1695237Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "seed-demo-permissions",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:51:04.5253955Z"
+                      "finishedAt":  "2026-06-30T10:36:59.2662413Z"
                   },
                   {
                       "detail":  "",
-                      "status":  "failed",
+                      "status":  "passed",
                       "name":  "demo-dashboard-smoke",
-                      "exitCode":  1,
-                      "finishedAt":  "2026-06-30T09:51:04.7914454Z"
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-30T10:36:59.7238864Z"
                   },
                   {
                       "detail":  "",
-                      "status":  "failed",
+                      "status":  "passed",
                       "name":  "demo-rbac-smoke",
-                      "exitCode":  1,
-                      "finishedAt":  "2026-06-30T09:51:04.9732785Z"
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-30T10:36:59.9138165Z"
                   },
                   {
                       "detail":  "",
-                      "status":  "failed",
+                      "status":  "passed",
                       "name":  "demo-order-inventory-customer-smoke",
-                      "exitCode":  1,
-                      "finishedAt":  "2026-06-30T09:51:05.0601229Z"
+                      "exitCode":  0,
+                      "finishedAt":  "2026-06-30T10:37:00.0245127Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-text-route-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:51:05.1877216Z"
+                      "finishedAt":  "2026-06-30T10:37:00.1635931Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-text-trial-run",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:52:20.5679249Z"
+                      "finishedAt":  "2026-06-30T10:38:15.5677735Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-image-route-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:52:20.7196370Z"
+                      "finishedAt":  "2026-06-30T10:38:15.6919222Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-image-trial-run",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:58:23.0186259Z"
+                      "finishedAt":  "2026-06-30T10:44:43.5189170Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "publish-batch-perf",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:58:23.7954808Z"
+                      "finishedAt":  "2026-06-30T10:44:44.4691208Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-operation-workbench-perf",
                       "exitCode":  0,
-                      "finishedAt":  "2026-06-30T09:58:24.9069368Z"
+                      "finishedAt":  "2026-06-30T10:44:45.5867425Z"
                   }
               ],
-    "finishedAt":  "2026-06-30T09:58:24.9069368Z",
+    "finishedAt":  "2026-06-30T10:44:45.5867425Z",
     "finalStatus":  {
                         "douyin":  "Douyin Release Candidate",
                         "production":  "Not Production Ready",
                         "tag":  "Tag pending",
                         "release":  "MVP Demo Ready"
                     },
-    "startedAt":  "2026-06-30T09:49:25.6292378Z",
+    "startedAt":  "2026-06-30T10:35:33.3369744Z",
     "manualTestItems":  [
                             "Real preprod SSH deployment",
                             "Nginx / HTTPS",
@@ -169,8 +169,8 @@
                             "48-72h gray observation",
                             "v0.1.0-demo tag final confirmation"
                         ],
-    "failedStepCount":  4,
-    "phase":  "Phase F8-Auto",
+    "failedStepCount":  0,
+    "phase":  "Phase F8.1-Auto",
     "artifacts":  {
                       "aiTextTrial":  "docs/ai-text-trial-run.auto.json",
                       "emptyStateScan":  "docs/demo-empty-state-scan.auto.json",
@@ -194,8 +194,8 @@
                             "apiBase":  "http://127.0.0.1:8080",
                             "hostname":  "SK-20250814VKAY",
                             "appEnv":  "development",
-                            "startedAt":  "2026-06-30T09:49:25.6292378Z",
-                            "phase":  "Phase F8-Auto"
+                            "startedAt":  "2026-06-30T10:35:33.3369744Z",
+                            "phase":  "Phase F8.1-Auto"
                         },
     "blockedStepCount":  0
 }

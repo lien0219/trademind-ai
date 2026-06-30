@@ -10,6 +10,28 @@ param(
 
 $ApiV1 = "$ApiBase/api/v1"
 
+function Import-DotEnv {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return }
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq "" -or $line.StartsWith("#")) { return }
+        $idx = $line.IndexOf("=")
+        if ($idx -lt 1) { return }
+        $key = $line.Substring(0, $idx).Trim()
+        $val = $line.Substring($idx + 1).Trim()
+        if ($val.StartsWith('"') -and $val.EndsWith('"')) { $val = $val.Substring(1, $val.Length - 2) }
+        if (-not [string]::IsNullOrWhiteSpace($key) -and -not (Test-Path "env:$key")) {
+            Set-Item -Path "env:$key" -Value $val
+        }
+    }
+}
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+Import-DotEnv (Join-Path $repoRoot ".env")
+if (-not $AdminEmail) { $AdminEmail = $env:ADMIN_BOOTSTRAP_EMAIL }
+if (-not $AdminPassword) { $AdminPassword = $env:ADMIN_BOOTSTRAP_PASSWORD }
+
 function Invoke-Api {
     param([string]$Method, [string]$Url, [string]$Body = $null, [string]$Token = $null)
     $headers = @{ Accept = "application/json" }

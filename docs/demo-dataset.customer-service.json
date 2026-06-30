@@ -3,21 +3,21 @@
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "cd8394ff-69f4-4e41-92d2-517f26088bff",
+                        "conversationId":  "242175fa-b4f7-4cde-bcaf-dfe3d760304c",
                         "note":  "customer conversation",
                         "tag":  "pending_reply_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "c6d6e2b1-d282-4478-b23d-514794270b0e",
+                        "conversationId":  "a0fc487f-3904-403b-9d34-527738559e5f",
                         "note":  "customer conversation",
                         "tag":  "order_linked_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "c86e2a62-d069-4c44-b7f3-a9d4217af8a2",
+                        "conversationId":  "d5d523f6-0148-4c34-9d39-406610fe6a21",
                         "note":  "customer conversation",
                         "tag":  "inventory_consult_conversation"
                     },
@@ -27,11 +27,16 @@
                         "tag":  "unauthorized_platform_hint"
                     },
                     {
+                        "detail":  "use mock shop + externalConversationId to exercise send",
+                        "note":  "send failures recorded when platform send fails",
+                        "tag":  "send_failure_requires_platform"
+                    },
+                    {
                         "note":  "AI reply suggestion pending confirm",
                         "tag":  "ai_suggestion_generated",
-                        "suggestionId":  "085bfca3-80ed-4d22-8618-0715de01f12d"
+                        "suggestionId":  "31367201-b739-4a5a-b4ea-225583f716f1"
                     }
                 ],
-    "generatedAt":  "2026-06-30T10:08:15.4425541Z",
+    "generatedAt":  "2026-06-30T10:36:59.1282047Z",
     "note":  "F4+F7 customer service demo samples"
 }

@@ -1,7 +1,7 @@
 ﻿{
     "phase":  "F7",
-    "failed":  1,
-    "generatedAt":  "2026-06-30T09:51:05.0579376Z",
+    "failed":  0,
+    "generatedAt":  "2026-06-30T10:37:00.0225130Z",
     "results":  [
                     {
                         "status":  "passed",
@@ -9,9 +9,8 @@
                         "name":  "orders_list"
                     },
                     {
-                        "detail":  "远程服务器返回错误: (404) 未找到。",
-                        "status":  "failed",
-                        "url":  "http://127.0.0.1:8080/api/v1/order-exceptions?page=1\u0026pageSize=5",
+                        "status":  "passed",
+                        "url":  "http://127.0.0.1:8080/api/v1/orders/exceptions?page=1\u0026pageSize=5",
                         "name":  "order_exceptions"
                     },
                     {

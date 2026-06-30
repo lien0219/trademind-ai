@@ -13,26 +13,22 @@
                     ],
     "samples":  [
                     {
-                        "reachable":  false,
+                        "reachable":  true,
                         "kpiKeys":  [
-                                        "IsReadOnly",
-                                        "IsFixedSize",
-                                        "IsSynchronized",
-                                        "Keys",
-                                        "Values",
-                                        "SyncRoot",
-                                        "Count"
+                                        "generatedAt",
+                                        "sections",
+                                        "cards"
                                     ],
                         "note":  "GET /dashboard/overview",
                         "tag":  "dashboard_overview_api"
                     },
                     {
-                        "reachable":  false,
+                        "reachable":  true,
                         "note":  "GET /dashboard/todos",
                         "tag":  "dashboard_todos_api"
                     },
                     {
-                        "reachable":  false,
+                        "reachable":  true,
                         "note":  "GET /dashboard/health",
                         "tag":  "dashboard_health_api"
                     },
@@ -47,9 +43,19 @@
                         "tag":  "product_drafts_kpi"
                     },
                     {
-                        "workbenchTodoSum":  809,
+                        "workbenchTodoSum":  828,
                         "note":  "AI pending review kpi",
                         "tag":  "ai_pending_review_kpi"
+                    },
+                    {
+                        "detail":  "from workbench todos",
+                        "note":  "publish check issues kpi",
+                        "tag":  "publish_check_issues_kpi"
+                    },
+                    {
+                        "detail":  "from task samples",
+                        "note":  "publish task issues kpi",
+                        "tag":  "publish_task_issues_kpi"
                     },
                     {
                         "orderSampleCount":  3,
@@ -62,7 +68,7 @@
                         "tag":  "inventory_alerts_kpi"
                     },
                     {
-                        "customerSampleCount":  4,
+                        "customerSampleCount":  5,
                         "note":  "customer pending kpi",
                         "tag":  "customer_pending_kpi"
                     },
@@ -77,17 +83,17 @@
                         "tag":  "config_risk_kpi"
                     },
                     {
-                        "shopId":  "f2f96045-d6c2-42cf-9cd0-a8f5fc3ad1ce",
+                        "shopId":  "703435f3-54b7-4f7f-8837-9f92764c7c2e",
                         "result":  "ok",
                         "note":  "POST sync-orders on first shop",
                         "tag":  "order_sync_probe"
                     },
                     {
-                        "conversationId":  "cd8394ff-69f4-4e41-92d2-517f26088bff",
+                        "conversationId":  "242175fa-b4f7-4cde-bcaf-dfe3d760304c",
                         "note":  "AI suggestion pending confirm",
                         "tag":  "customer_ai_suggestion_kpi"
                     }
                 ],
-    "generatedAt":  "2026-06-30T10:08:15.4435497Z",
+    "generatedAt":  "2026-06-30T10:36:59.1292055Z",
     "note":  "F7 Dashboard KPI aggregation samples; run after seed-demo-data"
 }

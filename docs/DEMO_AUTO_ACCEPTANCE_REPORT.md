@@ -1,18 +1,18 @@
-﻿# TradeMind Phase F8 Full-Project Demo Auto Acceptance Report
+﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
 
-> Generated: 2026-06-30T09:58:24.9069368Z
+> Generated: 2026-06-30T10:44:45.5867425Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase
 
-**Phase F8-Auto** - Full-project demo smoke + static scans (not final manual acceptance)
+**Phase F8.1-Auto** - Full-project demo smoke + static scans (not final manual acceptance)
 
 ## Summary
 
 | Metric | Value |
 | --- | --- |
-| Conclusion | **failed** |
-| Failed steps | 4 |
+| Conclusion | **passed** |
+| Failed steps | 0 |
 | Blocked steps | 0 |
 
 ## Step results
@@ -20,28 +20,20 @@
 | Step | Status | Exit | Detail |
 | --- | --- | --- | --- |
 | go test regression | passed | 0 |  |
-| go build backend | passed | 0 |  |
-| pnpm build:admin | passed | 0 |  |
-| git diff --check | passed | 0 |  |
+| go build backend | skipped | 0 | -SkipBuild |
+| pnpm build:admin | skipped | 0 | -SkipBuild |
+| git diff --check | skipped | 0 | -SkipBuild |
 | check-ui-copy | passed | 0 |  |
 | demo-empty-state-scan | passed | 0 |  |
 | demo-sensitive-confirm-scan | passed | 0 |  |
 | security-release-check | passed | 0 |  |
 | check-doc-links | passed | 0 |  |
 | demo-route-smoke | passed | 0 |  |
-| seed-demo-data | failed | 1 | 所在位置 D:\project\trademind-ai\scripts\seed-demo-data.ps1:587 字符: 61
-+ $shopsAll = Invoke-Api -Method Get -Url "$ApiV1/shops?page=1&pageSize ...
-+                                                             ~
-不允许使用与号(&)。& 运算符是为将来使用而保留的；请用双引号将与号引起来("&")，以将其作为字符串的一部分传递。
-
-所在位置 D:\project\trademind-ai\scripts\seed-demo-data.ps1:690 字符: 80
-+ ... es | Where-Object { $_.note -match 'local_draft_only' }).Count -ge 1)
-+                                                         ~~~~~~~~~~~~~~~~~
-字符串缺少终止符: '。 |
+| seed-demo-data | passed | 0 |  |
 | seed-demo-permissions | passed | 0 |  |
-| demo-dashboard-smoke | failed | 1 |  |
-| demo-rbac-smoke | failed | 1 |  |
-| demo-order-inventory-customer-smoke | failed | 1 |  |
+| demo-dashboard-smoke | passed | 0 |  |
+| demo-rbac-smoke | passed | 0 |  |
+| demo-order-inventory-customer-smoke | passed | 0 |  |
 | ai-text-route-smoke | passed | 0 |  |
 | ai-text-trial-run | passed | 0 |  |
 | ai-image-route-smoke | passed | 0 |  |

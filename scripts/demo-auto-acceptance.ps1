@@ -99,10 +99,10 @@ $testEnv = @{
     appEnv    = $env:APP_ENV
     startedAt = $startedAt.ToString("o")
     hostname  = $env:COMPUTERNAME
-    phase     = "Phase F8-Auto"
+    phase     = "Phase F8.1-Auto"
 }
 
-Write-Host "TradeMind Phase F8 Full-Project Demo Acceptance"
+Write-Host "TradeMind Phase F8.1 Full-Project Demo Acceptance"
 Write-Host "API: $ApiBase | Backend up: $backendUp"
 
 $goPackages = @(
@@ -284,7 +284,7 @@ $finalStatus = @{
 }
 
 $report = @{
-    phase                 = "Phase F8-Auto"
+    phase                 = "Phase F8.1-Auto"
     testEnvironment       = $testEnv
     startedAt             = $startedAt.ToString("o")
     finishedAt            = (Get-Date).ToUniversalTime().ToString("o")
@@ -322,14 +322,14 @@ $report | ConvertTo-Json -Depth 10 | Set-Content -Path $fullProjectJson -Encodin
 
 $backendLabel = if ($backendUp) { "reachable" } else { "unreachable (API steps skipped)" }
 $mdLines = New-Object System.Collections.Generic.List[string]
-$mdLines.Add("# TradeMind Phase F8 Full-Project Demo Auto Acceptance Report")
+$mdLines.Add("# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report")
 $mdLines.Add("")
 $mdLines.Add("> Generated: $($report.finishedAt)")
 $mdLines.Add("> API: $ApiBase | Backend: $backendLabel")
 $mdLines.Add("")
 $mdLines.Add("## Phase")
 $mdLines.Add("")
-$mdLines.Add("**Phase F8-Auto** - Full-project demo smoke + static scans (not final manual acceptance)")
+$mdLines.Add("**Phase F8.1-Auto** - Full-project demo smoke + static scans (not final manual acceptance)")
 $mdLines.Add("")
 $mdLines.Add("## Summary")
 $mdLines.Add("")

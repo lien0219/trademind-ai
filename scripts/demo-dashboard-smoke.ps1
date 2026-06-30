@@ -37,7 +37,7 @@ $endpoints = @(
     "/dashboard/todos",
     "/dashboard/health",
     "/dashboard/product-operations",
-    "/config-status/overview"
+    "/settings/config-status"
 )
 $results = @()
 $failed = 0
