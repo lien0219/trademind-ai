@@ -200,6 +200,13 @@ export type ListEmptyKey = keyof typeof LIST_EMPTY_COPY;
 const PERM_HINT =
   '若你使用的是运营或只读账号，也可能是店铺权限范围导致看不到数据。';
 
+/** 采集 / 商品草稿店铺归属提示（F8）。不改变权限规则，仅引导运营选择目标店铺。 */
+export const COLLECT_TARGET_SHOP_HINT =
+  '运营账号只能查看已授权店铺的数据。采集后请先在商品详情的「刊登」Tab 选择目标店铺，或由管理员分配店铺归属，否则该草稿可能仅管理员可见。建议在采集前明确目标店铺，方便后续商品、刊登、订单、库存权限一致。';
+
+export const COLLECT_SUCCESS_SHOP_HINT =
+  '采集任务已提交。若你使用运营账号，采集完成后请在商品详情「刊登」Tab 选择目标店铺，或由管理员分配店铺归属，否则草稿可能仅管理员可见。';
+
 export const LIST_EMPTY_COPY = {
   dashboard: {
     title: '暂无最近动态',
@@ -225,7 +232,7 @@ export const LIST_EMPTY_COPY = {
     description: '可以先从采集中心采集商品，或手动创建商品草稿；演示环境也可运行 Demo 数据脚本。',
     action: '前往采集中心',
     actionPath: '/collect/hub',
-    permissionHint: PERM_HINT,
+    permissionHint: `${PERM_HINT} ${COLLECT_TARGET_SHOP_HINT}`,
   },
   aiOperationWorkbench: {
     title: '暂无待办商品',

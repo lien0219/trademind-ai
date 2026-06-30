@@ -1,17 +1,93 @@
-{
-  "phase": "F7",
-  "description": "Dashboard 10 KPI 样本索引",
-  "kpiCoverage": [
-    { "key": "collectFailed", "label": "今日采集任务", "sample": "collect_failed_task" },
-    { "key": "productDrafts", "label": "商品草稿", "sample": "productSlots20" },
-    { "key": "aiPendingReview", "label": "AI 待复核", "sample": "workbench todos" },
-    { "key": "publishCheckIssues", "label": "发布检查问题", "sample": "publish_check blockers" },
-    { "key": "publishTaskIssues", "label": "刊登任务异常", "sample": "publish_batch failures" },
-    { "key": "orderExceptions", "label": "订单异常", "sample": "order exception marks" },
-    { "key": "inventoryAlerts", "label": "库存异常", "sample": "F3-LOW / F3-ZERO SKUs" },
-    { "key": "customerPending", "label": "客服待回复", "sample": "pending_reply_conversation" },
-    { "key": "failureTasks", "label": "失败任务", "sample": "taskcenter_failure" },
-    { "key": "configRisk", "label": "配置风险", "sample": "config-status overview" }
-  ],
-  "samples": []
+﻿{
+    "kpiCoverage":  [
+                        "collect_failed",
+                        "product_drafts",
+                        "ai_pending_review",
+                        "publish_check_issues",
+                        "publish_task_issues",
+                        "order_exceptions",
+                        "inventory_alerts",
+                        "customer_pending",
+                        "failure_tasks",
+                        "config_risk"
+                    ],
+    "samples":  [
+                    {
+                        "reachable":  false,
+                        "kpiKeys":  [
+                                        "IsReadOnly",
+                                        "IsFixedSize",
+                                        "IsSynchronized",
+                                        "Keys",
+                                        "Values",
+                                        "SyncRoot",
+                                        "Count"
+                                    ],
+                        "note":  "GET /dashboard/overview",
+                        "tag":  "dashboard_overview_api"
+                    },
+                    {
+                        "reachable":  false,
+                        "note":  "GET /dashboard/todos",
+                        "tag":  "dashboard_todos_api"
+                    },
+                    {
+                        "reachable":  false,
+                        "note":  "GET /dashboard/health",
+                        "tag":  "dashboard_health_api"
+                    },
+                    {
+                        "hint":  "run collect task or seed failed collect below",
+                        "note":  "collect tasks kpi sample",
+                        "tag":  "collect_tasks_kpi"
+                    },
+                    {
+                        "productSlotCount":  20,
+                        "note":  "product drafts kpi",
+                        "tag":  "product_drafts_kpi"
+                    },
+                    {
+                        "workbenchTodoSum":  809,
+                        "note":  "AI pending review kpi",
+                        "tag":  "ai_pending_review_kpi"
+                    },
+                    {
+                        "orderSampleCount":  3,
+                        "note":  "order exceptions kpi",
+                        "tag":  "order_exceptions_kpi"
+                    },
+                    {
+                        "inventorySampleCount":  8,
+                        "note":  "inventory alerts kpi",
+                        "tag":  "inventory_alerts_kpi"
+                    },
+                    {
+                        "customerSampleCount":  4,
+                        "note":  "customer pending kpi",
+                        "tag":  "customer_pending_kpi"
+                    },
+                    {
+                        "taskCenterFailures":  1,
+                        "note":  "failure tasks kpi",
+                        "tag":  "failure_tasks_kpi"
+                    },
+                    {
+                        "hint":  "config-status center",
+                        "note":  "config risk kpi",
+                        "tag":  "config_risk_kpi"
+                    },
+                    {
+                        "shopId":  "f2f96045-d6c2-42cf-9cd0-a8f5fc3ad1ce",
+                        "result":  "ok",
+                        "note":  "POST sync-orders on first shop",
+                        "tag":  "order_sync_probe"
+                    },
+                    {
+                        "conversationId":  "cd8394ff-69f4-4e41-92d2-517f26088bff",
+                        "note":  "AI suggestion pending confirm",
+                        "tag":  "customer_ai_suggestion_kpi"
+                    }
+                ],
+    "generatedAt":  "2026-06-30T10:08:15.4435497Z",
+    "note":  "F7 Dashboard KPI aggregation samples; run after seed-demo-data"
 }

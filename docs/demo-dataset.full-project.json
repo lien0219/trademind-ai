@@ -1,27 +1,27 @@
-{
-  "phase": "F7",
-  "generatedAt": "2026-06-30",
-  "description": "全项目 Demo 数据集索引；运行 scripts/seed-demo-data 与 seed-demo-permissions 后各子文件会更新",
-  "datasets": {
-    "products": "docs/demo-dataset.json",
-    "dashboard": "docs/demo-dataset.dashboard.json",
-    "orders": "docs/demo-dataset.orders.json",
-    "inventory": "docs/demo-dataset.inventory.json",
-    "customer": "docs/demo-dataset.customer-service.json",
-    "permissions": "docs/demo-dataset.permissions.json"
-  },
-  "dashboardSamples": {
-    "collectFailed": "采集失败任务 ≥1",
-    "orderPartialSuccess": "订单同步 partial_success 样本",
-    "inventorySyncFailed": "库存同步失败样本",
-    "customerAiSuggestion": "客服 AI 已生成待确认",
-    "customerSendFailed": "客服发送失败样本",
-    "configRisk": "配置状态中心风险项",
-    "storeIsolation": "demo_operator 仅授权第一家店铺"
-  },
-  "accounts": {
-    "admin": "demo_admin@trademind.local",
-    "operator": "demo_operator@trademind.local",
-    "readonly": "demo_readonly@trademind.local"
-  }
+﻿{
+    "datasets":  {
+                     "products":  "docs/demo-dataset.json",
+                     "customer":  "docs/demo-dataset.customer-service.json",
+                     "orders":  "docs/demo-dataset.orders.json",
+                     "dashboard":  "docs/demo-dataset.dashboard.json",
+                     "inventory":  "docs/demo-dataset.inventory.json",
+                     "permissions":  "docs/demo-dataset.permissions.json"
+                 },
+    "description":  "Full-project demo dataset index; run seed-demo-data and seed-demo-permissions",
+    "dashboardSamples":  {
+                             "inventorySyncFailed":  "inventory sync failed sample",
+                             "customerAiSuggestion":  "customer AI suggestion pending",
+                             "customerSendFailed":  "customer send failed sample",
+                             "collectFailed":  "collect failed task sample",
+                             "storeIsolation":  "demo_operator first shop only",
+                             "orderPartialSuccess":  "order sync partial_success sample",
+                             "configRisk":  "config status risk items"
+                         },
+    "generatedAt":  "2026-06-30T10:08:15.4455511Z",
+    "accounts":  {
+                     "admin":  "demo_admin@trademind.local",
+                     "operator":  "demo_operator@trademind.local",
+                     "readonly":  "demo_readonly@trademind.local"
+                 },
+    "phase":  "F8"
 }

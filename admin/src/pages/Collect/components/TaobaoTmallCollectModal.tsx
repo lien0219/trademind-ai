@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { TaobaoTmallLoginPanel } from '@/pages/Collect/components/TaobaoTmallLoginPanel';
 import type { ProviderTaobaoTmallAuthStatus } from '@/services/collectAuth';
 import { createCollectTask } from '@/services/collectTasks';
+import { COLLECT_SUCCESS_SHOP_HINT } from '@/constants/copywriting';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import { classifyTaobaoTmallUrl, taobaoTmallUrlHint, validateTaobaoTmallUrl } from '@/utils/taobaoTmallUrl';
 
@@ -48,7 +49,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
         url: raw,
         useBrowserProfile: true,
       });
-      message.success('采集任务已提交，正在后台处理');
+      message.success(COLLECT_SUCCESS_SHOP_HINT, 6);
       onSubmitted?.();
       onClose();
     } catch (e) {

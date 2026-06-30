@@ -4,6 +4,19 @@ type OkFn = () => void | Promise<void>;
 
 const TASK_CENTER_HINT = '失败任务中心（/ops/task-center/failures）';
 
+/** 保存商品平台刊登配置（不直接上架） */
+export function confirmPlatformPublishConfigSave(onOk: OkFn) {
+  confirmSensitiveAction({
+    title: '保存平台刊登配置',
+    content: '将修改当前商品的平台刊登配置，不会直接上架。',
+    impacts: ['平台刊登配置', '发布检查结果', '后续刊登草稿创建'],
+    externalCall: false,
+    reversible: true,
+    failureHint: '可在商品详情查看提示，或在失败任务中心（/ops/task-center/failures）查看相关任务',
+    onOk,
+  });
+}
+
 /** 应用 AI 文案（标题/描述） */
 export function confirmApplyAiText(label: string, onOk: OkFn) {
   confirmSensitiveAction({

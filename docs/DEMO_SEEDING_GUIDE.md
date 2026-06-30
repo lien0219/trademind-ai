@@ -71,6 +71,26 @@ Get-Content docs/demo-dataset.json | ConvertFrom-Json | Select-Object -ExpandPro
 .\scripts\demo-rbac-smoke.ps1
 ```
 
+## F8 dev-only edge-case 样本
+
+在 **非 production** 环境，管理员可调用：
+
+```http
+POST /api/v1/dev/demo-seed/full-project-edge-cases
+Authorization: Bearer <admin token>
+```
+
+写入（**不调用真实外部平台**）：
+
+- 订单同步 `partial_success` + 页级错误
+- 库存同步 `failed`（SKU 未绑定）
+- 客服发送失败 + 失败任务中心记录
+- 平台未授权店铺样本
+
+操作写入 **operationlog**（`dev.demo_seed.full_project_edge_cases`）。
+
+`seed-demo-data.ps1` 在 API 在线时会自动探测此接口。
+
 ## 注意事项
 
 - **不写入真实平台数据**；抖店步骤预期 `blocked_by_real_credentials` 或 `local_draft_only`

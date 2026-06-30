@@ -5,7 +5,7 @@ param(
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $checks = @(
-    @{ file = "admin/src/pages/Product/DraftDetail/index.tsx"; pattern = "sensitiveActions" }
+    @{ file = "admin/src/pages/Product/DraftDetail/index.tsx"; pattern = "confirmPlatformPublishConfigSave" }
     @{ file = "admin/src/pages/Product/PublishBatch/index.tsx"; pattern = "sensitiveActions" }
     @{ file = "admin/src/pages/TaskCenter/Failures/index.tsx"; pattern = "sensitiveActions|confirmFailureTaskRetry" }
     @{ file = "admin/src/pages/Settings/Users/index.tsx"; pattern = "sensitiveActions" }

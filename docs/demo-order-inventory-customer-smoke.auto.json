@@ -1,0 +1,38 @@
+﻿{
+    "phase":  "F7",
+    "failed":  1,
+    "generatedAt":  "2026-06-30T09:51:05.0579376Z",
+    "results":  [
+                    {
+                        "status":  "passed",
+                        "url":  "http://127.0.0.1:8080/api/v1/orders?page=1\u0026pageSize=5",
+                        "name":  "orders_list"
+                    },
+                    {
+                        "detail":  "远程服务器返回错误: (404) 未找到。",
+                        "status":  "failed",
+                        "url":  "http://127.0.0.1:8080/api/v1/order-exceptions?page=1\u0026pageSize=5",
+                        "name":  "order_exceptions"
+                    },
+                    {
+                        "status":  "passed",
+                        "url":  "http://127.0.0.1:8080/api/v1/inventory?page=1\u0026pageSize=5",
+                        "name":  "inventory_center"
+                    },
+                    {
+                        "status":  "passed",
+                        "url":  "http://127.0.0.1:8080/api/v1/inventory-sync/tasks?page=1\u0026pageSize=5",
+                        "name":  "inventory_sync_tasks"
+                    },
+                    {
+                        "status":  "passed",
+                        "url":  "http://127.0.0.1:8080/api/v1/customer/conversations?page=1\u0026pageSize=5",
+                        "name":  "customer_conversations"
+                    },
+                    {
+                        "status":  "passed",
+                        "url":  "http://127.0.0.1:8080/api/v1/task-center/failures?page=1\u0026pageSize=5",
+                        "name":  "task_center_failures"
+                    }
+                ]
+}

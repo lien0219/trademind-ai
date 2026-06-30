@@ -1,0 +1,37 @@
+﻿{
+    "phase":  "F7",
+    "failed":  4,
+    "generatedAt":  "2026-06-30T09:51:04.7894464Z",
+    "results":  [
+                    {
+                        "detail":  "远程服务器返回错误: (404) 未找到。",
+                        "endpoint":  "/dashboard/overview",
+                        "status":  "failed",
+                        "httpCode":  0
+                    },
+                    {
+                        "detail":  "远程服务器返回错误: (404) 未找到。",
+                        "endpoint":  "/dashboard/todos",
+                        "status":  "failed",
+                        "httpCode":  0
+                    },
+                    {
+                        "detail":  "远程服务器返回错误: (404) 未找到。",
+                        "endpoint":  "/dashboard/health",
+                        "status":  "failed",
+                        "httpCode":  0
+                    },
+                    {
+                        "detail":  "",
+                        "endpoint":  "/dashboard/product-operations",
+                        "status":  "passed",
+                        "httpCode":  200
+                    },
+                    {
+                        "detail":  "远程服务器返回错误: (404) 未找到。",
+                        "endpoint":  "/config-status/overview",
+                        "status":  "failed",
+                        "httpCode":  0
+                    }
+                ]
+}

@@ -1,4 +1,4 @@
-import { PAGE_COPY } from '@/constants/copywriting';
+import { PAGE_COPY, COLLECT_TARGET_SHOP_HINT } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { TmPageContainer } from '@/components/ui';
 import { history } from '@umijs/max';
@@ -168,6 +168,13 @@ export default function CollectHubPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.collectHub.title} subTitle={PAGE_COPY.collectHub.description}>
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="店铺归属与权限提示"
+        description={COLLECT_TARGET_SHOP_HINT}
+      />
       <Alert
         type="info"
         showIcon

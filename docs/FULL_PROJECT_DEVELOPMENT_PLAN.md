@@ -1,7 +1,7 @@
 # TradeMind 全项目后续开发计划（Phase F2–F9）
 
 > **Phase F1**（2026-06-29）完成全项目功能缺口审计与路线规划。
-> **Phase F7**（2026-06-30）完成全项目 Demo 数据升级。**F2–F7 ✅** · **当前 F8** · **F9 待启动**。
+> **Phase F8**（2026-06-30）功能冻结与 P0/P1 清零完成。**F2–F8 ✅** · **当前 F9** 总体验收待启动。
 > **当前状态**：**Full Project Functionality In Progress** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · Tag **pending**
 
 ## 阶段总览
@@ -14,7 +14,8 @@ F4  客服消息与 AI 回复建议完善        ✅
 F5  系统配置状态中心与权限角色完善    ✅
 F6  总 Dashboard 与全局体验完善      ✅
 F7  全项目 Demo 数据升级              ✅
-F8  全项目功能冻结（只修 P0/P1）      ← 当前
+F8  全项目功能冻结（P0/P1 清零）      ✅
+F9  最终总体验收                      ← 当前
 F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 ```
 
@@ -134,19 +135,21 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F8：全项目功能冻结 ← 当前
+## Phase F8：全项目功能冻结 ✅
 
 | 项 | 内容 |
 | --- | --- |
-| **目标** | 只修 P0/P1；不新增功能；准备最终总体验收 |
-| **输入** | F2–F7 交付物、GAP_AUDIT P0/P1 清单 |
-| **输出** | 冻结公告；P0/P1 清零或 documented defer；回归脚本全绿 |
-| **完成标准** | `demo-auto-acceptance` passed；无 open P0；P1 有 workaround 或 fix |
-| **不做** | 新 Provider、新平台、ERP 扩展 |
+| **目标** | P0/P1 清零；F7 剩余项收口；功能冻结规则 |
+| **输入** | F2–F7 交付物、GAP_AUDIT |
+| **输出** | [`FUNCTION_FREEZE_P0_P1_AUDIT.md`](FUNCTION_FREEZE_P0_P1_AUDIT.md)、[`FUNCTION_FREEZE_RULES.md`](FUNCTION_FREEZE_RULES.md)、dev edge-case seed API、sensitiveConfirm / 采集提示 |
+| **完成标准** | P0/P1 = 0（代码）；`demo-auto-acceptance` Phase F8-Auto；go test + admin build |
+| **不做** | 新模块、真实 E2E、tag、Production Ready |
+
+**2026-06-30 交付摘要**：dev-only `POST /dev/demo-seed/full-project-edge-cases`；刊登配置 sensitiveConfirm；采集店铺归属提示；F9 准备清单。
 
 ---
 
-## Phase F9：最终总体验收
+## Phase F9：最终总体验收 ← 当前
 
 | 项 | 内容 |
 | --- | --- |

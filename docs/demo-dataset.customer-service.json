@@ -1,17 +1,37 @@
-{
-  "phase": "F7",
-  "description": "客服 Demo 样本目录",
-  "scenarios": [
-    { "tag": "pending_reply_conversation", "note": "待回复会话" },
-    { "tag": "order_linked_conversation", "note": "关联订单" },
-    { "tag": "product_linked_conversation", "note": "关联商品上下文" },
-    { "tag": "inventory_consult_conversation", "note": "库存咨询" },
-    { "tag": "ai_suggestion_generated", "note": "AI 已生成建议待确认" },
-    { "tag": "ai_suggestion_pending_confirm", "note": "人工确认前" },
-    { "tag": "human_sent_reply", "note": "人工已发送" },
-    { "tag": "send_failure", "note": "customer_reply_send_failed" },
-    { "tag": "platform_not_authorized", "note": "customer_platform_not_authorized" },
-    { "tag": "message_sync_partial_success", "note": "customer_message_sync_partial_success" }
-  ],
-  "samples": []
+﻿{
+    "samples":  [
+                    {
+                        "status":  "open",
+                        "platform":  "manual",
+                        "conversationId":  "cd8394ff-69f4-4e41-92d2-517f26088bff",
+                        "note":  "customer conversation",
+                        "tag":  "pending_reply_conversation"
+                    },
+                    {
+                        "status":  "open",
+                        "platform":  "manual",
+                        "conversationId":  "c6d6e2b1-d282-4478-b23d-514794270b0e",
+                        "note":  "customer conversation",
+                        "tag":  "order_linked_conversation"
+                    },
+                    {
+                        "status":  "open",
+                        "platform":  "manual",
+                        "conversationId":  "c86e2a62-d069-4c44-b7f3-a9d4217af8a2",
+                        "note":  "customer conversation",
+                        "tag":  "inventory_consult_conversation"
+                    },
+                    {
+                        "probe":  "settings/platforms",
+                        "note":  "shops without auth show pending authorization in UI",
+                        "tag":  "unauthorized_platform_hint"
+                    },
+                    {
+                        "note":  "AI reply suggestion pending confirm",
+                        "tag":  "ai_suggestion_generated",
+                        "suggestionId":  "085bfca3-80ed-4d22-8618-0715de01f12d"
+                    }
+                ],
+    "generatedAt":  "2026-06-30T10:08:15.4425541Z",
+    "note":  "F4+F7 customer service demo samples"
 }

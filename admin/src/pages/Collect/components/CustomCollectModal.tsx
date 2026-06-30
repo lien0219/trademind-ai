@@ -10,6 +10,7 @@ import {
   ruleMatchesURL,
   suggestRuleDomainForHost,
 } from '@/utils/collectRuleMatch';
+import { COLLECT_SUCCESS_SHOP_HINT } from '@/constants/copywriting';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
 import { AIGenerateRuleModal } from '@/pages/Collect/components/AIGenerateRuleModal';
@@ -258,7 +259,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
             profileId: useBrowserProfile ? profileId : undefined,
             useBrowserProfile: useBrowserProfile && Boolean(profileId),
           });
-          message.success('采集任务已提交');
+          message.success(COLLECT_SUCCESS_SHOP_HINT, 6);
           onClose();
           history.push('/collect/tasks?source=custom');
           return true;

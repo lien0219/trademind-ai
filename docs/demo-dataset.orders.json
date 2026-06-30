@@ -1,15 +1,21 @@
-{
-  "phase": "F7",
-  "description": "订单 Demo 样本目录（运行 seed-demo-data.ps1 后 orders 数组会填充实际 ID）",
-  "scenarios": [
-    { "tag": "normal_order", "title": "F2-DEMO-NORMAL", "note": "正常订单，SKU 已匹配" },
-    { "tag": "sku_matched_order", "title": "SKU 已匹配订单", "note": "match-skus 后 matched" },
-    { "tag": "sku_unmatched_order", "title": "F2-DEMO-UNMATCH", "note": "SKU 未匹配" },
-    { "tag": "sku_ambiguous_order", "title": "F2-DEMO-AMBIG", "note": "ambiguous SKU" },
-    { "tag": "order_sync_partial_success", "title": "订单同步 partial_success", "note": "需 shop sync-orders 或 worker" },
-    { "tag": "order_sync_page_failed", "title": "页级失败", "note": "order_sync_tasks pageErrors" },
-    { "tag": "platform_auth_failed_sync", "title": "平台权限失败", "note": "未授权店铺同步" },
-    { "tag": "inventory_deduct_failed_order", "title": "扣减失败订单", "note": "unmatched SKU 阻断" }
-  ],
-  "orders": []
+﻿{
+    "generatedAt":  "2026-06-30T10:08:11.8579020Z",
+    "note":  "F2 order demo samples; partial_success sync tasks require shop sync or DB seed in dev",
+    "orders":  [
+                   {
+                       "orderId":  "a4d3b94d-5e5a-4c2c-a31a-05b6977efc26",
+                       "tag":  "normal_order",
+                       "orderNo":  "F2-DEMO-NORMAL-42605"
+                   },
+                   {
+                       "orderId":  "f3df7ace-dc9d-4d5c-9db7-1526ed698b0b",
+                       "tag":  "sku_unmatched_order",
+                       "orderNo":  "F2-DEMO-UNMATCH-78370"
+                   },
+                   {
+                       "orderId":  "e54aee2d-451d-4007-baed-ac496c3a62bd",
+                       "tag":  "sku_ambiguous_order",
+                       "orderNo":  "F2-DEMO-AMBIG-3261"
+                   }
+               ]
 }

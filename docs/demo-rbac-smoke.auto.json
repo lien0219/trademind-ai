@@ -1,0 +1,27 @@
+﻿{
+    "phase":  "F7",
+    "failed":  1,
+    "generatedAt":  "2026-06-30T09:51:04.9712826Z",
+    "results":  [
+                    {
+                        "detail":  "",
+                        "status":  "passed",
+                        "name":  "admin_profile"
+                    },
+                    {
+                        "detail":  "",
+                        "status":  "passed",
+                        "name":  "operator_profile"
+                    },
+                    {
+                        "detail":  "",
+                        "status":  "passed",
+                        "name":  "readonly_profile"
+                    },
+                    {
+                        "detail":  "expected 403",
+                        "status":  "failed",
+                        "name":  "readonly_write_403"
+                    }
+                ]
+}

@@ -1,34 +1,37 @@
-{
-  "generatedAt": "2026-06-29",
-  "accounts": [
-    {
-      "email": "demo_admin@trademind.local",
-      "password": "DemoAdmin123!",
-      "role": "admin",
-      "note": "全权限；可管理用户、系统配置、查看全部店铺数据"
-    },
-    {
-      "email": "demo_operator@trademind.local",
-      "password": "DemoOperator123!",
-      "role": "operator",
-      "storePermissions": [
-        { "storeTag": "demo_shop_authorized", "permissionScope": "operate" }
-      ],
-      "note": "仅授权店铺可写；不可访问系统设置与用户管理"
-    },
-    {
-      "email": "demo_readonly@trademind.local",
-      "password": "DemoReadonly123!",
-      "role": "readonly",
-      "storePermissions": [
-        { "storeTag": "demo_shop_authorized", "permissionScope": "view" }
-      ],
-      "note": "授权店铺只读；写操作被后端拦截"
-    }
-  ],
-  "negativeSamples": [
-    "operator 访问未授权店铺订单详情 → 404",
-    "readonly 调用库存调整 / 客服发送 → 403 READONLY_OPERATION_FORBIDDEN",
-    "operator 访问 /settings/users → 403 USER_MANAGE_PERMISSION_REQUIRED"
-  ]
+﻿{
+    "phase":  "F7",
+    "note":  "Passwords are demo-only; change in production.",
+    "generatedAt":  "2026-06-30T09:51:04.5243890Z",
+    "negativeTests":  [
+                          {
+                              "account":  "demo_readonly",
+                              "expect":  "403 on write APIs",
+                              "tag":  "readonly_write_blocked"
+                          },
+                          {
+                              "shopId":  "022c8b2e-9406-4443-a1d2-43d0bda9985c",
+                              "account":  "demo_operator",
+                              "expect":  "404 or 403",
+                              "tag":  "operator_cross_store_denied"
+                          }
+                      ],
+    "accounts":  {
+                     "demo_readonly":  {
+                                           "email":  "demo_readonly@trademind.local",
+                                           "authorizedShopId":  "deac0e4e-2541-42bd-9f08-f5a5e49f92ab",
+                                           "password":  "DemoReadonly123!",
+                                           "role":  "readonly"
+                                       },
+                     "demo_admin":  {
+                                        "email":  "demo_admin@trademind.local",
+                                        "password":  "DemoAdmin123!",
+                                        "role":  "admin"
+                                    },
+                     "demo_operator":  {
+                                           "email":  "demo_operator@trademind.local",
+                                           "authorizedShopId":  "deac0e4e-2541-42bd-9f08-f5a5e49f92ab",
+                                           "password":  "DemoOperator123!",
+                                           "role":  "operator"
+                                       }
+                 }
 }

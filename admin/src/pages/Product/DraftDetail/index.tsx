@@ -154,11 +154,13 @@ import {
   type PublicationSkuListingRow,
 } from '@/services/inventory';
 import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
+import { usePermission } from '@/hooks/usePermission';
 import {
   confirmApplyAiText,
   confirmCreatePlatformDraft,
   confirmInventoryManualAdjust,
   confirmInventorySync,
+  confirmPlatformPublishConfigSave,
   confirmSkuManualBind,
   confirmSkuUnbind,
   confirmUndoAiText,
@@ -801,6 +803,7 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
 
 export default function ProductDraftDetailPage() {
   const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
+  const { readonly } = usePermission();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ProductDetail | null>(null);
   const [err, setErr] = useState<string>();
@@ -1180,7 +1183,7 @@ export default function ProductDraftDetailPage() {
     };
   }, [douyinAttrs, douyinConfig, douyinForm, douyinMapping, douyinMappingForm, id, selectedDouyinCategory?.path]);
 
-  const handleBuildDouyinMapping = useCallback(async () => {
+  const runBuildDouyinMapping = useCallback(async () => {
     setDouyinMappingLoading(true);
     try {
       const vals = await douyinForm.validateFields();
@@ -1207,6 +1210,16 @@ export default function ProductDraftDetailPage() {
       setDouyinMappingLoading(false);
     }
   }, [douyinCategoryFlat, douyinConfig.categoryPath, douyinForm, douyinMappingForm, id]);
+
+  const handleBuildDouyinMapping = useCallback(() => {
+    if (readonly) {
+      message.error('只读账号不可执行写操作');
+      return;
+    }
+    confirmPlatformPublishConfigSave(async () => {
+      await runBuildDouyinMapping();
+    });
+  }, [readonly, runBuildDouyinMapping]);
 
   const handleSaveDouyinMapping = useCallback(async () => {
     if (!douyinMapping) {
@@ -3064,34 +3077,40 @@ export default function ProductDraftDetailPage() {
                               }
                             }}
                             onFinish={async (vals) => {
+                              if (readonly) {
+                                message.error('只读账号不可执行写操作');
+                                return;
+                              }
                               const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
                               if (vals.categoryId && !cat?.isLeaf) {
                                 message.error('只能选择抖店叶子类目');
                                 return;
                               }
-                              setDouyinSaving(true);
-                              try {
-                                const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
-                                  shopId: vals.shopId,
-                                  categoryId: vals.categoryId,
-                                  categoryPath: cat?.path || douyinConfig.categoryPath,
-                                  platformAttributes: vals.platformAttributes ?? {},
-                                });
-                                setDouyinConfig({
-                                  shopId: saved.shopId,
-                                  categoryId: saved.categoryId,
-                                  categoryPath: saved.categoryPath,
-                                  platformAttributes: saved.platformAttributes ?? {},
-                                });
-                                message.success('抖店刊登配置已保存');
-                                if (readinessPlat === 'douyin_shop') {
-                                  void runReadinessForTab();
+                              confirmPlatformPublishConfigSave(async () => {
+                                setDouyinSaving(true);
+                                try {
+                                  const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
+                                    shopId: vals.shopId,
+                                    categoryId: vals.categoryId,
+                                    categoryPath: cat?.path || douyinConfig.categoryPath,
+                                    platformAttributes: vals.platformAttributes ?? {},
+                                  });
+                                  setDouyinConfig({
+                                    shopId: saved.shopId,
+                                    categoryId: saved.categoryId,
+                                    categoryPath: saved.categoryPath,
+                                    platformAttributes: saved.platformAttributes ?? {},
+                                  });
+                                  message.success('抖店刊登配置已保存');
+                                  if (readinessPlat === 'douyin_shop') {
+                                    void runReadinessForTab();
+                                  }
+                                } catch (e: unknown) {
+                                  message.error((e as Error)?.message || '保存失败');
+                                } finally {
+                                  setDouyinSaving(false);
                                 }
-                              } catch (e: unknown) {
-                                message.error((e as Error)?.message || '保存失败');
-                              } finally {
-                                setDouyinSaving(false);
-                              }
+                              });
                             }}
                           >
                             <Form.Item name="shopId" label="抖店店铺" rules={[{ required: true, message: '请选择抖店店铺' }]}>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PinduoduoLoginPanel } from '@/pages/Collect/components/PinduoduoLoginPanel';
 import type { ProviderPinduoduoAuthStatus } from '@/services/collectAuth';
 import { createCollectTask } from '@/services/collectTasks';
+import { COLLECT_SUCCESS_SHOP_HINT } from '@/constants/copywriting';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import {
   classifyPinduoduoUrl,
@@ -73,7 +74,7 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
         url: raw,
         useBrowserProfile: useBrowserProfile || urlType === 'wholesale_detail',
       });
-      message.success('采集任务已提交，正在后台处理');
+      message.success(COLLECT_SUCCESS_SHOP_HINT, 6);
       onSubmitted?.();
       onClose();
     } catch (e) {

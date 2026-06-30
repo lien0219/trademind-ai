@@ -1,7 +1,17 @@
 # TradeMind 全项目 MVP 缺口审计（P0–P3）
 
 > **Phase F1**（2026-06-29）— 基于代码与文档的事实审计，按优先级分级。  
-> **Phase F7 更新**（2026-06-30）— F2–F7 交付后，主链路 Demo 样本与 smoke 已补齐；**F8 冻结 P0/P1**；**F9** 承担最终验收 / tag / E2E。
+> **Phase F8 更新**（2026-06-30）— F8 功能冻结；**P0/P1 代码层面已清零**；P0-02/P0-03 为 F9 环境项；**F9** 最终验收 / tag / E2E。
+
+## F8 后审计摘要
+
+| 指标 | F1 | F7 后 | F8 后 |
+| --- | --- | --- | --- |
+| P0 代码 open | 6 | 0（2 环境项） | **0** |
+| P1 open | 14 | 0 | **0** |
+| 主链路 Demo | 部分 | 16 步 | **16 步 + edge-case seed** |
+
+**结论**：**Function Freeze Ready**；抖店真实 E2E / 预发 / tag **留 F9**。详见 [`FUNCTION_FREEZE_P0_P1_AUDIT.md`](FUNCTION_FREEZE_P0_P1_AUDIT.md)。
 
 ## F7 后审计摘要
 
@@ -134,7 +144,7 @@
 
 ## 下一阶段建议
 
-**当前进入 Phase F8（功能冻结，只修 P0/P1）**；**Phase F9** 统一最终人工走查、真实预发、抖店 E2E、灰度与 tag 决策。
+**当前进入 Phase F9（最终总体验收准备）**；功能冻结规则见 [`FUNCTION_FREEZE_RULES.md`](FUNCTION_FREEZE_RULES.md)。
 
 ---
 

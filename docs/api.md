@@ -177,11 +177,18 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/ai/title-optimize` | AI 标题优化。 |
+| `POST` | `/api/v1/ai/title-optimize` | AI 标题优化（同步/任务，见实现）。 |
 | `POST` | `/api/v1/ai/description-generate` | AI 描述生成。 |
-| `POST` | `/api/v1/ai/chat` | AI 对话或客服建议。 |
 | `GET` | `/api/v1/ai/tasks` | AI 任务列表。 |
 | `GET` | `/api/v1/ai/tasks/:id` | AI 任务详情。 |
+
+客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
+
+## Dev / Demo 种子（非 production）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/dev/demo-seed/full-project-edge-cases` | **仅 dev/demo 环境**；需 **admin** 权限。写入订单 partial_success、库存同步失败、客服发送失败等样本；不调用真实外部平台。production 禁用。 |
 
 ## 采集
 
@@ -227,10 +234,10 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/stores` | 店铺列表。 |
-| `POST` | `/api/v1/stores/:platform/auth-url` | 生成平台授权地址。 |
-| `GET` | `/api/v1/stores/:platform/callback` | 平台 OAuth 回调。 |
-| `POST` | `/api/v1/stores/:id/refresh-token` | 刷新店铺授权 Token。 |
+| `GET` | `/api/v1/shops` | 店铺列表（现行路径；legacy `/stores` 已废弃）。 |
+| `GET` | `/api/v1/shops/:id` | 店铺详情。 |
+| `POST` | `/api/v1/shops/:id/sync-orders` | 手动触发订单同步。 |
+| `POST` | `/api/v1/shops/:id/oauth/douyin/refresh` | 刷新抖店授权 Token（示例；各平台 OAuth 见下表）。 |
 
 现行平台 Provider 与开放平台应用配置接口：
 

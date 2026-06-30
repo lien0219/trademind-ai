@@ -20,6 +20,7 @@ import {
 } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { COLLECT_SUCCESS_SHOP_HINT, COLLECT_TARGET_SHOP_HINT } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
@@ -379,6 +380,13 @@ export default function CollectTasksPage() {
         )
       }
     >
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="店铺归属与权限提示"
+        description={COLLECT_TARGET_SHOP_HINT}
+      />
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {formSource === 'custom' ? (
           <Alert
@@ -441,7 +449,7 @@ export default function CollectTasksPage() {
                     }
                   : {}),
               });
-              message.success('采集任务已提交，正在后台处理');
+              message.success(COLLECT_SUCCESS_SHOP_HINT, 6);
               actionRef.current?.reload();
             } catch (e) {
               message.error(mapCollectErrorMessage(e, vals.source));

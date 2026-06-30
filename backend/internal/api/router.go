@@ -28,6 +28,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/configstatus"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/demoseed"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
@@ -627,6 +628,15 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
+
+	if dep.Config == nil || !strings.EqualFold(strings.TrimSpace(dep.Config.AppEnv), "production") {
+		demoSeedSvc := &demoseed.Service{DB: dep.DB, OpLog: opLogSvc, AppEnv: "development"}
+		if dep.Config != nil && strings.TrimSpace(dep.Config.AppEnv) != "" {
+			demoSeedSvc.AppEnv = dep.Config.AppEnv
+		}
+		demoSeedH := &demoseed.Handler{Svc: demoSeedSvc}
+		demoseed.Register(authed, demoSeedH)
+	}
 
 	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
 }
