@@ -10,6 +10,8 @@ const ROOT = join(import.meta.dirname, '..');
 const STRICT = process.argv.includes('--strict');
 const reportIdx = process.argv.indexOf('--report');
 const REPORT_FILE = reportIdx >= 0 ? process.argv[reportIdx + 1] : null;
+const jsonIdx = process.argv.indexOf('--json');
+const JSON_FILE = jsonIdx >= 0 ? process.argv[jsonIdx + 1] : null;
 
 const INTERNAL_SCAN_DIRS = [
   join(ROOT, 'admin/src/pages'),
@@ -196,6 +198,9 @@ if (allHits.length === 0) {
   if (REPORT_FILE) {
     writeReport([]);
   }
+  if (JSON_FILE) {
+    writeJsonReport([]);
+  }
   process.exit(0);
 }
 
@@ -212,8 +217,30 @@ console.log('详见 docs/ui-copywriting.md');
 if (REPORT_FILE) {
   writeReport(allHits);
 }
+if (JSON_FILE) {
+  writeJsonReport(allHits);
+}
 
 process.exit(STRICT ? 1 : 0);
+
+/** @param {typeof hits} items */
+function writeJsonReport(items) {
+  const dir = dirname(JSON_FILE);
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    /* exists */
+  }
+  const payload = {
+    phase: 'F7',
+    generatedAt: new Date().toISOString(),
+    passed: items.length === 0,
+    hitCount: items.length,
+    hits: items.slice(0, 500),
+  };
+  writeFileSync(JSON_FILE, JSON.stringify(payload, null, 2), 'utf8');
+  console.log(`Wrote ${JSON_FILE}`);
+}
 
 /** @param {typeof hits} items */
 function writeReport(items) {

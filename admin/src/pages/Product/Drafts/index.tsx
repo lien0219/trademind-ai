@@ -7,6 +7,7 @@ import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, mes
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   PUBLISH_BATCH_LIMIT_MESSAGE,
   PUBLISH_BATCH_MAX_PRODUCTS,
@@ -50,6 +51,8 @@ export default function ProductDraftsPage() {
       status: sp.get('status')?.trim() || undefined,
     };
   }, [location.search]);
+
+  const emptyLocale = useListEmptyLocale('productDrafts', { permissionScoped: true });
 
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -319,6 +322,7 @@ export default function ProductDraftsPage() {
       )}
       <ProTable<ProductListRow>
         rowKey="id"
+        locale={emptyLocale}
         actionRef={actionRef}
         formRef={formRef}
         rowSelection={{

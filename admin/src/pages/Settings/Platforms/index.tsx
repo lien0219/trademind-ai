@@ -20,6 +20,7 @@ import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TechnicalDetails, TmPageContainer } from '@/components/ui';
 import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
+import { confirmPlatformConfigSave } from '@/constants/sensitiveActions';
 import { platformRuntimeHref } from '@/constants/platformRuntime';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import {
@@ -530,15 +531,21 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
           <Form
             layout="vertical"
             form={form}
-            onFinish={async (vals: Record<string, unknown>) => {
-              try {
-                await putPlatformAppSettings(meta.platform, buildPutValues(fields, vals));
-                message.success('设置已保存');
-                await load();
-              } catch (e: unknown) {
-                message.error((e as Error)?.message || '保存失败');
-              }
-            }}
+            onFinish={(vals: Record<string, unknown>) =>
+              new Promise<void>((resolve, reject) => {
+                confirmPlatformConfigSave(async () => {
+                  try {
+                    await putPlatformAppSettings(meta.platform, buildPutValues(fields, vals));
+                    message.success('设置已保存');
+                    await load();
+                    resolve();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '保存失败');
+                    reject(e);
+                  }
+                });
+              })
+            }
           >
             <FormGrid>
               {fields.map((f) =>

@@ -185,15 +185,154 @@ export const ACTION_COPY = {
   goToShops: '前往店铺管理',
 } as const;
 
-/** 空状态默认文案 */
-export const EMPTY_COPY = {
-  defaultTitle: '暂无内容',
-  defaultDescription: '当前没有可展示的数据。',
+/** 列表页空状态文案（F7 EmptyState rollout） */
+export type ListEmptyCopy = {
+  title: string;
+  description: string;
+  action?: string;
+  actionPath?: string;
+  onAction?: () => void;
+  permissionHint?: string;
+};
+
+export type ListEmptyKey = keyof typeof LIST_EMPTY_COPY;
+
+const PERM_HINT =
+  '若你使用的是运营或只读账号，也可能是店铺权限范围导致看不到数据。';
+
+export const LIST_EMPTY_COPY = {
+  dashboard: {
+    title: '暂无最近动态',
+    description: '完成采集、AI 优化或刊登操作后，这里会显示最近运营动态。',
+    action: '前往运营总览',
+    actionPath: '/dashboard/product-operations',
+  },
+  collectHub: {
+    title: '暂未获取到采集器',
+    description: '请检查采集服务是否已启动；也可先在采集设置中配置连接。',
+    action: '前往采集设置',
+    actionPath: '/settings/collector',
+  },
+  collectTasks: {
+    title: '暂无采集任务',
+    description: '输入商品链接创建采集任务，或运行 Demo 数据脚本生成样本。',
+    action: '前往采集中心',
+    actionPath: '/collect/hub',
+    permissionHint: PERM_HINT,
+  },
+  productDrafts: {
+    title: '暂无商品草稿',
+    description: '可以先从采集中心采集商品，或手动创建商品草稿；演示环境也可运行 Demo 数据脚本。',
+    action: '前往采集中心',
+    actionPath: '/collect/hub',
+    permissionHint: PERM_HINT,
+  },
+  aiOperationWorkbench: {
+    title: '暂无待办商品',
+    description: '当商品有待优化标题、描述、图片或刊登检查时，会出现在此工作台。',
+    action: '查看商品草稿',
+    actionPath: '/product/drafts',
+  },
+  aiTextBatches: {
+    title: '暂无 AI 文案批次',
+    description: '在商品草稿中选择商品发起 AI 标题/描述批次任务。',
+    action: '前往商品草稿',
+    actionPath: '/product/drafts',
+  },
+  aiImageBatches: {
+    title: '暂无 AI 图片批次',
+    description: '在商品草稿或 AI 图片任务页发起图片处理批次。',
+    action: '前往商品草稿',
+    actionPath: '/product/drafts',
+  },
+  publishBatches: {
+    title: '暂无刊登批次',
+    description: '商品通过发布检查后，可批量创建刊登草稿。',
+    action: '前往商品草稿',
+    actionPath: '/product/drafts',
+  },
+  orderList: {
+    title: '暂无订单数据',
+    description: '可以先配置店铺授权并手动同步订单；演示环境也可以运行 Demo 数据脚本生成样本。',
+    action: '前往店铺管理',
+    actionPath: '/shops/manage',
+    permissionHint: PERM_HINT,
+  },
+  orderExceptions: {
+    title: '暂无订单异常',
+    description: '订单同步或 SKU 匹配出现问题时会在此展示；当前没有需要处理的异常。',
+    action: '查看订单列表',
+    actionPath: '/orders/list',
+    permissionHint: PERM_HINT,
+  },
+  inventoryCenter: {
+    title: '暂无库存数据',
+    description: '商品 SKU 创建后库存会在此汇总；也可运行 Demo 数据脚本生成样本。',
+    action: '前往商品草稿',
+    actionPath: '/product/drafts',
+    permissionHint: PERM_HINT,
+  },
+  inventoryAlerts: {
+    title: '暂无库存预警',
+    description: '当 SKU 库存低于预警线或缺货时，会在此显示预警记录。',
+    action: '查看库存中心',
+    actionPath: '/inventory',
+    permissionHint: PERM_HINT,
+  },
+  inventoryDeductions: {
+    title: '暂无扣减记录',
+    description: '订单库存扣减成功或失败后，记录会出现在此列表。',
+    action: '查看订单列表',
+    actionPath: '/orders/list',
+    permissionHint: PERM_HINT,
+  },
+  inventorySyncTasks: {
+    title: '暂无库存同步任务',
+    description: '开启库存同步并在商品详情发起同步后，任务会在此展示。',
+    action: '查看配置状态',
+    actionPath: '/settings/config-status',
+    permissionHint: PERM_HINT,
+  },
+  customerHub: {
+    title: '暂无客服概览数据',
+    description: '创建客服会话或同步平台消息后，概览数据会在此展示。',
+    action: '查看会话列表',
+    actionPath: '/customer/conversations',
+    permissionHint: PERM_HINT,
+  },
+  customerConversations: {
+    title: '暂无客服会话',
+    description: '买家咨询会话会在此展示；演示环境可运行 Demo 数据脚本生成样本。',
+    action: '新建会话',
+    actionPath: '/customer/conversations',
+    permissionHint: PERM_HINT,
+  },
+  taskFailures: {
+    title: '暂无失败任务',
+    description: '系统运行正常，当前没有需要重试的失败任务。',
+    action: '查看配置状态',
+    actionPath: '/settings/config-status',
+  },
+  configStatus: {
+    title: '暂无配置项',
+    description: '配置状态中心会聚合 AI、存储、平台等配置健康状态；若为空请刷新或检查后台服务。',
+    action: '前往系统设置',
+    actionPath: '/settings/integrations',
+  },
+  usersSettings: {
+    title: '暂无用户',
+    description: '管理员可在此创建后台账号并分配角色与店铺权限。',
+    action: '创建用户',
+  },
+  operationLogs: {
+    title: '暂无操作日志',
+    description: '关键配置变更与业务操作会记录在此，便于审计追溯。',
+  },
   orderSync: {
     title: '暂无同步任务',
     description: '完成店铺授权后，可以手动同步订单。',
     action: '前往店铺管理',
-    actionPath: '/shops',
+    actionPath: '/shops/manage',
   },
   productDraft: {
     title: '暂无商品草稿',
@@ -201,7 +340,10 @@ export const EMPTY_COPY = {
     action: '前往采集中心',
     actionPath: '/collect/hub',
   },
-} as const;
+} as const satisfies Record<string, ListEmptyCopy>;
+
+/** @deprecated 使用 LIST_EMPTY_COPY */
+export const EMPTY_COPY = LIST_EMPTY_COPY;
 
 /** 发布检查项级别 */
 export const READINESS_LEVEL_LABEL: Record<string, string> = {

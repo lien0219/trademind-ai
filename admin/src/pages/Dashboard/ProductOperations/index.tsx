@@ -17,13 +17,13 @@ import {
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
 import {
   Button,
   Col,
   DatePicker,
-  Empty,
   Result,
   Row,
   Select,
@@ -718,6 +718,7 @@ function DashboardSkeleton() {
 }
 
 export default function ProductOperationsDashboardPage() {
+  const dashboardEmptyLocale = useListEmptyLocale('dashboard');
   const [filters, setFilters] = useState<FilterState>({});
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -954,14 +955,7 @@ export default function ProductOperationsDashboardPage() {
                 ))}
               </div>
             ) : (
-              <Empty description="暂无最近动态">
-                <Space>
-                  <Button type="primary" onClick={() => history.push('/collect/hub')}>
-                    去采集商品
-                  </Button>
-                  <Button onClick={() => history.push('/ai/image-tasks')}>去创建 AI 图片任务</Button>
-                </Space>
-              </Empty>
+              dashboardEmptyLocale.emptyText
             )}
           </ProCard>
 

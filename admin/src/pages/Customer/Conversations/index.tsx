@@ -4,8 +4,9 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 
 import { history, useLocation } from '@umijs/max';
-import { Button, Empty, Tag, Typography, message } from 'antd';
+import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   CUSTOMER_CONVERSATION_STATUS,
   CUSTOMER_SEND_STATUS,
@@ -31,6 +32,11 @@ export default function CustomerConversationsPage() {
   const actionRef = useRef<ActionType>();
   const location = useLocation();
   const [createOpen, setCreateOpen] = useState(false);
+  const emptyLocale = useListEmptyLocale('customerConversations', {
+    permissionScoped: true,
+    onAction: () => setCreateOpen(true),
+    actionLabel: '新建会话',
+  });
   const [pullOpen, setPullOpen] = useState(false);
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
 
@@ -228,15 +234,7 @@ export default function CustomerConversationsPage() {
             hasOrder: urlFilters.hasOrder ? 'true' : undefined,
           },
         }}
-        locale={{
-          emptyText: (
-            <Empty description="暂无客服会话">
-              <Button type="primary" onClick={() => setCreateOpen(true)}>
-                新建会话
-              </Button>
-            </Empty>
-          ),
-        }}
+        locale={emptyLocale}
         toolBarRender={() => [
           <Button key="hub" onClick={() => history.push('/customer/hub')}>
             客服中心

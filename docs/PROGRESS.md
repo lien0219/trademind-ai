@@ -1,4 +1,6 @@
 # TradeMind 开发进度记录
+**Stage update**: 2026-06-30 — **Phase F7 全项目 Demo 数据升级完成**。**Phase F2–F7 已全部交付**；**当前阶段 Phase F8（功能冻结）**；**F9 最终总体验收待启动**。扩展 `scripts/seed-demo-data.ps1`：20 商品 slot + 订单 / 库存 / 客服 / Dashboard KPI 聚合样本；`scripts/seed-demo-permissions.ps1`（demo_admin / demo_operator / demo_readonly）；输出 `docs/demo-dataset.*.json` 与 `docs/demo-dataset.full-project.json`；新增 smoke：`demo-dashboard-smoke`、`demo-rbac-smoke`、`demo-order-inventory-customer-smoke`、`demo-empty-state-scan`、`demo-sensitive-confirm-scan`；`demo-auto-acceptance.ps1` 升级为 **Phase F7-Auto**；指南 [`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)、[`DEMO_AUTO_ACCEPTANCE_GUIDE.md`](DEMO_AUTO_ACCEPTANCE_GUIDE.md)。F7 全局状态文案复扫 **passed**（`check-ui-copy --strict` + `global-status-copywriting-scan.json`）。`go test ./...`、`go build ./cmd/server/...`、`pnpm build:admin` 通过。**状态**：**Full Project Functionality In Progress** · **MVP Demo Ready** · **非 Production Ready** · **抖店 Release Candidate** · **`v0.1.0-demo` Tag pending**。**未**打 tag、**未**真实抖店 E2E、**未**最终人工总体验收（留 **Phase F9**）。
+
 **Stage update**: 2026-06-30 — **Phase F6 总 Dashboard 与全局体验 / 权限收口完成**。运营总览 `/dashboard/product-operations` 扩展为全链路入口（10 KPI 卡片 + 统一待办）；新增 API `GET /dashboard/overview|todos|health`；Dashboard 聚合应用 RBAC 店铺 scope；菜单级权限 `menuAccess.ts` + `menuDataRender`；商品 / 刊登 `adminperm` 店铺 scope（`ApplyProductScope` / `ApplyStoreScope`）；失败任务批量重试等接入 `confirmSensitiveAction`；全局状态文案收口 `COMMON_STATUS_LABEL`；设计文档 `DASHBOARD_*` / `GLOBAL_*` / `FULL_PROJECT_DEMO_DATASET.md`。`go test ./...`、`go build ./cmd/server/...`、`pnpm build:admin` 通过。**仍为 MVP Demo Ready / 非 Production Ready**；**抖店 Release Candidate**；**Tag pending**。未进入最终人工测试、真实预发、抖店 E2E、生产灰度。
 
 **Stage update**: 2026-06-29 — **Phase F5 权限、RBAC、配置状态中心与审计完善完成**。完整 RBAC（admin/operator/readonly）+ `user_store_permissions`；`adminperm` 权限矩阵与店铺隔离（订单/客服/失败任务/操作日志）；用户管理 `/settings/users` + API `/api/v1/admin/users`；配置状态中心 `/settings/config-status`；Profile 扩展 permissions/storePermissions；设置写操作与配置中心 admin 保护；审计日志扩展 shopId/adminRole；前端 `permission.ts` / `usePermission` / `PermissionGuard` / `sensitiveConfirm`；Demo 权限种子 `scripts/seed-demo-permissions.ps1` + `docs/demo-dataset.permissions.json`；设计文档 `RBAC_*` / `CONFIG_STATUS_*` / `OPERATION_AUDIT_*`。`go test ./internal/pkg/adminperm/...`、`go build ./cmd/server/...`、`pnpm build:admin` 通过。**仍为 MVP Demo Ready / 非 Production Ready**；**抖店 Release Candidate**；**Tag pending**。未进入最终人工测试、真实预发、抖店 E2E、生产灰度。
@@ -275,6 +277,8 @@
 
 | 维度 | 状态 |
 |------|------|
+| **全项目 F 阶段** | **F1–F7 ✅**（2026-06-30）· **当前 F8 功能冻结** · **F9 总体验收待启动** |
+| **发布状态** | **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · **`v0.1.0-demo` Tag pending** |
 | **路线图阶段** | **第 5 阶段（采集）**保持；**第 6 阶段（AI 图片）**保持（见 §3.2）；**AI 客服 MVP**：手工 / **平台拉取** 会话 + **AI 建议**；**仅人工**可 **发送到平台**（**不自动外发**） |
 | **当前阶段定位（2026-05-19）** | **非**完整 ERP 扩展阶段；**只收口**：**① AI 商品运营工具**、**② 多平台跨境 ERP MVP**。**完整 ERP 增强**（多仓、采购、售后财务、WMS/OMS 等）**后置**，见上文 **《当前产品路线》** |
 | **优先级** | **1）第一优先级：AI 商品运营工具** → **2）第二优先级：多平台跨境 ERP** → **3）后续迭代：完整 ERP 增强（暂时不做）**；供应链深能力**刻意不在当前排期** |
@@ -543,14 +547,24 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
-与文件顶部 **《当前产品路线》§四** 对齐；**SKU 候选推荐**已交付（**2026-05-18**），当前进入 **双主线 MVP 验收与体验收口**，**不新增完整 ERP 高级模块**。
+**全项目 F 阶段（2026-06-30）**：**F1–F7 ✅** · **当前 F8（功能冻结，只修 P0/P1）** · **F9（最终总体验收）待启动**。策略见 [`FULL_PROJECT_DEVELOPMENT_PLAN.md`](FULL_PROJECT_DEVELOPMENT_PLAN.md)。
 
-**当前排期（1–4）**
+**F8 当前排期**
 
-1. **多平台跨境 ERP MVP 验收检查**：四平台订单/刊登/库存同步 **`beta`** 实测与 **`taskcenter`** 联动。
-2. **AI 商品运营工具体验打磨**：批量 AI、草稿全链路、关键路径提示与稳定性。
-3. **错误提示 / 空状态 / 引导文案优化**：列表与详情、失败与重试、设置与授权等高频路径。
-4. **演示版本准备**：可稳定跑通顶部 **§一 / §二** 两条目标链路的演示包与检查清单。
+1. **功能冻结**：不新增功能 / Provider / 平台；清零或 documented defer **GAP_AUDIT P0/P1**。
+2. **回归脚本全绿**：`demo-auto-acceptance.ps1`（Phase F7-Auto）+ 构建 / 文案扫描。
+3. **文档与 Demo 种子对齐**：[`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)、[`DEMO_CHECKLIST.md`](../DEMO_CHECKLIST.md)。
+
+**F9 明确不做于 F8**（留最终阶段）：最终人工走查、真实预发、抖店真实 E2E、生产灰度、**`v0.1.0-demo` tag**、Production Ready 判定。
+
+与文件顶部 **《当前产品路线》§四** 对齐；**不新增完整 ERP 高级模块**。
+
+**体验收口（F8 内 P1，原排期 1–4 部分并入）**
+
+1. **多平台跨境 ERP MVP 回归**：订单/库存/客服 Demo 样本 + smoke 脚本联动 **`taskcenter`**。
+2. **AI 商品运营工具体验**：批量 AI、草稿全链路、关键路径提示。
+3. **错误提示 / 空状态 / 引导文案**：`demo-empty-state-scan` 持续通过。
+4. **演示包**：16 步主链路无凭证可走查（抖店步骤 mock / `local_draft_only`）。
 
 **后续迭代（非当前「完整 ERP」排期；按需穿插，不阻断 1–4）**
 
@@ -616,6 +630,7 @@ trademind-ai/
 | 2026-05-19 | **通用 AI Agent 入口**：新增根目录 **`AGENTS.md`**，作为 Cursor 以外 AI 编辑器 / Agent 的通用协作入口，集中说明必读文档、技术栈、开发规则、文档同步要求、检查命令与禁止事项；README / README.en / docs index 增加入口。 |
 | 2026-05-19 | **Cursor rules 轻整理**：新增 **`.cursor/rules/README.md`**，按全局规则与领域规则列出每个 `.mdc` 的用途、适用范围和新增规则 checklist；`docs/README.md` 增加 Cursor rules 索引入口。 |
 | 2026-05-19 | **文档中心整理**：新增 **`docs/README.md`**，统一收口开发、部署、架构、Provider、路线图、分支规则、AI 编程规则、赞助、安全、行为准则等入口；README / README.en 文档导航改为分组式入口，首页更清爽，后续新增文档优先维护 docs index。 |
+| 2026-06-30 | **Phase F7 全项目 Demo 数据升级**：扩展 `seed-demo-data` / `seed-demo-permissions`；订单 / 库存 / 客服 / Dashboard KPI 样本与 `demo-dataset.full-project.json`；F7 smoke 脚本；`demo-auto-acceptance` Phase F7-Auto；[`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)、[`DEMO_AUTO_ACCEPTANCE_GUIDE.md`](DEMO_AUTO_ACCEPTANCE_GUIDE.md)；F7 文案复扫 passed。**F2–F7 完成**；**F8 冻结进行中**；**非 Production Ready**；**Tag pending** |
 | 2026-06-27 | **AI 商品运营工作台 Phase A3.3**：**`internal/modules/aiopsworkbench`**、**`/api/v1/ai/operation-workbench/*`**、**`/ai/operation-workbench`**；聚合 AI 文案/图片待复核、发布检查、刊登批次异常、taskcenter 失败；设计见 **`AI_OPERATION_WORKBENCH_DESIGN.md`** |
 | 2026-05-19 | **AI 编程规则与文档同步要求**：新增 **`docs/ai-coding-rules.md`** 与 Cursor 持久规则 **`.cursor/rules/12-ai-coding-doc-sync.mdc`**，明确代码、配置、环境变量、Docker、CI、API、Provider、页面、任务、数据库与安全变更必须同步相关文档；同步 **README / README.en / CONTRIBUTING / PR 模板**。 |
 | 2026-05-19 | **CI 与分支策略文档**：新增 **`.github/workflows/node.yml`**，对 **admin** 执行 `pnpm build:admin`、对 **collector** 执行 `pnpm build:collector`（push / PR 到 `main`、`dev`）；新增 **`docs/branching.md`**，固化 `main` / `dev` / `feat/*` / `fix/*` / `release/*` 分支策略与 PR 合并规则；更新 **README / README.en / CONTRIBUTING / PR 模板** 导航与检查项。 |

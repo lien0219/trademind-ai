@@ -1,8 +1,31 @@
 # TradeMind 演示验收清单（Demo Checklist）
 
 > 用于本地 / 预发环境快速验收核心 MVP 能力。按模块勾选。
-> **Release 状态（Phase R1 / F1）**：`MVP Demo Ready` — 见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
-> **开发策略（Phase F1 起）**：先按 [`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md) 补齐全项目功能，**再**统一进入 Phase F9 总体验收。
+> **Release 状态（Phase F7）**：`MVP Demo Ready` — **非 Production Ready** — 见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+> **开发策略**：**F1–F7 ✅** · **当前 F8 功能冻结** · **F9 总体验收**（人工 / 预发 / 抖店 E2E / tag）
+
+## Phase F7 全项目 Demo 数据升级（2026-06-30）
+
+| 项 | 脚本 / 文档 | 状态 |
+| --- | --- | --- |
+| 全链路种子 | `scripts/seed-demo-data.ps1` | [x] 20 slot + 订单 / 库存 / 客服 / Dashboard |
+| 权限种子 | `scripts/seed-demo-permissions.ps1` | [x] demo_admin / operator / readonly |
+| 全项目索引 | `docs/demo-dataset.full-project.json` | [x] |
+| Dashboard smoke | `scripts/demo-dashboard-smoke.ps1` | [x] |
+| 订单 / 库存 / 客服 smoke | `scripts/demo-order-inventory-customer-smoke.ps1` | [x] |
+| RBAC smoke | `scripts/demo-rbac-smoke.ps1` | [x] |
+| 空状态扫描 | `scripts/demo-empty-state-scan.ps1` | [x] |
+| 敏感操作确认扫描 | `scripts/demo-sensitive-confirm-scan.ps1` | [x] |
+| F7 自动化总控 | `scripts/demo-auto-acceptance.ps1` | [x] Phase F7-Auto |
+| 种子指南 | `docs/DEMO_SEEDING_GUIDE.md` | [x] |
+| 自动化验收指南 | `docs/DEMO_AUTO_ACCEPTANCE_GUIDE.md` | [x] |
+| 全局状态文案复扫 | `check-ui-copy` + `global-status-copywriting-scan.json` | [x] passed |
+| go test / build / admin build | — | [x] |
+| 最终人工测试 | — | [ ] **留 Phase F9** |
+| 真实预发部署 | — | [ ] **留 Phase F9** |
+| 抖店真实 E2E | — | [ ] **Release Candidate** |
+| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+| Production Ready | — | [ ] **否** |
 
 ## Phase F1 全项目功能缺口审计与路线规划（2026-06-29）
 

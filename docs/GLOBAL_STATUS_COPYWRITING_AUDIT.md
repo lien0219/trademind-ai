@@ -1,4 +1,15 @@
-# 全局状态文案审计（Phase F6）
+# 全局状态文案审计（Phase F7）
+
+## F7 复扫结果（2026-06-30）
+
+| 项 | 结果 |
+| --- | --- |
+| 工具 | `node scripts/check-ui-copy.mjs --strict` |
+| JSON 输出 | `docs/global-status-copywriting-scan.json` |
+| 结论 | **passed**（`hitCount: 0`） |
+| 阶段 | F7 rescan（F6 收口后的回归） |
+
+复扫纳入 `scripts/demo-auto-acceptance.ps1`（Phase F7-Auto）的 `check-ui-copy` 步骤。
 
 ## 原则
 
@@ -11,7 +22,7 @@
 
 `admin/src/constants/copywriting.ts` → `COMMON_STATUS_LABEL` + `commonStatusLabel()`
 
-已收口（F6）：
+已收口（F6/F7）：
 
 | 内部码 | 用户可见 |
 | --- | --- |
@@ -36,3 +47,9 @@
 - 商品运营：`admin/src/constants/productOperationLabels.ts`
 - 任务中心：`admin/src/constants/taskCenter.ts`
 - 后端：`backend/internal/pkg/opslabels`
+
+## 手动复跑
+
+```powershell
+node scripts/check-ui-copy.mjs --strict --report docs/COPYWRITING_AUDIT.auto.md --json docs/global-status-copywriting-scan.json
+```

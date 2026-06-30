@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { aiImageBatchStatusTag } from '@/constants/aiProductImage';
 import { fetchAiProductImageBatches, type AIProductImageBatchRow } from '@/services/aiProductImage';
 import { formatDateTime } from '@/utils/formatTime';
@@ -7,6 +8,7 @@ import { Button, Space, Table, Tag } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 export default function AIImageBatchListPage() {
+  const emptyLocale = useListEmptyLocale('aiImageBatches');
   const [rows, setRows] = useState<AIProductImageBatchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -70,6 +72,7 @@ export default function AIImageBatchListPage() {
             ),
           },
         ]}
+        locale={emptyLocale}
       />
     </TmPageContainer>
   );

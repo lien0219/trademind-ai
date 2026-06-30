@@ -547,6 +547,119 @@ $inventoryOutFile = Join-Path $repoRoot "docs/demo-dataset.inventory.json"
 } | ConvertTo-Json -Depth 6 | Set-Content -Path $inventoryOutFile -Encoding UTF8
 Write-Host "Wrote $inventoryOutFile with $($inventorySamples.Count) inventory samples"
 
+Write-Host "Phase F7: dashboard aggregation probes..."
+$dashboardSamples = @()
+function Add-DashSample($tag, $note, $extra) {
+    $script:dashboardSamples += @{ tag = $tag; note = $note } + $extra
+}
+
+$dashOverview = Invoke-Api -Method Get -Url "$ApiV1/dashboard/overview" -Token $token
+$dashTodos = Invoke-Api -Method Get -Url "$ApiV1/dashboard/todos" -Token $token
+$dashHealth = Invoke-Api -Method Get -Url "$ApiV1/dashboard/health" -Token $token
+$dashProdOps = Invoke-Api -Method Get -Url "$ApiV1/dashboard/product-operations" -Token $token
+
+Add-DashSample "dashboard_overview_api" "GET /dashboard/overview" @{
+    reachable = -not $dashOverview.error
+    kpiKeys = if ($dashOverview) { @($dashOverview.PSObject.Properties.Name) } else { @() }
+}
+Add-DashSample "dashboard_todos_api" "GET /dashboard/todos" @{ reachable = -not $dashTodos.error }
+Add-DashSample "dashboard_health_api" "GET /dashboard/health" @{ reachable = -not $dashHealth.error }
+Add-DashSample "collect_tasks_kpi" "今日采集任务样本" @{ hint = "run collect task or seed failed collect below" }
+Add-DashSample "product_drafts_kpi" "商品草稿 KPI" @{ productSlotCount = $productSlots.Count }
+Add-DashSample "ai_pending_review_kpi" "AI 待复核" @{ workbenchTodoSum = $wbSummaryTodoSum }
+Add-DashSample "publish_check_issues_kpi" "发布检查问题" @{ note = "from workbench todos" }
+Add-DashSample "publish_task_issues_kpi" "刊登任务异常" @{ note = "from task samples" }
+Add-DashSample "order_exceptions_kpi" "订单异常" @{ orderSampleCount = $orderSamples.Count }
+Add-DashSample "inventory_alerts_kpi" "库存异常" @{ inventorySampleCount = $inventorySamples.Count }
+Add-DashSample "customer_pending_kpi" "客服待回复" @{ customerSampleCount = $customerSamples.Count }
+Add-DashSample "failure_tasks_kpi" "失败任务" @{ taskCenterFailures = @($taskSamples | Where-Object { $_.type -eq 'taskcenter_failure' }).Count }
+Add-DashSample "config_risk_kpi" "配置风险" @{ hint = "config-status center" }
+
+# Failed collect task sample (invalid URL → worker failure for dashboard KPI)
+$collectFail = Invoke-Api -Method Post -Url "$ApiV1/collect/tasks" -Body (@{
+    source = "1688"; sourceUrl = "https://detail.1688.com/offer/f7-demo-invalid-$(Get-Random).html"
+} | ConvertTo-Json -Compress) -Token $token
+if ($collectFail.id) {
+    Add-DashSample "collect_failed_task" "F7 invalid collect URL task" @{ taskId = $collectFail.id }
+}
+
+# Order sync partial_success probe (requires shop with sync enabled)
+$shopsAll = Invoke-Api -Method Get -Url "$ApiV1/shops?page=1&pageSize=20" -Token $token
+$syncShop = $null
+if ($shopsAll.list) {
+    $syncShop = @($shopsAll.list | Where-Object { $_.platform -match 'mock|manual' } | Select-Object -First 1)
+    if (-not $syncShop) { $syncShop = @($shopsAll.list | Select-Object -First 1) }
+}
+if ($syncShop -and $syncShop.id) {
+    $syncRes = Invoke-Api -Method Post -Url "$ApiV1/shops/$($syncShop.id)/sync-orders" -Body '{}' -Token $token
+    Add-DashSample "order_sync_probe" "POST sync-orders on first shop" @{
+        shopId = $syncShop.id
+        result = $(if ($syncRes.error) { $syncRes.error } else { "ok" })
+    }
+}
+
+# Customer AI suggestion probe (best-effort; requires AI provider)
+if ($csPending.id) {
+    $aiGen = Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csPending.id)/ai/generate-reply" -Body (@{
+        language = "zh-CN"; tone = "professional"
+    } | ConvertTo-Json -Compress) -Token $token
+    if ($aiGen.suggestionId) {
+        Add-CsSample "ai_suggestion_generated" "AI reply suggestion pending confirm" @{ suggestionId = $aiGen.suggestionId }
+        Add-DashSample "customer_ai_suggestion_kpi" "AI 建议待确认" @{ conversationId = $csPending.id }
+    } else {
+        Add-CsSample "ai_suggestion_skipped" "AI provider not configured or generate failed" @{ error = $aiGen.error }
+    }
+}
+
+# Re-write customer output after F7 probes
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F4+F7 customer service demo samples"
+    samples = $customerSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $customerOutFile -Encoding UTF8
+
+$dashboardOutFile = Join-Path $repoRoot "docs/demo-dataset.dashboard.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F7 Dashboard KPI aggregation samples; run after seed-demo-data"
+    kpiCoverage = @(
+        "collect_failed", "product_drafts", "ai_pending_review", "publish_check_issues",
+        "publish_task_issues", "order_exceptions", "inventory_alerts", "customer_pending",
+        "failure_tasks", "config_risk"
+    )
+    samples = $dashboardSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $dashboardOutFile -Encoding UTF8
+Write-Host "Wrote $dashboardOutFile with $($dashboardSamples.Count) dashboard samples"
+
+$fullProjectIndex = Join-Path $repoRoot "docs/demo-dataset.full-project.json"
+@{
+    phase = "F7"
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    description = "全项目 Demo 数据集索引；运行 scripts/seed-demo-data 与 seed-demo-permissions 后各子文件会更新"
+    datasets = @{
+        products = "docs/demo-dataset.json"
+        dashboard = "docs/demo-dataset.dashboard.json"
+        orders = "docs/demo-dataset.orders.json"
+        inventory = "docs/demo-dataset.inventory.json"
+        customer = "docs/demo-dataset.customer-service.json"
+        permissions = "docs/demo-dataset.permissions.json"
+    }
+    dashboardSamples = @{
+        collectFailed = "采集失败任务 ≥1"
+        orderPartialSuccess = "订单同步 partial_success 样本（需 shop sync 或 mock）"
+        inventorySyncFailed = "库存同步失败样本（需 publication SKU 绑定）"
+        customerAiSuggestion = "客服 AI 已生成待确认"
+        customerSendFailed = "客服发送失败样本"
+        configRisk = "配置状态中心风险项"
+        storeIsolation = "demo_operator 仅授权第一家店铺"
+    }
+    accounts = @{
+        admin = "demo_admin@trademind.local"
+        operator = "demo_operator@trademind.local"
+        readonly = "demo_readonly@trademind.local"
+    }
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $fullProjectIndex -Encoding UTF8
+
 $validation = @{
     productSlots20          = ($productSlots.Count -ge 20)
     taskSamples7          = ($taskSamples.Count -ge 7)
@@ -562,6 +675,10 @@ $validation = @{
         [bool](@($taskSamples | Where-Object { $_.note -match 'local_draft_only' }).Count -ge 1)
     )
     noRealPlatformPublish = $true
+    orderSamples3         = ($orderSamples.Count -ge 3)
+    inventorySamples3     = ($inventorySamples.Count -ge 3)
+    customerSamples3      = ($customerSamples.Count -ge 3)
+    dashboardProbes       = ($dashboardSamples.Count -ge 5)
     passed                = $false
 }
 
@@ -569,7 +686,10 @@ $validation.passed = (
     $validation.productSlots20 -and
     $validation.taskSamples7 -and
     $validation.workbenchTodosGt0 -and
-    $validation.localDraftOnlySample
+    $validation.localDraftOnlySample -and
+    $validation.orderSamples3 -and
+    $validation.inventorySamples3 -and
+    $validation.customerSamples3
 )
 
 $report = @{

@@ -1,7 +1,8 @@
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { TmPageContainer } from '@/components/ui';
 import { history } from '@umijs/max';
-import { Alert, Button, Col, Empty, message, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Button, Col, message, Row, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
 import { PinduoduoCollectModal } from '@/pages/Collect/components/PinduoduoCollectModal';
@@ -133,6 +134,7 @@ async function openCustomCollectModal(
 }
 
 export default function CollectHubPage() {
+  const emptyLocale = useListEmptyLocale('collectHub');
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [customModalOpen, setCustomModalOpen] = useState(false);
@@ -189,7 +191,7 @@ export default function CollectHubPage() {
       {loading ? (
         <Spin style={{ display: 'block', marginTop: 48 }} />
       ) : sorted.length === 0 ? (
-        <Empty description="暂未获取到采集器列表，请检查采集服务是否启动，或联系管理员。" />
+        emptyLocale.emptyText
       ) : (
         <Row gutter={[16, 16]}>
           {sorted.map((p) => {

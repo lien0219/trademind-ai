@@ -2,7 +2,11 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
 import { PAGE_COPY } from '@/constants/copywriting';
-import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
+import {
+  confirmAssignStorePermissions,
+  confirmChangeUserRole,
+  confirmDisableUser,
+} from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
 import {
   createAdminUser,
@@ -15,6 +19,7 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { Button, Form, Input, Modal, Select, Space, Tag, message } from 'antd';
 import { useCallback, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { PERMISSIONS } from '@/utils/permission';
 
 const ROLE_OPTIONS = [
@@ -42,10 +47,18 @@ function roleTag(role: string) {
   return <Tag>{role}</Tag>;
 }
 
+function adminUserLabel(row: Pick<AdminUserRow, 'displayName' | 'email' | 'username'>): string {
+  return (row.displayName || '').trim() || (row.email || '').trim() || row.username || '该用户';
+}
+
 export default function SettingsUsersPage() {
   const actionRef = useRef<ActionType>();
   const { canManageUsers, user: currentUser } = usePermission();
   const [createOpen, setCreateOpen] = useState(false);
+  const emptyLocale = useListEmptyLocale('usersSettings', {
+    onAction: () => setCreateOpen(true),
+    actionLabel: '创建用户',
+  });
   const [permOpen, setPermOpen] = useState(false);
   const [editUser, setEditUser] = useState<AdminUserRow | null>(null);
   const [shops, setShops] = useState<ShopListRow[]>([]);
@@ -110,14 +123,7 @@ export default function SettingsUsersPage() {
           size="small"
           disabled={!canManageUsers}
           onClick={() => {
-            confirmSensitiveAction({
-              title: '修改用户角色',
-              content: `将用户 ${row.displayName} 的角色修改为所选值。`,
-              impacts: ['该用户菜单与 API 权限将立即变化'],
-              onOk: async () => {
-                Modal.info({ title: '请在编辑弹窗中修改角色' });
-              },
-            });
+            let selectedRole = row.role;
             Modal.confirm({
               title: '修改角色',
               content: (
@@ -125,15 +131,29 @@ export default function SettingsUsersPage() {
                   defaultValue={row.role}
                   style={{ width: '100%', marginTop: 8 }}
                   options={ROLE_OPTIONS}
-                  onChange={async (v) => {
-                    await updateAdminUser(row.id, { role: v });
-                    message.success('角色已更新');
-                    actionRef.current?.reload();
+                  onChange={(v) => {
+                    selectedRole = v;
                   }}
                 />
               ),
-              okButtonProps: { style: { display: 'none' } },
-              cancelText: '关闭',
+              okText: '确认修改',
+              onOk: async () => {
+                if (selectedRole === row.role) return;
+                const roleLabel = ROLE_OPTIONS.find((o) => o.value === selectedRole)?.label || selectedRole;
+                return new Promise<void>((resolve, reject) => {
+                  confirmChangeUserRole(adminUserLabel(row), roleLabel, async () => {
+                    try {
+                      await updateAdminUser(row.id, { role: selectedRole });
+                      message.success('角色已更新');
+                      actionRef.current?.reload();
+                      resolve();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '更新失败');
+                      reject(e);
+                    }
+                  });
+                });
+              },
             });
           }}
         >
@@ -167,17 +187,18 @@ export default function SettingsUsersPage() {
             danger={row.status !== 'disabled'}
             onClick={() => {
               const next = row.status === 'disabled' ? 'active' : 'disabled';
-              confirmSensitiveAction({
-                title: next === 'disabled' ? '禁用用户' : '启用用户',
-                content: `确认${next === 'disabled' ? '禁用' : '启用'}用户 ${row.displayName}？`,
-                impacts: ['该用户将无法登录或恢复访问'],
-                reversible: next !== 'disabled',
-                onOk: async () => {
+              if (next === 'disabled') {
+                confirmDisableUser(adminUserLabel(row), async () => {
                   await updateAdminUser(row.id, { status: next });
                   message.success('已更新');
                   actionRef.current?.reload();
-                },
-              });
+                });
+              } else {
+                void updateAdminUser(row.id, { status: next }).then(() => {
+                  message.success('已更新');
+                  actionRef.current?.reload();
+                });
+              }
             }}
           >
             {row.status === 'disabled' ? '启用' : '禁用'}
@@ -195,6 +216,7 @@ export default function SettingsUsersPage() {
           rowKey="id"
           columns={columns}
           search={{ labelWidth: 80 }}
+          locale={emptyLocale}
           toolBarRender={() => [
             <Button key="create" type="primary" onClick={() => setCreateOpen(true)}>
               新建用户
@@ -255,12 +277,8 @@ export default function SettingsUsersPage() {
           width={640}
           onCancel={() => setPermOpen(false)}
           onOk={() => {
-            confirmSensitiveAction({
-              title: '保存店铺权限',
-              content: '将覆盖该用户的店铺授权列表。',
-              impacts: ['订单/库存/客服/失败任务将按新范围过滤'],
-              onOk: () => permForm.submit(),
-            });
+            if (!editUser) return;
+            confirmAssignStorePermissions(adminUserLabel(editUser), () => permForm.submit());
           }}
           destroyOnClose
         >

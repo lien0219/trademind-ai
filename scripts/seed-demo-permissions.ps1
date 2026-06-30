@@ -63,3 +63,21 @@ if ($authorizedShop -and $demoRo.id) {
 
 Write-Host "F5 demo users seeded. Authorized shop:" $authorizedShop.shopName
 Write-Host "Denied shop sample:" $deniedShop.shopName
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$permOut = if ($OutFile) { Join-Path $repoRoot $OutFile } else { Join-Path $repoRoot "docs/demo-dataset.permissions.json" }
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    phase = "F7"
+    accounts = @{
+        demo_admin = @{ email = "demo_admin@trademind.local"; password = "DemoAdmin123!"; role = "admin" }
+        demo_operator = @{ email = "demo_operator@trademind.local"; password = "DemoOperator123!"; role = "operator"; authorizedShopId = $(if ($authorizedShop) { $authorizedShop.id } else { $null }) }
+        demo_readonly = @{ email = "demo_readonly@trademind.local"; password = "DemoReadonly123!"; role = "readonly"; authorizedShopId = $(if ($authorizedShop) { $authorizedShop.id } else { $null }) }
+    }
+    negativeTests = @(
+        @{ tag = "readonly_write_blocked"; account = "demo_readonly"; expect = "403 on write APIs" }
+        @{ tag = "operator_cross_store_denied"; account = "demo_operator"; shopId = $(if ($deniedShop) { $deniedShop.id } else { "second-shop" }); expect = "404 or 403" }
+    )
+    note = "Passwords are demo-only; change in production."
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $permOut -Encoding UTF8
+Write-Host "Wrote $permOut"

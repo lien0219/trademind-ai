@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import { Link, useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { publishBatchStatusTag } from '@/constants/publishLabels';
 import { platformLabel } from '@/constants/userFriendly';
 import {
@@ -49,6 +50,7 @@ export default function ProductPublishTasksPage() {
     }
   }, [location.search]);
   const [activeTab, setActiveTab] = useState(tabFromUrl);
+  const emptyLocale = useListEmptyLocale('publishBatches', { permissionScoped: true });
   const batchActionRef = useRef<ActionType>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductPublishTaskDTO | null>(null);
@@ -255,6 +257,7 @@ export default function ProductPublishTasksPage() {
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
                 pagination={{ pageSize: 20, showSizeChanger: true }}
                 headerTitle="刊登记录"
+                locale={emptyLocale}
                 request={async (params) => {
                   const res = await queryProductPublishTasks({
                     page: params.current,
@@ -282,6 +285,7 @@ export default function ProductPublishTasksPage() {
                 search={false}
                 pagination={{ pageSize: 20, showSizeChanger: true }}
                 headerTitle="批量刊登批次"
+                locale={emptyLocale}
                 request={async (params) => {
                   const res = await queryPublishBatches({
                     page: params.current,

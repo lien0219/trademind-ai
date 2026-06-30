@@ -11,6 +11,7 @@ import {
 import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText, ProFormTextArea, type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
+import { confirmRevokeStoreAuth } from '@/constants/sensitiveActions';
 import {
   Alert,
   Button,
@@ -21,7 +22,6 @@ import {
   Form,
   Input,
   Modal,
-  Popconfirm,
   Space,
   Tag,
   Typography,
@@ -514,13 +514,8 @@ export default function ShopsPage() {
                   label: '解除授权',
                   danger: true,
                   onClick: () => {
-                    Modal.confirm({
-                      title: '解除抖店授权？',
-                      content: '解除授权后无法继续同步该店铺，历史数据不会删除。',
-                      okType: 'danger',
-                      onOk: async () => {
-                        await revokeDouyinFor(r.id);
-                      },
+                    confirmRevokeStoreAuth(r.shopName || r.id, async () => {
+                      await revokeDouyinFor(r.id);
                     });
                   },
                 },
@@ -913,13 +908,14 @@ export default function ShopsPage() {
                 <Button onClick={() => void syncDouyinInfoFor(detail.id)}>同步店铺信息</Button>
               ) : null}
               {detail.platform === 'douyin_shop' ? (
-                <Popconfirm
-                  title="解除抖店授权？"
-                  description="解除授权后无法继续同步该店铺，历史数据不会删除。"
-                  onConfirm={() => void revokeDouyinFor(detail.id)}
+                <Button
+                  danger
+                  onClick={() =>
+                    confirmRevokeStoreAuth(detail.shopName || detail.id, () => void revokeDouyinFor(detail.id))
+                  }
                 >
-                  <Button danger>解除授权</Button>
-                </Popconfirm>
+                  解除授权
+                </Button>
               ) : null}
               <Button
                 onClick={() => {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { TmPageContainer } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { fetchConfigStatusOverview, type ConfigStatusItem } from '@/services/configStatus';
 import { PERMISSIONS } from '@/utils/permission';
 
@@ -34,6 +35,7 @@ function StatusCard({ item }: { item: ConfigStatusItem }) {
 }
 
 export default function ConfigStatusPage() {
+  const emptyLocale = useListEmptyLocale('configStatus');
   const [items, setItems] = useState<ConfigStatusItem[]>([]);
   const [demo, setDemo] = useState<ConfigStatusItem | null>(null);
   const [generatedAt, setGeneratedAt] = useState('');
@@ -61,18 +63,22 @@ export default function ConfigStatusPage() {
             {PAGE_COPY.configStatus.snapshotAt}：{generatedAt}
           </Typography.Text>
         ) : null}
-        <Row gutter={[16, 16]}>
-          {items.map((item) => (
-            <Col key={item.key} xs={24} sm={12} lg={8}>
-              <StatusCard item={item} />
-            </Col>
-          ))}
-          {demo ? (
-            <Col xs={24} sm={12} lg={8}>
-              <StatusCard item={demo} />
-            </Col>
-          ) : null}
-        </Row>
+        {items.length === 0 && !demo ? (
+          emptyLocale.emptyText
+        ) : (
+          <Row gutter={[16, 16]}>
+            {items.map((item) => (
+              <Col key={item.key} xs={24} sm={12} lg={8}>
+                <StatusCard item={item} />
+              </Col>
+            ))}
+            {demo ? (
+              <Col xs={24} sm={12} lg={8}>
+                <StatusCard item={demo} />
+              </Col>
+            ) : null}
+          </Row>
+        )}
       </TmPageContainer>
     </PermissionGuard>
   );

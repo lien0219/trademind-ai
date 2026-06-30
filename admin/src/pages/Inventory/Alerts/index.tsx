@@ -1,5 +1,6 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   Button,
   Checkbox,
@@ -27,6 +28,7 @@ import {
   INVENTORY_SYNC_BATCHES_LABEL,
   INVENTORY_SYNC_TASKS_LABEL,
 } from '@/constants/userFriendly';
+import { confirmInventoryManualAdjust, confirmInventorySync } from '@/constants/sensitiveActions';
 import {
   adjustSkuStock,
   batchUpdateStockSettings,
@@ -34,23 +36,14 @@ import {
   previewBatchStockSettings,
   queryInventoryAlerts,
   syncPublicationSkuInventory,
+  type BatchStockSettingsPreviewPayload,
   type InventoryAlertRow,
 } from '@/services/inventory';
 import { updateProductSkuStockSettings } from '@/services/products';
 
 const BATCH_STOCK_DEFAULT_MAX = 500;
 
-function alertsStockBatchNeedsConfirmAll(p: {
-  productSkuIds?: string[];
-  productId?: string;
-  platform?: string;
-  shopId?: string;
-  keyword?: string;
-  stockStatus?: string;
-  onlyPublished?: boolean;
-  alertTypes?: string[];
-  includeNormal?: boolean;
-}): boolean {
+function alertsStockBatchNeedsConfirmAll(p: BatchStockSettingsPreviewPayload): boolean {
   if (p.productSkuIds?.length) return false;
   if ((p.productId ?? '').trim()) return false;
   if ((p.platform ?? '').trim()) return false;
@@ -92,6 +85,7 @@ function stockStatusTag(raw: string) {
 }
 
 export default function InventoryAlertsPage() {
+  const emptyLocale = useListEmptyLocale('inventoryAlerts', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const searchFormRef = useRef<ProFormInstance>();
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
@@ -112,7 +106,7 @@ export default function InventoryAlertsPage() {
   const [batchStockSubmitting, setBatchStockSubmitting] = useState(false);
   const [batchStockForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
 
-  const buildStockBatchPayload = () => {
+  const buildStockBatchPayload = (): BatchStockSettingsPreviewPayload => {
     const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
     const alertType = typeof fv.alertType === 'string' ? fv.alertType.trim() : '';
     const alertTypes = alertType ? [alertType] : [];
@@ -467,18 +461,21 @@ export default function InventoryAlertsPage() {
                         type="link"
                         size="small"
                         disabled={!runnable}
-                        onClick={async () => {
+                        onClick={() => {
                           const stock = r.stock;
-                          try {
-                            await syncPublicationSkuInventory(p.publicationSkuId, {
-                              stock,
-                              fromInventoryAlert: true,
-                            });
-                            message.success('已创建同步任务');
-                            actionRef.current?.reload();
-                          } catch (e: unknown) {
-                            message.error((e as Error)?.message || '失败');
-                          }
+                          const targetLabel = `[${p.platform}] ${p.shopName || p.shopId}`;
+                          confirmInventorySync(targetLabel, runnable, async () => {
+                            try {
+                              await syncPublicationSkuInventory(p.publicationSkuId, {
+                                stock,
+                                fromInventoryAlert: true,
+                              });
+                              message.success('已创建同步任务');
+                              actionRef.current?.reload();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '失败');
+                            }
+                          });
                         }}
                       >
                         同步库存
@@ -491,6 +488,7 @@ export default function InventoryAlertsPage() {
               <Typography.Text type="secondary">无刊登映射</Typography.Text>
             ),
         }}
+        locale={emptyLocale}
         request={async (params, sort, filter) => {
           void sort;
           void filter;
@@ -524,41 +522,47 @@ export default function InventoryAlertsPage() {
         onCancel={() => setBulkOpen(false)}
         okText="创建批次"
         confirmLoading={bulkSubmitting}
-        onOk={async () => {
-          if (selectedSkuIds.length === 0) return;
-          const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
-          const platformRaw = typeof fv.platform === 'string' ? fv.platform.trim().toLowerCase() : '';
-          const shopRaw = typeof fv.shopId === 'string' ? fv.shopId.trim() : '';
-          const alertTypes = bulkIncludeLocalAlerts
-            ? [
-                'platform_stock_mismatch',
-                'inventory_sync_failed',
-                'low_stock',
-                'out_of_stock',
-                'below_safety_stock',
-              ]
-            : ['platform_stock_mismatch', 'inventory_sync_failed'];
-          setBulkSubmitting(true);
-          try {
-            const batch = await createInventorySyncBatch({
-              source: 'inventory_alert',
-              platform: platformRaw || undefined,
-              shopId: shopRaw || undefined,
-              productSkuIds: selectedSkuIds,
-              onlyAlerts: true,
-              alertTypes,
-              onlyPublished: true,
+        onOk={() => {
+          if (selectedSkuIds.length === 0) return Promise.reject();
+          return new Promise<void>((resolve, reject) => {
+            confirmInventorySync(`选中的 ${selectedSkuIds.length} 个规格`, true, async () => {
+              const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
+              const platformRaw = typeof fv.platform === 'string' ? fv.platform.trim().toLowerCase() : '';
+              const shopRaw = typeof fv.shopId === 'string' ? fv.shopId.trim() : '';
+              const alertTypes = bulkIncludeLocalAlerts
+                ? [
+                    'platform_stock_mismatch',
+                    'inventory_sync_failed',
+                    'low_stock',
+                    'out_of_stock',
+                    'below_safety_stock',
+                  ]
+                : ['platform_stock_mismatch', 'inventory_sync_failed'];
+              setBulkSubmitting(true);
+              try {
+                const batch = await createInventorySyncBatch({
+                  source: 'inventory_alert',
+                  platform: platformRaw || undefined,
+                  shopId: shopRaw || undefined,
+                  productSkuIds: selectedSkuIds,
+                  onlyAlerts: true,
+                  alertTypes,
+                  onlyPublished: true,
+                });
+                message.success(`已创建批次 ${batch.batchNo}（跳过 ${batch.skippedCount}）`);
+                setBulkOpen(false);
+                setSelectedSkuIds([]);
+                actionRef.current?.reload();
+                history.push(`/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`);
+                resolve();
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '创建失败');
+                reject(e);
+              } finally {
+                setBulkSubmitting(false);
+              }
             });
-            message.success(`已创建批次 ${batch.batchNo}（跳过 ${batch.skippedCount}）`);
-            setBulkOpen(false);
-            setSelectedSkuIds([]);
-            actionRef.current?.reload();
-            history.push(`/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`);
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '创建失败');
-          } finally {
-            setBulkSubmitting(false);
-          }
+          });
         }}
       >
         <Typography.Paragraph>
@@ -578,24 +582,31 @@ export default function InventoryAlertsPage() {
         open={adjustOpen}
         onCancel={() => setAdjustOpen(false)}
         okButtonProps={{ loading: adjustSubmitting }}
-        onOk={async () => {
-          if (!active) return;
-          const v = await adjustForm.validateFields();
-          setAdjustSubmitting(true);
-          try {
-            await adjustSkuStock(active.productId, active.productSkuId, {
-              stock: v.stock,
-              reason: 'manual_adjust',
-              remark: 'from_inventory_alerts',
-            });
-            message.success('已更新');
-            setAdjustOpen(false);
-            actionRef.current?.reload();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '失败');
-          } finally {
-            setAdjustSubmitting(false);
-          }
+        onOk={() => {
+          if (!active) return Promise.reject();
+          return adjustForm.validateFields().then((v) =>
+            new Promise<void>((resolve, reject) => {
+              confirmInventoryManualAdjust(async () => {
+                setAdjustSubmitting(true);
+                try {
+                  await adjustSkuStock(active.productId, active.productSkuId, {
+                    stock: v.stock,
+                    reason: 'manual_adjust',
+                    remark: 'from_inventory_alerts',
+                  });
+                  message.success('已更新');
+                  setAdjustOpen(false);
+                  actionRef.current?.reload();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '失败');
+                  reject(e);
+                } finally {
+                  setAdjustSubmitting(false);
+                }
+              });
+            }),
+          );
         }}
       >
         <Form form={adjustForm} layout="vertical">
@@ -665,10 +676,7 @@ export default function InventoryAlertsPage() {
                 return Promise.reject(new Error('validation'));
               }
               const payload = buildStockBatchPayload();
-              const needAll = alertsStockBatchNeedsConfirmAll({
-                ...payload,
-                productSkuIds: payload.productSkuIds,
-              });
+              const needAll = alertsStockBatchNeedsConfirmAll(payload);
               return new Promise<void>((resolve, reject) => {
                 Modal.confirm({
                   title: '确认仅修改预警线？',

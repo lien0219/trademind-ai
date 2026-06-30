@@ -1,0 +1,17 @@
+{
+  "phase": "F7",
+  "description": "Dashboard 10 KPI 样本索引",
+  "kpiCoverage": [
+    { "key": "collectFailed", "label": "今日采集任务", "sample": "collect_failed_task" },
+    { "key": "productDrafts", "label": "商品草稿", "sample": "productSlots20" },
+    { "key": "aiPendingReview", "label": "AI 待复核", "sample": "workbench todos" },
+    { "key": "publishCheckIssues", "label": "发布检查问题", "sample": "publish_check blockers" },
+    { "key": "publishTaskIssues", "label": "刊登任务异常", "sample": "publish_batch failures" },
+    { "key": "orderExceptions", "label": "订单异常", "sample": "order exception marks" },
+    { "key": "inventoryAlerts", "label": "库存异常", "sample": "F3-LOW / F3-ZERO SKUs" },
+    { "key": "customerPending", "label": "客服待回复", "sample": "pending_reply_conversation" },
+    { "key": "failureTasks", "label": "失败任务", "sample": "taskcenter_failure" },
+    { "key": "configRisk", "label": "配置风险", "sample": "config-status overview" }
+  ],
+  "samples": []
+}

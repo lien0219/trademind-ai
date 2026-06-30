@@ -1,0 +1,17 @@
+{
+  "phase": "F7",
+  "description": "库存 Demo 样本目录",
+  "scenarios": [
+    { "tag": "normal_stock_sku", "skuCode": "F3-NORMAL", "stock": 120 },
+    { "tag": "low_stock_sku", "skuCode": "F3-LOW", "stock": 3 },
+    { "tag": "zero_stock_sku", "skuCode": "F3-ZERO", "stock": 0 },
+    { "tag": "inventory_unknown", "note": "未绑定 publication SKU" },
+    { "tag": "deduct_success_order", "note": "正常订单扣减" },
+    { "tag": "deduct_blocked_unmatched_order", "note": "SKU 未匹配阻断" },
+    { "tag": "ambiguous_sku_blocked", "note": "ambiguous 阻断" },
+    { "tag": "inventory_sync_success_task", "note": "需 publication SKU + sync" },
+    { "tag": "inventory_sync_failed_task", "note": "同步失败任务" },
+    { "tag": "inventory_sync_disabled_default", "note": "inventory_sync_enabled 默认关闭" }
+  ],
+  "samples": []
+}

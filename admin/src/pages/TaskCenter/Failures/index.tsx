@@ -1,8 +1,8 @@
 import { ProCard, type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
+import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
-import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import {
   Badge,
   Button,
@@ -41,6 +41,7 @@ import {
   type FailuresSummary,
 } from '@/services/taskCenter';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   canOpenFailureDetail,
   isPlatformAlertTaskType,
@@ -119,6 +120,7 @@ function detailLinkLabel(detailUrl?: string | null): string {
 }
 
 export default function TaskCenterFailuresPage() {
+  const emptyLocale = useListEmptyLocale('taskFailures');
   const location = useLocation();
   const actionRef = useRef<ActionType>();
   const listFilterRef = useRef({ includeResolved: false, includeMarked: false });
@@ -501,17 +503,10 @@ export default function TaskCenterFailuresPage() {
   }
 
   function confirmRetry(row: UnifiedTaskDTO) {
-    confirmSensitiveAction({
-      title: '确认重试此失败任务？',
-      content: `${TASK_CENTER_TASK_TYPE_LABEL[row.taskType] || row.taskType} · ${row.id}`,
-      impacts: ['将重新提交该任务到队列', '可能再次调用外部平台接口（取决于任务类型）'],
-      externalCall: true,
-      failureHint: '失败任务中心 / 对应业务任务页',
-      onOk: async () => {
-        await retryTaskFailure(row.taskType, row.id);
-        message.success('已提交重试');
-        actionRef.current?.reload?.();
-      },
+    confirmFailureTaskRetry(1, async () => {
+      await retryTaskFailure(row.taskType, row.id);
+      message.success('已提交重试');
+      actionRef.current?.reload?.();
     });
   }
 
@@ -627,19 +622,12 @@ export default function TaskCenterFailuresPage() {
                       disabled={!batchRows.length}
                       type="primary"
                       onClick={() => {
-                        confirmSensitiveAction({
-                          title: `批量重试 ${batchRows.length} 条失败任务？`,
-                          content: '最多一次重试 50 条，超出部分将被忽略。',
-                          impacts: batchRows.slice(0, 5).map((r) => `${TASK_CENTER_TASK_TYPE_LABEL[r.taskType] || r.taskType}`),
-                          externalCall: true,
-                          failureHint: '失败任务中心',
-                          onOk: async () => {
-                            const res = await batchRetryTaskFailures(
-                              batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                            );
-                            message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
-                            actionRef.current?.reload?.();
-                          },
+                        confirmFailureTaskRetry(batchRows.length, async () => {
+                          const res = await batchRetryTaskFailures(
+                            batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                          );
+                          message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                          actionRef.current?.reload?.();
                         });
                       }}
                     >
@@ -752,6 +740,7 @@ export default function TaskCenterFailuresPage() {
           pagination={{ pageSize: 20, showSizeChanger: true }}
           scroll={{ x: 1680 }}
           tableAlertRender={false}
+          locale={emptyLocale}
           request={async (params, sort, filter) => {
             const kw = typeof params.keyword === 'string' ? params.keyword.trim() : '';
             try {
@@ -934,18 +923,15 @@ export default function TaskCenterFailuresPage() {
               {detail.retryable ? (
                 <Button
                   onClick={() => {
-                    Modal.confirm({
-                      title: '重试该采集任务？',
-                      okText: '重试',
-                      onOk: async () => {
-                        try {
-                          await retryTaskFailure(detail.taskType, detail.id);
-                          message.success('已提交重试');
-                          actionRef.current?.reload?.();
-                        } catch (e) {
-                          message.error((e as Error).message);
-                        }
-                      },
+                    confirmFailureTaskRetry(1, async () => {
+                      try {
+                        await retryTaskFailure(detail.taskType, detail.id);
+                        message.success('已提交重试');
+                        actionRef.current?.reload?.();
+                      } catch (e) {
+                        message.error((e as Error).message);
+                        throw e;
+                      }
                     });
                   }}
                 >

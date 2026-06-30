@@ -20,6 +20,7 @@ import {
 } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
@@ -67,6 +68,7 @@ export default function CollectTasksPage() {
   }, [location.search]);
 
   const actionRef = useRef<ActionType>();
+  const emptyLocale = useListEmptyLocale('collectTasks');
   const formRef = useRef<ProFormInstance>();
   const [form] = Form.useForm<{ source: string; url: string; ruleId?: string }>();
   const [submitting, setSubmitting] = useState(false);
@@ -532,6 +534,7 @@ export default function CollectTasksPage() {
         polling={polling}
         headerTitle={false}
         toolBarRender={() => []}
+        locale={emptyLocale}
         request={async (params) => {
           const res = await fetchCollectTasks({
             page: params.current,

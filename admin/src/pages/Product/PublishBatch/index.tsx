@@ -33,6 +33,7 @@ import {
   type PublishTargetPlatform,
   type PublishTargetRef,
 } from '@/services/productPublish';
+import { confirmBatchPublishDraft } from '@/constants/sensitiveActions';
 import { detectConfigReminders } from '@/utils/publishConfigMerge';
 import { Link, history, useLocation, useModel } from '@umijs/max';
 import {
@@ -322,6 +323,27 @@ export default function PublishBatchWizardPage() {
     } finally {
       setCreating(false);
     }
+  };
+
+  const invokeCreate = (onlyReady: boolean) => {
+    if (matrixLimitError) {
+      message.error(matrixLimitError);
+      return;
+    }
+    if (!checkResult) return;
+    const creatableItems = checkResult.items.filter((i) => {
+      if (!i.canCreateDraft) return false;
+      if (onlyReady) return i.status === 'ready';
+      return i.status === 'ready' || i.status === 'warning';
+    });
+    const count = creatableItems.length;
+    if (count === 0) {
+      message.warning('没有可创建的草稿项');
+      return;
+    }
+    const localDraftOnly =
+      creatableItems.length > 0 && creatableItems.every((i) => i.capability === 'local_draft_only');
+    confirmBatchPublishDraft(count, localDraftOnly, () => runCreate(onlyReady));
   };
 
   const configReminders = useMemo(() => {
@@ -719,14 +741,14 @@ export default function PublishBatchWizardPage() {
             <Button
               type="primary"
               loading={creating}
-              onClick={() => void runCreate(true)}
+              onClick={() => invokeCreate(true)}
               disabled={checkResult.summary.readyCount === 0}
             >
               只创建可处理的草稿
             </Button>
             <Button
               loading={creating}
-              onClick={() => void runCreate(false)}
+              onClick={() => invokeCreate(false)}
               disabled={checkResult.summary.readyCount + checkResult.summary.warningCount === 0}
             >
               创建可处理项（含建议检查）

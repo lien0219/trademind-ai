@@ -1,0 +1,107 @@
+﻿{
+    "phase":  "F7",
+    "failed":  0,
+    "generatedAt":  "2026-06-30T09:08:05.6979250Z",
+    "results":  [
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Dashboard\\ProductOperations\\index.tsx",
+                        "page":  "Dashboard/ProductOperations"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Collect\\Hub\\index.tsx",
+                        "page":  "Collect/Hub"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Collect\\Tasks\\index.tsx",
+                        "page":  "Collect/Tasks"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Product\\Drafts\\index.tsx",
+                        "page":  "Product/Drafts"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\AI\\OperationWorkbench\\index.tsx",
+                        "page":  "AI/OperationWorkbench"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\AI\\TextBatches\\index.tsx",
+                        "page":  "AI/TextBatches"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\AI\\ImageBatches\\index.tsx",
+                        "page":  "AI/ImageBatches"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Product\\PublishTasks\\index.tsx",
+                        "page":  "Product/PublishTasks"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Orders\\index.tsx",
+                        "page":  "Orders/index.tsx"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Orders\\Exceptions\\index.tsx",
+                        "page":  "Orders/Exceptions"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Inventory\\index.tsx",
+                        "page":  "Inventory/index.tsx"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Inventory\\Alerts\\index.tsx",
+                        "page":  "Inventory/Alerts"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Inventory\\Deductions\\index.tsx",
+                        "page":  "Inventory/Deductions"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Inventory\\SyncTasks\\index.tsx",
+                        "page":  "Inventory/SyncTasks"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Customer\\Hub\\index.tsx",
+                        "page":  "Customer/Hub"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Customer\\Conversations\\index.tsx",
+                        "page":  "Customer/Conversations"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\TaskCenter\\Failures\\index.tsx",
+                        "page":  "TaskCenter/Failures"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Settings\\ConfigStatus\\index.tsx",
+                        "page":  "Settings/ConfigStatus"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\Settings\\Users\\index.tsx",
+                        "page":  "Settings/Users"
+                    },
+                    {
+                        "status":  "passed",
+                        "path":  "D:\\project\\trademind-ai\\admin\\src\\pages\\System\\OperationLogs\\index.tsx",
+                        "page":  "System/OperationLogs"
+                    }
+                ]
+}

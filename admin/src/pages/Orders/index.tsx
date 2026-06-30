@@ -23,6 +23,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   ORDER_FULFILLMENT_STATUS,
   ORDER_INVENTORY_DEDUCT_SUMMARY,
@@ -98,6 +99,7 @@ function statusTag(raw: string, map: StatusTagMap) {
 }
 
 export default function OrdersPage() {
+  const emptyLocale = useListEmptyLocale('orderList', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
@@ -523,6 +525,7 @@ export default function OrdersPage() {
     <TmPageContainer title={PAGE_COPY.orderList.title} subTitle={PAGE_COPY.orderList.description}>
       <ProTable<OrderListRow>
         rowKey="id"
+        locale={emptyLocale}
         actionRef={actionRef}
         columns={columns}
         search={{ layout: 'vertical', defaultCollapsed: false }}

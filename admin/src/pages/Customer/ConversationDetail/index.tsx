@@ -33,6 +33,7 @@ import {
   SHOP_STATUS,
 } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
+import { confirmCustomerReplySend } from '@/constants/sensitiveActions';
 import {
   acceptReplySuggestion,
   createMessage,
@@ -270,32 +271,25 @@ export default function CustomerConversationDetailPage() {
     loadAll();
   };
 
-  const onSendToPlatform = async () => {
+  const onSendToPlatform = () => {
     if (!id) return;
     const finalReply = editedReply.trim();
     if (!finalReply) {
       message.warning('请填写要发送到平台的回复内容');
       return;
     }
-    Modal.confirm({
-      title: '确认发送到平台？',
-      content:
-        '确认后将把该回复发送给客户。当前系统不会自动发送消息，所有回复都需要人工确认。',
-      okText: '确认发送',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          await sendPlatformMessage(id, {
-            reply: finalReply,
-            suggestionId: suggestionId || undefined,
-          });
-          message.success('已发送到平台');
-          loadAll();
-        } catch (e: unknown) {
-          message.error(e instanceof Error ? e.message : '发送失败');
-          return Promise.reject(e);
-        }
-      },
+    confirmCustomerReplySend(canSendToPlatform, async () => {
+      try {
+        await sendPlatformMessage(id, {
+          reply: finalReply,
+          suggestionId: suggestionId || undefined,
+        });
+        message.success('已发送到平台');
+        loadAll();
+      } catch (e: unknown) {
+        message.error(e instanceof Error ? e.message : '发送失败');
+        throw e;
+      }
     });
   };
 

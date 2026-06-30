@@ -15,7 +15,6 @@ import {
   Col,
   DatePicker,
   Drawer,
-  Empty,
   Input,
   Row,
   Select,
@@ -45,6 +44,7 @@ import {
 } from '@/services/aiOperationWorkbench';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 
 const { RangePicker } = DatePicker;
 
@@ -84,6 +84,7 @@ export default function AIOperationWorkbenchPage() {
   const [drawerLoading, setDrawerLoading] = useState(false);
 
   const tableRef = useRef<{ reload: () => void } | null>(null);
+  const emptyLocale = useListEmptyLocale('aiOperationWorkbench');
 
   const queryParams = useMemo(() => {
     const params: Record<string, string | undefined> = {
@@ -403,7 +404,7 @@ export default function AIOperationWorkbenchPage() {
             return { data: [], total: 0, success: false };
           }
         }}
-        locale={{ emptyText: <Empty description="暂无待办，商品运营状态良好" /> }}
+        locale={emptyLocale}
       />
 
       <Drawer

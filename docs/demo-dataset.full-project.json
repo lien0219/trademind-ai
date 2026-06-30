@@ -1,12 +1,13 @@
 {
-  "phase": "F6",
+  "phase": "F7",
   "generatedAt": "2026-06-30",
   "description": "全项目 Demo 数据集索引；运行 scripts/seed-demo-data 与 seed-demo-permissions 后各子文件会更新",
   "datasets": {
     "products": "docs/demo-dataset.json",
+    "dashboard": "docs/demo-dataset.dashboard.json",
     "orders": "docs/demo-dataset.orders.json",
     "inventory": "docs/demo-dataset.inventory.json",
-    "customer": "docs/demo-dataset.customer.json",
+    "customer": "docs/demo-dataset.customer-service.json",
     "permissions": "docs/demo-dataset.permissions.json"
   },
   "dashboardSamples": {
@@ -16,11 +17,11 @@
     "customerAiSuggestion": "客服 AI 已生成待确认",
     "customerSendFailed": "客服发送失败样本",
     "configRisk": "配置状态中心风险项",
-    "storeIsolation": "demo_operator 仅授权店铺 A"
+    "storeIsolation": "demo_operator 仅授权第一家店铺"
   },
   "accounts": {
-    "admin": "demo_admin",
-    "operator": "demo_operator",
-    "readonly": "demo_readonly"
+    "admin": "demo_admin@trademind.local",
+    "operator": "demo_operator@trademind.local",
+    "readonly": "demo_readonly@trademind.local"
   }
 }

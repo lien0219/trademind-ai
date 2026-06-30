@@ -1,6 +1,7 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
-import { Button, Drawer, Modal, Popconfirm, Space, Tag, Typography, Alert, message } from 'antd';
+import { Button, Drawer, Space, Tag, Typography, Alert, message } from 'antd';
+import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useLocation } from '@umijs/max';
@@ -10,6 +11,9 @@ import {
   INVENTORY_SKU_AMBIGUOUS_MESSAGE,
   INVENTORY_SKU_NOT_BOUND_MESSAGE,
 } from '@/constants/inventoryLabels';
+import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
 import {
   getInventorySyncTask,
@@ -28,6 +32,7 @@ function tagFromStatus(raw: string) {
 const BATCH_RETRY_LIMIT = 100;
 
 export default function InventorySyncTasksPage() {
+  const emptyLocale = useListEmptyLocale('inventorySyncTasks', { permissionScoped: true });
   const location = useLocation();
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -228,18 +233,20 @@ export default function InventorySyncTasksPage() {
               查看
             </a>
             {r.status === 'failed' || r.status === 'partial_success' ? (
-              <Popconfirm
-                title="确认重试该库存同步任务？"
-                onConfirm={async () => {
-                  await retryInventorySyncTask(r.id);
-                  message.success('已提交重试');
-                  actionRef.current?.reload();
-                }}
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0 }}
+                onClick={() =>
+                  confirmFailureTaskRetry(1, async () => {
+                    await retryInventorySyncTask(r.id);
+                    message.success('已提交重试');
+                    actionRef.current?.reload();
+                  })
+                }
               >
-                <Button type="link" size="small" style={{ padding: 0 }}>
-                  重试
-                </Button>
-              </Popconfirm>
+                重试
+              </Button>
             ) : null}
           </Space>
         ),
@@ -282,6 +289,7 @@ export default function InventorySyncTasksPage() {
           }),
         }}
         tableAlertRender={false}
+        locale={emptyLocale}
         toolBarRender={() => [
           <Button
             key="batch-retry"
@@ -291,20 +299,16 @@ export default function InventorySyncTasksPage() {
                 message.warning(`单次最多选择 ${BATCH_RETRY_LIMIT} 条失败任务`);
                 return;
               }
-              Modal.confirm({
-                title: `将 ${failedSelectedIds.length} 条失败任务归入新批次并重试？`,
-                okText: '提交',
-                onOk: async () => {
-                  try {
-                    const batch = await retryInventorySyncTasksBatch(failedSelectedIds);
-                    message.success(`已创建批次 ${batch.batchNo}`);
-                    setFailedSelectedIds([]);
-                    actionRef.current?.reload();
-                  } catch (e: unknown) {
-                    message.error((e as Error)?.message || '批量重试失败');
-                    throw e;
-                  }
-                },
+              confirmFailureTaskRetry(failedSelectedIds.length, async () => {
+                try {
+                  const batch = await retryInventorySyncTasksBatch(failedSelectedIds);
+                  message.success(`已创建批次 ${batch.batchNo}`);
+                  setFailedSelectedIds([]);
+                  actionRef.current?.reload();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '批量重试失败');
+                  throw e;
+                }
               });
             }}
           >

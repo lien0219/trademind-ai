@@ -1,5 +1,6 @@
 import TechnicalDetails from '@/components/ui/TechnicalDetails';
 import { AI_IMAGE_APPLY_MODES } from '@/constants/aiProductImage';
+import { confirmApplyAiImage } from '@/constants/sensitiveActions';
 import {
   applyAiProductImageItem,
   regenerateAiProductImageItem,
@@ -26,16 +27,9 @@ export default function ReviewImageItemModal({ open, item, onClose, onDone }: Pr
   const canApply = item.status === 'pending_review' || item.status === 'success';
   const isReplace = applyMode === 'replace_image';
 
-  const onApply = async () => {
-    if (isReplace) {
-      Modal.confirm({
-        title: '确认替换原图？',
-        content: '替换操作会修改当前商品图片展示，可在安全条件下撤销本批次应用。',
-        onOk: doApply,
-      });
-      return;
-    }
-    await doApply();
+  const onApply = () => {
+    const mode = isReplace ? 'replace' : 'append';
+    confirmApplyAiImage(mode, () => void doApply());
   };
 
   const doApply = async () => {

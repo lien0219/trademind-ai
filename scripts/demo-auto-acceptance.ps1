@@ -99,10 +99,10 @@ $testEnv = @{
     appEnv    = $env:APP_ENV
     startedAt = $startedAt.ToString("o")
     hostname  = $env:COMPUTERNAME
-    phase     = "Phase R1.2-Auto"
+    phase     = "Phase F7-Auto"
 }
 
-Write-Host "TradeMind Phase R1.2-Auto Demo Acceptance"
+Write-Host "TradeMind Phase F7 Full-Project Demo Acceptance"
 Write-Host "API: $ApiBase | Backend up: $backendUp"
 
 $goPackages = @(
@@ -113,7 +113,13 @@ $goPackages = @(
     "./internal/modules/aiproducttext/...",
     "./internal/modules/aiproductimage/...",
     "./internal/modules/aiopsworkbench/...",
-    "./internal/modules/taskcenter/..."
+    "./internal/modules/taskcenter/...",
+    "./internal/modules/customerchat/...",
+    "./internal/modules/operationdashboard/...",
+    "./internal/modules/order/...",
+    "./internal/modules/inventory/...",
+    "./internal/modules/configstatus/...",
+    "./internal/pkg/adminperm/..."
 )
 
 Run-Step "go test regression" {
@@ -166,7 +172,17 @@ if (-not $SkipBuild) {
 }
 
 Run-Step "check-ui-copy" {
-    & "$PSScriptRoot/check-ui-copy.ps1" -OutFile "docs/COPYWRITING_AUDIT.auto.md"
+    & node "$PSScriptRoot/check-ui-copy.mjs" --strict --report "docs/COPYWRITING_AUDIT.auto.md" --json "docs/global-status-copywriting-scan.json"
+    return $LASTEXITCODE
+}
+
+Run-Step "demo-empty-state-scan" {
+    & "$PSScriptRoot/demo-empty-state-scan.ps1" -OutFile "docs/demo-empty-state-scan.auto.json"
+    return $LASTEXITCODE
+}
+
+Run-Step "demo-sensitive-confirm-scan" {
+    & "$PSScriptRoot/demo-sensitive-confirm-scan.ps1" -OutFile "docs/demo-sensitive-confirm-scan.auto.json"
     return $LASTEXITCODE
 }
 
@@ -181,7 +197,9 @@ Run-Step "check-doc-links" {
 }
 
 $apiStepNames = @(
-    "demo-route-smoke", "seed-demo-data", "ai-text-route-smoke", "ai-text-trial-run",
+    "demo-route-smoke", "seed-demo-data", "seed-demo-permissions",
+    "demo-dashboard-smoke", "demo-rbac-smoke", "demo-order-inventory-customer-smoke",
+    "ai-text-route-smoke", "ai-text-trial-run",
     "ai-image-route-smoke", "ai-image-trial-run", "publish-batch-perf", "ai-operation-workbench-perf"
 )
 
@@ -197,6 +215,22 @@ if ($SkipApiTests -or -not $backendUp) {
     }
     Run-Step "seed-demo-data" {
         & "$PSScriptRoot/seed-demo-data.ps1" -ApiBase $ApiBase -OutFile "docs/demo-dataset.auto.json"
+        return $LASTEXITCODE
+    }
+    Run-Step "seed-demo-permissions" {
+        & "$PSScriptRoot/seed-demo-permissions.ps1" -ApiBase $ApiBase
+        return $LASTEXITCODE
+    }
+    Run-Step "demo-dashboard-smoke" {
+        & "$PSScriptRoot/demo-dashboard-smoke.ps1" -ApiBase $ApiBase
+        return $LASTEXITCODE
+    }
+    Run-Step "demo-rbac-smoke" {
+        & "$PSScriptRoot/demo-rbac-smoke.ps1" -ApiBase $ApiBase
+        return $LASTEXITCODE
+    }
+    Run-Step "demo-order-inventory-customer-smoke" {
+        & "$PSScriptRoot/demo-order-inventory-customer-smoke.ps1" -ApiBase $ApiBase
         return $LASTEXITCODE
     }
     Run-Step "ai-text-route-smoke" {
@@ -250,7 +284,7 @@ $finalStatus = @{
 }
 
 $report = @{
-    phase                 = "Phase R1.2-Auto"
+    phase                 = "Phase F7-Auto"
     testEnvironment       = $testEnv
     startedAt             = $startedAt.ToString("o")
     finishedAt            = (Get-Date).ToUniversalTime().ToString("o")
@@ -263,6 +297,13 @@ $report = @{
     artifacts             = @{
         routeSmoke       = "docs/demo-route-smoke.auto.json"
         demoDataset      = "docs/demo-dataset.auto.json"
+        fullProjectReport = "docs/demo-auto-acceptance.full-project.json"
+        dashboardSmoke   = "docs/demo-dashboard-smoke.auto.json"
+        rbacSmoke        = "docs/demo-rbac-smoke.auto.json"
+        oicSmoke         = "docs/demo-order-inventory-customer-smoke.auto.json"
+        emptyStateScan   = "docs/demo-empty-state-scan.auto.json"
+        sensitiveScan    = "docs/demo-sensitive-confirm-scan.auto.json"
+        globalStatusScan = "docs/global-status-copywriting-scan.json"
         aiTextTrial      = "docs/ai-text-trial-run.auto.json"
         aiImageTrial     = "docs/ai-image-trial-run.auto.json"
         publishBatchPerf = "docs/publish-batch-perf.auto.json"
@@ -276,17 +317,19 @@ $report = @{
 $dir = Split-Path -Parent $ReportJson
 if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 $report | ConvertTo-Json -Depth 10 | Set-Content -Path $ReportJson -Encoding UTF8
+$fullProjectJson = Join-Path $repoRoot "docs/demo-auto-acceptance.full-project.json"
+$report | ConvertTo-Json -Depth 10 | Set-Content -Path $fullProjectJson -Encoding UTF8
 
 $backendLabel = if ($backendUp) { "reachable" } else { "unreachable (API steps skipped)" }
 $mdLines = New-Object System.Collections.Generic.List[string]
-$mdLines.Add("# TradeMind Phase R1.2-Auto Demo Auto Acceptance Report")
+$mdLines.Add("# TradeMind Phase F7 Full-Project Demo Auto Acceptance Report")
 $mdLines.Add("")
 $mdLines.Add("> Generated: $($report.finishedAt)")
 $mdLines.Add("> API: $ApiBase | Backend: $backendLabel")
 $mdLines.Add("")
 $mdLines.Add("## Phase")
 $mdLines.Add("")
-$mdLines.Add("**Phase R1.2-Auto** - Automatable acceptance without real preprod SSH/HTTPS/Storage")
+$mdLines.Add("**Phase F7-Auto** - Full-project demo smoke + static scans (not final manual acceptance)")
 $mdLines.Add("")
 $mdLines.Add("## Summary")
 $mdLines.Add("")
@@ -336,6 +379,8 @@ $mdLines.Add("No v0.1.0-demo tag in this phase. No real Douyin E2E. No productio
 $mdDir = Split-Path -Parent $ReportMd
 if ($mdDir -and -not (Test-Path $mdDir)) { New-Item -ItemType Directory -Path $mdDir -Force | Out-Null }
 $mdLines -join "`n" | Set-Content -Path $ReportMd -Encoding UTF8
+$fullProjectMd = Join-Path $repoRoot "docs/DEMO_AUTO_ACCEPTANCE_FULL_PROJECT_REPORT.md"
+$mdLines -join "`n" | Set-Content -Path $fullProjectMd -Encoding UTF8
 
 Write-Host ""
 Write-Host "=== Summary ==="

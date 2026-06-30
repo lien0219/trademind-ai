@@ -1,0 +1,17 @@
+{
+  "phase": "F7",
+  "description": "客服 Demo 样本目录",
+  "scenarios": [
+    { "tag": "pending_reply_conversation", "note": "待回复会话" },
+    { "tag": "order_linked_conversation", "note": "关联订单" },
+    { "tag": "product_linked_conversation", "note": "关联商品上下文" },
+    { "tag": "inventory_consult_conversation", "note": "库存咨询" },
+    { "tag": "ai_suggestion_generated", "note": "AI 已生成建议待确认" },
+    { "tag": "ai_suggestion_pending_confirm", "note": "人工确认前" },
+    { "tag": "human_sent_reply", "note": "人工已发送" },
+    { "tag": "send_failure", "note": "customer_reply_send_failed" },
+    { "tag": "platform_not_authorized", "note": "customer_platform_not_authorized" },
+    { "tag": "message_sync_partial_success", "note": "customer_message_sync_partial_success" }
+  ],
+  "samples": []
+}

@@ -1,6 +1,7 @@
 import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { PRODUCT_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   INVENTORY_DEDUCT_SOURCE,
   INVENTORY_DEDUCT_STATUS,
@@ -18,6 +19,7 @@ function effectTypeLabel(raw: string) {
 }
 
 export default function InventoryDeductionsPage() {
+  const emptyLocale = useListEmptyLocale('inventoryDeductions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const location = useLocation();
 
@@ -168,6 +170,7 @@ export default function InventoryDeductionsPage() {
             return { data: [], success: false, total: 0 };
           }
         }}
+        locale={emptyLocale}
       />
     </TmPageContainer>
   );

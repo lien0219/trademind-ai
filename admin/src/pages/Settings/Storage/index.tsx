@@ -36,6 +36,7 @@ import { deleteFile, uploadFile, type UploadedFileInfo } from '@/services/files'
 import { fetchSettingsList, saveSettingsItems, testStorageConnection, type SettingPutItem } from '@/services/settings';
 import { testStoragePublicAccess } from '@/services/douyinProduction';
 import { pickGroup } from '@/utils/settingsForm';
+import { confirmStoragePublicTest } from '@/constants/sensitiveActions';
 
 const GROUP = 'storage';
 
@@ -780,20 +781,22 @@ export default function StorageSettingsPage() {
               </Button>
               <Button
                 loading={publicTesting}
-                onClick={async () => {
-                  setPublicTesting(true);
-                  try {
-                    const res = await testStoragePublicAccess();
-                    if (res.ok) {
-                      message.success(res.message || '图片存储可以被外部平台正常访问');
-                    } else {
-                      message.error(res.message || '图片地址无法被外部平台访问');
+                onClick={() => {
+                  confirmStoragePublicTest(async () => {
+                    setPublicTesting(true);
+                    try {
+                      const res = await testStoragePublicAccess();
+                      if (res.ok) {
+                        message.success(res.message || '图片存储可以被外部平台正常访问');
+                      } else {
+                        message.error(res.message || '图片地址无法被外部平台访问');
+                      }
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '公网访问检测失败');
+                    } finally {
+                      setPublicTesting(false);
                     }
-                  } catch (e: unknown) {
-                    message.error((e as Error)?.message || '公网访问检测失败');
-                  } finally {
-                    setPublicTesting(false);
-                  }
+                  });
                 }}
               >
                 测试公网访问

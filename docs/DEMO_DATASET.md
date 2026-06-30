@@ -1,15 +1,19 @@
-# Demo 数据集说明（Phase R1）
+# Demo 数据集说明（Phase F7）
 
-> **Release 状态**：`MVP Demo Ready`（非 Production Ready）  
-> 生成脚本：`scripts/seed-demo-data.ps1` / `scripts/seed-demo-data.sh`  
-> 机器可读输出：`docs/demo-dataset.json`
+> **Release 状态**：`MVP Demo Ready`（非 Production Ready）
+> 生成脚本：`scripts/seed-demo-data.ps1` / `scripts/seed-demo-data.sh`
+> 权限种子：`scripts/seed-demo-permissions.ps1`
+> 机器可读输出：`docs/demo-dataset.json`、`docs/demo-dataset.full-project.json`
 
 ## 生成方式
 
 ```powershell
 # 需本地 API 与管理员账号（读取 .env 中 ADMIN_BOOTSTRAP_*）
 .\scripts\seed-demo-data.ps1 -ApiBase http://127.0.0.1:8080
+.\scripts\seed-demo-permissions.ps1 -ApiBase http://127.0.0.1:8080
 ```
+
+详见 [`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)。
 
 脚本会：
 
@@ -55,6 +59,44 @@
 | 失败任务中心 | failure | 已有失败任务 |
 | 商品运营工作台 | todos | 聚合待办 |
 
+## 订单样本（Phase F2 / F7）
+
+| tag | 说明 |
+| --- | --- |
+| normal_matched_order | 已匹配 SKU，可演示扣减 |
+| unmatched_sku_order | 未匹配 SKU，异常工作台 |
+| sync_partial_success | 订单同步 partial_success（需 shop / mock） |
+
+明细见 `docs/demo-dataset.orders.json`。
+
+## 库存样本（Phase F3 / F7）
+
+| tag | 说明 |
+| --- | --- |
+| normal_stock_sku | 正常库存 |
+| low_stock_sku | 低于预警线 |
+| zero_stock_sku | 零库存 |
+| deduct_success_order | 扣减成功路径 |
+| deduct_blocked_unmatched_order | SKU 未匹配阻断扣减 |
+
+明细见 `docs/demo-dataset.inventory.json`。
+
+## 客服样本（Phase F4 / F7）
+
+| tag | 说明 |
+| --- | --- |
+| pending_reply | 待回复会话 |
+| ai_suggestion_generated | AI 建议已生成待确认 |
+| send_failed | 发送失败（best-effort） |
+
+明细见 `docs/demo-dataset.customer-service.json`。需配置 AI Provider 时 AI 建议步骤可能 skipped。
+
+## Dashboard KPI 样本（Phase F6 / F7）
+
+运行 seed 后探测 `GET /dashboard/overview|todos|health`，覆盖 10 KPI：采集失败、商品草稿、AI 待复核、发布检查、刊登异常、订单异常、库存预警、客服待回复、失败任务、配置风险。
+
+明细见 `docs/demo-dataset.dashboard.json`。
+
 ## 注意事项
 
 - 抖店真实 create-draft 仍为 **Release Candidate**，无凭证时样本 #19 预期 `blocked_by_real_credentials`
@@ -65,5 +107,6 @@
 
 | 日期 | 说明 |
 | --- | --- |
+| 2026-06-30 | Phase F7：订单 / 库存 / 客服 / Dashboard 样本 + `demo-dataset.full-project.json` |
 | 2026-06-27 | Phase R1.1 复跑：`seed-demo-data.ps1` + `demo-route-smoke.ps1`；12 步走查记录 |
 | 2026-06-27 | Phase R1 初版：seed 脚本 + demo-dataset.json |

@@ -1,8 +1,18 @@
 # TradeMind 全项目功能地图
 
-> **Phase F1**（2026-06-29）— 全项目功能缺口审计与后续开发路线规划。  
-> **当前策略**：先把功能按规划开发完整，再统一进入总体验收；**不**进入最终人工测试、真实预发、抖店真实 E2E、生产灰度。  
-> **当前状态**：`MVP Demo Ready` · `非 Production Ready` · 抖店 **Release Candidate** · `v0.1.0-demo` **Tag pending**
+> **Phase F7**（2026-06-30）— **F2–F7 已完成**；**当前 F8 功能冻结**；**F9 总体验收待启动**。
+> **当前策略**：功能按 F2–F7 规划已补齐 Demo 数据与 smoke；F8 只修 P0/P1 → F9 统一总体验收。
+> **当前状态**：**Full Project Functionality In Progress** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · `v0.1.0-demo` **Tag pending**
+
+## Phase F7 更新（2026-06-30）
+
+| 模块 | F7 变化 |
+| --- | --- |
+| **32. Demo 数据** | `done` — 全链路样本：商品 20 slot + 订单 / 库存 / 客服 / Dashboard KPI；`demo-dataset.full-project.json` |
+| **33. 自动化脚本** | `partial` → smoke 补齐：`demo-dashboard-smoke`、`demo-order-inventory-customer-smoke`、`demo-rbac-smoke` 等 |
+| **31. 总 Dashboard** | F6 已 `done`；F7 Demo 种子覆盖 10 KPI 聚合探测 |
+
+详见 [`FULL_PROJECT_DEMO_DATASET.md`](FULL_PROJECT_DEMO_DATASET.md)、[`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)。
 
 ## 完成度分级
 
@@ -539,14 +549,14 @@
 
 | 项 | 内容 |
 | --- | --- |
-| **完成度** | `partial` |
-| **已有页面** | `/dashboard/product-operations`（商品运营看板） |
-| **已有接口** | `GET /dashboard/product-operations` |
+| **完成度** | `done` |
+| **已有页面** | `/dashboard/product-operations`（全链路运营总览） |
+| **已有接口** | `GET /dashboard/product-operations`、`/dashboard/overview`、`/dashboard/todos`、`/dashboard/health` |
 | **已有数据表** | 只读聚合 SQL（无独立表） |
-| **已完成能力** | KPI、待办、漏斗、异常、12 项快捷入口、最近动态 |
-| **缺失能力** | 全链路总运营首页（订单/库存/客服/配置提醒统一入口 — Phase F6） |
+| **已完成能力** | 10 KPI、统一待办、漏斗、异常、快捷入口、RBAC 店铺 scope；F7 Demo KPI 样本 |
+| **缺失能力** | 复杂 BI / 自定义报表（deferred） |
 | **阻塞整体 MVP** | 否 |
-| **下一阶段建议** | **Phase F6** |
+| **下一阶段建议** | Phase F8 冻结；F9 人工走查 |
 | **风险等级** | 低 |
 
 ---
@@ -558,11 +568,11 @@
 | **完成度** | `done` |
 | **已有页面** | —（脚本驱动） |
 | **已有接口** | HTTP API 由 `scripts/seed-demo-data.*` 调用 |
-| **已有数据表** | 写入 products/collect/ai/publish 等 |
-| **已完成能力** | 20 类商品 slot + 7 任务样本；`docs/DEMO_DATASET.md` |
-| **缺失能力** | 订单/库存/客服/失败任务全链路 Demo 样本（Phase F7） |
+| **已有数据表** | 写入 products / orders / inventory / customer / collect / ai / publish 等 |
+| **已完成能力** | 20 商品 slot + 7 任务样本 + 订单 / 库存 / 客服 / Dashboard 样本；`docs/demo-dataset.full-project.json` |
+| **缺失能力** | 真实平台凭证数据（F9 `manual_required`） |
 | **阻塞整体 MVP** | 否 |
-| **下一阶段建议** | **Phase F7** |
+| **下一阶段建议** | Phase F8 冻结后 F9 预发复跑 |
 | **风险等级** | 低 |
 
 ---
@@ -571,14 +581,14 @@
 
 | 项 | 内容 |
 | --- | --- |
-| **完成度** | `done` |
+| **完成度** | `partial` |
 | **已有页面** | — |
 | **已有接口** | — |
 | **已有数据表** | — |
-| **已完成能力** | `demo-auto-acceptance`、`demo-route-smoke`、`seed-demo-data`、AI 试跑、抖店 E2E preflight、perf 脚本 |
-| **缺失能力** | 订单/客服/库存专项 smoke（Phase F7–F8） |
+| **已完成能力** | `demo-auto-acceptance`（Phase F7-Auto）、`seed-demo-data`、`demo-route-smoke`、F7 专项 smoke（dashboard / rbac / order-inventory-customer / empty-state / sensitive-confirm）、AI 试跑、抖店 E2E preflight |
+| **缺失能力** | F9 最终人工验收脚本与真实预发 E2E |
 | **阻塞整体 MVP** | 否 |
-| **下一阶段建议** | Phase F8 冻结后补全总体验收脚本 |
+| **下一阶段建议** | Phase F9 总体验收补全 |
 | **风险等级** | 低 |
 
 ---

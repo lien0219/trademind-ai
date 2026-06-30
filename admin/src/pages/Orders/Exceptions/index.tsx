@@ -1,6 +1,7 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
+import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history, useLocation } from '@umijs/max';
 import {
   Alert,
@@ -37,6 +38,7 @@ import {
 import { getOrderItemSkuCandidates, type SkuCandidateRow } from '@/services/skuCandidates';
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 import { queryShops } from '@/services/shops';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 
 const EX_TYPES: Record<string, { text: string }> = {
   sku_unmatched: { text: '规格未匹配' },
@@ -120,6 +122,7 @@ function candTrustBadge(conf: number) {
 }
 
 export default function OrderExceptionsPage() {
+  const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
   const { search: locSearch } = useLocation();
@@ -573,6 +576,7 @@ export default function OrderExceptionsPage() {
         columns={columns}
         search={{ layout: 'vertical', defaultCollapsed: false }}
         pagination={{ pageSize: 20 }}
+        locale={emptyLocale}
         request={async (params) => {
           let handled: boolean | undefined;
           let ignored: boolean | undefined;
@@ -608,40 +612,39 @@ export default function OrderExceptionsPage() {
         footer={
           <Space>
             <Button onClick={() => setBindOpen(false)}>取消</Button>
-            <Popconfirm
-              title={`确认所选本地商品规格${pickedCandMeta ? `（候选分 ${pickedCandMeta.confidence} · ${pickedCandMeta.source}）` : ''}
-并执行所选库存动作？`}
-              okText="确认"
-              cancelText="返回"
-              onConfirm={async () => {
+            <Button
+              type="primary"
+              onClick={() => {
                 if (!bindRow || !pickedSku) {
                   message.warning('请选择本地商品规格');
                   return;
                 }
-                try {
-                  const out = await postOrderExceptionBindSku(bindRow.sourceType, bindRow.sourceId, {
-                    exceptionType: bindRow.exceptionType,
-                    productSkuId: pickedSku,
-                    deductInventory: deduct,
-                    syncInventory: syncPlat,
-                    autoMarkHandled: true,
-                    candidateConfidence: pickedCandMeta?.confidence,
-                    candidateSource: pickedCandMeta?.source,
-                  });
-                  if (out.inventoryDeductionError) {
-                    message.error(out.inventoryDeductionError);
-                  } else {
-                    message.success('处理完成');
+                confirmSkuManualBind(async () => {
+                  try {
+                    const out = await postOrderExceptionBindSku(bindRow.sourceType, bindRow.sourceId, {
+                      exceptionType: bindRow.exceptionType,
+                      productSkuId: pickedSku,
+                      deductInventory: deduct,
+                      syncInventory: syncPlat,
+                      autoMarkHandled: true,
+                      candidateConfidence: pickedCandMeta?.confidence,
+                      candidateSource: pickedCandMeta?.source,
+                    });
+                    if (out.inventoryDeductionError) {
+                      message.error(out.inventoryDeductionError);
+                    } else {
+                      message.success('处理完成');
+                    }
+                    setBindOpen(false);
+                    reload();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
                   }
-                  setBindOpen(false);
-                  reload();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
+                });
               }}
             >
-              <Button type="primary">确认</Button>
-            </Popconfirm>
+              确认
+            </Button>
           </Space>
         }
       >

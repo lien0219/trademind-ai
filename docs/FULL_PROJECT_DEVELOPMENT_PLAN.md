@@ -1,20 +1,20 @@
 # TradeMind 全项目后续开发计划（Phase F2–F9）
 
-> **Phase F1**（2026-06-29）完成全项目功能缺口审计与路线规划。  
-> **当前策略**：先把功能按规划开发完整 → Phase F8 功能冻结 → Phase F9 统一总体验收。  
-> **当前状态**：`Full Project Development Planning Completed` · `MVP Demo Ready` · **非 Production Ready** · 抖店 **Release Candidate** · Tag **pending**
+> **Phase F1**（2026-06-29）完成全项目功能缺口审计与路线规划。
+> **Phase F7**（2026-06-30）完成全项目 Demo 数据升级。**F2–F7 ✅** · **当前 F8** · **F9 待启动**。
+> **当前状态**：**Full Project Functionality In Progress** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · Tag **pending**
 
 ## 阶段总览
 
 ```text
-F1  功能缺口审计与路线规划          ← 当前完成
-F2  订单中心与订单异常工作台完善
-F3  库存中心与库存同步完善
-F4  客服消息与 AI 回复建议完善
-F5  系统配置状态中心与权限角色完善
-F6  总 Dashboard 与全局体验完善
-F7  全项目 Demo 数据升级
-F8  全项目功能冻结（只修 P0/P1）
+F1  功能缺口审计与路线规划          ✅
+F2  订单中心与订单异常工作台完善      ✅
+F3  库存中心与库存同步完善            ✅
+F4  客服消息与 AI 回复建议完善        ✅
+F5  系统配置状态中心与权限角色完善    ✅
+F6  总 Dashboard 与全局体验完善      ✅
+F7  全项目 Demo 数据升级              ✅
+F8  全项目功能冻结（只修 P0/P1）      ← 当前
 F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 ```
 
@@ -32,7 +32,7 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F2：订单中心与订单异常工作台完善
+## Phase F2：订单中心与订单异常工作台完善 ✅
 
 | 项 | 内容 |
 | --- | --- |
@@ -50,7 +50,7 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F3：库存中心与库存同步完善
+## Phase F3：库存中心与库存同步完善 ✅
 
 | 项 | 内容 |
 | --- | --- |
@@ -68,7 +68,7 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F4：客服消息与 AI 回复建议完善
+## Phase F4：客服消息与 AI 回复建议完善 ✅
 
 | 项 | 内容 |
 | --- | --- |
@@ -86,7 +86,7 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F5：系统配置状态中心与权限角色完善
+## Phase F5：系统配置状态中心与权限角色完善 ✅
 
 | 项 | 内容 |
 | --- | --- |
@@ -103,7 +103,7 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F6：总 Dashboard 与全局体验完善
+## Phase F6：总 Dashboard 与全局体验完善 ✅
 
 | 项 | 内容 |
 | --- | --- |
@@ -120,19 +120,21 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F7：全项目 Demo 数据升级
+## Phase F7：全项目 Demo 数据升级 ✅
 
 | 项 | 内容 |
 | --- | --- |
 | **目标** | 构造覆盖采集→商品→AI→刊登→订单→库存→客服→失败任务的完整业务样本 |
 | **输入** | `scripts/seed-demo-data.*`、现有 20 slot |
-| **输出** | 扩展 seed 脚本；`docs/DEMO_DATASET.md` v2；订单/客服/库存样本 |
-| **完成标准** | 无真实凭证时可走查主链路 16 步（抖店步骤为 mock/local_draft） |
-| **不做** | 真实平台数据写入 |
+| **输出** | 扩展 seed 脚本；`docs/DEMO_DATASET.md` v2；`demo-dataset.orders|inventory|customer|dashboard|full-project.json`；F7 smoke 脚本；[`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md) |
+| **完成标准** | 无真实凭证时可走查主链路 16 步（抖店步骤为 mock/local_draft）；`demo-auto-acceptance` Phase F7-Auto |
+| **不做** | 真实平台数据写入；打 tag；Production Ready |
+
+**2026-06-30 交付摘要**：`seed-demo-data` + `seed-demo-permissions`；Demo 账号三角色；Dashboard 10 KPI 探测；专项 smoke 与文案复扫 passed。
 
 ---
 
-## Phase F8：全项目功能冻结
+## Phase F8：全项目功能冻结 ← 当前
 
 | 项 | 内容 |
 | --- | --- |

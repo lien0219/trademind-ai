@@ -1,5 +1,6 @@
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import ReviewImageItemModal from '@/pages/Product/AIImageBatch/components/ReviewImageItemModal';
+import { confirmApplyAiImage, confirmUndoAiImage } from '@/constants/sensitiveActions';
 import {
   AI_IMAGE_APPLY_MODES,
   AI_IMAGE_REVIEW_FILTERS,
@@ -22,8 +23,6 @@ import {
   Card,
   Descriptions,
   Image,
-  Modal,
-  Popconfirm,
   Segmented,
   Select,
   Space,
@@ -90,23 +89,19 @@ export default function AIImageBatchDetailPage() {
       message.warning('请选择待复核结果');
       return;
     }
-    Modal.confirm({
-      title: '批量应用已选图片',
-      content:
-        '将把选中的 AI 图片结果应用到商品。原图不会被删除，替换操作可以在安全条件下撤销。',
-      onOk: async () => {
-        setActing(true);
-        try {
-          const res = await applyAiProductImageSelected(id, selectedKeys, batchApplyMode);
-          message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
-          setSelectedKeys([]);
-          await reload();
-        } catch (e: unknown) {
-          message.error((e as Error)?.message || '批量应用失败');
-        } finally {
-          setActing(false);
-        }
-      },
+    const mode = batchApplyMode === 'replace_image' ? 'replace' : 'append';
+    confirmApplyAiImage(mode, async () => {
+      setActing(true);
+      try {
+        const res = await applyAiProductImageSelected(id, selectedKeys, batchApplyMode);
+        message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
+        setSelectedKeys([]);
+        await reload();
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '批量应用失败');
+      } finally {
+        setActing(false);
+      }
     });
   };
 
@@ -162,25 +157,26 @@ export default function AIImageBatchDetailPage() {
               <Button type="primary" loading={acting} disabled={!selectedKeys.length} onClick={onApplySelected}>
                 批量应用已选图片
               </Button>
-              <Popconfirm
-                title="撤销本批次已应用结果？"
-                description="若商品图片后续被人工修改，对应项撤销会失败。"
-                onConfirm={async () => {
+              <Button
+                disabled={!detail.appliedCount}
+                onClick={() => {
                   if (!id) return;
-                  setActing(true);
-                  try {
-                    const res = await undoAiProductImageBatchApplied(id);
-                    message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
-                    await reload();
-                  } catch (e: unknown) {
-                    message.error((e as Error)?.message || '撤销失败');
-                  } finally {
-                    setActing(false);
-                  }
+                  confirmUndoAiImage(async () => {
+                    setActing(true);
+                    try {
+                      const res = await undoAiProductImageBatchApplied(id);
+                      message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
+                      await reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '撤销失败');
+                    } finally {
+                      setActing(false);
+                    }
+                  });
                 }}
               >
-                <Button disabled={!detail.appliedCount}>批量撤销本批次应用</Button>
-              </Popconfirm>
+                批量撤销本批次应用
+              </Button>
             </Space>
           </Card>
 

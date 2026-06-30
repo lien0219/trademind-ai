@@ -10,8 +10,9 @@ import {
   inventoryTagFromMap,
 } from '@/constants/inventoryLabels';
 import { INVENTORY_COPY, PRODUCT_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { queryInventoryCenter, type InventoryCenterRow } from '@/services/inventory';
-import { Button, Empty, Space, Tag, Typography, message } from 'antd';
+import { Space, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import { Link, history, useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef } from 'react';
@@ -22,6 +23,7 @@ function tagFrom(raw: string, map: Record<string, { text: string; color: string 
 }
 
 export default function InventoryCenterPage() {
+  const emptyLocale = useListEmptyLocale('inventoryCenter', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
   const location = useLocation();
@@ -193,18 +195,7 @@ export default function InventoryCenterPage() {
         scroll={{ x: 1500 }}
         search={{ labelWidth: 100, defaultCollapsed: false }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        locale={{
-          emptyText: (
-            <Empty description="暂无库存数据">
-              <Space direction="vertical">
-                <Typography.Text type="secondary">可先创建商品草稿并维护 SKU 库存。</Typography.Text>
-                <Button type="primary" onClick={() => history.push('/product/drafts')}>
-                  前往商品草稿
-                </Button>
-              </Space>
-            </Empty>
-          ),
-        }}
+        locale={emptyLocale}
         request={async (params) => {
           try {
             const res = await queryInventoryCenter({

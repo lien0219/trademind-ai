@@ -1,4 +1,5 @@
-import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
+import { Button, Input, Modal, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
+import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -412,39 +413,35 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
         footer={
           <Space>
             <Button onClick={() => setBindOpen(false)}>关闭</Button>
-            <Popconfirm
-              title={
-                pickedCandMeta
-                  ? `确认绑定所选 SKU（候选分 ${pickedCandMeta.confidence} · ${pickedCandMeta.source}）并执行所选库存策略？`
-                  : '确认绑定所选 SKU（未使用候选摘要）并执行所选库存策略？'
-              }
-              okText="确认"
-              cancelText="再想想"
-              onConfirm={async () => {
-                if (!bindItemId || !pickedSku) {
-                  message.warning('请选择 SKU');
-                  return;
-                }
-                try {
-                  await bindOrderItemSku(bindItemId, {
-                    productSkuId: pickedSku,
-                    deductInventory: deduct,
-                    syncInventory: syncPlat,
-                    candidateConfidence: pickedCandMeta?.confidence,
-                    candidateSource: pickedCandMeta?.source,
-                  });
-                  message.success('已绑定');
-                  setBindOpen(false);
-                  setCandCache({});
-                  await load();
-                  await onRefreshOrder();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
+            <Button
+              type="primary"
+              onClick={() => {
+                confirmSkuManualBind(async () => {
+                  if (!bindItemId || !pickedSku) {
+                    message.warning('请选择 SKU');
+                    return;
+                  }
+                  try {
+                    await bindOrderItemSku(bindItemId, {
+                      productSkuId: pickedSku,
+                      deductInventory: deduct,
+                      syncInventory: syncPlat,
+                      candidateConfidence: pickedCandMeta?.confidence,
+                      candidateSource: pickedCandMeta?.source,
+                    });
+                    message.success('已绑定');
+                    setBindOpen(false);
+                    setCandCache({});
+                    await load();
+                    await onRefreshOrder();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
+                  }
+                });
               }}
             >
-              <Button type="primary">二次确认绑定</Button>
-            </Popconfirm>
+              二次确认绑定
+            </Button>
           </Space>
         }
         onCancel={() => setBindOpen(false)}

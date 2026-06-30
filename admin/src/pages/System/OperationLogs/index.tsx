@@ -13,6 +13,7 @@ import {
   operationLogResourceLabel,
 } from '@/constants/operationLogs';
 import { fetchOperationLogs, type OperationLogRow } from '@/services/operationLogs';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 
 function statusTag(s: string) {
   const k = (s || '').trim().toLowerCase();
@@ -43,6 +44,7 @@ function mappedResourceTag(resource?: string) {
 }
 
 export default function OperationLogsPage() {
+  const emptyLocale = useListEmptyLocale('operationLogs');
   const actionRef = useRef<ActionType>();
 
   const columns: ProColumns<OperationLogRow>[] = [
@@ -144,6 +146,7 @@ export default function OperationLogsPage() {
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
         options={{ reload: true, density: true, setting: true }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        locale={emptyLocale}
         request={async (params) => {
           const res = await fetchOperationLogs({
             page: params.current,

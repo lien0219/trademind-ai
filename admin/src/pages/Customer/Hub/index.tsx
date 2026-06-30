@@ -1,11 +1,13 @@
 import { TmPageContainer } from '@/components/ui';
 import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
 import { getCustomerDashboard, type CustomerDashboardSummary } from '@/services/customer';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { history } from '@umijs/max';
-import { Alert, Button, Card, Col, Empty, Row, Spin, Statistic, Tag } from 'antd';
+import { Alert, Button, Card, Col, Row, Spin, Statistic, Tag } from 'antd';
 import { useEffect, useState } from 'react';
 
 export default function CustomerHubPage() {
+  const emptyLocale = useListEmptyLocale('customerHub', { permissionScoped: true });
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CustomerDashboardSummary | null>(null);
 
@@ -98,11 +100,7 @@ export default function CustomerHubPage() {
             </Card>
           </>
         ) : (
-          <Empty description="暂无数据">
-            <Button type="primary" onClick={() => history.push('/customer/conversations')}>
-              前往会话列表
-            </Button>
-          </Empty>
+          emptyLocale.emptyText
         )}
       </Spin>
     </TmPageContainer>

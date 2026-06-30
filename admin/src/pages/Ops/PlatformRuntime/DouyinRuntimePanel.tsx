@@ -10,6 +10,7 @@ import {
 import { ProCard } from '@ant-design/pro-components';
 import { ActionBar, SectionCard, TechnicalDetails } from '@/components/ui';
 import { releaseGateConclusionLabel } from '@/constants/platformRuntime';
+import { confirmStoragePublicTest } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, Link } from '@umijs/max';
 import {
@@ -370,22 +371,24 @@ export default function DouyinRuntimePanel() {
     }
   };
 
-  const testStorage = async () => {
-    setStorageTesting(true);
-    try {
-      const res = await testStoragePublicAccess();
-      if (res.ok) {
-        message.success(res.message || '存储公网访问正常');
-      } else {
-        message.warning(res.message || '存储公网访问需检查');
+  const testStorage = () => {
+    confirmStoragePublicTest(async () => {
+      setStorageTesting(true);
+      try {
+        const res = await testStoragePublicAccess();
+        if (res.ok) {
+          message.success(res.message || '存储公网访问正常');
+        } else {
+          message.warning(res.message || '存储公网访问需检查');
+        }
+        const h = await getDouyinHealth();
+        setHealth(h);
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '存储公网访问测试失败');
+      } finally {
+        setStorageTesting(false);
       }
-      const h = await getDouyinHealth();
-      setHealth(h);
-    } catch (e: unknown) {
-      message.error((e as Error)?.message || '存储公网访问测试失败');
-    } finally {
-      setStorageTesting(false);
-    }
+    });
   };
 
   const gray = health?.grayRelease;

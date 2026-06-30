@@ -154,6 +154,15 @@ import {
   type PublicationSkuListingRow,
 } from '@/services/inventory';
 import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
+import {
+  confirmApplyAiText,
+  confirmCreatePlatformDraft,
+  confirmInventoryManualAdjust,
+  confirmInventorySync,
+  confirmSkuManualBind,
+  confirmSkuUnbind,
+  confirmUndoAiText,
+} from '@/constants/sensitiveActions';
 
 function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
@@ -1572,52 +1581,30 @@ export default function ProductDraftDetailPage() {
     return false;
   }, [douyinConfig.categoryId, douyinConfig.shopId, douyinMapping, douyinShops, publishReadiness]);
 
-  const handleCreateDouyinDraft = useCallback(async () => {
+  const handleCreateDouyinDraft = useCallback(() => {
     const shopId = String(douyinForm.getFieldValue('shopId') || douyinConfig.shopId || '').trim();
     if (!shopId) {
       message.error('请选择抖店店铺');
       return;
     }
-    if (publishReadiness && (publishReadiness.warningCount ?? 0) > 0) {
-      await new Promise<void>((resolve, reject) => {
-        Modal.confirm({
-          title: '当前商品存在需要人工确认的信息，是否继续创建抖店商品草稿？',
-          width: 640,
-          okText: '继续创建抖店商品草稿',
-          cancelText: '返回处理',
-          content: (
-            <div>
-              {(publishReadiness.checks || [])
-                .filter((c) => c.level !== 'error')
-                .slice(0, 10)
-                .map((c, i) => (
-                  <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
-                    {readinessLevelTag(c.level)} {c.message}
-                  </div>
-                ))}
-            </div>
-          ),
-          onOk: () => resolve(),
-          onCancel: () => reject(new Error('cancelled')),
-        });
-      });
-    }
-    setDouyinDraftCreating(true);
-    try {
-      const task = await createDouyinProductDraft(id, { shopId, publishMode: 'save_as_platform_draft' });
-      message.success('已创建抖店商品草稿，请到抖店后台确认后上架。');
-      await reloadDouyinPublishTasks();
-      await reloadPublicationSkus();
-      await reloadDouyinSkuBindings();
-      if (task.platformProductId) {
-        message.info(`抖店商品 ID：${task.platformProductId}`);
+    confirmCreatePlatformDraft(false, async () => {
+      setDouyinDraftCreating(true);
+      try {
+        const task = await createDouyinProductDraft(id, { shopId, publishMode: 'save_as_platform_draft' });
+        message.success('已创建抖店商品草稿，请到抖店后台确认后上架。');
+        await reloadDouyinPublishTasks();
+        await reloadPublicationSkus();
+        await reloadDouyinSkuBindings();
+        if (task.platformProductId) {
+          message.info(`抖店商品 ID：${task.platformProductId}`);
+        }
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '创建抖店商品草稿失败');
+      } finally {
+        setDouyinDraftCreating(false);
       }
-    } catch (e: unknown) {
-      message.error((e as Error)?.message || '创建抖店商品草稿失败');
-    } finally {
-      setDouyinDraftCreating(false);
-    }
-  }, [douyinConfig.shopId, douyinForm, id, publishReadiness, reloadDouyinPublishTasks, reloadPublicationSkus, reloadDouyinSkuBindings]);
+    });
+  }, [douyinConfig.shopId, douyinForm, id, reloadDouyinPublishTasks, reloadPublicationSkus, reloadDouyinSkuBindings]);
 
   const shopsForReadinessPlat = useMemo(() => {
     const p = readinessPlat.trim().toLowerCase();
@@ -2660,11 +2647,10 @@ export default function ProductDraftDetailPage() {
                       type="primary"
                       disabled={pubSkuSelectedKeys.length === 0}
                       onClick={() => {
-                        Modal.confirm({
-                          title: '批量同步选中刊登规格？',
-                          content: `将为选中的 ${pubSkuSelectedKeys.length} 条映射创建库存同步任务。缺少平台映射或未开放库存同步能力的条目将自动跳过。`,
-                          okText: '创建批次',
-                          onOk: async () => {
+                        confirmInventorySync(
+                          `选中的 ${pubSkuSelectedKeys.length} 条刊登规格`,
+                          true,
+                          async () => {
                             try {
                               const batch = await createInventorySyncBatch({
                                 source: 'product_detail',
@@ -2683,7 +2669,7 @@ export default function ProductDraftDetailPage() {
                               throw e;
                             }
                           },
-                        });
+                        );
                       }}
                     >
                       批量同步到平台
@@ -3601,22 +3587,25 @@ export default function ProductDraftDetailPage() {
                                           手动绑定
                                         </Button>
                                         {r.externalSkuId ? (
-                                          <Popconfirm
-                                            title="确认解除该规格的抖店规格绑定？"
-                                            onConfirm={() =>
-                                              void unbindDouyinSku(r.publicationSkuId)
-                                                .then(async () => {
-                                                  message.success('已解除绑定');
-                                                  await reloadDouyinSkuBindings();
-                                                  await reloadPublicationSkus();
-                                                })
-                                                .catch((e: Error) => message.error(e.message || '解除失败'))
+                                          <Button
+                                            type="link"
+                                            size="small"
+                                            style={{ padding: 0 }}
+                                            danger
+                                            onClick={() =>
+                                              confirmSkuUnbind(() =>
+                                                void unbindDouyinSku(r.publicationSkuId)
+                                                  .then(async () => {
+                                                    message.success('已解除绑定');
+                                                    await reloadDouyinSkuBindings();
+                                                    await reloadPublicationSkus();
+                                                  })
+                                                  .catch((e: Error) => message.error(e.message || '解除失败')),
+                                              )
                                             }
                                           >
-                                            <Button type="link" size="small" style={{ padding: 0 }} danger>
-                                              解除绑定
-                                            </Button>
-                                          </Popconfirm>
+                                            解除绑定
+                                          </Button>
                                         ) : null}
                                       </Space>
                                     ),
@@ -3999,54 +3988,58 @@ export default function ProductDraftDetailPage() {
               type="primary"
               disabled={!aiPreparedTitle.trim()}
               loading={aiBusy}
-              onClick={async () => {
+              onClick={() => {
                 if (!aiResult?.taskId) return;
-                setAiBusy(true);
-                try {
-                  await applyProductAITitle(id, {
-                    aiTitle: aiPreparedTitle,
-                    taskId: aiResult.taskId,
-                    expectedUpdatedAt: data?.updatedAt,
-                  });
-                  message.success('已应用为 AI 标题');
-                  setAiOpen(false);
-                  setAiResult(null);
-                  setAiPreparedTitle('');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '';
-                  if (msg.includes('conflict')) {
-                    message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
-                    return;
+                confirmApplyAiText('标题', async () => {
+                  setAiBusy(true);
+                  try {
+                    await applyProductAITitle(id, {
+                      aiTitle: aiPreparedTitle,
+                      taskId: aiResult.taskId,
+                      expectedUpdatedAt: data?.updatedAt,
+                    });
+                    message.success('已应用为 AI 标题');
+                    setAiOpen(false);
+                    setAiResult(null);
+                    setAiPreparedTitle('');
+                    await reloadDetail();
+                    await reloadTasks();
+                  } catch (e: unknown) {
+                    const msg = (e as Error)?.message || '';
+                    if (msg.includes('conflict')) {
+                      message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
+                      return;
+                    }
+                    message.error((e as Error)?.message || '应用失败');
+                  } finally {
+                    setAiBusy(false);
                   }
-                  message.error((e as Error)?.message || '应用失败');
-                } finally {
-                  setAiBusy(false);
-                }
+                });
               }}
             >
               应用为 AI 标题
             </Button>
             <Button
               loading={aiBusy}
-              onClick={async () => {
-                setAiBusy(true);
-                try {
-                  await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
-                  message.success('已撤销最近一次 AI 标题应用');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '撤销失败';
-                  if (msg.includes('conflict')) {
-                    message.warning('AI 标题已经被再次修改，不能静默撤销。');
-                  } else {
-                    message.error(msg);
+              onClick={() => {
+                confirmUndoAiText('标题', async () => {
+                  setAiBusy(true);
+                  try {
+                    await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
+                    message.success('已撤销最近一次 AI 标题应用');
+                    await reloadDetail();
+                    await reloadTasks();
+                  } catch (e: unknown) {
+                    const msg = (e as Error)?.message || '撤销失败';
+                    if (msg.includes('conflict')) {
+                      message.warning('AI 标题已经被再次修改，不能静默撤销。');
+                    } else {
+                      message.error(msg);
+                    }
+                  } finally {
+                    setAiBusy(false);
                   }
-                } finally {
-                  setAiBusy(false);
-                }
+                });
               }}
             >
               撤销最近一次应用
@@ -4133,56 +4126,60 @@ export default function ProductDraftDetailPage() {
               type="primary"
               disabled={!descResult.taskId || !descPreparedText.trim()}
               loading={descBusy}
-              onClick={async () => {
+              onClick={() => {
                 if (!descResult?.taskId) return;
                 const text = descPreparedText.trim();
                 if (!text) return;
-                setDescBusy(true);
-                try {
-                  await applyAiDescription(id, {
-                    aiDescription: text,
-                    taskId: descResult.taskId,
-                    expectedUpdatedAt: data?.updatedAt,
-                  });
-                  message.success('已应用为 AI 描述');
-                  setDescOpen(false);
-                  setDescResult(null);
-                  setDescPreparedText('');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '';
-                  if (msg.includes('conflict')) {
-                    message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
-                    return;
+                confirmApplyAiText('描述', async () => {
+                  setDescBusy(true);
+                  try {
+                    await applyAiDescription(id, {
+                      aiDescription: text,
+                      taskId: descResult.taskId,
+                      expectedUpdatedAt: data?.updatedAt,
+                    });
+                    message.success('已应用为 AI 描述');
+                    setDescOpen(false);
+                    setDescResult(null);
+                    setDescPreparedText('');
+                    await reloadDetail();
+                    await reloadTasks();
+                  } catch (e: unknown) {
+                    const msg = (e as Error)?.message || '';
+                    if (msg.includes('conflict')) {
+                      message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
+                      return;
+                    }
+                    message.error((e as Error)?.message || '应用失败');
+                  } finally {
+                    setDescBusy(false);
                   }
-                  message.error((e as Error)?.message || '应用失败');
-                } finally {
-                  setDescBusy(false);
-                }
+                });
               }}
             >
               应用为 AI 描述
             </Button>
             <Button
               loading={descBusy}
-              onClick={async () => {
-                setDescBusy(true);
-                try {
-                  await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
-                  message.success('已撤销最近一次 AI 描述应用');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '撤销失败';
-                  if (msg.includes('conflict')) {
-                    message.warning('AI 描述已经被再次修改，不能静默撤销。');
-                  } else {
-                    message.error(msg);
+              onClick={() => {
+                confirmUndoAiText('描述', async () => {
+                  setDescBusy(true);
+                  try {
+                    await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
+                    message.success('已撤销最近一次 AI 描述应用');
+                    await reloadDetail();
+                    await reloadTasks();
+                  } catch (e: unknown) {
+                    const msg = (e as Error)?.message || '撤销失败';
+                    if (msg.includes('conflict')) {
+                      message.warning('AI 描述已经被再次修改，不能静默撤销。');
+                    } else {
+                      message.error(msg);
+                    }
+                  } finally {
+                    setDescBusy(false);
                   }
-                } finally {
-                  setDescBusy(false);
-                }
+                });
               }}
             >
               撤销最近一次应用
@@ -4238,29 +4235,36 @@ export default function ProductDraftDetailPage() {
           setAdjustTarget(null);
           adjustForm.resetFields();
         }}
-        onOk={async () => {
-          if (!adjustTarget) return;
-          const v = await adjustForm.validateFields();
-          const stock = Number(v.stock);
-          setInvAdjustSubmitting(true);
-          try {
-            await adjustSkuStock(id, adjustTarget.id, {
-              stock,
-              reason: String(v.reason ?? 'manual_adjust').trim(),
-              remark: String(v.remark ?? ''),
-              sync: false,
+        onOk={() => {
+          if (!adjustTarget) return Promise.reject();
+          return adjustForm.validateFields().then((v) => {
+            const stock = Number(v.stock);
+            return new Promise<void>((resolve, reject) => {
+              confirmInventoryManualAdjust(async () => {
+                setInvAdjustSubmitting(true);
+                try {
+                  await adjustSkuStock(id, adjustTarget.id, {
+                    stock,
+                    reason: String(v.reason ?? 'manual_adjust').trim(),
+                    remark: String(v.remark ?? ''),
+                    sync: false,
+                  });
+                  message.success('库存已更新');
+                  setAdjustOpen(false);
+                  setAdjustTarget(null);
+                  adjustForm.resetFields();
+                  await reloadDetail();
+                  await reloadPublicationSkus();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '调整失败');
+                  reject(e);
+                } finally {
+                  setInvAdjustSubmitting(false);
+                }
+              });
             });
-            message.success('库存已更新');
-            setAdjustOpen(false);
-            setAdjustTarget(null);
-            adjustForm.resetFields();
-            await reloadDetail();
-            await reloadPublicationSkus();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '调整失败');
-          } finally {
-            setInvAdjustSubmitting(false);
-          }
+          });
         }}
       >
         <Form form={adjustForm} layout="vertical">
@@ -4287,26 +4291,35 @@ export default function ProductDraftDetailPage() {
           setSyncRow(null);
           syncForm.resetFields();
         }}
-        onOk={async () => {
-          if (!syncRow) return;
-          const v = await syncForm.validateFields();
-          const stock = Number(v.stock);
-          setSyncSubmitting(true);
-          try {
-            await syncPublicationSkuInventory(syncRow.publicationSkuId, {
-              stock,
-              options: {},
+        onOk={() => {
+          if (!syncRow) return Promise.reject();
+          return syncForm.validateFields().then((v) => {
+            const stock = Number(v.stock);
+            const targetLabel = `${syncRow.platform ?? '平台'} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
+            const externalCall = inventorySyncRunnable(syncRow.inventorySyncCapability);
+            return new Promise<void>((resolve, reject) => {
+              confirmInventorySync(targetLabel, externalCall, async () => {
+                setSyncSubmitting(true);
+                try {
+                  await syncPublicationSkuInventory(syncRow.publicationSkuId, {
+                    stock,
+                    options: {},
+                  });
+                  message.success('库存同步任务已创建');
+                  setSyncOpen(false);
+                  setSyncRow(null);
+                  syncForm.resetFields();
+                  await reloadPublicationSkus();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error(formatInventorySyncTaskCreateError(e));
+                  reject(e);
+                } finally {
+                  setSyncSubmitting(false);
+                }
+              });
             });
-            message.success('库存同步任务已创建');
-            setSyncOpen(false);
-            setSyncRow(null);
-            syncForm.resetFields();
-            await reloadPublicationSkus();
-          } catch (e: unknown) {
-            message.error(formatInventorySyncTaskCreateError(e));
-          } finally {
-            setSyncSubmitting(false);
-          }
+          });
         }}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
@@ -4381,33 +4394,40 @@ export default function ProductDraftDetailPage() {
           setDouyinSkuBindTarget(null);
           douyinSkuBindForm.resetFields();
         }}
-        onOk={async () => {
-          if (!douyinSkuBindTarget) return;
-          const v = await douyinSkuBindForm.validateFields();
-          const platformSkuId = String(v.platformSkuId ?? '').trim();
-          if (!platformSkuId) {
-            message.error('请选择或填写平台规格编号');
-            return;
-          }
-          const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
-          setDouyinSkuBindSubmitting(true);
-          try {
-            await bindDouyinSku(douyinSkuBindTarget.publicationSkuId, {
-              platformSkuId,
-              platformSkuName: String(v.platformSkuName ?? selected?.specName ?? '').trim(),
-              bindReason: 'manual',
+        onOk={() => {
+          if (!douyinSkuBindTarget) return Promise.reject();
+          return douyinSkuBindForm.validateFields().then((v) => {
+            const platformSkuId = String(v.platformSkuId ?? '').trim();
+            if (!platformSkuId) {
+              message.error('请选择或填写平台规格编号');
+              return Promise.reject(new Error('validation'));
+            }
+            const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
+            return new Promise<void>((resolve, reject) => {
+              confirmSkuManualBind(async () => {
+                setDouyinSkuBindSubmitting(true);
+                try {
+                  await bindDouyinSku(douyinSkuBindTarget.publicationSkuId, {
+                    platformSkuId,
+                    platformSkuName: String(v.platformSkuName ?? selected?.specName ?? '').trim(),
+                    bindReason: 'manual',
+                  });
+                  message.success('手动绑定成功');
+                  setDouyinSkuBindOpen(false);
+                  setDouyinSkuBindTarget(null);
+                  douyinSkuBindForm.resetFields();
+                  await reloadDouyinSkuBindings();
+                  await reloadPublicationSkus();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '绑定失败');
+                  reject(e);
+                } finally {
+                  setDouyinSkuBindSubmitting(false);
+                }
+              });
             });
-            message.success('手动绑定成功');
-            setDouyinSkuBindOpen(false);
-            setDouyinSkuBindTarget(null);
-            douyinSkuBindForm.resetFields();
-            await reloadDouyinSkuBindings();
-            await reloadPublicationSkus();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '绑定失败');
-          } finally {
-            setDouyinSkuBindSubmitting(false);
-          }
+          });
         }}
       >
         <Typography.Paragraph type="secondary">

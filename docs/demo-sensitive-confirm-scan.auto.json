@@ -1,0 +1,39 @@
+﻿{
+    "phase":  "F7",
+    "failed":  0,
+    "generatedAt":  "2026-06-30T09:08:05.9710072Z",
+    "results":  [
+                    {
+                        "file":  "admin/src/pages/Product/DraftDetail/index.tsx",
+                        "status":  "passed"
+                    },
+                    {
+                        "file":  "admin/src/pages/Product/PublishBatch/index.tsx",
+                        "status":  "passed"
+                    },
+                    {
+                        "file":  "admin/src/pages/TaskCenter/Failures/index.tsx",
+                        "status":  "passed"
+                    },
+                    {
+                        "file":  "admin/src/pages/Settings/Users/index.tsx",
+                        "status":  "passed"
+                    },
+                    {
+                        "file":  "admin/src/pages/Customer/ConversationDetail/index.tsx",
+                        "status":  "passed"
+                    },
+                    {
+                        "file":  "admin/src/pages/Shops/index.tsx",
+                        "status":  "passed"
+                    },
+                    {
+                        "file":  "admin/src/pages/Settings/Platforms/index.tsx",
+                        "status":  "passed"
+                    },
+                    {
+                        "file":  "admin/src/pages/Settings/Storage/index.tsx",
+                        "status":  "passed"
+                    }
+                ]
+}
