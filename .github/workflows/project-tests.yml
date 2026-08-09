@@ -45,7 +45,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -125,7 +125,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -234,7 +234,7 @@ jobs:
           version: 9.15.4
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -280,7 +280,7 @@ jobs:
           version: 9.15.4
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
           cache: true
