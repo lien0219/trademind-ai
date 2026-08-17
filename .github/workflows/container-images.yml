@@ -163,7 +163,7 @@ jobs:
 
       - name: Generate image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ matrix.image }}
           tags: |
