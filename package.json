@@ -74,7 +74,7 @@
     "@types/node": "^25.9.2",
     "@vitejs/plugin-react": "^4.2.1",
     "execa": "^9.5.2",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "picocolors": "^1.1.1",
     "tsx": "^4.19.2",
     "vitest": "^0.34.6"
