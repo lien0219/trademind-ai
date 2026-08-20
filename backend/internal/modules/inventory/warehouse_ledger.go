@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -451,10 +452,12 @@ func (s *Service) ReconcileWarehouseLedger(ctx context.Context, tenantID int64, 
 	}
 	result := &WarehouseLedgerReconciliationResult{Page: page, PageSize: pageSize, Items: []WarehouseLedgerReconciliationRow{}}
 	if err := s.DB.WithContext(ctx).Raw("SELECT COUNT(*) FROM ("+filteredSQL+") filtered", args...).Scan(&result.Total).Error; err != nil {
+		slog.Error("reconcile_debug_count", "error", err)
 		return nil, fmt.Errorf("count reconciliation rows: %w", err)
 	}
 	if err := s.DB.WithContext(ctx).Raw(filteredSQL+" ORDER BY product_title ASC, sku_code ASC, product_sku_id ASC LIMIT ? OFFSET ?", append(args, pageSize, (page-1)*pageSize)...).
 		Scan(&result.Items).Error; err != nil {
+		slog.Error("reconcile_debug_list", "error", err)
 		return nil, fmt.Errorf("list reconciliation rows: %w", err)
 	}
 	for i := range result.Items {
@@ -472,6 +475,7 @@ func (s *Service) ReconcileWarehouseLedger(ctx context.Context, tenantID int64, 
 		COALESCE(SUM(CASE WHEN status = 'mismatch' THEN 1 ELSE 0 END), 0) AS mismatch
 		FROM (` + baseSQL + `) ledger_summary`
 	if err := s.DB.WithContext(ctx).Raw(summarySQL, tenantID).Scan(&counts).Error; err != nil {
+		slog.Error("reconcile_debug_summary", "error", err)
 		return nil, fmt.Errorf("summarize reconciliation rows: %w", err)
 	}
 	result.Matched, result.Unmigrated, result.Mismatch = counts.Matched, counts.Unmigrated, counts.Mismatch
