@@ -4,6 +4,11 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Container package consolidation (2026-08-21)
+
+- Restricted automatic container image publication to image-related pushes on `main`, while retaining validated `v<version>` releases and manual runs that fail closed outside `main` or a version tag.
+- Consolidated backend, Admin and Collector images under one `trademind` GHCR package with service-prefixed validation, version, SHA and latest tags, preserving separate multi-platform manifests and immutable deployment digests.
+
 ### ERP procurement foundation (2026-08-20)
 
 - Added tenant-scoped warehouse and supplier master data, supplier-to-product SKU bindings, and separated view/manage permissions.

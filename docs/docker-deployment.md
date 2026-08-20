@@ -30,30 +30,30 @@ docker compose -f docker-compose.full.yml up -d --build
 
 ## GHCR 预构建镜像
 
-`Container Images` GitHub Actions 工作流负责分支验证构建与正式 Tag 发布。`main`、`dev`、`feat/*`、`fix/*` 和 `release/*` 在镜像相关源码变化时生成分支镜像；`v<version>` Git Tag 通过版本与 `main` 归属校验后生成正式镜像。三个容器包为：
+`Container Images` GitHub Actions 工作流负责 main 验证构建与正式 Tag 发布。只有 `main` 在镜像相关源码变化时自动生成验证镜像；`dev`、`feat/*`、`fix/*` 和 `release/*` 的 push 不发布镜像。`v<version>` Git Tag 通过版本与 `main` 归属校验后生成正式镜像。三个服务镜像统一发布到一个容器包：
 
-| 服务 | GHCR 包 |
-| --- | --- |
-| backend | `ghcr.io/lien0219/trademind-backend` |
-| admin | `ghcr.io/lien0219/trademind-admin` |
-| collector | `ghcr.io/lien0219/trademind-collector` |
+```text
+ghcr.io/lien0219/trademind
+```
+
+backend、admin、collector 仍是三个独立镜像，各自拥有多架构 manifest digest；统一 Package 只改变 GHCR 仓库名，并通过 `backend-*`、`admin-*`、`collector-*` 标签隔离服务。
 
 所有镜像均构建 `linux/amd64` 与 `linux/arm64`，并附带 OCI 元数据、SBOM 和 provenance。镜像版本的唯一来源是 [`deploy/IMAGE_VERSION`](../deploy/IMAGE_VERSION)，格式为不含 `+build` 元数据、最长 48 字符的 Docker tag 安全 SemVer。
 
 | 标签 | 更新规则 | 用途 |
 | --- | --- | --- |
-| `<branch>` | 分支每次构建更新 | 开发或集成环境跟随分支，例如 `dev`。 |
-| `<branch>-v<version>` | 分支每次构建更新；版本文件变化后切换标签 | 标识当前分支版本，例如 `main-v0.2.0`。 |
-| `sha-<full-commit>` | 分支与正式 Tag 构建均写入 | 按提交定位镜像；它仍是可变 tag，不替代 manifest digest。 |
-| `v<version>`、`<version>` | 仅通过校验的同名 Git Tag 发布 | 正式版本标签，例如 `v0.2.0` 与 `0.2.0`。 |
-| `latest` | 仅通过校验的正式 Git Tag 更新 | 最新正式版本，不由普通 `main` 合并更新。 |
+| `<service>-main` | main 每次构建更新 | 跟随 main，例如 `backend-main`。 |
+| `<service>-main-v<version>` | main 每次构建更新；版本文件变化后切换标签 | 标识 main 当前版本，例如 `admin-main-v0.2.0`。 |
+| `<service>-sha-<full-commit>` | main 与正式 Tag 构建均写入 | 按服务和提交定位镜像；它仍是可变 tag，不替代 manifest digest。 |
+| `<service>-v<version>`、`<service>-<version>` | 仅通过校验的同名 Git Tag 发布 | 正式版本标签，例如 `collector-v0.2.0` 与 `collector-0.2.0`。 |
+| `<service>-latest` | 仅通过校验的正式 Git Tag 更新 | 各服务最新正式版本，不由普通 main 合并更新。 |
 
-分支名会转换为小写 Docker 标签，`/` 等非法字符转换为 `-`，例如 `release/0.3` 对应 `release-0.3`。使用 Compose 拉取同一标签下的完整服务组：
+`<service>` 为 `backend`、`admin` 或 `collector`。使用 Compose 从统一 Package 拉取同一版本的完整服务组：
 
 ```env
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind-backend:dev-v0.2.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind-admin:dev-v0.2.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind-collector:dev-v0.2.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.2.0
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.2.0
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.2.0
 ```
 
 ```bash
@@ -74,24 +74,24 @@ git tag -a v0.2.0 -m "TradeMind v0.2.0"
 git push origin v0.2.0
 ```
 
-Tag 必须严格为 `v<deploy/IMAGE_VERSION>`，并指向已包含在远程 `main` 中的提交；否则工作流直接失败。正式 Tag 发布 `v0.2.0`、`0.2.0`、`sha-<full-commit>` 和 `latest`，不会自动部署、切流或创建 GitHub Release。应为 `v*` 配置 Tag 保护，禁止强制移动或删除已发布版本。
+Tag 必须严格为 `v<deploy/IMAGE_VERSION>`，并指向已包含在远程 `main` 中的提交；否则工作流直接失败。正式 Tag 为每个服务发布 `<service>-v0.2.0`、`<service>-0.2.0`、`<service>-sha-<full-commit>` 和 `<service>-latest`，不会自动部署、切流或创建 GitHub Release。应为 `v*` 配置 Tag 保护，禁止强制移动或删除已发布版本。
 
 Docker tag 均可移动。需要严格可复现的部署时，从工作流 Summary 或 GHCR Package 页面取得三个 manifest digest，并使用完整 `image@sha256:<digest>` 引用：
 
 ```env
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind-backend@sha256:<backend-manifest-digest>
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind-admin@sha256:<admin-manifest-digest>
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind-collector@sha256:<collector-manifest-digest>
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind@sha256:<backend-manifest-digest>
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind@sha256:<admin-manifest-digest>
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind@sha256:<collector-manifest-digest>
 ```
 
 P10 预生产使用同一组 backend/Admin digest：
 
 ```env
-P10_API_IMAGE=ghcr.io/lien0219/trademind-backend@sha256:<backend-manifest-digest>
-P10_ADMIN_IMAGE=ghcr.io/lien0219/trademind-admin@sha256:<admin-manifest-digest>
+P10_API_IMAGE=ghcr.io/lien0219/trademind@sha256:<backend-manifest-digest>
+P10_ADMIN_IMAGE=ghcr.io/lien0219/trademind@sha256:<admin-manifest-digest>
 ```
 
-公开仓库首次生成 Package 后，维护者需要在三个 Package 的设置中确认可见性为 Public；工作流只使用仓库自带的 `GITHUB_TOKEN` 写入 GHCR，不保存 PAT 或镜像仓库密码。若 Package 仍为私有，拉取前使用具有 `read:packages` 权限的凭据登录 `ghcr.io`。
+公开仓库首次生成统一 Package 后，维护者需要在该 Package 的设置中确认可见性为 Public；工作流只使用仓库自带的 `GITHUB_TOKEN` 写入 GHCR，不保存 PAT 或镜像仓库密码。若 Package 仍为私有，拉取前使用具有 `read:packages` 权限的凭据登录 `ghcr.io`。迁移前的三个旧 Package 不会被工作流自动删除，确认不再被部署引用后再由维护者在 GitHub Package 设置中清理。
 
 ## 默认访问地址
 

@@ -41,12 +41,12 @@ PostgreSQL 和 Redis 集成测试由 GitHub Actions service container 提供。C
 
 ## 容器镜像发布
 
-`Container Images` 工作流在应用源码或镜像配置变更后自动发布 backend、admin、collector 三个 GHCR 镜像：
+`Container Images` 工作流将 backend、admin、collector 三个独立镜像发布到统一的 `ghcr.io/<owner>/trademind` Package：
 
-- `main`、`dev`、`feat/*`、`fix/*`、`release/*` 生成规范化分支、分支版本与 `sha-<full-commit>` 标签，用于持续验证；分支构建不更新 `latest`。
-- 每次构建都更新 `<branch>-v<version>` 标签；修改 `deploy/IMAGE_VERSION` 会切换到新的版本标签。
+- 只有 `main` 分支的镜像相关 push 自动发布；`dev`、`feat/*`、`fix/*`、`release/*` 的 push 不再发布容器镜像。
+- main 构建按服务生成 `<service>-main`、`<service>-main-v<version>` 与 `<service>-sha-<full-commit>` 标签，不更新服务 `latest`。
 - 推送 `v<version>` Git Tag 时，工作流要求 Tag 与 `deploy/IMAGE_VERSION` 完全一致，并要求 Tag 所指提交已包含在远程 `main` 中。
-- 通过校验的正式 Tag 发布 `v<version>`、`<version>`、`sha-<full-commit>` 和 `latest`；受控部署仍固定工作流输出的 manifest digest。
+- 通过校验的正式 Tag 按服务发布 `<service>-v<version>`、`<service>-<version>`、`<service>-sha-<full-commit>` 和 `<service>-latest`；受控部署仍固定每个服务的 manifest digest。
 - 每个镜像包含 `linux/amd64` 与 `linux/arm64`，并发布 OCI 元数据、SBOM 和 provenance。
 - 镜像推送只创建部署输入，不会自动部署、切流、修改数据库、启用真实平台能力、创建/移动 Git Tag 或发布 GitHub Release。
 

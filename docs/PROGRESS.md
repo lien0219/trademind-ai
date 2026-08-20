@@ -1,6 +1,6 @@
 # TradeMind 当前维护状态
 
-更新时间：2026-08-20
+更新时间：2026-08-21
 
 ## 生命周期
 
@@ -23,6 +23,8 @@ TradeMind 已由项目所有者确认进入生产维护阶段。当前工作重�
 - 本地生成的 Playwright 报告、测试结果、截图、临时日志和运行证据不纳入版本控制，完成诊断后可直接清理。
 
 ## 仓库整理
+
+2026-08-21 将容器镜像自动发布收敛到 `main`：开发、修复和发布准备分支的 push 不再写入 GHCR，正式 `v<version>` Tag 继续要求版本文件完全匹配且提交已包含在 `main`。backend、admin、collector 保持三个独立多架构镜像和各自 manifest digest，但统一发布到 `ghcr.io/<owner>/trademind` Package，并以服务前缀隔离 main、版本、SHA 与 latest 标签；镜像发布仍不自动部署或启用真实平台能力。
 
 2026-08-14 增加统一容器镜像发布：`deploy/IMAGE_VERSION` 作为镜像版本来源，GitHub Actions 为 backend、admin、collector 发布 `linux/amd64` 与 `linux/arm64` GHCR 镜像。分支构建生成规范化分支、完整提交 SHA 与分支版本标签；只有与版本文件一致且指向 `main` 已包含提交的 `v<version>` Tag 才生成正式版本标签和 `latest`。工作流同时输出不可变 manifest digest，完整 Compose 可在本地构建和预构建镜像之间切换；P10 预生产继续要求 `image@sha256:<digest>`。镜像发布只提供部署输入，不自动部署、切流、修改数据库、启用真实平台能力、创建 Git Tag 或发布 GitHub Release。
 

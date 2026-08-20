@@ -158,14 +158,14 @@ GitHub Actions publishes multi-architecture GHCR images for backend, admin, and 
 
 ```bash
 # Set COLLECTOR_SERVICE_TOKEN in .env, then override the image references below
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind-backend:dev-v0.2.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind-admin:dev-v0.2.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind-collector:dev-v0.2.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.2.0
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.2.0
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.2.0
 docker compose -f docker-compose.full.yml pull backend admin collector
 docker compose -f docker-compose.full.yml up -d --no-build
 ```
 
-Branch builds update branch, branch-version, and `sha-<commit>` tags without moving `latest`. After the release change is merged into `main`, push a `v<version>` Git tag matching `deploy/IMAGE_VERSION`; only that validated release publishes `v<version>`, `version`, and `latest`. Pin the workflow's `image@sha256:<manifest-digest>` reference for controlled deployments. See [Docker deployment](docs/docker-deployment.md) for the release procedure and package URLs.
+Only image-related changes on `main` automatically publish validation images. The shared GHCR package uses `backend-*`, `admin-*`, and `collector-*` tags to keep the service images separate, and ordinary builds do not move the service `latest` tags. After the release change is merged into `main`, push a `v<version>` Git tag matching `deploy/IMAGE_VERSION`; only that validated release publishes service version and service `latest` tags. Pin the workflow's `image@sha256:<manifest-digest>` reference for controlled deployments. See [Docker deployment](docs/docker-deployment.md) for the release procedure and package URL.
 
 Default URLs:
 
