@@ -389,6 +389,11 @@ export default [
         component: './Inventory/Alerts',
       },
       {
+        path: '/inventory/warehouse-ledger',
+        name: '仓库库存账',
+        component: './Inventory/WarehouseLedger',
+      },
+      {
         path: '/inventory/deductions',
         name: '库存扣减记录',
         component: './Inventory/Deductions',

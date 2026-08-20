@@ -64,25 +64,17 @@ func (WarehouseStockService) Receive(ctx context.Context, tx *gorm.DB, in Receip
 		return nil, fmt.Errorf("inventory warehouse stock: check movement: %w", err)
 	}
 
-	var balanceCount int64
-	if err := tx.WithContext(ctx).Model(&WarehouseStockBalance{}).
-		Where("tenant_id = ? AND product_sku_id = ?", in.TenantID, in.ProductSKUID).
-		Count(&balanceCount).Error; err != nil {
-		return nil, fmt.Errorf("inventory warehouse stock: count balances: %w", err)
+	if _, err := ensureLegacyBalanceInMigrationWarehouseTx(ctx, tx, in.TenantID, sku, in.CreatedBy); err != nil {
+		return nil, fmt.Errorf("inventory warehouse stock: migrate legacy stock: %w", err)
 	}
-
 	var balance WarehouseStockBalance
 	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", in.TenantID, in.WarehouseID, in.ProductSKUID).
 		First(&balance).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		legacyOnHand := 0
-		if balanceCount == 0 && sku.Stock != nil && *sku.Stock > 0 {
-			legacyOnHand = *sku.Stock
-		}
 		balance = WarehouseStockBalance{
 			TenantID: in.TenantID, WarehouseID: in.WarehouseID, ProductSKUID: in.ProductSKUID,
-			OnHand: legacyOnHand, Version: 1,
+			Version: 1,
 		}
 		if err := tx.WithContext(ctx).Create(&balance).Error; err != nil {
 			return nil, fmt.Errorf("inventory warehouse stock: create balance: %w", err)
@@ -116,11 +108,12 @@ func (WarehouseStockService) Receive(ctx context.Context, tx *gorm.DB, in Receip
 		return nil, fmt.Errorf("inventory warehouse stock: create movement: %w", err)
 	}
 
-	// Preserve legacy adjustments and order deductions: until those writers are
-	// warehouse-aware, advance the compatibility aggregate by this receipt delta
-	// instead of rebuilding it from a partial warehouse ledger.
+	// Until order reservations and deductions move to the warehouse ledger,
+	// preserve any pre-existing compatibility delta instead of rebuilding the
+	// scalar field from a still-partial set of warehouse facts.
 	aggregate := beforeAggregate + in.Quantity
-	if err := tx.WithContext(ctx).Model(&product.ProductSKU{}).Where("id = ?", sku.ID).Update("stock", aggregate).Error; err != nil {
+	if err := tx.WithContext(ctx).Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
+		Updates(map[string]any{"stock": aggregate, "stock_status": stockStatusForSKU(sku, aggregate)}).Error; err != nil {
 		return nil, fmt.Errorf("inventory warehouse stock: update SKU projection: %w", err)
 	}
 	logRow := InventoryChangeLog{

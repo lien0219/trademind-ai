@@ -185,8 +185,8 @@ func TestPurchaseOrderPartialReceiptIsTransactionalAndIdempotent(t *testing.T) {
 	if err := fx.DB.Model(&inventory.InventoryMovement{}).Count(&movements).Error; err != nil {
 		t.Fatal(err)
 	}
-	if movements != 2 {
-		t.Fatalf("expected two immutable movements, got %d", movements)
+	if movements != 3 {
+		t.Fatalf("expected one legacy opening fact and two receipt movements, got %d", movements)
 	}
 }
 

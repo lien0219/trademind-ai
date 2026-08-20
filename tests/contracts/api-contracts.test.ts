@@ -20,6 +20,14 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/warehouses',
         'POST /api/v1/warehouses',
         'PUT /api/v1/warehouses/:id',
+        'POST /api/v1/products/:id/skus',
+        'PUT /api/v1/products/:id/skus/:skuId',
+        'PUT /api/v1/products/:id/skus/:skuId/stock-settings',
+        'DELETE /api/v1/products/:id/skus/:skuId',
+        'GET /api/v1/products/:id/skus/:skuId/warehouse-balances',
+        'POST /api/v1/products/:id/skus/:skuId/adjust-stock',
+        'GET /api/v1/inventory/warehouse-ledger/reconciliation',
+        'POST /api/v1/inventory/warehouse-ledger/migrate-legacy',
         'GET /api/v1/suppliers',
         'POST /api/v1/suppliers',
         'PUT /api/v1/suppliers/:id',
@@ -90,6 +98,44 @@ describe('TradeMind API contract registry', () => {
     expect(endpoint('POST /api/v1/purchase-orders/:id/approve')?.requiredPermission).toBe('procurement.approve');
     expect(endpoint('POST /api/v1/purchase-orders/:id/receipts')?.requestBody).toEqual(['expectedRevision', 'idempotencyKey', 'items']);
     expect(endpoint('POST /api/v1/purchase-orders/:id/receipts')?.requiredPermission).toBe('procurement.receive');
+  });
+
+  it('defines warehouse-ledger adjustment, migration, and reconciliation contracts', () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+
+    expect(endpoint('POST /api/v1/products/:id/skus/:skuId/adjust-stock')?.requestBody).toEqual([
+      'warehouseId',
+      'stock',
+      'idempotencyKey',
+      'reason',
+      'remark',
+    ]);
+    expect(endpoint('POST /api/v1/products/:id/skus/:skuId/adjust-stock')?.requiredPermission).toBe('inventory.operate');
+    expect(endpoint('GET /api/v1/inventory/warehouse-ledger/reconciliation')?.query).toEqual(['page', 'pageSize', 'status']);
+    expect(endpoint('POST /api/v1/inventory/warehouse-ledger/migrate-legacy')?.requiredPermission).toBe('inventory.operate');
+  });
+
+  it('keeps SKU metadata writes tenant-scoped and separate from warehouse inventory', () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key) as {
+      requestBody?: string[];
+      forbiddenRequestBody?: string[];
+      requiredPermission?: string;
+      tenantScope?: string;
+    } | undefined;
+    const create = endpoint('POST /api/v1/products/:id/skus');
+    const update = endpoint('PUT /api/v1/products/:id/skus/:skuId');
+    const stockSettings = endpoint('PUT /api/v1/products/:id/skus/:skuId/stock-settings');
+    const remove = endpoint('DELETE /api/v1/products/:id/skus/:skuId');
+
+    expect(create?.requestBody).not.toContain('stock');
+    expect(update?.requestBody).not.toContain('stock');
+    expect(create?.forbiddenRequestBody).toEqual(['stock']);
+    expect(update?.forbiddenRequestBody).toEqual(['stock']);
+    expect(stockSettings?.requestBody).toEqual(['warningStock', 'safetyStock']);
+    for (const item of [create, update, stockSettings, remove]) {
+      expect(item?.requiredPermission).toBe('product.write');
+      expect(item?.tenantScope).toBe('current_tenant_product_or_not_found');
+    }
   });
 
   it('defines payload/query contracts for state-changing publish APIs', () => {
@@ -198,7 +244,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(46);
+    expect(contracts.endpoints).toHaveLength(54);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

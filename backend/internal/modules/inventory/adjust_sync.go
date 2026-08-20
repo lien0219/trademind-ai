@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,93 +13,6 @@ import (
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
-
-// AdjustSKUStock updates local SKU snapshot and optionally enqueues platform pushes for eligible mappings.
-func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid.UUID, body AdjustStockBody, admin *uuid.UUID) (*product.ProductSKU, error) {
-	start := time.Now()
-	if s == nil || s.DB == nil {
-		return nil, fmt.Errorf("inventory: no db")
-	}
-	if body.Stock < 0 {
-		s.ObserveInventory("local", "adjust", "negative_prevented", "failure", "validation", 1, 0)
-		return nil, fmt.Errorf("stock must be >= 0")
-	}
-	body.Reason = clampStr(body.Reason, 128)
-	body.Remark = clampStr(body.Remark, 520)
-	ctx := c.Request.Context()
-
-	var sku product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND product_id = ?", skuID, productID).Error; err != nil {
-		return nil, err
-	}
-	before := derefStock(sku.Stock)
-	delta := body.Stock - before
-
-	tx := s.DB.WithContext(ctx).Begin()
-	defer func() {
-		if tx != nil {
-			_ = tx.Rollback().Error
-		}
-	}()
-
-	if err := tx.Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", skuID, productID).
-		Updates(map[string]any{"stock": body.Stock, "updated_at": time.Now().UTC()}).Error; err != nil {
-		s.ObserveInventory("local", "adjust", "adjust", "failure", "database", 1, time.Since(start))
-		return nil, err
-	}
-	logRow := InventoryChangeLog{
-		ProductID:    productID,
-		ProductSKUID: skuID,
-		ChangeType:   ChangeManualAdjust,
-		BeforeStock:  before,
-		AfterStock:   body.Stock,
-		Delta:        delta,
-		Reason:       body.Reason,
-		Remark:       body.Remark,
-		CreatedBy:    admin,
-	}
-	if strings.TrimSpace(logRow.Reason) == "" {
-		logRow.Reason = ChangeManualAdjust
-	}
-	if err := tx.Create(&logRow).Error; err != nil {
-		return nil, err
-	}
-	if err := tx.Commit().Error; err != nil {
-		s.ObserveInventory("local", "adjust", "adjust", "failure", "database", 1, time.Since(start))
-		return nil, err
-	}
-	tx = nil
-
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: admin,
-			Action:      "inventory.stock.adjust",
-			Resource:    "product_sku",
-			ResourceID:  skuID.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("productId=%s before=%d after=%d delta=%d", productID.String(), before, body.Stock, delta),
-		})
-	}
-
-	if body.Sync {
-		n, syncErr := s.CreateInventorySyncTasksForSKUStock(ctx, productID, skuID, body.Stock, admin)
-		if syncErr != nil {
-			s.ObserveInventory("local", "push", "push_failure", "failure", "enqueue_failed", 1, time.Since(start))
-			return nil, syncErr
-		}
-		if n == 0 {
-			s.ObserveInventory("local", "push", "push_failure", "failure", "no_mapping", 1, time.Since(start))
-			return nil, fmt.Errorf("sync requested but no linked publication SKU rows eligible for inventory sync")
-		}
-	}
-
-	var updated product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&updated, "id = ?", skuID).Error; err != nil {
-		return nil, err
-	}
-	s.ObserveInventory("local", "adjust", "adjust", "success", "", 1, time.Since(start))
-	return &updated, nil
-}
 
 // CreateInventorySyncTasksForSKUStock enqueues outbound tasks for every mapped publication SKU whose platform supports runnable inventory_sync.
 func (s *Service) CreateInventorySyncTasksForSKUStock(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, target int, admin *uuid.UUID) (int, error) {

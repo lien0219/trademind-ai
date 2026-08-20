@@ -3,6 +3,7 @@ package product
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -14,7 +15,10 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
+
+var ErrSKUStockManagedByInventory = errors.New("SKU stock must be adjusted through warehouse inventory")
 
 func validateProductStatus(s string) error {
 	switch strings.TrimSpace(s) {
@@ -76,6 +80,20 @@ func ptrAttrsJSON(src *json.RawMessage) (*datatypes.JSON, error) {
 	return &j, nil
 }
 
+func (s *Service) ensureSKUProductVisible(c *gin.Context, productID uuid.UUID) error {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if err := adminperm.EnsureProductVisible(c, s.DB, productID); err != nil {
+		return err
+	}
+	var productRow Product
+	return s.DB.WithContext(c.Request.Context()).Select("id").
+		Where("id = ? AND tenant_id = ?", productID, tenantID).
+		First(&productRow).Error
+}
+
 func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, adminID *uuid.UUID) (*ProductSKU, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
@@ -85,16 +103,18 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 	if name == "" {
 		return nil, fmt.Errorf("skuName is required")
 	}
-
-	var probe Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&probe, "id = ?", productID).Error; err != nil {
+	if err := s.ensureSKUProductVisible(c, productID); err != nil {
 		return nil, err
+	}
+	if body.Stock != nil {
+		return nil, ErrSKUStockManagedByInventory
 	}
 
 	attrs, err := attrsToDatatypes(body.Attrs)
 	if err != nil {
 		return nil, err
 	}
+	initialStock := 0
 	row := &ProductSKU{
 		ProductID:       productID,
 		SKUCode:         code,
@@ -104,7 +124,7 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 		CostPrice:       body.CostPrice,
 		CompareAtPrice:  body.CompareAtPrice,
 		MinPublishPrice: body.MinPublishPrice,
-		Stock:           body.Stock,
+		Stock:           &initialStock,
 		ImageURL:        strings.TrimSpace(body.ImageURL),
 		WarningStock:    5,
 		SafetyStock:     0,
@@ -138,6 +158,12 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKUUpdateBody, adminID *uuid.UUID) (*ProductSKU, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
+	}
+	if err := s.ensureSKUProductVisible(c, productID); err != nil {
+		return nil, err
+	}
+	if body.Stock != nil {
+		return nil, ErrSKUStockManagedByInventory
 	}
 	var row ProductSKU
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND product_id = ?", skuID, productID).Error; err != nil {
@@ -175,9 +201,6 @@ func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKU
 	if body.MinPublishPrice != nil {
 		row.MinPublishPrice = body.MinPublishPrice
 	}
-	if body.Stock != nil {
-		row.Stock = body.Stock
-	}
 	if body.ImageURL != nil {
 		row.ImageURL = strings.TrimSpace(*body.ImageURL)
 	}
@@ -202,6 +225,9 @@ func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKU
 func (s *Service) DeleteSKU(c *gin.Context, productID, skuID uuid.UUID, adminID *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("product: no db")
+	}
+	if err := s.ensureSKUProductVisible(c, productID); err != nil {
+		return err
 	}
 	res := s.DB.WithContext(c.Request.Context()).Delete(&ProductSKU{}, "id = ? AND product_id = ?", skuID, productID)
 	if res.Error != nil {

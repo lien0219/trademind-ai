@@ -411,6 +411,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
+	warehouseSvc := &warehouse.Service{DB: dep.DB}
 	inventorySvc := &inventory.Service{
 		DB:          dep.DB,
 		Redis:       dep.Redis,
@@ -419,6 +420,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		OpLog:       opLogSvc,
 		Idempotency: idempotencySvc,
 		Metrics:     metricCatalog,
+		Warehouses:  warehouseSvc,
 	}
 	if dep.Config != nil {
 		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
@@ -432,7 +434,6 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		}
 	}
 	inventoryH := &inventory.Handler{Svc: inventorySvc}
-	warehouseSvc := &warehouse.Service{DB: dep.DB}
 	warehouseH := &warehouse.Handler{Svc: warehouseSvc, OpLog: opLogSvc}
 	supplierSvc := &supplier.Service{DB: dep.DB}
 	supplierH := &supplier.Handler{Svc: supplierSvc, OpLog: opLogSvc}

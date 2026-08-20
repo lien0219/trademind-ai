@@ -361,7 +361,6 @@ export type CreateProductSkuBody = {
   skuName: string;
   attrs?: Record<string, unknown> | string;
   price?: number;
-  stock?: number;
   imageUrl?: string;
 };
 
@@ -370,7 +369,6 @@ export type UpdateProductSkuBody = {
   skuName?: string;
   attrs?: Record<string, unknown> | string | null;
   price?: number | null;
-  stock?: number | null;
   imageUrl?: string | null;
 };
 
@@ -496,7 +494,6 @@ function normalizeSkuBody(body: CreateProductSkuBody): Record<string, unknown> {
     skuName: body.skuName,
     ...(attrs !== undefined ? { attrs } : {}),
     price: body.price,
-    stock: body.stock,
     imageUrl: body.imageUrl ?? '',
   };
 }
@@ -506,7 +503,6 @@ function normalizeSkuUpdateBody(body: UpdateProductSkuBody): Record<string, unkn
   if (body.skuCode !== undefined) out.skuCode = body.skuCode;
   if (body.skuName !== undefined) out.skuName = body.skuName;
   if (body.price !== undefined) out.price = body.price;
-  if (body.stock !== undefined) out.stock = body.stock;
   if (body.imageUrl !== undefined) out.imageUrl = body.imageUrl;
   if (body.attrs !== undefined) {
     if (body.attrs === null) out.attrs = null;

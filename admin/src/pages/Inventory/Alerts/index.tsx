@@ -10,6 +10,7 @@ import {
   Modal,
   Popover,
   Radio,
+  Select,
   Space,
   Switch,
   Tag,
@@ -22,8 +23,10 @@ import { Link } from '@umijs/renderer-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import { usePermission } from '@/hooks/usePermission';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { parsePositiveInt } from '@/utils/urlState';
+import { PERMISSIONS } from '@/utils/permission';
 
 const ALERT_QUERY_KEYS = [
   'page',
@@ -44,12 +47,17 @@ import { confirmInventoryManualAdjust, confirmInventorySync } from '@/constants/
 import {
   adjustSkuStock,
   batchUpdateStockSettings,
+  createInventoryIdempotencyKey,
   createInventorySyncBatch,
+  listInventoryWarehouses,
+  listSkuWarehouseBalances,
   previewBatchStockSettings,
   queryInventoryAlerts,
   syncPublicationSkuInventory,
   type BatchStockSettingsPreviewPayload,
   type InventoryAlertRow,
+  type InventoryWarehouse,
+  type WarehouseBalance,
 } from '@/services/inventory';
 import { updateProductSkuStockSettings } from '@/services/products';
 
@@ -98,6 +106,8 @@ function stockStatusTag(raw: string) {
 
 export default function InventoryAlertsPage() {
   const emptyLocale = useListEmptyLocale('inventoryAlerts', { permissionScoped: true });
+  const { can, readonly } = usePermission();
+  const canAdjustInventory = can(PERMISSIONS.INVENTORY_OPERATE) && !readonly;
   const actionRef = useRef<ActionType>();
   const searchFormRef = useRef<ProFormInstance>();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
@@ -122,8 +132,13 @@ export default function InventoryAlertsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [active, setActive] = useState<InventoryAlertRow | null>(null);
   const [adjustSubmitting, setAdjustSubmitting] = useState(false);
+  const [adjustLoading, setAdjustLoading] = useState(false);
+  const [adjustWarehouses, setAdjustWarehouses] = useState<InventoryWarehouse[]>([]);
+  const [adjustBalances, setAdjustBalances] = useState<WarehouseBalance[]>([]);
+  const [adjustIdempotencyKey, setAdjustIdempotencyKey] = useState('');
+  const adjustLoadSequence = useRef(0);
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
-  const [adjustForm] = Form.useForm<{ stock: number }>();
+  const [adjustForm] = Form.useForm<{ warehouseId: string; stock: number }>();
   const [settingsForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
   const [batchStockOpen, setBatchStockOpen] = useState(false);
   const [batchStockScope, setBatchStockScope] = useState<'selected' | 'filter'>('selected');
@@ -402,11 +417,37 @@ export default function InventoryAlertsPage() {
             <Button
               type="link"
               size="small"
+              disabled={!canAdjustInventory}
               style={{ padding: 0 }}
               onClick={() => {
                 setActive(r);
-                adjustForm.setFieldsValue({ stock: r.stock });
                 setAdjustOpen(true);
+                setAdjustIdempotencyKey(createInventoryIdempotencyKey('manual-adjust'));
+                setAdjustLoading(true);
+                const sequence = ++adjustLoadSequence.current;
+                void Promise.all([listInventoryWarehouses(), listSkuWarehouseBalances(r.productId, r.productSkuId)])
+                  .then(([warehouseResult, balanceResult]) => {
+                    if (sequence !== adjustLoadSequence.current) return;
+                    const warehouses = (warehouseResult.list ?? []).filter((item) => item.status === 'active');
+                    const balances = balanceResult.list ?? [];
+                    setAdjustWarehouses(warehouses);
+                    setAdjustBalances(balances);
+                    const selected = warehouses.find((item) => item.isDefault) ?? warehouses[0];
+                    const current = balances.find((item) => item.warehouseId === selected?.id);
+                    adjustForm.setFieldsValue({
+                      warehouseId: selected?.id,
+                      stock: current?.onHand ?? (balances.length === 0 && selected?.isDefault ? r.stock : 0),
+                    });
+                  })
+                  .catch((error: unknown) => {
+                    if (sequence !== adjustLoadSequence.current) return;
+                    message.error((error as Error)?.message || '仓库库存加载失败');
+                    setAdjustWarehouses([]);
+                    setAdjustBalances([]);
+                  })
+                  .finally(() => {
+                    if (sequence === adjustLoadSequence.current) setAdjustLoading(false);
+                  });
               }}
             >
               调整库存
@@ -433,7 +474,7 @@ export default function InventoryAlertsPage() {
         ),
       },
     ],
-    [adjustForm, settingsForm, keywordFieldProps],
+    [adjustForm, canAdjustInventory, settingsForm, keywordFieldProps],
   );
 
   return (
@@ -666,36 +707,75 @@ export default function InventoryAlertsPage() {
       <Modal
         title={active ? `调整库存 · ${active.skuCode}` : '调整库存'}
         open={adjustOpen}
-        onCancel={() => setAdjustOpen(false)}
-        okButtonProps={{ loading: adjustSubmitting }}
+        onCancel={() => {
+          adjustLoadSequence.current += 1;
+          setAdjustOpen(false);
+          setAdjustLoading(false);
+          setAdjustWarehouses([]);
+          setAdjustBalances([]);
+          setAdjustIdempotencyKey('');
+          adjustForm.resetFields();
+        }}
+        okButtonProps={{
+          loading: adjustSubmitting,
+          disabled: !canAdjustInventory || adjustLoading || adjustWarehouses.length === 0 || !adjustIdempotencyKey,
+        }}
         onOk={() => {
           if (!active) return Promise.reject();
           return adjustForm.validateFields().then((v) =>
             new Promise<void>((resolve, reject) => {
-              confirmInventoryManualAdjust(async () => {
-                setAdjustSubmitting(true);
-                try {
-                  await adjustSkuStock(active.productId, active.productSkuId, {
-                    stock: v.stock,
-                    reason: 'manual_adjust',
-                    remark: 'from_inventory_alerts',
-                  });
-                  message.success('已更新');
-                  setAdjustOpen(false);
-                  actionRef.current?.reload();
-                  resolve();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                  reject(e);
-                } finally {
-                  setAdjustSubmitting(false);
-                }
-              });
+              confirmInventoryManualAdjust(
+                async () => {
+                  setAdjustSubmitting(true);
+                  try {
+                    await adjustSkuStock(active.productId, active.productSkuId, {
+                      warehouseId: v.warehouseId,
+                      stock: v.stock,
+                      idempotencyKey: adjustIdempotencyKey,
+                      reason: 'manual_adjust',
+                      remark: 'from_inventory_alerts',
+                    });
+                    message.success('已更新');
+                    adjustLoadSequence.current += 1;
+                    setAdjustOpen(false);
+                    setAdjustWarehouses([]);
+                    setAdjustBalances([]);
+                    setAdjustIdempotencyKey('');
+                    adjustForm.resetFields();
+                    actionRef.current?.reload();
+                    resolve();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
+                    reject(e);
+                  } finally {
+                    setAdjustSubmitting(false);
+                  }
+                },
+                resolve,
+              );
             }),
           );
         }}
       >
+        <Typography.Paragraph type="secondary">
+          调整值只覆盖所选仓库的在手库存；尚未迁移的历史库存会先进入默认仓，没有默认仓时进入待分配仓。
+        </Typography.Paragraph>
         <Form form={adjustForm} layout="vertical">
+          <Form.Item name="warehouseId" label="仓库" rules={[{ required: true, message: '请选择仓库' }]}>
+            <Select
+              loading={adjustLoading}
+              placeholder="请选择启用的仓库"
+              options={adjustWarehouses.map((item) => ({
+                value: item.id,
+                label: `${item.name}（${item.code}）${item.isDefault ? ' · 默认' : ''}`,
+              }))}
+              onChange={(warehouseId) => {
+                const balance = adjustBalances.find((item) => item.warehouseId === warehouseId);
+                const warehouse = adjustWarehouses.find((item) => item.id === warehouseId);
+                adjustForm.setFieldValue('stock', balance?.onHand ?? (adjustBalances.length === 0 && warehouse?.isDefault ? active?.stock ?? 0 : 0));
+              }}
+            />
+          </Form.Item>
           <Form.Item name="stock" label="库存（≥0）" rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>

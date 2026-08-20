@@ -11,6 +11,9 @@ All notable changes to TradeMind are documented here.
 - Added warehouse stock balances and immutable purchase-receipt movements while preserving `product_skus.stock` as the compatibility authority until all legacy stock writers are migrated.
 - Added API contracts, role-matrix regressions, procurement transaction tests, and the staged ERP architecture boundary without enabling real-platform inventory writes.
 - Added the production-oriented Admin procurement workspace for warehouse and supplier maintenance, purchase-order creation and review, revision-checked state transitions, and idempotent partial receipt confirmation, with responsive and write-safety regression coverage.
+- Migrated manual inventory adjustments to warehouse-selected, idempotent transactions that atomically update warehouse balances, immutable movements, compatibility logs, and the `product_skus.stock` aggregate projection.
+- Added bounded historical-stock migration to the default or pending-allocation warehouse, reconciliation APIs and Admin workspace, and PostgreSQL concurrency coverage without enabling platform inventory writes, automatic replenishment, or new workers.
+- Separated SKU metadata from inventory writes: create and update reject direct stock values, newly created SKUs start at zero, and all SKU mutation routes enforce product-write permission and tenant visibility.
 
 ### Database migration reliability (2026-08-15)
 

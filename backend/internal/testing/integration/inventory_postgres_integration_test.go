@@ -3,10 +3,12 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/database"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -171,4 +175,63 @@ func TestInventoryPostgresAutoMigrateAgainstIsolatedDatabase(t *testing.T) {
 	} {
 		require.Truef(t, db.Migrator().HasTable(table), "expected migrated table %s", table)
 	}
+}
+
+func TestInventoryWarehouseAdjustmentSerializesConcurrentWrites(t *testing.T) {
+	harness := postgrestest.Require(t)
+	harness.EmitMetadata(t)
+	db := harness.DB
+	require.NoError(t, database.AutoMigrate(db))
+
+	tenantID := time.Now().UnixNano()
+	warehouseService := &warehouse.Service{DB: db}
+	warehouseRow, err := warehouseService.Create(context.Background(), tenantID, nil, warehouse.CreateInput{Code: "INV-CONCURRENT", Name: "Concurrent warehouse", IsDefault: true})
+	require.NoError(t, err)
+	productRow := product.Product{TenantID: tenantID, Source: "manual", Status: product.StatusDraft, Title: "Concurrent ledger product"}
+	require.NoError(t, db.Create(&productRow).Error)
+	legacyStock := 10
+	sku := product.ProductSKU{ProductID: productRow.ID, SKUCode: "INV-CONCURRENT-SKU", SKUName: "Concurrent SKU", Stock: &legacyStock, WarningStock: 5}
+	require.NoError(t, db.Create(&sku).Error)
+	service := &inventory.Service{DB: db, Warehouses: warehouseService}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i, target := range []int{7, 9} {
+		wg.Add(1)
+		go func(index, stock int) {
+			defer wg.Done()
+			<-start
+			_, adjustErr := service.AdjustWarehouseStock(context.Background(), tenantID, productRow.ID, sku.ID, inventory.AdjustStockBody{
+				WarehouseID: warehouseRow.ID, Stock: stock, Reason: "concurrency test",
+				IdempotencyKey: fmt.Sprintf("inventory-concurrent-%d", index),
+			}, nil)
+			errs <- adjustErr
+		}(i, target)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for adjustErr := range errs {
+		require.NoError(t, adjustErr)
+	}
+
+	var balance inventory.WarehouseStockBalance
+	require.NoError(t, db.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", tenantID, warehouseRow.ID, sku.ID).First(&balance).Error)
+	var reloaded product.ProductSKU
+	require.NoError(t, db.First(&reloaded, "id = ?", sku.ID).Error)
+	require.NotNil(t, reloaded.Stock)
+	require.Equal(t, balance.OnHand, *reloaded.Stock, "aggregate projection must match the serialized warehouse balance")
+	require.Contains(t, []int{7, 9}, balance.OnHand)
+
+	var movements []inventory.InventoryMovement
+	require.NoError(t, db.Where("tenant_id = ? AND product_sku_id = ?", tenantID, sku.ID).Order("created_at ASC, id ASC").Find(&movements).Error)
+	require.Len(t, movements, 3, "legacy import plus both adjustments must remain immutable")
+	manualTargets := map[int]bool{}
+	for _, movement := range movements {
+		if movement.MovementType == inventory.MovementManualAdjust {
+			manualTargets[movement.AfterOnHand] = true
+		}
+	}
+	require.Equal(t, map[int]bool{7: true, 9: true}, manualTargets)
 }

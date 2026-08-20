@@ -132,7 +132,7 @@ export default function PurchaseOrdersPage() {
   const applyBindingDefaults = (fieldName: number, productSkuId: string) => {
     const binding = bindingBySKU.get(productSkuId);
     if (!binding) return;
-    const items = (form.getFieldValue('items') || []).map((item, index) => (
+    const items = (form.getFieldValue('items') || []).map((item: PurchaseLineForm, index: number) => (
       index === fieldName
         ? {
             ...item,

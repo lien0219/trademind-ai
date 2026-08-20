@@ -8,6 +8,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g.POST("/products/:id/skus/:skuId/adjust-stock", h.AdjustStock)
+	g.GET("/products/:id/skus/:skuId/warehouse-balances", h.ListWarehouseBalances)
 	g.GET("/products/:id/skus/:skuId/inventory-logs", h.ListSKULogs)
 	g.GET("/products/:id/publication-skus", h.ListPublicationSKURows)
 
@@ -18,6 +19,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/inventory/logs", h.ListGlobalLogs)
 	g.GET("/inventory/effects", h.ListGlobalOrderEffects)
 	g.GET("/inventory/alerts", h.ListAlerts)
+	g.GET("/inventory/warehouse-ledger/reconciliation", h.ReconcileWarehouseLedger)
+	g.POST("/inventory/warehouse-ledger/migrate-legacy", h.MigrateLegacyStock)
 	g.POST("/inventory/stock-settings/batch-preview", h.BatchPreviewStockSettings)
 	g.POST("/inventory/stock-settings/batch-update", h.BatchUpdateStockSettings)
 

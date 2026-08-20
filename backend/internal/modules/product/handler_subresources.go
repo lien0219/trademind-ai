@@ -16,6 +16,9 @@ func (h *Handler) PostSKU(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -42,6 +45,9 @@ func (h *Handler) PostSKU(c *gin.Context) {
 func (h *Handler) PutSKU(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -77,6 +83,9 @@ func (h *Handler) PutSKUStockSettings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -108,6 +117,9 @@ func (h *Handler) PutSKUStockSettings(c *gin.Context) {
 func (h *Handler) DeleteSKU(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

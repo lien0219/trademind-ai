@@ -24,6 +24,9 @@ func (s *Service) UpdateSKUStockSettings(c *gin.Context, productID, skuID uuid.U
 	if err := ValidateSKUStockThresholds(body.WarningStock, body.SafetyStock); err != nil {
 		return nil, err
 	}
+	if err := s.ensureSKUProductVisible(c, productID); err != nil {
+		return nil, err
+	}
 	var row ProductSKU
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND product_id = ?", skuID, productID).Error; err != nil {
 		return nil, err

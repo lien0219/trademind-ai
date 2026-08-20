@@ -68,6 +68,10 @@
 | `GET` | `/api/v1/warehouses` | `warehouse.view` | 当前租户仓库列表。 |
 | `POST` | `/api/v1/warehouses` | `warehouse.manage` | 创建仓库；JSON：`code`、`name`、`isDefault`。 |
 | `PUT` | `/api/v1/warehouses/:id` | `warehouse.manage` | 更新仓库名称、启停状态和默认仓；JSON：`name`、`status`、`isDefault`。默认仓必须启用，同租户默认仓在事务内唯一切换。 |
+| `GET` | `/api/v1/products/:id/skus/:skuId/warehouse-balances` | `inventory.view` | 读取当前租户下该规格的分仓余额；返回仓库名称、在手、预占、在途、残损、可用量和版本。 |
+| `POST` | `/api/v1/products/:id/skus/:skuId/adjust-stock` | `inventory.operate` | 人工调整所选仓库的在手库存；JSON：`warehouseId`、`stock`、`idempotencyKey`、可选 `reason` / `remark`。同键同 payload 幂等返回，同键不同 payload 返回 `409`；仓库余额、不可变流水、兼容变更日志与 `product_skus.stock` 兼容聚合字段在同一事务提交，并保留尚未迁移订单路径形成的差额，不创建平台同步任务。 |
+| `GET` | `/api/v1/inventory/warehouse-ledger/reconciliation` | `inventory.view` | 分页对账仓库在手合计与 `product_skus.stock`；支持 `page`、`pageSize`、`status=matched|unmigrated|mismatch`。 |
+| `POST` | `/api/v1/inventory/warehouse-ledger/migrate-legacy` | `inventory.operate` | 重复安全地迁移一批尚无仓库余额的历史规格；JSON：`limit`（默认 100，最大 500）。优先进入启用的默认仓，没有默认仓时创建/复用租户级 `PENDING_ALLOCATION` 待分配仓。 |
 | `GET` | `/api/v1/suppliers` | `supplier.view` | 当前租户供应商列表；无 `pii.read_full` 时电话和邮箱脱敏。 |
 | `POST` | `/api/v1/suppliers` | `supplier.manage` | 创建供应商；JSON：`code`、`name`、`contactName`、`phone`、`email`。 |
 | `PUT` | `/api/v1/suppliers/:id` | `supplier.manage` | 更新供应商名称、启停状态和联系方式；JSON：`name`、`status`、`contactName`，可选 `phone`、`email`，敏感字段省略时保留原值，响应继续按权限脱敏。 |
@@ -82,7 +86,7 @@
 | `POST` | `/api/v1/purchase-orders/:id/close` | `procurement.manage` | 关闭已审批或部分收货采购单；JSON 同上。 |
 | `POST` | `/api/v1/purchase-orders/:id/receipts` | `procurement.receive` | 分批收货；JSON：`expectedRevision`、`idempotencyKey`、`items[]`，明细含 `purchaseOrderItemId`、`quantity`。采购明细、收货记录、库存余额、库存流水和兼容聚合库存在同一事务提交。 |
 
-金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示采购单在当前租户不可见，`409` 表示 revision、状态、超收或幂等冲突。对应 Admin 工作台位于采购菜单下；这些 API 不触发真实平台库存同步。
+金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示资源在当前租户不可见，`409` 表示 revision、状态、超收、库存账差异或幂等冲突。采购工作台位于采购菜单下，库存账迁移与对账位于库存菜单下；这些 API 不触发真实平台库存同步。
 
 ## 图片 AI
 
@@ -127,11 +131,17 @@
 | `GET` | `/api/v1/products/:id/operation-progress` | 商品运营进度摘要；只读聚合商品、图片、SKU 与既有发布前检查，不调用平台 API、不创建任务、不修改商品。 |
 | `PUT` | `/api/v1/products/:id` | 更新商品草稿。 |
 | `DELETE` | `/api/v1/products/:id` | 删除或归档商品。 |
+| `POST` | `/api/v1/products/:id/skus` | 创建 SKU 元数据；需 `product.write`。JSON 可含 `skuCode`、`skuName`、`attrs`、价格字段与 `imageUrl`，不得含 `stock`；新 SKU 的兼容聚合库存固定从 `0` 开始。 |
+| `PUT` | `/api/v1/products/:id/skus/:skuId` | 更新 SKU 元数据；需 `product.write`，不得通过 `stock` 修改库存。 |
+| `PUT` | `/api/v1/products/:id/skus/:skuId/stock-settings` | 更新 `warningStock` 与 `safetyStock`；需 `product.write`，不修改在手库存。 |
+| `DELETE` | `/api/v1/products/:id/skus/:skuId` | 删除 SKU；需 `product.write`。 |
 | `GET` | `/api/v1/product-skus/search` | 已认证的本地 SKU 搜索；仅返回可信认证上下文所属 Tenant 的 SKU。Query 保持 `keyword`、`productId`、`limit`（默认 20、最大 50），响应保持 `data.list`。 |
 | `POST` | `/api/v1/products/:id/apply-ai-title` | 应用 AI 标题；body 支持 `aiTitle`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`，不会静默覆盖人工修改。 |
 | `POST` | `/api/v1/products/:id/undo-ai-title` | 安全撤销最近一次 AI 标题应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述；body 支持 `aiDescription`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/undo-ai-description` | 安全撤销最近一次 AI 描述应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
+
+SKU 元数据写接口只允许访问当前租户可见商品；跨租户商品统一按 `404` 处理。`POST` / `PUT .../skus` 一旦收到 `stock` 即返回 `400`，库存调整必须改用需 `inventory.operate` 的分仓接口 `POST /api/v1/products/:id/skus/:skuId/adjust-stock`。手工新建 SKU 不隐式创建历史库存事实；历史导入数据继续通过有界库存账迁移接口处理。
 
 ### 本地 SKU 搜索安全合同
 

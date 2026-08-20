@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -100,15 +102,123 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.AdjustSKUStock(c, pid, sid, body, adminUUID(c))
+	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
-		if mapInventoryEnqueueErr(c, err) {
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
 		return
 	}
+	out, err := h.Svc.AdjustWarehouseStock(c.Request.Context(), tenantID, pid, sid, body, adminUUID(c))
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInventoryIdempotency), errors.Is(err, ErrWarehouseLedgerMismatch):
+			response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "SKU not found")
+		default:
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		}
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.stock.adjust",
+			Resource: "product_sku", ResourceID: sid.String(), Permission: adminperm.PermInventoryOperate,
+			Status: "success", Message: fmt.Sprintf("warehouseId=%s aggregateStock=%d idempotentReplay=%t", out.WarehouseID, out.AggregateStock, out.IdempotentReplay),
+		})
+	}
 	response.OK(c, out)
+}
+
+// ListWarehouseBalances GET /products/:id/skus/:skuId/warehouse-balances
+func (h *Handler) ListWarehouseBalances(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	principal, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+	if err != nil || principal == nil || !principal.Can(adminperm.PermInventoryView) {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "inventory permission denied")
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	productID, productErr := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	skuID, skuErr := uuid.Parse(strings.TrimSpace(c.Param("skuId")))
+	if productErr != nil || skuErr != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid product or sku id")
+		return
+	}
+	rows, err := h.Svc.ListWarehouseBalances(c.Request.Context(), tenantID, productID, skuID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "SKU not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": rows})
+}
+
+// ReconcileWarehouseLedger GET /inventory/warehouse-ledger/reconciliation
+func (h *Handler) ReconcileWarehouseLedger(c *gin.Context) {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	principal, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+	if err != nil || principal == nil || !principal.Can(adminperm.PermInventoryView) {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "inventory permission denied")
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	result, err := h.Svc.ReconcileWarehouseLedger(c.Request.Context(), tenantID, atoiQ(c, "page", 1), atoiQ(c, "pageSize", 20), c.Query("status"))
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+// MigrateLegacyStock POST /inventory/warehouse-ledger/migrate-legacy
+func (h *Handler) MigrateLegacyStock(c *gin.Context) {
+	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	var body LegacyStockMigrationBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	result, err := h.Svc.MigrateLegacyStock(c.Request.Context(), tenantID, adminUUID(c), body.Limit)
+	if err != nil {
+		if errors.Is(err, ErrWarehouseLedgerMismatch) {
+			response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	if h.Svc.OpLog != nil && result.MigratedCount > 0 {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.legacy_stock.migrate",
+			Resource: "warehouse", ResourceID: result.WarehouseID.String(), Permission: adminperm.PermInventoryOperate,
+			Status: "success", Message: fmt.Sprintf("migratedCount=%d remainingCount=%d", result.MigratedCount, result.RemainingCount),
+		})
+	}
+	response.OK(c, result)
 }
 
 // ListSKULogs GET /products/:id/skus/:skuId/inventory-logs

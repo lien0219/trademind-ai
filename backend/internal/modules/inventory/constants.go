@@ -52,6 +52,8 @@ const (
 
 const (
 	MovementPurchaseReceipt = "purchase_receipt"
+	MovementManualAdjust    = "manual_adjust"
+	MovementLegacyImport    = "legacy_import"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).

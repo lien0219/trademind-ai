@@ -68,6 +68,9 @@ type InventoryMovement struct {
 	SourceType       string     `gorm:"size:48;not null;index" json:"sourceType"`
 	SourceID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"sourceId"`
 	BusinessEventKey string     `gorm:"size:255;not null;uniqueIndex" json:"businessEventKey"`
+	RequestHash      string     `gorm:"size:64" json:"-"`
+	Reason           string     `gorm:"size:128" json:"reason,omitempty"`
+	Remark           string     `gorm:"size:520" json:"remark,omitempty"`
 	CreatedBy        *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 }
 

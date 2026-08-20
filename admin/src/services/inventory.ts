@@ -101,7 +101,9 @@ export type InventorySyncTaskDTO = {
 };
 
 export type AdjustStockPayload = {
+  warehouseId: string;
   stock: number;
+  idempotencyKey: string;
   reason?: string;
   remark?: string;
   sync?: boolean;
@@ -109,6 +111,85 @@ export type AdjustStockPayload = {
 
 export async function adjustSkuStock(productId: string, skuId: string, payload: AdjustStockPayload) {
   return postJSON<Record<string, unknown>>(`/api/v1/products/${productId}/skus/${skuId}/adjust-stock`, payload);
+}
+
+export type WarehouseBalance = {
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
+  isDefault: boolean;
+  onHand: number;
+  reserved: number;
+  inTransit: number;
+  damaged: number;
+  available: number;
+  version: number;
+};
+
+export type InventoryWarehouse = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  isDefault: boolean;
+};
+
+export async function listInventoryWarehouses() {
+  return getJSON<{ list: InventoryWarehouse[] }>('/api/v1/warehouses');
+}
+
+export async function listSkuWarehouseBalances(productId: string, skuId: string) {
+  return getJSON<{ list: WarehouseBalance[] }>(
+    `/api/v1/products/${encodeURIComponent(productId)}/skus/${encodeURIComponent(skuId)}/warehouse-balances`,
+  );
+}
+
+export type WarehouseLedgerReconciliationRow = {
+  productId: string;
+  productTitle: string;
+  productSkuId: string;
+  skuCode: string;
+  skuName: string;
+  aggregateStock: number;
+  warehouseOnHand: number;
+  difference: number;
+  balanceCount: number;
+  status: 'matched' | 'unmigrated' | 'mismatch' | string;
+};
+
+export type WarehouseLedgerReconciliation = {
+  list: WarehouseLedgerReconciliationRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  matched: number;
+  unmigrated: number;
+  mismatch: number;
+};
+
+export async function queryWarehouseLedgerReconciliation(params?: {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+}) {
+  return getWithParams<WarehouseLedgerReconciliation>('/api/v1/inventory/warehouse-ledger/reconciliation', params);
+}
+
+export type LegacyStockMigrationResult = {
+  warehouseId: string;
+  warehouseCode: string;
+  migratedCount: number;
+  remainingCount: number;
+};
+
+export async function migrateLegacyStock(limit = 100) {
+  return postJSON<LegacyStockMigrationResult>('/api/v1/inventory/warehouse-ledger/migrate-legacy', { limit });
+}
+
+export function createInventoryIdempotencyKey(action: string) {
+  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `admin-${action}-${random}`.slice(0, 128);
 }
 
 export async function querySkuInventoryLogs(
