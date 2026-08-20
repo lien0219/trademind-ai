@@ -28,6 +28,51 @@ type InventoryChangeLog struct {
 
 func (InventoryChangeLog) TableName() string { return "inventory_change_logs" }
 
+// WarehouseStockBalance is the tenant-scoped warehouse ledger introduced for
+// ERP flows. During the compatibility migration product_skus.stock remains the
+// aggregate authority until every legacy stock writer has moved to this ledger.
+type WarehouseStockBalance struct {
+	model.HardDeleteBase
+	TenantID     int64     `gorm:"not null;uniqueIndex:ux_warehouse_stock_balance;index" json:"tenantId"`
+	WarehouseID  uuid.UUID `gorm:"type:char(36);not null;uniqueIndex:ux_warehouse_stock_balance;index" json:"warehouseId"`
+	ProductSKUID uuid.UUID `gorm:"column:product_sku_id;type:char(36);not null;uniqueIndex:ux_warehouse_stock_balance;index" json:"productSkuId"`
+	OnHand       int       `gorm:"not null;default:0" json:"onHand"`
+	Reserved     int       `gorm:"not null;default:0" json:"reserved"`
+	InTransit    int       `gorm:"not null;default:0" json:"inTransit"`
+	Damaged      int       `gorm:"not null;default:0" json:"damaged"`
+	Version      int       `gorm:"not null;default:1" json:"version"`
+}
+
+func (WarehouseStockBalance) TableName() string { return "warehouse_stock_balances" }
+
+// Available returns stock that may be promised to an order or marketplace.
+func (b WarehouseStockBalance) Available() int {
+	available := b.OnHand - b.Reserved - b.Damaged
+	if available < 0 {
+		return 0
+	}
+	return available
+}
+
+// InventoryMovement is an append-only warehouse stock fact.
+type InventoryMovement struct {
+	model.HardDeleteBase
+	TenantID         int64      `gorm:"not null;index" json:"tenantId"`
+	WarehouseID      uuid.UUID  `gorm:"type:char(36);not null;index" json:"warehouseId"`
+	ProductID        uuid.UUID  `gorm:"type:char(36);not null;index" json:"productId"`
+	ProductSKUID     uuid.UUID  `gorm:"column:product_sku_id;type:char(36);not null;index" json:"productSkuId"`
+	MovementType     string     `gorm:"size:48;not null;index" json:"movementType"`
+	Quantity         int        `gorm:"not null" json:"quantity"`
+	BeforeOnHand     int        `gorm:"not null" json:"beforeOnHand"`
+	AfterOnHand      int        `gorm:"not null" json:"afterOnHand"`
+	SourceType       string     `gorm:"size:48;not null;index" json:"sourceType"`
+	SourceID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"sourceId"`
+	BusinessEventKey string     `gorm:"size:255;not null;uniqueIndex" json:"businessEventKey"`
+	CreatedBy        *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+}
+
+func (InventoryMovement) TableName() string { return "inventory_movements" }
+
 // InventorySyncBatch groups many outbound inventory_sync_tasks created in one bulk submission.
 type InventorySyncBatch struct {
 	model.HardDeleteBase

@@ -59,6 +59,28 @@
 | `POST` | `/api/v1/settings/test-image` | 测试 `settings.image` 图片 Provider 配置。可选 JSON：`provider`、`testMode`（`config_only` \| `live`，默认 `config_only`）、`settings`（表单覆盖项，支持未保存先测；脱敏 `****` 占位符会忽略并沿用已保存密钥）。成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`supportedTasks`、`configStatus`。不返回 API Key。 |
 | `POST` | `/api/v1/settings/test-ocr` | 测试 `settings.image` 中的 OCR 配置。可选 JSON：`provider`（`ai_vision` / `paddleocr` / `baidu` / `aliyun` / `tencent`）、`settings`（表单覆盖项，支持未保存先测；脱敏密钥占位符会忽略）。`paddleocr` 会用后端生成的测试图调用 OCR 服务，检查连通性、文字 `blocks` 与 `bbox`；成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`blocks`、`bboxOk`。 |
 
+## ERP 采购基础
+
+所有接口均需 JWT、租户上下文和对应权限。采购状态写使用 `expectedRevision` 防止并发覆盖；收货使用调用方生成的稳定 `idempotencyKey`，同一采购单下同键同 payload 返回原结果，同键不同 payload 返回 `409`。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/warehouses` | `warehouse.view` | 当前租户仓库列表。 |
+| `POST` | `/api/v1/warehouses` | `warehouse.manage` | 创建仓库；JSON：`code`、`name`、`isDefault`。 |
+| `GET` | `/api/v1/suppliers` | `supplier.view` | 当前租户供应商列表；无 `pii.read_full` 时电话和邮箱脱敏。 |
+| `POST` | `/api/v1/suppliers` | `supplier.manage` | 创建供应商；JSON：`code`、`name`、`contactName`、`phone`、`email`。 |
+| `POST` | `/api/v1/suppliers/:id/skus` | `supplier.manage` | 绑定本地 SKU；JSON：`productSkuId`、`supplierSkuCode`、`unitCostMinor`、`currency`、`minOrderQty`、`leadTimeDays`。 |
+| `GET` | `/api/v1/purchase-orders` | `procurement.view` | 采购单分页列表，支持 `page`、`pageSize`。 |
+| `POST` | `/api/v1/purchase-orders` | `procurement.manage` | 幂等创建采购单；JSON：`idempotencyKey`、`supplierId`、`warehouseId`、`currency`、`remark`、`items[]`。明细含 `productSkuId`、可选 `supplierSkuId`、`quantity`、`unitCostMinor`。 |
+| `GET` | `/api/v1/purchase-orders/:id` | `procurement.view` | 采购单及明细。 |
+| `POST` | `/api/v1/purchase-orders/:id/submit` | `procurement.manage` | 草稿提交审批；JSON：`expectedRevision`、可选 `reason`。 |
+| `POST` | `/api/v1/purchase-orders/:id/approve` | `procurement.approve` | 审批采购单；JSON 同上。 |
+| `POST` | `/api/v1/purchase-orders/:id/cancel` | `procurement.manage` | 取消尚未收货的采购单；JSON 同上。 |
+| `POST` | `/api/v1/purchase-orders/:id/close` | `procurement.manage` | 关闭已审批或部分收货采购单；JSON 同上。 |
+| `POST` | `/api/v1/purchase-orders/:id/receipts` | `procurement.receive` | 分批收货；JSON：`expectedRevision`、`idempotencyKey`、`items[]`，明细含 `purchaseOrderItemId`、`quantity`。采购明细、收货记录、库存余额、库存流水和兼容聚合库存在同一事务提交。 |
+
+金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示采购单在当前租户不可见，`409` 表示 revision、状态、超收或幂等冲突。当前没有对应 Admin 页面，且这些 API 不触发真实平台库存同步。
+
 ## 图片 AI
 
 | 方法 | 路径 | 说明 |

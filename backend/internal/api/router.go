@@ -47,6 +47,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/pricing"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
@@ -56,7 +57,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
+	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
@@ -429,6 +432,14 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		}
 	}
 	inventoryH := &inventory.Handler{Svc: inventorySvc}
+	warehouseSvc := &warehouse.Service{DB: dep.DB}
+	warehouseH := &warehouse.Handler{Svc: warehouseSvc, OpLog: opLogSvc}
+	supplierSvc := &supplier.Service{DB: dep.DB}
+	supplierH := &supplier.Handler{Svc: supplierSvc, OpLog: opLogSvc}
+	procurementSvc := &procurement.Service{
+		DB: dep.DB, Warehouses: warehouseSvc, Suppliers: supplierSvc, Stock: inventory.WarehouseStockService{},
+	}
+	procurementH := &procurement.Handler{Svc: procurementSvc, OpLog: opLogSvc}
 
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
@@ -727,6 +738,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	douyinruntime.Register(authed, douyinRuntimeH)
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)
+	warehouse.Register(authed, warehouseH)
+	supplier.Register(authed, supplierH)
+	procurement.Register(authed, procurementH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
 

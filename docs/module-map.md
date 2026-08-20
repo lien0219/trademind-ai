@@ -20,6 +20,7 @@
 | 统一返回 / 错误码 | `backend/internal/pkg/response`、所有调用方、`docs/api.md`、前端错误处理 |
 | 管理端页面 | `admin/config/routes.ts`、`admin/src/pages`、`admin/src/services`、`admin/src/types`、README 能力描述、相关 docs |
 | 数据库模型 / 自动迁移 | `backend/internal/modules/**/model`、`backend/internal/database`、`docs/architecture.md`、`docs/PROGRESS.md` |
+| ERP 仓库 / 供应商 / 采购入库 | `backend/internal/modules/warehouse`、`supplier`、`procurement`、`inventory/warehouse_stock.go`、数据库迁移、`adminperm`、API 契约、`docs/ERP_ARCHITECTURE.md`；必须检查 tenant scope、金额最小单位、状态机 revision、收货幂等、超收保护、同事务库存流水和旧 `product_skus.stock` 兼容边界。 |
 | 异步任务 / 队列 | 任务 model/service/worker、Redis 配置、健康检查、`.env.example`、`docs/env.md`、任务中心页面 |
 | AI Provider | `backend/internal/providers`、AI settings、Prompt 模板、调用记录、`docs/provider.md`、`docs/provider-template.md` |
 | Storage Provider | Provider 接口、文件上传 API、settings.storage、本地/对象存储文档、`docs/provider.md` |

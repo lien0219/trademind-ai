@@ -17,6 +17,19 @@ describe('TradeMind API contract registry', () => {
       new Set([
         'GET /api/v1/auth/profile',
         'GET /api/v1/image/providers',
+        'GET /api/v1/warehouses',
+        'POST /api/v1/warehouses',
+        'GET /api/v1/suppliers',
+        'POST /api/v1/suppliers',
+        'POST /api/v1/suppliers/:id/skus',
+        'GET /api/v1/purchase-orders',
+        'POST /api/v1/purchase-orders',
+        'GET /api/v1/purchase-orders/:id',
+        'POST /api/v1/purchase-orders/:id/submit',
+        'POST /api/v1/purchase-orders/:id/approve',
+        'POST /api/v1/purchase-orders/:id/cancel',
+        'POST /api/v1/purchase-orders/:id/close',
+        'POST /api/v1/purchase-orders/:id/receipts',
         'GET /api/v1/p10/status',
         'POST /api/v1/operation-tasks',
         'GET /api/v1/operation-tasks/:id',
@@ -47,6 +60,31 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/customer/conversations/:id/send-platform-message',
       ]),
     );
+  });
+
+  it('defines ERP master data, state transition, and idempotent receipt contracts', () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+
+    expect(endpoint('POST /api/v1/warehouses')?.requestBody).toEqual(['code', 'name', 'isDefault']);
+    expect(endpoint('POST /api/v1/suppliers/:id/skus')?.requestBody).toEqual([
+      'productSkuId',
+      'supplierSkuCode',
+      'unitCostMinor',
+      'currency',
+      'minOrderQty',
+      'leadTimeDays',
+    ]);
+    expect(endpoint('POST /api/v1/purchase-orders')?.requestBody).toEqual([
+      'idempotencyKey',
+      'supplierId',
+      'warehouseId',
+      'currency',
+      'remark',
+      'items',
+    ]);
+    expect(endpoint('POST /api/v1/purchase-orders/:id/approve')?.requiredPermission).toBe('procurement.approve');
+    expect(endpoint('POST /api/v1/purchase-orders/:id/receipts')?.requestBody).toEqual(['expectedRevision', 'idempotencyKey', 'items']);
+    expect(endpoint('POST /api/v1/purchase-orders/:id/receipts')?.requiredPermission).toBe('procurement.receive');
   });
 
   it('defines payload/query contracts for state-changing publish APIs', () => {
@@ -155,7 +193,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(30);
+    expect(contracts.endpoints).toHaveLength(43);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

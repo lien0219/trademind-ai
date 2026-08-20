@@ -55,6 +55,18 @@ func TestPermissionsForRole(t *testing.T) {
 	if !StrictHasPermission(RoleReadonly, PermInventorySyncRead) || !StrictHasPermission(RoleReadonly, PermInventorySnapshotRead) || !StrictHasPermission(RoleReadonly, PermSKUBindingRead) {
 		t.Fatal("readonly should read inventory sync, snapshots, and SKU bindings")
 	}
+	if !StrictHasPermission(RoleOperator, PermProcurementManage) || !StrictHasPermission(RoleOperator, PermProcurementReceive) || StrictHasPermission(RoleOperator, PermProcurementApprove) {
+		t.Fatal("operator should manage and receive purchase orders but must not approve them")
+	}
+	if !StrictHasPermission(RoleReviewer, PermProcurementApprove) || StrictHasPermission(RoleReviewer, PermProcurementManage) || StrictHasPermission(RoleReviewer, PermProcurementReceive) {
+		t.Fatal("reviewer should approve purchase orders without editing or receiving them")
+	}
+	if !StrictHasPermission(RoleReadonly, PermWarehouseView) || !StrictHasPermission(RoleReadonly, PermSupplierView) || !StrictHasPermission(RoleReadonly, PermProcurementView) {
+		t.Fatal("readonly should view ERP master data and purchase orders")
+	}
+	if StrictHasPermission(RoleReadonly, PermWarehouseManage) || StrictHasPermission(RoleReadonly, PermSupplierManage) || StrictHasPermission(RoleReadonly, PermProcurementManage) {
+		t.Fatal("readonly must not mutate ERP resources")
+	}
 	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) || StrictHasPermission("surprise", PermInventorySyncRun) || StrictHasPermission(RoleAdmin, "inventory.run") {
 		t.Fatal("unknown roles and synonymous permissions must not inherit permissions on strict path")
 	}

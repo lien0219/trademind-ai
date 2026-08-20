@@ -41,12 +41,17 @@ const (
 )
 
 const (
-	ChangeManualAdjust = "manual_adjust"
-	ChangeSyncSuccess  = "sync_success"
-	ChangeSyncFailed   = "sync_failed"
-	ChangeOrderDeduct  = "order_deduct"
-	ChangeOrderCancel  = "order_cancel_restore"
-	ChangeImport       = "import"
+	ChangeManualAdjust    = "manual_adjust"
+	ChangeSyncSuccess     = "sync_success"
+	ChangeSyncFailed      = "sync_failed"
+	ChangeOrderDeduct     = "order_deduct"
+	ChangeOrderCancel     = "order_cancel_restore"
+	ChangeImport          = "import"
+	ChangePurchaseReceipt = "purchase_receipt"
+)
+
+const (
+	MovementPurchaseReceipt = "purchase_receipt"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).

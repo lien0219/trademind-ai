@@ -24,11 +24,14 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/performance"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"gorm.io/gorm"
 )
@@ -150,6 +153,15 @@ func AutoMigrate(db *gorm.DB) error {
 		&inventory.InventorySyncTask{},
 		&inventory.InventoryChangeLog{},
 		&inventory.OrderInventoryEffect{},
+		&warehouse.Warehouse{},
+		&inventory.WarehouseStockBalance{},
+		&inventory.InventoryMovement{},
+		&supplier.Supplier{},
+		&supplier.SupplierSKU{},
+		&procurement.PurchaseOrder{},
+		&procurement.PurchaseOrderItem{},
+		&procurement.GoodsReceipt{},
+		&procurement.GoodsReceiptItem{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
 		&shop.PlatformCategory{},

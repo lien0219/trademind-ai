@@ -22,6 +22,15 @@ const (
 	PermOperationLogView   = "operationlog.view"
 	PermStoreView          = "store.view"
 	PermStoreOperate       = "store.operate"
+	// ERP foundation permissions
+	PermWarehouseView      = "warehouse.view"
+	PermWarehouseManage    = "warehouse.manage"
+	PermSupplierView       = "supplier.view"
+	PermSupplierManage     = "supplier.manage"
+	PermProcurementView    = "procurement.view"
+	PermProcurementManage  = "procurement.manage"
+	PermProcurementApprove = "procurement.approve"
+	PermProcurementReceive = "procurement.receive"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -78,6 +87,14 @@ var allPermissions = []string{
 	PermOperationLogView,
 	PermStoreView,
 	PermStoreOperate,
+	PermWarehouseView,
+	PermWarehouseManage,
+	PermSupplierView,
+	PermSupplierManage,
+	PermProcurementView,
+	PermProcurementManage,
+	PermProcurementApprove,
+	PermProcurementReceive,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -125,6 +142,10 @@ var reviewerPermissions = []string{
 	PermSKUBindingRead,
 	PermSKUBindingResolveManual,
 	PermInventorySyncAuditRead,
+	PermWarehouseView,
+	PermSupplierView,
+	PermProcurementView,
+	PermProcurementApprove,
 }
 
 var operatorPermissions = []string{
@@ -159,6 +180,13 @@ var operatorPermissions = []string{
 	PermInventorySnapshotRead,
 	PermSKUBindingRead,
 	PermSKUBindingManage,
+	PermWarehouseView,
+	PermWarehouseManage,
+	PermSupplierView,
+	PermSupplierManage,
+	PermProcurementView,
+	PermProcurementManage,
+	PermProcurementReceive,
 }
 
 var readonlyPermissions = []string{
@@ -178,6 +206,9 @@ var readonlyPermissions = []string{
 	PermInventorySyncRead,
 	PermInventorySnapshotRead,
 	PermSKUBindingRead,
+	PermWarehouseView,
+	PermSupplierView,
+	PermProcurementView,
 }
 
 // PermissionsForRole returns granted permission keys for a role.
