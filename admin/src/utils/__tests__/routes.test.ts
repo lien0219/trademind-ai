@@ -89,6 +89,19 @@ describe('Admin route menu configuration', () => {
     expect(names.filter((name) => /P\d+|Batch|Gate|Fixture|夹具|人工验收/i.test(name))).toEqual([]);
   });
 
+  it('exposes the controlled procurement workspace and keeps detail as a deep link', () => {
+    const procurement = routes.find((route) => route.path === '/procurement');
+
+    expect(procurement?.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '/procurement/purchase-orders', name: '采购单' }),
+        expect.objectContaining({ path: '/procurement/warehouses', name: '仓库管理' }),
+        expect.objectContaining({ path: '/procurement/suppliers', name: '供应商管理' }),
+        expect.objectContaining({ path: '/procurement/purchase-orders/:id', hideInMenu: true }),
+      ]),
+    );
+  });
+
   it('excludes internal inventory fixture routes from production builds', () => {
     expect(createInternalInventorySyncRoutes(false)).toEqual([]);
     expect(createInternalInventorySyncRoutes(true)).toEqual(

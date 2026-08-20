@@ -19,8 +19,11 @@ describe('TradeMind API contract registry', () => {
         'GET /api/v1/image/providers',
         'GET /api/v1/warehouses',
         'POST /api/v1/warehouses',
+        'PUT /api/v1/warehouses/:id',
         'GET /api/v1/suppliers',
         'POST /api/v1/suppliers',
+        'PUT /api/v1/suppliers/:id',
+        'GET /api/v1/suppliers/:id/skus',
         'POST /api/v1/suppliers/:id/skus',
         'GET /api/v1/purchase-orders',
         'POST /api/v1/purchase-orders',
@@ -66,6 +69,8 @@ describe('TradeMind API contract registry', () => {
     const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
 
     expect(endpoint('POST /api/v1/warehouses')?.requestBody).toEqual(['code', 'name', 'isDefault']);
+    expect(endpoint('PUT /api/v1/warehouses/:id')?.requestBody).toEqual(['name', 'status', 'isDefault']);
+    expect(endpoint('GET /api/v1/suppliers/:id/skus')?.requiredPermission).toBe('supplier.view');
     expect(endpoint('POST /api/v1/suppliers/:id/skus')?.requestBody).toEqual([
       'productSkuId',
       'supplierSkuCode',
@@ -193,7 +198,7 @@ describe('TradeMind API contract registry', () => {
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(43);
+    expect(contracts.endpoints).toHaveLength(46);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

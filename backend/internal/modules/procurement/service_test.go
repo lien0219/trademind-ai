@@ -88,7 +88,7 @@ func TestPurchaseOrderPartialReceiptIsTransactionalAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create purchase order: %v", err)
 	}
-	if po.Status != StatusDraft || po.Revision != 1 || po.TotalAmountMinor != 12500 || len(po.Items) != 1 {
+	if po.Status != StatusDraft || po.Revision != 1 || po.TotalAmountMinor != 12500 || len(po.Items) != 1 || po.Items[0].ProductTitle != "Test product" || po.Items[0].SKUName != "Test SKU" {
 		t.Fatalf("unexpected draft: %#v", po)
 	}
 	replayedPO, err := fx.Service.Create(ctx, 1, nil, createInput)

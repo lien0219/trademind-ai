@@ -39,6 +39,7 @@ export const PERMISSIONS = {
   PROCUREMENT_MANAGE: 'procurement.manage',
   PROCUREMENT_APPROVE: 'procurement.approve',
   PROCUREMENT_RECEIVE: 'procurement.receive',
+  PII_READ_FULL: 'pii.read_full',
   OBSERVABILITY_READ: 'observability.read',
   ALERTS_READ: 'alerts.read',
   ALERTS_ACK: 'alerts.ack',

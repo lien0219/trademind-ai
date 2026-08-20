@@ -90,7 +90,7 @@ The screenshots below show TradeMind's core workflow: **collection → draft →
 - Store authorization with Douyin Shop OAuth, encrypted secrets, and connection tests.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
-- ERP procurement foundation with warehouses, suppliers, purchase-order approval, partial receipts, warehouse movements, and idempotent receipt processing; Admin workflows follow in a later phase.
+- ERP procurement with warehouse and supplier master data, purchase-order approval, partial receipts, warehouse movements, idempotent processing, and a permission-separated Admin workspace with revision conflict protection.
 - Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction.
 - AI customer-service reply suggestions with manual confirmation before sending.
 

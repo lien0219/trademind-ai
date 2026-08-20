@@ -10,6 +10,7 @@ import { imageProviderCapabilities } from '../mocks/image-providers';
 import { observabilityResponse } from '../mocks/observability';
 import { operationTaskResponse } from '../mocks/operation-tasks';
 import { platformRuntimeResponse } from '../mocks/platform-runtime';
+import { procurementResponse } from '../mocks/procurement';
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(([key, token]) => {
@@ -42,6 +43,7 @@ export async function routeAdminApi(page: Page) {
       platformRuntimeResponse(path) ??
       operationTaskResponse(path) ??
       inventorySyncResponse(path) ??
+      procurementResponse(path) ??
       productsResponse(path) ??
       readinessResponse(path) ??
       publishResponse(path) ??

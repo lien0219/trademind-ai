@@ -194,7 +194,46 @@ func (s *Service) Get(ctx context.Context, tenantID int64, id uuid.UUID) (*Purch
 	if err != nil {
 		return nil, fmt.Errorf("get purchase order: %w", err)
 	}
+	if err := enrichPurchaseOrderItems(ctx, s.DB, tenantID, row.Items); err != nil {
+		return nil, err
+	}
 	return &row, nil
+}
+
+func enrichPurchaseOrderItems(ctx context.Context, db *gorm.DB, tenantID int64, items []PurchaseOrderItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	type skuLabel struct {
+		ID           uuid.UUID
+		ProductTitle string
+		SKUCode      string
+		SKUName      string
+	}
+	ids := make([]uuid.UUID, 0, len(items))
+	for i := range items {
+		ids = append(ids, items[i].ProductSKUID)
+	}
+	var labels []skuLabel
+	err := db.WithContext(ctx).Table("product_skus").
+		Select("product_skus.id, products.title AS product_title, product_skus.sku_code, product_skus.sku_name").
+		Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+		Where("product_skus.id IN ? AND products.tenant_id = ?", ids, tenantID).
+		Scan(&labels).Error
+	if err != nil {
+		return fmt.Errorf("load purchase SKU labels: %w", err)
+	}
+	byID := make(map[uuid.UUID]skuLabel, len(labels))
+	for _, label := range labels {
+		byID[label.ID] = label
+	}
+	for i := range items {
+		label := byID[items[i].ProductSKUID]
+		items[i].ProductTitle = label.ProductTitle
+		items[i].SKUCode = label.SKUCode
+		items[i].SKUName = label.SKUName
+	}
+	return nil
 }
 
 func (s *Service) List(ctx context.Context, tenantID int64, page, pageSize int) (*ListResult, error) {

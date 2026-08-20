@@ -8,5 +8,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	}
 	g.GET("/suppliers", h.List)
 	g.POST("/suppliers", h.Create)
+	g.PUT("/suppliers/:id", h.Update)
+	g.GET("/suppliers/:id/skus", h.ListSKUs)
 	g.POST("/suppliers/:id/skus", h.BindSKU)
 }

@@ -4,6 +4,7 @@ import { e2eProduct, E2E_PRODUCT_ID, e2eReadinessPassed, publication } from '../
 import { imageProviderCapabilities } from '../mocks/image-providers';
 import { e2eUser } from '../mocks/auth';
 import { skuBindingsResponse } from '../mocks/publish';
+import { e2ePurchaseOrder, e2eSupplier, e2eWarehouse, E2E_PURCHASE_ORDER_ID } from '../mocks/procurement';
 
 async function fetchApi(page: import('@playwright/test').Page, path: string) {
   if (page.url() === 'about:blank') {
@@ -49,5 +50,8 @@ test.describe('@contract API envelope contracts', () => {
     expect(await fetchApi(page, `/api/v1/products/${E2E_PRODUCT_ID}/readiness`)).toEqual(ok(e2eReadinessPassed));
     expect(await fetchApi(page, `/api/v1/products/${E2E_PRODUCT_ID}/publications`)).toEqual(ok({ list: [publication()] }));
     expect(await fetchApi(page, '/api/v1/product-publications/e2e-publication-old/douyin/sku-bindings')).toEqual(skuBindingsResponse('e2e-publication-old'));
+    expect(await fetchApi(page, '/api/v1/warehouses')).toEqual(ok({ list: [e2eWarehouse] }));
+    expect(await fetchApi(page, '/api/v1/suppliers')).toEqual(ok({ list: [e2eSupplier] }));
+    expect(await fetchApi(page, `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}`)).toEqual(ok(e2ePurchaseOrder));
   });
 });

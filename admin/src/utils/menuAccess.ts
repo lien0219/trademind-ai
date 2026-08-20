@@ -8,6 +8,7 @@ import {
 
 /** Route path → minimum view permission (undefined = all authenticated users). */
 export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> = {
+  '/procurement': [PERMISSIONS.PROCUREMENT_VIEW, PERMISSIONS.WAREHOUSE_VIEW, PERMISSIONS.SUPPLIER_VIEW],
   '/dashboard': PERMISSIONS.PRODUCT_VIEW,
   '/system/operation-logs': PERMISSIONS.OPERATIONLOG_VIEW,
   '/ops/workers/monitor': PERMISSIONS.TASK_RETRY,
@@ -43,6 +44,9 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/inventory/sync-tasks': PERMISSIONS.INVENTORY_VIEW,
   '/inventory/sync-batches': PERMISSIONS.INVENTORY_VIEW,
   '/inventory/logs': PERMISSIONS.INVENTORY_VIEW,
+  '/procurement/purchase-orders': PERMISSIONS.PROCUREMENT_VIEW,
+  '/procurement/warehouses': PERMISSIONS.WAREHOUSE_VIEW,
+  '/procurement/suppliers': PERMISSIONS.SUPPLIER_VIEW,
   '/customer/hub': PERMISSIONS.CUSTOMER_VIEW,
   '/customer/conversations': PERMISSIONS.CUSTOMER_VIEW,
   '/customer/message-sync-tasks': PERMISSIONS.CUSTOMER_VIEW,

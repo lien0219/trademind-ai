@@ -79,6 +79,39 @@ func (h *Handler) Create(c *gin.Context) {
 	response.OK(c, row)
 }
 
+func (h *Handler) Update(c *gin.Context) {
+	tenantID, _, ok := h.authorize(c, adminperm.PermWarehouseManage)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil || id == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid warehouse id")
+		return
+	}
+	var in UpdateInput
+	if err := httpapi.BindStrictJSON(c, &in, maxJSONBody); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.Update(c.Request.Context(), tenantID, id, in)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidWarehouse):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrWarehouseAbsent):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, Action: "warehouse.update", Resource: "warehouse", ResourceID: row.ID.String(), Permission: adminperm.PermWarehouseManage, Status: "success"})
+	}
+	response.OK(c, row)
+}
+
 func principalActor(principal *adminperm.Principal) *uuid.UUID {
 	if principal == nil || principal.UserID == uuid.Nil {
 		return nil

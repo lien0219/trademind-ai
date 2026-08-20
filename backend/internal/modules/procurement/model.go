@@ -50,6 +50,9 @@ type PurchaseOrderItem struct {
 	ReceivedQuantity int        `gorm:"not null;default:0" json:"receivedQuantity"`
 	UnitCostMinor    int64      `gorm:"not null" json:"unitCostMinor"`
 	LineAmountMinor  int64      `gorm:"not null" json:"lineAmountMinor"`
+	ProductTitle     string     `gorm:"-" json:"productTitle,omitempty"`
+	SKUCode          string     `gorm:"-" json:"skuCode,omitempty"`
+	SKUName          string     `gorm:"-" json:"skuName,omitempty"`
 }
 
 func (PurchaseOrderItem) TableName() string { return "purchase_order_items" }

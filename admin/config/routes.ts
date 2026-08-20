@@ -416,6 +416,39 @@ export default [
     ],
   },
   {
+    path: '/procurement',
+    name: '采购',
+    icon: 'ShoppingCartOutlined',
+    component: '@/layouts/ProcurementGroupLayout',
+    routes: [
+      {
+        path: '/procurement',
+        redirect: '/procurement/purchase-orders',
+      },
+      {
+        path: '/procurement/purchase-orders/:id',
+        name: '采购单详情',
+        component: './Procurement/PurchaseOrders/Detail',
+        hideInMenu: true,
+      },
+      {
+        path: '/procurement/purchase-orders',
+        name: '采购单',
+        component: './Procurement/PurchaseOrders',
+      },
+      {
+        path: '/procurement/warehouses',
+        name: '仓库管理',
+        component: './Procurement/Warehouses',
+      },
+      {
+        path: '/procurement/suppliers',
+        name: '供应商管理',
+        component: './Procurement/Suppliers',
+      },
+    ],
+  },
+  {
     path: '/customer',
     name: '客服',
     icon: 'CustomerServiceOutlined',

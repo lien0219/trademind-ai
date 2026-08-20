@@ -8,4 +8,5 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	}
 	g.GET("/warehouses", h.List)
 	g.POST("/warehouses", h.Create)
+	g.PUT("/warehouses/:id", h.Update)
 }

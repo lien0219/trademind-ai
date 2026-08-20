@@ -67,19 +67,22 @@
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/warehouses` | `warehouse.view` | 当前租户仓库列表。 |
 | `POST` | `/api/v1/warehouses` | `warehouse.manage` | 创建仓库；JSON：`code`、`name`、`isDefault`。 |
+| `PUT` | `/api/v1/warehouses/:id` | `warehouse.manage` | 更新仓库名称、启停状态和默认仓；JSON：`name`、`status`、`isDefault`。默认仓必须启用，同租户默认仓在事务内唯一切换。 |
 | `GET` | `/api/v1/suppliers` | `supplier.view` | 当前租户供应商列表；无 `pii.read_full` 时电话和邮箱脱敏。 |
 | `POST` | `/api/v1/suppliers` | `supplier.manage` | 创建供应商；JSON：`code`、`name`、`contactName`、`phone`、`email`。 |
+| `PUT` | `/api/v1/suppliers/:id` | `supplier.manage` | 更新供应商名称、启停状态和联系方式；JSON：`name`、`status`、`contactName`，可选 `phone`、`email`，敏感字段省略时保留原值，响应继续按权限脱敏。 |
+| `GET` | `/api/v1/suppliers/:id/skus` | `supplier.view` | 查询供应商关联的本地商品规格及供应商货号、采购价、起订量和交期。 |
 | `POST` | `/api/v1/suppliers/:id/skus` | `supplier.manage` | 绑定本地 SKU；JSON：`productSkuId`、`supplierSkuCode`、`unitCostMinor`、`currency`、`minOrderQty`、`leadTimeDays`。 |
 | `GET` | `/api/v1/purchase-orders` | `procurement.view` | 采购单分页列表，支持 `page`、`pageSize`。 |
 | `POST` | `/api/v1/purchase-orders` | `procurement.manage` | 幂等创建采购单；JSON：`idempotencyKey`、`supplierId`、`warehouseId`、`currency`、`remark`、`items[]`。明细含 `productSkuId`、可选 `supplierSkuId`、`quantity`、`unitCostMinor`。 |
-| `GET` | `/api/v1/purchase-orders/:id` | `procurement.view` | 采购单及明细。 |
+| `GET` | `/api/v1/purchase-orders/:id` | `procurement.view` | 采购单及明细；明细附带租户内商品标题、规格编码和规格名称作为只读展示字段。 |
 | `POST` | `/api/v1/purchase-orders/:id/submit` | `procurement.manage` | 草稿提交审批；JSON：`expectedRevision`、可选 `reason`。 |
 | `POST` | `/api/v1/purchase-orders/:id/approve` | `procurement.approve` | 审批采购单；JSON 同上。 |
 | `POST` | `/api/v1/purchase-orders/:id/cancel` | `procurement.manage` | 取消尚未收货的采购单；JSON 同上。 |
 | `POST` | `/api/v1/purchase-orders/:id/close` | `procurement.manage` | 关闭已审批或部分收货采购单；JSON 同上。 |
 | `POST` | `/api/v1/purchase-orders/:id/receipts` | `procurement.receive` | 分批收货；JSON：`expectedRevision`、`idempotencyKey`、`items[]`，明细含 `purchaseOrderItemId`、`quantity`。采购明细、收货记录、库存余额、库存流水和兼容聚合库存在同一事务提交。 |
 
-金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示采购单在当前租户不可见，`409` 表示 revision、状态、超收或幂等冲突。当前没有对应 Admin 页面，且这些 API 不触发真实平台库存同步。
+金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示采购单在当前租户不可见，`409` 表示 revision、状态、超收或幂等冲突。对应 Admin 工作台位于采购菜单下；这些 API 不触发真实平台库存同步。
 
 ## 图片 AI
 

@@ -89,6 +89,62 @@ func (h *Handler) Create(c *gin.Context) {
 	response.OK(c, row)
 }
 
+func (h *Handler) Update(c *gin.Context) {
+	tid, p, ok := h.authorize(c, adminperm.PermSupplierManage)
+	if !ok {
+		return
+	}
+	id, ok := supplierID(c)
+	if !ok {
+		return
+	}
+	var in UpdateInput
+	if err := httpapi.BindStrictJSON(c, &in, maxJSONBody); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.Update(c.Request.Context(), tid, id, in)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidSupplier):
+			response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrSupplierAbsent):
+			response.Fail(c, 404, response.CodeNotFound, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{TenantID: tid, Action: "supplier.update", Resource: "supplier", ResourceID: row.ID.String(), Permission: adminperm.PermSupplierManage, Status: "success"})
+	}
+	if p == nil || !p.Can(adminperm.PermPIIReadFull) {
+		maskSupplierContact(row)
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) ListSKUs(c *gin.Context) {
+	tid, _, ok := h.authorize(c, adminperm.PermSupplierView)
+	if !ok {
+		return
+	}
+	id, ok := supplierID(c)
+	if !ok {
+		return
+	}
+	rows, err := h.Svc.ListSKUs(c.Request.Context(), tid, id)
+	if err != nil {
+		if errors.Is(err, ErrSupplierAbsent) {
+			response.Fail(c, 404, response.CodeNotFound, err.Error())
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": rows})
+}
+
 func maskSupplierContact(row *Supplier) {
 	if row == nil {
 		return
@@ -110,9 +166,8 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	if !ok {
 		return
 	}
-	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
-	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid supplier id")
+	id, ok := supplierID(c)
+	if !ok {
 		return
 	}
 	var in BindSKUInput
@@ -137,4 +192,13 @@ func (h *Handler) BindSKU(c *gin.Context) {
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{TenantID: tid, Action: "supplier.sku.bind", Resource: "supplier_sku", ResourceID: row.ID.String(), Permission: adminperm.PermSupplierManage, Status: "success"})
 	}
 	response.OK(c, row)
+}
+
+func supplierID(c *gin.Context) (uuid.UUID, bool) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil || id == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid supplier id")
+		return uuid.Nil, false
+	}
+	return id, true
 }

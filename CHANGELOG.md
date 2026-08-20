@@ -10,6 +10,7 @@ All notable changes to TradeMind are documented here.
 - Added revision-protected purchase-order submission, approval, cancellation and closure, plus transactional partial receipts with over-receipt rejection and payload-bound idempotency.
 - Added warehouse stock balances and immutable purchase-receipt movements while preserving `product_skus.stock` as the compatibility authority until all legacy stock writers are migrated.
 - Added API contracts, role-matrix regressions, procurement transaction tests, and the staged ERP architecture boundary without enabling real-platform inventory writes.
+- Added the production-oriented Admin procurement workspace for warehouse and supplier maintenance, purchase-order creation and review, revision-checked state transitions, and idempotent partial receipt confirmation, with responsive and write-safety regression coverage.
 
 ### Database migration reliability (2026-08-15)
 

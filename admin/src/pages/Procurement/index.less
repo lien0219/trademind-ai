@@ -1,0 +1,127 @@
+.tm-procurement-page {
+  .tm-procurement-search {
+    width: min(360px, 100%);
+  }
+
+  .tm-operation-toolbar {
+    margin-bottom: 16px;
+  }
+}
+
+.tm-procurement-form-row {
+  width: 100%;
+
+  .ant-form-item {
+    min-width: 132px;
+    flex: 1 1 160px;
+  }
+
+  .ant-input-number,
+  .ant-select {
+    width: 100%;
+  }
+}
+
+.tm-procurement-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.5fr) minmax(120px, 0.6fr);
+  gap: 0 16px;
+}
+
+.tm-procurement-lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tm-procurement-line {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 120px 180px auto;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+
+  .ant-form-item,
+  .ant-input-number {
+    width: 100%;
+  }
+
+  > .ant-btn {
+    margin-bottom: 24px;
+  }
+}
+
+.tm-procurement-receipt-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tm-procurement-receipt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+
+  > div:first-child {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .ant-form-item {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 575px) {
+  .tm-procurement-page {
+    .tm-procurement-search {
+      width: 100%;
+    }
+  }
+
+  .tm-procurement-form-row {
+    display: block;
+
+    .ant-form-item {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  .tm-procurement-form-grid,
+  .tm-procurement-line,
+  .tm-procurement-receipt-row {
+    display: block;
+  }
+
+  .tm-procurement-line > .ant-btn {
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .tm-procurement-receipt-row .ant-form-item {
+    margin-top: 12px;
+  }
+}
+
+@media (min-width: 576px) and (max-width: 900px) {
+  .tm-procurement-line {
+    grid-template-columns: minmax(220px, 1fr) 110px 160px;
+
+    > .ant-btn {
+      grid-column: 1 / -1;
+      justify-self: end;
+      margin-bottom: 0;
+    }
+  }
+}

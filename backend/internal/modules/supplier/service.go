@@ -16,6 +16,7 @@ import (
 var (
 	ErrInvalidSupplier  = errors.New("invalid supplier")
 	ErrSupplierConflict = errors.New("supplier conflict")
+	ErrSupplierAbsent   = errors.New("supplier not found")
 	supplierCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{0,63}$`)
 )
 
@@ -27,9 +28,31 @@ type CreateInput struct {
 	Email       string `json:"email"`
 }
 
+type UpdateInput struct {
+	Name        string  `json:"name"`
+	Status      string  `json:"status"`
+	ContactName string  `json:"contactName"`
+	Phone       *string `json:"phone"`
+	Email       *string `json:"email"`
+}
+
 type BindSKUInput struct {
 	ProductSKUID    uuid.UUID `json:"productSkuId"`
 	SupplierSKUCode string    `json:"supplierSkuCode"`
+	UnitCostMinor   int64     `json:"unitCostMinor"`
+	Currency        string    `json:"currency"`
+	MinOrderQty     int       `json:"minOrderQty"`
+	LeadTimeDays    int       `json:"leadTimeDays"`
+}
+
+type SupplierSKUListItem struct {
+	ID              uuid.UUID `json:"id"`
+	SupplierID      uuid.UUID `json:"supplierId"`
+	ProductSKUID    uuid.UUID `json:"productSkuId"`
+	ProductTitle    string    `json:"productTitle"`
+	SKUCode         string    `json:"skuCode"`
+	SKUName         string    `json:"skuName"`
+	SupplierSKUCode string    `json:"supplierSkuCode,omitempty"`
 	UnitCostMinor   int64     `json:"unitCostMinor"`
 	Currency        string    `json:"currency"`
 	MinOrderQty     int       `json:"minOrderQty"`
@@ -75,12 +98,84 @@ func (s *Service) List(ctx context.Context, tenantID int64) ([]Supplier, error) 
 	return rows, nil
 }
 
+func (s *Service) Update(ctx context.Context, tenantID int64, id uuid.UUID, in UpdateInput) (*Supplier, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("supplier: db unavailable")
+	}
+	name := strings.TrimSpace(in.Name)
+	status := strings.ToLower(strings.TrimSpace(in.Status))
+	contactName := strings.TrimSpace(in.ContactName)
+	if tenantID <= 0 || id == uuid.Nil || name == "" || len([]rune(name)) > 200 ||
+		(status != StatusActive && status != StatusInactive) || len([]rune(contactName)) > 120 {
+		return nil, ErrInvalidSupplier
+	}
+	updates := map[string]any{"name": name, "status": status, "contact_name": contactName}
+	if in.Phone != nil {
+		phone := strings.TrimSpace(*in.Phone)
+		if len([]rune(phone)) > 64 {
+			return nil, ErrInvalidSupplier
+		}
+		updates["phone"] = phone
+	}
+	if in.Email != nil {
+		email := strings.TrimSpace(*in.Email)
+		if len([]rune(email)) > 254 {
+			return nil, ErrInvalidSupplier
+		}
+		updates["email"] = email
+	}
+	result := s.DB.WithContext(ctx).Model(&Supplier{}).
+		Where("id = ? AND tenant_id = ?", id, tenantID).
+		Updates(updates)
+	if result.Error != nil {
+		return nil, fmt.Errorf("update supplier: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrSupplierAbsent
+	}
+	var row Supplier
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("load supplier: %w", err)
+	}
+	return &row, nil
+}
+
+func (s *Service) ListSKUs(ctx context.Context, tenantID int64, supplierID uuid.UUID) ([]SupplierSKUListItem, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("supplier: db unavailable")
+	}
+	if tenantID <= 0 || supplierID == uuid.Nil {
+		return nil, ErrInvalidSupplier
+	}
+	var supplierCount int64
+	if err := s.DB.WithContext(ctx).Model(&Supplier{}).
+		Where("id = ? AND tenant_id = ?", supplierID, tenantID).
+		Count(&supplierCount).Error; err != nil {
+		return nil, fmt.Errorf("load supplier: %w", err)
+	}
+	if supplierCount == 0 {
+		return nil, ErrSupplierAbsent
+	}
+	var rows []SupplierSKUListItem
+	err := s.DB.WithContext(ctx).Table("supplier_skus AS ss").
+		Select("ss.id, ss.supplier_id, ss.product_sku_id, products.title AS product_title, product_skus.sku_code, product_skus.sku_name, ss.supplier_sku_code, ss.unit_cost_minor, ss.currency, ss.min_order_qty, ss.lead_time_days").
+		Joins("JOIN product_skus ON product_skus.id = ss.product_sku_id").
+		Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+		Where("ss.tenant_id = ? AND ss.supplier_id = ? AND products.tenant_id = ?", tenantID, supplierID, tenantID).
+		Order("products.title ASC, product_skus.sku_code ASC, ss.id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list supplier SKUs: %w", err)
+	}
+	return rows, nil
+}
+
 func (s *Service) BindSKU(ctx context.Context, tenantID int64, supplierID uuid.UUID, in BindSKUInput) (*SupplierSKU, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("supplier: db unavailable")
 	}
 	currency := strings.ToUpper(strings.TrimSpace(in.Currency))
-	if tenantID <= 0 || supplierID == uuid.Nil || in.ProductSKUID == uuid.Nil || in.UnitCostMinor < 0 || in.MinOrderQty < 1 || in.LeadTimeDays < 0 || len(currency) != 3 {
+	if tenantID <= 0 || supplierID == uuid.Nil || in.ProductSKUID == uuid.Nil || in.UnitCostMinor < 0 || in.MinOrderQty < 1 || in.LeadTimeDays < 0 || len(currency) != 3 || len([]rune(strings.TrimSpace(in.SupplierSKUCode))) > 128 {
 		return nil, ErrInvalidSupplier
 	}
 	var supplierRow Supplier

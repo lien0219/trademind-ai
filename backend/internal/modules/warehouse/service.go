@@ -15,12 +15,19 @@ import (
 var (
 	ErrInvalidWarehouse  = errors.New("invalid warehouse")
 	ErrWarehouseConflict = errors.New("warehouse conflict")
+	ErrWarehouseAbsent   = errors.New("warehouse not found")
 	warehouseCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{0,63}$`)
 )
 
 type CreateInput struct {
 	Code      string `json:"code"`
 	Name      string `json:"name"`
+	IsDefault bool   `json:"isDefault"`
+}
+
+type UpdateInput struct {
+	Name      string `json:"name"`
+	Status    string `json:"status"`
 	IsDefault bool   `json:"isDefault"`
 }
 
@@ -69,6 +76,48 @@ func (s *Service) List(ctx context.Context, tenantID int64) ([]Warehouse, error)
 		return nil, fmt.Errorf("list warehouses: %w", err)
 	}
 	return rows, nil
+}
+
+func (s *Service) Update(ctx context.Context, tenantID int64, id uuid.UUID, in UpdateInput) (*Warehouse, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("warehouse: db unavailable")
+	}
+	name := strings.TrimSpace(in.Name)
+	status := strings.ToLower(strings.TrimSpace(in.Status))
+	if tenantID <= 0 || id == uuid.Nil || name == "" || len([]rune(name)) > 160 ||
+		(status != StatusActive && status != StatusInactive) || (in.IsDefault && status != StatusActive) {
+		return nil, ErrInvalidWarehouse
+	}
+
+	var row Warehouse
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND tenant_id = ?", id, tenantID).
+			First(&row).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrWarehouseAbsent
+		}
+		if err != nil {
+			return fmt.Errorf("load warehouse: %w", err)
+		}
+		if in.IsDefault {
+			if err := tx.Model(&Warehouse{}).
+				Where("tenant_id = ? AND id <> ? AND is_default = ?", tenantID, id, true).
+				Update("is_default", false).Error; err != nil {
+				return fmt.Errorf("clear default warehouse: %w", err)
+			}
+		}
+		if err := tx.Model(&Warehouse{}).
+			Where("id = ? AND tenant_id = ?", id, tenantID).
+			Updates(map[string]any{"name": name, "status": status, "is_default": in.IsDefault}).Error; err != nil {
+			return fmt.Errorf("update warehouse: %w", err)
+		}
+		return tx.Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
 }
 
 func (s *Service) RequireActive(ctx context.Context, tx *gorm.DB, tenantID int64, id uuid.UUID) (*Warehouse, error) {
