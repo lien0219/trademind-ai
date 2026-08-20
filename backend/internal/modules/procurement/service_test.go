@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 

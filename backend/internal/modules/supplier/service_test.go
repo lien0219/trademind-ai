@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
