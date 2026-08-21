@@ -11,6 +11,7 @@ import type { ConfigProviderProps } from "antd";
 import type { RequestConfig, RunTimeLayoutConfig } from "@/typings/umi-runtime";
 import AppGlobalSearch from "@/components/layout/AppGlobalSearch";
 import AppTopNav from "@/components/layout/AppTopNav";
+import ThemeToggleButton from "@/components/layout/ThemeToggleButton";
 import AppModalBridge from "@/components/AppModalBridge";
 import AppMessageBridge from "@/components/AppMessageBridge";
 import BrandLogo from "@/components/BrandLogo";
@@ -31,6 +32,8 @@ import type { InitialStateModel } from "@/typings/umi-runtime";
 /** ProLayout 会为侧栏品牌回调提供 props，移动端顶栏品牌回调则不会。 */
 type SiderMenuLayoutProps = {
   collapsed?: boolean;
+  isMobile?: boolean;
+  onCollapse?: (collapsed: boolean) => void;
 };
 
 type HeaderLayoutProps = SiderMenuLayoutProps & {
@@ -148,21 +151,24 @@ async function logoutAndClear(
   history.push("/user/login");
 }
 
-function AppTopNavBridge() {
+function AppTopNavBridge({ isMobile = false }: { isMobile?: boolean }) {
   const { setInitialState, initialState } = useInitialStateModel();
   return (
     <AppTopNav
       user={initialState?.currentUser}
       onLogout={() => logoutAndClear(setInitialState)}
+      showThemeToggle={isMobile}
     />
   );
 }
 
-function AppBrandButton() {
+function AppBrandButton({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <button
       type="button"
-      className="tm-app-brand-header"
+      className={`tm-app-brand-header${
+        collapsed ? " tm-app-brand-header--collapsed" : ""
+      }`}
       aria-label="返回工作台"
       onClick={() => history.push("/dashboard")}
     >
@@ -175,18 +181,24 @@ function AppBrandButton() {
   );
 }
 
-function AppHeaderIdentity({
+function AppSiderFooter({
   collapsed = false,
+  isMobile = false,
   onCollapse,
-}: HeaderLayoutProps) {
+}: SiderMenuLayoutProps) {
   const collapseLabel = collapsed ? "展开侧栏" : "收起侧栏";
 
+  if (isMobile) return null;
+
   return (
-    <div className="tm-app-header-identity">
-      <AppBrandButton />
+    <div className={`tm-app-sider-footer${collapsed ? " is-collapsed" : ""}`}>
+      <ThemeToggleButton
+        className="tm-app-sider-footer__action tm-app-sider-footer__theme"
+        tooltipPlacement="right"
+      />
       <button
         type="button"
-        className="tm-app-header-identity__sider-toggle"
+        className="tm-app-sider-footer__action tm-app-sider-footer__collapse"
         aria-label={collapseLabel}
         title={collapseLabel}
         onClick={() => onCollapse?.(!collapsed)}
@@ -194,7 +206,10 @@ function AppHeaderIdentity({
         {collapsed ? (
           <MenuUnfoldOutlined aria-hidden="true" />
         ) : (
-          <MenuFoldOutlined aria-hidden="true" />
+          <>
+            <MenuFoldOutlined aria-hidden="true" />
+            <span>收起</span>
+          </>
         )}
       </button>
     </div>
@@ -217,7 +232,7 @@ function AppHeaderContent({
         layoutProps.isMobile ? " tm-app-header-content--mobile" : ""
       }`}
     >
-      {layoutProps.isMobile ? null : <AppHeaderIdentity {...layoutProps} />}
+      {layoutProps.isMobile ? <AppBrandButton collapsed /> : null}
       <AppGlobalSearch
         items={layoutProps.menuData || []}
         compact={layoutProps.isMobile}
@@ -236,12 +251,13 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   layout: "mix",
   navTheme: "light",
   siderWidth: 224,
-  actionsRender: () => <AppTopNavBridge />,
+  actionsRender: (props: HeaderLayoutProps) => (
+    <AppTopNavBridge isMobile={props.isMobile} />
+  ),
   avatarProps: false,
   rightContentRender: false,
-  // ProLayout forces `collapsed: false` inside headerTitleRender, so interactive
-  // collapse controls must stay in headerContentRender to receive the real state.
-  // The empty desktop title wrapper is removed by a narrowly scoped shell style.
+  // Keep the desktop brand and utility controls in the sider so the whole left
+  // rail collapses together without changing menu or permission behavior.
   headerTitleRender: false,
   headerContentRender: (props: HeaderLayoutProps) => (
     <AppHeaderContent
@@ -250,12 +266,18 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       permissions={initialState?.currentUser?.permissions}
     />
   ),
-  collapsedButtonRender: false,
   menuHeaderRender: (
     _logoDom: ReactNode,
     _titleDom: ReactNode,
     props?: SiderMenuLayoutProps,
-  ) => (props ? null : <AppBrandButton />),
+  ) =>
+    props && !props.isMobile ? (
+      <AppBrandButton collapsed={props.collapsed} />
+    ) : null,
+  menuFooterRender: (props?: SiderMenuLayoutProps) => (
+    <AppSiderFooter {...(props || {})} />
+  ),
+  collapsedButtonRender: false,
   token: {
     bgLayout: "var(--ant-color-bg-layout)",
     header: {

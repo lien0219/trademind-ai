@@ -360,6 +360,11 @@ test.describe("@smoke Admin route smoke", () => {
 
     await accountTrigger.click();
     await expect(accountTrigger).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByText("用户与权限")).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /API 密钥/ })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("联系客服")).toHaveCount(0);
     await expect(
       page.getByRole("menuitem", { name: /退出登录/ }),
     ).toBeVisible();
@@ -370,7 +375,7 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
-  test("uses one desktop header brand, an icon tooltip, and switches theme without mixed frames", async ({
+  test("keeps the brand in the sider and switches theme without mixed frames", async ({
     admin,
     page,
   }) => {
@@ -378,32 +383,35 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.goto("/dashboard/product-operations");
 
     await expect(
-      page.locator(".ant-pro-global-header .tm-app-brand-header"),
+      page.locator(".ant-pro-sider .tm-app-brand-header"),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "返回工作台" }),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: "收起侧栏" })).toBeVisible();
+      page.locator(".ant-pro-global-header .tm-app-brand-header"),
+    ).toHaveCount(0);
+    const collapseControl = page.getByRole("button", { name: "收起侧栏" });
+    await expect(collapseControl).toBeVisible();
+    await expect(page.locator(".tm-app-sider-footer")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "搜索功能或页面" }),
     ).toBeVisible();
-    const brandBox = await page
-      .getByRole("button", { name: "返回工作台" })
-      .boundingBox();
-    const collapseBox = await page
-      .getByRole("button", { name: "收起侧栏" })
-      .boundingBox();
     const searchBox = await page
       .getByRole("button", { name: "搜索功能或页面" })
       .boundingBox();
-    expect(brandBox).not.toBeNull();
-    expect(collapseBox).not.toBeNull();
     expect(searchBox).not.toBeNull();
-    if (!brandBox || !collapseBox || !searchBox) {
-      throw new Error("desktop header controls must have layout boxes");
+    if (!searchBox) {
+      throw new Error("desktop search control must have a layout box");
     }
-    expect(brandBox.x + brandBox.width).toBeLessThanOrEqual(collapseBox.x);
-    expect(collapseBox.x + collapseBox.width).toBeLessThanOrEqual(searchBox.x);
+    expect(searchBox.x).toBeGreaterThanOrEqual(0);
+    const footerBox = await page.locator(".tm-app-sider-footer").boundingBox();
+    const siderBox = await page.locator(".ant-pro-sider").boundingBox();
+    expect(footerBox).not.toBeNull();
+    expect(siderBox).not.toBeNull();
+    if (!footerBox || !siderBox) {
+      throw new Error("sider footer and sider must have layout boxes");
+    }
+    expect(footerBox.y + footerBox.height).toBeGreaterThanOrEqual(
+      siderBox.y + siderBox.height - 24,
+    );
     const brandLogoBox = await page.locator(".tm-app-brand-logo").boundingBox();
     const firstNavigationIconBox = await page
       .getByRole("menuitem", { name: /工作台/ })
@@ -421,9 +429,6 @@ test.describe("@smoke Admin route smoke", () => {
       `brand left ${brandLogoBox.x} vs navigation icon left ${firstNavigationIconBox.x}`,
     ).toBeLessThanOrEqual(4);
     await expect(page.locator(".tm-app-brand-logo")).toHaveCount(1);
-    await expect(page.locator(".ant-pro-sider .tm-app-brand-logo")).toHaveCount(
-      0,
-    );
 
     const darkThemeAction = page.getByRole("button", {
       name: "切换到深色模式",
@@ -463,7 +468,9 @@ test.describe("@smoke Admin route smoke", () => {
       .fill("告警中心");
     await dialog.getByRole("button", { name: /告警中心/ }).click();
 
-    await expect(page).toHaveURL(/\/ops\/task-center\/alerts\?source=business$/);
+    await expect(page).toHaveURL(
+      /\/ops\/task-center\/alerts\?source=business$/,
+    );
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
@@ -475,6 +482,10 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.goto("/ops/task-center/alerts");
 
     await page.getByRole("button", { name: "收起侧栏" }).click();
+    await expect(page.locator(".ant-pro-sider-collapsed")).toBeVisible();
+    await expect(
+      page.locator(".ant-pro-sider-collapsed .tm-app-brand-header--collapsed"),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "展开侧栏" })).toBeVisible();
 
     const sider = page.locator(".ant-pro-sider-collapsed");
@@ -506,7 +517,9 @@ test.describe("@smoke Admin route smoke", () => {
     ).toBeLessThanOrEqual(1);
 
     await page.getByRole("button", { name: "展开侧栏" }).click();
-    await expect(page.getByRole("button", { name: "收起侧栏" })).toBeVisible();
+    await expect(
+      page.locator(".ant-pro-sider .tm-app-brand-header"),
+    ).toBeVisible();
     await expect(page.locator(".ant-pro-sider-collapsed")).toHaveCount(0);
 
     await expectNoRootOverflow(page);

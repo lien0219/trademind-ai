@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useAntdConfigSetter } from "@umijs/max";
+import { history, useAntdConfigSetter } from "@umijs/max";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { THEME_MODE_STORAGE_KEY } from "@/theme";
 import AppTopNav, { resolveUserLabels } from "../AppTopNav";
@@ -64,6 +64,37 @@ describe("AppTopNav", () => {
 
     expect(onLogout).toHaveBeenCalledTimes(1);
     expect(accountTrigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("groups account details and permitted destinations in the menu", async () => {
+    const interaction = userEvent.setup();
+    const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
+    render(<AppTopNav user={user} onLogout={vi.fn()} />);
+
+    await interaction.click(
+      screen.getByRole("button", { name: "当前用户 运营账号" }),
+    );
+
+    expect(await screen.findByText("用户与权限")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /API 密钥/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("联系客服")).not.toBeInTheDocument();
+
+    await interaction.click(
+      screen.getByRole("menuitem", { name: "用户与权限" }),
+    );
+    expect(history.push).toHaveBeenCalledWith("/settings/users");
+
+    await interaction.click(
+      screen.getByRole("button", { name: "当前用户 运营账号" }),
+    );
+    await interaction.click(screen.getByRole("menuitem", { name: "GitHub" }));
+    expect(openWindow).toHaveBeenCalledWith(
+      "https://github.com/lien0219/trademind-ai",
+      "_blank",
+      "noopener,noreferrer",
+    );
   });
 
   it("shows the theme action as an icon with an accessible tooltip", async () => {

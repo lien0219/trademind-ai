@@ -62,20 +62,32 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
 }
 
 .tm-app-brand-header {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   min-width: 0;
-  height: 40px;
+  height: 100%;
   margin: 0;
-  padding: 4px 8px;
+  padding: 4px 24px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   color: var(--ant-color-text);
   background: transparent;
   font: inherit;
   text-align: left;
   cursor: pointer;
+
+  &--collapsed {
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+
+    .tm-app-brand-header__name {
+      display: none;
+    }
+  }
+
   box-sizing: border-box;
 
   &:hover {
@@ -111,33 +123,28 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   }
 }
 
-.tm-app-header-identity {
+.tm-app-sider-footer {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 4px;
-  min-width: 0;
-  height: 100%;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--ant-color-border-secondary);
 
-  .tm-app-brand-header {
-    padding-inline-start: 16px;
-  }
-
-  &__sider-toggle {
-    display: inline-flex;
+  &__action {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 32px;
-    height: 32px;
+    gap: 10px;
+    width: 100%;
+    min-height: 36px;
     margin: 0;
-    padding: 0;
+    padding: 0 10px;
     border: 0;
-    border-radius: 50%;
+    border-radius: 6px;
     color: var(--ant-color-text-secondary);
     background: transparent;
     font: inherit;
-    font-size: 16px;
-    line-height: 1;
+    font-size: 13px;
+    text-align: left;
     cursor: pointer;
 
     &:hover {
@@ -148,6 +155,29 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
     &:focus-visible {
       outline: 2px solid var(--ant-color-primary-border);
       outline-offset: 1px;
+    }
+  }
+
+  &__theme {
+    justify-content: flex-start;
+  }
+
+  &__collapse {
+    justify-content: flex-start;
+  }
+
+  &.is-collapsed {
+    align-items: center;
+    padding-inline: 8px;
+
+    .tm-app-sider-footer__action {
+      justify-content: center;
+      width: 40px;
+      padding-inline: 0;
+    }
+
+    .tm-app-sider-footer__theme {
+      font-size: 16px;
     }
   }
 }
@@ -163,6 +193,18 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   &--mobile {
     justify-content: flex-end;
     gap: 0;
+  }
+}
+
+.tm-app-layout .ant-pro-sider {
+  .ant-layout-sider-children {
+    display: flex;
+    flex-direction: column;
+    padding-block-end: 0;
+  }
+
+  .ant-pro-base-menu-menu {
+    flex: 1;
   }
 }
 
