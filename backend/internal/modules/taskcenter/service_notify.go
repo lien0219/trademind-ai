@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -453,13 +454,14 @@ func channelEnabled(an map[string]string, ch string) bool {
 
 // ListAlertNotificationsParams binds GET /alert-notifications.
 type ListAlertNotificationsParams struct {
-	AlertID *uuid.UUID
-	Channel string
-	Status  string
-	Start   *time.Time
-	End     *time.Time
-	Page    int
-	PageSz  int
+	TenantID int64
+	AlertID  *uuid.UUID
+	Channel  string
+	Status   string
+	Start    *time.Time
+	End      *time.Time
+	Page     int
+	PageSz   int
 }
 
 // TaskAlertNotificationDTO is API shape for one notify audit row.
@@ -503,6 +505,7 @@ func (s *Service) ListAlertNotifications(ctx context.Context, p ListAlertNotific
 	}
 	page, ps := clampPageNotif(p.Page, p.PageSz)
 	q := s.DB.WithContext(ctx).Model(&TaskAlertNotification{})
+	q = q.Where("EXISTS (SELECT 1 FROM task_alerts a WHERE a.id = task_alert_notifications.alert_id AND a.tenant_id = ?)", p.TenantID)
 	if p.AlertID != nil && *p.AlertID != uuid.Nil {
 		q = q.Where("alert_id = ?", *p.AlertID)
 	}
@@ -559,7 +562,11 @@ func (s *Service) NotifyTaskAlertManual(ctx context.Context, c *gin.Context, ale
 		return fmt.Errorf("taskcenter: no db")
 	}
 	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", alertID, tenantID).First(&a).Error; err != nil {
 		return err
 	}
 	filter := make([]string, 0, len(channels))

@@ -70,7 +70,7 @@ func (s *Service) Create(ctx context.Context, tenantID int64, actor *uuid.UUID, 
 	contactName := strings.TrimSpace(in.ContactName)
 	phone := strings.TrimSpace(in.Phone)
 	email := strings.TrimSpace(in.Email)
-	if tenantID <= 0 || !supplierCodePattern.MatchString(code) || name == "" || len([]rune(name)) > 200 || len([]rune(contactName)) > 120 || len([]rune(phone)) > 64 || len([]rune(email)) > 254 {
+	if tenantID < 0 || !supplierCodePattern.MatchString(code) || name == "" || len([]rune(name)) > 200 || len([]rune(contactName)) > 120 || len([]rune(phone)) > 64 || len([]rune(email)) > 254 {
 		return nil, ErrInvalidSupplier
 	}
 	row := &Supplier{TenantID: tenantID, Code: code, Name: name, Status: StatusActive, ContactName: contactName, Phone: phone, Email: email, CreatedBy: actor}
@@ -105,7 +105,7 @@ func (s *Service) Update(ctx context.Context, tenantID int64, id uuid.UUID, in U
 	name := strings.TrimSpace(in.Name)
 	status := strings.ToLower(strings.TrimSpace(in.Status))
 	contactName := strings.TrimSpace(in.ContactName)
-	if tenantID <= 0 || id == uuid.Nil || name == "" || len([]rune(name)) > 200 ||
+	if tenantID < 0 || id == uuid.Nil || name == "" || len([]rune(name)) > 200 ||
 		(status != StatusActive && status != StatusInactive) || len([]rune(contactName)) > 120 {
 		return nil, ErrInvalidSupplier
 	}
@@ -144,7 +144,7 @@ func (s *Service) ListSKUs(ctx context.Context, tenantID int64, supplierID uuid.
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("supplier: db unavailable")
 	}
-	if tenantID <= 0 || supplierID == uuid.Nil {
+	if tenantID < 0 || supplierID == uuid.Nil {
 		return nil, ErrInvalidSupplier
 	}
 	var supplierCount int64
@@ -175,7 +175,7 @@ func (s *Service) BindSKU(ctx context.Context, tenantID int64, supplierID uuid.U
 		return nil, fmt.Errorf("supplier: db unavailable")
 	}
 	currency := strings.ToUpper(strings.TrimSpace(in.Currency))
-	if tenantID <= 0 || supplierID == uuid.Nil || in.ProductSKUID == uuid.Nil || in.UnitCostMinor < 0 || in.MinOrderQty < 1 || in.LeadTimeDays < 0 || len(currency) != 3 || len([]rune(strings.TrimSpace(in.SupplierSKUCode))) > 128 {
+	if tenantID < 0 || supplierID == uuid.Nil || in.ProductSKUID == uuid.Nil || in.UnitCostMinor < 0 || in.MinOrderQty < 1 || in.LeadTimeDays < 0 || len(currency) != 3 || len([]rune(strings.TrimSpace(in.SupplierSKUCode))) > 128 {
 		return nil, ErrInvalidSupplier
 	}
 	var supplierRow Supplier

@@ -1,5 +1,15 @@
-import { deleteJSON, getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
-import type { OrderInventoryEffectRow, PaginatedInventory } from '@/services/inventory';
+import {
+  ApiRequestError,
+  deleteJSON,
+  getJSON,
+  getWithParams,
+  postJSON,
+  putJSON,
+} from "@/services/request";
+import type {
+  OrderInventoryEffectRow,
+  PaginatedInventory,
+} from "@/services/inventory";
 
 export type OrderShipmentRow = {
   id: string;
@@ -45,6 +55,8 @@ export type OrderShopSummary = {
 
 /** Order inventory flags from backend `inventory_summary` projection. */
 export type OrderInventorySummary = {
+  hasReservationSuccess: boolean;
+  hasReleaseSuccess: boolean;
   hasDeductionSuccess: boolean;
   hasRestoreSuccess: boolean;
   fullyRestored: boolean;
@@ -56,6 +68,7 @@ export type OrderDetailDTO = {
   tenantId: number;
   platform: string;
   shopId?: string;
+  warehouseId?: string;
   shopSummary?: OrderShopSummary | null;
   externalOrderId?: string;
   orderNo: string;
@@ -78,6 +91,30 @@ export type OrderDetailDTO = {
   shipments: OrderShipmentRow[];
   inventorySummary?: OrderInventorySummary | null;
 };
+
+export type PartialOrderCreate = {
+  orderId: string;
+  order: OrderDetailDTO;
+  inventoryDeduction?: Record<string, unknown>;
+};
+
+export function partialOrderCreateFromError(
+  error: unknown,
+): PartialOrderCreate | null {
+  if (!(error instanceof ApiRequestError) || !error.data || typeof error.data !== "object") {
+    return null;
+  }
+  const data = error.data as Partial<PartialOrderCreate>;
+  if (
+    typeof data.orderId !== "string" ||
+    !data.order ||
+    typeof data.order !== "object" ||
+    data.order.id !== data.orderId
+  ) {
+    return null;
+  }
+  return data as PartialOrderCreate;
+}
 
 export type OrderListRow = {
   id: string;
@@ -126,20 +163,30 @@ export async function queryOrders(params: {
   end?: string;
 }): Promise<{
   list: OrderListRow[];
-  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }> {
-  return getWithParams('/api/v1/orders', params);
+  return getWithParams("/api/v1/orders", params);
 }
 
-export async function createOrder(payload: Record<string, unknown>): Promise<OrderDetailDTO> {
-  return postJSON('/api/v1/orders', payload);
+export async function createOrder(
+  payload: Record<string, unknown>,
+): Promise<OrderDetailDTO> {
+  return postJSON("/api/v1/orders", payload);
 }
 
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
   return getJSON(`/api/v1/orders/${id}`);
 }
 
-export async function updateOrder(id: string, payload: Record<string, unknown>): Promise<OrderDetailDTO> {
+export async function updateOrder(
+  id: string,
+  payload: Record<string, unknown>,
+): Promise<OrderDetailDTO> {
   return putJSON(`/api/v1/orders/${id}`, payload);
 }
 
@@ -147,7 +194,10 @@ export async function deleteOrder(id: string): Promise<{ ok: boolean }> {
   return deleteJSON(`/api/v1/orders/${id}`);
 }
 
-export async function createOrderItem(orderId: string, payload: Record<string, unknown>): Promise<OrderItemRow> {
+export async function createOrderItem(
+  orderId: string,
+  payload: Record<string, unknown>,
+): Promise<OrderItemRow> {
   return postJSON(`/api/v1/orders/${orderId}/items`, payload);
 }
 
@@ -159,11 +209,17 @@ export async function updateOrderItem(
   return putJSON(`/api/v1/orders/${orderId}/items/${itemId}`, payload);
 }
 
-export async function deleteOrderItem(orderId: string, itemId: string): Promise<{ ok: boolean }> {
+export async function deleteOrderItem(
+  orderId: string,
+  itemId: string,
+): Promise<{ ok: boolean }> {
   return deleteJSON(`/api/v1/orders/${orderId}/items/${itemId}`);
 }
 
-export async function createOrderShipment(orderId: string, payload: Record<string, unknown>): Promise<OrderShipmentRow> {
+export async function createOrderShipment(
+  orderId: string,
+  payload: Record<string, unknown>,
+): Promise<OrderShipmentRow> {
   return postJSON(`/api/v1/orders/${orderId}/shipments`, payload);
 }
 
@@ -175,29 +231,44 @@ export async function updateOrderShipment(
   return putJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}`, payload);
 }
 
-export async function deleteOrderShipment(orderId: string, shipmentId: string): Promise<{ ok: boolean }> {
+export async function deleteOrderShipment(
+  orderId: string,
+  shipmentId: string,
+): Promise<{ ok: boolean }> {
   return deleteJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}`);
 }
 
 export async function deductOrderInventory(
   orderId: string,
-  body?: { syncInventory?: boolean },
-): Promise<{ order: OrderDetailDTO; inventoryDeduction: Record<string, unknown> }> {
+  body?: { syncInventory?: boolean; warehouseId?: string },
+): Promise<{
+  order: OrderDetailDTO;
+  inventoryDeduction: Record<string, unknown>;
+}> {
   return postJSON(`/api/v1/orders/${orderId}/deduct-inventory`, body ?? {});
 }
 
 export async function restoreOrderInventory(
   orderId: string,
-  body?: { syncInventory?: boolean; reason?: string },
-): Promise<{ order: OrderDetailDTO; inventoryRestoration: Record<string, unknown> }> {
+  body?: { syncInventory?: boolean; reason?: string; warehouseId?: string },
+): Promise<{
+  order: OrderDetailDTO;
+  inventoryRestoration: Record<string, unknown>;
+}> {
   return postJSON(`/api/v1/orders/${orderId}/restore-inventory`, body ?? {});
 }
 
 export async function getOrderInventoryEffects(
   orderId: string,
   params?: { page?: number; pageSize?: number },
-): Promise<{ list: OrderInventoryEffectRow[]; pagination: PaginatedInventory<OrderInventoryEffectRow>['pagination'] }> {
-  return getWithParams(`/api/v1/orders/${orderId}/inventory-effects`, params ?? {});
+): Promise<{
+  list: OrderInventoryEffectRow[];
+  pagination: PaginatedInventory<OrderInventoryEffectRow>["pagination"];
+}> {
+  return getWithParams(
+    `/api/v1/orders/${orderId}/inventory-effects`,
+    params ?? {},
+  );
 }
 
 export type OrderSkuMatchRow = {
@@ -226,7 +297,9 @@ export type OrderSkuMatchRow = {
   }>;
 };
 
-export async function getOrderSKUMatches(orderId: string): Promise<{ items: OrderSkuMatchRow[] }> {
+export async function getOrderSKUMatches(
+  orderId: string,
+): Promise<{ items: OrderSkuMatchRow[] }> {
   return getJSON(`/api/v1/orders/${orderId}/sku-matches`);
 }
 
@@ -246,7 +319,10 @@ export async function bindOrderItemSku(
     candidateConfidence?: number | null;
     candidateSource?: string;
   },
-): Promise<{ item: OrderItemRow; inventoryDeduction?: Record<string, unknown> }> {
+): Promise<{
+  item: OrderItemRow;
+  inventoryDeduction?: Record<string, unknown>;
+}> {
   return postJSON(`/api/v1/order-items/${itemId}/bind-sku`, body);
 }
 
@@ -270,7 +346,12 @@ export async function queryOrderSkuMatches(params: {
   end?: string;
 }): Promise<{
   list: OrderSkuMatchListRow[];
-  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }> {
-  return getWithParams('/api/v1/order-item-sku-matches', params);
+  return getWithParams("/api/v1/order-item-sku-matches", params);
 }

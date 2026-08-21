@@ -307,6 +307,7 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	}
 
 	row := &ImageTask{
+		TenantID:       s.imageTaskTenant(ctx, p.ProductID),
 		TaskType:       p.TaskType,
 		Provider:       effectiveProv,
 		Status:         StatusPending,
@@ -330,6 +331,17 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		_ = s.supersedePriorTranslateResults(ctx, row, translateTargetLanguageFromHints(inputHints(p.Input)), row.ID)
 	}
 	return row, nil
+}
+
+func (s *Service) imageTaskTenant(ctx context.Context, productID *uuid.UUID) int64 {
+	if s == nil || s.DB == nil || productID == nil || *productID == uuid.Nil {
+		return 0
+	}
+	var row struct{ TenantID int64 }
+	if err := s.DB.WithContext(ctx).Table("products").Select("tenant_id").Where("id = ? AND deleted_at IS NULL", *productID).Take(&row).Error; err != nil {
+		return 0
+	}
+	return row.TenantID
 }
 
 // FinalizeNewImageTask enqueues a pending task or runs it inline (same contract as HTTP POST /image/tasks).

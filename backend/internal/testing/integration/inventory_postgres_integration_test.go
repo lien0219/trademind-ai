@@ -5,6 +5,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/database"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -234,4 +236,72 @@ func TestInventoryWarehouseAdjustmentSerializesConcurrentWrites(t *testing.T) {
 		}
 	}
 	require.Equal(t, map[int]bool{7: true, 9: true}, manualTargets)
+}
+
+func TestOrderInventoryReservationSerializesConcurrentOrders(t *testing.T) {
+	harness := postgrestest.Require(t)
+	harness.EmitMetadata(t)
+	db := harness.DB
+	require.NoError(t, database.AutoMigrate(db))
+
+	tenantID := time.Now().UnixNano()
+	warehouseService := &warehouse.Service{DB: db}
+	warehouseRow, err := warehouseService.Create(context.Background(), tenantID, nil, warehouse.CreateInput{Code: "ORDER-CONCURRENT", Name: "Order concurrent", IsDefault: true})
+	require.NoError(t, err)
+	productRow := product.Product{TenantID: tenantID, Source: "manual", Status: product.StatusDraft, Title: "Concurrent order ledger product"}
+	require.NoError(t, db.Create(&productRow).Error)
+	stock := 5
+	sku := product.ProductSKU{ProductID: productRow.ID, SKUCode: "ORDER-CONCURRENT-SKU", SKUName: "Concurrent order SKU", Stock: &stock, WarningStock: 1}
+	require.NoError(t, db.Create(&sku).Error)
+
+	orders := []order.Order{
+		{TenantID: tenantID, Platform: "manual", WarehouseID: &warehouseRow.ID, OrderNo: "ORDER-CONCURRENT-A-" + uuid.NewString(), CustomerName: "A", Status: order.StatusPaid, PaymentStatus: order.PaymentPaid, FulfillmentStatus: order.FulfillmentUnfulfilled, Currency: "USD"},
+		{TenantID: tenantID, Platform: "manual", WarehouseID: &warehouseRow.ID, OrderNo: "ORDER-CONCURRENT-B-" + uuid.NewString(), CustomerName: "B", Status: order.StatusPaid, PaymentStatus: order.PaymentPaid, FulfillmentStatus: order.FulfillmentUnfulfilled, Currency: "USD"},
+	}
+	require.NoError(t, db.Create(&orders).Error)
+	for i := range orders {
+		require.NoError(t, db.Create(&order.OrderItem{OrderID: orders[i].ID, ProductID: &productRow.ID, ProductSKUID: &sku.ID, ProductTitle: "Concurrent order item", Quantity: 4}).Error)
+	}
+	service := &inventory.Service{DB: db, Warehouses: warehouseService}
+
+	start := make(chan struct{})
+	errs := make(chan error, len(orders))
+	var wg sync.WaitGroup
+	for i := range orders {
+		wg.Add(1)
+		go func(orderID uuid.UUID) {
+			defer wg.Done()
+			<-start
+			_, reserveErr := service.DeductInventoryForOrder(context.Background(), orderID, inventory.OrderInventoryOptions{Reason: "concurrent reserve"})
+			errs <- reserveErr
+		}(orders[i].ID)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	var successCount, insufficientCount int
+	for reserveErr := range errs {
+		if reserveErr == nil {
+			successCount++
+		} else if errors.Is(reserveErr, inventory.ErrInsufficientSKUStock) {
+			insufficientCount++
+		} else {
+			require.NoError(t, reserveErr)
+		}
+	}
+	require.Equal(t, 1, successCount)
+	require.Equal(t, 1, insufficientCount)
+
+	var balance inventory.WarehouseStockBalance
+	require.NoError(t, db.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", tenantID, warehouseRow.ID, sku.ID).First(&balance).Error)
+	require.Equal(t, 5, balance.OnHand)
+	require.Equal(t, 4, balance.Reserved)
+	var reloaded product.ProductSKU
+	require.NoError(t, db.First(&reloaded, "id = ?", sku.ID).Error)
+	require.NotNil(t, reloaded.Stock)
+	require.Equal(t, 5, *reloaded.Stock)
+
+	var reserveMovements int64
+	require.NoError(t, db.Model(&inventory.InventoryMovement{}).Where("product_sku_id = ? AND movement_type = ?", sku.ID, inventory.MovementOrderReserve).Count(&reserveMovements).Error)
+	require.EqualValues(t, 1, reserveMovements)
 }

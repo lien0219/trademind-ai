@@ -18,9 +18,9 @@ import (
 	"gorm.io/datatypes"
 )
 
-func (s *Service) shopNameLookup(ctx context.Context, shopID uuid.UUID) string {
+func (s *Service) shopNameLookup(ctx context.Context, tenantID int64, shopID uuid.UUID) string {
 	var sh shop.Shop
-	if err := s.DB.WithContext(ctx).First(&sh, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&sh, "id = ? AND tenant_id = ?", shopID, tenantID).Error; err != nil {
 		return ""
 	}
 	return sh.ShopName
@@ -38,14 +38,15 @@ func (s *Service) taskToDTO(ctx context.Context, t *InventorySyncTask, skuHint s
 	code := skuHint
 	if strings.TrimSpace(code) == "" && t.ProductSKUID != nil && *t.ProductSKUID != uuid.Nil {
 		var sku product.ProductSKU
-		if err := s.DB.WithContext(ctx).First(&sku, "id = ?", *t.ProductSKUID).Error; err == nil {
+		if err := s.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+			First(&sku, "product_skus.id = ? AND products.tenant_id = ?", *t.ProductSKUID, t.TenantID).Error; err == nil {
 			code = sku.SKUCode
 		}
 	}
 	ptitle := title
 	if strings.TrimSpace(ptitle) == "" {
 		var p product.Product
-		if err := s.DB.WithContext(ctx).First(&p, "id = ?", t.ProductID).Error; err == nil {
+		if err := s.DB.WithContext(ctx).First(&p, "id = ? AND tenant_id = ?", t.ProductID, t.TenantID).Error; err == nil {
 			ptitle = p.Title
 		}
 	}
@@ -58,7 +59,7 @@ func (s *Service) taskToDTO(ctx context.Context, t *InventorySyncTask, skuHint s
 		PublicationID:    t.PublicationID,
 		PublicationSKUID: t.PublicationSKUID,
 		ShopID:           t.ShopID,
-		ShopName:         s.shopNameLookup(ctx, t.ShopID),
+		ShopName:         s.shopNameLookup(ctx, t.TenantID, t.ShopID),
 		Platform:         t.Platform,
 		TaskType:         t.TaskType,
 		Status:           t.Status,
@@ -86,13 +87,14 @@ func (s *Service) GetDTO(ctx context.Context, tenantID int64, id uuid.UUID, skuU
 	}
 	title := ""
 	var p product.Product
-	if err := s.DB.WithContext(ctx).First(&p, "id = ?", t.ProductID).Error; err == nil {
+	if err := s.DB.WithContext(ctx).First(&p, "id = ? AND tenant_id = ?", t.ProductID, tenantID).Error; err == nil {
 		title = p.Title
 	}
 	hint := skuCode
 	if strings.TrimSpace(hint) == "" && skuUUID != uuid.Nil {
 		var sku product.ProductSKU
-		if err := s.DB.WithContext(ctx).First(&sku, "id = ?", skuUUID).Error; err == nil {
+		if err := s.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+			First(&sku, "product_skus.id = ? AND products.tenant_id = ?", skuUUID, tenantID).Error; err == nil {
 			hint = sku.SKUCode
 		}
 	}
@@ -100,7 +102,7 @@ func (s *Service) GetDTO(ctx context.Context, tenantID int64, id uuid.UUID, skuU
 }
 
 // ListPublicationSKUs lists listing SKU rows mapped to one product draft.
-func (s *Service) ListPublicationSKUs(ctx context.Context, productID uuid.UUID, productSKUFilter *uuid.UUID) ([]PublicationSKUListingRow, error) {
+func (s *Service) ListPublicationSKUs(ctx context.Context, tenantID int64, productID uuid.UUID, productSKUFilter *uuid.UUID) ([]PublicationSKUListingRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -125,7 +127,8 @@ func (s *Service) ListPublicationSKUs(ctx context.Context, productID uuid.UUID, 
 			ps.bind_status, ps.bind_confidence, ps.bind_message, ps.last_synced_at,
 			pp.shop_id AS shop_uid, sh.shop_name, pp.platform AS plat, pp.external_product_id AS ext_pid`).
 		Joins(`JOIN product_publications pp ON pp.id = ps.publication_id AND pp.product_id = ? AND pp.deleted_at IS NULL`, productID).
-		Joins(`JOIN shops sh ON sh.id = pp.shop_id`)
+		Joins(`JOIN products p ON p.id = pp.product_id AND p.tenant_id = ? AND p.deleted_at IS NULL`, tenantID).
+		Joins(`JOIN shops sh ON sh.id = pp.shop_id AND sh.deleted_at IS NULL AND sh.tenant_id = ?`, tenantID)
 	if productSKUFilter != nil && *productSKUFilter != uuid.Nil {
 		tx = tx.Where("ps.product_sku_id = ?", *productSKUFilter)
 	}
@@ -163,7 +166,7 @@ func (s *Service) ListPublicationSKUs(ctx context.Context, productID uuid.UUID, 
 }
 
 // ListSKUChangeLogs pages ledger rows for one SKU snapshot line.
-func (s *Service) ListSKUChangeLogs(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, page, ps int) (*PaginatedLogs, error) {
+func (s *Service) ListSKUChangeLogs(ctx context.Context, tenantID int64, productID uuid.UUID, skuID uuid.UUID, page, ps int) (*PaginatedLogs, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -174,7 +177,7 @@ func (s *Service) ListSKUChangeLogs(ctx context.Context, productID uuid.UUID, sk
 		ps = 20
 	}
 	tx := s.DB.WithContext(ctx).Model(&InventoryChangeLog{}).
-		Where("product_id = ? AND product_sku_id = ?", productID, skuID)
+		Where("tenant_id = ? AND product_id = ? AND product_sku_id = ?", tenantID, productID, skuID)
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
@@ -217,6 +220,7 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 		ps = 20
 	}
 	tx := s.DB.WithContext(ctx).Model(&InventoryChangeLog{})
+	tx = tx.Where("tenant_id = ?", q.TenantID)
 	if q.ProductID != nil && *q.ProductID != uuid.Nil {
 		tx = tx.Where("product_id = ?", *q.ProductID)
 	}
@@ -327,7 +331,7 @@ func (s *Service) ListTasks(c *gin.Context, q ListQuery) (*ListTasksResult, erro
 		title := titleMap[t.ProductID]
 		if strings.TrimSpace(title) == "" {
 			var p product.Product
-			if err := s.DB.WithContext(ctx).First(&p, "id = ?", t.ProductID).Error; err == nil {
+			if err := s.DB.WithContext(ctx).First(&p, "id = ? AND tenant_id = ?", t.ProductID, t.TenantID).Error; err == nil {
 				title = p.Title
 				titleMap[t.ProductID] = title
 			}
@@ -335,7 +339,8 @@ func (s *Service) ListTasks(c *gin.Context, q ListQuery) (*ListTasksResult, erro
 		skuHint := ""
 		if t.ProductSKUID != nil {
 			var sku product.ProductSKU
-			if err := s.DB.WithContext(ctx).First(&sku, "id = ?", *t.ProductSKUID).Error; err == nil {
+			if err := s.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+				First(&sku, "product_skus.id = ? AND products.tenant_id = ?", *t.ProductSKUID, t.TenantID).Error; err == nil {
 				skuHint = sku.SKUCode
 			}
 		}

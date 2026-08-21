@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
@@ -74,6 +75,8 @@ func migrateLegacyInventorySKUColumns(db *gorm.DB) error {
 		{&inventory.OrderInventoryEffect{}, "product_sk_uid", "product_sku_id"},
 		{&order.OrderItem{}, "product_sk_uid", "product_sku_id"},
 		{&order.OrderItem{}, "external_sk_uid", "external_sku_id"},
+		{&order.OrderItemSKUMatch{}, "product_sku_i_d", "product_sku_id"},
+		{&order.OrderItemSKUMatch{}, "external_sk_uid", "external_sku_id"},
 	}
 	for _, r := range renames {
 		if !db.Migrator().HasTable(r.model) {
@@ -91,6 +94,7 @@ func migrateLegacyInventorySKUColumns(db *gorm.DB) error {
 		&inventory.InventoryChangeLog{},
 		&inventory.OrderInventoryEffect{},
 		&order.OrderItem{},
+		&order.OrderItemSKUMatch{},
 	)
 }
 
@@ -100,6 +104,80 @@ func migrateLegacyProductTextColumns(db *gorm.DB) error {
 		return nil
 	}
 	return db.AutoMigrate(&product.Product{})
+}
+
+func backfillOrderInventoryEffectTenants(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&inventory.OrderInventoryEffect{}) || !db.Migrator().HasTable(&order.Order{}) {
+		return nil
+	}
+	return db.Exec(`
+		UPDATE order_inventory_effects
+		SET tenant_id = COALESCE((
+			SELECT orders.tenant_id
+			FROM orders
+			WHERE orders.id = order_inventory_effects.order_id
+		), 0)
+		WHERE tenant_id = 0
+	`).Error
+}
+
+// backfillOrderExceptionMarkTenants preserves existing workbench marks when
+// tenant_id is added to the overlay table. Unknown legacy sources remain at
+// tenant zero and are therefore invisible to authenticated non-zero tenants.
+func backfillOrderExceptionMarkTenants(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&orderexception.OrderExceptionMark{}) ||
+		!db.Migrator().HasColumn(&orderexception.OrderExceptionMark{}, "tenant_id") {
+		return nil
+	}
+	type markRef struct {
+		ID         uuid.UUID `gorm:"column:id"`
+		SourceType string    `gorm:"column:source_type"`
+		SourceID   string    `gorm:"column:source_id"`
+	}
+	var refs []markRef
+	if err := db.Table("order_exception_marks").Select("id, source_type, source_id").Where("tenant_id = 0").Find(&refs).Error; err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		var tenantID int64
+		var err error
+		switch ref.SourceType {
+		case orderexception.SourceOrder:
+			err = db.Table("orders").Select("tenant_id").Where("id = ?", ref.SourceID).Scan(&tenantID).Error
+		case orderexception.SourceOrderItem:
+			err = db.Raw("SELECT o.tenant_id FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE oi.id = ?", ref.SourceID).Scan(&tenantID).Error
+		case orderexception.SourceOrderItemSKUMatch:
+			err = db.Raw("SELECT o.tenant_id FROM orders o JOIN order_item_sku_matches m ON m.order_id = o.id WHERE m.id = ?", ref.SourceID).Scan(&tenantID).Error
+		case orderexception.SourceOrderInventoryEffect:
+			err = db.Table("order_inventory_effects").Select("tenant_id").Where("id = ?", ref.SourceID).Scan(&tenantID).Error
+		case orderexception.SourceInventorySyncTask:
+			err = db.Table("inventory_sync_tasks").Select("tenant_id").Where("id = ?", ref.SourceID).Scan(&tenantID).Error
+		case orderexception.SourceOrderSyncTask:
+			err = db.Table("order_sync_tasks").Select("tenant_id").Where("id = ?", ref.SourceID).Scan(&tenantID).Error
+		}
+		if err != nil {
+			return err
+		}
+		if tenantID != 0 {
+			if err := db.Table("order_exception_marks").Where("id = ? AND tenant_id = 0", ref.ID).Update("tenant_id", tenantID).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func dropLegacyOrderExceptionMarkIndex(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&orderexception.OrderExceptionMark{}) {
+		return nil
+	}
+	const legacyIndex = "ux_order_exception_mark_quad"
+	if db.Migrator().HasIndex(&orderexception.OrderExceptionMark{}, legacyIndex) {
+		if err := db.Migrator().DropIndex(&orderexception.OrderExceptionMark{}, legacyIndex); err != nil {
+			return fmt.Errorf("drop legacy %s: %w", legacyIndex, err)
+		}
+	}
+	return nil
 }
 
 // AutoMigrate applies schema for core foundation tables.
@@ -196,6 +274,15 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.QuotaPolicy{},
 	); err != nil {
 		return err
+	}
+	if err := backfillOrderInventoryEffectTenants(db); err != nil {
+		return fmt.Errorf("backfill order inventory effect tenants: %w", err)
+	}
+	if err := dropLegacyOrderExceptionMarkIndex(db); err != nil {
+		return fmt.Errorf("drop legacy order exception mark index: %w", err)
+	}
+	if err := backfillOrderExceptionMarkTenants(db); err != nil {
+		return fmt.Errorf("backfill order exception mark tenants: %w", err)
 	}
 	if err := operationtask.Migrate(db); err != nil {
 		return err

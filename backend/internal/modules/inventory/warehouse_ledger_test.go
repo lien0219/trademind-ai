@@ -115,6 +115,29 @@ func TestManualAdjustmentMigratesLegacyStockAndReplaysIdempotently(t *testing.T)
 	}
 }
 
+func TestWarehouseLedgerAllowsLegacyTenantZero(t *testing.T) {
+	fx := newWarehouseLedgerFixture(t, true)
+	ctx := context.Background()
+	if err := fx.db.Model(&warehouse.Warehouse{}).Where("tenant_id = ?", 1).Update("tenant_id", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.db.Model(&product.Product{}).Where("tenant_id = ?", 1).Update("tenant_id", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	result, err := fx.service.AdjustWarehouseStock(ctx, 0, fx.product.ID, fx.sku.ID, AdjustStockBody{
+		WarehouseID: fx.main.ID, Stock: 6, IdempotencyKey: "legacy-ledger-001",
+	}, nil)
+	if err != nil {
+		t.Fatalf("adjust legacy tenant stock: %v", err)
+	}
+	if result.AggregateStock != 6 || result.WarehouseOnHand != 6 {
+		t.Fatalf("unexpected legacy tenant adjustment: %#v", result)
+	}
+	if _, err := fx.service.ReconcileWarehouseLedger(ctx, 0, 1, 20, ""); err != nil {
+		t.Fatalf("reconcile legacy tenant ledger: %v", err)
+	}
+}
+
 func TestManualAdjustmentUsesDefaultForLegacyStockAndPreservesCompatibilityDelta(t *testing.T) {
 	fx := newWarehouseLedgerFixture(t, true)
 	ctx := context.Background()

@@ -45,6 +45,9 @@ const (
 	ChangeSyncSuccess     = "sync_success"
 	ChangeSyncFailed      = "sync_failed"
 	ChangeOrderDeduct     = "order_deduct"
+	ChangeOrderReserve    = "order_reserve"
+	ChangeOrderRelease    = "order_release"
+	ChangeOrderRestore    = "order_refund_restore"
 	ChangeOrderCancel     = "order_cancel_restore"
 	ChangeImport          = "import"
 	ChangePurchaseReceipt = "purchase_receipt"
@@ -54,6 +57,10 @@ const (
 	MovementPurchaseReceipt = "purchase_receipt"
 	MovementManualAdjust    = "manual_adjust"
 	MovementLegacyImport    = "legacy_import"
+	MovementOrderReserve    = "order_reserve"
+	MovementOrderDeduct     = "order_deduct"
+	MovementOrderRelease    = "order_release"
+	MovementOrderRestore    = "order_refund_restore"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).

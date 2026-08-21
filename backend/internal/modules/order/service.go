@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
@@ -31,6 +32,7 @@ type Service struct {
 	Shops       *shop.Service
 	Settings    *settings.Service
 	Idempotency *idempotency.Service
+	Warehouses  *warehouse.Service
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).
@@ -227,6 +229,7 @@ type OrderShipmentInput struct {
 type CreateBody struct {
 	Platform          string               `json:"platform"`
 	ShopID            *uuid.UUID           `json:"shopId,omitempty"`
+	WarehouseID       *uuid.UUID           `json:"warehouseId,omitempty"`
 	ExternalOrderID   *string              `json:"externalOrderId,omitempty"`
 	OrderNo           string               `json:"orderNo"`
 	CustomerName      string               `json:"customerName"`
@@ -252,6 +255,8 @@ type CreateBody struct {
 type UpdateBody struct {
 	ShopID            *uuid.UUID           `json:"shopId,omitempty"`
 	SetShopIDNil      bool                 `json:"setShopIdNil,omitempty"`
+	WarehouseID       *uuid.UUID           `json:"warehouseId,omitempty"`
+	SetWarehouseIDNil bool                 `json:"setWarehouseIdNil,omitempty"`
 	ExternalOrderID   *string              `json:"externalOrderId,omitempty"`
 	Status            string               `json:"status,omitempty"`
 	PaymentStatus     string               `json:"paymentStatus,omitempty"`
@@ -289,9 +294,11 @@ type DetailDTO struct {
 
 // InventoryUIMini exposes stock-effect flags from order_inventory_effects without importing inventory in service helpers.
 type InventoryUIMini struct {
-	HasDeductionSuccess bool `json:"hasDeductionSuccess"`
-	HasRestoreSuccess   bool `json:"hasRestoreSuccess"`
-	FullyRestored       bool `json:"fullyRestored"`
+	HasReservationSuccess bool `json:"hasReservationSuccess"`
+	HasReleaseSuccess     bool `json:"hasReleaseSuccess"`
+	HasDeductionSuccess   bool `json:"hasDeductionSuccess"`
+	HasRestoreSuccess     bool `json:"hasRestoreSuccess"`
+	FullyRestored         bool `json:"fullyRestored"`
 }
 
 // OrderRow base scalar fields shared by list-ish projections.
@@ -300,6 +307,7 @@ type OrderRow struct {
 	TenantID          int64      `json:"tenantId"`
 	Platform          string     `json:"platform"`
 	ShopID            *uuid.UUID `json:"shopId,omitempty"`
+	WarehouseID       *uuid.UUID `json:"warehouseId,omitempty"`
 	ExternalOrderID   *string    `json:"externalOrderId,omitempty"`
 	OrderNo           string     `json:"orderNo"`
 	CustomerName      string     `json:"customerName"`
@@ -370,6 +378,7 @@ func (s *Service) normalizedCreate(body CreateBody) (*Order, []OrderItem, []Orde
 	o := &Order{
 		Platform:          platform,
 		ShopID:            body.ShopID,
+		WarehouseID:       body.WarehouseID,
 		ExternalOrderID:   body.ExternalOrderID,
 		OrderNo:           orderNo,
 		CustomerName:      name,
@@ -639,6 +648,7 @@ func orderRowDTO(o *Order) OrderRow {
 		TenantID:          o.TenantID,
 		Platform:          o.Platform,
 		ShopID:            o.ShopID,
+		WarehouseID:       o.WarehouseID,
 		ExternalOrderID:   o.ExternalOrderID,
 		OrderNo:           o.OrderNo,
 		CustomerName:      o.CustomerName,
@@ -803,11 +813,25 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	o.TenantID = tenantID
 	if err := s.validateShopRef(c, o.ShopID); err != nil {
 		return nil, err
 	}
 	o.CreatedBy = adminID
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if o.WarehouseID != nil && *o.WarehouseID != uuid.Nil {
+			warehouseService := s.Warehouses
+			if warehouseService == nil {
+				warehouseService = &warehouse.Service{DB: s.DB}
+			}
+			if _, err := warehouseService.RequireActive(c.Request.Context(), tx, tenantID, *o.WarehouseID); err != nil {
+				return fmt.Errorf("warehouse unavailable: %w", err)
+			}
+		}
 		if err := tx.Create(o).Error; err != nil {
 			return err
 		}
@@ -943,6 +967,18 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
 			return nil, err
 		}
+	}
+	if body.WarehouseID != nil && *body.WarehouseID != uuid.Nil {
+		warehouseService := s.Warehouses
+		if warehouseService == nil {
+			warehouseService = &warehouse.Service{DB: s.DB}
+		}
+		if _, err := warehouseService.RequireActive(c.Request.Context(), s.DB, tid, *body.WarehouseID); err != nil {
+			return nil, fmt.Errorf("warehouse unavailable: %w", err)
+		}
+		o.WarehouseID = body.WarehouseID
+	} else if body.SetWarehouseIDNil {
+		o.WarehouseID = nil
 	}
 
 	if strings.TrimSpace(body.CustomerName) != "" {
@@ -1133,11 +1169,15 @@ func (s *Service) Delete(c *gin.Context, orderID uuid.UUID, adminID *uuid.UUID) 
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("order: no db")
 	}
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Delete(&Order{}, "id = ?", orderID).Error; err != nil {
+	var o Order
+	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ? AND tenant_id = ?", orderID, tid).Error; err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(c.Request.Context()).Delete(&Order{}, "id = ? AND tenant_id = ?", orderID, tid).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -1202,8 +1242,12 @@ func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemIn
 }
 
 func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, error) {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ? AND tenant_id = ?", orderID, tid).Error; err != nil {
 		return nil, err
 	}
 	if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {

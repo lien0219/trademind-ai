@@ -358,6 +358,7 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 		return
 	}
 	p := ListAlertsParams{
+		TenantID:        mustTenantID(c),
 		Status:          strings.TrimSpace(c.Query("status")),
 		Severity:        strings.TrimSpace(c.Query("severity")),
 		FailureCategory: strings.TrimSpace(c.Query("failureCategory")),
@@ -394,6 +395,11 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 			"totalPages": tp,
 		},
 	})
+}
+
+func mustTenantID(c *gin.Context) int64 {
+	tid, _ := adminperm.TenantIDFromGin(c)
+	return tid
 }
 
 // ScanAlerts POST /task-center/alerts/scan
@@ -559,13 +565,14 @@ func (h *Handler) ListAlertNotifications(c *gin.Context) {
 		return
 	}
 	p := ListAlertNotificationsParams{
-		AlertID: alertIDPtr,
-		Channel: strings.TrimSpace(c.Query("channel")),
-		Status:  strings.TrimSpace(c.Query("status")),
-		Start:   startPtr,
-		End:     endPtr,
-		Page:    atoiQ(1, c.DefaultQuery("page", "1"), 1),
-		PageSz:  atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
+		TenantID: mustTenantID(c),
+		AlertID:  alertIDPtr,
+		Channel:  strings.TrimSpace(c.Query("channel")),
+		Status:   strings.TrimSpace(c.Query("status")),
+		Start:    startPtr,
+		End:      endPtr,
+		Page:     atoiQ(1, c.DefaultQuery("page", "1"), 1),
+		PageSz:   atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
 	}
 	res, err := h.Svc.ListAlertNotifications(c.Request.Context(), p)
 	if err != nil {

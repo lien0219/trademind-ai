@@ -508,12 +508,14 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 
 	autoDeductPair := false
+	autoRestore := false
 	if s.Inventory != nil {
 		pol, polErr := s.Inventory.InventoryPolicy(ctx)
 		if polErr != nil {
 			slog.Warn("order_sync_inventory_policy", "taskId", taskID.String(), "err", polErr.Error())
 		} else {
 			autoDeductPair = pol.AutoDeductPlatformOrders && pol.AutoDeductAfterSKUMatch
+			autoRestore = pol.AutoRestoreCancelledOrders
 		}
 	}
 
@@ -522,12 +524,14 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		if oid == uuid.Nil || s.Inventory == nil {
 			continue
 		}
-		if !autoDeductPair {
+		if !autoDeductPair && !autoRestore {
 			continue
 		}
 		ds, dex := s.Inventory.DeductInventoryForOrder(ctx, oid, inventory.OrderInventoryOptions{
-			Reason:       "order_synced",
-			PlatformAuto: true,
+			Reason:           "order_synced",
+			PlatformAuto:     true,
+			CompensationOnly: !autoDeductPair,
+			TenantID:         &task.TenantID,
 		})
 		if dex != nil {
 			slog.Warn("order_inventory_deduct_failed", "taskId", taskID.String(), "orderId", oid.String(), "err", dex.Error())

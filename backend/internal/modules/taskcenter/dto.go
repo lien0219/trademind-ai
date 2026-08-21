@@ -4,6 +4,7 @@ import "time"
 
 // UnifiedTaskDTO is the cross-module task projection for failure center APIs.
 type UnifiedTaskDTO struct {
+	TenantID             int64      `json:"-"`
 	ID                   string     `json:"id"`
 	TaskType             string     `json:"taskType"`
 	SourceTable          string     `json:"sourceTable"`

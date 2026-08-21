@@ -442,7 +442,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	procurementH := &procurement.Handler{Svc: procurementSvc, OpLog: opLogSvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc}
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 
 	orderSyncSvc := &ordersync.Service{

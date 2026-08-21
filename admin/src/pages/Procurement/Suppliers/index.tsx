@@ -1,6 +1,6 @@
-import { LinkOutlined, PlusOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, LinkOutlined, PlusOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, InputNumber, Modal, Radio, Select, Space, Tag, message } from 'antd';
+import { Alert, Button, Form, Input, InputNumber, Modal, Radio, Select, Space, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppDrawer from '@/components/AppDrawer';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -112,6 +112,8 @@ export default function SuppliersPage() {
     if (!normalized) return rows;
     return rows.filter((row) => `${row.code} ${row.name} ${row.contactName || ''}`.toLowerCase().includes(normalized));
   }, [keyword, rows]);
+
+  const activeCount = useMemo(() => rows.filter((row) => row.status === 'active').length, [rows]);
 
   const openCreate = () => {
     setEditing(undefined);
@@ -268,11 +270,29 @@ export default function SuppliersPage() {
       >
         {!canManage ? <Alert type="info" showIcon message="当前账号为只读模式；联系方式可能按权限脱敏展示。" /> : null}
         {error ? <ErrorAlert title={error} actionHint={<Button onClick={() => void load()}>重新加载</Button>} /> : null}
-        <OperationToolbar>
+        <div className="tm-procurement-overview" aria-label="供应商概览">
+          <div className="tm-procurement-overview__item">
+            <span className="tm-procurement-overview__label">供应商总数</span>
+            <strong className="tm-procurement-overview__value">{loading ? '—' : rows.length}</strong>
+          </div>
+          <div className="tm-procurement-overview__item tm-procurement-overview__item--success">
+            <CheckCircleOutlined aria-hidden="true" />
+            <span className="tm-procurement-overview__label">启用中</span>
+            <strong className="tm-procurement-overview__value">{loading ? '—' : activeCount}</strong>
+          </div>
+          <div className="tm-procurement-overview__note">
+            <SafetyCertificateOutlined aria-hidden="true" />
+            <Typography.Text type="secondary">
+              {loading ? '正在加载供应商信息' : canReadFullPII ? '联系方式按当前权限完整展示' : '联系方式按当前权限脱敏展示'}
+            </Typography.Text>
+          </div>
+        </div>
+        <OperationToolbar className="tm-procurement-toolbar" extra={<Typography.Text type="secondary">共 {filteredRows.length} 家供应商</Typography.Text>}>
           <Input.Search allowClear aria-label="搜索供应商" placeholder="搜索编码、名称或联系人" value={keyword} onChange={(event) => setKeyword(event.target.value)} className="tm-procurement-search" />
           <Button loading={loading} onClick={() => void load()}>刷新列表</Button>
         </OperationToolbar>
         <TmProTable<Supplier>
+          className="tm-procurement-table"
           rowKey="id" columns={columns} dataSource={filteredRows} loading={loading} search={false} options={false}
           pagination={false} cardBordered scroll={{ x: 1120 }} locale={{ emptyText: error ? '供应商列表暂不可用' : '暂无供应商，请先新建供应商。' }}
         />

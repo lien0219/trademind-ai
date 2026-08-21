@@ -209,7 +209,7 @@ type batchCandScan struct {
 	SafetyStock       int        `gorm:"column:safety_stock"`
 }
 
-func (s *Service) queryInventoryBatchCandidates(ctx context.Context, body CreateInventorySyncBatchBody) ([]batchCandScan, error) {
+func (s *Service) queryInventoryBatchCandidates(ctx context.Context, tenantID int64, body CreateInventorySyncBatchBody) ([]batchCandScan, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -219,6 +219,8 @@ func (s *Service) queryInventoryBatchCandidates(ctx context.Context, body Create
 			pps.stock AS platform_stock,
 			sk.warning_stock AS warning_stock, sk.safety_stock AS safety_stock`).
 		Joins("INNER JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
+		Joins("INNER JOIN products p ON p.id = pp.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+		Joins("INNER JOIN shops sh ON sh.id = pp.shop_id AND sh.deleted_at IS NULL AND sh.tenant_id = ?", tenantID).
 		Joins("LEFT JOIN product_skus sk ON sk.id = pps.product_sku_id AND sk.product_id = pp.product_id")
 
 	if pid := strings.TrimSpace(body.ProductID); pid != "" {
@@ -484,7 +486,7 @@ func (s *Service) batchToDTO(ctx context.Context, b *InventorySyncBatch, shopLab
 }
 
 // CreateInventorySyncBatch creates batch rows + tasks (≤ configured max).
-func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInventorySyncBatchBody, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
+func (s *Service) CreateInventorySyncBatch(ctx context.Context, tenantID int64, body CreateInventorySyncBatchBody, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -504,7 +506,7 @@ func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInven
 		return nil, err
 	}
 
-	cands, err := s.queryInventoryBatchCandidates(ctx, body)
+	cands, err := s.queryInventoryBatchCandidates(ctx, tenantID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -514,7 +516,7 @@ func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInven
 	for _, c := range cands {
 		pubIDs = append(pubIDs, c.PublicationSKUID)
 	}
-	latestMap := s.loadLatestTasksByPubSKU(ctx, pubIDs)
+	latestMap := s.loadLatestTasksByPubSKU(ctx, tenantID, pubIDs)
 
 	type planned struct {
 		scan batchCandScan
@@ -603,6 +605,7 @@ func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInven
 	totalCount := len(cands)
 
 	batchRow := InventorySyncBatch{
+		TenantID:      tenantID,
 		BatchNo:       batchNo,
 		Source:        body.Source,
 		Status:        BatchStatusRunning,
@@ -646,6 +649,7 @@ func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInven
 			pskuID := c.PublicationSKUID
 
 			task := InventorySyncTask{
+				TenantID:         tenantID,
 				BatchID:          &bid,
 				BatchNo:          batchNo,
 				ProductID:        c.ProductID,
@@ -697,7 +701,7 @@ func (s *Service) CreateInventorySyncBatch(ctx context.Context, body CreateInven
 	_ = s.DB.WithContext(ctx).First(&refreshed, "id = ?", batchRow.ID).Error
 	shopLabel := ""
 	if refreshed.ShopID != nil {
-		shopLabel = s.shopNameLookup(ctx, *refreshed.ShopID)
+		shopLabel = s.shopNameLookup(ctx, refreshed.TenantID, *refreshed.ShopID)
 	}
 	out := s.batchToDTO(ctx, &refreshed, shopLabel, nil)
 	return &out, nil
@@ -720,7 +724,7 @@ func (s *Service) ListInventorySyncBatches(ctx context.Context, q InventorySyncB
 	if ps < 1 || ps > 100 {
 		ps = 20
 	}
-	tx := s.DB.WithContext(ctx).Model(&InventorySyncBatch{})
+	tx := s.DB.WithContext(ctx).Model(&InventorySyncBatch{}).Where("tenant_id = ?", q.TenantID)
 	if strings.TrimSpace(q.Source) != "" {
 		tx = tx.Where("source = ?", strings.TrimSpace(strings.ToLower(q.Source)))
 	}
@@ -755,7 +759,7 @@ func (s *Service) ListInventorySyncBatches(ctx context.Context, q InventorySyncB
 	for i := range rows {
 		shopLabel := ""
 		if rows[i].ShopID != nil {
-			shopLabel = s.shopNameLookup(ctx, *rows[i].ShopID)
+			shopLabel = s.shopNameLookup(ctx, rows[i].TenantID, *rows[i].ShopID)
 		}
 		items = append(items, s.batchToDTO(ctx, &rows[i], shopLabel, nil))
 	}
@@ -769,22 +773,22 @@ func (s *Service) ListInventorySyncBatches(ctx context.Context, q InventorySyncB
 }
 
 // GetInventorySyncBatch returns one batch plus optional recent tasks (detail API).
-func (s *Service) GetInventorySyncBatch(ctx context.Context, id uuid.UUID, recentLimit int) (*InventorySyncBatchDTO, error) {
+func (s *Service) GetInventorySyncBatch(ctx context.Context, tenantID int64, id uuid.UUID, recentLimit int) (*InventorySyncBatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
 	var b InventorySyncBatch
-	if err := s.DB.WithContext(ctx).First(&b, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&b, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 		return nil, err
 	}
 	shopLabel := ""
 	if b.ShopID != nil {
-		shopLabel = s.shopNameLookup(ctx, *b.ShopID)
+		shopLabel = s.shopNameLookup(ctx, b.TenantID, *b.ShopID)
 	}
 	var recent []TaskDTO
 	if recentLimit > 0 {
 		var tasks []InventorySyncTask
-		if err := s.DB.WithContext(ctx).Where("batch_id = ?", id).
+		if err := s.DB.WithContext(ctx).Where("batch_id = ? AND tenant_id = ?", id, tenantID).
 			Order("created_at DESC").Limit(recentLimit).Find(&tasks).Error; err == nil {
 			for _, t := range tasks {
 				recent = append(recent, s.taskToDTO(ctx, &t, "", ""))
@@ -802,13 +806,21 @@ func (s *Service) ListInventorySyncBatchTasks(c *gin.Context, batchID uuid.UUID,
 }
 
 // RetryInventorySyncBatchFailed retries every failed task still tied to this batch (same batch record).
-func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
+func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, tenantID int64, batchID uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
 	var ids []uuid.UUID
+	var batchCount int64
+	if err := s.DB.WithContext(ctx).Model(&InventorySyncBatch{}).
+		Where("id = ? AND tenant_id = ?", batchID, tenantID).Count(&batchCount).Error; err != nil {
+		return nil, err
+	}
+	if batchCount == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
 	if err := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).
-		Where("batch_id = ? AND status = ?", batchID, StatusFailed).
+		Where("batch_id = ? AND tenant_id = ? AND status = ?", batchID, tenantID, StatusFailed).
 		Pluck("id", &ids).Error; err != nil {
 		return nil, err
 	}
@@ -817,7 +829,7 @@ func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uui
 	}
 	for _, id := range ids {
 		var row InventorySyncTask
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).First(&row, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 			return nil, err
 		}
 		if _, err := s.retryInventorySyncTaskScoped(ctx, row.TenantID, id, admin); err != nil {
@@ -836,11 +848,11 @@ func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uui
 		})
 	}
 	s.reconcileInventorySyncBatch(ctx, batchID)
-	return s.GetInventorySyncBatch(ctx, batchID, 20)
+	return s.GetInventorySyncBatch(ctx, tenantID, batchID, 20)
 }
 
 // RetryInventorySyncTasksIntoBatch binds failed tasks to a new batch and retries them (≤100).
-func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs []uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
+func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, tenantID int64, taskIDs []uuid.UUID, admin *uuid.UUID) (*InventorySyncBatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -851,7 +863,7 @@ func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs 
 		return nil, fmt.Errorf("too many tasks (max %d)", inventoryRetryBatchMaxTasks)
 	}
 	var tasks []InventorySyncTask
-	if err := s.DB.WithContext(ctx).Where("id IN ?", taskIDs).Find(&tasks).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", taskIDs, tenantID).Find(&tasks).Error; err != nil {
 		return nil, err
 	}
 	if len(tasks) != len(taskIDs) {
@@ -873,6 +885,7 @@ func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs 
 	inputJSON, _ := json.Marshal(inputSumm)
 
 	batchRow := InventorySyncBatch{
+		TenantID:     tenantID,
 		BatchNo:      batchNo,
 		Source:       BatchSourceFailedRetry,
 		Status:       BatchStatusRunning,
@@ -886,7 +899,7 @@ func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs 
 	}
 	bid := batchRow.ID
 	for _, t := range tasks {
-		if err := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", t.ID).
+		if err := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ? AND tenant_id = ?", t.ID, tenantID).
 			Updates(map[string]any{
 				"batch_id":   bid,
 				"batch_no":   batchNo,
@@ -910,5 +923,5 @@ func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs 
 		})
 	}
 	s.reconcileInventorySyncBatch(ctx, bid)
-	return s.GetInventorySyncBatch(ctx, bid, 20)
+	return s.GetInventorySyncBatch(ctx, tenantID, bid, 20)
 }

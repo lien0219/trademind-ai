@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"gorm.io/gorm"
 )
 
 // GET /orders/:id/sku-matches
@@ -20,13 +21,20 @@ func (h *Handler) GetOrderSKUMatches(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyRead(c) {
+		return
+	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
 	if _, err := h.Svc.Get(c, oid); err != nil {
-		response.HandleError(c, err)
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+		} else {
+			response.HandleError(c, err)
+		}
 		return
 	}
 	rows, err := h.Svc.ListSKUMatchRowsForOrder(c, oid)
@@ -54,6 +62,14 @@ func (h *Handler) PostMatchOrderSKUs(c *gin.Context) {
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if _, err := h.Svc.Get(c, oid); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+		} else {
+			response.HandleError(c, err)
+		}
 		return
 	}
 	var body matchSKUsBody
@@ -86,6 +102,9 @@ func (h *Handler) PostMatchOrderSKUs(c *gin.Context) {
 func (h *Handler) ListGlobalSKUMatches(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyRead(c) {
 		return
 	}
 	q := SKUMatchListQuery{
@@ -182,6 +201,15 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 		response.Fail(c, 404, response.CodeNotFound, "order item not found")
 		return
 	}
+	orderDetail, err := h.Svc.Get(c, line.OrderID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+		} else {
+			response.HandleError(c, err)
+		}
+		return
+	}
 	if h.Inv != nil {
 		pol, err := h.Inv.InventoryPolicy(c.Request.Context())
 		if err != nil {
@@ -202,6 +230,7 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 	out, err := h.Svc.BindOrderItemSKU(c.Request.Context(), BindOrderItemSKUInput{
 		OrderItemID:         itemID,
 		ProductSKUID:        skuID,
+		TenantID:            &orderDetail.TenantID,
 		CandidateConfidence: body.CandidateConfidence,
 		CandidateSource:     strings.TrimSpace(body.CandidateSource),
 	}, adminUUID(c))
@@ -215,6 +244,7 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 			Reason:        "manual_bind",
 			SyncPlatforms: body.SyncInventory,
 			CreatedBy:     adminUUID(c),
+			TenantID:      &orderDetail.TenantID,
 		})
 		if derr != nil {
 			response.Fail(c, 400, response.CodeBadRequest, derr.Error())

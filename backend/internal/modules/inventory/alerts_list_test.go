@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/glebarez/sqlite"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -58,4 +59,47 @@ func TestListInventoryAlertsUsesCanonicalPublicationSKUColumn(t *testing.T) {
 	require.Len(t, result.Items, 1)
 	require.Equal(t, sku.ID, result.Items[0].ProductSKUID)
 	require.Contains(t, result.Items[0].AlertTypes, AlertTypeOutOfStock)
+}
+
+func TestListInventoryAlertsScopesTenant(t *testing.T) {
+	db := newInventoryAlertsTestDB(t)
+	for tenantID, code := range map[int64]string{11: "TENANT-11", 22: "TENANT-22"} {
+		item := product.Product{TenantID: tenantID, Source: "manual", Title: code}
+		require.NoError(t, db.Create(&item).Error)
+		stock := 0
+		sku := product.ProductSKU{ProductID: item.ID, SKUCode: code, SKUName: code, Stock: &stock, WarningStock: 5}
+		require.NoError(t, db.Create(&sku).Error)
+	}
+
+	result, err := (&Service{DB: db}).ListInventoryAlerts(context.Background(), AlertsListQuery{
+		TenantID: 11,
+		Page:     1,
+		PageSize: 20,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Total)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, "TENANT-11", result.Items[0].SKUCode)
+}
+
+func TestHasDuplicateInventorySyncScopesTenant(t *testing.T) {
+	db := newInventoryAlertsTestDB(t)
+	publicationSKU := uuid.New()
+	for _, tenantID := range []int64{11, 22} {
+		task := InventorySyncTask{
+			TenantID: tenantID, ProductID: uuid.New(), PublicationSKUID: &publicationSKU,
+			ShopID: uuid.New(), Platform: "mock", TaskType: TaskTypeInventorySync,
+			Status: StatusPending, TargetStock: 7,
+		}
+		require.NoError(t, db.Create(&task).Error)
+	}
+
+	svc := &Service{DB: db}
+	dup, err := svc.hasDuplicateInventorySync(context.Background(), 11, publicationSKU, 7)
+	require.NoError(t, err)
+	require.True(t, dup)
+
+	dup, err = svc.hasDuplicateInventorySync(context.Background(), 33, publicationSKU, 7)
+	require.NoError(t, err)
+	require.False(t, dup)
 }

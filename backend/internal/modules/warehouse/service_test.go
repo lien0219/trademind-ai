@@ -79,3 +79,24 @@ func TestUpdateWarehouseRejectsInactiveDefault(t *testing.T) {
 		t.Fatalf("expected invalid warehouse, got %v", err)
 	}
 }
+
+func TestWarehouseAllowsLegacyTenantZero(t *testing.T) {
+	service := newWarehouseTestService(t)
+	ctx := context.Background()
+
+	row, err := service.Create(ctx, 0, nil, CreateInput{Code: "MAIN", Name: "Legacy main", IsDefault: true})
+	if err != nil {
+		t.Fatalf("create legacy tenant warehouse: %v", err)
+	}
+	if row.TenantID != 0 || row.Code != "MAIN" || !row.IsDefault {
+		t.Fatalf("unexpected legacy tenant warehouse: %#v", row)
+	}
+
+	updated, err := service.Update(ctx, 0, row.ID, UpdateInput{Name: "Legacy renamed", Status: StatusActive, IsDefault: true})
+	if err != nil {
+		t.Fatalf("update legacy tenant warehouse: %v", err)
+	}
+	if updated.Name != "Legacy renamed" || updated.TenantID != 0 {
+		t.Fatalf("unexpected updated legacy tenant warehouse: %#v", updated)
+	}
+}

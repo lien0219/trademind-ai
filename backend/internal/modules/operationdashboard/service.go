@@ -27,6 +27,13 @@ const (
 	descShort   = 60
 )
 
+func dashboardTenantID(q Query) int64 {
+	if q.Scope.TenantID != nil {
+		return *q.Scope.TenantID
+	}
+	return 0
+}
+
 // Service builds read-only product operations dashboard aggregates.
 type Service struct {
 	DB              *gorm.DB
@@ -41,6 +48,12 @@ type Service struct {
 func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc Scope) (*ProductOperationsDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("operationdashboard: no db")
+	}
+	// Keep the service-level scope authoritative for callers that construct Query directly.
+	q.Scope = sc
+	tenantID := int64(0)
+	if sc.TenantID != nil {
+		tenantID = *sc.TenantID
 	}
 	var shopPtr *uuid.UUID
 	if raw := strings.TrimSpace(q.ShopID); raw != "" {
@@ -138,6 +151,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		for _, sid := range q.Scope.AllowedShopIDs {
 			id := sid
 			invQ := inventory.AlertsListQuery{
+				TenantID: tenantID,
 				Platform: strings.TrimSpace(q.Platform), ShopID: &id,
 				Page: 1, PageSize: 1, IncludeNormal: false, OnlyPublished: false,
 			}
@@ -156,6 +170,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		}
 	} else {
 		invQBase := inventory.AlertsListQuery{
+			TenantID:      tenantID,
 			Platform:      strings.TrimSpace(q.Platform),
 			ShopID:        shopPtr,
 			Page:          1,
@@ -180,6 +195,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	// Task center failure + alerts
 	if s.TaskCenter != nil {
 		p := taskcenter.ListFailureParams{
+			TenantID:        tenantID,
 			Platform:        strings.TrimSpace(q.Platform),
 			ShopID:          strings.TrimSpace(q.ShopID),
 			IncludeResolved: false,
@@ -193,16 +209,20 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 			sum.FailedTasks = su.TotalFailed
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
+	alertTx := s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{})
+	if sc.TenantID != nil {
+		alertTx = alertTx.Where("tenant_id = ?", tenantID)
+	}
+	_ = alertTx.Session(&gorm.Session{}).
 		Where("status = ?", taskcenter.TaskAlertStatusOpen).
 		Where("severity = ?", failureclassifier.SeverityCritical).
 		Count(&sum.CriticalAlertCount).Error
-	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
+	_ = alertTx.Session(&gorm.Session{}).
 		Where("status = ?", taskcenter.TaskAlertStatusOpen).
 		Count(&sum.OpenAlertCount).Error
 
 	if s.OrderExceptions != nil {
-		ex, err := s.OrderExceptions.DashboardSummary(ctx, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End)
+		ex, err := s.OrderExceptions.DashboardSummary(ctx, q.Scope.TenantID, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End)
 		if err == nil {
 			sum.OrderExceptionTotal = ex.TotalOpen
 			sum.SKUUnmatchedOrderItems = ex.SKUUnmatched
@@ -557,6 +577,7 @@ func buildFunnel(sum *Summary) []FunnelStep {
 }
 
 func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, shopPtr *uuid.UUID) []ExceptionItem {
+	tenantID := dashboardTenantID(q)
 	var out []ExceptionItem
 
 	// Collect failures
@@ -619,7 +640,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 
 	// Inventory sync failures
 	{
-		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ?", inventory.StatusFailed)
+		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ? AND tenant_id = ?", inventory.StatusFailed, tenantID)
 		if pl := strings.TrimSpace(q.Platform); pl != "" {
 			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 		}
@@ -645,6 +666,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 		var last *time.Time
 		if s.OrderExceptions != nil {
 			res, err := s.OrderExceptions.ListOrderExceptions(ctx, orderexception.ListOrderExceptionsRequest{
+				TenantID: q.Scope.TenantID,
 				Platform: strings.TrimSpace(q.Platform),
 				ShopID:   strings.TrimSpace(q.ShopID),
 				Start:    q.Start,
@@ -686,6 +708,7 @@ func defaultQuickLinks() []QuickLink {
 }
 
 func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) RecentBuckets {
+	tenantID := dashboardTenantID(q)
 	var b RecentBuckets
 
 	// Collected products
@@ -836,6 +859,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// Inventory alert samples (low stock)
 	if s.Inventory != nil {
 		res, err := s.Inventory.ListInventoryAlerts(ctx, inventory.AlertsListQuery{
+			TenantID:  tenantID,
 			Platform:  strings.TrimSpace(q.Platform),
 			ShopID:    shopPtr,
 			AlertType: inventory.AlertTypeLowStock,
@@ -896,7 +920,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			})
 		}
 		var invF []inventory.InventorySyncTask
-		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ?", inventory.StatusFailed).Order("updated_at DESC").Limit(recentLimit)
+		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ? AND tenant_id = ?", inventory.StatusFailed, tenantID).Order("updated_at DESC").Limit(recentLimit)
 		if pl := strings.TrimSpace(q.Platform); pl != "" {
 			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 		}

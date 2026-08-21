@@ -144,7 +144,7 @@ func (s *Service) AdjustWarehouseStock(ctx context.Context, tenantID int64, prod
 	key := strings.TrimSpace(body.IdempotencyKey)
 	reason := clampStr(body.Reason, 128)
 	remark := clampStr(body.Remark, 520)
-	if tenantID <= 0 || productID == uuid.Nil || skuID == uuid.Nil || body.WarehouseID == uuid.Nil || body.Stock < 0 || len(key) < 8 || len(key) > 128 || body.Sync {
+	if tenantID < 0 || productID == uuid.Nil || skuID == uuid.Nil || body.WarehouseID == uuid.Nil || body.Stock < 0 || len(key) < 8 || len(key) > 128 || body.Sync {
 		return nil, ErrInvalidWarehouseAdjustment
 	}
 	if reason == "" {
@@ -211,6 +211,9 @@ func (s *Service) AdjustWarehouseStock(ctx context.Context, tenantID int64, prod
 
 		beforeAggregate := derefStock(sku.Stock)
 		beforeOnHand := balance.OnHand
+		if body.Stock < balance.Reserved+balance.Damaged {
+			return fmt.Errorf("%w: stock cannot be below reserved and damaged quantity", ErrInvalidWarehouseAdjustment)
+		}
 		balance.OnHand = body.Stock
 		balance.Version++
 		update := tx.Model(&WarehouseStockBalance{}).
@@ -263,7 +266,7 @@ func (s *Service) AdjustWarehouseStock(ctx context.Context, tenantID int64, prod
 }
 
 func (s *Service) ListWarehouseBalances(ctx context.Context, tenantID int64, productID, skuID uuid.UUID) ([]WarehouseBalanceDTO, error) {
-	if s == nil || s.DB == nil || tenantID <= 0 {
+	if s == nil || s.DB == nil || tenantID < 0 {
 		return nil, fmt.Errorf("inventory: db unavailable")
 	}
 	var count int64
@@ -349,7 +352,7 @@ func countUnmigratedSKUs(ctx context.Context, db *gorm.DB, tenantID int64) (int6
 // MigrateLegacyStock migrates one bounded batch to the active default warehouse,
 // or to a tenant-local pending allocation warehouse when no default exists.
 func (s *Service) MigrateLegacyStock(ctx context.Context, tenantID int64, actor *uuid.UUID, limit int) (*LegacyStockMigrationResult, error) {
-	if s == nil || s.DB == nil || tenantID <= 0 {
+	if s == nil || s.DB == nil || tenantID < 0 {
 		return nil, fmt.Errorf("inventory: db unavailable")
 	}
 	if limit <= 0 {
@@ -412,7 +415,7 @@ func reconciliationStatusFilter(status string) string {
 
 // ReconcileWarehouseLedger compares product_skus.stock with the sum of warehouse balances.
 func (s *Service) ReconcileWarehouseLedger(ctx context.Context, tenantID int64, page, pageSize int, status string) (*WarehouseLedgerReconciliationResult, error) {
-	if s == nil || s.DB == nil || tenantID <= 0 {
+	if s == nil || s.DB == nil || tenantID < 0 {
 		return nil, fmt.Errorf("inventory: db unavailable")
 	}
 	if page < 1 {

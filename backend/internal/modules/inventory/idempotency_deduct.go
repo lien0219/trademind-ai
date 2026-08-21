@@ -18,6 +18,14 @@ type deductAcquire struct {
 	Key      string
 }
 
+// deductCompletion is kept separate from the inventory transaction. The
+// idempotency record uses its own transaction, so completing it before the
+// ledger commit could leave a successful replay record without a stock fact.
+type deductCompletion struct {
+	Job   *deductAcquire
+	LogID uuid.UUID
+}
+
 func deductRequestHash(orderID, orderItemID, skuID uuid.UUID, qty int, reason string) string {
 	payload, _ := json.Marshal(map[string]any{
 		"orderId":     orderID.String(),

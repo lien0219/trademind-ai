@@ -175,7 +175,7 @@ func aggregateSyncStatus(pubs []pubJoinScan, taskByPub map[uuid.UUID]latestTaskS
 	return CenterSyncNone
 }
 
-func (s *Service) loadLastDeductBySKU(ctx context.Context, skuIDs []uuid.UUID) map[uuid.UUID]time.Time {
+func (s *Service) loadLastDeductBySKU(ctx context.Context, tenantID int64, skuIDs []uuid.UUID) map[uuid.UUID]time.Time {
 	out := map[uuid.UUID]time.Time{}
 	if len(skuIDs) == 0 || s == nil || s.DB == nil {
 		return out
@@ -190,7 +190,7 @@ func (s *Service) loadLastDeductBySKU(ctx context.Context, skuIDs []uuid.UUID) m
 	var rows []row
 	_ = s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).
 		Select("product_sku_id, MAX(created_at) AS tm").
-		Where("product_sku_id IN ? AND effect_type = ?", skuIDs, "deduct").
+		Where("tenant_id = ? AND product_sku_id IN ? AND effect_type = ?", tenantID, skuIDs, "deduct").
 		Group("product_sku_id").
 		Scan(&rows).Error
 	for _, r := range rows {
@@ -199,7 +199,7 @@ func (s *Service) loadLastDeductBySKU(ctx context.Context, skuIDs []uuid.UUID) m
 	return out
 }
 
-func (s *Service) loadExceptionCountsBySKU(ctx context.Context, skuIDs []uuid.UUID) map[uuid.UUID]int {
+func (s *Service) loadExceptionCountsBySKU(ctx context.Context, tenantID int64, skuIDs []uuid.UUID) map[uuid.UUID]int {
 	out := map[uuid.UUID]int{}
 	if len(skuIDs) == 0 || s == nil || s.DB == nil {
 		return out
@@ -213,7 +213,7 @@ func (s *Service) loadExceptionCountsBySKU(ctx context.Context, skuIDs []uuid.UU
 		var eff []row
 		_ = s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).
 			Select("product_sku_id, COUNT(*) AS cnt").
-			Where("product_sku_id IN ? AND status = ?", skuIDs, StatusFailed).
+			Where("tenant_id = ? AND product_sku_id IN ? AND status = ?", tenantID, skuIDs, StatusFailed).
 			Group("product_sku_id").
 			Scan(&eff).Error
 		for _, r := range eff {
@@ -223,7 +223,7 @@ func (s *Service) loadExceptionCountsBySKU(ctx context.Context, skuIDs []uuid.UU
 	var syncRows []row
 	_ = s.DB.WithContext(ctx).Model(&InventorySyncTask{}).
 		Select("product_sku_id, COUNT(*) AS cnt").
-		Where("product_sku_id IN ? AND status = ?", skuIDs, StatusFailed).
+		Where("tenant_id = ? AND product_sku_id IN ? AND status = ?", tenantID, skuIDs, StatusFailed).
 		Group("product_sku_id").
 		Scan(&syncRows).Error
 	for _, r := range syncRows {
@@ -234,7 +234,7 @@ func (s *Service) loadExceptionCountsBySKU(ctx context.Context, skuIDs []uuid.UU
 	return out
 }
 
-func (s *Service) loadAffectedOrderCountsBySKU(ctx context.Context, skuIDs []uuid.UUID) map[uuid.UUID]int {
+func (s *Service) loadAffectedOrderCountsBySKU(ctx context.Context, tenantID int64, skuIDs []uuid.UUID) map[uuid.UUID]int {
 	out := map[uuid.UUID]int{}
 	if len(skuIDs) == 0 || !s.DB.Migrator().HasTable(&OrderInventoryEffect{}) {
 		return out
@@ -246,7 +246,7 @@ func (s *Service) loadAffectedOrderCountsBySKU(ctx context.Context, skuIDs []uui
 	var rows []row
 	_ = s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).
 		Select("product_sku_id, COUNT(DISTINCT order_id) AS cnt").
-		Where("product_sku_id IN ?", skuIDs).
+		Where("tenant_id = ? AND product_sku_id IN ?", tenantID, skuIDs).
 		Group("product_sku_id").
 		Scan(&rows).Error
 	for _, r := range rows {
@@ -255,92 +255,92 @@ func (s *Service) loadAffectedOrderCountsBySKU(ctx context.Context, skuIDs []uui
 	return out
 }
 
-func (s *Service) applyCenterBindFilter(tx *gorm.DB, bindStatus string) *gorm.DB {
+func (s *Service) applyCenterBindFilter(tx *gorm.DB, bindStatus string, tenantID int64) *gorm.DB {
 	bs := strings.TrimSpace(strings.ToLower(bindStatus))
 	switch bs {
 	case CenterBindAmbiguous:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM product_publication_skus pps_b
-			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.deleted_at IS NULL
+			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.tenant_id = ? AND pp_b.deleted_at IS NULL
 			WHERE pps_b.product_sku_id = sk.id AND LOWER(pps_b.bind_status) = ?
-		)`, productpublish.BindStatusAmbiguous)
+		)`, tenantID, productpublish.BindStatusAmbiguous)
 	case CenterBindUnbound:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM product_publication_skus pps_b
-			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.deleted_at IS NULL
+			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.tenant_id = ? AND pp_b.deleted_at IS NULL
 			WHERE pps_b.product_sku_id = sk.id
 			AND (TRIM(COALESCE(pps_b.external_sku_id,'')) = '' OR LOWER(COALESCE(pps_b.bind_status,'')) IN (?,?))
-		)`, productpublish.BindStatusUnmatched, productpublish.BindStatusFailed)
+		)`, tenantID, productpublish.BindStatusUnmatched, productpublish.BindStatusFailed)
 	case CenterBindBound:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM product_publication_skus pps_b
-			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.deleted_at IS NULL
+			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.tenant_id = ? AND pp_b.deleted_at IS NULL
 			WHERE pps_b.product_sku_id = sk.id
 			AND LOWER(COALESCE(pps_b.bind_status,'')) = ? AND TRIM(COALESCE(pps_b.external_sku_id,'')) <> ''
-		)`, productpublish.BindStatusBound)
+		)`, tenantID, productpublish.BindStatusBound)
 	case CenterBindNone:
 		return tx.Where(`NOT EXISTS (
 			SELECT 1 FROM product_publication_skus pps_b
-			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.deleted_at IS NULL
+			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.tenant_id = ? AND pp_b.deleted_at IS NULL
 			WHERE pps_b.product_sku_id = sk.id
-		)`)
+		)`, tenantID)
 	default:
 		return tx
 	}
 }
 
-func (s *Service) applyCenterSyncFilter(tx *gorm.DB, syncStatus string) *gorm.DB {
+func (s *Service) applyCenterSyncFilter(tx *gorm.DB, syncStatus string, tenantID int64) *gorm.DB {
 	st := strings.TrimSpace(strings.ToLower(syncStatus))
 	switch st {
 	case CenterSyncFailed:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM inventory_sync_tasks t
-			WHERE t.product_sku_id = sk.id AND t.status = ?
-			AND NOT EXISTS (SELECT 1 FROM inventory_sync_tasks t2 WHERE t2.product_sku_id = sk.id AND t2.created_at > t.created_at)
-		)`, StatusFailed)
+			WHERE t.tenant_id = ? AND t.product_sku_id = sk.id AND t.status = ?
+			AND NOT EXISTS (SELECT 1 FROM inventory_sync_tasks t2 WHERE t2.tenant_id = ? AND t2.product_sku_id = sk.id AND t2.created_at > t.created_at)
+		)`, tenantID, StatusFailed, tenantID)
 	case CenterSyncSuccess:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM inventory_sync_tasks t
-			WHERE t.product_sku_id = sk.id AND t.status = ?
-			AND NOT EXISTS (SELECT 1 FROM inventory_sync_tasks t2 WHERE t2.product_sku_id = sk.id AND t2.created_at > t.created_at)
-		)`, StatusSuccess)
+			WHERE t.tenant_id = ? AND t.product_sku_id = sk.id AND t.status = ?
+			AND NOT EXISTS (SELECT 1 FROM inventory_sync_tasks t2 WHERE t2.tenant_id = ? AND t2.product_sku_id = sk.id AND t2.created_at > t.created_at)
+		)`, tenantID, StatusSuccess, tenantID)
 	case CenterSyncPending:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM inventory_sync_tasks t
-			WHERE t.product_sku_id = sk.id AND t.status = ?
-		)`, StatusPending)
+			WHERE t.tenant_id = ? AND t.product_sku_id = sk.id AND t.status = ?
+		)`, tenantID, StatusPending)
 	case CenterSyncRunning:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM inventory_sync_tasks t
-			WHERE t.product_sku_id = sk.id AND t.status = ?
-		)`, StatusRunning)
+			WHERE t.tenant_id = ? AND t.product_sku_id = sk.id AND t.status = ?
+		)`, tenantID, StatusRunning)
 	case CenterSyncBlocked:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM product_publication_skus pps_b
-			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.deleted_at IS NULL
+			INNER JOIN product_publications pp_b ON pp_b.id = pps_b.publication_id AND pp_b.tenant_id = ? AND pp_b.deleted_at IS NULL
 			WHERE pps_b.product_sku_id = sk.id
 			AND (LOWER(COALESCE(pps_b.bind_status,'')) = ? OR TRIM(COALESCE(pps_b.external_sku_id,'')) = '')
-		)`, productpublish.BindStatusAmbiguous)
+		)`, tenantID, productpublish.BindStatusAmbiguous)
 	default:
 		return tx
 	}
 }
 
-func (s *Service) applyCenterHasException(tx *gorm.DB) *gorm.DB {
+func (s *Service) applyCenterHasException(tx *gorm.DB, tenantID int64) *gorm.DB {
 	parts := []string{}
 	args := []any{}
 	if s.DB.Migrator().HasTable(&OrderInventoryEffect{}) {
 		parts = append(parts, `EXISTS (
 			SELECT 1 FROM order_inventory_effects oie
-			WHERE oie.product_sku_id = sk.id AND oie.status = ?
+			WHERE oie.tenant_id = ? AND oie.product_sku_id = sk.id AND oie.status = ?
 		)`)
-		args = append(args, StatusFailed)
+		args = append(args, tenantID, StatusFailed)
 	}
 	parts = append(parts, `EXISTS (
 		SELECT 1 FROM inventory_sync_tasks t
-		WHERE t.product_sku_id = sk.id AND t.status = ?
+		WHERE t.tenant_id = ? AND t.product_sku_id = sk.id AND t.status = ?
 	)`)
-	args = append(args, StatusFailed)
+	args = append(args, tenantID, StatusFailed)
 	return tx.Where("("+strings.Join(parts, " OR ")+")", args...)
 }
 
@@ -369,6 +369,7 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 	}
 
 	base := s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
+		TenantID:      q.TenantID,
 		Keyword:       q.Keyword,
 		ProductID:     q.ProductID,
 		ProductSKUID:  q.ProductSKUID,
@@ -379,16 +380,16 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 	})
 	base = base.Where("p.tenant_id = ?", q.TenantID)
 	if strings.TrimSpace(q.AlertStatus) != "" {
-		base = s.applyAlertsSQLAlertType(base, q.AlertStatus, th)
+		base = s.applyAlertsSQLAlertType(base, q.AlertStatus, th, q.TenantID)
 	}
 	if strings.TrimSpace(q.SKUBindStatus) != "" {
-		base = s.applyCenterBindFilter(base, q.SKUBindStatus)
+		base = s.applyCenterBindFilter(base, q.SKUBindStatus, q.TenantID)
 	}
 	if strings.TrimSpace(q.SyncStatus) != "" {
-		base = s.applyCenterSyncFilter(base, q.SyncStatus)
+		base = s.applyCenterSyncFilter(base, q.SyncStatus, q.TenantID)
 	}
 	if q.HasException {
-		base = s.applyCenterHasException(base)
+		base = s.applyCenterHasException(base, q.TenantID)
 	}
 	base = base.Group("sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title")
 	scopeHash, cursorShopID := inventoryCenterCursorScope(q)
@@ -437,8 +438,8 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 			Select(`ps.id AS publication_sku_id, ps.product_sku_id, ps.stock AS platform_stock, ps.sku_code,
 				ps.external_sku_id, ps.bind_status, pp.shop_id, sh.shop_name, pp.platform, pp.external_product_id, pp.last_synced_at`).
 			Joins("INNER JOIN product_publications pp ON pp.id = ps.publication_id AND pp.deleted_at IS NULL").
-			Joins("INNER JOIN shops sh ON sh.id = pp.shop_id").
-			Where("ps.product_sku_id IN ?", skuIDs).
+			Joins("INNER JOIN shops sh ON sh.id = pp.shop_id AND sh.tenant_id = ?", q.TenantID).
+			Where("ps.product_sku_id IN ? AND pp.tenant_id = ?", skuIDs, q.TenantID).
 			Scan(&pubs).Error
 		for _, p := range pubs {
 			if p.ProductSKUID == nil {
@@ -454,11 +455,11 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 			pubIDs = append(pubIDs, p.PublicationSKUID)
 		}
 	}
-	taskByPub := s.loadLatestTasksByPubSKU(ctx, pubIDs)
-	lastLog := s.loadMaxLogTimeBySKU(ctx, skuIDs)
-	lastDeduct := s.loadLastDeductBySKU(ctx, skuIDs)
-	exCounts := s.loadExceptionCountsBySKU(ctx, skuIDs)
-	orderCounts := s.loadAffectedOrderCountsBySKU(ctx, skuIDs)
+	taskByPub := s.loadLatestTasksByPubSKU(ctx, q.TenantID, pubIDs)
+	lastLog := s.loadMaxLogTimeBySKU(ctx, q.TenantID, skuIDs)
+	lastDeduct := s.loadLastDeductBySKU(ctx, q.TenantID, skuIDs)
+	exCounts := s.loadExceptionCountsBySKU(ctx, q.TenantID, skuIDs)
+	orderCounts := s.loadAffectedOrderCountsBySKU(ctx, q.TenantID, skuIDs)
 
 	items := make([]InventoryCenterEntry, 0, len(scans))
 	for _, row := range scans {

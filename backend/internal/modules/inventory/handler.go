@@ -78,6 +78,18 @@ func (h *Handler) requireInventoryWrite(c *gin.Context) bool {
 	return true
 }
 
+func (h *Handler) requireInventoryRead(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "inventory unavailable")
+		return false
+	}
+	if !adminperm.CanViewInventory(c, h.Svc.DB) {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "inventory permission denied")
+		return false
+	}
+	return true
+}
+
 // AdjustStock POST /products/:id/skus/:skuId/adjust-stock
 func (h *Handler) AdjustStock(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -227,6 +239,14 @@ func (h *Handler) ListSKULogs(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid product id")
@@ -239,7 +259,7 @@ func (h *Handler) ListSKULogs(c *gin.Context) {
 	}
 	page := atoiQ(c, "page", 1)
 	ps := atoiQ(c, "pageSize", 20)
-	res, err := h.Svc.ListSKUChangeLogs(c.Request.Context(), pid, sid, page, ps)
+	res, err := h.Svc.ListSKUChangeLogs(c.Request.Context(), tenantID, pid, sid, page, ps)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -261,6 +281,14 @@ func (h *Handler) ListPublicationSKURows(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid product id")
@@ -272,7 +300,7 @@ func (h *Handler) ListPublicationSKURows(c *gin.Context) {
 			filter = &u
 		}
 	}
-	rows, err := h.Svc.ListPublicationSKUs(c.Request.Context(), pid, filter)
+	rows, err := h.Svc.ListPublicationSKUs(c.Request.Context(), tenantID, pid, filter)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -346,7 +374,16 @@ func (h *Handler) ListGlobalLogs(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	q := GlobalLogsQuery{
+		TenantID:   tenantID,
 		Page:       atoiQ(c, "page", 1),
 		PageSize:   atoiQ(c, "pageSize", 20),
 		ChangeType: c.Query("changeType"),
@@ -398,7 +435,16 @@ func (h *Handler) ListGlobalOrderEffects(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	q := OrderEffectsQuery{
+		TenantID:   tenantID,
 		Page:       atoiQ(c, "page", 1),
 		PageSize:   atoiQ(c, "pageSize", 20),
 		EffectType: c.Query("effectType"),
@@ -446,7 +492,16 @@ func (h *Handler) ListCenter(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	q := CenterListQuery{
+		TenantID:      tenantID,
 		Cursor:        strings.TrimSpace(c.Query("cursor")),
 		Limit:         atoiQ(c, "limit", 0),
 		Keyword:       strings.TrimSpace(c.Query("keyword")),
@@ -460,9 +515,6 @@ func (h *Handler) ListCenter(c *gin.Context) {
 		PageSize:      atoiQ(c, "pageSize", 20),
 	}
 	q.UseCursor = q.Cursor != "" || q.Limit > 0
-	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
-		q.TenantID = tid
-	}
 	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
 		if u, err := uuid.Parse(raw); err == nil {
 			q.ProductID = &u
@@ -508,7 +560,16 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	q := AlertsListQuery{
+		TenantID:      tenantID,
 		Keyword:       strings.TrimSpace(c.Query("keyword")),
 		Platform:      strings.TrimSpace(c.Query("platform")),
 		AlertType:     strings.TrimSpace(c.Query("alertType")),
@@ -553,6 +614,9 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 func (h *Handler) ListTasks(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryRead(c) {
 		return
 	}
 	q := ListQuery{
@@ -611,6 +675,9 @@ func (h *Handler) ListTasks(c *gin.Context) {
 func (h *Handler) GetTask(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryRead(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -678,12 +745,17 @@ func (h *Handler) CreateInventorySyncBatch(c *gin.Context) {
 	if !h.requireInventoryWrite(c) {
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body CreateInventorySyncBatchBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CreateInventorySyncBatch(c.Request.Context(), body, adminUUID(c))
+	out, err := h.Svc.CreateInventorySyncBatch(c.Request.Context(), tenantID, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -697,7 +769,16 @@ func (h *Handler) ListInventorySyncBatches(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	q := InventorySyncBatchListQuery{
+		TenantID:  tenantID,
 		Source:    strings.TrimSpace(strings.ToLower(c.Query("source"))),
 		Status:    strings.TrimSpace(strings.ToLower(c.Query("status"))),
 		Platform:  strings.TrimSpace(strings.ToLower(c.Query("platform"))),
@@ -738,6 +819,14 @@ func (h *Handler) GetInventorySyncBatch(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -747,7 +836,7 @@ func (h *Handler) GetInventorySyncBatch(c *gin.Context) {
 	if recent > 50 {
 		recent = 50
 	}
-	out, err := h.Svc.GetInventorySyncBatch(c.Request.Context(), id, recent)
+	out, err := h.Svc.GetInventorySyncBatch(c.Request.Context(), tenantID, id, recent)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -763,6 +852,9 @@ func (h *Handler) GetInventorySyncBatch(c *gin.Context) {
 func (h *Handler) ListInventorySyncBatchTasks(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return
+	}
+	if !h.requireInventoryRead(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -814,13 +906,22 @@ func (h *Handler) RetryInventorySyncBatchFailed(c *gin.Context) {
 	if !h.requireInventoryWrite(c) {
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.RetryInventorySyncBatchFailed(c.Request.Context(), id, adminUUID(c))
+	out, err := h.Svc.RetryInventorySyncBatchFailed(c.Request.Context(), tenantID, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -834,6 +935,11 @@ func (h *Handler) RetryInventorySyncTasksBatch(c *gin.Context) {
 		return
 	}
 	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
 		return
 	}
 	var body RetryInventorySyncTasksBatchBody
@@ -854,7 +960,7 @@ func (h *Handler) RetryInventorySyncTasksBatch(c *gin.Context) {
 		}
 		ids = append(ids, u)
 	}
-	out, err := h.Svc.RetryInventorySyncTasksIntoBatch(c.Request.Context(), ids, adminUUID(c))
+	out, err := h.Svc.RetryInventorySyncTasksIntoBatch(c.Request.Context(), tenantID, ids, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -868,12 +974,20 @@ func (h *Handler) BatchPreviewStockSettings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body StockSettingsBatchPreviewBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.PreviewStockSettingsBatch(c.Request.Context(), body)
+	out, err := h.Svc.PreviewStockSettingsBatch(c.Request.Context(), tenantID, body)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -890,12 +1004,17 @@ func (h *Handler) BatchUpdateStockSettings(c *gin.Context) {
 	if !h.requireInventoryWrite(c) {
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body StockSettingsBatchUpdateBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.BatchUpdateStockSettings(c.Request.Context(), body, adminUUID(c))
+	out, err := h.Svc.BatchUpdateStockSettings(c.Request.Context(), tenantID, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return

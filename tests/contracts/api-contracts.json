@@ -5,38 +5,339 @@
     "errorCodeRule": "code must be non-zero for business errors"
   },
   "endpoints": [
-    { "method": "GET", "path": "/api/v1/auth/profile", "auth": true, "responseData": "AdminProfile" },
-    { "method": "GET", "path": "/api/v1/image/providers", "auth": true, "responseData": "ImageProviderList" },
-    { "method": "GET", "path": "/api/v1/warehouses", "auth": true, "responseData": "WarehouseList", "requiredPermission": "warehouse.view" },
-    { "method": "POST", "path": "/api/v1/warehouses", "auth": true, "requestBody": ["code", "name", "isDefault"], "responseData": "Warehouse", "requiredPermission": "warehouse.manage" },
-    { "method": "PUT", "path": "/api/v1/warehouses/:id", "auth": true, "requestBody": ["name", "status", "isDefault"], "responseData": "Warehouse", "requiredPermission": "warehouse.manage" },
-    { "method": "POST", "path": "/api/v1/products/:id/skus", "auth": true, "requestBody": ["skuCode", "skuName", "attrs", "price", "costPrice", "compareAtPrice", "minPublishPrice", "imageUrl"], "forbiddenRequestBody": ["stock"], "responseData": "ProductSKU", "requiredPermission": "product.write", "tenantScope": "current_tenant_product_or_not_found" },
-    { "method": "PUT", "path": "/api/v1/products/:id/skus/:skuId", "auth": true, "requestBody": ["skuCode", "skuName", "attrs", "price", "costPrice", "compareAtPrice", "minPublishPrice", "imageUrl"], "forbiddenRequestBody": ["stock"], "responseData": "ProductSKU", "requiredPermission": "product.write", "tenantScope": "current_tenant_product_or_not_found" },
-    { "method": "PUT", "path": "/api/v1/products/:id/skus/:skuId/stock-settings", "auth": true, "requestBody": ["warningStock", "safetyStock"], "responseData": "ProductSKU", "requiredPermission": "product.write", "tenantScope": "current_tenant_product_or_not_found" },
-    { "method": "DELETE", "path": "/api/v1/products/:id/skus/:skuId", "auth": true, "requestBody": [], "responseData": "DeleteResult", "requiredPermission": "product.write", "tenantScope": "current_tenant_product_or_not_found" },
-    { "method": "GET", "path": "/api/v1/products/:id/skus/:skuId/warehouse-balances", "auth": true, "responseData": "WarehouseBalanceList", "requiredPermission": "inventory.view" },
-    { "method": "POST", "path": "/api/v1/products/:id/skus/:skuId/adjust-stock", "auth": true, "requestBody": ["warehouseId", "stock", "idempotencyKey", "reason", "remark"], "responseData": "ManualWarehouseAdjustment", "requiredPermission": "inventory.operate" },
-    { "method": "GET", "path": "/api/v1/inventory/warehouse-ledger/reconciliation", "auth": true, "query": ["page", "pageSize", "status"], "responseData": "WarehouseLedgerReconciliation", "requiredPermission": "inventory.view" },
-    { "method": "POST", "path": "/api/v1/inventory/warehouse-ledger/migrate-legacy", "auth": true, "requestBody": ["limit"], "responseData": "LegacyStockMigrationResult", "requiredPermission": "inventory.operate" },
-    { "method": "GET", "path": "/api/v1/suppliers", "auth": true, "responseData": "SupplierList", "requiredPermission": "supplier.view" },
-    { "method": "POST", "path": "/api/v1/suppliers", "auth": true, "requestBody": ["code", "name", "contactName", "phone", "email"], "responseData": "Supplier", "requiredPermission": "supplier.manage" },
-    { "method": "PUT", "path": "/api/v1/suppliers/:id", "auth": true, "requestBody": ["name", "status", "contactName", "phone", "email"], "responseData": "Supplier", "requiredPermission": "supplier.manage" },
-    { "method": "GET", "path": "/api/v1/suppliers/:id/skus", "auth": true, "responseData": "SupplierSKUList", "requiredPermission": "supplier.view" },
-    { "method": "POST", "path": "/api/v1/suppliers/:id/skus", "auth": true, "requestBody": ["productSkuId", "supplierSkuCode", "unitCostMinor", "currency", "minOrderQty", "leadTimeDays"], "responseData": "SupplierSKU", "requiredPermission": "supplier.manage" },
-    { "method": "GET", "path": "/api/v1/purchase-orders", "auth": true, "query": ["page", "pageSize"], "responseData": "PurchaseOrderList", "requiredPermission": "procurement.view" },
-    { "method": "POST", "path": "/api/v1/purchase-orders", "auth": true, "requestBody": ["idempotencyKey", "supplierId", "warehouseId", "currency", "remark", "items"], "responseData": "PurchaseOrder", "requiredPermission": "procurement.manage" },
-    { "method": "GET", "path": "/api/v1/purchase-orders/:id", "auth": true, "responseData": "PurchaseOrder", "requiredPermission": "procurement.view" },
-    { "method": "POST", "path": "/api/v1/purchase-orders/:id/submit", "auth": true, "requestBody": ["expectedRevision", "reason"], "responseData": "PurchaseOrder", "requiredPermission": "procurement.manage" },
-    { "method": "POST", "path": "/api/v1/purchase-orders/:id/approve", "auth": true, "requestBody": ["expectedRevision", "reason"], "responseData": "PurchaseOrder", "requiredPermission": "procurement.approve" },
-    { "method": "POST", "path": "/api/v1/purchase-orders/:id/cancel", "auth": true, "requestBody": ["expectedRevision", "reason"], "responseData": "PurchaseOrder", "requiredPermission": "procurement.manage" },
-    { "method": "POST", "path": "/api/v1/purchase-orders/:id/close", "auth": true, "requestBody": ["expectedRevision", "reason"], "responseData": "PurchaseOrder", "requiredPermission": "procurement.manage" },
-    { "method": "POST", "path": "/api/v1/purchase-orders/:id/receipts", "auth": true, "requestBody": ["expectedRevision", "idempotencyKey", "items"], "responseData": "PurchaseReceiptResult", "requiredPermission": "procurement.receive" },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/profile",
+      "auth": true,
+      "responseData": "AdminProfile"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/image/providers",
+      "auth": true,
+      "responseData": "ImageProviderList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/warehouses",
+      "auth": true,
+      "responseData": "WarehouseList",
+      "requiredPermission": "warehouse.view"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "auth": true,
+      "responseData": "OrderList",
+      "requiredPermission": "order.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warehouses",
+      "auth": true,
+      "requestBody": ["code", "name", "isDefault"],
+      "responseData": "Warehouse",
+      "requiredPermission": "warehouse.manage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/:id",
+      "auth": true,
+      "responseData": "OrderDetail",
+      "requiredPermission": "order.view"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/warehouses/:id",
+      "auth": true,
+      "requestBody": ["name", "status", "isDefault"],
+      "responseData": "Warehouse",
+      "requiredPermission": "warehouse.manage"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/products/:id/skus",
+      "auth": true,
+      "requestBody": [
+        "skuCode",
+        "skuName",
+        "attrs",
+        "price",
+        "costPrice",
+        "compareAtPrice",
+        "minPublishPrice",
+        "imageUrl"
+      ],
+      "forbiddenRequestBody": ["stock"],
+      "responseData": "ProductSKU",
+      "requiredPermission": "product.write",
+      "tenantScope": "current_tenant_product_or_not_found"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/products/:id/skus/:skuId",
+      "auth": true,
+      "requestBody": [
+        "skuCode",
+        "skuName",
+        "attrs",
+        "price",
+        "costPrice",
+        "compareAtPrice",
+        "minPublishPrice",
+        "imageUrl"
+      ],
+      "forbiddenRequestBody": ["stock"],
+      "responseData": "ProductSKU",
+      "requiredPermission": "product.write",
+      "tenantScope": "current_tenant_product_or_not_found"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/products/:id/skus/:skuId/stock-settings",
+      "auth": true,
+      "requestBody": ["warningStock", "safetyStock"],
+      "responseData": "ProductSKU",
+      "requiredPermission": "product.write",
+      "tenantScope": "current_tenant_product_or_not_found"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/products/:id/skus/:skuId",
+      "auth": true,
+      "requestBody": [],
+      "responseData": "DeleteResult",
+      "requiredPermission": "product.write",
+      "tenantScope": "current_tenant_product_or_not_found"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/skus/:skuId/warehouse-balances",
+      "auth": true,
+      "responseData": "WarehouseBalanceList",
+      "requiredPermission": "inventory.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/products/:id/skus/:skuId/adjust-stock",
+      "auth": true,
+      "requestBody": [
+        "warehouseId",
+        "stock",
+        "idempotencyKey",
+        "reason",
+        "remark"
+      ],
+      "responseData": "ManualWarehouseAdjustment",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/warehouse-ledger/reconciliation",
+      "auth": true,
+      "query": ["page", "pageSize", "status"],
+      "responseData": "WarehouseLedgerReconciliation",
+      "requiredPermission": "inventory.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouse-ledger/migrate-legacy",
+      "auth": true,
+      "requestBody": ["limit"],
+      "responseData": "LegacyStockMigrationResult",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "auth": true,
+      "requestBody": [
+        "platform",
+        "shopId",
+        "warehouseId",
+        "orderNo",
+        "customerName",
+        "status",
+        "paymentStatus",
+        "fulfillmentStatus",
+        "currency",
+        "totalAmount",
+        "items",
+        "deductInventory",
+        "syncInventory"
+      ],
+      "responseData": "OrderDetail",
+      "requiredPermission": "order.operate",
+      "errorResponseData": "OrderInventoryConflict"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/orders/:id",
+      "auth": true,
+      "requestBody": [
+        "warehouseId",
+        "setWarehouseIdNil",
+        "status",
+        "paymentStatus",
+        "fulfillmentStatus"
+      ],
+      "responseData": "OrderDetail",
+      "requiredPermission": "order.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/:id/deduct-inventory",
+      "auth": true,
+      "requestBody": ["warehouseId", "syncInventory"],
+      "responseData": "OrderInventoryLifecycleResult",
+      "requiredPermission": "order.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/:id/restore-inventory",
+      "auth": true,
+      "requestBody": ["warehouseId", "syncInventory", "reason"],
+      "responseData": "OrderInventoryLifecycleResult",
+      "requiredPermission": "order.operate"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/:id/inventory-effects",
+      "auth": true,
+      "query": ["page", "pageSize"],
+      "responseData": "OrderInventoryEffectList",
+      "requiredPermission": "order.view"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/suppliers",
+      "auth": true,
+      "responseData": "SupplierList",
+      "requiredPermission": "supplier.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/suppliers",
+      "auth": true,
+      "requestBody": ["code", "name", "contactName", "phone", "email"],
+      "responseData": "Supplier",
+      "requiredPermission": "supplier.manage"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/suppliers/:id",
+      "auth": true,
+      "requestBody": ["name", "status", "contactName", "phone", "email"],
+      "responseData": "Supplier",
+      "requiredPermission": "supplier.manage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/suppliers/:id/skus",
+      "auth": true,
+      "responseData": "SupplierSKUList",
+      "requiredPermission": "supplier.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/suppliers/:id/skus",
+      "auth": true,
+      "requestBody": [
+        "productSkuId",
+        "supplierSkuCode",
+        "unitCostMinor",
+        "currency",
+        "minOrderQty",
+        "leadTimeDays"
+      ],
+      "responseData": "SupplierSKU",
+      "requiredPermission": "supplier.manage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/purchase-orders",
+      "auth": true,
+      "query": ["page", "pageSize"],
+      "responseData": "PurchaseOrderList",
+      "requiredPermission": "procurement.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-orders",
+      "auth": true,
+      "requestBody": [
+        "idempotencyKey",
+        "supplierId",
+        "warehouseId",
+        "currency",
+        "remark",
+        "items"
+      ],
+      "responseData": "PurchaseOrder",
+      "requiredPermission": "procurement.manage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/purchase-orders/:id",
+      "auth": true,
+      "responseData": "PurchaseOrder",
+      "requiredPermission": "procurement.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-orders/:id/submit",
+      "auth": true,
+      "requestBody": ["expectedRevision", "reason"],
+      "responseData": "PurchaseOrder",
+      "requiredPermission": "procurement.manage"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-orders/:id/approve",
+      "auth": true,
+      "requestBody": ["expectedRevision", "reason"],
+      "responseData": "PurchaseOrder",
+      "requiredPermission": "procurement.approve"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-orders/:id/cancel",
+      "auth": true,
+      "requestBody": ["expectedRevision", "reason"],
+      "responseData": "PurchaseOrder",
+      "requiredPermission": "procurement.manage"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-orders/:id/close",
+      "auth": true,
+      "requestBody": ["expectedRevision", "reason"],
+      "responseData": "PurchaseOrder",
+      "requiredPermission": "procurement.manage"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-orders/:id/receipts",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "items"],
+      "responseData": "PurchaseReceiptResult",
+      "requiredPermission": "procurement.receive"
+    },
     {
       "method": "GET",
       "path": "/api/v1/observability/overview",
       "auth": true,
       "responseData": "ObservabilityOverview",
-      "requiredResponseFields": ["overallStatus", "metrics", "alerts", "evaluation", "slo", "telemetry", "environment", "timestamp"]
+      "requiredResponseFields": [
+        "overallStatus",
+        "metrics",
+        "alerts",
+        "evaluation",
+        "slo",
+        "telemetry",
+        "environment",
+        "timestamp"
+      ]
     },
     {
       "method": "GET",
@@ -49,15 +350,35 @@
       "method": "POST",
       "path": "/api/v1/operation-tasks",
       "auth": true,
-      "requestBody": ["sourceType", "sourceReference", "taskType", "platform", "title", "summary", "payload", "priority"],
+      "requestBody": [
+        "sourceType",
+        "sourceReference",
+        "taskType",
+        "platform",
+        "title",
+        "summary",
+        "payload",
+        "priority"
+      ],
       "responseData": "OperationTaskDetail"
     },
-    { "method": "GET", "path": "/api/v1/operation-tasks/:id", "auth": true, "responseData": "OperationTaskDetail" },
+    {
+      "method": "GET",
+      "path": "/api/v1/operation-tasks/:id",
+      "auth": true,
+      "responseData": "OperationTaskDetail"
+    },
     {
       "method": "POST",
       "path": "/api/v1/operation-tasks/:id/approve",
       "auth": true,
-      "requestBody": ["draftVersion", "draftPayloadHash", "reason", "comment", "expectedTaskRevision"],
+      "requestBody": [
+        "draftVersion",
+        "draftPayloadHash",
+        "reason",
+        "comment",
+        "expectedTaskRevision"
+      ],
       "responseData": "ApprovalSummary"
     },
     {
@@ -88,11 +409,37 @@
       "requestBody": ["reason", "durationHours"],
       "responseData": "AlertEventSilence"
     },
-    { "method": "GET", "path": "/api/v1/products/:id", "auth": true, "responseData": "ProductDetail" },
-    { "method": "GET", "path": "/api/v1/products/:id/readiness", "auth": true, "query": ["platform", "shopId", "mode"], "responseData": "ProductReadinessResult" },
-    { "method": "GET", "path": "/api/v1/products/:id/publications", "auth": true, "responseData": "ProductPublicationList" },
-    { "method": "GET", "path": "/api/v1/product-publications/:id/douyin/sku-bindings", "auth": true, "responseData": "DouyinSkuBindingSummary" },
-    { "method": "GET", "path": "/api/v1/products/:id/publish-targets", "auth": true, "responseData": "PublishTargetsResponse" },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id",
+      "auth": true,
+      "responseData": "ProductDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/readiness",
+      "auth": true,
+      "query": ["platform", "shopId", "mode"],
+      "responseData": "ProductReadinessResult"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/publications",
+      "auth": true,
+      "responseData": "ProductPublicationList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/product-publications/:id/douyin/sku-bindings",
+      "auth": true,
+      "responseData": "DouyinSkuBindingSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/:id/publish-targets",
+      "auth": true,
+      "responseData": "PublishTargetsResponse"
+    },
     {
       "method": "POST",
       "path": "/api/v1/products/:id/publish-targets/create-drafts",
@@ -105,7 +452,15 @@
       "method": "POST",
       "path": "/api/v1/product-publish/batch-targets/create-drafts",
       "auth": true,
-      "requestBody": ["productIds", "targets", "onlyReady", "includeWarnings", "commonConfig", "overrides", "force"],
+      "requestBody": [
+        "productIds",
+        "targets",
+        "onlyReady",
+        "includeWarnings",
+        "commonConfig",
+        "overrides",
+        "force"
+      ],
       "responseData": "BatchTargetsCreateDraftsResponse",
       "douyinPolicy": "reject_entire_request_before_idempotency_or_batch_write"
     },
@@ -157,24 +512,56 @@
       "responseData": "ProductPublishTaskDTO",
       "douyinPolicy": "reject_before_task_write"
     },
-    { "method": "GET", "path": "/api/v1/customer/dashboard", "auth": true, "responseData": "CustomerDashboardSummary" },
-    { "method": "GET", "path": "/api/v1/customer/auto-reply-setting", "auth": true, "responseData": "CustomerAutoReplySetting" },
+    {
+      "method": "GET",
+      "path": "/api/v1/customer/dashboard",
+      "auth": true,
+      "responseData": "CustomerDashboardSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/customer/auto-reply-setting",
+      "auth": true,
+      "responseData": "CustomerAutoReplySetting"
+    },
     {
       "method": "PUT",
       "path": "/api/v1/customer/auto-reply-setting",
       "auth": true,
-      "requestBody": ["messageSyncEnabled", "autoReplyEnabled", "pollIntervalSeconds"],
+      "requestBody": [
+        "messageSyncEnabled",
+        "autoReplyEnabled",
+        "pollIntervalSeconds"
+      ],
       "responseData": "CustomerAutoReplySetting"
     },
-    { "method": "GET", "path": "/api/v1/customer/shops/:shopId/auto-reply-policy", "auth": true, "responseData": "CustomerAutoReplyPolicy" },
+    {
+      "method": "GET",
+      "path": "/api/v1/customer/shops/:shopId/auto-reply-policy",
+      "auth": true,
+      "responseData": "CustomerAutoReplyPolicy"
+    },
     {
       "method": "PUT",
       "path": "/api/v1/customer/shops/:shopId/auto-reply-policy",
       "auth": true,
-      "requestBody": ["enabled", "tone", "shopPolicy", "maxReplyRunes", "maxRepliesPerHour", "requireOrderContext", "lowRiskOnly"],
+      "requestBody": [
+        "enabled",
+        "tone",
+        "shopPolicy",
+        "maxReplyRunes",
+        "maxRepliesPerHour",
+        "requireOrderContext",
+        "lowRiskOnly"
+      ],
       "responseData": "CustomerAutoReplyPolicy"
     },
-    { "method": "GET", "path": "/api/v1/customer/shops/:shopId/auto-reply-runs", "auth": true, "responseData": "CustomerAutoReplyRunList" },
+    {
+      "method": "GET",
+      "path": "/api/v1/customer/shops/:shopId/auto-reply-runs",
+      "auth": true,
+      "responseData": "CustomerAutoReplyRunList"
+    },
     {
       "method": "POST",
       "path": "/api/v1/customer/conversations/:id/send-platform-message",

@@ -1,6 +1,6 @@
-import { PlusOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, HomeOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, Modal, Radio, Space, Switch, Tag, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Radio, Switch, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorAlert, OperationToolbar, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -57,6 +57,9 @@ export default function WarehousesPage() {
     if (!normalized) return rows;
     return rows.filter((row) => `${row.code} ${row.name}`.toLowerCase().includes(normalized));
   }, [keyword, rows]);
+
+  const activeCount = useMemo(() => rows.filter((row) => row.status === 'active').length, [rows]);
+  const defaultWarehouse = useMemo(() => rows.find((row) => row.isDefault), [rows]);
 
   const openCreate = () => {
     setEditing(undefined);
@@ -130,7 +133,24 @@ export default function WarehousesPage() {
       >
         {!canManage ? <Alert type="info" showIcon message="当前账号为只读模式，可查看仓库但不能修改。" /> : null}
         {error ? <ErrorAlert title={error} actionHint={<Button onClick={() => void load()}>重新加载</Button>} /> : null}
-        <OperationToolbar>
+        <div className="tm-procurement-overview" aria-label="仓库概览">
+          <div className="tm-procurement-overview__item">
+            <span className="tm-procurement-overview__label">仓库总数</span>
+            <strong className="tm-procurement-overview__value">{loading ? '—' : rows.length}</strong>
+          </div>
+          <div className="tm-procurement-overview__item tm-procurement-overview__item--success">
+            <CheckCircleOutlined aria-hidden="true" />
+            <span className="tm-procurement-overview__label">启用中</span>
+            <strong className="tm-procurement-overview__value">{loading ? '—' : activeCount}</strong>
+          </div>
+          <div className="tm-procurement-overview__note">
+            <HomeOutlined aria-hidden="true" />
+            <Typography.Text type="secondary">
+              {loading ? '正在加载仓库信息' : `默认仓：${defaultWarehouse ? `${defaultWarehouse.code} · ${defaultWarehouse.name}` : '尚未设置'}`}
+            </Typography.Text>
+          </div>
+        </div>
+        <OperationToolbar className="tm-procurement-toolbar" extra={<Typography.Text type="secondary">共 {filteredRows.length} 个仓库</Typography.Text>}>
           <Input.Search
             allowClear
             aria-label="搜索仓库"
@@ -142,6 +162,7 @@ export default function WarehousesPage() {
           <Button loading={loading} onClick={() => void load()}>刷新列表</Button>
         </OperationToolbar>
         <TmProTable<Warehouse>
+          className="tm-procurement-table"
           rowKey="id"
           columns={columns}
           dataSource={filteredRows}

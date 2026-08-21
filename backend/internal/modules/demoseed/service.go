@@ -41,7 +41,7 @@ type FullProjectEdgeCasesOutput struct {
 }
 
 // SeedFullProjectEdgeCases inserts demo failure/partial_success records for F8 acceptance.
-func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UUID) (*FullProjectEdgeCasesOutput, error) {
+func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UUID, tenantID int64) (*FullProjectEdgeCasesOutput, error) {
 	if s == nil {
 		return nil, fmt.Errorf("demoseed: service unavailable")
 	}
@@ -56,7 +56,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	now := time.Now().UTC()
 	finished := now.Add(-2 * time.Minute)
 
-	shopRow, shopNote, err := s.ensureDemoShop(ctx, adminID)
+	shopRow, shopNote, err := s.ensureDemoShop(ctx, adminID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +66,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 
 	// Order sync partial_success with page-level errors (no external API).
 	orderTask := ordersync.OrderSyncTask{
+		TenantID:     tenantID,
 		ShopID:       shopRow.ID,
 		Platform:     shopRow.Platform,
 		TaskType:     "order_sync",
@@ -99,7 +100,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 		Note: "订单同步 partial_success + 页级错误", Status: "created",
 	})
 
-	prodID, skuID, prodNote, err := s.ensureDemoProduct(ctx, adminID, shopRow.ID)
+	prodID, skuID, prodNote, err := s.ensureDemoProduct(ctx, adminID, tenantID, shopRow.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +109,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	}
 
 	invTask := inventory.InventorySyncTask{
+		TenantID:     tenantID,
 		ProductID:    prodID,
 		ProductSKUID: &skuID,
 		ShopID:       shopRow.ID,
@@ -136,6 +138,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	})
 
 	conv := customerchat.CustomerConversation{
+		TenantID:         tenantID,
 		Platform:         "mock",
 		ShopID:           &shopRow.ID,
 		CustomerName:     "F8 Demo Send Failed Buyer",
@@ -180,6 +183,7 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	})
 
 	unauthShop := shop.Shop{
+		TenantID:   tenantID,
 		Platform:   "douyin_shop",
 		ShopName:   "F8 Demo 未授权抖店",
 		ShopCode:   fmt.Sprintf("f8-unauth-%d", now.Unix()%100000),
@@ -211,10 +215,10 @@ func (s *Service) SeedFullProjectEdgeCases(ctx context.Context, adminID *uuid.UU
 	return out, nil
 }
 
-func (s *Service) ensureDemoShop(ctx context.Context, adminID *uuid.UUID) (*shop.Shop, string, error) {
+func (s *Service) ensureDemoShop(ctx context.Context, adminID *uuid.UUID, tenantID int64) (*shop.Shop, string, error) {
 	var row shop.Shop
 	err := s.DB.WithContext(ctx).
-		Where("deleted_at IS NULL").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantID).
 		Order("created_at ASC").
 		First(&row).Error
 	if err == nil {
@@ -224,6 +228,7 @@ func (s *Service) ensureDemoShop(ctx context.Context, adminID *uuid.UUID) (*shop
 		return nil, "", err
 	}
 	row = shop.Shop{
+		TenantID:   tenantID,
 		Platform:   "manual",
 		ShopName:   "F8 Demo Manual Shop",
 		ShopCode:   fmt.Sprintf("f8-manual-%d", time.Now().Unix()%100000),
@@ -238,7 +243,7 @@ func (s *Service) ensureDemoShop(ctx context.Context, adminID *uuid.UUID) (*shop
 	return &row, "created demo manual shop", nil
 }
 
-func (s *Service) ensureDemoProduct(ctx context.Context, adminID *uuid.UUID, shopID uuid.UUID) (uuid.UUID, uuid.UUID, string, error) {
+func (s *Service) ensureDemoProduct(ctx context.Context, adminID *uuid.UUID, tenantID int64, shopID uuid.UUID) (uuid.UUID, uuid.UUID, string, error) {
 	var cfg product.ProductPlatformPublishConfig
 	err := s.DB.WithContext(ctx).
 		Where("shop_id = ?", shopID).
@@ -246,13 +251,17 @@ func (s *Service) ensureDemoProduct(ctx context.Context, adminID *uuid.UUID, sho
 		First(&cfg).Error
 	if err == nil && cfg.ProductID != uuid.Nil {
 		var sku product.ProductSKU
-		if e := s.DB.WithContext(ctx).Where("product_id = ?", cfg.ProductID).Order("created_at ASC").First(&sku).Error; e == nil {
-			return cfg.ProductID, sku.ID, "", nil
+		var owner product.Product
+		if e := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ? AND deleted_at IS NULL", cfg.ProductID, tenantID).First(&owner).Error; e == nil {
+			if e := s.DB.WithContext(ctx).Where("product_id = ?", cfg.ProductID).Order("created_at ASC").First(&sku).Error; e == nil {
+				return cfg.ProductID, sku.ID, "", nil
+			}
 		}
 	}
 
 	stock := 50
 	p := product.Product{
+		TenantID:    tenantID,
 		Source:      "manual",
 		Title:       "F8 demo edge-case product",
 		Description: "Dev-only demo product for inventory sync failure sample.",

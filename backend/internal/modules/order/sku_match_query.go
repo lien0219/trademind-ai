@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/gorm"
 )
 
@@ -101,7 +102,12 @@ func (s *Service) ListSKUMatchGlobal(c *gin.Context, q SKUMatchListQuery) ([]SKU
 	if ps > 100 {
 		ps = 100
 	}
-	tx := s.DB.WithContext(c.Request.Context()).Model(&OrderItemSKUMatch{})
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, 0, err
+	}
+	tx := s.DB.WithContext(c.Request.Context()).Model(&OrderItemSKUMatch{}).
+		Joins("JOIN orders AS order_scope ON order_scope.id = order_item_sku_matches.order_id AND order_scope.tenant_id = ? AND order_scope.deleted_at IS NULL", tenantID)
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
 	}
@@ -124,15 +130,14 @@ func (s *Service) ListSKUMatchGlobal(c *gin.Context, q SKUMatchListQuery) ([]SKU
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
 	if q.ShopID != nil && *q.ShopID != uuid.Nil {
-		tx = tx.Joins("JOIN orders o ON o.id = order_item_sku_matches.order_id AND o.deleted_at IS NULL").
-			Where("o.shop_id = ?", *q.ShopID)
+		tx = tx.Where("order_scope.shop_id = ?", *q.ShopID)
 	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var matches []OrderItemSKUMatch
-	if err := tx.Order("created_at DESC, id DESC").Offset((page - 1) * ps).Limit(ps).Find(&matches).Error; err != nil {
+	if err := tx.Order("order_item_sku_matches.created_at DESC, order_item_sku_matches.id DESC").Offset((page - 1) * ps).Limit(ps).Find(&matches).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]SKUMatchListRow, 0, len(matches))
@@ -166,6 +171,7 @@ func (s *Service) ListSKUMatchGlobal(c *gin.Context, q SKUMatchListQuery) ([]SKU
 type BindOrderItemSKUInput struct {
 	OrderItemID         uuid.UUID
 	ProductSKUID        uuid.UUID
+	TenantID            *int64
 	CandidateConfidence *int
 	CandidateSource     string
 }
@@ -176,11 +182,19 @@ func (s *Service) BindOrderItemSKU(ctx context.Context, in BindOrderItemSKUInput
 		return nil, fmt.Errorf("order: no db")
 	}
 	var it OrderItem
-	if err := s.DB.WithContext(ctx).First(&it, "id = ?", in.OrderItemID).Error; err != nil {
+	itemQuery := s.DB.WithContext(ctx)
+	if in.TenantID != nil {
+		itemQuery = itemQuery.Joins("JOIN orders ON orders.id = order_items.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", *in.TenantID)
+	}
+	if err := itemQuery.First(&it, "order_items.id = ?", in.OrderItemID).Error; err != nil {
 		return nil, err
 	}
-	sku, err := s.LoadSKUForBind(ctx, in.ProductSKUID)
-	if err != nil {
+	var sku product.ProductSKU
+	skuQuery := s.DB.WithContext(ctx)
+	if in.TenantID != nil {
+		skuQuery = skuQuery.Joins("JOIN products ON products.id = product_skus.product_id AND products.tenant_id = ? AND products.deleted_at IS NULL", *in.TenantID)
+	}
+	if err := skuQuery.First(&sku, "product_skus.id = ? AND product_skus.deleted_at IS NULL", in.ProductSKUID).Error; err != nil {
 		return nil, err
 	}
 	pid := sku.ProductID
@@ -196,7 +210,11 @@ func (s *Service) BindOrderItemSKU(ctx context.Context, in BindOrderItemSKUInput
 			return err
 		}
 		var o Order
-		if err := tx.First(&o, "id = ?", it.OrderID).Error; err != nil {
+		orderQuery := tx
+		if in.TenantID != nil {
+			orderQuery = orderQuery.Where("tenant_id = ?", *in.TenantID)
+		}
+		if err := orderQuery.First(&o, "id = ?", it.OrderID).Error; err != nil {
 			return err
 		}
 		it.ProductID = &pid
@@ -252,8 +270,14 @@ func (s *Service) GetOrderItemByID(c *gin.Context, itemID uuid.UUID) (*OrderItem
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var it OrderItem
-	if err := s.DB.WithContext(c.Request.Context()).First(&it, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).
+		Joins("JOIN orders ON orders.id = order_items.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", tenantID).
+		First(&it, "order_items.id = ?", itemID).Error; err != nil {
 		return nil, err
 	}
 	return &it, nil

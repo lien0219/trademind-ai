@@ -10,6 +10,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
@@ -24,6 +25,10 @@ func (s *Service) enqueueMappingsForSKU(ctx context.Context, productID uuid.UUID
 }
 
 func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, target int, admin *uuid.UUID, opt map[string]any) (int, error) {
+	var owner product.Product
+	if err := s.DB.WithContext(ctx).First(&owner, "id = ? AND deleted_at IS NULL", productID).Error; err != nil {
+		return 0, err
+	}
 	var psRows []productpublish.ProductPublicationSKU
 	if err := s.DB.WithContext(ctx).Where("product_sku_id = ?", skuID).Find(&psRows).Error; err != nil {
 		return 0, err
@@ -32,7 +37,8 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 	n := 0
 	for _, psku := range psRows {
 		var pub productpublish.ProductPublication
-		if err := s.DB.WithContext(ctx).Where("id = ? AND product_id = ? AND deleted_at IS NULL", psku.PublicationID, productID).
+		if err := s.DB.WithContext(ctx).Joins("JOIN shops sh ON sh.id = product_publications.shop_id AND sh.deleted_at IS NULL AND sh.tenant_id = ?", owner.TenantID).
+			Where("product_publications.id = ? AND product_publications.product_id = ? AND product_publications.deleted_at IS NULL", psku.PublicationID, productID).
 			First(&pub).Error; err != nil {
 			continue
 		}
@@ -43,7 +49,7 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 		if strings.TrimSpace(psku.ExternalSKUID) == "" {
 			continue
 		}
-		dup, err := s.hasDuplicateInventorySync(ctx, psku.ID, target)
+		dup, err := s.hasDuplicateInventorySync(ctx, owner.TenantID, psku.ID, target)
 		if err != nil {
 			return n, err
 		}
@@ -75,6 +81,7 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 		pskuIDCopy := psku.ID
 		pubIDCopy := pub.ID
 		t := &InventorySyncTask{
+			TenantID:         owner.TenantID,
 			ProductID:        productID,
 			ProductSKUID:     ptrUUID(skuID),
 			PublicationID:    &pubIDCopy,
@@ -121,6 +128,17 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 	if err := s.DB.WithContext(ctx).First(&pub, "id = ?", psku.PublicationID).Error; err != nil {
 		return nil, err
 	}
+	var owner product.Product
+	if err := s.DB.WithContext(ctx).First(&owner, "id = ? AND deleted_at IS NULL", pub.ProductID).Error; err != nil {
+		return nil, err
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if owner.TenantID != tenantID {
+		return nil, fmt.Errorf("publication sku not found")
+	}
 	if strings.TrimSpace(psku.ExternalSKUID) == "" {
 		return nil, fmt.Errorf("%s: external sku id missing for mapped listing SKU; please bind douyin sku first", platformdouyin.CodeDouyinSKUBindingRequired)
 	}
@@ -144,7 +162,7 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 	} else {
 		return nil, fmt.Errorf("listing sku is not linked to a local sku id")
 	}
-	dup, err := s.hasDuplicateInventorySync(ctx, psku.ID, body.Stock)
+	dup, err := s.hasDuplicateInventorySync(ctx, owner.TenantID, psku.ID, body.Stock)
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +170,7 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 		return nil, fmt.Errorf("duplicate inventory sync task already pending for this listing sku and stock level")
 	}
 	task := InventorySyncTask{
+		TenantID:         owner.TenantID,
 		ProductID:        pub.ProductID,
 		ProductSKUID:     psku.ProductSKUID,
 		PublicationID:    &pub.ID,
@@ -197,8 +216,20 @@ func (s *Service) CreateProductShopInventoryTasks(c *gin.Context, productID uuid
 	}
 	optCopy := platformp.TrimRawMap(body.Options, 12, 200)
 	ctx := c.Request.Context()
+	var owner product.Product
+	if err := s.DB.WithContext(ctx).First(&owner, "id = ? AND deleted_at IS NULL", productID).Error; err != nil {
+		return nil, err
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if owner.TenantID != tenantID {
+		return nil, fmt.Errorf("product not found")
+	}
 	var pub productpublish.ProductPublication
-	if err := s.DB.WithContext(ctx).Where("product_id = ? AND shop_id = ?", productID, shopID).
+	if err := s.DB.WithContext(ctx).Joins("JOIN shops sh ON sh.id = product_publications.shop_id AND sh.deleted_at IS NULL AND sh.tenant_id = ?", tenantID).
+		Where("product_publications.product_id = ? AND product_publications.shop_id = ?", productID, shopID).
 		Order("updated_at DESC").First(&pub).Error; err != nil {
 		return nil, fmt.Errorf("no publication snapshot for product in this shop: %w", err)
 	}
@@ -230,6 +261,7 @@ func (s *Service) CreateProductShopInventoryTasks(c *gin.Context, productID uuid
 			continue
 		}
 		t := InventorySyncTask{
+			TenantID:         owner.TenantID,
 			ProductID:        productID,
 			ProductSKUID:     ptrUUID(sku.ID),
 			PublicationID:    &pub.ID,

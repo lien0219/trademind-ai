@@ -67,7 +67,7 @@ func (s *Service) Create(ctx context.Context, tenantID int64, actor *uuid.UUID, 
 	currency := strings.ToUpper(strings.TrimSpace(in.Currency))
 	key := strings.TrimSpace(in.IdempotencyKey)
 	remark := strings.TrimSpace(in.Remark)
-	if tenantID <= 0 || in.SupplierID == uuid.Nil || in.WarehouseID == uuid.Nil || len(key) < 8 || len(key) > 128 || len(currency) != 3 || len(in.Items) == 0 || len(in.Items) > maxOrderItems || len([]rune(remark)) > 1000 {
+	if tenantID < 0 || in.SupplierID == uuid.Nil || in.WarehouseID == uuid.Nil || len(key) < 8 || len(key) > 128 || len(currency) != 3 || len(in.Items) == 0 || len(in.Items) > maxOrderItems || len([]rune(remark)) > 1000 {
 		return nil, ErrInvalidInput
 	}
 	seen := make(map[uuid.UUID]struct{}, len(in.Items))
@@ -182,7 +182,7 @@ func (s *Service) Get(ctx context.Context, tenantID int64, id uuid.UUID) (*Purch
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
-	if tenantID <= 0 || id == uuid.Nil {
+	if tenantID < 0 || id == uuid.Nil {
 		return nil, ErrPurchaseOrderAbsent
 	}
 	var row PurchaseOrder
@@ -281,7 +281,7 @@ func (s *Service) transition(ctx context.Context, tenantID int64, id uuid.UUID, 
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
-	if tenantID <= 0 || id == uuid.Nil || expectedRevision < 1 {
+	if tenantID < 0 || id == uuid.Nil || expectedRevision < 1 {
 		return nil, ErrInvalidInput
 	}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -353,7 +353,7 @@ func (s *Service) Receive(ctx context.Context, tenantID int64, id uuid.UUID, act
 		return nil, err
 	}
 	key := strings.TrimSpace(in.IdempotencyKey)
-	if tenantID <= 0 || id == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || len(in.Items) == 0 || len(in.Items) > maxOrderItems {
+	if tenantID < 0 || id == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || len(in.Items) == 0 || len(in.Items) > maxOrderItems {
 		return nil, ErrInvalidInput
 	}
 	sorted := append([]ReceivePurchaseOrderItemInput(nil), in.Items...)

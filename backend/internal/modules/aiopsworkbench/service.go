@@ -327,7 +327,7 @@ func (s *Service) GetSummary(ctx context.Context, q Query) (SummaryDTO, error) {
 		End:      q.End,
 	})
 	sum := buildSummaryFromTodos(filtered)
-	resolved, err := s.countTodayResolved(ctx)
+	resolved, err := s.countTodayResolved(ctx, q)
 	if err != nil {
 		return SummaryDTO{}, err
 	}
@@ -422,6 +422,7 @@ func (s *Service) collectAITextTodos(ctx context.Context, col *todoCollector, q 
 			[]string{aiproducttext.ItemPendingReview, aiproducttext.ItemSuccess},
 			aiproducttext.ItemConflict).
 		Where("status NOT IN ?", []string{aiproducttext.ItemApplied, aiproducttext.ItemRejected, aiproducttext.ItemCancelled})
+	tx = applyTenantProductScope(tx, q)
 	if q.Start != nil {
 		tx = tx.Where("updated_at >= ?", *q.Start)
 	}
@@ -520,6 +521,7 @@ func (s *Service) collectAIImageTodos(ctx context.Context, col *todoCollector, q
 			[]string{aiproductimage.ItemPendingReview, aiproductimage.ItemSuccess},
 			aiproductimage.ItemConflict).
 		Where("status NOT IN ?", []string{aiproductimage.ItemApplied, aiproductimage.ItemRejected, aiproductimage.ItemCancelled})
+	tx = applyTenantProductScope(tx, q)
 	if q.Start != nil {
 		tx = tx.Where("updated_at >= ?", *q.Start)
 	}
@@ -610,6 +612,9 @@ func (s *Service) collectPublishCheckTodos(ctx context.Context, col *todoCollect
 	tx := s.DB.WithContext(ctx).Model(&product.Product{}).
 		Select("id").
 		Where("status NOT IN ?", []string{product.StatusArchived})
+	if q.TenantScoped {
+		tx = tx.Where("tenant_id = ?", q.TenantID)
+	}
 	if kw := strings.TrimSpace(q.Keyword); kw != "" {
 		like := "%" + kw + "%"
 		tx = tx.Where("(title ILIKE ? OR original_title ILIKE ? OR CAST(id AS TEXT) ILIKE ?)", like, like, like)
@@ -713,6 +718,9 @@ func (s *Service) collectPublishCheckTodos(ctx context.Context, col *todoCollect
 func (s *Service) collectPublishBatchTodos(ctx context.Context, col *todoCollector, q Query) error {
 	tx := s.DB.WithContext(ctx).Model(&productpublish.ProductPublishBatch{}).
 		Where("status IN ?", []string{productpublish.BatchFailed, productpublish.BatchPartialSuccess})
+	if q.TenantScoped {
+		tx = tx.Where("tenant_id = ?", q.TenantID)
+	}
 	if q.Start != nil {
 		tx = tx.Where("updated_at >= ?", *q.Start)
 	}
@@ -803,6 +811,9 @@ func (s *Service) collectTaskCenterTodos(ctx context.Context, col *todoCollector
 		Page:            1,
 		PageSize:        maxMergePerSource,
 	}
+	if q.TenantScoped {
+		p.TenantID = q.TenantID
+	}
 	res, err := s.TaskCenter.ListFailures(ctx, p)
 	if err != nil {
 		return err
@@ -887,32 +898,55 @@ func (s *Service) collectTaskCenterTodos(ctx context.Context, col *todoCollector
 	return nil
 }
 
-func (s *Service) countTodayResolved(ctx context.Context) (int64, error) {
+func applyTenantProductScope(tx *gorm.DB, q Query) *gorm.DB {
+	if !q.TenantScoped {
+		return tx
+	}
+	return tx.Where("product_id IN (SELECT id FROM products WHERE tenant_id = ? AND deleted_at IS NULL)", q.TenantID)
+}
+
+func (s *Service) countTodayResolved(ctx context.Context, q Query) (int64, error) {
 	start := todayStartUTC()
 	var total int64
 
 	var textApplied int64
-	_ = s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{}).
-		Where("status IN ? AND applied_at >= ?", []string{aiproducttext.ItemApplied, aiproducttext.ItemRejected}, start).
-		Count(&textApplied).Error
+	textQuery := s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{}).
+		Where("status IN ? AND applied_at >= ?", []string{aiproducttext.ItemApplied, aiproducttext.ItemRejected}, start)
+	textQuery = applyTenantProductScope(textQuery, q)
+	if err := textQuery.Count(&textApplied).Error; err != nil {
+		return 0, err
+	}
 	total += textApplied
 
 	var imageApplied int64
-	_ = s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{}).
-		Where("status IN ? AND applied_at >= ?", []string{aiproductimage.ItemApplied, aiproductimage.ItemRejected}, start).
-		Count(&imageApplied).Error
+	imageQuery := s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{}).
+		Where("status IN ? AND applied_at >= ?", []string{aiproductimage.ItemApplied, aiproductimage.ItemRejected}, start)
+	imageQuery = applyTenantProductScope(imageQuery, q)
+	if err := imageQuery.Count(&imageApplied).Error; err != nil {
+		return 0, err
+	}
 	total += imageApplied
 
 	var handled int64
-	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskFailureMark{}).
-		Where("mark_type = ? AND created_at >= ?", taskcenter.MarkHandled, start).
-		Count(&handled).Error
+	handledQuery := s.DB.WithContext(ctx).Model(&taskcenter.TaskFailureMark{}).
+		Where("mark_type = ? AND created_at >= ?", taskcenter.MarkHandled, start)
+	if q.TenantScoped {
+		handledQuery = handledQuery.Where("tenant_id = ?", q.TenantID)
+	}
+	if err := handledQuery.Count(&handled).Error; err != nil {
+		return 0, err
+	}
 	total += handled
 
 	var batchFixed int64
-	_ = s.DB.WithContext(ctx).Model(&productpublish.ProductPublishBatch{}).
-		Where("status = ? AND updated_at >= ?", productpublish.BatchSuccess, start).
-		Count(&batchFixed).Error
+	batchQuery := s.DB.WithContext(ctx).Model(&productpublish.ProductPublishBatch{}).
+		Where("status = ? AND updated_at >= ?", productpublish.BatchSuccess, start)
+	if q.TenantScoped {
+		batchQuery = batchQuery.Where("tenant_id = ?", q.TenantID)
+	}
+	if err := batchQuery.Count(&batchFixed).Error; err != nil {
+		return 0, err
+	}
 	total += batchFixed
 
 	return total, nil

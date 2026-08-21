@@ -51,6 +51,7 @@ func alertViewStatus(st string) string {
 }
 
 type alertTriple struct {
+	TenantID        int64
 	TaskType        string
 	SourceID        string
 	FailureCategory string
@@ -74,8 +75,8 @@ func (s *Service) batchAlertStatuses(ctx context.Context, keys []alertTriple) (m
 	var conds []string
 	var args []any
 	for _, k := range list {
-		conds = append(conds, "(task_type = ? AND source_id = ? AND failure_category = ?)")
-		args = append(args, k.TaskType, k.SourceID, k.FailureCategory)
+		conds = append(conds, "(tenant_id = ? AND task_type = ? AND source_id = ? AND failure_category = ?)")
+		args = append(args, k.TenantID, k.TaskType, k.SourceID, k.FailureCategory)
 	}
 	var rows []TaskAlert
 	q := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where(strings.Join(conds, " OR "), args...)
@@ -83,7 +84,7 @@ func (s *Service) batchAlertStatuses(ctx context.Context, keys []alertTriple) (m
 		return nil, err
 	}
 	for i := range rows {
-		k := alertTriple{TaskType: rows[i].TaskType, SourceID: rows[i].SourceID, FailureCategory: rows[i].FailureCategory}
+		k := alertTriple{TenantID: rows[i].TenantID, TaskType: rows[i].TaskType, SourceID: rows[i].SourceID, FailureCategory: rows[i].FailureCategory}
 		cp := rows[i]
 		out[k] = &cp
 	}
@@ -98,6 +99,7 @@ func (s *Service) attachAlertStatuses(ctx context.Context, rows []UnifiedTaskDTO
 	keys := make([]alertTriple, 0, len(rows))
 	for i := range rows {
 		keys = append(keys, alertTriple{
+			TenantID:        rows[i].TenantID,
 			TaskType:        rows[i].TaskType,
 			SourceID:        rows[i].SourceID,
 			FailureCategory: rows[i].FailureCategory,
@@ -109,6 +111,7 @@ func (s *Service) attachAlertStatuses(ctx context.Context, rows []UnifiedTaskDTO
 	}
 	for i := range rows {
 		k := alertTriple{TaskType: rows[i].TaskType, SourceID: rows[i].SourceID, FailureCategory: rows[i].FailureCategory}
+		k.TenantID = rows[i].TenantID
 		if al, ok := m[k]; ok && al != nil {
 			rows[i].AlertStatus = alertViewStatus(al.Status)
 			rows[i].RelatedAlertID = al.ID.String()
@@ -127,12 +130,13 @@ func (s *Service) ClassifyOne(ctx context.Context, d *UnifiedTaskDTO) error {
 	}
 	applyClassification(d)
 	m, err := s.batchAlertStatuses(ctx, []alertTriple{{
+		TenantID: d.TenantID,
 		TaskType: d.TaskType, SourceID: d.SourceID, FailureCategory: d.FailureCategory,
 	}})
 	if err != nil {
 		return err
 	}
-	k := alertTriple{d.TaskType, d.SourceID, d.FailureCategory}
+	k := alertTriple{TenantID: d.TenantID, TaskType: d.TaskType, SourceID: d.SourceID, FailureCategory: d.FailureCategory}
 	if al, ok := m[k]; ok && al != nil {
 		d.AlertStatus = alertViewStatus(al.Status)
 		d.RelatedAlertID = al.ID.String()

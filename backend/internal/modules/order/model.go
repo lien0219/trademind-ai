@@ -14,6 +14,7 @@ type Order struct {
 	TenantID          int64          `gorm:"default:0;index" json:"tenantId"`
 	Platform          string         `gorm:"size:64;index;not null" json:"platform"`
 	ShopID            *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	WarehouseID       *uuid.UUID     `gorm:"type:char(36);index" json:"warehouseId,omitempty"`
 	ExternalOrderID   *string        `gorm:"size:255;index" json:"externalOrderId,omitempty"`
 	OrderNo           string         `gorm:"size:128;uniqueIndex;not null" json:"orderNo"`
 	CustomerName      string         `gorm:"size:255;index;not null" json:"customerName"`

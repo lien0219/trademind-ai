@@ -54,7 +54,12 @@ func (h *Handler) SeedFullProjectEdgeCases(c *gin.Context) {
 	if !h.requireDevAdmin(c) {
 		return
 	}
-	out, err := h.Svc.SeedFullProjectEdgeCases(c.Request.Context(), adminUUID(c))
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.SeedFullProjectEdgeCases(c.Request.Context(), adminUUID(c), tenantID)
 	if err != nil {
 		if errors.Is(err, ErrProductionForbidden) {
 			response.Fail(c, 403, response.CodeForbidden, "生产环境禁止 Demo 种子接口")

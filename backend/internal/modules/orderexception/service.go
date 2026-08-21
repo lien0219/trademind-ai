@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 )
 
@@ -54,6 +55,24 @@ type markPair struct {
 	ignored bool
 }
 
+func applyTenant(tx *gorm.DB, tenantID *int64, column string) *gorm.DB {
+	if tx == nil || tenantID == nil {
+		return tx
+	}
+	column = strings.TrimSpace(column)
+	if column == "" {
+		column = "tenant_id"
+	}
+	return tx.Where(column+" = ?", *tenantID)
+}
+
+func derefTenant(tenantID *int64) int64 {
+	if tenantID == nil {
+		return 0
+	}
+	return *tenantID
+}
+
 func buildMarkIndex(rows []OrderExceptionMark) map[string]markPair {
 	out := map[string]markPair{}
 	for _, r := range rows {
@@ -89,7 +108,11 @@ func (s *Service) shopName(ctx context.Context, sid *uuid.UUID) string {
 		return ""
 	}
 	var row shop.Shop
-	if err := s.DB.WithContext(ctx).Select("shop_name").First(&row, "id = ?", *sid).Error; err != nil {
+	tx := s.DB.WithContext(ctx).Select("shop_name").Where("id = ?", *sid)
+	if tc := security.FromContext(ctx); tc != nil {
+		tx = tx.Where("tenant_id = ?", tc.TenantID)
+	}
+	if err := tx.First(&row).Error; err != nil {
 		return ""
 	}
 	return strings.TrimSpace(row.ShopName)
@@ -111,54 +134,76 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 	if ps > 100 {
 		ps = 100
 	}
+	if req.TenantID == nil {
+		if tc := security.FromContext(ctx); tc != nil {
+			tid := tc.TenantID
+			req.TenantID = &tid
+		}
+	}
 
 	var markRows []OrderExceptionMark
-	if err := s.DB.WithContext(ctx).Find(&markRows).Error; err != nil {
+	markTx := s.DB.WithContext(ctx)
+	markTx = applyTenant(markTx, req.TenantID, "tenant_id")
+	if err := markTx.Find(&markRows).Error; err != nil {
 		return nil, err
 	}
 	marks := buildMarkIndex(markRows)
 
 	var rows []aggRow
 	if req.ExceptionType == "" || req.ExceptionType == TypeSKUUnmatched {
-		if xs, err := s.collectSKUUnmatched(ctx, req); err == nil {
-			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
-			}
+		xs, err := s.collectSKUUnmatched(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		for _, x := range xs {
+			appendUniqueAgg(&rows, x)
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeSKUAmbiguous {
-		if xs, err := s.collectSKUAmbiguous(ctx, req); err == nil {
-			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
-			}
+		xs, err := s.collectSKUAmbiguous(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		for _, x := range xs {
+			appendUniqueAgg(&rows, x)
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeInsufficientStock || req.ExceptionType == TypeInventoryDeductFailed {
-		if xs, err := s.collectInventoryEffects(ctx, req, inventory.EffectTypeDeduct); err == nil {
+		for _, effectType := range []string{inventory.EffectTypeReserve, inventory.EffectTypeDeduct} {
+			xs, err := s.collectInventoryEffects(ctx, req, effectType)
+			if err != nil {
+				return nil, err
+			}
 			for _, x := range xs {
 				appendUniqueAgg(&rows, x)
 			}
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeInventoryRestoreFailed {
-		if xs, err := s.collectInventoryEffects(ctx, req, inventory.EffectTypeRestore); err == nil {
-			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
-			}
+		xs, err := s.collectInventoryEffects(ctx, req, inventory.EffectTypeRestore)
+		if err != nil {
+			return nil, err
+		}
+		for _, x := range xs {
+			appendUniqueAgg(&rows, x)
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeInventorySyncFailed {
-		if xs, err := s.collectInventorySyncFailed(ctx, req); err == nil {
-			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
-			}
+		xs, err := s.collectInventorySyncFailed(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		for _, x := range xs {
+			appendUniqueAgg(&rows, x)
 		}
 	}
 	if req.ExceptionType == "" || req.ExceptionType == TypeOrderSyncPartialFailed {
-		if xs, err := s.collectOrderSyncPartialFailed(ctx, req); err == nil {
-			for _, x := range xs {
-				appendUniqueAgg(&rows, x)
-			}
+		xs, err := s.collectOrderSyncPartialFailed(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		for _, x := range xs {
+			appendUniqueAgg(&rows, x)
 		}
 	}
 
@@ -418,6 +463,10 @@ WHERE LOWER(TRIM(o.platform)) NOT IN ('', 'manual')
   AND (m.id IS NULL OR m.match_status <> 'ambiguous')
 `
 	args := []any{}
+	if req.TenantID != nil {
+		q += ` AND o.tenant_id = ?`
+		args = append(args, *req.TenantID)
+	}
 	if req.Platform != "" {
 		q += ` AND LOWER(o.platform) = ?`
 		args = append(args, strings.ToLower(strings.TrimSpace(req.Platform)))
@@ -486,6 +535,9 @@ func (s *Service) collectSKUAmbiguous(ctx context.Context, req ListOrderExceptio
 	tx := s.DB.WithContext(ctx).Model(&order.OrderItemSKUMatch{}).
 		Joins("JOIN orders o ON o.id = order_item_sku_matches.order_id AND o.deleted_at IS NULL").
 		Where("order_item_sku_matches.match_status = ?", order.MatchStatusAmbiguous)
+	if req.TenantID != nil {
+		tx = tx.Where("o.tenant_id = ?", *req.TenantID)
+	}
 	if req.Platform != "" {
 		tx = tx.Where("LOWER(order_item_sku_matches.platform) = ?", strings.ToLower(strings.TrimSpace(req.Platform)))
 	}
@@ -505,9 +557,15 @@ func (s *Service) collectSKUAmbiguous(ctx context.Context, req ListOrderExceptio
 	out := make([]aggRow, 0, len(matches))
 	for _, m := range matches {
 		var o order.Order
-		_ = s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", m.OrderID).Error
+		orderTx := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", m.OrderID)
+		orderTx = applyTenant(orderTx, req.TenantID, "tenant_id")
+		_ = orderTx.First(&o).Error
 		var oi order.OrderItem
-		_ = s.DB.WithContext(ctx).First(&oi, "id = ?", m.OrderItemID).Error
+		itemTx := s.DB.WithContext(ctx).Where("id = ?", m.OrderItemID)
+		if req.TenantID != nil {
+			itemTx = itemTx.Joins("JOIN orders ON orders.id = order_items.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", *req.TenantID)
+		}
+		_ = itemTx.First(&oi).Error
 		extOid := ""
 		if o.ExternalOrderID != nil {
 			extOid = strings.TrimSpace(*o.ExternalOrderID)
@@ -545,6 +603,9 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 	var effects []inventory.OrderInventoryEffect
 	tx := s.DB.WithContext(ctx).Model(&inventory.OrderInventoryEffect{}).
 		Where("effect_type = ? AND status = ?", effectType, inventory.InventoryEffectFailed)
+	if req.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *req.TenantID)
+	}
 	if req.OrderID != "" {
 		if oid, err := uuid.Parse(strings.TrimSpace(req.OrderID)); err == nil {
 			tx = tx.Where("order_id = ?", oid)
@@ -556,7 +617,9 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 	out := make([]aggRow, 0, len(effects))
 	for _, e := range effects {
 		var o order.Order
-		if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", e.OrderID).Error; err != nil {
+		orderTx := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", e.OrderID)
+		orderTx = applyTenant(orderTx, req.TenantID, "tenant_id")
+		if err := orderTx.First(&o).Error; err != nil {
 			continue
 		}
 		if req.Platform != "" && !strings.EqualFold(req.Platform, o.Platform) {
@@ -569,7 +632,11 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 			}
 		}
 		var oi order.OrderItem
-		_ = s.DB.WithContext(ctx).First(&oi, "id = ?", e.OrderItemID).Error
+		itemTx := s.DB.WithContext(ctx).Where("id = ?", e.OrderItemID)
+		if req.TenantID != nil {
+			itemTx = itemTx.Joins("JOIN orders ON orders.id = order_items.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", *req.TenantID)
+		}
+		_ = itemTx.First(&oi).Error
 		extOid := ""
 		if o.ExternalOrderID != nil {
 			extOid = strings.TrimSpace(*o.ExternalOrderID)
@@ -611,7 +678,11 @@ func (s *Service) collectInventoryEffects(ctx context.Context, req ListOrderExce
 			psku = e.ProductSKUID.String()
 			ar.productSKUID = psku
 			var loc product.ProductSKU
-			if err := s.DB.WithContext(ctx).First(&loc, "id = ? AND deleted_at IS NULL", e.ProductSKUID).Error; err == nil {
+			locTx := s.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").Where("product_skus.id = ?", e.ProductSKUID)
+			if req.TenantID != nil {
+				locTx = locTx.Where("products.tenant_id = ?", *req.TenantID)
+			}
+			if err := locTx.First(&loc).Error; err == nil {
 				ar.localSKUCode = strings.TrimSpace(loc.SKUCode)
 				ar.productID = loc.ProductID.String()
 			}
@@ -632,6 +703,9 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 
 	var tasks []inventory.InventorySyncTask
 	tx := s.DB.WithContext(ctx).Model(dst).Where("status = ?", inventory.StatusFailed)
+	if req.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *req.TenantID)
+	}
 
 	// When SKU linkage columns exist, only surface failures tied to successful order deducts.
 	hasTaskSKU := s.DB.Migrator().HasColumn(dst, "product_sku_id")
@@ -641,6 +715,7 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 		tx = tx.Where("product_sku_id IS NOT NULL").Where(`EXISTS (
 			SELECT 1 FROM order_inventory_effects oie
 			WHERE oie.product_sku_id = inventory_sync_tasks.product_sku_id
+			  AND oie.tenant_id = inventory_sync_tasks.tenant_id
 			  AND oie.effect_type = ?
 			  AND oie.status = ?
 		)`, inventory.EffectTypeDeduct, inventory.InventoryEffectSuccess)
@@ -668,10 +743,16 @@ func (s *Service) collectInventorySyncFailed(ctx context.Context, req ListOrderE
 		lcode := ""
 		if t.ProductSKUID != nil {
 			var loc product.ProductSKU
-			if err := s.DB.WithContext(ctx).First(&loc, "id = ? AND deleted_at IS NULL", *t.ProductSKUID).Error; err == nil {
+			locTx := s.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").Where("product_skus.id = ?", *t.ProductSKUID)
+			if req.TenantID != nil {
+				locTx = locTx.Where("products.tenant_id = ?", *req.TenantID)
+			}
+			if err := locTx.First(&loc).Error; err == nil {
 				lcode = strings.TrimSpace(loc.SKUCode)
 				var pr product.Product
-				if err := s.DB.WithContext(ctx).First(&pr, "id = ? AND deleted_at IS NULL", loc.ProductID).Error; err == nil {
+				prTx := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", loc.ProductID)
+				prTx = applyTenant(prTx, req.TenantID, "tenant_id")
+				if err := prTx.First(&pr).Error; err == nil {
 					ptitle = strings.TrimSpace(pr.Title)
 				}
 			}
@@ -714,7 +795,7 @@ func derefStr(p *string) string {
 }
 
 // GetOrderExceptionDetail loads one exception row by source.
-func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourceID string) (*OrderExceptionDTO, error) {
+func (s *Service) GetOrderExceptionDetail(ctx context.Context, tenantID *int64, sourceType, sourceID string) (*OrderExceptionDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("orderexception: unavailable")
 	}
@@ -725,16 +806,21 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 	st := strings.TrimSpace(sourceType)
 
 	var markRows []OrderExceptionMark
-	_ = s.DB.WithContext(ctx).Find(&markRows).Error
+	markTx := applyTenant(s.DB.WithContext(ctx), tenantID, "tenant_id")
+	_ = markTx.Find(&markRows).Error
 	marks := buildMarkIndex(markRows)
 
 	switch st {
 	case SourceOrderItemSKUMatch:
 		var m order.OrderItemSKUMatch
-		if err := s.DB.WithContext(ctx).First(&m, "id = ?", sid).Error; err != nil {
+		matchTx := s.DB.WithContext(ctx).Where("order_item_sku_matches.id = ?", sid)
+		if tenantID != nil {
+			matchTx = matchTx.Joins("JOIN orders ON orders.id = order_item_sku_matches.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", *tenantID)
+		}
+		if err := matchTx.First(&m).Error; err != nil {
 			return nil, err
 		}
-		r, err := s.rowFromSKUMatch(ctx, m)
+		r, err := s.rowFromSKUMatch(ctx, tenantID, m)
 		if err != nil {
 			return nil, err
 		}
@@ -743,10 +829,14 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		return &d, nil
 	case SourceOrderItem:
 		var oi order.OrderItem
-		if err := s.DB.WithContext(ctx).First(&oi, "id = ?", sid).Error; err != nil {
+		itemTx := s.DB.WithContext(ctx).Where("order_items.id = ?", sid)
+		if tenantID != nil {
+			itemTx = itemTx.Joins("JOIN orders ON orders.id = order_items.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", *tenantID)
+		}
+		if err := itemTx.First(&oi).Error; err != nil {
 			return nil, err
 		}
-		r, err := s.rowFromOrderItem(ctx, oi)
+		r, err := s.rowFromOrderItem(ctx, tenantID, oi)
 		if err != nil {
 			return nil, err
 		}
@@ -755,10 +845,12 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		return &d, nil
 	case SourceOrderInventoryEffect:
 		var e inventory.OrderInventoryEffect
-		if err := s.DB.WithContext(ctx).First(&e, "id = ?", sid).Error; err != nil {
+		effectTx := s.DB.WithContext(ctx).Where("id = ?", sid)
+		effectTx = applyTenant(effectTx, tenantID, "tenant_id")
+		if err := effectTx.First(&e).Error; err != nil {
 			return nil, err
 		}
-		req := ListOrderExceptionsRequest{}
+		req := ListOrderExceptionsRequest{TenantID: tenantID}
 		xs, err := s.collectInventoryEffects(ctx, req, e.EffectType)
 		if err != nil {
 			return nil, err
@@ -773,13 +865,15 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 		return nil, gorm.ErrRecordNotFound
 	case SourceInventorySyncTask:
 		var t inventory.InventorySyncTask
-		if err := s.DB.WithContext(ctx).First(&t, "id = ?", sid).Error; err != nil {
+		taskTx := s.DB.WithContext(ctx).Where("id = ?", sid)
+		taskTx = applyTenant(taskTx, tenantID, "tenant_id")
+		if err := taskTx.First(&t).Error; err != nil {
 			return nil, err
 		}
 		if t.Status != inventory.StatusFailed || t.ProductSKUID == nil {
 			return nil, gorm.ErrRecordNotFound
 		}
-		req := ListOrderExceptionsRequest{}
+		req := ListOrderExceptionsRequest{TenantID: tenantID}
 		xs, err := s.collectInventorySyncFailed(ctx, req)
 		if err != nil {
 			return nil, err
@@ -811,9 +905,11 @@ func applyMarkDTO(d *OrderExceptionDTO, marks map[string]markPair) {
 	}
 }
 
-func (s *Service) rowFromSKUMatch(ctx context.Context, m order.OrderItemSKUMatch) (aggRow, error) {
+func (s *Service) rowFromSKUMatch(ctx context.Context, tenantID *int64, m order.OrderItemSKUMatch) (aggRow, error) {
 	var o order.Order
-	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", m.OrderID).Error; err != nil {
+	orderTx := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", m.OrderID)
+	orderTx = applyTenant(orderTx, tenantID, "tenant_id")
+	if err := orderTx.First(&o).Error; err != nil {
 		return aggRow{}, err
 	}
 	var oi order.OrderItem
@@ -881,9 +977,11 @@ func (s *Service) rowFromSKUMatch(ctx context.Context, m order.OrderItemSKUMatch
 	}
 }
 
-func (s *Service) rowFromOrderItem(ctx context.Context, oi order.OrderItem) (aggRow, error) {
+func (s *Service) rowFromOrderItem(ctx context.Context, tenantID *int64, oi order.OrderItem) (aggRow, error) {
 	var o order.Order
-	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", oi.OrderID).Error; err != nil {
+	orderTx := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", oi.OrderID)
+	orderTx = applyTenant(orderTx, tenantID, "tenant_id")
+	if err := orderTx.First(&o).Error; err != nil {
 		return aggRow{}, err
 	}
 	extOid := ""
@@ -917,16 +1015,17 @@ func (s *Service) rowFromOrderItem(ctx context.Context, oi order.OrderItem) (agg
 	}, nil
 }
 
-func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sourceID, markType, remark string, admin *uuid.UUID) error {
+func (s *Service) UpsertMark(ctx context.Context, tenantID *int64, exceptionType, sourceType, sourceID, markType, remark string, admin *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("orderexception: unavailable")
 	}
-	oid, oiid, err := s.resolveOrderPointers(ctx, sourceType, sourceID)
+	oid, oiid, err := s.resolveOrderPointers(ctx, tenantID, sourceType, sourceID)
 	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
 	row := OrderExceptionMark{
+		TenantID:      derefTenant(tenantID),
 		ExceptionType: strings.TrimSpace(exceptionType),
 		SourceType:    strings.TrimSpace(sourceType),
 		SourceID:      strings.TrimSpace(sourceID),
@@ -943,12 +1042,14 @@ func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sou
 	if markType == MarkIgnored {
 		opposite = MarkHandled
 	}
-	_ = s.DB.WithContext(ctx).
+	markTx := applyTenant(s.DB.WithContext(ctx), tenantID, "tenant_id")
+	_ = markTx.
 		Where("exception_type = ? AND source_type = ? AND source_id = ? AND mark_type = ?", row.ExceptionType, row.SourceType, row.SourceID, opposite).
 		Delete(&OrderExceptionMark{}).Error
 
 	var existing OrderExceptionMark
-	err = s.DB.WithContext(ctx).
+	markTx = applyTenant(s.DB.WithContext(ctx), tenantID, "tenant_id")
+	err = markTx.
 		Where("exception_type = ? AND source_type = ? AND source_id = ? AND mark_type = ?", row.ExceptionType, row.SourceType, row.SourceID, row.MarkType).
 		First(&existing).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -957,7 +1058,7 @@ func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sou
 	if err != nil {
 		return err
 	}
-	return s.DB.WithContext(ctx).Model(&existing).Updates(map[string]any{
+	return applyTenant(s.DB.WithContext(ctx), tenantID, "tenant_id").Model(&existing).Updates(map[string]any{
 		"remark":        row.Remark,
 		"updated_at":    now,
 		"created_by":    admin,
@@ -966,13 +1067,13 @@ func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sou
 	}).Error
 }
 
-func (s *Service) DeleteMarks(ctx context.Context, sourceType, sourceID string) error {
-	return s.DB.WithContext(ctx).
+func (s *Service) DeleteMarks(ctx context.Context, tenantID *int64, sourceType, sourceID string) error {
+	return applyTenant(s.DB.WithContext(ctx), tenantID, "tenant_id").
 		Where("source_type = ? AND source_id = ?", strings.TrimSpace(sourceType), strings.TrimSpace(sourceID)).
 		Delete(&OrderExceptionMark{}).Error
 }
 
-func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID string) (*uuid.UUID, *uuid.UUID, error) {
+func (s *Service) resolveOrderPointers(ctx context.Context, tenantID *int64, sourceType, sourceID string) (*uuid.UUID, *uuid.UUID, error) {
 	sid, err := uuid.Parse(strings.TrimSpace(sourceID))
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid sourceId")
@@ -981,14 +1082,22 @@ func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID
 	switch st {
 	case SourceOrderItemSKUMatch:
 		var m order.OrderItemSKUMatch
-		if err := s.DB.WithContext(ctx).First(&m, "id = ?", sid).Error; err != nil {
+		tx := s.DB.WithContext(ctx).Where("order_item_sku_matches.id = ?", sid)
+		if tenantID != nil {
+			tx = tx.Joins("JOIN orders ON orders.id = order_item_sku_matches.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", *tenantID)
+		}
+		if err := tx.First(&m).Error; err != nil {
 			return nil, nil, err
 		}
 		oiid := m.OrderItemID
 		return &m.OrderID, &oiid, nil
 	case SourceOrderItem:
 		var oi order.OrderItem
-		if err := s.DB.WithContext(ctx).First(&oi, "id = ?", sid).Error; err != nil {
+		tx := s.DB.WithContext(ctx).Where("order_items.id = ?", sid)
+		if tenantID != nil {
+			tx = tx.Joins("JOIN orders ON orders.id = order_items.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", *tenantID)
+		}
+		if err := tx.First(&oi).Error; err != nil {
 			return nil, nil, err
 		}
 		oid := oi.OrderID
@@ -996,12 +1105,25 @@ func (s *Service) resolveOrderPointers(ctx context.Context, sourceType, sourceID
 		return &oid, &iid, nil
 	case SourceOrderInventoryEffect:
 		var e inventory.OrderInventoryEffect
-		if err := s.DB.WithContext(ctx).First(&e, "id = ?", sid).Error; err != nil {
+		tx := applyTenant(s.DB.WithContext(ctx).Where("id = ?", sid), tenantID, "tenant_id")
+		if err := tx.First(&e).Error; err != nil {
 			return nil, nil, err
 		}
 		oiid := e.OrderItemID
 		return &e.OrderID, &oiid, nil
 	case SourceInventorySyncTask:
+		var task inventory.InventorySyncTask
+		tx := applyTenant(s.DB.WithContext(ctx).Where("id = ?", sid), tenantID, "tenant_id")
+		if err := tx.First(&task).Error; err != nil {
+			return nil, nil, err
+		}
+		return nil, nil, nil
+	case SourceOrderSyncTask:
+		var task ordersync.OrderSyncTask
+		tx := applyTenant(s.DB.WithContext(ctx).Where("id = ?", sid), tenantID, "tenant_id")
+		if err := tx.First(&task).Error; err != nil {
+			return nil, nil, err
+		}
 		return nil, nil, nil
 	default:
 		return nil, nil, fmt.Errorf("unsupported sourceType")
@@ -1018,6 +1140,9 @@ func (s *Service) collectOrderSyncPartialFailed(ctx context.Context, req ListOrd
 	}
 	var tasks []ordersync.OrderSyncTask
 	tx := s.DB.WithContext(ctx).Model(dst).Where("status = ?", ordersync.StatusPartialSuccess)
+	if req.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *req.TenantID)
+	}
 	if req.Platform != "" {
 		tx = tx.Where("LOWER(platform) = ?", strings.ToLower(strings.TrimSpace(req.Platform)))
 	}
@@ -1054,8 +1179,8 @@ func (s *Service) collectOrderSyncPartialFailed(ctx context.Context, req ListOrd
 }
 
 // ResolveOrderItemForBind maps an exception source to an order line id when bind-sku applies.
-func (s *Service) ResolveOrderItemForBind(ctx context.Context, sourceType, sourceID string) (uuid.UUID, error) {
-	_, oiid, err := s.resolveOrderPointers(ctx, sourceType, sourceID)
+func (s *Service) ResolveOrderItemForBind(ctx context.Context, tenantID *int64, sourceType, sourceID string) (uuid.UUID, error) {
+	_, oiid, err := s.resolveOrderPointers(ctx, tenantID, sourceType, sourceID)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -1066,8 +1191,9 @@ func (s *Service) ResolveOrderItemForBind(ctx context.Context, sourceType, sourc
 }
 
 // DashboardSummary returns open-exception counts for the board (read-only).
-func (s *Service) DashboardSummary(ctx context.Context, platform, shopID string, start, end *time.Time) (ExceptionSummaryDTO, error) {
+func (s *Service) DashboardSummary(ctx context.Context, tenantID *int64, platform, shopID string, start, end *time.Time) (ExceptionSummaryDTO, error) {
 	req := ListOrderExceptionsRequest{
+		TenantID: tenantID,
 		Platform: strings.TrimSpace(platform),
 		ShopID:   strings.TrimSpace(shopID),
 		Start:    start,

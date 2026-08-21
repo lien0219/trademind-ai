@@ -182,6 +182,7 @@ type PublicationSKUListingRow struct {
 
 // GlobalLogsQuery optional filters for audit feed.
 type GlobalLogsQuery struct {
+	TenantID     int64
 	Page         int
 	PageSize     int
 	ProductID    *uuid.UUID
@@ -241,6 +242,7 @@ type InventoryAlertEntry struct {
 
 // AlertsListQuery filters GET /inventory/alerts.
 type AlertsListQuery struct {
+	TenantID      int64
 	Keyword       string
 	ProductID     *uuid.UUID
 	ProductSKUID  *uuid.UUID
@@ -315,6 +317,7 @@ type InventorySyncBatchDTO struct {
 
 // InventorySyncBatchListQuery filters GET /inventory-sync/batches.
 type InventorySyncBatchListQuery struct {
+	TenantID  int64
 	Source    string
 	Status    string
 	Platform  string

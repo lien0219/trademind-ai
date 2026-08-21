@@ -65,6 +65,8 @@ type InventoryMovement struct {
 	Quantity         int        `gorm:"not null" json:"quantity"`
 	BeforeOnHand     int        `gorm:"not null" json:"beforeOnHand"`
 	AfterOnHand      int        `gorm:"not null" json:"afterOnHand"`
+	BeforeReserved   int        `gorm:"not null;default:0" json:"beforeReserved"`
+	AfterReserved    int        `gorm:"not null;default:0" json:"afterReserved"`
 	SourceType       string     `gorm:"size:48;not null;index" json:"sourceType"`
 	SourceID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"sourceId"`
 	BusinessEventKey string     `gorm:"size:255;not null;uniqueIndex" json:"businessEventKey"`

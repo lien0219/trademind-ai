@@ -87,8 +87,8 @@ func enrichListRows(ctx context.Context, db *gorm.DB, rows []Order, out []ListOr
 		var ia []invAggRow
 		_ = db.WithContext(ctx).Raw(`
 			SELECT oie.order_id,
-				SUM(CASE WHEN oie.effect_type = 'deduct' AND oie.status = 'success' THEN 1 ELSE 0 END) AS success_cnt,
-				SUM(CASE WHEN oie.effect_type = 'deduct' AND oie.status = 'failed' THEN 1 ELSE 0 END) AS failed_cnt,
+				SUM(CASE WHEN oie.effect_type IN ('reserve','deduct') AND oie.status = 'success' THEN 1 ELSE 0 END) AS success_cnt,
+				SUM(CASE WHEN oie.effect_type IN ('reserve','deduct') AND oie.status = 'failed' THEN 1 ELSE 0 END) AS failed_cnt,
 				0 AS blocked_items
 			FROM order_inventory_effects oie
 			WHERE oie.order_id IN ?

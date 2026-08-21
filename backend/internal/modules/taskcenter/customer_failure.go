@@ -11,7 +11,7 @@ import (
 
 func (s *Service) listCustomerFailures(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&customerchat.CustomerFailureEvent{})
-	q = s.applyTenantListFilter(q, p)
+	q = q.Where("conversation_id IN (SELECT id FROM customer_conversations WHERE tenant_id = ?)", p.TenantID)
 	q = q.Where("status = ?", customerchat.FailureEventStatusOpen)
 	if !p.IncludeResolved {
 		q = q.Where("status = ?", customerchat.FailureEventStatusOpen)
@@ -46,7 +46,7 @@ func (s *Service) listCustomerFailures(ctx context.Context, p ListFailureParams,
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeCustomerFailure, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeCustomerFailure, ids)
 	if err != nil {
 		return nil, err
 	}

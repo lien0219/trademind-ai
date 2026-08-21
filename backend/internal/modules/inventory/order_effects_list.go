@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 // OrderEffectsQuery paginates inventory effects scoped to orders.
 type OrderEffectsQuery struct {
+	TenantID     int64
 	Page         int
 	PageSize     int
 	OrderID      *uuid.UUID
@@ -25,6 +27,7 @@ type OrderInventoryEffectDTO struct {
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
 	OrderID              uuid.UUID  `json:"orderId"`
+	WarehouseID          *uuid.UUID `json:"warehouseId,omitempty"`
 	OrderNo              string     `json:"orderNo,omitempty"`
 	OrderItemID          uuid.UUID  `json:"orderItemId"`
 	ProductID            *uuid.UUID `json:"productId,omitempty"`
@@ -50,14 +53,14 @@ type PaginatedOrderEffects struct {
 	TotalPages int                       `json:"totalPages"`
 }
 
-func (s *Service) ListOrderEffectsByOrder(ctx context.Context, orderID uuid.UUID, page, ps int) (*PaginatedOrderEffects, error) {
+func (s *Service) ListOrderEffectsByOrder(ctx context.Context, tenantID int64, orderID uuid.UUID, page, ps int) (*PaginatedOrderEffects, error) {
 	if page < 1 {
 		page = 1
 	}
 	if ps < 1 || ps > 200 {
 		ps = 50
 	}
-	tx := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).Where("order_id = ?", orderID)
+	tx := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).Where("tenant_id = ? AND order_id = ?", tenantID, orderID)
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
@@ -67,7 +70,7 @@ func (s *Service) ListOrderEffectsByOrder(ctx context.Context, orderID uuid.UUID
 	if err := tx.Order("created_at DESC, id DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return s.effectsPage(rows, total, page, ps)
+	return s.effectsPage(ctx, tenantID, rows, total, page, ps)
 }
 
 func (s *Service) ListOrderEffectsGlobal(ctx context.Context, q OrderEffectsQuery) (*PaginatedOrderEffects, error) {
@@ -80,6 +83,10 @@ func (s *Service) ListOrderEffectsGlobal(ctx context.Context, q OrderEffectsQuer
 		ps = 20
 	}
 	tx := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{})
+	if q.TenantID < 0 {
+		return nil, fmt.Errorf("tenant is required")
+	}
+	tx = tx.Where("tenant_id = ?", q.TenantID)
 	if q.OrderID != nil && *q.OrderID != uuid.Nil {
 		tx = tx.Where("order_id = ?", *q.OrderID)
 	}
@@ -107,10 +114,10 @@ func (s *Service) ListOrderEffectsGlobal(ctx context.Context, q OrderEffectsQuer
 	if err := tx.Order("created_at DESC, id DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return s.effectsPage(rows, total, page, ps)
+	return s.effectsPage(ctx, q.TenantID, rows, total, page, ps)
 }
 
-func (s *Service) effectsPage(rows []OrderInventoryEffect, total int64, page, ps int) (*PaginatedOrderEffects, error) {
+func (s *Service) effectsPage(ctx context.Context, tenantID int64, rows []OrderInventoryEffect, total int64, page, ps int) (*PaginatedOrderEffects, error) {
 	orderIDs := make([]uuid.UUID, 0)
 	skuIDs := make([]uuid.UUID, 0)
 	seen := map[uuid.UUID]struct{}{}
@@ -134,7 +141,7 @@ func (s *Service) effectsPage(rows []OrderInventoryEffect, total int64, page, ps
 			OrderNo string    `gorm:"column:order_no"`
 		}
 		var mm []mini
-		_ = s.DB.Table("orders").Where("id IN ?", orderIDs).Scan(&mm).Error
+		_ = s.DB.WithContext(ctx).Table("orders").Where("tenant_id = ? AND id IN ?", tenantID, orderIDs).Scan(&mm).Error
 		for _, m := range mm {
 			no[m.ID] = m.OrderNo
 		}
@@ -149,10 +156,10 @@ func (s *Service) effectsPage(rows []OrderInventoryEffect, total int64, page, ps
 	skuInfo := map[uuid.UUID]skuMini{}
 	if len(skuIDs) > 0 {
 		var sm []skuMini
-		_ = s.DB.Table("product_skus AS sk").
+		_ = s.DB.WithContext(ctx).Table("product_skus AS sk").
 			Select("sk.id, sk.sku_code, sk.sku_name, sk.product_id, p.title AS product_title").
 			Joins("INNER JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL").
-			Where("sk.id IN ?", skuIDs).
+			Where("p.tenant_id = ? AND sk.id IN ?", tenantID, skuIDs).
 			Scan(&sm).Error
 		for _, m := range sm {
 			skuInfo[m.ID] = m
@@ -165,6 +172,7 @@ func (s *Service) effectsPage(rows []OrderInventoryEffect, total int64, page, ps
 			CreatedAt:            r.CreatedAt,
 			UpdatedAt:            r.UpdatedAt,
 			OrderID:              r.OrderID,
+			WarehouseID:          r.WarehouseID,
 			OrderNo:              no[r.OrderID],
 			OrderItemID:          r.OrderItemID,
 			ProductID:            r.ProductID,

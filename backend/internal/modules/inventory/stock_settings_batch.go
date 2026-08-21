@@ -13,6 +13,7 @@ import (
 )
 
 type stockSettingsFilter struct {
+	TenantID      int64
 	ProductID     *uuid.UUID
 	ProductSKUIDs []uuid.UUID
 	Platform      string
@@ -122,12 +123,12 @@ func (s *Service) stockSettingsBatchMax(ctx context.Context) int {
 	return max
 }
 
-func (s *Service) applyStockSettingsAlertFilters(tx *gorm.DB, pol inventoryAlertPolicy, th int, alertTypes []string, includeNormal bool) *gorm.DB {
+func (s *Service) applyStockSettingsAlertFilters(tx *gorm.DB, pol inventoryAlertPolicy, th int, alertTypes []string, includeNormal bool, tenantID int64) *gorm.DB {
 	if len(alertTypes) > 0 {
-		return s.applyAlertsSQLAlertTypesOR(tx, alertTypes, th)
+		return s.applyAlertsSQLAlertTypesOR(tx, alertTypes, th, tenantID)
 	}
 	if !includeNormal {
-		return s.applyNonNormalAlertScope(tx, pol, th)
+		return s.applyNonNormalAlertScope(tx, pol, th, tenantID)
 	}
 	return tx
 }
@@ -146,6 +147,7 @@ func (s *Service) buildStockSettingsGroupedTX(ctx context.Context, f stockSettin
 		th = 0
 	}
 	base := s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
+		TenantID:      f.TenantID,
 		Keyword:       f.Keyword,
 		ProductID:     f.ProductID,
 		ProductSKUIDs: f.ProductSKUIDs,
@@ -154,17 +156,18 @@ func (s *Service) buildStockSettingsGroupedTX(ctx context.Context, f stockSettin
 		StockStatus:   f.StockStatus,
 		OnlyPublished: f.OnlyPublished,
 	})
-	base = s.applyStockSettingsAlertFilters(base, pol, th, f.AlertTypes, f.IncludeNormal)
+	base = s.applyStockSettingsAlertFilters(base, pol, th, f.AlertTypes, f.IncludeNormal, f.TenantID)
 	base = base.Group(`sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title`)
 	return base, pol, th, nil
 }
 
 // PreviewStockSettingsBatch returns matched SKU count and a page of sample rows.
-func (s *Service) PreviewStockSettingsBatch(ctx context.Context, body StockSettingsBatchPreviewBody) (*StockSettingsBatchPreviewResult, error) {
+func (s *Service) PreviewStockSettingsBatch(ctx context.Context, tenantID int64, body StockSettingsBatchPreviewBody) (*StockSettingsBatchPreviewResult, error) {
 	f, err := parseStockSettingsFilter(body)
 	if err != nil {
 		return nil, err
 	}
+	f.TenantID = tenantID
 	base, _, _, err := s.buildStockSettingsGroupedTX(ctx, f)
 	if err != nil {
 		return nil, err
@@ -245,7 +248,7 @@ func formatStockSettingsOpSummary(matched, updated int64, w, s int, f stockSetti
 }
 
 // BatchUpdateStockSettings updates warning_stock / safety_stock / stock_status only for matched SKUs.
-func (s *Service) BatchUpdateStockSettings(ctx context.Context, body StockSettingsBatchUpdateBody, admin *uuid.UUID) (*StockSettingsBatchUpdateResult, error) {
+func (s *Service) BatchUpdateStockSettings(ctx context.Context, tenantID int64, body StockSettingsBatchUpdateBody, admin *uuid.UUID) (*StockSettingsBatchUpdateResult, error) {
 	if err := product.ValidateSKUStockThresholds(body.WarningStock, body.SafetyStock); err != nil {
 		return nil, err
 	}
@@ -256,6 +259,7 @@ func (s *Service) BatchUpdateStockSettings(ctx context.Context, body StockSettin
 	if err != nil {
 		return nil, err
 	}
+	f.TenantID = tenantID
 	if stockSettingsNeedsConfirmAll(f) && !body.ConfirmAll {
 		return nil, fmt.Errorf("缺少筛选条件且包含全部 SKU：将 confirmAll=true 后方可执行")
 	}

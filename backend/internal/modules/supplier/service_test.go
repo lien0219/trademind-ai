@@ -85,3 +85,27 @@ func TestSupplierUpdateAndSKUListAreTenantScoped(t *testing.T) {
 		t.Fatalf("cross-tenant supplier update must look absent, got %v", err)
 	}
 }
+
+func TestSupplierAllowsLegacyTenantZero(t *testing.T) {
+	service, _ := newSupplierTestService(t)
+	ctx := context.Background()
+
+	row, err := service.Create(ctx, 0, nil, CreateInput{
+		Code: "SUP-12", Name: "Legacy supplier", ContactName: "Buyer",
+		Phone: "13812345678", Email: "buyer@example.test",
+	})
+	if err != nil {
+		t.Fatalf("create legacy tenant supplier: %v", err)
+	}
+	if row.TenantID != 0 || row.Code != "SUP-12" {
+		t.Fatalf("unexpected legacy tenant supplier: %#v", row)
+	}
+
+	updated, err := service.Update(ctx, 0, row.ID, UpdateInput{Name: "Renamed supplier", Status: StatusActive, ContactName: "Buyer"})
+	if err != nil {
+		t.Fatalf("update legacy tenant supplier: %v", err)
+	}
+	if updated.TenantID != 0 || updated.Name != "Renamed supplier" {
+		t.Fatalf("unexpected updated legacy tenant supplier: %#v", updated)
+	}
+}

@@ -319,6 +319,21 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 	if err := tx.Where("order_id = ?", orderID).Find(&existingItems).Error; err != nil {
 		return err
 	}
+	lockedItemIDs := map[uuid.UUID]struct{}{}
+	if tx.Migrator().HasTable("order_inventory_effects") {
+		type lockedItem struct {
+			OrderItemID uuid.UUID `gorm:"column:order_item_id"`
+		}
+		var locked []lockedItem
+		if err := tx.Table("order_inventory_effects").Distinct("order_item_id").
+			Where("order_id = ? AND effect_type IN ? AND status = ?", orderID, []string{"reserve", "deduct"}, "success").
+			Scan(&locked).Error; err != nil {
+			return err
+		}
+		for _, item := range locked {
+			lockedItemIDs[item.OrderItemID] = struct{}{}
+		}
+	}
 
 	byExt := make(map[string]*OrderItem)
 	for i := range existingItems {
@@ -358,20 +373,23 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		prev := byExt[extRaw]
 		if prev != nil {
 			now := time.Now().UTC()
-			if err := tx.Model(prev).Updates(map[string]any{
+			updates := map[string]any{
 				"product_title":   title,
 				"sku_name":        strings.TrimSpace(it.SKUName),
 				"sku_code":        strings.TrimSpace(it.SKUCode),
 				"seller_sku":      strings.TrimSpace(it.SellerSKU),
 				"external_sku_id": extSKUPtrFromPayload(it),
-				"quantity":        qty,
 				"unit_price":      it.UnitPrice,
 				"total_price":     it.TotalPrice,
 				"image_url":       strings.TrimSpace(it.ImageURL),
 				"attrs":           attrs,
 				"raw_data":        lineRaw,
 				"updated_at":      now,
-			}).Error; err != nil {
+			}
+			if _, locked := lockedItemIDs[prev.ID]; !locked {
+				updates["quantity"] = qty
+			}
+			if err := tx.Model(prev).Updates(updates).Error; err != nil {
 				return err
 			}
 			continue
@@ -402,16 +420,30 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		if _, ok := withExtSeen[ext]; ok {
 			continue
 		}
+		if _, locked := lockedItemIDs[row.ID]; locked {
+			continue
+		}
 		if err := tx.Delete(row).Error; err != nil {
 			return err
 		}
 	}
 
-	if err := tx.Where("order_id = ? AND (external_item_id IS NULL OR external_item_id = '')", orderID).
-		Delete(&OrderItem{}).Error; err != nil {
-		return err
+	lockedNoExternal := make([]*OrderItem, 0)
+	for i := range existingItems {
+		row := &existingItems[i]
+		if row.ExternalItemID != nil && strings.TrimSpace(*row.ExternalItemID) != "" {
+			continue
+		}
+		if _, locked := lockedItemIDs[row.ID]; locked {
+			lockedNoExternal = append(lockedNoExternal, row)
+			continue
+		}
+		if err := tx.Delete(row).Error; err != nil {
+			return err
+		}
 	}
 
+	lockedNoExternalIndex := 0
 	for _, it := range p.Items {
 		if strings.TrimSpace(it.ExternalItemID) != "" {
 			continue
@@ -432,6 +464,19 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 			attrs = mapAttrs(it.Attrs)
 		}
 		lineRaw := compactSyncedItemRaw(it)
+		if lockedNoExternalIndex < len(lockedNoExternal) {
+			row := lockedNoExternal[lockedNoExternalIndex]
+			lockedNoExternalIndex++
+			if err := tx.Model(row).Updates(map[string]any{
+				"product_title": title, "sku_name": strings.TrimSpace(it.SKUName), "sku_code": strings.TrimSpace(it.SKUCode),
+				"seller_sku": strings.TrimSpace(it.SellerSKU), "external_sku_id": extSKUPtrFromPayload(it),
+				"unit_price": it.UnitPrice, "total_price": it.TotalPrice, "image_url": strings.TrimSpace(it.ImageURL),
+				"attrs": attrs, "raw_data": lineRaw, "updated_at": time.Now().UTC(),
+			}).Error; err != nil {
+				return err
+			}
+			continue
+		}
 		row := OrderItem{
 			OrderID:       orderID,
 			ExternalSKUID: extSKUPtrFromPayload(it),

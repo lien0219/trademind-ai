@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Order and inventory production hardening (2026-08-21)
+
+- Enforced order-operation permission checks on every Admin order write endpoint, including order, line-item and shipment mutations.
+- Prevented replacing order lines after a successful inventory reservation or deduction, and locked the line row during inventory application to serialize concurrent lifecycle updates.
+- Stabilized warehouse-ledger regression assertions so movement verification does not depend on timestamp or UUID ordering.
+
 ### Container package consolidation (2026-08-21)
 
 - Restricted automatic container image publication to image-related pushes on `main`, while retaining validated `v<version>` releases and manual runs that fail closed outside `main` or a version tag.
@@ -19,6 +25,7 @@ All notable changes to TradeMind are documented here.
 - Migrated manual inventory adjustments to warehouse-selected, idempotent transactions that atomically update warehouse balances, immutable movements, compatibility logs, and the `product_skus.stock` aggregate projection.
 - Added bounded historical-stock migration to the default or pending-allocation warehouse, reconciliation APIs and Admin workspace, and PostgreSQL concurrency coverage without enabling platform inventory writes, automatic replenishment, or new workers.
 - Separated SKU metadata from inventory writes: create and update reject direct stock values, newly created SKUs start at zero, and all SKU mutation routes enforce product-write permission and tenant visibility.
+- Migrated order inventory lifecycle to the warehouse ledger: payment/processing reserves `reserved`, shipment/fulfillment deducts `on_hand`, pre-shipment cancellation releases reservations, and post-deduction refund/cancel restores on-hand stock. Added tenant/warehouse effect binding, reserved movement snapshots, legacy-effect backfill, locked-order-line protection, platform-sync preservation, and responsive/write-safety regression coverage without enabling real platform inventory writes, automatic replenishment, or new workers.
 
 ### Database migration reliability (2026-08-15)
 

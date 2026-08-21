@@ -39,7 +39,7 @@ func (s *Service) Create(ctx context.Context, tenantID int64, actor *uuid.UUID, 
 	}
 	code := strings.ToUpper(strings.TrimSpace(in.Code))
 	name := strings.TrimSpace(in.Name)
-	if tenantID <= 0 || !warehouseCodePattern.MatchString(code) || name == "" || len([]rune(name)) > 160 {
+	if tenantID < 0 || !warehouseCodePattern.MatchString(code) || name == "" || len([]rune(name)) > 160 {
 		return nil, ErrInvalidWarehouse
 	}
 	row := &Warehouse{TenantID: tenantID, Code: code, Name: name, Status: StatusActive, IsDefault: in.IsDefault, CreatedBy: actor}
@@ -84,7 +84,7 @@ func (s *Service) Update(ctx context.Context, tenantID int64, id uuid.UUID, in U
 	}
 	name := strings.TrimSpace(in.Name)
 	status := strings.ToLower(strings.TrimSpace(in.Status))
-	if tenantID <= 0 || id == uuid.Nil || name == "" || len([]rune(name)) > 160 ||
+	if tenantID < 0 || id == uuid.Nil || name == "" || len([]rune(name)) > 160 ||
 		(status != StatusActive && status != StatusInactive) || (in.IsDefault && status != StatusActive) {
 		return nil, ErrInvalidWarehouse
 	}

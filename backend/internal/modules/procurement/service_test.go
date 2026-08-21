@@ -190,6 +190,57 @@ func TestPurchaseOrderPartialReceiptIsTransactionalAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestPurchaseOrderAllowsLegacyTenantZero(t *testing.T) {
+	t.Helper()
+	dsn := fmt.Sprintf("file:procurement_legacy_%s?mode=memory&cache=shared", uuid.NewString())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{DisableForeignKeyConstraintWhenMigrating: true})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() {
+		sqlDB, _ := db.DB()
+		_ = sqlDB.Close()
+	})
+	if err := db.AutoMigrate(
+		&product.Product{}, &product.ProductSKU{},
+		&warehouse.Warehouse{}, &supplier.Supplier{}, &supplier.SupplierSKU{},
+		&inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{}, &inventory.InventoryChangeLog{},
+		&PurchaseOrder{}, &PurchaseOrderItem{}, &GoodsReceipt{}, &GoodsReceiptItem{},
+	); err != nil {
+		t.Fatalf("migrate fixture: %v", err)
+	}
+	ctx := context.Background()
+	warehouseService := &warehouse.Service{DB: db}
+	supplierService := &supplier.Service{DB: db}
+	warehouseRow, err := warehouseService.Create(ctx, 0, nil, warehouse.CreateInput{Code: "MAIN", Name: "Legacy main", IsDefault: true})
+	if err != nil {
+		t.Fatalf("create warehouse: %v", err)
+	}
+	supplierRow, err := supplierService.Create(ctx, 0, nil, supplier.CreateInput{Code: "SUP-0", Name: "Legacy supplier"})
+	if err != nil {
+		t.Fatalf("create supplier: %v", err)
+	}
+	productRow := &product.Product{TenantID: 0, Source: "manual", Status: product.StatusDraft, Title: "Legacy product"}
+	if err := db.Create(productRow).Error; err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	sku := &product.ProductSKU{ProductID: productRow.ID, SKUCode: "LEGACY-SKU", SKUName: "Legacy SKU"}
+	if err := db.Create(sku).Error; err != nil {
+		t.Fatalf("create sku: %v", err)
+	}
+	service := &Service{DB: db, Warehouses: warehouseService, Suppliers: supplierService, Stock: inventory.WarehouseStockService{}}
+	row, err := service.Create(ctx, 0, nil, CreatePurchaseOrderInput{
+		IdempotencyKey: "legacy-po-0001", SupplierID: supplierRow.ID, WarehouseID: warehouseRow.ID, Currency: "CNY",
+		Items: []CreatePurchaseOrderItemInput{{ProductSKUID: sku.ID, Quantity: 1, UnitCostMinor: 100}},
+	})
+	if err != nil {
+		t.Fatalf("create legacy tenant purchase order: %v", err)
+	}
+	if row.TenantID != 0 || row.Status != StatusDraft {
+		t.Fatalf("unexpected legacy tenant purchase order: %#v", row)
+	}
+}
+
 func TestPurchaseOrderTenantAndRevisionIsolation(t *testing.T) {
 	fx := newProcurementFixture(t)
 	ctx := context.Background()

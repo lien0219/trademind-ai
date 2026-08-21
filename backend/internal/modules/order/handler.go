@@ -1,6 +1,7 @@
 package order
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/mask"
@@ -19,13 +21,18 @@ import (
 
 func (h *Handler) denyWrite(c *gin.Context) bool {
 	if h == nil || h.Svc == nil || h.Svc.DB == nil {
-		return false
-	}
-	if !adminperm.CanWriteOrders(c, h.Svc.DB) {
-		response.Fail(c, 403, response.CodeForbidden, "当前账号为只读权限，无法执行此操作")
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "orders unavailable")
 		return true
 	}
-	return false
+	return !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermOrderOperate)
+}
+
+func (h *Handler) denyRead(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "orders unavailable")
+		return true
+	}
+	return !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermOrderView)
 }
 
 // Handler exposes order HTTP routes.
@@ -43,10 +50,38 @@ func (h *Handler) enrichOrderInventoryMini(c *gin.Context, out *DetailDTO) {
 		return
 	}
 	out.InventorySummary = &InventoryUIMini{
-		HasDeductionSuccess: sum.HasDeductionSuccess,
-		HasRestoreSuccess:   sum.HasRestoreSuccess,
-		FullyRestored:       sum.FullyRestored,
+		HasReservationSuccess: sum.HasReservationSuccess,
+		HasReleaseSuccess:     sum.HasReleaseSuccess,
+		HasDeductionSuccess:   sum.HasDeductionSuccess,
+		HasRestoreSuccess:     sum.HasRestoreSuccess,
+		FullyRestored:         sum.FullyRestored,
 	}
+}
+
+func (h *Handler) rejectInventoryLockedItems(c *gin.Context, orderID uuid.UUID) bool {
+	if h == nil || h.Inv == nil {
+		return false
+	}
+	if h.Svc != nil {
+		if _, err := h.Svc.Get(c, orderID); err != nil {
+			if err == gorm.ErrRecordNotFound {
+				response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+			} else {
+				response.HandleError(c, err)
+			}
+			return true
+		}
+	}
+	hasInventory, err := h.Inv.HasSuccessfulOrderDeduction(c.Request.Context(), orderID)
+	if err != nil {
+		response.HandleError(c, err)
+		return true
+	}
+	if hasInventory {
+		response.Fail(c, 409, response.CodeBadRequest, "order items cannot change after inventory reservation or deduction")
+		return true
+	}
+	return false
 }
 func adminUUID(c *gin.Context) *uuid.UUID {
 	if v, ok := c.Get(ctxkey.AdminID); ok {
@@ -57,6 +92,17 @@ func adminUUID(c *gin.Context) *uuid.UUID {
 		}
 	}
 	return nil
+}
+
+func clampOrderError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := strings.TrimSpace(err.Error())
+	if len(msg) > 480 {
+		return msg[:480]
+	}
+	return msg
 }
 
 func atoiQ(c *gin.Context, key string, def int) int {
@@ -75,6 +121,9 @@ func atoiQ(c *gin.Context, key string, def int) int {
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyRead(c) {
 		return
 	}
 	q := ListQuery{
@@ -141,30 +190,64 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	var body CreateBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
+	var pol inventory.StockOrderPolicy
+	if h.Inv != nil {
+		var policyErr error
+		pol, policyErr = h.Inv.InventoryPolicy(c.Request.Context())
+		if policyErr != nil {
+			response.HandleError(c, policyErr)
+			return
+		}
+	}
+	shouldDed := h.Inv != nil && (body.DeductInventory || pol.AutoDeductManualOrders)
+	platform := strings.ToLower(strings.TrimSpace(body.Platform))
+	if platform == "" {
+		platform = "manual"
+	}
+	if shouldDed && platform == "manual" && (body.WarehouseID == nil || *body.WarehouseID == uuid.Nil) {
+		response.Fail(c, 400, response.CodeBadRequest, "warehouseId is required when applying inventory to a manual order")
+		return
+	}
+
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
 
-	var pol inventory.StockOrderPolicy
-	if h.Inv != nil {
-		pol, _ = h.Inv.InventoryPolicy(c.Request.Context())
-	}
-	shouldDed := h.Inv != nil && (body.DeductInventory || pol.AutoDeductManualOrders)
 	if shouldDed {
-		_, dex := h.Inv.DeductInventoryForOrder(c.Request.Context(), out.ID, inventory.OrderInventoryOptions{
+		tenantID := out.TenantID
+		sum, dex := h.Inv.DeductInventoryForOrder(c.Request.Context(), out.ID, inventory.OrderInventoryOptions{
 			Reason:        "order_created",
 			SyncPlatforms: body.SyncInventory,
 			CreatedBy:     adminUUID(c),
+			TenantID:      &tenantID,
 		})
 		if dex != nil {
-			response.Fail(c, 400, response.CodeBadRequest, dex.Error())
+			h.enrichOrderInventoryMini(c, out)
+			if h.Svc.OpLog != nil {
+				_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+					AdminUserID: adminUUID(c),
+					Action:      "order.inventory_deduct",
+					Resource:    "order",
+					ResourceID:  out.ID.String(),
+					Status:      "failed",
+					Message:     "orderId=" + out.ID.String() + " error=" + clampOrderError(dex),
+				})
+			}
+			response.JSON(c, http.StatusConflict, response.CodeBadRequest, "订单已创建，但库存处理失败，请在订单详情中重试库存操作", gin.H{
+				"orderId":            out.ID,
+				"order":              out,
+				"inventoryDeduction": sum,
+			})
 			return
 		}
 	}
@@ -176,6 +259,9 @@ func (h *Handler) Create(c *gin.Context) {
 func (h *Handler) Get(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyRead(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -215,6 +301,9 @@ func (h *Handler) Update(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -225,11 +314,39 @@ func (h *Handler) Update(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
+	if body.ReplaceItems && h.rejectInventoryLockedItems(c, id) {
+		return
+	}
 	var beforePtr *Order
+	var pol inventory.StockOrderPolicy
 	if h.Inv != nil {
 		row, ierr := h.Svc.PeekOrderBeforeUpdate(c, id)
-		if ierr == nil && row != nil {
-			beforePtr = row
+		if ierr != nil {
+			if ierr == gorm.ErrRecordNotFound {
+				response.Fail(c, 404, response.CodeNotFound, "not found")
+			} else {
+				response.HandleError(c, ierr)
+			}
+			return
+		}
+		beforePtr = row
+		var policyErr error
+		pol, policyErr = h.Inv.InventoryPolicy(c.Request.Context())
+		if policyErr != nil {
+			response.HandleError(c, policyErr)
+			return
+		}
+	}
+	if h.Inv != nil && beforePtr != nil && (body.SetWarehouseIDNil || (body.WarehouseID != nil && *body.WarehouseID != uuid.Nil)) {
+		hasInventory, ierr := h.Inv.HasSuccessfulOrderDeduction(c.Request.Context(), id)
+		if ierr != nil {
+			response.HandleError(c, ierr)
+			return
+		}
+		warehouseChanged := body.SetWarehouseIDNil || beforePtr.WarehouseID == nil || body.WarehouseID == nil || *beforePtr.WarehouseID != *body.WarehouseID
+		if hasInventory && warehouseChanged {
+			response.Fail(c, 409, response.CodeBadRequest, "warehouse cannot change after inventory reservation or deduction")
+			return
 		}
 	}
 
@@ -244,7 +361,6 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	if h.Inv != nil && beforePtr != nil {
-		pol, _ := h.Inv.InventoryPolicy(c.Request.Context())
 		cur := Order{
 			Status:            out.Status,
 			PaymentStatus:     out.PaymentStatus,
@@ -262,11 +378,29 @@ func (h *Handler) Update(c *gin.Context) {
 			if len(rsn) > 120 {
 				rsn = rsn[:120]
 			}
-			_, _ = h.Inv.RestoreInventoryForOrder(c.Request.Context(), id, inventory.OrderInventoryOptions{
+			if _, inventoryErr := h.Inv.RestoreInventoryForOrder(c.Request.Context(), id, inventory.OrderInventoryOptions{
 				Reason:        rsn,
 				SyncPlatforms: syncPl,
 				CreatedBy:     adminUUID(c),
-			})
+				TenantID:      &beforePtr.TenantID,
+			}); inventoryErr != nil {
+				response.Fail(c, http.StatusConflict, response.CodeBadRequest, "订单状态已更新，但库存补偿失败，请在订单详情中重试库存处理")
+				return
+			}
+		} else if strings.TrimSpace(body.Status) != "" || strings.TrimSpace(body.PaymentStatus) != "" || strings.TrimSpace(body.FulfillmentStatus) != "" {
+			platformAuto := !strings.EqualFold(strings.TrimSpace(beforePtr.Platform), "manual")
+			if (platformAuto && pol.AutoDeductPlatformOrders) || (!platformAuto && pol.AutoDeductManualOrders) {
+				if _, inventoryErr := h.Inv.DeductInventoryForOrder(c.Request.Context(), id, inventory.OrderInventoryOptions{
+					Reason:        "order_status_auto",
+					PlatformAuto:  platformAuto,
+					SyncPlatforms: pol.AutoSyncPlatformInventoryAfterDeduct,
+					CreatedBy:     adminUUID(c),
+					TenantID:      &beforePtr.TenantID,
+				}); inventoryErr != nil {
+					response.Fail(c, http.StatusConflict, response.CodeBadRequest, "订单状态已更新，但库存处理失败，请在订单详情中重试库存操作")
+					return
+				}
+			}
 		}
 	}
 
@@ -280,10 +414,32 @@ func (h *Handler) Delete(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
+	}
+	if h.Inv != nil {
+		if _, ierr := h.Svc.Get(c, id); ierr != nil {
+			if ierr == gorm.ErrRecordNotFound {
+				response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+			} else {
+				response.HandleError(c, ierr)
+			}
+			return
+		}
+		uncompensated, ierr := h.Inv.HasUncompensatedOrderInventory(c.Request.Context(), id)
+		if ierr != nil {
+			response.HandleError(c, ierr)
+			return
+		}
+		if uncompensated {
+			response.Fail(c, 409, response.CodeBadRequest, "release or restore order inventory before deleting the order")
+			return
+		}
 	}
 	if err := h.Svc.Delete(c, id, adminUUID(c)); err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -302,9 +458,15 @@ func (h *Handler) PostItem(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if h.rejectInventoryLockedItems(c, oid) {
 		return
 	}
 	var body OrderItemInput
@@ -330,6 +492,9 @@ func (h *Handler) PutItem(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -338,6 +503,9 @@ func (h *Handler) PutItem(c *gin.Context) {
 	iid, err := uuid.Parse(strings.TrimSpace(c.Param("itemId")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid itemId")
+		return
+	}
+	if h.rejectInventoryLockedItems(c, oid) {
 		return
 	}
 	var body OrderItemInput
@@ -363,6 +531,9 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -371,6 +542,9 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 	iid, err := uuid.Parse(strings.TrimSpace(c.Param("itemId")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid itemId")
+		return
+	}
+	if h.rejectInventoryLockedItems(c, oid) {
 		return
 	}
 	if err := h.Svc.DeleteItem(c, oid, iid, adminUUID(c)); err != nil {
@@ -388,6 +562,9 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 func (h *Handler) PostShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -416,6 +593,9 @@ func (h *Handler) PostShipment(c *gin.Context) {
 func (h *Handler) PutShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -449,6 +629,9 @@ func (h *Handler) PutShipment(c *gin.Context) {
 func (h *Handler) DeleteShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

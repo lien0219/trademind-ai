@@ -88,6 +88,22 @@
 
 金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示资源在当前租户不可见，`409` 表示 revision、状态、超收、库存账差异或幂等冲突。采购工作台位于采购菜单下，库存账迁移与对账位于库存菜单下；这些 API 不触发真实平台库存同步。
 
+## 订单库存生命周期
+
+订单、订单明细和库存 effect 均按当前租户隔离。订单库存只支持单订单单仓：手工订单首次应用库存时必须提供启用的 `warehouseId`；平台订单首次处理时绑定当前租户启用的默认仓。已有成功库存 effect 后不能修改订单仓库、订单明细数量或删除明细；订单删除前必须先完成释放或回补。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/orders` | 订单列表（需要 `order.view`）；支持订单、支付、履约、库存 effect 和同步状态筛选。 |
+| `POST` | `/api/v1/orders` | 创建订单（需要 `order.operate`）；可含 `warehouseId`、`items[]`、`deductInventory`、`syncInventory`。当创建后应用库存且为手工订单时仓库必填。若订单已持久化但库存处理失败，返回 `409`，`data` 包含 `orderId`、`order` 和 `inventoryDeduction`，可在详情中重试。 |
+| `GET` | `/api/v1/orders/:id` | 订单详情（需要 `order.view`）；返回订单级 `warehouseId` 与库存生命周期摘要。 |
+| `PUT` | `/api/v1/orders/:id` | 更新订单基础字段（需要 `order.operate`）；可提交 `warehouseId` / `setWarehouseIdNil`，有库存 effect 后不得改变仓库。 |
+| `POST` | `/api/v1/orders/:id/deduct-inventory` | 按订单状态应用库存（需要 `order.operate`）：已支付/处理中增加 `reserved`，已发货/已履约扣减 `on_hand` 并消费预占。JSON：`warehouseId`、`syncInventory`。 |
+| `POST` | `/api/v1/orders/:id/restore-inventory` | 取消/退款补偿（需要 `order.operate`）：发货前释放 `reserved`，已出库订单回补 `on_hand`。JSON：`warehouseId`、`syncInventory`、`reason`。 |
+| `GET` | `/api/v1/orders/:id/inventory-effects` | 查询订单库存 effect（需要 `order.view`），支持 `page`、`pageSize`；每条记录含 effect 类型、仓库、数量和兼容库存前后值。 |
+
+预占不会提前修改 `product_skus.stock`；实际出库和回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。
+
 ## 图片 AI
 
 | 方法 | 路径 | 说明 |
