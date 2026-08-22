@@ -55,6 +55,18 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   background: var(--ant-color-bg-container);
 }
 
+/* Keep ProLayout's mobile Drawer wrapper aligned with the responsive sider
+   width when Ant Drawer also receives an inline width value. */
+@media (max-width: 767.98px) {
+  .ant-drawer.ant-drawer-inline {
+    --tm-app-drawer-width: 50vw;
+  }
+
+  .ant-drawer.ant-drawer-inline .ant-drawer-content-wrapper {
+    min-width: var(--tm-app-drawer-width);
+  }
+}
+
 .tm-app-layout .ant-pro-sider-logo {
   height: var(--tm-app-header-height);
   min-height: var(--tm-app-header-height);
@@ -193,6 +205,16 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   &--mobile {
     justify-content: flex-end;
     gap: 0;
+  }
+}
+
+/* Keep the mobile mark beside the menu trigger instead of letting the
+   full-width desktop brand button consume the header's flexible space. */
+.tm-app-layout .ant-pro-global-header {
+  .tm-app-brand-header--collapsed {
+    flex: 0 0 32px;
+    width: 32px;
+    padding-inline: 0;
   }
 }
 

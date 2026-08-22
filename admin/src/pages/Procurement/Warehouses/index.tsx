@@ -2,7 +2,7 @@ import { CheckCircleOutlined, HomeOutlined, PlusOutlined } from '@ant-design/ico
 import type { ProColumns } from '@ant-design/pro-components';
 import { Alert, Button, Form, Input, Modal, Radio, Switch, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ErrorAlert, OperationToolbar, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
+import { ErrorAlert, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -150,25 +150,28 @@ export default function WarehousesPage() {
             </Typography.Text>
           </div>
         </div>
-        <OperationToolbar className="tm-procurement-toolbar" extra={<Typography.Text type="secondary">共 {filteredRows.length} 个仓库</Typography.Text>}>
-          <Input.Search
-            allowClear
-            aria-label="搜索仓库"
-            placeholder="搜索仓库编码或名称"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            className="tm-procurement-search"
-          />
-          <Button loading={loading} onClick={() => void load()}>刷新列表</Button>
-        </OperationToolbar>
         <TmProTable<Warehouse>
           className="tm-procurement-table"
           rowKey="id"
           columns={columns}
           dataSource={filteredRows}
           loading={loading}
+          headerTitle={
+            <Input.Search
+              allowClear
+              aria-label="搜索仓库"
+              placeholder="搜索仓库编码或名称"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              className="tm-procurement-search"
+            />
+          }
           search={false}
           options={false}
+          toolBarRender={() => [
+            <Typography.Text key="count" type="secondary">共 {filteredRows.length} 个仓库</Typography.Text>,
+            <Button key="refresh" loading={loading} onClick={() => void load()}>刷新列表</Button>,
+          ]}
           pagination={false}
           cardBordered
           scroll={{ x: 760 }}

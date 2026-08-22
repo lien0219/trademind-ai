@@ -4,7 +4,7 @@ import { Alert, Button, Form, Input, InputNumber, Modal, Radio, Select, Space, T
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppDrawer from '@/components/AppDrawer';
 import PermissionGuard from '@/components/PermissionGuard';
-import { ErrorAlert, OperationToolbar, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
+import { ErrorAlert, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 import {
@@ -287,13 +287,23 @@ export default function SuppliersPage() {
             </Typography.Text>
           </div>
         </div>
-        <OperationToolbar className="tm-procurement-toolbar" extra={<Typography.Text type="secondary">共 {filteredRows.length} 家供应商</Typography.Text>}>
-          <Input.Search allowClear aria-label="搜索供应商" placeholder="搜索编码、名称或联系人" value={keyword} onChange={(event) => setKeyword(event.target.value)} className="tm-procurement-search" />
-          <Button loading={loading} onClick={() => void load()}>刷新列表</Button>
-        </OperationToolbar>
         <TmProTable<Supplier>
           className="tm-procurement-table"
           rowKey="id" columns={columns} dataSource={filteredRows} loading={loading} search={false} options={false}
+          headerTitle={
+            <Input.Search
+              allowClear
+              aria-label="搜索供应商"
+              placeholder="搜索编码、名称或联系人"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              className="tm-procurement-search"
+            />
+          }
+          toolBarRender={() => [
+            <Typography.Text key="count" type="secondary">共 {filteredRows.length} 家供应商</Typography.Text>,
+            <Button key="refresh" loading={loading} onClick={() => void load()}>刷新列表</Button>,
+          ]}
           pagination={false} cardBordered scroll={{ x: 1120 }} locale={{ emptyText: error ? '供应商列表暂不可用' : '暂无供应商，请先新建供应商。' }}
         />
 

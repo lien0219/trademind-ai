@@ -47,6 +47,19 @@ type HeaderContentProps = HeaderLayoutProps & {
   permissions?: string[];
 };
 
+const DESKTOP_SIDER_WIDTH = 224;
+const MOBILE_LAYOUT_MAX_WIDTH = 767;
+
+function getSiderWidth(): number {
+  if (
+    typeof window === "undefined" ||
+    window.innerWidth > MOBILE_LAYOUT_MAX_WIDTH
+  ) {
+    return DESKTOP_SIDER_WIDTH;
+  }
+  return Math.round(window.innerWidth * 0.5);
+}
+
 async function loadProfileFromToken(
   token: string,
 ): Promise<API.CurrentUser | undefined> {
@@ -232,7 +245,6 @@ function AppHeaderContent({
         layoutProps.isMobile ? " tm-app-header-content--mobile" : ""
       }`}
     >
-      {layoutProps.isMobile ? <AppBrandButton collapsed /> : null}
       <AppGlobalSearch
         items={layoutProps.menuData || []}
         compact={layoutProps.isMobile}
@@ -250,7 +262,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   logo: TM_BRAND_MARK,
   layout: "mix",
   navTheme: "light",
-  siderWidth: 224,
+  siderWidth: getSiderWidth(),
   actionsRender: (props: HeaderLayoutProps) => (
     <AppTopNavBridge isMobile={props.isMobile} />
   ),
@@ -270,10 +282,13 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     _logoDom: ReactNode,
     _titleDom: ReactNode,
     props?: SiderMenuLayoutProps,
-  ) =>
-    props && !props.isMobile ? (
-      <AppBrandButton collapsed={props.collapsed} />
-    ) : null,
+  ) => {
+    // GlobalHeader invokes this callback without layout props for its mobile
+    // logo slot. SiderMenu passes `isMobile` when rendering the drawer; keep
+    // that drawer intentionally free of a second brand mark.
+    if (props?.isMobile) return null;
+    return <AppBrandButton collapsed={props?.collapsed ?? true} />;
+  },
   menuFooterRender: (props?: SiderMenuLayoutProps) => (
     <AppSiderFooter {...(props || {})} />
   ),

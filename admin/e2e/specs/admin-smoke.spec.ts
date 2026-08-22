@@ -70,11 +70,22 @@ async function expectMobileDrawerOpaque(
       ),
       topElementClassName:
         topElement instanceof HTMLElement ? String(topElement.className) : null,
+      viewportWidth: window.innerWidth,
       drawerRect: {
         left: rect.left,
         right: rect.right,
         width: rect.width,
       },
+      siderRect: sider
+        ? (() => {
+            const siderRect = sider.getBoundingClientRect();
+            return {
+              left: siderRect.left,
+              right: siderRect.right,
+              width: siderRect.width,
+            };
+          })()
+        : null,
     };
   });
 
@@ -94,6 +105,22 @@ async function expectMobileDrawerOpaque(
     state.topElementWithinDrawer,
     `drawer stacking ${JSON.stringify(state)}`,
   ).toBe(true);
+  expect(
+    state.drawerRect.width,
+    `mobile drawer width ${JSON.stringify(state)}`,
+  ).toBeGreaterThanOrEqual(state.viewportWidth * 0.45);
+  expect(
+    state.drawerRect.width,
+    `mobile drawer width ${JSON.stringify(state)}`,
+  ).toBeLessThanOrEqual(state.viewportWidth * 0.55);
+  expect(
+    state.siderRect?.width ?? 0,
+    `mobile sider width ${JSON.stringify(state)}`,
+  ).toBeGreaterThanOrEqual(state.viewportWidth * 0.45);
+  expect(
+    state.siderRect?.width ?? 0,
+    `mobile sider width ${JSON.stringify(state)}`,
+  ).toBeLessThanOrEqual(state.viewportWidth * 0.55);
 }
 
 async function expectAccountMenuSurface(
