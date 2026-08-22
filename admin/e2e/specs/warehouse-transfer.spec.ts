@@ -51,8 +51,10 @@ test.describe('@smoke warehouse transfers', () => {
       await expectModalWithinViewport(page);
       await expectNoRootOverflow(page);
 
-      const sourceBox = await dialog.getByLabel('调出仓').boundingBox();
-      const targetBox = await dialog.getByLabel('调入仓').boundingBox();
+      const [sourceBox, targetBox] = await dialog.getByTestId(/^(source|target)-warehouse-field$/).evaluateAll((elements) => elements.map((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      }));
       expect(sourceBox, `source warehouse field at ${viewport.width}x${viewport.height}`).not.toBeNull();
       expect(targetBox, `target warehouse field at ${viewport.width}x${viewport.height}`).not.toBeNull();
       if (sourceBox && targetBox) {

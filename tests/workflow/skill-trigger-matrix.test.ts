@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { selectAffectedSuites } from '../../scripts/testing/test-affected.mjs';
 import { coreSkills, validateSkillTriggers } from '../../scripts/workflow/check-skill-triggers.mjs';
 import matrix from './skill-trigger-matrix.json';
 
@@ -134,6 +135,12 @@ describe('workflow skill trigger matrix', () => {
     expect(result.affectedGraph['quality:affected']).toContain('architecture:affected');
     expect(result.affectedGraph['architecture:affected']).not.toContain('quality:affected');
     expect(result.affectedGraph['test:affected']).not.toContain('quality:affected');
+  });
+
+  it('affected test selection can exclude an E2E smoke suite already run by quality checks', () => {
+    expect([...selectAffectedSuites(['admin/e2e/specs/warehouse-ledger.spec.ts'])]).toEqual(['e2e-smoke']);
+    expect([...selectAffectedSuites(['admin/e2e/specs/warehouse-ledger.spec.ts'], { skip: ['e2e-smoke'] })]).toEqual([]);
+    expect([...selectAffectedSuites(['admin/src/pages/Inventory/WarehouseLedger/index.tsx', 'admin/e2e/specs/warehouse-ledger.spec.ts'], { skip: ['e2e-smoke'] })]).toEqual(['frontend']);
   });
 
   it('Skill path missing from AGENTS or rules fails validation', () => {

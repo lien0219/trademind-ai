@@ -132,12 +132,12 @@ export default function WarehouseTransfersPage() {
       <Modal title="新建仓库调拨" open={createOpen} width={560} confirmLoading={submitting} okText="创建调拨单" cancelText="取消" onCancel={() => !submitting && setCreateOpen(false)} onOk={() => form.submit()} afterOpenChange={(open) => { if (open) initializeCreateForm(); }} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false} onFinish={(values) => void submitCreate(values)}>
           <Row gutter={16}>
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} data-testid="source-warehouse-field">
               <Form.Item label="调出仓" name="sourceWarehouseId" rules={[{ required: true, message: '请选择调出仓' }]}>
                 <Select showSearch optionFilterProp="label" placeholder="请选择调出仓" style={{ width: '100%' }} options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))} />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} data-testid="target-warehouse-field">
               <Form.Item label="调入仓" name="targetWarehouseId" rules={[{ required: true, message: '请选择调入仓' }]}>
                 <Select showSearch optionFilterProp="label" placeholder="请选择调入仓" style={{ width: '100%' }} options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))} />
               </Form.Item>
