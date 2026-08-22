@@ -143,9 +143,10 @@ test.describe('@smoke warehouse inventory ledger', () => {
     admin.consoleGuard.allowError(/Failed to load resource: the server responded with a status of 503/);
 
     await admin.goto('/inventory/warehouse-ledger');
-    await expect(page.getByText('库存账对账加载失败')).toBeVisible();
-    await expect(page.getByText('库存账服务暂不可用')).toBeVisible();
-    await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
+    const reconciliationError = page.getByRole('alert');
+    await expect(reconciliationError).toContainText('库存账对账加载失败');
+    await expect(reconciliationError).toContainText('库存账服务暂不可用');
+    await expect(reconciliationError.getByRole('button', { name: /重\s*试/ })).toBeVisible();
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
