@@ -78,6 +78,56 @@ type InventoryMovement struct {
 
 func (InventoryMovement) TableName() string { return "inventory_movements" }
 
+// WarehouseTransfer is the tenant-scoped warehouse relocation aggregate.
+type WarehouseTransfer struct {
+	model.Base
+	TenantID          int64                   `gorm:"not null;uniqueIndex:ux_transfer_tenant_no;uniqueIndex:ux_transfer_tenant_idempotency;index" json:"tenantId"`
+	TransferNo        string                  `gorm:"size:64;not null;uniqueIndex:ux_transfer_tenant_no" json:"transferNo"`
+	SourceWarehouseID uuid.UUID               `gorm:"type:char(36);not null;index" json:"sourceWarehouseId"`
+	TargetWarehouseID uuid.UUID               `gorm:"type:char(36);not null;index" json:"targetWarehouseId"`
+	Status            string                  `gorm:"size:32;not null;index" json:"status"`
+	Revision          int                     `gorm:"not null;default:1" json:"revision"`
+	IdempotencyKey    string                  `gorm:"size:128;not null;uniqueIndex:ux_transfer_tenant_idempotency" json:"idempotencyKey"`
+	PayloadHash       string                  `gorm:"size:64;not null" json:"-"`
+	Reason            string                  `gorm:"size:128" json:"reason,omitempty"`
+	Remark            string                  `gorm:"size:520" json:"remark,omitempty"`
+	CreatedBy         *uuid.UUID              `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	ApprovedBy        *uuid.UUID              `gorm:"type:char(36);index" json:"approvedBy,omitempty"`
+	ApprovedAt        *time.Time              `json:"approvedAt,omitempty"`
+	DispatchedAt      *time.Time              `json:"dispatchedAt,omitempty"`
+	ReceivedAt        *time.Time              `json:"receivedAt,omitempty"`
+	CancelledAt       *time.Time              `json:"cancelledAt,omitempty"`
+	Items             []WarehouseTransferItem `gorm:"foreignKey:TransferID" json:"items,omitempty"`
+}
+
+func (WarehouseTransfer) TableName() string { return "warehouse_transfers" }
+
+type WarehouseTransferItem struct {
+	model.HardDeleteBase
+	TenantID         int64     `gorm:"not null;index" json:"tenantId"`
+	TransferID       uuid.UUID `gorm:"type:char(36);not null;index;uniqueIndex:ux_transfer_item_sku" json:"transferId"`
+	ProductID        uuid.UUID `gorm:"type:char(36);not null;index" json:"productId"`
+	ProductSKUID     uuid.UUID `gorm:"column:product_sku_id;type:char(36);not null;index;uniqueIndex:ux_transfer_item_sku" json:"productSkuId"`
+	Quantity         int       `gorm:"not null" json:"quantity"`
+	ReceivedQuantity int       `gorm:"not null;default:0" json:"receivedQuantity"`
+	ProductTitle     string    `gorm:"-" json:"productTitle,omitempty"`
+	SKUCode          string    `gorm:"-" json:"skuCode,omitempty"`
+	SKUName          string    `gorm:"-" json:"skuName,omitempty"`
+}
+
+func (WarehouseTransferItem) TableName() string { return "warehouse_transfer_items" }
+
+type WarehouseTransferAction struct {
+	model.HardDeleteBase
+	TenantID       int64     `gorm:"not null;uniqueIndex:ux_transfer_action_event;index" json:"tenantId"`
+	TransferID     uuid.UUID `gorm:"type:char(36);not null;uniqueIndex:ux_transfer_action_event;index" json:"transferId"`
+	Action         string    `gorm:"size:32;not null;uniqueIndex:ux_transfer_action_event" json:"action"`
+	IdempotencyKey string    `gorm:"size:128;not null" json:"idempotencyKey"`
+	RequestHash    string    `gorm:"size:64;not null" json:"-"`
+}
+
+func (WarehouseTransferAction) TableName() string { return "warehouse_transfer_actions" }
+
 // InventorySyncBatch groups many outbound inventory_sync_tasks created in one bulk submission.
 type InventorySyncBatch struct {
 	model.HardDeleteBase

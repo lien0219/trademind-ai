@@ -148,6 +148,69 @@
       "requiredPermission": "inventory.operate"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/inventory/warehouse-transfers",
+      "auth": true,
+      "query": ["page", "pageSize", "status"],
+      "responseData": "WarehouseTransferList",
+      "requiredPermission": "inventory.view"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/warehouse-transfers/:id",
+      "auth": true,
+      "responseData": "WarehouseTransfer",
+      "requiredPermission": "inventory.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouse-transfers",
+      "auth": true,
+      "requestBody": ["idempotencyKey", "sourceWarehouseId", "targetWarehouseId", "reason", "remark", "items"],
+      "responseData": "WarehouseTransfer",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouse-transfers/:id/submit",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "WarehouseTransfer",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouse-transfers/:id/approve",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "WarehouseTransfer",
+      "requiredPermission": "inventory.approve"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouse-transfers/:id/dispatch",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "WarehouseTransfer",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouse-transfers/:id/receive",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "WarehouseTransfer",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/warehouse-transfers/:id/cancel",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "WarehouseTransfer",
+      "requiredPermission": "inventory.operate"
+    },
+    {
       "method": "POST",
       "path": "/api/v1/orders",
       "auth": true,

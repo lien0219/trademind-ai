@@ -72,6 +72,14 @@
 | `POST` | `/api/v1/products/:id/skus/:skuId/adjust-stock` | `inventory.operate` | 人工调整所选仓库的在手库存；JSON：`warehouseId`、`stock`、`idempotencyKey`、可选 `reason` / `remark`。同键同 payload 幂等返回，同键不同 payload 返回 `409`；仓库余额、不可变流水、兼容变更日志与 `product_skus.stock` 兼容聚合字段在同一事务提交，并保留尚未迁移订单路径形成的差额，不创建平台同步任务。 |
 | `GET` | `/api/v1/inventory/warehouse-ledger/reconciliation` | `inventory.view` | 分页对账仓库在手合计与 `product_skus.stock`；支持 `page`、`pageSize`、`status=matched|unmigrated|mismatch`。 |
 | `POST` | `/api/v1/inventory/warehouse-ledger/migrate-legacy` | `inventory.operate` | 重复安全地迁移一批尚无仓库余额的历史规格；JSON：`limit`（默认 100，最大 500）。优先进入启用的默认仓，没有默认仓时创建/复用租户级 `PENDING_ALLOCATION` 待分配仓。 |
+| `GET` | `/api/v1/inventory/warehouse-transfers` | `inventory.view` | 分页查看当前租户调拨单；支持 `page`、`pageSize`、`status`。 |
+| `GET` | `/api/v1/inventory/warehouse-transfers/:id` | `inventory.view` | 查看调拨单明细和当前 revision。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers` | `inventory.operate` | 创建单仓到单仓调拨草稿；JSON：`idempotencyKey`、`sourceWarehouseId`、`targetWarehouseId`、`reason`、`remark`、`items[]`，第一版每个 SKU 仅允许一条明细。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/submit` | `inventory.operate` | 草稿提交审批；JSON：`expectedRevision`、`idempotencyKey`、可选 `reason`。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/approve` | `inventory.approve` | 审批调拨单；与调拨创建、发出和收货分离，支持 reviewer 职责分离。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/dispatch` | `inventory.operate` | 发出调拨，校验可用库存并把源仓在手转入在途；事务内写不可变流水。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/receive` | `inventory.operate` | 目标仓收货，把源仓在途转为目标仓在手；同一 action 幂等。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/cancel` | `inventory.operate` | 取消草稿、待审批或已审批调拨；发出后不可取消。 |
 | `GET` | `/api/v1/suppliers` | `supplier.view` | 当前租户供应商列表；无 `pii.read_full` 时电话和邮箱脱敏。 |
 | `POST` | `/api/v1/suppliers` | `supplier.manage` | 创建供应商；JSON：`code`、`name`、`contactName`、`phone`、`email`。 |
 | `PUT` | `/api/v1/suppliers/:id` | `supplier.manage` | 更新供应商名称、启停状态和联系方式；JSON：`name`、`status`、`contactName`，可选 `phone`、`email`，敏感字段省略时保留原值，响应继续按权限脱敏。 |

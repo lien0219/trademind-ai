@@ -14,6 +14,7 @@ const (
 	PermSKUBind            = "sku.bind"
 	PermInventoryView      = "inventory.view"
 	PermInventoryOperate   = "inventory.operate"
+	PermInventoryApprove   = "inventory.approve"
 	PermCustomerView       = "customer.view"
 	PermCustomerOperate    = "customer.operate"
 	PermTaskRetry          = "task.retry"
@@ -79,6 +80,7 @@ var allPermissions = []string{
 	PermSKUBind,
 	PermInventoryView,
 	PermInventoryOperate,
+	PermInventoryApprove,
 	PermCustomerView,
 	PermCustomerOperate,
 	PermTaskRetry,
@@ -138,6 +140,8 @@ var reviewerPermissions = []string{
 	PermOperationTaskRetry,
 	PermOperationTaskAuditRead,
 	PermInventorySyncRead,
+	PermInventoryView,
+	PermInventoryApprove,
 	PermInventorySnapshotRead,
 	PermSKUBindingRead,
 	PermSKUBindingResolveManual,

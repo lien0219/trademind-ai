@@ -394,6 +394,11 @@ export default [
         component: './Inventory/WarehouseLedger',
       },
       {
+        path: '/inventory/warehouse-transfers',
+        name: '仓库调拨',
+        component: './Inventory/WarehouseTransfers',
+      },
+      {
         path: '/inventory/deductions',
         name: '库存扣减记录',
         component: './Inventory/Deductions',

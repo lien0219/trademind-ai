@@ -146,6 +146,73 @@ export async function listInventoryWarehouses() {
   return getJSON<{ list: InventoryWarehouse[] }>("/api/v1/warehouses");
 }
 
+export type WarehouseTransferStatus = 'draft' | 'pending_approval' | 'approved' | 'in_transit' | 'received' | 'cancelled' | string;
+export type WarehouseTransferItem = {
+  id: string;
+  productId: string;
+  productSkuId: string;
+  quantity: number;
+  receivedQuantity: number;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+};
+export type WarehouseTransfer = {
+  id: string;
+  transferNo: string;
+  sourceWarehouseId: string;
+  targetWarehouseId: string;
+  sourceWarehouseCode?: string;
+  sourceWarehouseName?: string;
+  targetWarehouseCode?: string;
+  targetWarehouseName?: string;
+  status: WarehouseTransferStatus;
+  revision: number;
+  idempotencyKey: string;
+  reason?: string;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+  items?: WarehouseTransferItem[];
+  itemCount?: number;
+};
+export type WarehouseTransferList = {
+  list: WarehouseTransfer[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+export type CreateWarehouseTransferPayload = {
+  idempotencyKey: string;
+  sourceWarehouseId: string;
+  targetWarehouseId: string;
+  reason?: string;
+  remark?: string;
+  items: Array<{ productSkuId: string; quantity: number }>;
+};
+export type WarehouseTransferActionPayload = {
+  expectedRevision: number;
+  idempotencyKey: string;
+  reason?: string;
+};
+
+export async function queryWarehouseTransfers(params?: { page?: number; pageSize?: number; status?: string }) {
+  return getWithParams<WarehouseTransferList>('/api/v1/inventory/warehouse-transfers', params);
+}
+
+export async function getWarehouseTransfer(id: string) {
+  return getJSON<WarehouseTransfer>(`/api/v1/inventory/warehouse-transfers/${encodeURIComponent(id)}`);
+}
+
+export async function createWarehouseTransfer(payload: CreateWarehouseTransferPayload) {
+  return postJSON<WarehouseTransfer>('/api/v1/inventory/warehouse-transfers', payload);
+}
+
+export async function actOnWarehouseTransfer(id: string, action: 'submit' | 'approve' | 'dispatch' | 'receive' | 'cancel', payload: WarehouseTransferActionPayload) {
+  return postJSON<WarehouseTransfer>(`/api/v1/inventory/warehouse-transfers/${encodeURIComponent(id)}/${action}`, payload);
+}
+
 export async function listSkuWarehouseBalances(
   productId: string,
   skuId: string,

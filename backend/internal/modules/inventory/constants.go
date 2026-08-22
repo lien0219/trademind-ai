@@ -54,13 +54,24 @@ const (
 )
 
 const (
-	MovementPurchaseReceipt = "purchase_receipt"
-	MovementManualAdjust    = "manual_adjust"
-	MovementLegacyImport    = "legacy_import"
-	MovementOrderReserve    = "order_reserve"
-	MovementOrderDeduct     = "order_deduct"
-	MovementOrderRelease    = "order_release"
-	MovementOrderRestore    = "order_refund_restore"
+	MovementPurchaseReceipt  = "purchase_receipt"
+	MovementManualAdjust     = "manual_adjust"
+	MovementLegacyImport     = "legacy_import"
+	MovementOrderReserve     = "order_reserve"
+	MovementOrderDeduct      = "order_deduct"
+	MovementOrderRelease     = "order_release"
+	MovementOrderRestore     = "order_refund_restore"
+	MovementTransferDispatch = "transfer_dispatch"
+	MovementTransferReceive  = "transfer_receive"
+)
+
+const (
+	TransferDraft           = "draft"
+	TransferPendingApproval = "pending_approval"
+	TransferApproved        = "approved"
+	TransferInTransit       = "in_transit"
+	TransferReceived        = "received"
+	TransferCancelled       = "cancelled"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).

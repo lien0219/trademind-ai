@@ -50,6 +50,43 @@ type LegacyStockMigrationBody struct {
 	Limit int `json:"limit"`
 }
 
+type CreateWarehouseTransferBody struct {
+	IdempotencyKey    string                        `json:"idempotencyKey" binding:"required"`
+	SourceWarehouseID uuid.UUID                     `json:"sourceWarehouseId" binding:"required"`
+	TargetWarehouseID uuid.UUID                     `json:"targetWarehouseId" binding:"required"`
+	Reason            string                        `json:"reason"`
+	Remark            string                        `json:"remark"`
+	Items             []CreateWarehouseTransferItem `json:"items" binding:"required,min=1"`
+}
+
+type CreateWarehouseTransferItem struct {
+	ProductSKUID uuid.UUID `json:"productSkuId" binding:"required"`
+	Quantity     int       `json:"quantity" binding:"required,min=1"`
+}
+
+type WarehouseTransferActionBody struct {
+	ExpectedRevision int    `json:"expectedRevision"`
+	IdempotencyKey   string `json:"idempotencyKey" binding:"required"`
+	Reason           string `json:"reason"`
+}
+
+type WarehouseTransferListRow struct {
+	WarehouseTransfer
+	SourceWarehouseCode string `json:"sourceWarehouseCode"`
+	SourceWarehouseName string `json:"sourceWarehouseName"`
+	TargetWarehouseCode string `json:"targetWarehouseCode"`
+	TargetWarehouseName string `json:"targetWarehouseName"`
+	ItemCount           int    `json:"itemCount"`
+}
+
+type WarehouseTransferListResult struct {
+	List       []WarehouseTransferListRow `json:"list"`
+	Total      int64                      `json:"total"`
+	Page       int                        `json:"page"`
+	PageSize   int                        `json:"pageSize"`
+	TotalPages int                        `json:"totalPages"`
+}
+
 type LegacyStockMigrationResult struct {
 	WarehouseID    uuid.UUID `json:"warehouseId"`
 	WarehouseCode  string    `json:"warehouseCode"`

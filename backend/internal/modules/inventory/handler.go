@@ -233,6 +233,144 @@ func (h *Handler) MigrateLegacyStock(c *gin.Context) {
 	response.OK(c, result)
 }
 
+func transferID(c *gin.Context) (uuid.UUID, bool) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil || id == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid warehouse transfer id")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func handleTransferError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrTransferInvalidInput):
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+	case errors.Is(err, ErrTransferAbsent):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+	case errors.Is(err, ErrTransferTransition), errors.Is(err, ErrTransferRevision), errors.Is(err, ErrTransferIdempotency):
+		response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
+	default:
+		response.HandleError(c, err)
+	}
+}
+
+func (h *Handler) ListWarehouseTransfers(c *gin.Context) {
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	result, err := h.Svc.ListWarehouseTransfers(c.Request.Context(), tenantID, atoiQ(c, "page", 1), atoiQ(c, "pageSize", 20), c.Query("status"))
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+func (h *Handler) GetWarehouseTransfer(c *gin.Context) {
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	id, ok := transferID(c)
+	if !ok {
+		return
+	}
+	row, err := h.Svc.GetWarehouseTransfer(c.Request.Context(), tenantID, id)
+	if err != nil {
+		handleTransferError(c, err)
+		return
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) CreateWarehouseTransfer(c *gin.Context) {
+	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	var body CreateWarehouseTransferBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.CreateWarehouseTransfer(c.Request.Context(), tenantID, adminUUID(c), body)
+	if err != nil {
+		handleTransferError(c, err)
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.warehouse_transfer.create", Resource: "warehouse_transfer", ResourceID: row.ID.String(), Permission: adminperm.PermInventoryOperate, Status: "success"})
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) transitionTransfer(c *gin.Context, action string) {
+	permission := adminperm.PermInventoryOperate
+	if action == "approve" {
+		if h == nil || h.Svc == nil || h.Svc.DB == nil { response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "inventory unavailable"); return }
+		principal, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+		if err != nil || principal == nil || !principal.Can(adminperm.PermInventoryApprove) || principal.IsReadonly() { response.Fail(c, http.StatusForbidden, response.CodeForbidden, "inventory approval permission denied"); return }
+		permission = adminperm.PermInventoryApprove
+	} else if !h.requireInventoryWrite(c) { return }
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	id, ok := transferID(c)
+	if !ok {
+		return
+	}
+	var body WarehouseTransferActionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	var row *WarehouseTransfer
+	switch action {
+	case "submit":
+		row, err = h.Svc.SubmitWarehouseTransfer(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	case "approve":
+		row, err = h.Svc.ApproveWarehouseTransfer(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	case "dispatch":
+		row, err = h.Svc.DispatchWarehouseTransfer(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	case "receive":
+		row, err = h.Svc.ReceiveWarehouseTransfer(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	case "cancel":
+		row, err = h.Svc.CancelWarehouseTransfer(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	default:
+		err = ErrTransferInvalidInput
+	}
+	if err != nil {
+		handleTransferError(c, err)
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.warehouse_transfer." + action, Resource: "warehouse_transfer", ResourceID: row.ID.String(), Permission: permission, Status: "success"})
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) SubmitWarehouseTransfer(c *gin.Context)   { h.transitionTransfer(c, "submit") }
+func (h *Handler) ApproveWarehouseTransfer(c *gin.Context)  { h.transitionTransfer(c, "approve") }
+func (h *Handler) DispatchWarehouseTransfer(c *gin.Context) { h.transitionTransfer(c, "dispatch") }
+func (h *Handler) ReceiveWarehouseTransfer(c *gin.Context)  { h.transitionTransfer(c, "receive") }
+func (h *Handler) CancelWarehouseTransfer(c *gin.Context)   { h.transitionTransfer(c, "cancel") }
+
 // ListSKULogs GET /products/:id/skus/:skuId/inventory-logs
 func (h *Handler) ListSKULogs(c *gin.Context) {
 	if h == nil || h.Svc == nil {

@@ -29,6 +29,14 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/products/:id/skus/:skuId/adjust-stock",
         "GET /api/v1/inventory/warehouse-ledger/reconciliation",
         "POST /api/v1/inventory/warehouse-ledger/migrate-legacy",
+        "GET /api/v1/inventory/warehouse-transfers",
+        "GET /api/v1/inventory/warehouse-transfers/:id",
+        "POST /api/v1/inventory/warehouse-transfers",
+        "POST /api/v1/inventory/warehouse-transfers/:id/submit",
+        "POST /api/v1/inventory/warehouse-transfers/:id/approve",
+        "POST /api/v1/inventory/warehouse-transfers/:id/dispatch",
+        "POST /api/v1/inventory/warehouse-transfers/:id/receive",
+        "POST /api/v1/inventory/warehouse-transfers/:id/cancel",
         "GET /api/v1/orders",
         "POST /api/v1/orders",
         "GET /api/v1/orders/:id",
@@ -144,6 +152,14 @@ describe("TradeMind API contract registry", () => {
       endpoint("POST /api/v1/inventory/warehouse-ledger/migrate-legacy")
         ?.requiredPermission,
     ).toBe("inventory.operate");
+  });
+
+  it("defines idempotent warehouse transfer lifecycle contracts", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/inventory/warehouse-transfers")?.query).toEqual(["page", "pageSize", "status"]);
+    expect(endpoint("POST /api/v1/inventory/warehouse-transfers")?.requestBody).toEqual(["idempotencyKey", "sourceWarehouseId", "targetWarehouseId", "reason", "remark", "items"]);
+    expect(endpoint("POST /api/v1/inventory/warehouse-transfers/:id/dispatch")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "reason"]);
+    expect(endpoint("POST /api/v1/inventory/warehouse-transfers/:id/approve")?.requiredPermission).toBe("inventory.approve");
   });
 
   it("defines warehouse-bound order inventory lifecycle contracts", () => {
@@ -408,7 +424,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(61);
+    expect(contracts.endpoints).toHaveLength(69);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);
