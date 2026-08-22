@@ -95,6 +95,7 @@ describe('Admin route menu configuration', () => {
     expect(procurement?.routes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ path: '/procurement/purchase-orders', name: '采购单' }),
+        expect.objectContaining({ path: '/procurement/replenishment-suggestions', name: '补货建议' }),
         expect.objectContaining({ path: '/procurement/warehouses', name: '仓库管理' }),
         expect.objectContaining({ path: '/procurement/suppliers', name: '供应商管理' }),
         expect.objectContaining({ path: '/procurement/purchase-orders/:id', hideInMenu: true }),

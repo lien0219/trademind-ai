@@ -58,6 +58,7 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/suppliers/:id/skus",
         "POST /api/v1/suppliers/:id/skus",
         "GET /api/v1/purchase-orders",
+        "GET /api/v1/procurement/replenishment-suggestions",
         "POST /api/v1/purchase-orders",
         "GET /api/v1/purchase-orders/:id",
         "POST /api/v1/purchase-orders/:id/submit",
@@ -156,6 +157,19 @@ describe("TradeMind API contract registry", () => {
     expect(endpoint("POST /api/v1/purchase-returns/:id/approve")?.requiredPermission).toBe("procurement.approve");
     expect(endpoint("POST /api/v1/purchase-returns/:id/complete")?.requiredPermission).toBe("procurement.return");
     expect(endpoint("POST /api/v1/purchase-returns/:id/complete")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "reason"]);
+  });
+
+  it("defines the read-only warehouse-bound replenishment contract", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/procurement/replenishment-suggestions")?.query).toEqual([
+      "warehouseId",
+      "keyword",
+      "status",
+      "page",
+      "pageSize",
+      "format",
+    ]);
+    expect(endpoint("GET /api/v1/procurement/replenishment-suggestions")?.requiredPermission).toBe("procurement.view");
   });
 
   it("defines warehouse-ledger adjustment, migration, and reconciliation contracts", () => {
@@ -459,7 +473,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(85);
+    expect(contracts.endpoints).toHaveLength(86);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

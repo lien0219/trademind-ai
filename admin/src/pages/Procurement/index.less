@@ -1,12 +1,18 @@
 .tm-procurement-page {
   .tm-page-container__content {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    gap: 24px;
   }
 
   .tm-procurement-search {
     width: min(380px, 100%);
+  }
+
+  .tm-replenishment-filters {
+    align-items: center;
+
+    .ant-space-item {
+      min-width: 0;
+    }
   }
 
   .tm-procurement-overview {
@@ -172,10 +178,15 @@
 @media (max-width: 575px) {
   .tm-procurement-page {
     .tm-page-container__content {
-      gap: 12px;
+      gap: 16px;
     }
 
     .tm-procurement-search {
+      width: 100%;
+    }
+
+    .tm-replenishment-filters {
+      align-items: stretch;
       width: 100%;
     }
 

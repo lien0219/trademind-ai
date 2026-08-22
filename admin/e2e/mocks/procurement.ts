@@ -146,6 +146,43 @@ export function procurementResponse(path: string) {
   if (path === '/api/v1/purchase-orders') {
     return ok({ list: [{ ...e2ePurchaseOrder, items: undefined }], page: 1, pageSize: 20, total: 1, totalPages: 1 });
   }
+  if (path === '/api/v1/procurement/replenishment-suggestions') {
+    return ok({
+      warehouseId: E2E_WAREHOUSE_ID,
+      warehouseCode: e2eWarehouse.code,
+      warehouseName: e2eWarehouse.name,
+      list: [{
+        warehouseId: E2E_WAREHOUSE_ID,
+        warehouseCode: e2eWarehouse.code,
+        warehouseName: e2eWarehouse.name,
+        productId: 'e2e-product-blue',
+        productTitle: 'E2E 补货耳机',
+        productSkuId: E2E_PRODUCT_SKU_ID,
+        skuCode: 'BLUE-01',
+        skuName: '蓝色',
+        availableStock: 2,
+        inTransitTransfer: 1,
+        pendingPurchase: 0,
+        warningStock: 10,
+        safetyStock: 4,
+        deficit: 7,
+        suggestedQuantity: 8,
+        minOrderQty: 4,
+        unitCostMinor: 2599,
+        currency: 'CNY',
+        leadTimeDays: 7,
+        supplierId: E2E_SUPPLIER_ID,
+        supplierName: e2eSupplier.name,
+        status: 'actionable',
+        inventoryOnHandTotal: 2,
+        inventoryBalanceCount: 1,
+      }],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+  }
   if (path === `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}`) return ok(e2ePurchaseOrder);
   if (path === `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}/returnable-receipt-items`) return ok({ list: [e2eReturnableReceiptItem] });
   if (path === '/api/v1/purchase-returns') {

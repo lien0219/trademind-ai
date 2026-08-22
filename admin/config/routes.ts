@@ -463,6 +463,11 @@ export default [
         component: './Procurement/PurchaseReturns',
       },
       {
+        path: '/procurement/replenishment-suggestions',
+        name: '补货建议',
+        component: './Procurement/ReplenishmentSuggestions',
+      },
+      {
         path: '/procurement/warehouses',
         name: '仓库管理',
         component: './Procurement/Warehouses',

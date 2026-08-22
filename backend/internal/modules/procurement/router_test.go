@@ -12,6 +12,7 @@ func TestRegisterExposesPurchaseOrderWorkflowRoutes(t *testing.T) {
 	Register(engine.Group("/api/v1"), &Handler{})
 	want := map[string]bool{
 		"GET /api/v1/purchase-orders":                              false,
+		"GET /api/v1/procurement/replenishment-suggestions":        false,
 		"POST /api/v1/purchase-orders":                             false,
 		"GET /api/v1/purchase-orders/:id":                          false,
 		"POST /api/v1/purchase-orders/:id/submit":                  false,

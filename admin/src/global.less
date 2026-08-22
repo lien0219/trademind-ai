@@ -361,11 +361,21 @@ html.tm-theme-switching body #root *::after {
 
   &__content {
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: @tm-section-gap;
     width: 100%;
     max-width: var(--tm-page-content-max-width);
     min-width: 0;
     margin-inline: auto;
     padding: @tm-page-py var(--tm-page-inline-padding) @tm-page-pb;
+
+    /* The page stack owns spacing between top-level modules. Section cards
+       keep their own margin when nested elsewhere, but must not double it
+       inside the standard page content rail. */
+    > .tm-section-card.ant-pro-card {
+      margin-block-end: 0;
+    }
   }
 
   &--fluid {
@@ -402,6 +412,7 @@ html.tm-theme-switching body #root *::after {
     }
 
     &__content {
+      gap: 16px;
       padding: 16px var(--tm-page-inline-padding) 28px;
     }
 

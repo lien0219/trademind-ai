@@ -388,6 +388,14 @@
       "requiredPermission": "procurement.view"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/procurement/replenishment-suggestions",
+      "auth": true,
+      "query": ["warehouseId", "keyword", "status", "page", "pageSize", "format"],
+      "responseData": "ReplenishmentSuggestionList",
+      "requiredPermission": "procurement.view"
+    },
+    {
       "method": "POST",
       "path": "/api/v1/purchase-orders",
       "auth": true,

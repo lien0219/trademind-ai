@@ -94,6 +94,7 @@
 | `GET` | `/api/v1/suppliers/:id/skus` | `supplier.view` | 查询供应商关联的本地商品规格及供应商货号、采购价、起订量和交期。 |
 | `POST` | `/api/v1/suppliers/:id/skus` | `supplier.manage` | 绑定本地 SKU；JSON：`productSkuId`、`supplierSkuCode`、`unitCostMinor`、`currency`、`minOrderQty`、`leadTimeDays`。 |
 | `GET` | `/api/v1/purchase-orders` | `procurement.view` | 采购单分页列表，支持 `page`、`pageSize`。 |
+| `GET` | `/api/v1/procurement/replenishment-suggestions` | `procurement.view` | 只读安全库存/补货建议工作台；必须提供 `warehouseId`，支持 `keyword`、`status=actionable|not_needed|blocked_inventory_mismatch|blocked_inventory_unmigrated|blocked_supplier_missing|blocked_supplier_selection`、`page`、`pageSize`；`format=csv` 导出当前筛选结果（最多 5000 行）。计算口径为 `warningStock - (available + inTransitTransfer + pendingPurchase)`，按唯一有效供应商 MOQ 向上取整。库存账不一致/未迁移、无供应商或多个供应商均不猜测并返回阻断状态。只读 GET，不创建采购单、不启动 Worker、不调用真实平台。 |
 | `POST` | `/api/v1/purchase-orders` | `procurement.manage` | 幂等创建采购单；JSON：`idempotencyKey`、`supplierId`、`warehouseId`、`currency`、`remark`、`items[]`。明细含 `productSkuId`、可选 `supplierSkuId`、`quantity`、`unitCostMinor`。 |
 | `GET` | `/api/v1/purchase-orders/:id` | `procurement.view` | 采购单及明细；明细附带租户内商品标题、规格编码和规格名称作为只读展示字段。 |
 | `POST` | `/api/v1/purchase-orders/:id/submit` | `procurement.manage` | 草稿提交审批；JSON：`expectedRevision`、可选 `reason`。 |

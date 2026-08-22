@@ -40,9 +40,14 @@ test.describe('@smoke procurement workspace', () => {
         { path: '/procurement/suppliers', text: 'E2E 核心供应商' },
         { path: '/procurement/purchase-orders', text: 'PO-E2E-0001' },
         { path: '/procurement/purchase-returns', text: 'PR-E2E-0001' },
+        { path: '/procurement/replenishment-suggestions', text: 'E2E 补货耳机', requiresWarehouse: true },
         { path: `/procurement/purchase-returns/${E2E_PURCHASE_RETURN_ID}`, text: '到货质量异常' },
       ]) {
         await admin.goto(route.path);
+        if (route.requiresWarehouse) {
+          await page.getByRole('combobox', { name: '目标仓库' }).click();
+          await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+        }
         await expect(page.getByText(route.text).first()).toBeVisible({ timeout: 30_000 });
         await expectNoRootOverflow(page);
         await expectHeaderContentAligned(page);
@@ -125,6 +130,44 @@ test.describe('@smoke procurement workspace', () => {
       }],
     });
     expect(String(payload.idempotencyKey)).toMatch(/^admin-purchase-order-/);
+  });
+
+  test('requires a target warehouse and keeps replenishment suggestions read-only', async ({ admin, page }) => {
+    await admin.goto('/procurement/replenishment-suggestions');
+    await expect(page.getByText('必须选择目标仓库后才会加载建议。')).toBeVisible();
+    await expect(page.getByText('E2E 补货耳机')).toHaveCount(0);
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货耳机')).toBeVisible();
+    await expect(page.getByText('可人工采购')).toBeVisible();
+    await expect(page.getByRole('button', { name: '导出筛选结果' })).toBeEnabled();
+    await page.route('**/api/v1/procurement/replenishment-suggestions*format=csv*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', body: '仓库,商品,规格编码\nMAIN,E2E 补货耳机,BLUE-01\n' });
+    });
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: '导出筛选结果' }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('replenishment-suggestions.csv');
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
+  test('distinguishes replenishment empty and API error states', async ({ admin, page }) => {
+    await page.route('**/api/v1/warehouses', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [] })) });
+    });
+    await admin.goto('/procurement/replenishment-suggestions');
+    await expect(page.getByText('暂无启用仓库，维护仓库后才能查看补货建议。')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: '目标仓库' })).toBeDisabled();
+
+    await page.unroute('**/api/v1/warehouses');
+    await page.route('**/api/v1/procurement/replenishment-suggestions*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 50301, message: 'E2E 补货建议接口不可用', data: null }) });
+    });
+    await admin.goto('/procurement/replenishment-suggestions');
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货建议接口不可用')).toBeVisible();
+    await expect(page.getByText('补货建议暂不可用')).toBeVisible();
   });
 
   test('preserves masked supplier contact fields when an operator updates other data', async ({ admin, page }) => {

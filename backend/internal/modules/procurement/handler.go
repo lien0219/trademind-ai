@@ -52,6 +52,51 @@ func (h *Handler) List(c *gin.Context) {
 	response.OK(c, result)
 }
 
+// ListReplenishmentSuggestions serves the read-only warehouse replenishment workbench.
+func (h *Handler) ListReplenishmentSuggestions(c *gin.Context) {
+	tenantID, _, ok := h.authorize(c, adminperm.PermProcurementView)
+	if !ok {
+		return
+	}
+	warehouseID, err := uuid.Parse(strings.TrimSpace(c.Query("warehouseId")))
+	if err != nil || warehouseID == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, ErrReplenishmentWarehouseRequired.Error())
+		return
+	}
+	format := strings.ToLower(strings.TrimSpace(c.Query("format")))
+	result, err := h.Svc.ListReplenishmentSuggestions(c.Request.Context(), tenantID, ReplenishmentQuery{
+		WarehouseID: warehouseID,
+		Keyword:     c.Query("keyword"),
+		Status:      c.Query("status"),
+		Page:        queryPositiveInt(c, "page", 1),
+		PageSize:    queryPositiveInt(c, "pageSize", 20),
+		Export:      format == "csv",
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrReplenishmentWarehouseRequired), errors.Is(err, ErrReplenishmentWarehouseInvalid):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrReplenishmentInvalidStatus):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrReplenishmentTooManyRows):
+			response.Fail(c, http.StatusRequestEntityTooLarge, response.CodeBadRequest, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	if format == "csv" {
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		c.Header("Content-Disposition", `attachment; filename="replenishment-suggestions.csv"`)
+		c.Status(http.StatusOK)
+		if err := WriteReplenishmentCSV(c.Writer, result.List); err != nil {
+			return
+		}
+		return
+	}
+	response.OK(c, result)
+}
+
 func (h *Handler) Get(c *gin.Context) {
 	tenantID, _, ok := h.authorize(c, adminperm.PermProcurementView)
 	if !ok {

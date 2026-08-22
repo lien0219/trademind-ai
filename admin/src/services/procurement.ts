@@ -1,3 +1,4 @@
+import { request } from '@umijs/max';
 import { ApiRequestError, getJSON, getWithParams, postJSON, putJSON } from './request';
 
 export type Warehouse = {
@@ -169,6 +170,55 @@ export type CreatePurchaseOrderBody = {
   }>;
 };
 
+export type ReplenishmentSuggestionStatus =
+  | 'actionable'
+  | 'not_needed'
+  | 'blocked_inventory_mismatch'
+  | 'blocked_inventory_unmigrated'
+  | 'blocked_supplier_missing'
+  | 'blocked_supplier_selection'
+  | string;
+
+export type ReplenishmentSuggestion = {
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
+  productId: string;
+  productTitle: string;
+  productSkuId: string;
+  skuCode: string;
+  skuName: string;
+  availableStock: number;
+  inTransitTransfer: number;
+  pendingPurchase: number;
+  warningStock: number;
+  safetyStock: number;
+  deficit: number;
+  suggestedQuantity: number;
+  minOrderQty: number;
+  unitCostMinor: number;
+  currency: string;
+  leadTimeDays: number;
+  supplierId?: string;
+  supplierName?: string;
+  status: ReplenishmentSuggestionStatus;
+  blockReasonCode?: string;
+  blockReason?: string;
+  inventoryOnHandTotal: number;
+  inventoryBalanceCount: number;
+};
+
+export type ReplenishmentSuggestionList = {
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
+  list: ReplenishmentSuggestion[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 const enc = encodeURIComponent;
 
 export function createProcurementIdempotencyKey(action: string) {
@@ -178,6 +228,41 @@ export function createProcurementIdempotencyKey(action: string) {
 
 export async function listWarehouses() {
   return getJSON<{ list: Warehouse[] }>('/api/v1/warehouses');
+}
+
+export async function queryReplenishmentSuggestions(params: {
+  warehouseId: string;
+  keyword?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return getWithParams<ReplenishmentSuggestionList>('/api/v1/procurement/replenishment-suggestions', {
+    warehouseId: params.warehouseId,
+    keyword: params.keyword?.trim() || undefined,
+    status: params.status || undefined,
+    page: params.page,
+    pageSize: params.pageSize,
+  });
+}
+
+export async function downloadReplenishmentSuggestions(params: { warehouseId: string; keyword?: string; status?: string }) {
+  const query = new URLSearchParams({ warehouseId: params.warehouseId, format: 'csv' });
+  if (params.keyword?.trim()) query.set('keyword', params.keyword.trim());
+  if (params.status) query.set('status', params.status);
+  const blob = await request<Blob>(`/api/v1/procurement/replenishment-suggestions?${query.toString()}`, {
+    method: 'GET',
+    responseType: 'blob',
+  });
+  const anchor = document.createElement('a');
+  const objectURL = URL.createObjectURL(blob);
+  anchor.href = objectURL;
+  anchor.download = 'replenishment-suggestions.csv';
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectURL);
 }
 
 export async function createWarehouse(body: { code: string; name: string; isDefault: boolean }) {
