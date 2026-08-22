@@ -451,6 +451,68 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/purchase-orders/:id/returnable-receipt-items",
+      "auth": true,
+      "responseData": "ReturnableReceiptItemList",
+      "requiredPermission": "procurement.view"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/purchase-returns",
+      "auth": true,
+      "query": ["page", "pageSize", "status", "purchaseOrderId"],
+      "responseData": "PurchaseReturnList",
+      "requiredPermission": "procurement.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-returns",
+      "auth": true,
+      "requestBody": ["idempotencyKey", "purchaseOrderId", "reason", "remark", "items"],
+      "responseData": "PurchaseReturn",
+      "requiredPermission": "procurement.manage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/purchase-returns/:id",
+      "auth": true,
+      "responseData": "PurchaseReturn",
+      "requiredPermission": "procurement.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-returns/:id/submit",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "PurchaseReturn",
+      "requiredPermission": "procurement.manage"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-returns/:id/approve",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "PurchaseReturn",
+      "requiredPermission": "procurement.approve"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-returns/:id/complete",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "PurchaseReturn",
+      "requiredPermission": "procurement.return"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/purchase-returns/:id/cancel",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "PurchaseReturn",
+      "requiredPermission": "procurement.manage"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/observability/overview",
       "auth": true,
       "responseData": "ObservabilityOverview",

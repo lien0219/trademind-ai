@@ -101,8 +101,16 @@
 | `POST` | `/api/v1/purchase-orders/:id/cancel` | `procurement.manage` | 取消尚未收货的采购单；JSON 同上。 |
 | `POST` | `/api/v1/purchase-orders/:id/close` | `procurement.manage` | 关闭已审批或部分收货采购单；JSON 同上。 |
 | `POST` | `/api/v1/purchase-orders/:id/receipts` | `procurement.receive` | 分批收货；JSON：`expectedRevision`、`idempotencyKey`、`items[]`，明细含 `purchaseOrderItemId`、`quantity`。采购明细、收货记录、库存余额、库存流水和兼容聚合库存在同一事务提交。 |
+| `GET` | `/api/v1/purchase-orders/:id/returnable-receipt-items` | `procurement.view` | 查询原收货明细的已收、有效退货占用和剩余可退数量；已取消退货不占用额度。 |
+| `GET` | `/api/v1/purchase-returns` | `procurement.view` | 采购退货分页列表；支持 `page`、`pageSize`、`status`、`purchaseOrderId`。 |
+| `POST` | `/api/v1/purchase-returns` | `procurement.manage` | 幂等创建采购退货草稿；JSON：`idempotencyKey`、`purchaseOrderId`、必填 `reason`、`remark`、`items[]`，明细含 `goodsReceiptItemId`、`quantity`。所有未取消退货单共同占用原收货可退额度。 |
+| `GET` | `/api/v1/purchase-returns/:id` | `procurement.view` | 采购退货详情及原收货关联明细。 |
+| `POST` | `/api/v1/purchase-returns/:id/submit` | `procurement.manage` | 提交退货审批；JSON：`expectedRevision`、`idempotencyKey`、可选 `reason`。 |
+| `POST` | `/api/v1/purchase-returns/:id/approve` | `procurement.approve` | 审批采购退货；审批人与最终执行人必须为不同账号。 |
+| `POST` | `/api/v1/purchase-returns/:id/complete` | `procurement.return` | 执行退货；校验仓库可用量，单事务扣减仓库在手、写不可变流水、兼容库存投影和变更日志。库存不足整笔回滚。 |
+| `POST` | `/api/v1/purchase-returns/:id/cancel` | `procurement.manage` | 取消草稿、待审批或已审批退货并释放原收货可退额度；完成后不可取消。 |
 
-金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示资源在当前租户不可见，`409` 表示 revision、状态、超收、库存账差异或幂等冲突。采购工作台位于采购菜单下，库存账迁移与对账位于库存菜单下；这些 API 不触发真实平台库存同步。
+金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示资源在当前租户不可见，`409` 表示 revision、状态、超收/超退、库存不足、库存账差异、职责分离或幂等冲突。采购工作台位于采购菜单下，库存账迁移与对账位于库存菜单下；这些 API 不触发真实平台库存同步，也不包含供应商退款或财务结算。
 
 ## 订单库存生命周期
 

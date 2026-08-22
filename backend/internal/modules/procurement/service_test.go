@@ -40,6 +40,7 @@ func newProcurementFixture(t *testing.T) *procurementFixture {
 		&warehouse.Warehouse{}, &supplier.Supplier{}, &supplier.SupplierSKU{},
 		&inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{}, &inventory.InventoryChangeLog{},
 		&PurchaseOrder{}, &PurchaseOrderItem{}, &GoodsReceipt{}, &GoodsReceiptItem{},
+		&PurchaseReturn{}, &PurchaseReturnItem{}, &PurchaseReturnAction{},
 	); err != nil {
 		t.Fatalf("migrate fixture: %v", err)
 	}
@@ -206,6 +207,7 @@ func TestPurchaseOrderAllowsLegacyTenantZero(t *testing.T) {
 		&warehouse.Warehouse{}, &supplier.Supplier{}, &supplier.SupplierSKU{},
 		&inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{}, &inventory.InventoryChangeLog{},
 		&PurchaseOrder{}, &PurchaseOrderItem{}, &GoodsReceipt{}, &GoodsReceiptItem{},
+		&PurchaseReturn{}, &PurchaseReturnItem{}, &PurchaseReturnAction{},
 	); err != nil {
 		t.Fatalf("migrate fixture: %v", err)
 	}
@@ -278,6 +280,10 @@ func TestERPFoundationCreatesBusinessUniquenessIndexes(t *testing.T) {
 		{&GoodsReceipt{}, "ux_goods_receipt_idempotency"},
 		{&GoodsReceipt{}, "ux_goods_receipt_tenant_no"},
 		{&GoodsReceiptItem{}, "ux_goods_receipt_item"},
+		{&PurchaseReturn{}, "ux_purchase_return_idempotency"},
+		{&PurchaseReturnItem{}, "ux_purchase_return_receipt_item"},
+		{&PurchaseReturnAction{}, "ux_purchase_return_action_event"},
+		{&PurchaseReturnAction{}, "ux_purchase_return_action_key"},
 		{&inventory.WarehouseStockBalance{}, "ux_warehouse_stock_balance"},
 		{&supplier.SupplierSKU{}, "ux_supplier_sku_binding"},
 	}

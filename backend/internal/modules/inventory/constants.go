@@ -51,11 +51,13 @@ const (
 	ChangeOrderCancel     = "order_cancel_restore"
 	ChangeImport          = "import"
 	ChangePurchaseReceipt = "purchase_receipt"
+	ChangePurchaseReturn  = "purchase_return"
 	ChangeStocktakeAdjust = "stocktake_adjust"
 )
 
 const (
 	MovementPurchaseReceipt  = "purchase_receipt"
+	MovementPurchaseReturn   = "purchase_return"
 	MovementManualAdjust     = "manual_adjust"
 	MovementLegacyImport     = "legacy_import"
 	MovementOrderReserve     = "order_reserve"

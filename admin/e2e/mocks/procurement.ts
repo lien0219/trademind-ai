@@ -6,6 +6,8 @@ export const E2E_SUPPLIER_SKU_ID = 'e2e-supplier-sku-blue';
 export const E2E_PRODUCT_SKU_ID = 'e2e-product-sku-blue';
 export const E2E_PURCHASE_ORDER_ID = 'e2e-purchase-order-approved';
 export const E2E_PURCHASE_ORDER_ITEM_ID = 'e2e-purchase-order-item-blue';
+export const E2E_GOODS_RECEIPT_ITEM_ID = 'e2e-goods-receipt-item-blue';
+export const E2E_PURCHASE_RETURN_ID = 'e2e-purchase-return-approved';
 
 export const e2eWarehouse = {
   id: E2E_WAREHOUSE_ID,
@@ -73,6 +75,60 @@ export const e2ePurchaseOrder = {
   ],
 };
 
+export const e2eReceivedPurchaseOrder = {
+  ...e2ePurchaseOrder,
+  status: 'received',
+  revision: 4,
+  items: [{ ...e2ePurchaseOrder.items[0], receivedQuantity: 5 }],
+};
+
+export const e2eReturnableReceiptItem = {
+  goodsReceiptItemId: E2E_GOODS_RECEIPT_ITEM_ID,
+  goodsReceiptId: 'e2e-goods-receipt-one',
+  receiptNo: 'GR-E2E-0001',
+  purchaseOrderItemId: E2E_PURCHASE_ORDER_ITEM_ID,
+  productSkuId: E2E_PRODUCT_SKU_ID,
+  productTitle: 'E2E 蓝牙耳机',
+  skuCode: 'BLUE-01',
+  skuName: '蓝色',
+  receivedQuantity: 5,
+  allocatedReturnQuantity: 1,
+  remainingQuantity: 4,
+};
+
+export const e2ePurchaseReturn = {
+  id: E2E_PURCHASE_RETURN_ID,
+  returnNo: 'PR-E2E-0001',
+  purchaseOrderId: E2E_PURCHASE_ORDER_ID,
+  purchaseOrderNo: 'PO-E2E-0001',
+  supplierId: E2E_SUPPLIER_ID,
+  supplierName: 'E2E 核心供应商',
+  warehouseId: E2E_WAREHOUSE_ID,
+  warehouseName: 'E2E 华东主仓',
+  status: 'approved',
+  revision: 3,
+  reason: '到货质量异常',
+  remark: 'E2E 采购退货',
+  approvedBy: 'e2e-reviewer',
+  approvedAt: '2026-08-22T02:00:00Z',
+  itemCount: 1,
+  createdAt: '2026-08-22T01:00:00Z',
+  updatedAt: '2026-08-22T02:00:00Z',
+  items: [{
+    id: 'e2e-purchase-return-item-blue',
+    purchaseReturnId: E2E_PURCHASE_RETURN_ID,
+    goodsReceiptItemId: E2E_GOODS_RECEIPT_ITEM_ID,
+    purchaseOrderItemId: E2E_PURCHASE_ORDER_ITEM_ID,
+    productSkuId: E2E_PRODUCT_SKU_ID,
+    quantity: 1,
+    receiptNo: 'GR-E2E-0001',
+    receiptQuantity: 5,
+    productTitle: 'E2E 蓝牙耳机',
+    skuCode: 'BLUE-01',
+    skuName: '蓝色',
+  }],
+};
+
 export const e2eProductSkuHit = {
   productId: 'e2e-product-blue',
   productTitle: 'E2E 蓝牙耳机',
@@ -91,5 +147,10 @@ export function procurementResponse(path: string) {
     return ok({ list: [{ ...e2ePurchaseOrder, items: undefined }], page: 1, pageSize: 20, total: 1, totalPages: 1 });
   }
   if (path === `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}`) return ok(e2ePurchaseOrder);
+  if (path === `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}/returnable-receipt-items`) return ok({ list: [e2eReturnableReceiptItem] });
+  if (path === '/api/v1/purchase-returns') {
+    return ok({ list: [{ ...e2ePurchaseReturn, items: undefined }], page: 1, pageSize: 20, total: 1, totalPages: 1 });
+  }
+  if (path === `/api/v1/purchase-returns/${E2E_PURCHASE_RETURN_ID}`) return ok(e2ePurchaseReturn);
   return null;
 }

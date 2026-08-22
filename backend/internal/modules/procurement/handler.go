@@ -179,7 +179,13 @@ func handleProcurementError(c *gin.Context, err error) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 	case errors.Is(err, ErrPurchaseOrderAbsent):
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
-	case errors.Is(err, ErrInvalidTransition), errors.Is(err, ErrRevisionConflict), errors.Is(err, ErrOverReceipt), errors.Is(err, ErrIdempotencyConflict):
+	case errors.Is(err, ErrPurchaseReturnAbsent):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+	case errors.Is(err, ErrReturnInvalidInput):
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+	case errors.Is(err, ErrInvalidTransition), errors.Is(err, ErrRevisionConflict), errors.Is(err, ErrOverReceipt), errors.Is(err, ErrIdempotencyConflict),
+		errors.Is(err, ErrReturnInvalidTransition), errors.Is(err, ErrReturnRevisionConflict), errors.Is(err, ErrReturnIdempotencyConflict),
+		errors.Is(err, ErrOverReturn), errors.Is(err, ErrReturnInsufficientStock), errors.Is(err, ErrReturnDutyConflict):
 		response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
 	default:
 		response.HandleError(c, err)

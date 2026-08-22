@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
 	"github.com/trademind-ai/trademind/backend/internal/testing/postgrestest"
 	"github.com/trademind-ai/trademind/backend/internal/testing/safeenv"
@@ -139,6 +140,9 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 		"production_scope_allowlists",
 		"production_rollout_policies",
 		"production_control_audit_events",
+		"purchase_returns",
+		"purchase_return_items",
+		"purchase_return_actions",
 	} {
 		require.Truef(t, db.Migrator().HasTable(table), "expected migrated table %s", table)
 	}
@@ -165,6 +169,10 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 	}
 	require.True(t, db.Migrator().HasColumn(&inventory.InventorySyncTask{}, "publication_sku_id"))
 	require.False(t, db.Migrator().HasColumn(&inventory.InventorySyncTask{}, "publication_sk_uid"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturn{}, "ux_purchase_return_idempotency"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturnItem{}, "ux_purchase_return_receipt_item"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturnAction{}, "ux_purchase_return_action_event"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturnAction{}, "ux_purchase_return_action_key"))
 }
 
 func TestAutoMigrateRenamesLegacyInventoryPublicationSKUColumnWithoutDataLoss(t *testing.T) {

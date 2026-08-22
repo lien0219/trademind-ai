@@ -65,6 +65,14 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/purchase-orders/:id/cancel",
         "POST /api/v1/purchase-orders/:id/close",
         "POST /api/v1/purchase-orders/:id/receipts",
+        "GET /api/v1/purchase-orders/:id/returnable-receipt-items",
+        "GET /api/v1/purchase-returns",
+        "POST /api/v1/purchase-returns",
+        "GET /api/v1/purchase-returns/:id",
+        "POST /api/v1/purchase-returns/:id/submit",
+        "POST /api/v1/purchase-returns/:id/approve",
+        "POST /api/v1/purchase-returns/:id/complete",
+        "POST /api/v1/purchase-returns/:id/cancel",
         "GET /api/v1/p10/status",
         "POST /api/v1/operation-tasks",
         "GET /api/v1/operation-tasks/:id",
@@ -139,6 +147,15 @@ describe("TradeMind API contract registry", () => {
     expect(
       endpoint("POST /api/v1/purchase-orders/:id/receipts")?.requiredPermission,
     ).toBe("procurement.receive");
+  });
+
+  it("defines receipt-bound purchase return lifecycle contracts", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/purchase-returns")?.query).toEqual(["page", "pageSize", "status", "purchaseOrderId"]);
+    expect(endpoint("POST /api/v1/purchase-returns")?.requestBody).toEqual(["idempotencyKey", "purchaseOrderId", "reason", "remark", "items"]);
+    expect(endpoint("POST /api/v1/purchase-returns/:id/approve")?.requiredPermission).toBe("procurement.approve");
+    expect(endpoint("POST /api/v1/purchase-returns/:id/complete")?.requiredPermission).toBe("procurement.return");
+    expect(endpoint("POST /api/v1/purchase-returns/:id/complete")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "reason"]);
   });
 
   it("defines warehouse-ledger adjustment, migration, and reconciliation contracts", () => {
@@ -442,7 +459,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(77);
+    expect(contracts.endpoints).toHaveLength(85);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

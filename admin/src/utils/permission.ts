@@ -40,6 +40,7 @@ export const PERMISSIONS = {
   PROCUREMENT_MANAGE: 'procurement.manage',
   PROCUREMENT_APPROVE: 'procurement.approve',
   PROCUREMENT_RECEIVE: 'procurement.receive',
+  PROCUREMENT_RETURN: 'procurement.return',
   PII_READ_FULL: 'pii.read_full',
   OBSERVABILITY_READ: 'observability.read',
   ALERTS_READ: 'alerts.read',
@@ -86,6 +87,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.PROCUREMENT_VIEW,
     PERMISSIONS.PROCUREMENT_MANAGE,
     PERMISSIONS.PROCUREMENT_RECEIVE,
+    PERMISSIONS.PROCUREMENT_RETURN,
   ],
   reviewer: [
     PERMISSIONS.OPERATION_TASK_AUDIT_READ,

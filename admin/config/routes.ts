@@ -452,6 +452,17 @@ export default [
         component: './Procurement/PurchaseOrders',
       },
       {
+        path: '/procurement/purchase-returns/:id',
+        name: '采购退货详情',
+        component: './Procurement/PurchaseReturns/Detail',
+        hideInMenu: true,
+      },
+      {
+        path: '/procurement/purchase-returns',
+        name: '采购退货',
+        component: './Procurement/PurchaseReturns',
+      },
+      {
         path: '/procurement/warehouses',
         name: '仓库管理',
         component: './Procurement/Warehouses',

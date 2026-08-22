@@ -42,15 +42,16 @@ type SupplierValidator interface {
 	ValidateBinding(context.Context, *gorm.DB, int64, uuid.UUID, uuid.UUID, *uuid.UUID) error
 }
 
-type StockReceiver interface {
+type WarehouseStockWriter interface {
 	Receive(context.Context, *gorm.DB, inventory.ReceiptStockInput) (*inventory.WarehouseStockBalance, error)
+	Return(context.Context, *gorm.DB, inventory.PurchaseReturnStockInput) (*inventory.WarehouseStockBalance, error)
 }
 
 type Service struct {
 	DB         *gorm.DB
 	Warehouses WarehouseValidator
 	Suppliers  SupplierValidator
-	Stock      StockReceiver
+	Stock      WarehouseStockWriter
 }
 
 func (s *Service) ready() error {

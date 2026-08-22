@@ -3,13 +3,18 @@ import { e2eUser } from '../mocks/auth';
 import { ok } from '../mocks/envelope';
 import {
   E2E_PRODUCT_SKU_ID,
+  E2E_GOODS_RECEIPT_ITEM_ID,
   E2E_PURCHASE_ORDER_ID,
   E2E_PURCHASE_ORDER_ITEM_ID,
+  E2E_PURCHASE_RETURN_ID,
   E2E_SUPPLIER_ID,
   E2E_SUPPLIER_SKU_ID,
   E2E_WAREHOUSE_ID,
   e2eProductSkuHit,
   e2ePurchaseOrder,
+  e2ePurchaseReturn,
+  e2eReceivedPurchaseOrder,
+  e2eReturnableReceiptItem,
   e2eSupplier,
 } from '../mocks/procurement';
 import {
@@ -34,6 +39,8 @@ test.describe('@smoke procurement workspace', () => {
         { path: '/procurement/warehouses', text: 'E2E 华东主仓' },
         { path: '/procurement/suppliers', text: 'E2E 核心供应商' },
         { path: '/procurement/purchase-orders', text: 'PO-E2E-0001' },
+        { path: '/procurement/purchase-returns', text: 'PR-E2E-0001' },
+        { path: `/procurement/purchase-returns/${E2E_PURCHASE_RETURN_ID}`, text: '到货质量异常' },
       ]) {
         await admin.goto(route.path);
         await expect(page.getByText(route.text).first()).toBeVisible({ timeout: 30_000 });
@@ -192,6 +199,98 @@ test.describe('@smoke procurement workspace', () => {
     expect(String(payload.idempotencyKey)).toMatch(/^admin-goods-receipt-/);
   });
 
+  test('creates a purchase-return draft from an original receipt with one write', async ({ admin, page }) => {
+    let returnableRequestCount = 0;
+    let releaseStaleResponse = () => {};
+    let markStaleResponseComplete = () => {};
+    const staleResponseGate = new Promise<void>((resolve) => { releaseStaleResponse = resolve; });
+    const staleResponseComplete = new Promise<void>((resolve) => { markStaleResponseComplete = resolve; });
+    await page.route(`**/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}`, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok(e2eReceivedPurchaseOrder)) });
+    });
+    await page.route(`**/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}/returnable-receipt-items`, async (route) => {
+      returnableRequestCount += 1;
+      if (returnableRequestCount === 1) {
+        await staleResponseGate;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(ok({ list: [{ ...e2eReturnableReceiptItem, productTitle: '过期可退商品', remainingQuantity: 1 }] })),
+        });
+        markStaleResponseComplete();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ list: [{ ...e2eReturnableReceiptItem, productTitle: '最新可退商品' }] })),
+      });
+    });
+    admin.writeGuard.allow({
+      operation: 'create-purchase-return',
+      method: 'POST',
+      path: /^\/api\/v1\/purchase-returns$/,
+      response: ok({ ...e2ePurchaseReturn, status: 'draft', revision: 1 }),
+    });
+
+    await admin.goto(`/procurement/purchase-orders/${E2E_PURCHASE_ORDER_ID}`);
+    await page.getByRole('button', { name: '发起退货' }).click();
+    let dialog = page.getByRole('dialog', { name: '发起采购退货' });
+    await expectModalWithinViewport(page);
+    await dialog.getByRole('button', { name: /取\s*消/ }).click();
+    await expect(dialog).toBeHidden();
+    await admin.writeGuard.expectRequestCount('create-purchase-return', 0);
+
+    await page.getByRole('button', { name: '发起退货' }).click();
+    dialog = page.getByRole('dialog', { name: '发起采购退货' });
+    await expect(dialog.getByText('最新可退商品')).toBeVisible();
+    releaseStaleResponse();
+    await staleResponseComplete;
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await expect(dialog.getByText('过期可退商品')).toHaveCount(0);
+    await expect(dialog.getByText('最新可退商品')).toBeVisible();
+    await dialog.getByPlaceholder('例如：到货质量异常').fill('到货质量异常');
+    await dialog.getByLabel('备注').fill('退回供应商复检');
+    await dialog.getByLabel('本次退货').fill('2');
+    await dialog.getByRole('button', { name: '创建退货单草稿' }).click();
+
+    await admin.writeGuard.expectRequestCount('create-purchase-return', 1);
+    const payload = admin.writeGuard.calls('create-purchase-return')[0]?.postDataJSON as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      purchaseOrderId: E2E_PURCHASE_ORDER_ID,
+      reason: '到货质量异常',
+      remark: '退回供应商复检',
+      items: [{ goodsReceiptItemId: E2E_GOODS_RECEIPT_ITEM_ID, quantity: 2 }],
+    });
+    expect(String(payload.idempotencyKey)).toMatch(/^admin-purchase-return-create-/);
+  });
+
+  test('cancels execution confirmation and completes a return exactly once', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'complete-purchase-return',
+      method: 'POST',
+      path: new RegExp(`^/api/v1/purchase-returns/${E2E_PURCHASE_RETURN_ID}/complete$`),
+      response: ok({ ...e2ePurchaseReturn, status: 'completed', revision: 4, completedAt: '2026-08-22T03:00:00Z' }),
+    });
+
+    await admin.goto(`/procurement/purchase-returns/${E2E_PURCHASE_RETURN_ID}`);
+    await page.getByRole('button', { name: '执行退货' }).click();
+    let dialog = page.getByRole('dialog', { name: '执行退货' });
+    await dialog.getByRole('button', { name: /取\s*消/ }).click();
+    await expect(dialog).toBeHidden();
+    await admin.writeGuard.expectRequestCount('complete-purchase-return', 0);
+
+    await page.getByRole('button', { name: '执行退货' }).click();
+    dialog = page.getByRole('dialog', { name: '执行退货' });
+    await dialog.getByLabel('操作说明').fill('退回供应商');
+    await dialog.getByRole('button', { name: '执行退货' }).click();
+
+    await admin.writeGuard.expectRequestCount('complete-purchase-return', 1);
+    const payload = admin.writeGuard.calls('complete-purchase-return')[0]?.postDataJSON as Record<string, unknown>;
+    expect(payload).toMatchObject({ expectedRevision: 3, reason: '退回供应商' });
+    expect(String(payload.idempotencyKey)).toMatch(/^admin-purchase-return-complete-/);
+  });
+
   test('distinguishes empty, error, and readonly states', async ({ admin, page }) => {
     await page.route('**/api/v1/auth/profile', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ ...e2eUser, role: 'readonly', permissions: ['warehouse.view', 'supplier.view', 'procurement.view'] })) });
@@ -201,6 +300,12 @@ test.describe('@smoke procurement workspace', () => {
     });
     await page.route('**/api/v1/suppliers', async (route) => {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 50000, message: 'supplier unavailable', data: null }) });
+    });
+    await page.route('**/api/v1/purchase-returns', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [], page: 1, pageSize: 20, total: 0, totalPages: 0 })) });
+    });
+    await page.route(`**/api/v1/purchase-returns/${E2E_PURCHASE_RETURN_ID}`, async (route) => {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 50000, message: 'purchase return unavailable', data: null }) });
     });
     admin.consoleGuard.allowError(/Failed to load resource: the server responded with a status of 503/);
 
@@ -212,6 +317,15 @@ test.describe('@smoke procurement workspace', () => {
     await admin.goto('/procurement/suppliers');
     await expect(page.getByText('供应商列表加载失败，请稍后重试。')).toBeVisible();
     await expect(page.getByRole('button', { name: '新建供应商' })).toBeDisabled();
+
+    await admin.goto('/procurement/purchase-returns');
+    await expect(page.getByText('暂无采购退货记录。')).toBeVisible();
+    await expect(page.getByRole('button', { name: '选择采购单' })).toBeDisabled();
+    await expect(page.getByText(/只读模式/)).toBeVisible();
+
+    await admin.goto(`/procurement/purchase-returns/${E2E_PURCHASE_RETURN_ID}`);
+    await expect(page.getByText('采购退货详情加载失败，请稍后重试。')).toBeVisible();
+    await expect(page.getByText(/只读模式/)).toBeVisible();
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 });

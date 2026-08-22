@@ -85,6 +85,68 @@ export type GoodsReceipt = {
   receivedAt: string;
 };
 
+export type PurchaseReturnStatus = 'draft' | 'pending_approval' | 'approved' | 'completed' | 'cancelled';
+
+export type PurchaseReturnItem = {
+  id: string;
+  purchaseReturnId: string;
+  goodsReceiptItemId: string;
+  purchaseOrderItemId: string;
+  productSkuId: string;
+  quantity: number;
+  receiptNo?: string;
+  receiptQuantity: number;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+};
+
+export type PurchaseReturn = {
+  id: string;
+  returnNo: string;
+  purchaseOrderId: string;
+  purchaseOrderNo?: string;
+  supplierId: string;
+  supplierName?: string;
+  warehouseId: string;
+  warehouseName?: string;
+  status: PurchaseReturnStatus | string;
+  revision: number;
+  reason?: string;
+  remark?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  completedBy?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  itemCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  items?: PurchaseReturnItem[];
+};
+
+export type PurchaseReturnList = {
+  list: PurchaseReturn[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export type ReturnableReceiptItem = {
+  goodsReceiptItemId: string;
+  goodsReceiptId: string;
+  receiptNo: string;
+  purchaseOrderItemId: string;
+  productSkuId: string;
+  productTitle: string;
+  skuCode: string;
+  skuName: string;
+  receivedQuantity: number;
+  allocatedReturnQuantity: number;
+  remainingQuantity: number;
+};
+
 export type PurchaseOrderList = {
   list: PurchaseOrder[];
   page: number;
@@ -196,6 +258,43 @@ export async function receivePurchaseOrder(id: string, body: {
   );
 }
 
+export async function listReturnableReceiptItems(purchaseOrderId: string) {
+  return getJSON<{ list: ReturnableReceiptItem[] }>(
+    `/api/v1/purchase-orders/${enc(purchaseOrderId)}/returnable-receipt-items`,
+  );
+}
+
+export async function listPurchaseReturns(params: {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  purchaseOrderId?: string;
+}) {
+  return getWithParams<PurchaseReturnList>('/api/v1/purchase-returns', params);
+}
+
+export async function getPurchaseReturn(id: string) {
+  return getJSON<PurchaseReturn>(`/api/v1/purchase-returns/${enc(id)}`);
+}
+
+export async function createPurchaseReturn(body: {
+  idempotencyKey: string;
+  purchaseOrderId: string;
+  reason: string;
+  remark: string;
+  items: Array<{ goodsReceiptItemId: string; quantity: number }>;
+}) {
+  return postJSON<PurchaseReturn>('/api/v1/purchase-returns', body);
+}
+
+export async function transitionPurchaseReturn(
+  id: string,
+  action: 'submit' | 'approve' | 'complete' | 'cancel',
+  body: { expectedRevision: number; idempotencyKey: string; reason: string },
+) {
+  return postJSON<PurchaseReturn>(`/api/v1/purchase-returns/${enc(id)}/${action}`, body);
+}
+
 export type ProcurementAPIError = {
   code: number;
   message: string;
@@ -214,9 +313,15 @@ export function extractProcurementAPIError(error: unknown): ProcurementAPIError 
 
 export function procurementErrorMessage(error: ProcurementAPIError, fallback = '操作失败，请稍后重试') {
   const message = error.message.toLowerCase();
+  if (message.includes('purchase return revision conflict')) return '采购退货单已被其他人更新，页面已重新加载，请确认最新状态。';
+  if (message.includes('purchase return transition')) return '当前采购退货单状态不允许执行此操作。';
+  if (message.includes('purchase return idempotency')) return '相同退货操作编号已用于其他内容，请关闭窗口后重新发起。';
   if (message.includes('revision conflict')) return '采购单已被其他人更新，页面已重新加载，请确认最新状态后再操作。';
   if (message.includes('invalid transition')) return '当前采购单状态不允许执行此操作，请重新加载后确认。';
   if (message.includes('exceeds remaining')) return '收货数量超过未收数量，请核对后重试。';
+  if (message.includes('exceeds received')) return '退货数量超过原收货记录的剩余可退数量，请重新加载后核对。';
+  if (message.includes('insufficient warehouse stock')) return '当前仓库可用库存不足，采购退货尚未执行，请先核对库存占用。';
+  if (message.includes('approver cannot complete')) return '审批人与退货执行人必须为不同账号。';
   if (message.includes('idempotency key')) return '相同操作编号已用于其他内容，请关闭窗口后重新发起。';
   if (message.includes('warehouse conflict')) return '仓库编码已存在，请更换编码。';
   if (message.includes('supplier conflict')) return '供应商编码已存在，请更换编码。';

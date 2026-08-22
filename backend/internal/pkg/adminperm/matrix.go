@@ -32,6 +32,7 @@ const (
 	PermProcurementManage  = "procurement.manage"
 	PermProcurementApprove = "procurement.approve"
 	PermProcurementReceive = "procurement.receive"
+	PermProcurementReturn  = "procurement.return"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -97,6 +98,7 @@ var allPermissions = []string{
 	PermProcurementManage,
 	PermProcurementApprove,
 	PermProcurementReceive,
+	PermProcurementReturn,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -191,6 +193,7 @@ var operatorPermissions = []string{
 	PermProcurementView,
 	PermProcurementManage,
 	PermProcurementReceive,
+	PermProcurementReturn,
 }
 
 var readonlyPermissions = []string{

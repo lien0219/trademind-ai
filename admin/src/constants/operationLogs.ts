@@ -34,6 +34,7 @@ export const OPERATION_LOG_RESOURCE_LABEL: Record<string, string> = {
   platform_app_settings: '平台应用设置',
   platform_publish_settings: '平台刊登设置',
   pricing: '定价规则',
+  purchase_return: '采购退货单',
 };
 
 /** 操作日志 · 操作动作中文映射（与后端 operationlog Action 一致） */
@@ -214,6 +215,11 @@ export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   'inventory.alert.sync_inventory': '同步库存预警',
   'inventory.order_deduct.sync_enqueue_failed': '订单扣减后同步入队失败',
   'inventory.order_restore.sync_enqueue_failed': '订单恢复后同步入队失败',
+  'procurement.purchase_return.create': '创建采购退货单',
+  'procurement.purchase_return.submit': '提交采购退货审批',
+  'procurement.purchase_return.approve': '审批采购退货单',
+  'procurement.purchase_return.complete': '执行采购退货',
+  'procurement.purchase_return.cancel': '取消采购退货单',
   'customer.conversation.create': '创建客服会话',
   'customer.conversation.update': '更新客服会话',
   'customer.conversation.close': '关闭客服会话',

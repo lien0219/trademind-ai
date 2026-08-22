@@ -2,21 +2,24 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import { history, useParams } from '@umijs/max';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Alert, Button, Descriptions, Form, Input, InputNumber, Modal, Space, Tag, Typography, message } from 'antd';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PermissionGuard from '@/components/PermissionGuard';
-import { ErrorAlert, SectionCard, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
+import { EmptyState, ErrorAlert, SectionCard, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import {
   createProcurementIdempotencyKey,
+  createPurchaseReturn,
   extractProcurementAPIError,
   getPurchaseOrder,
   listSuppliers,
+  listReturnableReceiptItems,
   listWarehouses,
   procurementErrorMessage,
   receivePurchaseOrder,
   transitionPurchaseOrder,
   type PurchaseOrder,
   type PurchaseOrderItem,
+  type ReturnableReceiptItem,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
 import { formatDateTime } from '@/utils/formatTime';
@@ -27,6 +30,7 @@ type TransitionAction = 'submit' | 'approve' | 'cancel' | 'close';
 type TransitionState = { action: TransitionAction; label: string; danger?: boolean };
 type TransitionValues = { reason: string };
 type ReceiptValues = { quantities: Record<string, number> };
+type ReturnValues = { reason: string; remark: string; quantities: Record<string, number> };
 
 function statusTag(status: string) {
   const meta = PURCHASE_ORDER_STATUS[status] || { text: '未知状态', color: 'default' };
@@ -41,6 +45,7 @@ export default function PurchaseOrderDetailPage() {
   const canReceive = !readonly && can(PERMISSIONS.PROCUREMENT_RECEIVE);
   const [transitionForm] = Form.useForm<TransitionValues>();
   const [receiptForm] = Form.useForm<ReceiptValues>();
+  const [returnForm] = Form.useForm<ReturnValues>();
   const [order, setOrder] = useState<PurchaseOrder>();
   const [supplierName, setSupplierName] = useState('');
   const [warehouseName, setWarehouseName] = useState('');
@@ -51,6 +56,14 @@ export default function PurchaseOrderDetailPage() {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptSubmitting, setReceiptSubmitting] = useState(false);
   const [receiptKey, setReceiptKey] = useState('');
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnLoading, setReturnLoading] = useState(false);
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [returnError, setReturnError] = useState('');
+  const [returnItems, setReturnItems] = useState<ReturnableReceiptItem[]>([]);
+  const [returnKey, setReturnKey] = useState('');
+  const returnSubmittingRef = useRef(false);
+  const returnLoadSequenceRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -73,6 +86,10 @@ export default function PurchaseOrderDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => () => {
+    returnLoadSequenceRef.current += 1;
+  }, []);
 
   const openTransition = (state: TransitionState) => {
     transitionForm.setFieldsValue({ reason: '' });
@@ -135,6 +152,70 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
+  const openReturn = async () => {
+    if (!order) return;
+    const loadSequence = ++returnLoadSequenceRef.current;
+    setReturnOpen(true);
+    setReturnLoading(true);
+    setReturnError('');
+    setReturnItems([]);
+    returnForm.resetFields();
+    setReturnKey(createProcurementIdempotencyKey('purchase-return-create'));
+    try {
+      const result = await listReturnableReceiptItems(order.id);
+      if (returnLoadSequenceRef.current !== loadSequence) return;
+      const items = result.list || [];
+      setReturnItems(items);
+      returnForm.setFieldsValue({
+        reason: '',
+        remark: '',
+        quantities: Object.fromEntries(items.map((item) => [item.goodsReceiptItemId, 0])),
+      });
+    } catch (nextError) {
+      if (returnLoadSequenceRef.current !== loadSequence) return;
+      setReturnError(procurementErrorMessage(extractProcurementAPIError(nextError), '可退收货记录加载失败，请稍后重试。'));
+    } finally {
+      if (returnLoadSequenceRef.current === loadSequence) setReturnLoading(false);
+    }
+  };
+
+  const closeReturn = () => {
+    if (returnSubmittingRef.current) return;
+    returnLoadSequenceRef.current += 1;
+    setReturnOpen(false);
+    setReturnLoading(false);
+  };
+
+  const submitReturn = async (values: ReturnValues) => {
+    if (!order || returnSubmittingRef.current) return;
+    const items = returnItems
+      .map((item) => ({ goodsReceiptItemId: item.goodsReceiptItemId, quantity: Number(values.quantities?.[item.goodsReceiptItemId] || 0) }))
+      .filter((item) => item.quantity > 0);
+    if (items.length === 0) {
+      message.warning('请至少填写一项本次退货数量');
+      return;
+    }
+    returnSubmittingRef.current = true;
+    setReturnSubmitting(true);
+    try {
+      const purchaseReturn = await createPurchaseReturn({
+        idempotencyKey: returnKey,
+        purchaseOrderId: order.id,
+        reason: values.reason.trim(),
+        remark: values.remark?.trim() || '',
+        items,
+      });
+      setReturnOpen(false);
+      message.success(`采购退货草稿已创建：${purchaseReturn.returnNo}`);
+      history.push(`/procurement/purchase-returns/${purchaseReturn.id}`);
+    } catch (nextError) {
+      message.error(procurementErrorMessage(extractProcurementAPIError(nextError), '采购退货创建失败，请核对数量后重试。'));
+    } finally {
+      returnSubmittingRef.current = false;
+      setReturnSubmitting(false);
+    }
+  };
+
   const itemColumns: ProColumns<PurchaseOrderItem>[] = [
     {
       title: '商品', dataIndex: 'productTitle', minWidth: 170, ellipsis: true,
@@ -159,6 +240,8 @@ export default function PurchaseOrderDetailPage() {
         {order.status === 'draft' && canManage ? <Button type="primary" onClick={() => openTransition({ action: 'submit', label: '提交审批' })}>提交审批</Button> : null}
         {order.status === 'pending_approval' && canApprove ? <Button type="primary" onClick={() => openTransition({ action: 'approve', label: '审批通过' })}>审批通过</Button> : null}
         {canReceive && canReceivePurchaseOrder(order.status) ? <Button type="primary" onClick={openReceipt}>确认收货</Button> : null}
+        {canManage && ['partially_received', 'received', 'closed'].includes(order.status) ? <Button onClick={() => void openReturn()}>发起退货</Button> : null}
+        {['partially_received', 'received', 'closed'].includes(order.status) ? <Button onClick={() => history.push(`/procurement/purchase-returns?purchaseOrderId=${encodeURIComponent(order.id)}`)}>退货记录</Button> : null}
         {canManage && ['approved', 'partially_received'].includes(order.status) ? <Button onClick={() => openTransition({ action: 'close', label: '关闭采购单', danger: true })}>关闭采购单</Button> : null}
         {canManage && ['draft', 'pending_approval', 'approved'].includes(order.status) && (order.items || []).every((item) => item.receivedQuantity === 0) ? (
           <Button danger onClick={() => openTransition({ action: 'cancel', label: '取消采购单', danger: true })}>取消采购单</Button>
@@ -179,7 +262,7 @@ export default function PurchaseOrderDetailPage() {
         {error ? <ErrorAlert title={error} actionHint={<Button onClick={() => void load()}>重新加载</Button>} /> : null}
         {order ? (
           <>
-            {readonly ? <Alert type="info" showIcon message="当前账号为只读模式，不能提交、审批或确认收货。" /> : null}
+            {readonly ? <Alert type="info" showIcon message="当前账号为只读模式，不能提交、审批、确认收货或发起退货。" /> : null}
             <SectionCard title="采购单信息" description="状态变更使用当前版本号提交，避免覆盖他人已完成的操作。">
               <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
                 <Descriptions.Item label="采购单号"><Typography.Text copyable>{order.purchaseOrderNo}</Typography.Text></Descriptions.Item>
@@ -254,6 +337,47 @@ export default function PurchaseOrderDetailPage() {
                 );
               })}
             </div>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="发起采购退货"
+          open={returnOpen}
+          width={780}
+          confirmLoading={returnSubmitting}
+          okText="创建退货单草稿"
+          okButtonProps={{ disabled: returnLoading || Boolean(returnError) || returnItems.length === 0 }}
+          cancelText="取消"
+          onCancel={closeReturn}
+          onOk={() => returnForm.submit()}
+          forceRender
+        >
+          <Form form={returnForm} layout="vertical" preserve={false} onFinish={(values) => void submitReturn(values)}>
+            <Alert type="info" showIcon message="创建后为草稿，不会立即扣减库存；提交审批并由独立执行岗确认后才会完成出库。" />
+            <Form.Item label="退货原因" name="reason" rules={[{ required: true, whitespace: true, message: '请输入退货原因' }, { max: 128, message: '退货原因不能超过 128 个字符' }]}>
+              <Input maxLength={128} placeholder="例如：到货质量异常" />
+            </Form.Item>
+            <Form.Item label="备注" name="remark" rules={[{ max: 520, message: '备注不能超过 520 个字符' }]}>
+              <Input.TextArea rows={2} maxLength={520} showCount />
+            </Form.Item>
+            {returnLoading ? <Alert type="info" showIcon message="正在加载可退收货记录…" /> : null}
+            {returnError ? <ErrorAlert title={returnError} actionHint={<Button onClick={() => void openReturn()}>重新加载</Button>} /> : null}
+            {!returnLoading && !returnError && returnItems.length === 0 ? <EmptyState compact title="没有可退数量" description="该采购单的收货数量已全部分配给有效退货单，或当前没有收货记录。" /> : null}
+            {!returnLoading && !returnError && returnItems.length > 0 ? <div className="tm-procurement-receipt-list">
+              {returnItems.map((item) => <div className="tm-procurement-receipt-row" key={item.goodsReceiptItemId}>
+                <div>
+                  <Typography.Text strong>{item.productTitle || item.productSkuId}</Typography.Text>
+                  <Typography.Text type="secondary">{item.skuName || item.skuCode || '未命名规格'} · 收货单 {item.receiptNo} · 可退 {item.remainingQuantity}</Typography.Text>
+                </div>
+                <Form.Item
+                  label="本次退货"
+                  name={['quantities', item.goodsReceiptItemId]}
+                  rules={[{ type: 'number', min: 0, max: item.remainingQuantity, message: `可退数量为 0–${item.remainingQuantity}` }]}
+                >
+                  <InputNumber min={0} max={item.remainingQuantity} precision={0} />
+                </Form.Item>
+              </div>)}
+            </div> : null}
           </Form>
         </Modal>
       </TmPageContainer>

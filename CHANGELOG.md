@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### ERP purchase returns (2026-08-22)
+
+- Added tenant-scoped, receipt-bound purchase returns with cumulative over-return protection, revision-checked state transitions, action idempotency, separated approval/execution duties, and cancellation that releases receipt allocation.
+- Completed returns atomically deduct warehouse available stock and update immutable movements, compatibility logs, and the `product_skus.stock` projection; insufficient stock rolls back the entire return.
+- Added Admin list/detail/create workflows, permission-aware and readonly controls, audit labels, API contracts, PostgreSQL allocation-concurrency coverage, and five-viewport/write-safety regression coverage without enabling supplier settlement, real-platform inventory writes, automatic replenishment, or new workers.
+
 ### Order and inventory production hardening (2026-08-21)
 
 - Enforced order-operation permission checks on every Admin order write endpoint, including order, line-item and shipment mutations.

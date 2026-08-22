@@ -18,5 +18,11 @@ describe('procurement service helpers', () => {
     expect(procurementErrorMessage({ code: 40901, message: 'purchase order revision conflict' })).toContain(
       '已被其他人更新',
     );
+    expect(procurementErrorMessage({ code: 40901, message: 'purchase return revision conflict' })).toContain(
+      '采购退货单',
+    );
+    expect(procurementErrorMessage({ code: 40901, message: 'purchase return approver cannot complete the return' })).toBe(
+      '审批人与退货执行人必须为不同账号。',
+    );
   });
 });

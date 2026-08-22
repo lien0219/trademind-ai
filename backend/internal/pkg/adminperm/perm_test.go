@@ -55,11 +55,11 @@ func TestPermissionsForRole(t *testing.T) {
 	if !StrictHasPermission(RoleReadonly, PermInventorySyncRead) || !StrictHasPermission(RoleReadonly, PermInventorySnapshotRead) || !StrictHasPermission(RoleReadonly, PermSKUBindingRead) {
 		t.Fatal("readonly should read inventory sync, snapshots, and SKU bindings")
 	}
-	if !StrictHasPermission(RoleOperator, PermProcurementManage) || !StrictHasPermission(RoleOperator, PermProcurementReceive) || StrictHasPermission(RoleOperator, PermProcurementApprove) {
-		t.Fatal("operator should manage and receive purchase orders but must not approve them")
+	if !StrictHasPermission(RoleOperator, PermProcurementManage) || !StrictHasPermission(RoleOperator, PermProcurementReceive) || !StrictHasPermission(RoleOperator, PermProcurementReturn) || StrictHasPermission(RoleOperator, PermProcurementApprove) {
+		t.Fatal("operator should manage, receive, and return purchase orders but must not approve them")
 	}
-	if !StrictHasPermission(RoleReviewer, PermProcurementApprove) || StrictHasPermission(RoleReviewer, PermProcurementManage) || StrictHasPermission(RoleReviewer, PermProcurementReceive) {
-		t.Fatal("reviewer should approve purchase orders without editing or receiving them")
+	if !StrictHasPermission(RoleReviewer, PermProcurementApprove) || StrictHasPermission(RoleReviewer, PermProcurementManage) || StrictHasPermission(RoleReviewer, PermProcurementReceive) || StrictHasPermission(RoleReviewer, PermProcurementReturn) {
+		t.Fatal("reviewer should approve purchase orders without editing, receiving, or returning them")
 	}
 	if !StrictHasPermission(RoleReadonly, PermWarehouseView) || !StrictHasPermission(RoleReadonly, PermSupplierView) || !StrictHasPermission(RoleReadonly, PermProcurementView) {
 		t.Fatal("readonly should view ERP master data and purchase orders")
