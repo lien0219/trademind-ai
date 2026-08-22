@@ -80,6 +80,14 @@
 | `POST` | `/api/v1/inventory/warehouse-transfers/:id/dispatch` | `inventory.operate` | 发出调拨，校验可用库存并把源仓在手转入在途；事务内写不可变流水。 |
 | `POST` | `/api/v1/inventory/warehouse-transfers/:id/receive` | `inventory.operate` | 目标仓收货，把源仓在途转为目标仓在手；同一 action 幂等。 |
 | `POST` | `/api/v1/inventory/warehouse-transfers/:id/cancel` | `inventory.operate` | 取消草稿、待审批或已审批调拨；发出后不可取消。 |
+| `GET` | `/api/v1/inventory/stocktakes` | `inventory.view` | 分页查看当前租户盘点单；支持 `page`、`pageSize`、`status`。 |
+| `GET` | `/api/v1/inventory/stocktakes/:id` | `inventory.view` | 查看盘点快照、实盘数量和当前 revision。 |
+| `POST` | `/api/v1/inventory/stocktakes` | `inventory.operate` | 创建盘点中草稿；JSON：`idempotencyKey`、`warehouseId`、`reason`、`remark`、`items[]`。创建时记录仓库余额快照并确保历史 SKU 已进入仓库账。 |
+| `PATCH` | `/api/v1/inventory/stocktakes/:id/items/:itemId` | `inventory.operate` | 录入或更正一条实盘数量；JSON：`expectedRevision`、`idempotencyKey`、`countedOnHand`、`remark`。同键同 payload 幂等返回，同键不同 payload 返回 `409`。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/submit` | `inventory.operate` | 提交盘点审核；所有明细必须已有实盘数量。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/approve` | `inventory.approve` | 审核盘点结果；与盘点创建、录入和过账职责分离。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/post` | `inventory.operate` | 过账盘点差异；校验快照版本，事务内更新仓库在手、不可变流水、兼容聚合和变更日志；快照过期返回 `409` 且不产生部分写入。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/cancel` | `inventory.operate` | 取消盘点中、待审核或已审核盘点；过账后不可取消。 |
 | `GET` | `/api/v1/suppliers` | `supplier.view` | 当前租户供应商列表；无 `pii.read_full` 时电话和邮箱脱敏。 |
 | `POST` | `/api/v1/suppliers` | `supplier.manage` | 创建供应商；JSON：`code`、`name`、`contactName`、`phone`、`email`。 |
 | `PUT` | `/api/v1/suppliers/:id` | `supplier.manage` | 更新供应商名称、启停状态和联系方式；JSON：`name`、`status`、`contactName`，可选 `phone`、`email`，敏感字段省略时保留原值，响应继续按权限脱敏。 |

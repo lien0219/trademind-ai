@@ -46,6 +46,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/inventory/logs': PERMISSIONS.INVENTORY_VIEW,
   '/inventory/warehouse-ledger': PERMISSIONS.INVENTORY_VIEW,
   '/inventory/warehouse-transfers': PERMISSIONS.INVENTORY_VIEW,
+  '/inventory/stocktakes': PERMISSIONS.INVENTORY_VIEW,
   '/procurement/purchase-orders': PERMISSIONS.PROCUREMENT_VIEW,
   '/procurement/warehouses': PERMISSIONS.WAREHOUSE_VIEW,
   '/procurement/suppliers': PERMISSIONS.SUPPLIER_VIEW,

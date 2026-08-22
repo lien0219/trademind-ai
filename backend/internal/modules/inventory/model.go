@@ -128,6 +128,64 @@ type WarehouseTransferAction struct {
 
 func (WarehouseTransferAction) TableName() string { return "warehouse_transfer_actions" }
 
+// InventoryStocktake records one warehouse physical count. The counted
+// quantity is intentionally limited to on-hand stock in the first increment;
+// reserved, damaged, and in-transit quantities remain ledger-controlled facts.
+type InventoryStocktake struct {
+	model.Base
+	TenantID       int64                    `gorm:"not null;uniqueIndex:ux_stocktake_tenant_no;uniqueIndex:ux_stocktake_tenant_idempotency;index" json:"tenantId"`
+	StocktakeNo    string                   `gorm:"size:64;not null;uniqueIndex:ux_stocktake_tenant_no" json:"stocktakeNo"`
+	WarehouseID    uuid.UUID                `gorm:"type:char(36);not null;index" json:"warehouseId"`
+	Status         string                   `gorm:"size:32;not null;index" json:"status"`
+	Revision       int                      `gorm:"not null;default:1" json:"revision"`
+	IdempotencyKey string                   `gorm:"size:128;not null;uniqueIndex:ux_stocktake_tenant_idempotency" json:"idempotencyKey"`
+	PayloadHash    string                   `gorm:"size:64;not null" json:"-"`
+	Reason         string                   `gorm:"size:128" json:"reason,omitempty"`
+	Remark         string                   `gorm:"size:520" json:"remark,omitempty"`
+	CreatedBy      *uuid.UUID               `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	SubmittedBy    *uuid.UUID               `gorm:"type:char(36);index" json:"submittedBy,omitempty"`
+	SubmittedAt    *time.Time               `json:"submittedAt,omitempty"`
+	ApprovedBy     *uuid.UUID               `gorm:"type:char(36);index" json:"approvedBy,omitempty"`
+	ApprovedAt     *time.Time               `json:"approvedAt,omitempty"`
+	PostedBy       *uuid.UUID               `gorm:"type:char(36);index" json:"postedBy,omitempty"`
+	PostedAt       *time.Time               `json:"postedAt,omitempty"`
+	CancelledAt    *time.Time               `json:"cancelledAt,omitempty"`
+	Items          []InventoryStocktakeItem `gorm:"foreignKey:StocktakeID" json:"items,omitempty"`
+}
+
+func (InventoryStocktake) TableName() string { return "inventory_stocktakes" }
+
+type InventoryStocktakeItem struct {
+	model.HardDeleteBase
+	TenantID          int64     `gorm:"not null;index" json:"tenantId"`
+	StocktakeID       uuid.UUID `gorm:"type:char(36);not null;index;uniqueIndex:ux_stocktake_item_sku" json:"stocktakeId"`
+	ProductID         uuid.UUID `gorm:"type:char(36);not null;index" json:"productId"`
+	ProductSKUID      uuid.UUID `gorm:"column:product_sku_id;type:char(36);not null;index;uniqueIndex:ux_stocktake_item_sku" json:"productSkuId"`
+	SnapshotOnHand    int       `gorm:"not null" json:"snapshotOnHand"`
+	SnapshotReserved  int       `gorm:"not null;default:0" json:"snapshotReserved"`
+	SnapshotInTransit int       `gorm:"not null;default:0" json:"snapshotInTransit"`
+	SnapshotDamaged   int       `gorm:"not null;default:0" json:"snapshotDamaged"`
+	SnapshotVersion   int       `gorm:"not null" json:"snapshotVersion"`
+	CountedOnHand     *int      `json:"countedOnHand,omitempty"`
+	Remark            string    `gorm:"size:520" json:"remark,omitempty"`
+	ProductTitle      string    `gorm:"-" json:"productTitle,omitempty"`
+	SKUCode           string    `gorm:"-" json:"skuCode,omitempty"`
+	SKUName           string    `gorm:"-" json:"skuName,omitempty"`
+}
+
+func (InventoryStocktakeItem) TableName() string { return "inventory_stocktake_items" }
+
+type InventoryStocktakeAction struct {
+	model.HardDeleteBase
+	TenantID       int64     `gorm:"not null;uniqueIndex:ux_stocktake_action_event;index" json:"tenantId"`
+	StocktakeID    uuid.UUID `gorm:"type:char(36);not null;uniqueIndex:ux_stocktake_action_event;index" json:"stocktakeId"`
+	Action         string    `gorm:"size:64;not null;uniqueIndex:ux_stocktake_action_event" json:"action"`
+	IdempotencyKey string    `gorm:"size:128;not null;uniqueIndex:ux_stocktake_action_event" json:"idempotencyKey"`
+	RequestHash    string    `gorm:"size:64;not null" json:"-"`
+}
+
+func (InventoryStocktakeAction) TableName() string { return "inventory_stocktake_actions" }
+
 // InventorySyncBatch groups many outbound inventory_sync_tasks created in one bulk submission.
 type InventorySyncBatch struct {
 	model.HardDeleteBase

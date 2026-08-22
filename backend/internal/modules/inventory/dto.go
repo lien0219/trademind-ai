@@ -87,6 +87,46 @@ type WarehouseTransferListResult struct {
 	TotalPages int                        `json:"totalPages"`
 }
 
+type CreateInventoryStocktakeBody struct {
+	IdempotencyKey string                         `json:"idempotencyKey" binding:"required"`
+	WarehouseID    uuid.UUID                      `json:"warehouseId" binding:"required"`
+	Reason         string                         `json:"reason"`
+	Remark         string                         `json:"remark"`
+	Items          []CreateInventoryStocktakeItem `json:"items" binding:"required,min=1"`
+}
+
+type CreateInventoryStocktakeItem struct {
+	ProductSKUID uuid.UUID `json:"productSkuId" binding:"required"`
+}
+
+type InventoryStocktakeItemBody struct {
+	ExpectedRevision int    `json:"expectedRevision"`
+	IdempotencyKey   string `json:"idempotencyKey" binding:"required"`
+	CountedOnHand    *int   `json:"countedOnHand" binding:"required"`
+	Remark           string `json:"remark"`
+}
+
+type InventoryStocktakeActionBody struct {
+	ExpectedRevision int    `json:"expectedRevision"`
+	IdempotencyKey   string `json:"idempotencyKey" binding:"required"`
+	Reason           string `json:"reason"`
+}
+
+type InventoryStocktakeListRow struct {
+	InventoryStocktake
+	WarehouseCode string `json:"warehouseCode"`
+	WarehouseName string `json:"warehouseName"`
+	ItemCount     int    `json:"itemCount"`
+}
+
+type InventoryStocktakeListResult struct {
+	List       []InventoryStocktakeListRow `json:"list"`
+	Total      int64                       `json:"total"`
+	Page       int                         `json:"page"`
+	PageSize   int                         `json:"pageSize"`
+	TotalPages int                         `json:"totalPages"`
+}
+
 type LegacyStockMigrationResult struct {
 	WarehouseID    uuid.UUID `json:"warehouseId"`
 	WarehouseCode  string    `json:"warehouseCode"`

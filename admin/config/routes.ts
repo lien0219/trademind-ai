@@ -399,6 +399,11 @@ export default [
         component: './Inventory/WarehouseTransfers',
       },
       {
+        path: '/inventory/stocktakes',
+        name: '库存盘点',
+        component: './Inventory/Stocktakes',
+      },
+      {
         path: '/inventory/deductions',
         name: '库存扣减记录',
         component: './Inventory/Deductions',

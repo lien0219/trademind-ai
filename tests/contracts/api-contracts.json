@@ -211,6 +211,69 @@
       "requiredPermission": "inventory.operate"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/inventory/stocktakes",
+      "auth": true,
+      "query": ["page", "pageSize", "status"],
+      "responseData": "InventoryStocktakeList",
+      "requiredPermission": "inventory.view"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/stocktakes/:id",
+      "auth": true,
+      "responseData": "InventoryStocktake",
+      "requiredPermission": "inventory.view"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/stocktakes",
+      "auth": true,
+      "requestBody": ["idempotencyKey", "warehouseId", "reason", "remark", "items"],
+      "responseData": "InventoryStocktake",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/inventory/stocktakes/:id/items/:itemId",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "countedOnHand", "remark"],
+      "responseData": "InventoryStocktake",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/stocktakes/:id/submit",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "InventoryStocktake",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/stocktakes/:id/approve",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "InventoryStocktake",
+      "requiredPermission": "inventory.approve"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/stocktakes/:id/post",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "InventoryStocktake",
+      "requiredPermission": "inventory.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/stocktakes/:id/cancel",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "reason"],
+      "responseData": "InventoryStocktake",
+      "requiredPermission": "inventory.operate"
+    },
+    {
       "method": "POST",
       "path": "/api/v1/orders",
       "auth": true,

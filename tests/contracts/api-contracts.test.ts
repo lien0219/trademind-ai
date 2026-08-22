@@ -37,6 +37,14 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/inventory/warehouse-transfers/:id/dispatch",
         "POST /api/v1/inventory/warehouse-transfers/:id/receive",
         "POST /api/v1/inventory/warehouse-transfers/:id/cancel",
+        "GET /api/v1/inventory/stocktakes",
+        "GET /api/v1/inventory/stocktakes/:id",
+        "POST /api/v1/inventory/stocktakes",
+        "PATCH /api/v1/inventory/stocktakes/:id/items/:itemId",
+        "POST /api/v1/inventory/stocktakes/:id/submit",
+        "POST /api/v1/inventory/stocktakes/:id/approve",
+        "POST /api/v1/inventory/stocktakes/:id/post",
+        "POST /api/v1/inventory/stocktakes/:id/cancel",
         "GET /api/v1/orders",
         "POST /api/v1/orders",
         "GET /api/v1/orders/:id",
@@ -160,6 +168,16 @@ describe("TradeMind API contract registry", () => {
     expect(endpoint("POST /api/v1/inventory/warehouse-transfers")?.requestBody).toEqual(["idempotencyKey", "sourceWarehouseId", "targetWarehouseId", "reason", "remark", "items"]);
     expect(endpoint("POST /api/v1/inventory/warehouse-transfers/:id/dispatch")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "reason"]);
     expect(endpoint("POST /api/v1/inventory/warehouse-transfers/:id/approve")?.requiredPermission).toBe("inventory.approve");
+  });
+
+  it("defines stocktake snapshot, review, and posting contracts", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/inventory/stocktakes")?.query).toEqual(["page", "pageSize", "status"]);
+    expect(endpoint("POST /api/v1/inventory/stocktakes")?.requestBody).toEqual(["idempotencyKey", "warehouseId", "reason", "remark", "items"]);
+    expect(endpoint("POST /api/v1/inventory/stocktakes")?.requiredPermission).toBe("inventory.operate");
+    expect(endpoint("PATCH /api/v1/inventory/stocktakes/:id/items/:itemId")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "countedOnHand", "remark"]);
+    expect(endpoint("POST /api/v1/inventory/stocktakes/:id/approve")?.requiredPermission).toBe("inventory.approve");
+    expect(endpoint("POST /api/v1/inventory/stocktakes/:id/post")?.requiredPermission).toBe("inventory.operate");
   });
 
   it("defines warehouse-bound order inventory lifecycle contracts", () => {
@@ -424,7 +442,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(69);
+    expect(contracts.endpoints).toHaveLength(77);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

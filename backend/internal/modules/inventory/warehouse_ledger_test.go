@@ -29,7 +29,7 @@ func newWarehouseLedgerFixture(t *testing.T, withDefault bool) *warehouseLedgerF
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&admin.AdminUser{}, &product.Product{}, &product.ProductSKU{}, &warehouse.Warehouse{}, &WarehouseStockBalance{}, &InventoryMovement{}, &InventoryChangeLog{}); err != nil {
+	if err := db.AutoMigrate(&admin.AdminUser{}, &product.Product{}, &product.ProductSKU{}, &warehouse.Warehouse{}, &WarehouseStockBalance{}, &InventoryMovement{}, &InventoryChangeLog{}, &InventoryStocktake{}, &InventoryStocktakeItem{}, &InventoryStocktakeAction{}); err != nil {
 		t.Fatal(err)
 	}
 	warehouseService := &warehouse.Service{DB: db}

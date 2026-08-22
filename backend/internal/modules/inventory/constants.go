@@ -51,6 +51,7 @@ const (
 	ChangeOrderCancel     = "order_cancel_restore"
 	ChangeImport          = "import"
 	ChangePurchaseReceipt = "purchase_receipt"
+	ChangeStocktakeAdjust = "stocktake_adjust"
 )
 
 const (
@@ -63,6 +64,7 @@ const (
 	MovementOrderRestore     = "order_refund_restore"
 	MovementTransferDispatch = "transfer_dispatch"
 	MovementTransferReceive  = "transfer_receive"
+	MovementStocktakeAdjust  = "stocktake_adjust"
 )
 
 const (
@@ -72,6 +74,14 @@ const (
 	TransferInTransit       = "in_transit"
 	TransferReceived        = "received"
 	TransferCancelled       = "cancelled"
+)
+
+const (
+	StocktakeCounting      = "counting"
+	StocktakePendingReview = "pending_review"
+	StocktakeApproved      = "approved"
+	StocktakePosted        = "posted"
+	StocktakeCancelled     = "cancelled"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).

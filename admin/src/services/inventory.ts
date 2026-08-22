@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, postJSON } from "@/services/request";
+import { getJSON, getWithParams, patchJSON, postJSON } from "@/services/request";
 
 export type PaginatedInventory<T> = {
   list: T[];
@@ -211,6 +211,87 @@ export async function createWarehouseTransfer(payload: CreateWarehouseTransferPa
 
 export async function actOnWarehouseTransfer(id: string, action: 'submit' | 'approve' | 'dispatch' | 'receive' | 'cancel', payload: WarehouseTransferActionPayload) {
   return postJSON<WarehouseTransfer>(`/api/v1/inventory/warehouse-transfers/${encodeURIComponent(id)}/${action}`, payload);
+}
+
+export type InventoryStocktakeStatus = 'counting' | 'pending_review' | 'approved' | 'posted' | 'cancelled' | string;
+export type InventoryStocktakeItem = {
+  id: string;
+  productId: string;
+  productSkuId: string;
+  snapshotOnHand: number;
+  snapshotReserved: number;
+  snapshotInTransit: number;
+  snapshotDamaged: number;
+  snapshotVersion: number;
+  countedOnHand?: number;
+  remark?: string;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+};
+export type InventoryStocktake = {
+  id: string;
+  stocktakeNo: string;
+  warehouseId: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  status: InventoryStocktakeStatus;
+  revision: number;
+  idempotencyKey: string;
+  reason?: string;
+  remark?: string;
+  itemCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  items?: InventoryStocktakeItem[];
+};
+export type InventoryStocktakeList = {
+  list: InventoryStocktake[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+export type CreateInventoryStocktakePayload = {
+  idempotencyKey: string;
+  warehouseId: string;
+  reason?: string;
+  remark?: string;
+  items: Array<{ productSkuId: string }>;
+};
+export type InventoryStocktakeItemPayload = {
+  expectedRevision: number;
+  idempotencyKey: string;
+  countedOnHand: number;
+  remark?: string;
+};
+export type InventoryStocktakeActionPayload = {
+  expectedRevision: number;
+  idempotencyKey: string;
+  reason?: string;
+};
+
+export async function queryInventoryStocktakes(params?: { page?: number; pageSize?: number; status?: string }) {
+  return getWithParams<InventoryStocktakeList>('/api/v1/inventory/stocktakes', params);
+}
+
+export async function getInventoryStocktake(id: string) {
+  return getJSON<InventoryStocktake>(`/api/v1/inventory/stocktakes/${encodeURIComponent(id)}`);
+}
+
+export async function createInventoryStocktake(payload: CreateInventoryStocktakePayload) {
+  return postJSON<InventoryStocktake>('/api/v1/inventory/stocktakes', payload);
+}
+
+export async function updateInventoryStocktakeItem(stocktakeId: string, itemId: string, payload: InventoryStocktakeItemPayload) {
+  return patchJSON<InventoryStocktake, InventoryStocktakeItemPayload>(
+    `/api/v1/inventory/stocktakes/${encodeURIComponent(stocktakeId)}/items/${encodeURIComponent(itemId)}`,
+    payload,
+  );
+}
+
+export async function actOnInventoryStocktake(id: string, action: 'submit' | 'approve' | 'post' | 'cancel', payload: InventoryStocktakeActionPayload) {
+  return postJSON<InventoryStocktake>(`/api/v1/inventory/stocktakes/${encodeURIComponent(id)}/${action}`, payload);
 }
 
 export async function listSkuWarehouseBalances(

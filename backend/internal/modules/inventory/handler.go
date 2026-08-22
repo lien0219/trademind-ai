@@ -321,11 +321,19 @@ func (h *Handler) CreateWarehouseTransfer(c *gin.Context) {
 func (h *Handler) transitionTransfer(c *gin.Context, action string) {
 	permission := adminperm.PermInventoryOperate
 	if action == "approve" {
-		if h == nil || h.Svc == nil || h.Svc.DB == nil { response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "inventory unavailable"); return }
+		if h == nil || h.Svc == nil || h.Svc.DB == nil {
+			response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "inventory unavailable")
+			return
+		}
 		principal, err := adminperm.LoadPrincipal(c, h.Svc.DB)
-		if err != nil || principal == nil || !principal.Can(adminperm.PermInventoryApprove) || principal.IsReadonly() { response.Fail(c, http.StatusForbidden, response.CodeForbidden, "inventory approval permission denied"); return }
+		if err != nil || principal == nil || !principal.Can(adminperm.PermInventoryApprove) || principal.IsReadonly() {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "inventory approval permission denied")
+			return
+		}
 		permission = adminperm.PermInventoryApprove
-	} else if !h.requireInventoryWrite(c) { return }
+	} else if !h.requireInventoryWrite(c) {
+		return
+	}
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
@@ -370,6 +378,181 @@ func (h *Handler) ApproveWarehouseTransfer(c *gin.Context)  { h.transitionTransf
 func (h *Handler) DispatchWarehouseTransfer(c *gin.Context) { h.transitionTransfer(c, "dispatch") }
 func (h *Handler) ReceiveWarehouseTransfer(c *gin.Context)  { h.transitionTransfer(c, "receive") }
 func (h *Handler) CancelWarehouseTransfer(c *gin.Context)   { h.transitionTransfer(c, "cancel") }
+
+func stocktakeParam(c *gin.Context, key string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param(key)))
+	if err != nil || id == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid inventory stocktake id")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func handleStocktakeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrStocktakeInvalidInput):
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+	case errors.Is(err, ErrStocktakeAbsent):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+	case errors.Is(err, ErrStocktakeTransition), errors.Is(err, ErrStocktakeRevision), errors.Is(err, ErrStocktakeIdempotency), errors.Is(err, ErrStocktakeSnapshot):
+		response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "SKU not found")
+	default:
+		response.HandleError(c, err)
+	}
+}
+
+func (h *Handler) ListInventoryStocktakes(c *gin.Context) {
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	result, err := h.Svc.ListInventoryStocktakes(c.Request.Context(), tenantID, atoiQ(c, "page", 1), atoiQ(c, "pageSize", 20), c.Query("status"))
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+func (h *Handler) GetInventoryStocktake(c *gin.Context) {
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	id, ok := stocktakeParam(c, "id")
+	if !ok {
+		return
+	}
+	row, err := h.Svc.GetInventoryStocktake(c.Request.Context(), tenantID, id)
+	if err != nil {
+		handleStocktakeError(c, err)
+		return
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) CreateInventoryStocktake(c *gin.Context) {
+	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	var body CreateInventoryStocktakeBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.CreateInventoryStocktake(c.Request.Context(), tenantID, adminUUID(c), body)
+	if err != nil {
+		handleStocktakeError(c, err)
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.stocktake.create", Resource: "inventory_stocktake", ResourceID: row.ID.String(), Permission: adminperm.PermInventoryOperate, Status: "success"})
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) UpdateInventoryStocktakeItem(c *gin.Context) {
+	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	stocktakeID, ok := stocktakeParam(c, "id")
+	if !ok {
+		return
+	}
+	itemID, ok := stocktakeParam(c, "itemId")
+	if !ok {
+		return
+	}
+	var body InventoryStocktakeItemBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.UpdateInventoryStocktakeItem(c.Request.Context(), tenantID, stocktakeID, itemID, adminUUID(c), body)
+	if err != nil {
+		handleStocktakeError(c, err)
+		return
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) transitionStocktake(c *gin.Context, action string) {
+	permission := adminperm.PermInventoryOperate
+	if action == "approve" {
+		if h == nil || h.Svc == nil || h.Svc.DB == nil {
+			response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "inventory unavailable")
+			return
+		}
+		principal, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+		if err != nil || principal == nil || !principal.Can(adminperm.PermInventoryApprove) || principal.IsReadonly() {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "inventory approval permission denied")
+			return
+		}
+		permission = adminperm.PermInventoryApprove
+	} else if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	id, ok := stocktakeParam(c, "id")
+	if !ok {
+		return
+	}
+	var body InventoryStocktakeActionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	var row *InventoryStocktake
+	switch action {
+	case "submit":
+		row, err = h.Svc.SubmitInventoryStocktake(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	case "approve":
+		row, err = h.Svc.ApproveInventoryStocktake(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	case "post":
+		row, err = h.Svc.PostInventoryStocktake(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	case "cancel":
+		row, err = h.Svc.CancelInventoryStocktake(c.Request.Context(), tenantID, id, adminUUID(c), body)
+	default:
+		err = ErrStocktakeInvalidInput
+	}
+	if err != nil {
+		handleStocktakeError(c, err)
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.stocktake." + action, Resource: "inventory_stocktake", ResourceID: row.ID.String(), Permission: permission, Status: "success"})
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) SubmitInventoryStocktake(c *gin.Context)  { h.transitionStocktake(c, "submit") }
+func (h *Handler) ApproveInventoryStocktake(c *gin.Context) { h.transitionStocktake(c, "approve") }
+func (h *Handler) PostInventoryStocktake(c *gin.Context)    { h.transitionStocktake(c, "post") }
+func (h *Handler) CancelInventoryStocktake(c *gin.Context)  { h.transitionStocktake(c, "cancel") }
 
 // ListSKULogs GET /products/:id/skus/:skuId/inventory-logs
 func (h *Handler) ListSKULogs(c *gin.Context) {
