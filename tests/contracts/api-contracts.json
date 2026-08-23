@@ -47,6 +47,25 @@
       "requiredPermission": "order.view"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/orders/fulfillment-reconciliation",
+      "auth": true,
+      "query": ["page", "pageSize", "orderNo", "warehouseId", "status", "fulfillmentStatus", "reconciliationStatus"],
+      "responseData": "OrderFulfillmentReconciliationList",
+      "requiredPermission": "order.view",
+      "readonly": true,
+      "statusEnum": ["matched", "pending", "mismatch", "blocked"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/:id/fulfillment-reconciliation",
+      "auth": true,
+      "responseData": "OrderFulfillmentReconciliation",
+      "requiredPermission": "order.view",
+      "readonly": true,
+      "statusEnum": ["matched", "pending", "mismatch", "blocked"]
+    },
+    {
       "method": "PUT",
       "path": "/api/v1/warehouses/:id",
       "auth": true,

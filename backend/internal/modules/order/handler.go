@@ -141,8 +141,13 @@ func (h *Handler) List(c *gin.Context) {
 		SKUMatchStatus:        c.Query("skuMatchStatus"),
 		InventoryDeductStatus: c.Query("inventoryDeductStatus"),
 		SyncStatus:            c.Query("syncStatus"),
+		ReconciliationStatus:  c.Query("reconciliationStatus"),
 		HasException: strings.EqualFold(strings.TrimSpace(c.Query("hasException")), "true") ||
 			strings.TrimSpace(c.Query("hasException")) == "1",
+	}
+	if q.ReconciliationStatus != "" && !validReconciliationStatus(q.ReconciliationStatus) {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid reconciliationStatus")
+		return
 	}
 	q.UseCursor = q.Cursor != "" || q.Limit > 0
 	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {

@@ -46,8 +46,10 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/inventory/stocktakes/:id/post",
         "POST /api/v1/inventory/stocktakes/:id/cancel",
         "GET /api/v1/orders",
+        "GET /api/v1/orders/fulfillment-reconciliation",
         "POST /api/v1/orders",
         "GET /api/v1/orders/:id",
+        "GET /api/v1/orders/:id/fulfillment-reconciliation",
         "PUT /api/v1/orders/:id",
         "POST /api/v1/orders/:id/deduct-inventory",
         "POST /api/v1/orders/:id/restore-inventory",
@@ -260,6 +262,26 @@ describe("TradeMind API contract registry", () => {
     expect(
       endpoint("GET /api/v1/orders/:id/inventory-effects")?.requiredPermission,
     ).toBe("order.view");
+  });
+
+  it("defines read-only order fulfillment reconciliation contracts", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const list = endpoint("GET /api/v1/orders/fulfillment-reconciliation");
+    const detail = endpoint("GET /api/v1/orders/:id/fulfillment-reconciliation");
+    expect(list?.query).toEqual([
+      "page",
+      "pageSize",
+      "orderNo",
+      "warehouseId",
+      "status",
+      "fulfillmentStatus",
+      "reconciliationStatus",
+    ]);
+    expect(list?.requiredPermission).toBe("order.view");
+    expect(detail?.requiredPermission).toBe("order.view");
+    expect(list?.readonly).toBe(true);
+    expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
   });
 
   it("keeps SKU metadata writes tenant-scoped and separate from warehouse inventory", () => {
@@ -488,7 +510,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(88);
+    expect(contracts.endpoints).toHaveLength(90);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

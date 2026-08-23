@@ -111,7 +111,9 @@ func TestOrderReadHandlersRequireOrderView(t *testing.T) {
 	orderID := uuid.NewString()
 	cases := []string{
 		"/api/v1/orders",
+		"/api/v1/orders/fulfillment-reconciliation",
 		"/api/v1/orders/" + orderID,
+		"/api/v1/orders/" + orderID + "/fulfillment-reconciliation",
 		"/api/v1/orders/" + orderID + "/inventory-effects",
 		"/api/v1/orders/" + orderID + "/sku-matches",
 		"/api/v1/order-item-sku-matches",
@@ -312,6 +314,7 @@ func TestOrderInventoryWritesCannotCrossTenantBoundary(t *testing.T) {
 		path   string
 	}{
 		{http.MethodGet, "/api/v1/orders/" + orderID.String()},
+		{http.MethodGet, "/api/v1/orders/" + orderID.String() + "/fulfillment-reconciliation"},
 		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/deduct-inventory"},
 		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/restore-inventory"},
 	}

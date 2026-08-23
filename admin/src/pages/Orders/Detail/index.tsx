@@ -26,6 +26,8 @@ import { history, useModel, useParams, useSearchParams } from "@umijs/max";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ORDER_FULFILLMENT_STATUS,
+  ORDER_FULFILLMENT_RECONCILIATION_ISSUES,
+  ORDER_FULFILLMENT_RECONCILIATION_STATUS,
   ORDER_INVENTORY_DEDUCT_SUMMARY,
   ORDER_ITEM_SKU_MATCH_STATUS,
   ORDER_PAYMENT_STATUS,
@@ -37,9 +39,11 @@ import {
   getOrder,
   getOrderInventoryEffects,
   getOrderSKUMatches,
+  getOrderFulfillmentReconciliation,
   fulfillOrder,
   type OrderDetailDTO,
   type OrderSkuMatchRow,
+  type FulfillmentReconciliation,
 } from "@/services/orders";
 import {
   createInventoryIdempotencyKey,
@@ -117,6 +121,12 @@ export default function OrderDetailPage() {
   const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
   const [skuRows, setSkuRows] = useState<OrderSkuMatchRow[]>([]);
   const [invRows, setInvRows] = useState<OrderInventoryEffectRow[]>([]);
+  const [reconciliation, setReconciliation] =
+    useState<FulfillmentReconciliation | null>(null);
+  const [reconciliationLoading, setReconciliationLoading] = useState(false);
+  const [reconciliationError, setReconciliationError] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [salesReturnOpen, setSalesReturnOpen] = useState(false);
@@ -148,6 +158,22 @@ export default function OrderDetailPage() {
     }
   }, [id]);
 
+  const loadReconciliation = useCallback(async () => {
+    if (!id) return;
+    setReconciliationLoading(true);
+    try {
+      setReconciliation(await getOrderFulfillmentReconciliation(id));
+      setReconciliationError(null);
+    } catch (e: unknown) {
+      const errorMessage = (e as Error)?.message || "加载履约对账失败";
+      setReconciliationError(errorMessage);
+      message.error(errorMessage);
+      setReconciliation(null);
+    } finally {
+      setReconciliationLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -159,9 +185,16 @@ export default function OrderDetailPage() {
   useEffect(() => {
     const tab = searchParams.get("tab")?.trim();
     if (tab === "inventory" || tab === "inv") setActiveTab("inv");
+    else if (tab === "reconciliation" || tab === "fulfillment-reconciliation") {
+      setActiveTab("reconciliation");
+    }
     else if (tab === "sku") setActiveTab("sku");
     else if (tab === "exceptions") setActiveTab("exceptions");
   }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab === "reconciliation") void loadReconciliation();
+  }, [activeTab, loadReconciliation]);
 
   const listSummary = useMemo(() => {
     if (!detail) return null;
@@ -619,7 +652,7 @@ export default function OrderDetailPage() {
                       同步任务
                     </Typography.Link>
                     <Typography.Link
-                      href={`/orders/exceptions?orderId=${encodeURIComponent(detail.id)}&exceptionType=inventory`}
+                      href={`/orders/exceptions?orderId=${encodeURIComponent(detail.id)}`}
                     >
                       库存异常
                     </Typography.Link>
@@ -686,6 +719,94 @@ export default function OrderDetailPage() {
                     ]}
                   />
                 </>
+              ),
+            },
+            {
+              key: "reconciliation",
+              label: "履约对账",
+              children: reconciliationLoading ? (
+                <Alert type="info" message="正在加载履约对账" />
+              ) : reconciliationError ? (
+                <Alert type="error" message="履约对账加载失败" description={reconciliationError} />
+              ) : reconciliation ? (
+                <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                  <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }}>
+                    <Descriptions.Item label="对账状态">
+                      {tagFromMap(
+                        reconciliation.reconciliationStatus,
+                        ORDER_FULFILLMENT_RECONCILIATION_STATUS,
+                      )}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="订单状态">
+                      {tagFromMap(reconciliation.status, ORDER_STATUS)}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="履约状态">
+                      {tagFromMap(reconciliation.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="履约仓库">
+                      {reconciliation.warehouseId || "—"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="发货单数量">
+                      {reconciliation.shipmentCount}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="库存 effect 数量">
+                      {reconciliation.effectCount}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="最后库存动作">
+                      {reconciliation.lastInventoryActionAt
+                        ? formatDateTime(reconciliation.lastInventoryActionAt)
+                        : "—"}
+                    </Descriptions.Item>
+                  </Descriptions>
+                  <Table
+                    rowKey="id"
+                    size="small"
+                    pagination={false}
+                    locale={{ emptyText: "暂无库存或发货事实" }}
+                    dataSource={reconciliation.timeline ?? []}
+                    columns={[
+                      { title: "事实", dataIndex: "type", width: 96 },
+                      { title: "动作", dataIndex: "action", width: 150 },
+                      { title: "状态", dataIndex: "status", width: 96, render: (v) => v || "—" },
+                      { title: "数量", dataIndex: "quantity", width: 72, render: (v) => v ?? "—" },
+                      { title: "时间", dataIndex: "createdAt", width: 180, render: (v) => formatDateTime(v) },
+                    ]}
+                  />
+                  <Space wrap>
+                    {(["reserve", "deduct", "release", "restore"] as const).map((key) => {
+                      const summary = reconciliation[key];
+                      return (
+                        <Tag key={key} color={summary.expected === summary.actual ? "success" : "error"}>
+                          {key}: {summary.actual}/{summary.expected}
+                        </Tag>
+                      );
+                    })}
+                    {reconciliation.issues?.length ? (
+                      <Typography.Text type="danger">
+                        异常：
+                        {reconciliation.issues
+                          .map(
+                            (issue) =>
+                              ORDER_FULFILLMENT_RECONCILIATION_ISSUES[issue] || issue,
+                          )
+                          .join("、")}
+                      </Typography.Text>
+                    ) : null}
+                    {reconciliation.reconciliationStatus === "mismatch" ||
+                    reconciliation.reconciliationStatus === "blocked" ? (
+                      <Typography.Link
+                        href={appendSourceToUrl(
+                          `/orders/exceptions?orderId=${encodeURIComponent(detail.id)}`,
+                          "order_detail",
+                        )}
+                      >
+                        打开订单异常工作台
+                      </Typography.Link>
+                    ) : null}
+                  </Space>
+                </Space>
+              ) : (
+                <Alert type="warning" message="履约对账暂不可用" />
               ),
             },
             {

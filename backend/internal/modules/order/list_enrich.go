@@ -173,7 +173,7 @@ func deriveSyncStatus(o Order) string {
 }
 
 func applyListPostFilters(items []ListOrderRow, q ListQuery) []ListOrderRow {
-	if q.SKUMatchStatus == "" && q.InventoryDeductStatus == "" && !q.HasException && q.SyncStatus == "" {
+	if q.SKUMatchStatus == "" && q.InventoryDeductStatus == "" && !q.HasException && q.SyncStatus == "" && q.ReconciliationStatus == "" {
 		return items
 	}
 	out := make([]ListOrderRow, 0, len(items))
@@ -188,6 +188,9 @@ func applyListPostFilters(items []ListOrderRow, q ListQuery) []ListOrderRow {
 			continue
 		}
 		if q.SyncStatus != "" && r.SyncStatus != q.SyncStatus {
+			continue
+		}
+		if q.ReconciliationStatus != "" && r.ReconciliationStatus != q.ReconciliationStatus {
 			continue
 		}
 		out = append(out, r)

@@ -88,6 +88,7 @@ type ListQuery struct {
 	SKUMatchStatus        string
 	InventoryDeductStatus string
 	SyncStatus            string
+	ReconciliationStatus  string
 	HasException          bool
 	Start                 *time.Time
 	End                   *time.Time
@@ -120,6 +121,7 @@ type ListOrderRow struct {
 	CreatedAt             time.Time  `json:"createdAt"`
 	UpdatedAt             time.Time  `json:"updatedAt"`
 	LatestShipmentStatus  string     `json:"latestShipmentStatus,omitempty"`
+	ReconciliationStatus  string     `json:"reconciliationStatus,omitempty"`
 }
 
 // ListResult pagination bundle.
@@ -174,6 +176,7 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 		"skuMatchStatus":        q.SKUMatchStatus,
 		"inventoryDeductStatus": q.InventoryDeductStatus,
 		"syncStatus":            q.SyncStatus,
+		"reconciliationStatus":  q.ReconciliationStatus,
 		"hasException":          q.HasException,
 		"start":                 q.Start,
 		"end":                   q.End,
@@ -512,6 +515,17 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	} else {
 		tx = scoped
 	}
+	if status := strings.TrimSpace(q.ReconciliationStatus); status != "" {
+		matchedIDs, matchErr := s.reconciliationMatchedIDs(c, tx, status)
+		if matchErr != nil {
+			return nil, matchErr
+		}
+		if len(matchedIDs) == 0 {
+			tx = tx.Where("1 = 0")
+		} else {
+			tx = tx.Where("id IN ?", matchedIDs)
+		}
+	}
 	scopeHash, cursorShopID := orderCursorScope(c, s.DB, q, tenantID)
 	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
 		cur, err := pagination.DecodeCursor(q.Cursor, tenantID, cursorShopID, scopeHash)
@@ -597,6 +611,13 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		out[i] = row
 	}
 	enrichListRows(c.Request.Context(), s.DB, rows, out)
+	if statuses, statusErr := s.ReconciliationStatuses(c, rows); statusErr != nil {
+		return nil, statusErr
+	} else {
+		for i := range out {
+			out[i].ReconciliationStatus = statuses[rows[i].ID]
+		}
+	}
 
 	if q.SKUMatchStatus != "" || q.InventoryDeductStatus != "" || q.HasException || q.SyncStatus != "" {
 		out = applyListPostFilters(out, q)

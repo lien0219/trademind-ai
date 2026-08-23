@@ -33,6 +33,8 @@ node_modules/
 dist/
 build/
 .pnpm-store/
+# Local Corepack/pnpm cache
+/.corepack-home/
 
 # Umi / Ant Design Pro（构建时生成，任意子目录）
 **/.umi/

@@ -35,6 +35,7 @@ import { PAGE_COPY } from "@/constants/copywriting";
 import { useListEmptyLocale } from "@/hooks/useListEmptyLocale";
 import {
   ORDER_FULFILLMENT_STATUS,
+  ORDER_FULFILLMENT_RECONCILIATION_STATUS,
   ORDER_INVENTORY_DEDUCT_SUMMARY,
   ORDER_PAYMENT_STATUS,
   ORDER_SHIPMENT_STATUS,
@@ -89,6 +90,7 @@ const ORDER_QUERY_KEYS = [
   "inventoryStatus",
   "status",
   "fulfillmentStatus",
+  "reconciliationStatus",
   "platform",
   "shopId",
   "source",
@@ -305,12 +307,14 @@ export default function OrdersPage() {
       inventoryDeductStatus: urlState.inventoryStatus,
       status: urlState.status,
       fulfillmentStatus: urlState.fulfillmentStatus,
+      reconciliationStatus: urlState.reconciliationStatus,
       platform: urlState.platform,
       shopId: urlState.shopId,
       createdAt: queryTimeRange(urlState.start, urlState.end),
     });
   }, [
     urlState.fulfillmentStatus,
+    urlState.reconciliationStatus,
     urlState.inventoryStatus,
     urlState.keyword,
     urlState.page,
@@ -446,6 +450,18 @@ export default function OrdersPage() {
             ORDER_INVENTORY_DEDUCT_SUMMARY[
               st as keyof typeof ORDER_INVENTORY_DEDUCT_SUMMARY
             ];
+          return <Tag color={cfg?.color}>{cfg?.text || st}</Tag>;
+        },
+      },
+      {
+        title: "履约对账",
+        dataIndex: "reconciliationStatus",
+        width: 108,
+        valueType: "select",
+        valueEnum: ORDER_FULFILLMENT_RECONCILIATION_STATUS,
+        render: (_, r) => {
+          const st = r.reconciliationStatus || "pending";
+          const cfg = ORDER_FULFILLMENT_RECONCILIATION_STATUS[st];
           return <Tag color={cfg?.color}>{cfg?.text || st}</Tag>;
         },
       },
@@ -716,6 +732,7 @@ export default function OrdersPage() {
           inventoryDeductStatus: urlState.inventoryStatus,
           status: urlState.status,
           fulfillmentStatus: urlState.fulfillmentStatus,
+          reconciliationStatus: urlState.reconciliationStatus,
           platform: urlState.platform,
           shopId: urlState.shopId,
           start: urlState.start,
@@ -840,6 +857,9 @@ export default function OrdersPage() {
             fulfillmentStatus: (
               params.fulfillmentStatus as string | undefined
             )?.trim(),
+            reconciliationStatus: (
+              params.reconciliationStatus as string | undefined
+            )?.trim(),
             hasException:
               params.hasException === "true" || params.hasException === true
                 ? true
@@ -857,6 +877,7 @@ export default function OrdersPage() {
               inventoryStatus: qp.inventoryDeductStatus,
               status: qp.status,
               fulfillmentStatus: qp.fulfillmentStatus,
+              reconciliationStatus: qp.reconciliationStatus,
               platform: qp.platform,
               shopId: qp.shopId,
               start: qp.start,
@@ -874,6 +895,7 @@ export default function OrdersPage() {
             status: qp.status,
             paymentStatus: qp.paymentStatus,
             fulfillmentStatus: qp.fulfillmentStatus,
+            reconciliationStatus: qp.reconciliationStatus as OrderListRow["reconciliationStatus"],
             skuMatchStatus: qp.skuMatchStatus,
             inventoryDeductStatus: qp.inventoryDeductStatus,
             hasException: qp.hasException,

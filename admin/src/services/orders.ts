@@ -142,6 +142,46 @@ export type OrderListRow = {
   updatedAt?: string;
   latestShipmentStatus?: string;
   externalOrderId?: string;
+  reconciliationStatus?: FulfillmentReconciliationStatus;
+};
+
+export type FulfillmentReconciliationStatus =
+  | "matched"
+  | "pending"
+  | "mismatch"
+  | "blocked";
+
+export type FulfillmentActionSummary = {
+  expected: number;
+  actual: number;
+};
+
+export type FulfillmentTimelineEntry = {
+  id: string;
+  type: string;
+  action: string;
+  status?: string;
+  quantity?: number;
+  createdAt: string;
+};
+
+export type FulfillmentReconciliation = {
+  orderId: string;
+  orderNo: string;
+  status: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  warehouseId?: string;
+  reserve: FulfillmentActionSummary;
+  deduct: FulfillmentActionSummary;
+  release: FulfillmentActionSummary;
+  restore: FulfillmentActionSummary;
+  shipmentCount: number;
+  effectCount: number;
+  lastInventoryActionAt?: string;
+  reconciliationStatus: FulfillmentReconciliationStatus;
+  issues?: string[];
+  timeline?: FulfillmentTimelineEntry[];
 };
 
 export async function queryOrders(params: {
@@ -158,6 +198,7 @@ export async function queryOrders(params: {
   skuMatchStatus?: string;
   inventoryDeductStatus?: string;
   syncStatus?: string;
+  reconciliationStatus?: FulfillmentReconciliationStatus;
   hasException?: boolean;
   start?: string;
   end?: string;
@@ -170,7 +211,12 @@ export async function queryOrders(params: {
     totalPages: number;
   };
 }> {
-  return getWithParams("/api/v1/orders", params);
+  const query: Record<string, string | number | undefined> = {
+    ...params,
+    hasException:
+      params.hasException === undefined ? undefined : params.hasException ? 1 : 0,
+  };
+  return getWithParams("/api/v1/orders", query);
 }
 
 export async function createOrder(
@@ -181,6 +227,12 @@ export async function createOrder(
 
 export async function getOrder(id: string): Promise<OrderDetailDTO> {
   return getJSON(`/api/v1/orders/${id}`);
+}
+
+export async function getOrderFulfillmentReconciliation(
+  id: string,
+): Promise<FulfillmentReconciliation> {
+  return getJSON(`/api/v1/orders/${id}/fulfillment-reconciliation`);
 }
 
 export async function updateOrder(
