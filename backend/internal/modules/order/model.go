@@ -77,3 +77,21 @@ type OrderShipment struct {
 }
 
 func (OrderShipment) TableName() string { return "order_shipments" }
+
+// OrderShipmentEvent is an immutable, provider-neutral tracking fact.
+// EventKey is supplied by the source and makes ingestion idempotent.
+type OrderShipmentEvent struct {
+	model.HardDeleteBase
+	TenantID    int64          `gorm:"not null;default:0;index" json:"tenantId"`
+	OrderID     uuid.UUID      `gorm:"type:char(36);index;not null" json:"orderId"`
+	ShipmentID  uuid.UUID      `gorm:"type:char(36);index;not null;uniqueIndex:ux_order_shipment_event_key,priority:1" json:"shipmentId"`
+	EventKey    string         `gorm:"size:128;not null;uniqueIndex:ux_order_shipment_event_key,priority:2" json:"eventKey"`
+	Status      string         `gorm:"size:32;index;not null" json:"status"`
+	OccurredAt  time.Time      `gorm:"index;not null" json:"occurredAt"`
+	Location    string         `gorm:"size:255" json:"location,omitempty"`
+	Description string         `gorm:"type:text" json:"description,omitempty"`
+	Source      string         `gorm:"size:64;not null" json:"source"`
+	RawData     datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+}
+
+func (OrderShipmentEvent) TableName() string { return "order_shipment_events" }

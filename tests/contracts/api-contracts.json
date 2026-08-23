@@ -354,6 +354,30 @@
       "requiredPermission": "order.operate"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/orders/:id/shipments",
+      "auth": true,
+      "responseData": "OrderShipmentList",
+      "requiredPermission": "order.view",
+      "readonly": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/:id/shipments/:shipmentId/events",
+      "auth": true,
+      "responseData": "OrderShipmentEvents",
+      "requiredPermission": "order.view",
+      "readonly": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/:id/shipments/:shipmentId/events",
+      "auth": true,
+      "requestBody": ["eventKey", "status", "occurredAt", "location", "description", "source", "rawData"],
+      "responseData": "OrderShipmentEventResult",
+      "requiredPermission": "order.operate"
+    },
+    {
       "method": "POST",
       "path": "/api/v1/orders/:id/fulfill",
       "auth": true,

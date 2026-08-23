@@ -24,6 +24,26 @@ export type OrderShipmentRow = {
   updatedAt: string;
 };
 
+export type OrderShipmentEventRow = {
+  id: string;
+  tenantId: number;
+  orderId: string;
+  shipmentId: string;
+  eventKey: string;
+  status: string;
+  occurredAt: string;
+  location?: string;
+  description?: string;
+  source: string;
+  rawData?: Record<string, unknown>;
+};
+
+export type OrderShipmentEventsResponse = {
+  shipment: OrderShipmentRow;
+  events: OrderShipmentEventRow[];
+  provider: string;
+};
+
 export type OrderItemRow = {
   id: string;
   orderId: string;
@@ -288,6 +308,44 @@ export async function deleteOrderShipment(
   shipmentId: string,
 ): Promise<{ ok: boolean }> {
   return deleteJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}`);
+}
+
+export async function getOrderShipments(
+  orderId: string,
+): Promise<{ list: OrderShipmentRow[] }> {
+  return getJSON(`/api/v1/orders/${orderId}/shipments`);
+}
+
+export async function getOrderShipmentEvents(
+  orderId: string,
+  shipmentId: string,
+): Promise<OrderShipmentEventsResponse> {
+  return getJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}/events`);
+}
+
+export type OrderShipmentEventPayload = {
+  eventKey: string;
+  status: string;
+  occurredAt?: string;
+  location?: string;
+  description?: string;
+  source?: string;
+  rawData?: Record<string, unknown>;
+};
+
+export async function appendOrderShipmentEvent(
+  orderId: string,
+  shipmentId: string,
+  payload: OrderShipmentEventPayload,
+): Promise<{
+  event: OrderShipmentEventRow;
+  shipment: OrderShipmentRow;
+  replay: boolean;
+}> {
+  return postJSON(
+    `/api/v1/orders/${orderId}/shipments/${shipmentId}/events`,
+    payload,
+  );
 }
 
 export type FulfillOrderPayload = {

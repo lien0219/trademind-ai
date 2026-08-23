@@ -30,6 +30,9 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	o.POST("/:id/shipments", h.PostShipment)
 	o.PUT("/:id/shipments/:shipmentId", h.PutShipment)
 	o.DELETE("/:id/shipments/:shipmentId", h.DeleteShipment)
+	o.GET("/:id/shipments", h.GetShipments)
+	o.GET("/:id/shipments/:shipmentId/events", h.GetShipmentEvents)
+	o.POST("/:id/shipments/:shipmentId/events", h.PostShipmentEvent)
 
 	o.GET("/:id", h.Get)
 	o.PUT("/:id", h.Update)

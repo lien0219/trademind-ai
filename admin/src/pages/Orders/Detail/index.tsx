@@ -50,6 +50,7 @@ import {
   type OrderInventoryEffectRow,
 } from "@/services/inventory";
 import OrderSkuMatchTab from "@/pages/Orders/SkuMatchTab";
+import OrderTrackingTab from "@/pages/Orders/TrackingTab";
 import SalesReturnCreateModal from "@/pages/SalesReturns/CreateModal";
 import { PRODUCT_COPY } from "@/constants/copywriting";
 import {
@@ -189,6 +190,7 @@ export default function OrderDetailPage() {
       setActiveTab("reconciliation");
     }
     else if (tab === "sku") setActiveTab("sku");
+    else if (tab === "tracking" || tab === "shipments") setActiveTab("tracking");
     else if (tab === "exceptions") setActiveTab("exceptions");
   }, [searchParams]);
 
@@ -720,6 +722,11 @@ export default function OrderDetailPage() {
                   />
                 </>
               ),
+            },
+            {
+              key: "tracking",
+              label: "物流轨迹",
+              children: <OrderTrackingTab orderId={detail.id} readOnly={!writable} />,
             },
             {
               key: "reconciliation",

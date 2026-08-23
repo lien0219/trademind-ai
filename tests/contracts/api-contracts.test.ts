@@ -54,6 +54,9 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/orders/:id/deduct-inventory",
         "POST /api/v1/orders/:id/restore-inventory",
         "POST /api/v1/orders/:id/shipments",
+        "GET /api/v1/orders/:id/shipments",
+        "GET /api/v1/orders/:id/shipments/:shipmentId/events",
+        "POST /api/v1/orders/:id/shipments/:shipmentId/events",
         "POST /api/v1/orders/:id/fulfill",
         "GET /api/v1/orders/:id/inventory-effects",
         "GET /api/v1/suppliers",
@@ -246,6 +249,27 @@ describe("TradeMind API contract registry", () => {
     expect(endpoint("POST /api/v1/orders/:id/shipments")?.requiredPermission).toBe(
       "order.operate",
     );
+    expect(endpoint("GET /api/v1/orders/:id/shipments")?.requiredPermission).toBe(
+      "order.view",
+    );
+    expect(endpoint("GET /api/v1/orders/:id/shipments")?.readonly).toBe(true);
+    expect(
+      endpoint("GET /api/v1/orders/:id/shipments/:shipmentId/events")?.readonly,
+    ).toBe(true);
+    expect(
+      endpoint("POST /api/v1/orders/:id/shipments/:shipmentId/events")?.requestBody,
+    ).toEqual([
+      "eventKey",
+      "status",
+      "occurredAt",
+      "location",
+      "description",
+      "source",
+      "rawData",
+    ]);
+    expect(
+      endpoint("POST /api/v1/orders/:id/shipments/:shipmentId/events")?.requiredPermission,
+    ).toBe("order.operate");
     expect(endpoint("POST /api/v1/orders/:id/fulfill")?.requestBody).toEqual([
       "idempotencyKey",
       "warehouseId",
@@ -510,7 +534,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(90);
+    expect(contracts.endpoints).toHaveLength(93);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

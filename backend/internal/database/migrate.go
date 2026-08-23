@@ -96,6 +96,7 @@ func migrateLegacyInventorySKUColumns(db *gorm.DB) error {
 		&inventory.OrderInventoryEffect{},
 		&order.OrderItem{},
 		&order.OrderItemSKUMatch{},
+		&order.OrderShipmentEvent{},
 	)
 }
 

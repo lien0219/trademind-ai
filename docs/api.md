@@ -126,6 +126,9 @@
 | `POST` | `/api/v1/orders/:id/deduct-inventory` | 按订单状态应用库存（需要 `order.operate`）：已支付/处理中增加 `reserved`，已发货/已履约扣减 `on_hand` 并消费预占。JSON：`warehouseId`、`syncInventory`。 |
 | `POST` | `/api/v1/orders/:id/restore-inventory` | 取消/退款补偿（需要 `order.operate`）：发货前释放 `reserved`，已出库订单回补 `on_hand`。JSON：`warehouseId`、`syncInventory`、`reason`。 |
 | `POST` | `/api/v1/orders/:id/shipments` | 新增人工物流记录（需要 `order.operate`）；JSON：`carrier`、`trackingNo`、可选 `trackingUrl`、`status`。 |
+| `GET` | `/api/v1/orders/:id/shipments` | 只读查询当前租户订单的物流包裹（需要 `order.view`）；按创建时间返回包裹列表。 |
+| `GET` | `/api/v1/orders/:id/shipments/:shipmentId/events` | 只读查询包裹物流事件时间线（需要 `order.view`）；返回 `shipment`、按发生时间倒序的 `events` 和当前 `provider`。L0 默认仅为 `local`，不轮询真实承运商。 |
+| `POST` | `/api/v1/orders/:id/shipments/:shipmentId/events` | 人工追加本地物流事件（需要 `order.operate`）；JSON：`eventKey`、`status`、可选 `occurredAt`、`location`、`description`、`source`、`rawData`。同一包裹同一事件键同 payload 幂等重放，不同 payload 返回 `409`；已送达/已退回包裹不可倒退。敏感 raw 字段会在存储前脱敏，不调用真实平台写接口。 |
 | `POST` | `/api/v1/orders/:id/fulfill` | 单订单单仓履约 V1（需要 `order.operate`）。仅允许已支付订单，所有明细必须绑定本地 SKU；JSON：调用方生成的 `idempotencyKey`（最长 128，需保持稳定）、可选 `warehouseId`、`carrier`（最长 128）、`trackingNo`（最长 255）和可选 `trackingUrl`（最长 2048，仅 `http` / `https`）。库存实际扣减、发货单创建、订单状态 `shipped` / `fulfilled` 和幂等成功记录在同一事务提交；同键同 payload 重放原发货结果，同键不同 payload 返回 `409`。不调用真实物流平台，不启动 Worker/自动重试，不支持跨仓拆单。 |
 | `GET` | `/api/v1/orders/:id/inventory-effects` | 查询订单库存 effect（需要 `order.view`），支持 `page`、`pageSize`；每条记录含 effect 类型、仓库、数量和兼容库存前后值。 |
 | `GET` | `/api/v1/orders/fulfillment-reconciliation` | 只读订单履约库存对账工作台（需要 `order.view`）；支持 `page`、`pageSize`、`orderNo`、`warehouseId`、`status`、`fulfillmentStatus`、`reconciliationStatus=matched|pending|mismatch|blocked`，返回预占/出库/释放/回补的 expected 与 actual、发货单和 effect 数量及最后库存动作时间。 |

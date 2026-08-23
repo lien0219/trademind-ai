@@ -33,6 +33,7 @@ type Service struct {
 	Settings    *settings.Service
 	Idempotency *idempotency.Service
 	Warehouses  *warehouse.Service
+	Tracking    TrackingProvider
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).

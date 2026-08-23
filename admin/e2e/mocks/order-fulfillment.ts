@@ -2,6 +2,46 @@ import { ok } from './envelope';
 
 export const E2E_FULFILL_ORDER_ID = 'e2e-order-fulfillment-v1';
 export const E2E_FULFILL_ORDER_ITEM_ID = 'e2e-order-fulfillment-item-blue';
+export const E2E_FULFILL_SHIPMENT_ID = 'e2e-shipment-fulfillment-v1';
+
+export const e2eFulfillmentShipment = {
+  id: E2E_FULFILL_SHIPMENT_ID,
+  orderId: E2E_FULFILL_ORDER_ID,
+  carrier: 'E2E 物流',
+  trackingNo: 'E2E-TRACK-0001',
+  trackingUrl: 'https://tracking.example.test/E2E-TRACK-0001',
+  status: 'in_transit',
+  shippedAt: '2026-08-23T01:10:00Z',
+  createdAt: '2026-08-23T01:10:00Z',
+  updatedAt: '2026-08-23T02:00:00Z',
+};
+
+export const e2eFulfillmentTrackingEvents = [
+  {
+    id: 'e2e-shipment-event-in-transit',
+    tenantId: 1,
+    orderId: E2E_FULFILL_ORDER_ID,
+    shipmentId: E2E_FULFILL_SHIPMENT_ID,
+    eventKey: 'e2e-event-in-transit',
+    status: 'in_transit',
+    occurredAt: '2026-08-23T02:00:00Z',
+    location: '深圳转运中心',
+    description: '包裹已离开转运中心',
+    source: 'local',
+  },
+  {
+    id: 'e2e-shipment-event-shipped',
+    tenantId: 1,
+    orderId: E2E_FULFILL_ORDER_ID,
+    shipmentId: E2E_FULFILL_SHIPMENT_ID,
+    eventKey: 'e2e-event-shipped',
+    status: 'shipped',
+    occurredAt: '2026-08-23T01:10:00Z',
+    location: 'E2E 仓库',
+    description: '包裹已交承运商',
+    source: 'local',
+  },
+];
 
 export const e2eFulfillmentOrder = {
   id: E2E_FULFILL_ORDER_ID,
@@ -47,6 +87,14 @@ export const e2eFulfillmentOrder = {
 export function fulfillmentOrderResponse(path: string) {
   if (path === `/api/v1/orders/${E2E_FULFILL_ORDER_ID}`)
     return ok(e2eFulfillmentOrder);
+  if (path === `/api/v1/orders/${E2E_FULFILL_ORDER_ID}/shipments`)
+    return ok({ list: [e2eFulfillmentShipment] });
+  if (path === `/api/v1/orders/${E2E_FULFILL_ORDER_ID}/shipments/${E2E_FULFILL_SHIPMENT_ID}/events`)
+    return ok({
+      shipment: e2eFulfillmentShipment,
+      events: e2eFulfillmentTrackingEvents,
+      provider: 'local',
+    });
   if (path === `/api/v1/orders/${E2E_FULFILL_ORDER_ID}/sku-matches`)
     return ok({
       items: [
