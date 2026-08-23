@@ -129,6 +129,23 @@
 
 预占不会提前修改 `product_skus.stock`；实际出库和回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。
 
+## 销售售后 / 退货退款 V1
+
+销售售后按当前租户隔离，只允许使用具有成功订单扣减 fact 的明细。所有未取消售后单共同占用累计可退数量，整单库存已回补的数量不可再次发起售后。退款金额使用整数最小货币单位，仅作业务事实记录。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/orders/:id/sales-returnable-items` | `sales_return.view` | 查询订单明细的成功扣减、整单回补、有效售后占用和剩余可退数量；已取消售后不占用额度。 |
+| `GET` | `/api/v1/sales-returns` | `sales_return.view` | 售后分页列表；支持 `page`、`pageSize`、`status`、`type=refund_only|return_refund`、`orderId`。 |
+| `POST` | `/api/v1/sales-returns` | `sales_return.manage` | 幂等创建售后草稿；JSON：`idempotencyKey`、`orderId`、`type`、必填 `reason`、`remark`、`items[]`。明细含 `orderItemId`、`quantity`、`refundAmountMinor`；退货退款还必须提供 `disposition=sellable|damaged`，仅退款的处置为空。 |
+| `GET` | `/api/v1/sales-returns/:id` | `sales_return.view` | 售后详情、订单/仓库标签和原扣减数量。跨租户读取返回 `404`。 |
+| `POST` | `/api/v1/sales-returns/:id/submit` | `sales_return.manage` | 提交售后审批；JSON：`expectedRevision`、`idempotencyKey`、可选 `reason`。 |
+| `POST` | `/api/v1/sales-returns/:id/approve` | `sales_return.approve` | 审批售后单；审批人与最终完成/收货人必须为不同账号。 |
+| `POST` | `/api/v1/sales-returns/:id/complete` | `sales_return.receive` | 完成售后。仅退款不写库存；退货退款按明细收货到原订单仓，良品增加可售投影，残次品同时增加在手与残次库存、可售量不变。状态、action、余额、独立 effect、movement 和兼容日志在同一事务提交。 |
+| `POST` | `/api/v1/sales-returns/:id/cancel` | `sales_return.manage` | 取消草稿、待审批或已审批售后并释放累计可退占用；完成后不可取消。 |
+
+上述接口不执行支付退款，不调用真实平台售后或库存接口，不支持换货、自动重试、Worker 或自动采购。`400` 表示字段无效，`404` 表示当前租户不可见，`409` 表示 revision、状态、累计超退、仓库、职责分离或幂等冲突。
+
 ## 图片 AI
 
 | 方法 | 路径 | 说明 |

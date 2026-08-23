@@ -91,6 +91,7 @@ The screenshots below show TradeMind's core workflow: **collection → draft →
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
 - ERP procurement and returns with warehouse and supplier master data, purchase-order approval, partial receipts, receipt-bound supplier returns, warehouse movements, idempotent processing, and an Admin workspace with separated approval/execution duties and revision conflict protection.
+- Sales after-sales V1 with item-level refund-only and return-and-refund cases, cumulative quantity protection, approval/receipt duty separation, and sellable or damaged receipt into the original order warehouse. Refund amounts are informational and do not call payment or marketplace APIs.
 - Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction.
 - AI customer-service reply suggestions with manual confirmation before sending.
 

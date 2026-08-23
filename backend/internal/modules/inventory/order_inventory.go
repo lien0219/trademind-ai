@@ -705,10 +705,7 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 	if err := s.DB.WithContext(ctx).First(&o, findArgs...).Error; err != nil {
 		return nil, err
 	}
-	items, err := s.loadOrderItems(ctx, orderID)
-	if err != nil {
-		return nil, err
-	}
+	var items []orderLineMirror
 
 	reason := clampStr(strings.TrimSpace(opts.Reason), 128)
 	if reason == "" {
@@ -716,28 +713,29 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 	}
 
 	var restored, released int
-	for _, it := range items {
-		txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			// Restore competes with deduct and order-line edits. Lock the order
-			// first, then re-read the line so effect checks observe the same
-			// lifecycle snapshot as the stock update.
-			var lockedOrder orderMirror
+	txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Restore competes with deduction and order-line edits. Lock the order
+		// first, then each line and SKU in the deterministic order above so every
+		// inventory lifecycle path observes one consistent order snapshot.
+		var lockedOrder orderMirror
+		if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(orderWhere, orderArgs...).First(&lockedOrder).Error; err != nil {
+			return err
+		}
+		o = lockedOrder
+		if err := tx.WithContext(ctx).Where("order_id = ?", orderID).Order("created_at ASC, id ASC").Find(&items).Error; err != nil {
+			return err
+		}
+		// Keep the same deterministic SKU lock order as reservation/deduction.
+		sortOrderInventoryItems(items)
+		for _, requestedItem := range items {
+			var it orderLineMirror
 			if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where(orderWhere, orderArgs...).First(&lockedOrder).Error; err != nil {
+				Where("id = ? AND order_id = ?", requestedItem.ID, orderID).First(&it).Error; err != nil {
 				return err
 			}
-			o = lockedOrder
-			var lockedItem orderLineMirror
-			if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("id = ? AND order_id = ?", it.ID, orderID).First(&lockedItem).Error; err != nil {
-				return err
-			}
-			it = lockedItem
-			if it.ProductSKUID == nil || *it.ProductSKUID == uuid.Nil {
-				return nil
-			}
-			if it.Quantity <= 0 {
-				return nil
+			if it.ProductSKUID == nil || *it.ProductSKUID == uuid.Nil || it.Quantity <= 0 {
+				continue
 			}
 			skuID := *it.ProductSKUID
 			deductEffect, err := successfulOrderEffectForOrderTx(tx, o.TenantID, o.ID, it.ID, skuID, EffectTypeDeduct)
@@ -754,10 +752,14 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 				effectType, movementType, changeType, sourceEffect = EffectTypeRestore, MovementOrderRestore, ChangeOrderRestore, deductEffect
 			}
 			if sourceEffect == nil {
-				return nil
+				continue
 			}
-			if existing, err := successfulOrderEffectForOrderTx(tx, o.TenantID, o.ID, it.ID, skuID, effectType); err != nil || existing != nil {
+			existing, err := successfulOrderEffectForOrderTx(tx, o.TenantID, o.ID, it.ID, skuID, effectType)
+			if err != nil {
 				return err
+			}
+			if existing != nil {
+				continue
 			}
 			warehouseID := uuid.Nil
 			if sourceEffect.WarehouseID != nil {
@@ -818,11 +820,11 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 			} else {
 				released++
 			}
-			return nil
-		})
-		if txErr != nil {
-			return &RestorationSummary{Error: txErr.Error()}, txErr
 		}
+		return nil
+	})
+	if txErr != nil {
+		return &RestorationSummary{Error: txErr.Error()}, txErr
 	}
 	if opts.SyncPlatforms && restored > 0 {
 		s.syncOrderSKUStocks(ctx, orderID, items, opts.CreatedBy, "inventory.order_restore.sync_enqueue_failed")

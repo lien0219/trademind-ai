@@ -23,6 +23,21 @@ describe('ERP permission fallbacks', () => {
     expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.PROCUREMENT_RECEIVE)).toBe(
       false,
     );
+    expect(hasPermission(ROLES.OPERATOR, PERMISSIONS.SALES_RETURN_MANAGE)).toBe(
+      true,
+    );
+    expect(
+      hasPermission(ROLES.OPERATOR, PERMISSIONS.SALES_RETURN_RECEIVE),
+    ).toBe(true);
+    expect(
+      hasPermission(ROLES.OPERATOR, PERMISSIONS.SALES_RETURN_APPROVE),
+    ).toBe(false);
+    expect(
+      hasPermission(ROLES.REVIEWER, PERMISSIONS.SALES_RETURN_APPROVE),
+    ).toBe(true);
+    expect(
+      hasPermission(ROLES.REVIEWER, PERMISSIONS.SALES_RETURN_RECEIVE),
+    ).toBe(false);
   });
 
   it('keeps readonly ERP access read-only', () => {
@@ -37,6 +52,12 @@ describe('ERP permission fallbacks', () => {
       false,
     );
     expect(hasPermission(ROLES.READONLY, PERMISSIONS.SUPPLIER_MANAGE)).toBe(
+      false,
+    );
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.SALES_RETURN_VIEW)).toBe(
+      true,
+    );
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.SALES_RETURN_MANAGE)).toBe(
       false,
     );
   });

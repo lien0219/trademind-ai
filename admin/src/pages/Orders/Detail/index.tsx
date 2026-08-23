@@ -39,6 +39,7 @@ import {
 } from "@/services/orders";
 import type { OrderInventoryEffectRow } from "@/services/inventory";
 import OrderSkuMatchTab from "@/pages/Orders/SkuMatchTab";
+import SalesReturnCreateModal from "@/pages/SalesReturns/CreateModal";
 import { PRODUCT_COPY } from "@/constants/copywriting";
 import {
   INVENTORY_DEDUCT_STATUS,
@@ -47,6 +48,7 @@ import {
   inventoryTagFromMap,
 } from "@/constants/inventoryLabels";
 import { canWriteOrders } from "@/utils/orderPerm";
+import { hasPermission, PERMISSIONS } from "@/utils/permission";
 
 function tagFromMap(
   raw: string,
@@ -65,12 +67,23 @@ export default function OrderDetailPage() {
     initialState?: { currentUser?: API.CurrentUser };
   };
   const writable = canWriteOrders(initialState?.currentUser?.role);
+  const canViewSalesReturns = hasPermission(
+    initialState?.currentUser?.role,
+    PERMISSIONS.SALES_RETURN_VIEW,
+    initialState?.currentUser?.permissions,
+  );
+  const canManageSalesReturns = hasPermission(
+    initialState?.currentUser?.role,
+    PERMISSIONS.SALES_RETURN_MANAGE,
+    initialState?.currentUser?.permissions,
+  );
 
   const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
   const [skuRows, setSkuRows] = useState<OrderSkuMatchRow[]>([]);
   const [invRows, setInvRows] = useState<OrderInventoryEffectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [salesReturnOpen, setSalesReturnOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -161,6 +174,22 @@ export default function OrderDetailPage() {
       }}
       extra={
         <Space wrap>
+          {canViewSalesReturns ? (
+            <Button
+              onClick={() =>
+                history.push(
+                  `/orders/sales-returns?orderId=${encodeURIComponent(id!)}`,
+                )
+              }
+            >
+              售后记录
+            </Button>
+          ) : null}
+          {canManageSalesReturns ? (
+            <Button type="primary" onClick={() => setSalesReturnOpen(true)}>
+              发起售后
+            </Button>
+          ) : null}
           <Button
             onClick={() =>
               history.push(
@@ -643,6 +672,15 @@ export default function OrderDetailPage() {
           />
         )
       )}
+      <SalesReturnCreateModal
+        orderId={id}
+        open={salesReturnOpen}
+        onClose={() => setSalesReturnOpen(false)}
+        onCreated={(salesReturnId) => {
+          setSalesReturnOpen(false);
+          history.push(`/orders/sales-returns/${salesReturnId}`);
+        }}
+      />
     </TmPageContainer>
   );
 }

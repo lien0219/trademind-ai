@@ -40,6 +40,29 @@ type PurchaseReturnStockInput struct {
 	CreatedBy            *uuid.UUID
 }
 
+// SalesReturnStockInput is the stable cross-module contract for receiving one
+// customer return into the warehouse used by the original order deduction.
+type SalesReturnStockInput struct {
+	TenantID          int64
+	WarehouseID       uuid.UUID
+	ProductSKUID      uuid.UUID
+	Quantity          int
+	Disposition       string
+	SalesReturnID     uuid.UUID
+	SalesReturnItemID uuid.UUID
+	OrderID           uuid.UUID
+	OrderItemID       uuid.UUID
+	BusinessEventKey  string
+	Reason            string
+	CreatedBy         *uuid.UUID
+}
+
+type SalesReturnStockResult struct {
+	Balance   *WarehouseStockBalance
+	Movement  *InventoryMovement
+	ChangeLog *InventoryChangeLog
+}
+
 var ErrInsufficientWarehouseAvailable = errors.New("insufficient warehouse available stock")
 
 // WarehouseStockService owns procurement warehouse balance and movement writes.
@@ -234,4 +257,108 @@ func (WarehouseStockService) Return(ctx context.Context, tx *gorm.DB, in Purchas
 		return nil, fmt.Errorf("inventory warehouse stock: create return compatibility log: %w", err)
 	}
 	return &balance, nil
+}
+
+// ReceiveSalesReturn receives sellable or damaged customer stock inside the
+// caller-owned transaction. Damaged stock increases both on-hand and damaged,
+// so it never increases available stock or the scalar compatibility projection.
+func (WarehouseStockService) ReceiveSalesReturn(ctx context.Context, tx *gorm.DB, in SalesReturnStockInput) (*SalesReturnStockResult, error) {
+	if tx == nil {
+		return nil, fmt.Errorf("inventory warehouse stock: db is nil")
+	}
+	if in.WarehouseID == uuid.Nil || in.ProductSKUID == uuid.Nil || in.SalesReturnID == uuid.Nil || in.SalesReturnItemID == uuid.Nil || in.OrderID == uuid.Nil || in.OrderItemID == uuid.Nil {
+		return nil, fmt.Errorf("inventory warehouse stock: sales return identifiers are required")
+	}
+	if in.Quantity <= 0 {
+		return nil, fmt.Errorf("inventory warehouse stock: sales return quantity must be positive")
+	}
+	disposition := strings.TrimSpace(in.Disposition)
+	if disposition != ReturnDispositionSellable && disposition != ReturnDispositionDamaged {
+		return nil, fmt.Errorf("inventory warehouse stock: invalid sales return disposition")
+	}
+	eventKey := strings.TrimSpace(in.BusinessEventKey)
+	if eventKey == "" {
+		return nil, fmt.Errorf("inventory warehouse stock: business event key is required")
+	}
+
+	var sku product.ProductSKU
+	if err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+		Where("product_skus.id = ? AND products.tenant_id = ?", in.ProductSKUID, in.TenantID).
+		First(&sku).Error; err != nil {
+		return nil, fmt.Errorf("inventory warehouse stock: load sales return tenant SKU: %w", err)
+	}
+
+	var existingMovement InventoryMovement
+	if err := tx.WithContext(ctx).Where("business_event_key = ?", eventKey).First(&existingMovement).Error; err == nil {
+		var replay WarehouseStockBalance
+		if err := tx.WithContext(ctx).Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", in.TenantID, in.WarehouseID, in.ProductSKUID).First(&replay).Error; err != nil {
+			return nil, fmt.Errorf("inventory warehouse stock: load sales return replay balance: %w", err)
+		}
+		var change InventoryChangeLog
+		if err := tx.WithContext(ctx).Where("business_event_key = ?", eventKey).First(&change).Error; err != nil {
+			return nil, fmt.Errorf("inventory warehouse stock: load sales return replay log: %w", err)
+		}
+		return &SalesReturnStockResult{Balance: &replay, Movement: &existingMovement, ChangeLog: &change}, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("inventory warehouse stock: check sales return movement: %w", err)
+	}
+
+	var balance WarehouseStockBalance
+	if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", in.TenantID, in.WarehouseID, in.ProductSKUID).
+		First(&balance).Error; err != nil {
+		return nil, fmt.Errorf("inventory warehouse stock: load sales return balance: %w", err)
+	}
+
+	beforeOnHand, beforeDamaged := balance.OnHand, balance.Damaged
+	beforeAggregate := 0
+	if sku.Stock != nil {
+		beforeAggregate = *sku.Stock
+	}
+	balance.OnHand += in.Quantity
+	if disposition == ReturnDispositionDamaged {
+		balance.Damaged += in.Quantity
+	}
+	balance.Version++
+	result := tx.WithContext(ctx).Model(&WarehouseStockBalance{}).Where("id = ? AND version = ?", balance.ID, balance.Version-1).
+		Updates(map[string]any{"on_hand": balance.OnHand, "damaged": balance.Damaged, "version": balance.Version})
+	if result.Error != nil {
+		return nil, fmt.Errorf("inventory warehouse stock: update sales return balance: %w", result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return nil, fmt.Errorf("inventory warehouse stock: concurrent sales return balance update")
+	}
+
+	reason := strings.TrimSpace(in.Reason)
+	movement := &InventoryMovement{
+		TenantID: in.TenantID, WarehouseID: in.WarehouseID, ProductID: sku.ProductID, ProductSKUID: sku.ID,
+		MovementType: MovementSalesReturn, Quantity: in.Quantity, BeforeOnHand: beforeOnHand, AfterOnHand: balance.OnHand,
+		BeforeReserved: balance.Reserved, AfterReserved: balance.Reserved, BeforeDamaged: beforeDamaged, AfterDamaged: balance.Damaged,
+		SourceType: "sales_return", SourceID: in.SalesReturnID, BusinessEventKey: eventKey,
+		Reason: reason, Remark: disposition, CreatedBy: in.CreatedBy,
+	}
+	if err := tx.WithContext(ctx).Create(movement).Error; err != nil {
+		return nil, fmt.Errorf("inventory warehouse stock: create sales return movement: %w", err)
+	}
+
+	aggregate := beforeAggregate
+	if disposition == ReturnDispositionSellable {
+		aggregate += in.Quantity
+	}
+	if err := tx.WithContext(ctx).Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", sku.ID, sku.ProductID).
+		Updates(map[string]any{"stock": aggregate, "stock_status": stockStatusForSKU(sku, aggregate)}).Error; err != nil {
+		return nil, fmt.Errorf("inventory warehouse stock: update sales return SKU projection: %w", err)
+	}
+	change := &InventoryChangeLog{
+		TenantID: in.TenantID, ProductID: sku.ProductID, ProductSKUID: sku.ID,
+		ChangeType: ChangeSalesReturn, BeforeStock: beforeAggregate, AfterStock: aggregate, Delta: aggregate - beforeAggregate,
+		Reason: reason, Remark: disposition, CreatedBy: in.CreatedBy, RefOrderID: &in.OrderID, RefOrderItemID: &in.OrderItemID,
+		BusinessEventKey: eventKey,
+	}
+	if err := tx.WithContext(ctx).Create(change).Error; err != nil {
+		return nil, fmt.Errorf("inventory warehouse stock: create sales return compatibility log: %w", err)
+	}
+	return &SalesReturnStockResult{Balance: &balance, Movement: movement, ChangeLog: change}, nil
 }

@@ -52,6 +52,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -441,6 +442,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		DB: dep.DB, Warehouses: warehouseSvc, Suppliers: supplierSvc, Stock: inventory.WarehouseStockService{},
 	}
 	procurementH := &procurement.Handler{Svc: procurementSvc, OpLog: opLogSvc}
+	salesReturnSvc := &salesreturn.Service{DB: dep.DB, Stock: inventory.WarehouseStockService{}, Warehouses: warehouseSvc}
+	salesReturnH := &salesreturn.Handler{Svc: salesReturnSvc, OpLog: opLogSvc}
 
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
@@ -742,6 +745,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	warehouse.Register(authed, warehouseH)
 	supplier.Register(authed, supplierH)
 	procurement.Register(authed, procurementH)
+	salesreturn.Register(authed, salesReturnH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
 

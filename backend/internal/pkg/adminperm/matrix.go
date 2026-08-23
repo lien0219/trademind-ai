@@ -33,6 +33,10 @@ const (
 	PermProcurementApprove = "procurement.approve"
 	PermProcurementReceive = "procurement.receive"
 	PermProcurementReturn  = "procurement.return"
+	PermSalesReturnView    = "sales_return.view"
+	PermSalesReturnManage  = "sales_return.manage"
+	PermSalesReturnApprove = "sales_return.approve"
+	PermSalesReturnReceive = "sales_return.receive"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -99,6 +103,10 @@ var allPermissions = []string{
 	PermProcurementApprove,
 	PermProcurementReceive,
 	PermProcurementReturn,
+	PermSalesReturnView,
+	PermSalesReturnManage,
+	PermSalesReturnApprove,
+	PermSalesReturnReceive,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -152,6 +160,8 @@ var reviewerPermissions = []string{
 	PermSupplierView,
 	PermProcurementView,
 	PermProcurementApprove,
+	PermSalesReturnView,
+	PermSalesReturnApprove,
 }
 
 var operatorPermissions = []string{
@@ -194,6 +204,9 @@ var operatorPermissions = []string{
 	PermProcurementManage,
 	PermProcurementReceive,
 	PermProcurementReturn,
+	PermSalesReturnView,
+	PermSalesReturnManage,
+	PermSalesReturnReceive,
 }
 
 var readonlyPermissions = []string{
@@ -216,6 +229,7 @@ var readonlyPermissions = []string{
 	PermWarehouseView,
 	PermSupplierView,
 	PermProcurementView,
+	PermSalesReturnView,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

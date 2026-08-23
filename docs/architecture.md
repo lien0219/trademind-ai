@@ -73,7 +73,7 @@ Collector 是独立 Node.js 服务：
 
 ## ERP 领域扩展
 
-ERP 采用仓库、供应商、采购和库存四个明确领域模块渐进扩展。采购单、收货和采购退货状态机由 `procurement` 编排，仓库/供应商模块只提供主数据和租户级校验，库存变化必须通过 `inventory` 领域事务内接口写入余额、不可变流水和兼容聚合库存。采购退货的原收货占用、动作幂等与职责分离记录由 `purchase_returns`、`purchase_return_items`、`purchase_return_actions` 承载，不包含财务结算。完整边界、状态机与库存迁移顺序见 [ERP 扩展架构](ERP_ARCHITECTURE.md)。
+ERP 采用仓库、供应商、采购、销售售后和库存五个明确领域模块渐进扩展。采购单、收货和采购退货状态机由 `procurement` 编排，订单明细级仅退款/退货退款由 `salesreturn` 编排，仓库/供应商模块只提供主数据和租户级校验，库存变化必须通过 `inventory` 领域事务内接口写入余额、不可变流水和兼容聚合库存。采购退货的原收货占用由 `purchase_returns` 系列表承载；销售售后的原扣减占用、动作幂等、职责分离和独立库存 effect 由 `sales_returns` 系列表承载。两者均不包含真实支付结算。完整边界、状态机与库存迁移顺序见 [ERP 扩展架构](ERP_ARCHITECTURE.md)。
 
 ## 扩展方向
 

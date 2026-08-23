@@ -5,6 +5,12 @@ import { imageProviderCapabilities } from '../mocks/image-providers';
 import { e2eUser } from '../mocks/auth';
 import { skuBindingsResponse } from '../mocks/publish';
 import { e2ePurchaseOrder, e2ePurchaseReturn, e2eReturnableReceiptItem, e2eSupplier, e2eWarehouse, E2E_PURCHASE_ORDER_ID, E2E_PURCHASE_RETURN_ID, E2E_WAREHOUSE_ID } from '../mocks/procurement';
+import {
+  e2eReturnableSalesItem,
+  e2eSalesReturn,
+  E2E_SALES_ORDER_ID,
+  E2E_SALES_RETURN_ID,
+} from '../mocks/sales-returns';
 
 async function fetchApi(page: import('@playwright/test').Page, path: string) {
   if (page.url() === 'about:blank') {
@@ -57,5 +63,12 @@ test.describe('@contract API envelope contracts', () => {
     expect(await fetchApi(page, `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}/returnable-receipt-items`)).toEqual(ok({ list: [e2eReturnableReceiptItem] }));
     expect(await fetchApi(page, '/api/v1/purchase-returns')).toEqual(ok({ list: [{ ...e2ePurchaseReturn, items: undefined }], page: 1, pageSize: 20, total: 1, totalPages: 1 }));
     expect(await fetchApi(page, `/api/v1/purchase-returns/${E2E_PURCHASE_RETURN_ID}`)).toEqual(ok(e2ePurchaseReturn));
+    expect(await fetchApi(page, `/api/v1/orders/${E2E_SALES_ORDER_ID}/sales-returnable-items`)).toMatchObject(
+      ok({ orderId: E2E_SALES_ORDER_ID, list: [e2eReturnableSalesItem] }),
+    );
+    expect(await fetchApi(page, '/api/v1/sales-returns')).toEqual(
+      ok({ list: [{ ...e2eSalesReturn, items: undefined }], page: 1, pageSize: 20, total: 1, totalPages: 1 }),
+    );
+    expect(await fetchApi(page, `/api/v1/sales-returns/${E2E_SALES_RETURN_ID}`)).toEqual(ok(e2eSalesReturn));
   });
 });

@@ -16,4 +16,14 @@ describe('operation log alert labels', () => {
     expect(operationLogActionLabel('procurement.purchase_return.create')).toBe('创建采购退货单');
     expect(operationLogActionLabel('procurement.purchase_return.complete')).toBe('执行采购退货');
   });
+
+  it('keeps sales return audit records user-facing', () => {
+    expect(operationLogResourceLabel('sales_return')).toBe('销售售后单');
+    expect(operationLogActionLabel('sales_return.create')).toBe(
+      '创建销售售后单',
+    );
+    expect(operationLogActionLabel('sales_return.complete')).toBe(
+      '完成销售售后单',
+    );
+  });
 });

@@ -9,6 +9,7 @@ import {
 /** Route path → minimum view permission (undefined = all authenticated users). */
 export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> = {
   '/procurement': [PERMISSIONS.PROCUREMENT_VIEW, PERMISSIONS.WAREHOUSE_VIEW, PERMISSIONS.SUPPLIER_VIEW],
+  '/orders/sales-returns': PERMISSIONS.SALES_RETURN_VIEW,
   '/dashboard': PERMISSIONS.PRODUCT_VIEW,
   '/system/operation-logs': PERMISSIONS.OPERATIONLOG_VIEW,
   '/ops/workers/monitor': PERMISSIONS.TASK_RETRY,

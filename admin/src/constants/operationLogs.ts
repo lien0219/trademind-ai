@@ -35,6 +35,7 @@ export const OPERATION_LOG_RESOURCE_LABEL: Record<string, string> = {
   platform_publish_settings: '平台刊登设置',
   pricing: '定价规则',
   purchase_return: '采购退货单',
+  sales_return: '销售售后单',
 };
 
 /** 操作日志 · 操作动作中文映射（与后端 operationlog Action 一致） */
@@ -220,6 +221,11 @@ export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   'procurement.purchase_return.approve': '审批采购退货单',
   'procurement.purchase_return.complete': '执行采购退货',
   'procurement.purchase_return.cancel': '取消采购退货单',
+  'sales_return.create': '创建销售售后单',
+  'sales_return.submit': '提交销售售后审批',
+  'sales_return.approve': '审批销售售后单',
+  'sales_return.complete': '完成销售售后单',
+  'sales_return.cancel': '取消销售售后单',
   'customer.conversation.create': '创建客服会话',
   'customer.conversation.update': '更新客服会话',
   'customer.conversation.close': '关闭客服会话',

@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### ERP sales returns and refunds (2026-08-23)
+
+- Added tenant-scoped, item-level refund-only and return-and-refund cases with cumulative over-return protection, revision checks, payload-bound action idempotency, cancellation allocation release, and immutable action facts.
+- Added atomic original-warehouse receipt for sellable and damaged dispositions. Sellable stock updates warehouse availability and the compatibility projection; damaged stock increases on-hand and damaged together without increasing available stock. Every receipt writes a dedicated sales-return effect, movement, and compatibility log exactly once.
+- Added separated manage/approve/receive permissions, Admin list/detail/order-entry workflows, operation-log labels, API contracts, migration coverage, five-viewport regression, and write-safety checks without enabling payment refunds, marketplace after-sales APIs, exchanges, retries, workers, purchasing, or platform inventory writes.
+
 ### ERP purchase returns (2026-08-22)
 
 - Added tenant-scoped, receipt-bound purchase returns with cumulative over-return protection, revision-checked state transitions, action idempotency, separated approval/execution duties, and cancellation that releases receipt allocation.

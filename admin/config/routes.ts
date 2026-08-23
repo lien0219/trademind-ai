@@ -346,6 +346,17 @@ export default [
         component: './Orders/index',
       },
       {
+        path: '/orders/sales-returns/:id',
+        name: '售后详情',
+        hideInMenu: true,
+        component: './SalesReturns/Detail',
+      },
+      {
+        path: '/orders/sales-returns',
+        name: '退货退款',
+        component: './SalesReturns',
+      },
+      {
         path: '/orders/:id',
         name: '订单详情',
         hideInMenu: true,

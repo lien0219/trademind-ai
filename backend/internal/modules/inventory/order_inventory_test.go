@@ -80,6 +80,31 @@ func (fx *orderInventoryFixture) reloadStock(t *testing.T) (WarehouseStockBalanc
 	return balance, sku
 }
 
+type multiLineOrderInventoryFixture struct {
+	*orderInventoryFixture
+	secondLine *orderLineMirror
+	secondSKU  *product.ProductSKU
+}
+
+func newMultiLineOrderInventoryFixture(t *testing.T) *multiLineOrderInventoryFixture {
+	t.Helper()
+	fx := newOrderInventoryFixture(t, "manual", true, true)
+	secondProduct := &product.Product{TenantID: 41, Source: "manual", Status: product.StatusDraft, Title: "Second order ledger product"}
+	if err := fx.db.Create(secondProduct).Error; err != nil {
+		t.Fatal(err)
+	}
+	secondStock := 10
+	secondSKU := &product.ProductSKU{ProductID: secondProduct.ID, SKUCode: "ORDER-LEDGER-SKU-2", SKUName: "Second order ledger SKU", Stock: &secondStock, WarningStock: 2}
+	if err := fx.db.Create(secondSKU).Error; err != nil {
+		t.Fatal(err)
+	}
+	secondLine := &orderLineMirror{OrderID: fx.order.ID, ProductID: &secondProduct.ID, ProductSKUID: &secondSKU.ID, Quantity: 2}
+	if err := fx.db.Create(secondLine).Error; err != nil {
+		t.Fatal(err)
+	}
+	return &multiLineOrderInventoryFixture{orderInventoryFixture: fx, secondLine: secondLine, secondSKU: secondSKU}
+}
+
 func TestOrderInventoryReservesCommitsAndRestoresWarehouseStock(t *testing.T) {
 	fx := newOrderInventoryFixture(t, "manual", true, true)
 	ctx := context.Background()
@@ -218,6 +243,157 @@ func TestOrderInventoryCancellationReleasesReservationWithoutChangingProjection(
 	}
 	if restoreCount != 0 {
 		t.Fatalf("pre-shipment cancellation must not create restore effect, got %d", restoreCount)
+	}
+}
+
+func TestOrderInventoryRestoreRollsBackAllLinesWhenALaterLineFails(t *testing.T) {
+	multi := newMultiLineOrderInventoryFixture(t)
+	fx := multi.orderInventoryFixture
+	ctx := context.Background()
+
+	if _, err := fx.service.DeductInventoryForOrder(ctx, fx.order.ID, OrderInventoryOptions{Reason: "paid"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.db.Model(&orderMirror{}).Where("id = ?", fx.order.ID).Updates(map[string]any{"status": "shipped", "fulfillment_status": "fulfilled"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.service.DeductInventoryForOrder(ctx, fx.order.ID, OrderInventoryOptions{Reason: "shipped"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.db.Model(&orderMirror{}).Where("id = ?", fx.order.ID).Updates(map[string]any{"status": "refunded", "payment_status": "refunded"}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var items []orderLineMirror
+	if err := fx.db.Where("order_id = ?", fx.order.ID).Find(&items).Error; err != nil {
+		t.Fatal(err)
+	}
+	sortOrderInventoryItems(items)
+	if len(items) != 2 {
+		t.Fatalf("expected two order lines, got %d", len(items))
+	}
+	// The later line has a valid effect but declares the wrong product. Restore
+	// must fail after the earlier line is processed, then roll that line back.
+	wrongProductID := uuid.New()
+	if err := fx.db.Model(&orderLineMirror{}).Where("id = ?", items[1].ID).Update("product_id", wrongProductID).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := fx.service.RestoreInventoryForOrder(ctx, fx.order.ID, OrderInventoryOptions{Reason: "refund"})
+	if err == nil {
+		t.Fatalf("expected restore to fail for mismatched later line, summary=%#v", summary)
+	}
+	if summary == nil || summary.LinesSynced != 0 || summary.Error == "" {
+		t.Fatalf("restore failure must not report committed lines, summary=%#v err=%v", summary, err)
+	}
+
+	var restoreEffects int64
+	if err := fx.db.Model(&OrderInventoryEffect{}).Where("order_id = ? AND effect_type = ?", fx.order.ID, EffectTypeRestore).Count(&restoreEffects).Error; err != nil {
+		t.Fatal(err)
+	}
+	if restoreEffects != 0 {
+		t.Fatalf("restore effects must roll back for every line, got %d", restoreEffects)
+	}
+	var restoreMovements int64
+	if err := fx.db.Model(&InventoryMovement{}).Where("source_id IN ? AND movement_type = ?", []uuid.UUID{fx.line.ID, multi.secondLine.ID}, MovementOrderRestore).Count(&restoreMovements).Error; err != nil {
+		t.Fatal(err)
+	}
+	if restoreMovements != 0 {
+		t.Fatalf("restore movements must roll back for every line, got %d", restoreMovements)
+	}
+	var restoreLogs int64
+	if err := fx.db.Model(&InventoryChangeLog{}).Where("ref_order_id = ? AND change_type = ?", fx.order.ID, ChangeOrderRestore).Count(&restoreLogs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if restoreLogs != 0 {
+		t.Fatalf("restore change logs must roll back for every line, got %d", restoreLogs)
+	}
+
+	for _, expected := range []struct {
+		skuID uuid.UUID
+		stock int
+	}{
+		{skuID: fx.sku.ID, stock: 7},
+		{skuID: multi.secondSKU.ID, stock: 8},
+	} {
+		var balance WarehouseStockBalance
+		if err := fx.db.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", 41, fx.warehouse.ID, expected.skuID).First(&balance).Error; err != nil {
+			t.Fatal(err)
+		}
+		if balance.OnHand != expected.stock || balance.Reserved != 0 {
+			t.Fatalf("failed restore must leave deducted warehouse balance unchanged: sku=%s balance=%#v", expected.skuID, balance)
+		}
+		var sku product.ProductSKU
+		if err := fx.db.First(&sku, "id = ?", expected.skuID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if sku.Stock == nil || *sku.Stock != expected.stock {
+			t.Fatalf("failed restore must leave sku projection unchanged: sku=%s stock=%v", expected.skuID, sku.Stock)
+		}
+	}
+}
+
+func TestOrderInventoryReleaseRollsBackAllLinesWhenALaterLineFails(t *testing.T) {
+	multi := newMultiLineOrderInventoryFixture(t)
+	fx := multi.orderInventoryFixture
+	ctx := context.Background()
+	if _, err := fx.service.DeductInventoryForOrder(ctx, fx.order.ID, OrderInventoryOptions{Reason: "paid"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.db.Model(&orderMirror{}).Where("id = ?", fx.order.ID).Update("status", "cancelled").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var items []orderLineMirror
+	if err := fx.db.Where("order_id = ?", fx.order.ID).Find(&items).Error; err != nil {
+		t.Fatal(err)
+	}
+	sortOrderInventoryItems(items)
+	if len(items) != 2 {
+		t.Fatalf("expected two order lines, got %d", len(items))
+	}
+	wrongProductID := uuid.New()
+	if err := fx.db.Model(&orderLineMirror{}).Where("id = ?", items[1].ID).Update("product_id", wrongProductID).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := fx.service.RestoreInventoryForOrder(ctx, fx.order.ID, OrderInventoryOptions{Reason: "cancelled"})
+	if err == nil {
+		t.Fatalf("expected release to fail for mismatched later line, summary=%#v", summary)
+	}
+	if summary == nil || summary.LinesSynced != 0 || summary.Error == "" {
+		t.Fatalf("release failure must not report committed lines, summary=%#v err=%v", summary, err)
+	}
+
+	var releaseEffects int64
+	if err := fx.db.Model(&OrderInventoryEffect{}).Where("order_id = ? AND effect_type = ?", fx.order.ID, EffectTypeRelease).Count(&releaseEffects).Error; err != nil {
+		t.Fatal(err)
+	}
+	if releaseEffects != 0 {
+		t.Fatalf("release effects must roll back for every line, got %d", releaseEffects)
+	}
+	var releaseMovements int64
+	if err := fx.db.Model(&InventoryMovement{}).Where("source_id IN ? AND movement_type = ?", []uuid.UUID{fx.line.ID, multi.secondLine.ID}, MovementOrderRelease).Count(&releaseMovements).Error; err != nil {
+		t.Fatal(err)
+	}
+	if releaseMovements != 0 {
+		t.Fatalf("release movements must roll back for every line, got %d", releaseMovements)
+	}
+
+	for _, expected := range []struct {
+		skuID    uuid.UUID
+		reserved int
+	}{
+		{skuID: fx.sku.ID, reserved: 3},
+		{skuID: multi.secondSKU.ID, reserved: 2},
+	} {
+		var balance WarehouseStockBalance
+		if err := fx.db.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", 41, fx.warehouse.ID, expected.skuID).First(&balance).Error; err != nil {
+			t.Fatal(err)
+		}
+		if balance.OnHand != 10 || balance.Reserved != expected.reserved {
+			t.Fatalf("failed release must leave reservation balance unchanged: sku=%s balance=%#v", expected.skuID, balance)
+		}
 	}
 }
 

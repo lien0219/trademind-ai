@@ -52,12 +52,14 @@ const (
 	ChangeImport          = "import"
 	ChangePurchaseReceipt = "purchase_receipt"
 	ChangePurchaseReturn  = "purchase_return"
+	ChangeSalesReturn     = "sales_return_receipt"
 	ChangeStocktakeAdjust = "stocktake_adjust"
 )
 
 const (
 	MovementPurchaseReceipt  = "purchase_receipt"
 	MovementPurchaseReturn   = "purchase_return"
+	MovementSalesReturn      = "sales_return_receipt"
 	MovementManualAdjust     = "manual_adjust"
 	MovementLegacyImport     = "legacy_import"
 	MovementOrderReserve     = "order_reserve"
@@ -67,6 +69,11 @@ const (
 	MovementTransferDispatch = "transfer_dispatch"
 	MovementTransferReceive  = "transfer_receive"
 	MovementStocktakeAdjust  = "stocktake_adjust"
+)
+
+const (
+	ReturnDispositionSellable = "sellable"
+	ReturnDispositionDamaged  = "damaged"
 )
 
 const (
