@@ -137,8 +137,10 @@
   }
 
   .ant-dropdown-menu-item-danger {
-    &:not(.ant-dropdown-menu-item-disabled):hover {
-      background-color: var(--ant-color-fill-tertiary);
+    &:not(.ant-dropdown-menu-item-disabled):hover,
+    &:not(.ant-dropdown-menu-item-disabled):focus,
+    &:not(.ant-dropdown-menu-item-disabled):active {
+      background-color: var(--ant-color-fill-tertiary) !important;
     }
 
     .ant-dropdown-menu-title-content,
