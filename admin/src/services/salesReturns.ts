@@ -139,6 +139,76 @@ export type SalesReturnAPIError = {
   traceId?: string;
 };
 
+export type PlatformAfterSaleReconciliationStatus =
+  | 'matched'
+  | 'pending'
+  | 'mismatch'
+  | 'blocked';
+
+export type PlatformAfterSale = {
+  id: string;
+  platform: string;
+  platformShopId: string;
+  externalAfterSaleId: string;
+  externalOrderId: string;
+  platformType: string;
+  platformStatus: string;
+  refundAmountMinor: number;
+  currency: string;
+  platformUpdatedAt?: string;
+  orderId?: string;
+  orderNo?: string;
+  salesReturnId?: string;
+  returnNo?: string;
+  reconciliationStatus: PlatformAfterSaleReconciliationStatus | string;
+  reconciliationReason: string;
+  lastEventId: string;
+  events?: PlatformAfterSaleEvent[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlatformAfterSaleEvent = {
+  id: string;
+  eventId: string;
+  eventType: string;
+  platformAfterSaleId: string;
+  applied: boolean;
+  ignoredReason?: string;
+  createdAt: string;
+};
+
+export type PlatformAfterSaleListParams = {
+  page?: number;
+  pageSize?: number;
+  platform?: string;
+  platformShopId?: string;
+  shopId?: string;
+  orderNo?: string;
+  platformStatus?: string;
+  reconciliationStatus?: string;
+  start?: string;
+  end?: string;
+};
+
+export async function listPlatformAfterSaleReconciliation(
+  params: PlatformAfterSaleListParams,
+) {
+  return getWithParams<{
+    list: PlatformAfterSale[];
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  }>('/api/v1/sales-return-reconciliation', params);
+}
+
+export async function getPlatformAfterSaleReconciliation(id: string) {
+  return getJSON<PlatformAfterSale>(
+    `/api/v1/sales-return-reconciliation/${enc(id)}`,
+  );
+}
+
 export function extractSalesReturnAPIError(
   error: unknown,
 ): SalesReturnAPIError {

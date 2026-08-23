@@ -13,9 +13,16 @@ type OrderEventHandler interface {
 	HandleDouyinOrderEvent(ctx context.Context, ev *douyinshop.NormalizedWebhookEvent) error
 }
 
+// AfterSaleEventHandler receives normalized refund/after-sale facts. It must
+// remain read-only with respect to the provider and payment systems.
+type AfterSaleEventHandler interface {
+	HandleDouyinAfterSaleEvent(ctx context.Context, ev *douyinshop.NormalizedWebhookEvent) error
+}
+
 // douyinEventDispatcher routes normalized Douyin events to typed handlers.
 type douyinEventDispatcher struct {
-	OrderHandler OrderEventHandler
+	OrderHandler    OrderEventHandler
+	AfterSaleHandler AfterSaleEventHandler
 }
 
 // DispatchDouyinEvent routes a normalized event to the appropriate handler.
@@ -34,6 +41,13 @@ func (d *douyinEventDispatcher) DispatchDouyinEvent(ctx context.Context, ev *dou
 			return d.OrderHandler.HandleDouyinOrderEvent(ctx, ev)
 		}
 		slog.WarnContext(ctx, "douyin order event received but no OrderEventHandler configured",
+			"eventType", ev.EventType, "msgId", ev.MsgID)
+		return nil
+	case "after_sale_created", "after_sale_updated", "refund_created", "refund_pending", "refund_success", "refund_failed", "refund_completed":
+		if d.AfterSaleHandler != nil {
+			return d.AfterSaleHandler.HandleDouyinAfterSaleEvent(ctx, ev)
+		}
+		slog.WarnContext(ctx, "douyin after-sale event received but no AfterSaleEventHandler configured",
 			"eventType", ev.EventType, "msgId", ev.MsgID)
 		return nil
 	case "inventory_alert":
@@ -68,13 +82,13 @@ func (s *Service) HandleDouyinPlatformEvent(ctx context.Context, ev *Event) erro
 	if env, err := douyinshop.ParseDouyinWebhookEnvelope(payload); err == nil && env.Event != "" {
 		normalized := douyinshop.NormalizeDouyinEnvelope(env, payload)
 		applyEventResolution(ev, normalized)
-		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler}
+		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler, AfterSaleHandler: s.AfterSaleHandler}
 		return dispatcher.DispatchDouyinEvent(ctx, normalized)
 	}
 
 	// Try jinritemai array push
 	if items, err := douyinshop.ParseJinriteimaiPushEnvelope(payload); err == nil && len(items) > 0 {
-		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler}
+		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler, AfterSaleHandler: s.AfterSaleHandler}
 		for _, item := range items {
 			normalized := douyinshop.NormalizeJinriteimaiItem(item, payload)
 			applyEventResolution(ev, normalized)
@@ -98,6 +112,9 @@ func applyEventResolution(src *Event, dst *douyinshop.NormalizedWebhookEvent) {
 	dst.TenantID = src.TenantID
 	dst.PlatformShopID = src.PlatformShopID
 	dst.AppID = src.AppID
+	if dst.MsgID == "" {
+		dst.MsgID = src.EventID
+	}
 	if src.InternalShopID != nil {
 		dst.InternalShopID = src.InternalShopID.String()
 	}

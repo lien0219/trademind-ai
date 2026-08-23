@@ -29,6 +29,7 @@ type Service struct {
 	Verifiers       *Registry
 	ShopResolver    WebhookShopResolver
 	OrderHandler    OrderEventHandler
+	AfterSaleHandler AfterSaleEventHandler
 	Metrics         *metrics.Catalog
 	MaxPayloadBytes int64
 	MaxClockSkew    time.Duration

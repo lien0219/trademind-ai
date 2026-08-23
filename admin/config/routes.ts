@@ -352,6 +352,17 @@ export default [
         component: './SalesReturns/Detail',
       },
       {
+        path: '/orders/sales-return-reconciliation/:id',
+        name: '平台售后对账详情',
+        hideInMenu: true,
+        component: './SalesReturns/ReconciliationDetail',
+      },
+      {
+        path: '/orders/sales-return-reconciliation',
+        name: '平台售后对账',
+        component: './SalesReturns/Reconciliation',
+      },
+      {
         path: '/orders/sales-returns',
         name: '退货退款',
         component: './SalesReturns',

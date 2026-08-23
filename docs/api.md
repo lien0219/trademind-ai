@@ -153,6 +153,17 @@
 
 上述接口不执行支付退款，不调用真实平台售后或库存接口，不支持换货、自动重试、Worker 或自动采购。`400` 表示字段无效，`404` 表示当前租户不可见，`409` 表示 revision、状态、累计超退、仓库、职责分离或幂等冲突。
 
+## 平台售后同步 / 退款对账 V1
+
+平台 Webhook 的售后/退款事件只保存为当前平台事实快照和不可变事件账本，供人工核对；不会自动创建本地售后单，也不会调用支付或平台写接口。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/sales-return-reconciliation` | `sales_return.view` | 平台售后事实分页列表；支持 `page`、`pageSize`、`platform`、`platformShopId`、`shopId`、`orderNo`、`platformStatus`、`reconciliationStatus`、`start`、`end`。仅返回脱敏事实和本地订单/售后关联，不返回原始 payload。 |
+| `GET` | `/api/v1/sales-return-reconciliation/:id` | `sales_return.view` | 平台售后事实详情、最近事件和对账说明；跨租户或越权店铺返回 `404`。 |
+
+平台售后事件要求外部售后单号、平台订单号、状态、退款金额、币种和事件号；字段不完整会保留 Webhook 处理错误，不会被当作成功。相同事件号 payload 改变返回幂等冲突，较旧 `platformUpdatedAt` 事件只记账不回退当前快照。对账状态为 `matched`、`pending`、`mismatch` 或 `blocked`；本地售后关联只按同订单、类型、币种和金额核对，不产生任何写请求。
+
 ## 图片 AI
 
 | 方法 | 路径 | 说明 |

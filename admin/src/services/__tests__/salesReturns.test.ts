@@ -5,6 +5,8 @@ import {
   getSalesReturn,
   listReturnableSalesItems,
   listSalesReturns,
+  listPlatformAfterSaleReconciliation,
+  getPlatformAfterSaleReconciliation,
   transitionSalesReturn,
 } from '../salesReturns';
 
@@ -44,6 +46,39 @@ describe('sales return API service', () => {
     });
     expect(requestMock).toHaveBeenCalledWith(
       '/api/v1/sales-returns/return%2Fone',
+      { method: 'GET' },
+    );
+  });
+
+  it('keeps platform after-sale reconciliation endpoints read-only and encoded', async () => {
+    requestMock.mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0 },
+    });
+    await listPlatformAfterSaleReconciliation({
+      page: 2,
+      pageSize: 20,
+      platform: 'douyin_shop',
+      reconciliationStatus: 'mismatch',
+      orderNo: 'order/source',
+    });
+    await getPlatformAfterSaleReconciliation('after-sale/one');
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/sales-return-reconciliation',
+      {
+        method: 'GET',
+        params: {
+          page: 2,
+          pageSize: 20,
+          platform: 'douyin_shop',
+          reconciliationStatus: 'mismatch',
+          orderNo: 'order/source',
+        },
+      },
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/sales-return-reconciliation/after-sale%2Fone',
       { method: 'GET' },
     );
   });

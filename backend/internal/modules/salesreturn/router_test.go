@@ -13,6 +13,8 @@ func TestRegisterMountsSalesReturnRoutes(t *testing.T) {
 	want := map[string]bool{
 		"GET /api/v1/orders/:id/sales-returnable-items": false,
 		"GET /api/v1/sales-returns":                     false,
+		"GET /api/v1/sales-return-reconciliation":      false,
+		"GET /api/v1/sales-return-reconciliation/:id":  false,
 		"POST /api/v1/sales-returns":                    false,
 		"GET /api/v1/sales-returns/:id":                 false,
 		"POST /api/v1/sales-returns/:id/submit":         false,

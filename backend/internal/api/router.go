@@ -726,6 +726,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 			Shops:  shopSvc,
 			Orders: orderSvc,
 		},
+		AfterSaleHandler: &salesreturn.DouyinAfterSaleWebhookHandler{Svc: salesReturnSvc},
 		AppEnv: "",
 	}
 	if dep.Config != nil {

@@ -3,6 +3,7 @@ import { ok } from './envelope';
 export const E2E_SALES_ORDER_ID = 'e2e-sales-order-returnable';
 export const E2E_SALES_ORDER_ITEM_ID = 'e2e-sales-order-item-blue';
 export const E2E_SALES_RETURN_ID = 'e2e-sales-return-approved';
+export const E2E_PLATFORM_AFTER_SALE_ID = 'e2e-platform-after-sale-1';
 
 export const e2eSalesOrder = {
   id: E2E_SALES_ORDER_ID,
@@ -94,6 +95,38 @@ export const e2eSalesReturn = {
   ],
 };
 
+export const e2ePlatformAfterSale = {
+  id: E2E_PLATFORM_AFTER_SALE_ID,
+  platform: 'douyin_shop',
+  platformShopId: 'e2e-douyin-shop',
+  externalAfterSaleId: 'e2e-after-sale-1',
+  externalOrderId: 'e2e-platform-order-1',
+  platformType: 'refund_only',
+  platformStatus: 'success',
+  refundAmountMinor: 9999,
+  currency: 'CNY',
+  platformUpdatedAt: '2026-08-22T03:00:00Z',
+  orderId: E2E_SALES_ORDER_ID,
+  orderNo: e2eSalesOrder.orderNo,
+  salesReturnId: E2E_SALES_RETURN_ID,
+  returnNo: e2eSalesReturn.returnNo,
+  reconciliationStatus: 'matched',
+  reconciliationReason: 'matched_order_and_sales_return',
+  lastEventId: 'e2e-after-sale-event-1',
+  events: [
+    {
+      id: 'e2e-platform-after-sale-event-row-1',
+      eventId: 'e2e-after-sale-event-1',
+      eventType: 'refund_success',
+      platformAfterSaleId: E2E_PLATFORM_AFTER_SALE_ID,
+      applied: true,
+      createdAt: '2026-08-22T03:00:00Z',
+    },
+  ],
+  createdAt: '2026-08-22T02:00:00Z',
+  updatedAt: '2026-08-22T03:00:00Z',
+};
+
 export function salesReturnResponse(path: string) {
   if (path === `/api/v1/orders/${E2E_SALES_ORDER_ID}`) return ok(e2eSalesOrder);
   if (path === `/api/v1/orders/${E2E_SALES_ORDER_ID}/sku-matches`)
@@ -123,5 +156,9 @@ export function salesReturnResponse(path: string) {
   }
   if (path === `/api/v1/sales-returns/${E2E_SALES_RETURN_ID}`)
     return ok(e2eSalesReturn);
+  if (path === '/api/v1/sales-return-reconciliation')
+    return ok({ list: [e2ePlatformAfterSale], page: 1, pageSize: 20, total: 1, totalPages: 1 });
+  if (path === `/api/v1/sales-return-reconciliation/${E2E_PLATFORM_AFTER_SALE_ID}`)
+    return ok(e2ePlatformAfterSale);
   return null;
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -59,6 +60,76 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	response.OK(c, result)
+}
+
+func (h *Handler) ListPlatformReconciliation(c *gin.Context) {
+	tenantID, principal, ok := h.authorize(c, adminperm.PermSalesReturnView)
+	if !ok {
+		return
+	}
+	query := PlatformAfterSaleListQuery{
+		TenantID: tenantID, Page: positiveInt(c, "page", 1), PageSize: positiveInt(c, "pageSize", 20),
+		Platform: strings.TrimSpace(c.Query("platform")), PlatformShopID: strings.TrimSpace(c.Query("platformShopId")),
+		ExternalOrderID: strings.TrimSpace(c.Query("orderNo")), PlatformStatus: strings.ToLower(strings.TrimSpace(c.Query("platformStatus"))),
+		ReconciliationStatus: strings.TrimSpace(c.Query("reconciliationStatus")),
+	}
+	if query.ReconciliationStatus != "" && !validPlatformReconciliationStatus(query.ReconciliationStatus) {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid reconciliation status")
+		return
+	}
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil || id == uuid.Nil {
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid shop id")
+			return
+		}
+		query.InternalShopID = &id
+	}
+	var err error
+	if query.Start, err = parseTimeQuery(c.Query("start")); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid start time")
+		return
+	}
+	if query.End, err = parseTimeQuery(c.Query("end")); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid end time")
+		return
+	}
+	if query.Start != nil && query.End != nil && query.Start.After(*query.End) {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid time range")
+		return
+	}
+	if principal != nil && !principal.IsAdmin() {
+		query.RestrictStoreScope = true
+		query.AllowedShopIDs = principal.AllowedStoreIDs()
+	}
+	result, err := h.Svc.ListPlatformAfterSales(c.Request.Context(), query)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+func (h *Handler) GetPlatformReconciliation(c *gin.Context) {
+	tenantID, principal, ok := h.authorize(c, adminperm.PermSalesReturnView)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil || id == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid platform after-sale id")
+		return
+	}
+	row, err := h.Svc.GetPlatformAfterSale(c.Request.Context(), tenantID, id)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if principal != nil && !principal.IsAdmin() && (row.InternalShopID == nil || !principal.CanViewStore(*row.InternalShopID)) {
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, ErrAbsent.Error())
+		return
+	}
+	response.OK(c, row)
 }
 
 func (h *Handler) Get(c *gin.Context) {
@@ -213,4 +284,17 @@ func positiveInt(c *gin.Context, key string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func parseTimeQuery(raw string) (*time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, err
+	}
+	parsed = parsed.UTC()
+	return &parsed, nil
 }

@@ -110,6 +110,8 @@ describe('Admin route menu configuration', () => {
       expect.arrayContaining([
         expect.objectContaining({ path: '/orders/sales-returns', name: '退货退款' }),
         expect.objectContaining({ path: '/orders/sales-returns/:id', hideInMenu: true }),
+        expect.objectContaining({ path: '/orders/sales-return-reconciliation', name: '平台售后对账' }),
+        expect.objectContaining({ path: '/orders/sales-return-reconciliation/:id', hideInMenu: true }),
       ]),
     );
   });

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
@@ -101,6 +102,47 @@ func TestSalesReturnHTTPSeparatesApprovalReceiptReadonlyAndTenant(t *testing.T) 
 	recorder, envelope = request(t, foreign, http.MethodGet, "/api/v1/sales-returns/"+row.ID.String(), "")
 	if recorder.Code != http.StatusNotFound || envelope.Code != response.CodeNotFound || string(envelope.Data) != "null" {
 		t.Fatalf("cross-tenant detail should look absent: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestPlatformAfterSaleHTTPEnforcesTenantAndStoreScope(t *testing.T) {
+	fx := newFixture(t, 1)
+	externalOrderID := "platform-http-order"
+	if err := fx.db.Model(fx.order).Updates(map[string]any{
+		"platform": "douyin_shop", "shop_id": fx.shop.ID, "external_order_id": externalOrderID,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	local := fx.create(t, "platform-http-local", TypeRefundOnly, "", 1)
+	if err := fx.service.UpsertPlatformAfterSale(t.Context(), PlatformAfterSaleInput{
+		TenantID: 7, Platform: "douyin_shop", InternalShopID: &fx.shop.ID, PlatformShopID: fx.shop.ExternalShopID,
+		EventID: "platform-http-event", EventType: "refund_success", ExternalAfterSaleID: "platform-http-after-sale",
+		ExternalOrderID: externalOrderID, PlatformType: TypeRefundOnly, PlatformStatus: "success",
+		RefundAmountMinor: local.RefundAmountMinor, Currency: local.Currency, RawPayload: []byte(`{"event":"refund_success"}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	otherShop := &shop.Shop{TenantID: 7, Platform: "douyin_shop", ExternalShopID: "platform-http-other-shop", ShopName: "Other Shop", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
+	if err := fx.db.Create(otherShop).Error; err != nil {
+		t.Fatal(err)
+	}
+	viewerID := uuid.New()
+	router := testRouter(t, fx, 7, adminperm.RoleReviewer, viewerID)
+	if err := fx.db.Create(&admin.UserStorePermission{UserID: viewerID, StoreID: otherShop.ID, Platform: "douyin_shop", PermissionScope: admin.StorePermScopeView}).Error; err != nil {
+		t.Fatal(err)
+	}
+	recorder, envelope := request(t, router, http.MethodGet, "/api/v1/sales-return-reconciliation", "")
+	if recorder.Code != http.StatusOK || envelope.Code != response.CodeOK || strings.Contains(recorder.Body.String(), "platform-http-after-sale") {
+		t.Fatalf("store-scoped list leaked inaccessible shop: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	recorder, envelope = request(t, router, http.MethodGet, "/api/v1/sales-return-reconciliation/"+mustPlatformAfterSaleID(t, fx.db, "platform-http-after-sale").String(), "")
+	if recorder.Code != http.StatusNotFound || envelope.Code != response.CodeNotFound {
+		t.Fatalf("store-scoped detail should be absent: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	foreign := testRouter(t, fx, 8, adminperm.RoleAdmin, uuid.New())
+	recorder, envelope = request(t, foreign, http.MethodGet, "/api/v1/sales-return-reconciliation/"+mustPlatformAfterSaleID(t, fx.db, "platform-http-after-sale").String(), "")
+	if recorder.Code != http.StatusNotFound || envelope.Code != response.CodeNotFound {
+		t.Fatalf("cross-tenant platform detail should be absent: status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 

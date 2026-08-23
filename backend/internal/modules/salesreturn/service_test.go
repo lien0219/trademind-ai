@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	ordermod "github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"gorm.io/gorm"
 )
@@ -23,6 +24,7 @@ type fixture struct {
 	item      *ordermod.OrderItem
 	product   *product.Product
 	sku       *product.ProductSKU
+	shop      *shop.Shop
 }
 
 func newFixture(t *testing.T, deducted int) *fixture {
@@ -37,9 +39,10 @@ func newFixture(t *testing.T, deducted int) *fixture {
 	})
 	if err := db.AutoMigrate(
 		&product.Product{}, &product.ProductSKU{}, &warehouse.Warehouse{},
-		&ordermod.Order{}, &ordermod.OrderItem{}, &inventory.OrderInventoryEffect{},
+		&ordermod.Order{}, &ordermod.OrderItem{}, &shop.Shop{}, &inventory.OrderInventoryEffect{},
 		&inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{}, &inventory.InventoryChangeLog{},
 		&SalesReturn{}, &SalesReturnItem{}, &SalesReturnAction{}, &SalesReturnInventoryEffect{},
+		&PlatformAfterSale{}, &PlatformAfterSaleEvent{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -52,13 +55,17 @@ func newFixture(t *testing.T, deducted int) *fixture {
 	if err := db.Create(productRow).Error; err != nil {
 		t.Fatal(err)
 	}
+	shopRow := &shop.Shop{TenantID: 7, Platform: "douyin_shop", ExternalShopID: "platform-shop-1", ShopName: "Test Douyin Shop", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
+	if err := db.Create(shopRow).Error; err != nil {
+		t.Fatal(err)
+	}
 	stock := 10 - deducted
 	sku := &product.ProductSKU{ProductID: productRow.ID, SKUCode: "RETURN-SKU", SKUName: "Returned SKU", Stock: &stock}
 	if err := db.Create(sku).Error; err != nil {
 		t.Fatal(err)
 	}
 	orderRow := &ordermod.Order{
-		TenantID: 7, Platform: "manual", WarehouseID: &warehouseRow.ID, OrderNo: "ORDER-" + uuid.NewString()[:8],
+		TenantID: 7, Platform: "manual", ShopID: &shopRow.ID, WarehouseID: &warehouseRow.ID, OrderNo: "ORDER-" + uuid.NewString()[:8],
 		CustomerName: "Buyer", Status: ordermod.StatusDelivered, PaymentStatus: ordermod.PaymentPaid,
 		FulfillmentStatus: ordermod.FulfillmentFulfilled, Currency: "CNY",
 	}
@@ -81,7 +88,7 @@ func newFixture(t *testing.T, deducted int) *fixture {
 	}
 	return &fixture{
 		db: db, service: &Service{DB: db, Stock: inventory.WarehouseStockService{}, Warehouses: warehouseService},
-		warehouse: warehouseRow, order: orderRow, item: item, product: productRow, sku: sku,
+		warehouse: warehouseRow, order: orderRow, item: item, product: productRow, sku: sku, shop: shopRow,
 	}
 }
 

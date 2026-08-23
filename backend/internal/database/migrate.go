@@ -255,6 +255,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&salesreturn.SalesReturnItem{},
 		&salesreturn.SalesReturnAction{},
 		&salesreturn.SalesReturnInventoryEffect{},
+		&salesreturn.PlatformAfterSale{},
+		&salesreturn.PlatformAfterSaleEvent{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
 		&shop.PlatformCategory{},

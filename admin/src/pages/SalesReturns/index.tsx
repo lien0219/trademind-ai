@@ -1,4 +1,4 @@
-import { EyeOutlined, PlusOutlined } from '@ant-design/icons';
+import { AuditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
 import { Alert, Button, Select, Space, Tag } from 'antd';
@@ -150,6 +150,9 @@ export default function SalesReturnsPage() {
         subTitle="订单售后记录"
         extra={
           <TmPageHeaderExtra>
+            <Button icon={<AuditOutlined />} onClick={() => history.push('/orders/sales-return-reconciliation')}>
+              平台售后对账
+            </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}

@@ -8,6 +8,8 @@ func Register(group *gin.RouterGroup, handler *Handler) {
 	}
 	group.GET("/orders/:id/sales-returnable-items", handler.ListReturnableItems)
 	group.GET("/sales-returns", handler.List)
+	group.GET("/sales-return-reconciliation", handler.ListPlatformReconciliation)
+	group.GET("/sales-return-reconciliation/:id", handler.GetPlatformReconciliation)
 	group.POST("/sales-returns", handler.Create)
 	group.GET("/sales-returns/:id", handler.Get)
 	group.POST("/sales-returns/:id/submit", handler.Submit)
