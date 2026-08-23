@@ -86,6 +86,18 @@ type OrderInventoryOptions struct {
 	WarehouseID        *uuid.UUID // optional explicit binding for a manual order without one
 	TenantID           *int64     // optional caller scope for authenticated HTTP writes
 	CompensationOnly   bool       // platform sync may process only cancel/refund compensation
+	// ForceDeduct makes a caller-owned fulfillment transaction apply the actual
+	// on-hand deduction even when the order status has not been updated yet.
+	ForceDeduct bool
+	// AfterApply runs inside the inventory transaction after all order lines have
+	// been applied. It is used by the order module to commit shipment facts and
+	// lifecycle state atomically with the ledger.
+	AfterApply func(tx *gorm.DB, action string) error
+	// RequireAllLinesApplied makes the transaction fail when any order line is
+	// skipped or cannot be applied. Callers that append atomic business facts
+	// (for example, a shipment) must use this to avoid committing those facts
+	// after a partial inventory result.
+	RequireAllLinesApplied bool
 }
 
 func allowNegative(policy StockOrderPolicy, opt *bool) bool {
@@ -590,6 +602,9 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 		return &DeductionSummary{Skipped: true, SkipReason: "auto_deduct_platform_orders disabled"}, nil
 	}
 	action := orderInventoryActionFor(o)
+	if opts.ForceDeduct && !orderInventoryTerminal(o) {
+		action = orderInventoryDeduct
+	}
 	if action == orderInventoryNone {
 		return &DeductionSummary{Skipped: true, SkipReason: "order is not eligible for reservation or deduction"}, nil
 	}
@@ -616,6 +631,9 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 		}
 		o = locked
 		action = orderInventoryActionFor(o)
+		if opts.ForceDeduct && !orderInventoryTerminal(o) {
+			action = orderInventoryDeduct
+		}
 		if action == orderInventoryNone {
 			return nil
 		}
@@ -640,6 +658,19 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 				failed++
 			} else {
 				skipped++
+			}
+		}
+		if opts.RequireAllLinesApplied {
+			if failed > 0 {
+				return ErrInsufficientSKUStock
+			}
+			if len(items) == 0 || skipped > 0 || synced != len(items) {
+				return ErrOrderInventoryState
+			}
+		}
+		if opts.AfterApply != nil {
+			if err := opts.AfterApply(tx, string(action)); err != nil {
+				return err
 			}
 		}
 		return nil

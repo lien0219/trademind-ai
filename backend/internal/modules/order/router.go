@@ -20,10 +20,12 @@ func Register(g *gin.RouterGroup, h *Handler) {
 
 	o.POST("/:id/deduct-inventory", h.PostDeductInventory)
 	o.POST("/:id/restore-inventory", h.PostRestoreInventory)
+	o.POST("/:id/fulfill", h.PostFulfill)
 	o.GET("/:id/inventory-effects", h.GetOrderInventoryEffects)
 	o.GET("/:id/sku-matches", h.GetOrderSKUMatches)
 	o.POST("/:id/match-skus", h.PostMatchOrderSKUs)
 
+	o.POST("/:id/shipments", h.PostShipment)
 	o.PUT("/:id/shipments/:shipmentId", h.PutShipment)
 	o.DELETE("/:id/shipments/:shipmentId", h.DeleteShipment)
 

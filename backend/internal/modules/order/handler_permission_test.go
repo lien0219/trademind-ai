@@ -62,6 +62,8 @@ func TestOrderWriteHandlersRejectReadonlyPrincipals(t *testing.T) {
 		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/items"},
 		{http.MethodPut, "/api/v1/orders/" + orderID.String() + "/items/" + itemID.String()},
 		{http.MethodDelete, "/api/v1/orders/" + orderID.String() + "/items/" + itemID.String()},
+		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/fulfill"},
+		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/shipments"},
 		{http.MethodPut, "/api/v1/orders/" + orderID.String() + "/shipments/" + itemID.String()},
 		{http.MethodDelete, "/api/v1/orders/" + orderID.String() + "/shipments/" + itemID.String()},
 	}

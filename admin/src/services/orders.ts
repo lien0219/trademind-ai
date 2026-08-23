@@ -238,6 +238,27 @@ export async function deleteOrderShipment(
   return deleteJSON(`/api/v1/orders/${orderId}/shipments/${shipmentId}`);
 }
 
+export type FulfillOrderPayload = {
+  idempotencyKey: string;
+  warehouseId?: string;
+  carrier: string;
+  trackingNo: string;
+  trackingUrl?: string;
+};
+
+export type FulfillOrderResponse = {
+  order: OrderDetailDTO;
+  shipment: OrderShipmentRow;
+  inventoryDeduction?: Record<string, unknown> | null;
+};
+
+export async function fulfillOrder(
+  orderId: string,
+  payload: FulfillOrderPayload,
+): Promise<FulfillOrderResponse> {
+  return postJSON(`/api/v1/orders/${orderId}/fulfill`, payload);
+}
+
 export async function deductOrderInventory(
   orderId: string,
   body?: { syncInventory?: boolean; warehouseId?: string },

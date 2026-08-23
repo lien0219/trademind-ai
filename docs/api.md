@@ -125,6 +125,8 @@
 | `PUT` | `/api/v1/orders/:id` | 更新订单基础字段（需要 `order.operate`）；可提交 `warehouseId` / `setWarehouseIdNil`，有库存 effect 后不得改变仓库。 |
 | `POST` | `/api/v1/orders/:id/deduct-inventory` | 按订单状态应用库存（需要 `order.operate`）：已支付/处理中增加 `reserved`，已发货/已履约扣减 `on_hand` 并消费预占。JSON：`warehouseId`、`syncInventory`。 |
 | `POST` | `/api/v1/orders/:id/restore-inventory` | 取消/退款补偿（需要 `order.operate`）：发货前释放 `reserved`，已出库订单回补 `on_hand`。JSON：`warehouseId`、`syncInventory`、`reason`。 |
+| `POST` | `/api/v1/orders/:id/shipments` | 新增人工物流记录（需要 `order.operate`）；JSON：`carrier`、`trackingNo`、可选 `trackingUrl`、`status`。 |
+| `POST` | `/api/v1/orders/:id/fulfill` | 单订单单仓履约 V1（需要 `order.operate`）。仅允许已支付订单，所有明细必须绑定本地 SKU；JSON：调用方生成的 `idempotencyKey`（最长 128，需保持稳定）、可选 `warehouseId`、`carrier`（最长 128）、`trackingNo`（最长 255）和可选 `trackingUrl`（最长 2048，仅 `http` / `https`）。库存实际扣减、发货单创建、订单状态 `shipped` / `fulfilled` 和幂等成功记录在同一事务提交；同键同 payload 重放原发货结果，同键不同 payload 返回 `409`。不调用真实物流平台，不启动 Worker/自动重试，不支持跨仓拆单。 |
 | `GET` | `/api/v1/orders/:id/inventory-effects` | 查询订单库存 effect（需要 `order.view`），支持 `page`、`pageSize`；每条记录含 effect 类型、仓库、数量和兼容库存前后值。 |
 
 预占不会提前修改 `product_skus.stock`；实际出库和回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。

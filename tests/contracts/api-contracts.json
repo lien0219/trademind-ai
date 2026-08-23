@@ -327,6 +327,22 @@
       "requiredPermission": "order.operate"
     },
     {
+      "method": "POST",
+      "path": "/api/v1/orders/:id/shipments",
+      "auth": true,
+      "requestBody": ["carrier", "trackingNo", "trackingUrl", "status", "shippedAt", "deliveredAt"],
+      "responseData": "OrderShipment",
+      "requiredPermission": "order.operate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/:id/fulfill",
+      "auth": true,
+      "requestBody": ["idempotencyKey", "warehouseId", "carrier", "trackingNo", "trackingUrl"],
+      "responseData": "OrderFulfillmentResult",
+      "requiredPermission": "order.operate"
+    },
+    {
       "method": "GET",
       "path": "/api/v1/orders/:id/inventory-effects",
       "auth": true,

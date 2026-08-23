@@ -9,6 +9,9 @@ import {
   Card,
   Col,
   Descriptions,
+  Form,
+  Input,
+  Modal,
   Row,
   Space,
   Table,
@@ -34,10 +37,14 @@ import {
   getOrder,
   getOrderInventoryEffects,
   getOrderSKUMatches,
+  fulfillOrder,
   type OrderDetailDTO,
   type OrderSkuMatchRow,
 } from "@/services/orders";
-import type { OrderInventoryEffectRow } from "@/services/inventory";
+import {
+  createInventoryIdempotencyKey,
+  type OrderInventoryEffectRow,
+} from "@/services/inventory";
 import OrderSkuMatchTab from "@/pages/Orders/SkuMatchTab";
 import SalesReturnCreateModal from "@/pages/SalesReturns/CreateModal";
 import { PRODUCT_COPY } from "@/constants/copywriting";
@@ -59,6 +66,32 @@ function tagFromMap(
   return <Tag color={cfg.color}>{cfg.text}</Tag>;
 }
 
+function fulfillmentBlockReason(
+  order: OrderDetailDTO,
+  writable: boolean,
+): string | undefined {
+  if (!writable) return "当前账号没有订单操作权限";
+  if (!order.warehouseId) return "请先绑定履约仓库";
+  if (order.paymentStatus !== "paid") return "订单必须先标记为已支付";
+  if (
+    order.status === "cancelled" ||
+    order.status === "refunded" ||
+    order.status === "closed" ||
+    order.status === "shipped" ||
+    order.status === "delivered"
+  ) {
+    return "订单已取消、退款、关闭或发货，不能重复履约";
+  }
+  if (order.fulfillmentStatus === "fulfilled") return "订单已完成履约";
+  if (
+    order.items.length === 0 ||
+    order.items.some((item) => !item.productSkuId || item.quantity <= 0)
+  ) {
+    return "请先为所有订单明细绑定本地 SKU";
+  }
+  return undefined;
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -66,7 +99,10 @@ export default function OrderDetailPage() {
   const { initialState } = useModel("@@initialState") as {
     initialState?: { currentUser?: API.CurrentUser };
   };
-  const writable = canWriteOrders(initialState?.currentUser?.role);
+  const writable = canWriteOrders(
+    initialState?.currentUser?.role,
+    initialState?.currentUser?.permissions,
+  );
   const canViewSalesReturns = hasPermission(
     initialState?.currentUser?.role,
     PERMISSIONS.SALES_RETURN_VIEW,
@@ -84,6 +120,14 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [salesReturnOpen, setSalesReturnOpen] = useState(false);
+  const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
+  const [fulfillForm] = Form.useForm();
+  const [fulfillLoading, setFulfillLoading] = useState(false);
+  const [fulfillIdempotencyKey, setFulfillIdempotencyKey] = useState("");
+
+  const fulfillmentDisabledReason = detail
+    ? fulfillmentBlockReason(detail, writable)
+    : "订单详情不可用";
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -174,6 +218,21 @@ export default function OrderDetailPage() {
       }}
       extra={
         <Space wrap>
+          <Button
+            type="primary"
+            disabled={Boolean(fulfillmentDisabledReason) || fulfillLoading}
+            title={fulfillmentDisabledReason}
+            onClick={() => {
+              if (!detail) return;
+              fulfillForm.resetFields();
+              setFulfillIdempotencyKey(
+                createInventoryIdempotencyKey("order-fulfillment"),
+              );
+              setFulfillModalOpen(true);
+            }}
+          >
+            确认发货
+          </Button>
           {canViewSalesReturns ? (
             <Button
               onClick={() =>
@@ -235,6 +294,15 @@ export default function OrderDetailPage() {
           style={{ marginBottom: 16 }}
           message="抖店/平台凭证待真实授权"
           description="未配置真实店铺凭证时，平台订单不会同步成功；请先完成店铺授权并通过连接检查。"
+        />
+      ) : null}
+
+      {detail && fulfillmentDisabledReason ? (
+        <Alert
+          showIcon
+          type="info"
+          style={{ marginBottom: 16 }}
+          message={fulfillmentDisabledReason}
         />
       ) : null}
 
@@ -672,6 +740,70 @@ export default function OrderDetailPage() {
           />
         )
       )}
+      <Modal
+        title="确认发货"
+        open={fulfillModalOpen}
+        confirmLoading={fulfillLoading}
+        onCancel={() => {
+          if (!fulfillLoading) setFulfillModalOpen(false);
+        }}
+        onOk={async () => {
+          if (!detail || !fulfillIdempotencyKey || fulfillLoading) return;
+          let values: Record<string, unknown>;
+          try {
+            values = await fulfillForm.validateFields();
+          } catch {
+            return;
+          }
+          setFulfillLoading(true);
+          try {
+            await fulfillOrder(detail.id, {
+              idempotencyKey: fulfillIdempotencyKey,
+              warehouseId: detail.warehouseId,
+              carrier: String(values.carrier || "").trim(),
+              trackingNo: String(values.trackingNo || "").trim(),
+              trackingUrl: String(values.trackingUrl || "").trim() || undefined,
+            });
+            setFulfillModalOpen(false);
+            message.success("已完成发货并扣减库存");
+            await load();
+          } catch (e: unknown) {
+            message.error((e as Error)?.message || "发货失败");
+          } finally {
+            setFulfillLoading(false);
+          }
+        }}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="确认后会在履约仓库实际扣减库存，并将订单标记为已发货 / 已履约。"
+        />
+        <Typography.Paragraph type="secondary">
+          履约仓库：{detail?.warehouseId || "未绑定"}
+        </Typography.Paragraph>
+        <Form form={fulfillForm} layout="vertical">
+          <Form.Item
+            name="carrier"
+            label="承运商"
+            rules={[{ required: true, message: "请填写承运商" }]}
+          >
+            <Input maxLength={128} placeholder="例如：顺丰" />
+          </Form.Item>
+          <Form.Item
+            name="trackingNo"
+            label="运单号"
+            rules={[{ required: true, message: "请填写运单号" }]}
+          >
+            <Input maxLength={255} />
+          </Form.Item>
+          <Form.Item name="trackingUrl" label="追踪 URL">
+            <Input maxLength={2048} type="url" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       <SalesReturnCreateModal
         orderId={id}
         open={salesReturnOpen}

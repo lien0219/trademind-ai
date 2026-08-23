@@ -46,6 +46,13 @@ func InventoryDeduct(orderID, orderItemID, skuID string) string {
 		norm(orderID), norm(orderItemID), norm(skuID))
 }
 
+// OrderFulfillment scopes a caller-generated fulfillment action to one order.
+// The caller key is kept in the key so reusing it for another payload is
+// rejected by the request-hash check rather than silently creating a shipment.
+func OrderFulfillment(orderID, callerKey string) string {
+	return fmt.Sprintf("order-fulfillment:%s:%s", norm(orderID), norm(callerKey))
+}
+
 func InventoryCompensate(orderID, orderItemID, skuID, reason string) string {
 	return fmt.Sprintf("inventory-compensate:%s:%s:%s:%s",
 		norm(orderID), norm(orderItemID), norm(skuID), norm(reason))
