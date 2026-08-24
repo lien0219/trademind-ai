@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../request";
 import {
   appendOrderShipmentEvent,
+  batchFulfillOrders,
   confirmWarehouseAllocation,
+  createOrderBatchFulfillmentIdempotencyKey,
   createOrderAllocationIdempotencyKey,
   fulfillOrder,
   getWarehouseAllocation,
@@ -68,6 +70,37 @@ describe("order service helpers", () => {
       method: "POST",
       data: payload,
     });
+  });
+
+  it("sends the batch fulfillment contract exactly once", async () => {
+    requestMock.mockResolvedValue({
+      code: 0,
+      message: "ok",
+      data: {
+        batchIdempotencyKey: "batch-key",
+        summary: { requested: 1, succeeded: 1, blocked: 0, inProgress: 0, failed: 0 },
+        items: [],
+        pickList: [],
+      },
+    });
+
+    const payload = {
+      batchIdempotencyKey: "batch-key",
+      items: [
+        {
+          orderId: "order-1",
+          carrier: "carrier",
+          trackingNo: "tracking-1",
+          trackingUrl: "https://carrier.test/track/tracking-1",
+        },
+      ],
+    };
+    await batchFulfillOrders(payload);
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/orders/fulfillment-batch",
+      { method: "POST", data: payload },
+    );
   });
 
   it("keeps shipment event read and append contracts stable", async () => {
@@ -159,6 +192,14 @@ describe("order service helpers", () => {
     const second = createOrderAllocationIdempotencyKey();
     expect(first).not.toBe(second);
     expect(first).toMatch(/^admin-order-warehouse-allocation-/);
+    expect(first.length).toBeLessThanOrEqual(128);
+  });
+
+  it("creates bounded unique batch fulfillment idempotency keys", () => {
+    const first = createOrderBatchFulfillmentIdempotencyKey();
+    const second = createOrderBatchFulfillmentIdempotencyKey();
+    expect(first).not.toBe(second);
+    expect(first).toMatch(/^admin-order-fulfillment-batch-/);
     expect(first.length).toBeLessThanOrEqual(128);
   });
 });

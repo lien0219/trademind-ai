@@ -66,7 +66,7 @@ type SalesReturnStockResult struct {
 var ErrInsufficientWarehouseAvailable = errors.New("insufficient warehouse available stock")
 
 // WarehouseStockService owns procurement warehouse balance and movement writes.
-// Scalar SKU stock remains the aggregate authority during the staged migration.
+// Scalar SKU stock is maintained only as a compatibility sellable projection.
 type WarehouseStockService struct{}
 
 // Receive posts one positive purchase receipt inside the caller-owned transaction.
@@ -152,8 +152,7 @@ func (WarehouseStockService) Receive(ctx context.Context, tx *gorm.DB, in Receip
 	// preserve any pre-existing compatibility delta instead of rebuilding the
 	// scalar field from a still-partial set of warehouse facts.
 	aggregate := beforeAggregate + in.Quantity
-	if err := tx.WithContext(ctx).Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
-		Updates(map[string]any{"stock": aggregate, "stock_status": stockStatusForSKU(sku, aggregate)}).Error; err != nil {
+	if err := writeSKUStockProjectionTx(ctx, tx, &sku, aggregate); err != nil {
 		return nil, fmt.Errorf("inventory warehouse stock: update SKU projection: %w", err)
 	}
 	logRow := InventoryChangeLog{
@@ -244,8 +243,7 @@ func (WarehouseStockService) Return(ctx context.Context, tx *gorm.DB, in Purchas
 	}
 
 	aggregate := beforeAggregate - in.Quantity
-	if err := tx.WithContext(ctx).Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", sku.ID, sku.ProductID).
-		Updates(map[string]any{"stock": aggregate, "stock_status": stockStatusForSKU(sku, aggregate)}).Error; err != nil {
+	if err := writeSKUStockProjectionTx(ctx, tx, &sku, aggregate); err != nil {
 		return nil, fmt.Errorf("inventory warehouse stock: update return SKU projection: %w", err)
 	}
 	logRow := InventoryChangeLog{
@@ -347,8 +345,7 @@ func (WarehouseStockService) ReceiveSalesReturn(ctx context.Context, tx *gorm.DB
 	if disposition == ReturnDispositionSellable {
 		aggregate += in.Quantity
 	}
-	if err := tx.WithContext(ctx).Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", sku.ID, sku.ProductID).
-		Updates(map[string]any{"stock": aggregate, "stock_status": stockStatusForSKU(sku, aggregate)}).Error; err != nil {
+	if err := writeSKUStockProjectionTx(ctx, tx, &sku, aggregate); err != nil {
 		return nil, fmt.Errorf("inventory warehouse stock: update sales return SKU projection: %w", err)
 	}
 	change := &InventoryChangeLog{

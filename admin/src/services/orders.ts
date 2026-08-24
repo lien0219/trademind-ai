@@ -483,6 +483,64 @@ export async function fulfillOrder(
   return postJSON(`/api/v1/orders/${orderId}/fulfill`, payload);
 }
 
+export type BatchFulfillOrderItemPayload = {
+  orderId: string;
+  warehouseId?: string;
+  carrier: string;
+  trackingNo: string;
+  trackingUrl?: string;
+};
+
+export type BatchFulfillmentItemResult = {
+  orderId: string;
+  orderNo: string;
+  warehouseId?: string;
+  status: "succeeded" | "blocked" | "in_progress" | "failed";
+  shipment?: OrderShipmentRow;
+  error?: string;
+};
+
+export type BatchFulfillmentResult = {
+  batchIdempotencyKey: string;
+  summary: {
+    requested: number;
+    succeeded: number;
+    blocked: number;
+    inProgress: number;
+    failed: number;
+  };
+  items: BatchFulfillmentItemResult[];
+  pickList: Array<{
+    warehouseId: string;
+    warehouseCode?: string;
+    warehouseName?: string;
+    productSkuId: string;
+    skuCode?: string;
+    skuName?: string;
+    productTitle?: string;
+    quantity: number;
+    orderCount: number;
+  }>;
+};
+
+export type BatchFulfillOrdersPayload = {
+  batchIdempotencyKey: string;
+  items: BatchFulfillOrderItemPayload[];
+};
+
+export async function batchFulfillOrders(
+  payload: BatchFulfillOrdersPayload,
+): Promise<BatchFulfillmentResult> {
+  return postJSON("/api/v1/orders/fulfillment-batch", payload);
+}
+
+export function createOrderBatchFulfillmentIdempotencyKey() {
+  const random =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `admin-order-fulfillment-batch-${random}`.slice(0, 128);
+}
+
 export async function deductOrderInventory(
   orderId: string,
   body?: { syncInventory?: boolean; warehouseId?: string },

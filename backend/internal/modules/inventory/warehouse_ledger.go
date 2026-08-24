@@ -240,8 +240,7 @@ func (s *Service) AdjustWarehouseStock(ctx context.Context, tenantID int64, prod
 		}
 
 		aggregate := beforeAggregate + body.Stock - beforeOnHand
-		if err := tx.Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", skuID, productID).
-			Updates(map[string]any{"stock": aggregate, "stock_status": stockStatusForSKU(sku, aggregate), "updated_at": time.Now().UTC()}).Error; err != nil {
+		if err := writeSKUStockProjectionTx(ctx, tx, &sku, aggregate); err != nil {
 			return fmt.Errorf("update SKU stock projection: %w", err)
 		}
 		logRow := InventoryChangeLog{

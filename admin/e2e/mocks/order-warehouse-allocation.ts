@@ -53,6 +53,34 @@ export const e2eWarehouseAllocation = {
   ],
 };
 
+export function allocatedWarehouseAllocationListResponse() {
+  return ok({
+    list: [
+      {
+        id: E2E_ALLOCATION_ORDER_ID,
+        platform: "douyin_shop",
+        shopName: "E2E 抖音店铺",
+        orderNo: "SO-E2E-ALLOC-0001",
+        customerName: "买家**",
+        status: "paid",
+        paymentStatus: "paid",
+        fulfillmentStatus: "unfulfilled",
+        currency: "CNY",
+        totalAmount: 299,
+        createdAt: "2026-08-24T02:00:00Z",
+        allocationStatus: "allocated",
+        warehouseId: E2E_ALLOCATION_WAREHOUSE_ID,
+        warehouseCode: "MAIN",
+        warehouseName: "E2E 华东主仓",
+        candidateCount: 1,
+        eligibleCandidateCount: 1,
+        blocks: [],
+      },
+    ],
+    pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+  });
+}
+
 export function warehouseAllocationResponse(path: string) {
   if (path === "/api/v1/orders/warehouse-allocations") {
     return ok({

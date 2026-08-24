@@ -389,7 +389,7 @@ func (s *Service) postStocktakeTx(ctx context.Context, tx *gorm.DB, tenantID int
 			return err
 		}
 		aggregate := beforeAggregate + delta
-		if err := tx.Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", sku.ID, sku.ProductID).Updates(map[string]any{"stock": aggregate, "stock_status": stockStatusForSKU(sku, aggregate), "updated_at": time.Now().UTC()}).Error; err != nil {
+		if err := writeSKUStockProjectionTx(ctx, tx, &sku, aggregate); err != nil {
 			return err
 		}
 		if err := tx.Create(&InventoryChangeLog{TenantID: tenantID, ProductID: sku.ProductID, ProductSKUID: sku.ID, ChangeType: ChangeStocktakeAdjust, BeforeStock: beforeAggregate, AfterStock: aggregate, Delta: delta, Reason: row.Reason, Remark: item.Remark, CreatedBy: actor, BusinessEventKey: eventKey}).Error; err != nil {

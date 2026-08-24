@@ -62,6 +62,7 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/orders/:id/shipments/:shipmentId/events",
         "POST /api/v1/orders/:id/shipments/:shipmentId/events",
         "POST /api/v1/orders/:id/fulfill",
+        "POST /api/v1/orders/fulfillment-batch",
         "GET /api/v1/orders/:id/inventory-effects",
         "GET /api/v1/suppliers",
         "POST /api/v1/suppliers",
@@ -298,6 +299,15 @@ describe("TradeMind API contract registry", () => {
     expect(endpoint("POST /api/v1/orders/:id/fulfill")?.requiredPermission).toBe(
       "order.operate",
     );
+    expect(
+      endpoint("POST /api/v1/orders/fulfillment-batch")?.requestBody,
+    ).toEqual(["batchIdempotencyKey", "items"]);
+    expect(
+      endpoint("POST /api/v1/orders/fulfillment-batch")?.requiredPermission,
+    ).toBe("order.operate");
+    expect(
+      endpoint("POST /api/v1/orders/fulfillment-batch")?.externalWrite,
+    ).toBe(false);
     expect(endpoint("GET /api/v1/orders/:id/inventory-effects")?.query).toEqual(
       ["page", "pageSize"],
     );
@@ -626,7 +636,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(100);
+    expect(contracts.endpoints).toHaveLength(104);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

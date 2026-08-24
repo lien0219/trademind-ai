@@ -25,8 +25,13 @@ import { useUrlDrawerState } from "@/hooks/useUrlState";
 import {
   confirmWarehouseAllocation,
   createOrderAllocationIdempotencyKey,
+  batchFulfillOrders,
+  createOrderBatchFulfillmentIdempotencyKey,
   getWarehouseAllocation,
   queryWarehouseAllocations,
+  type BatchFulfillOrderItemPayload,
+  type BatchFulfillmentItemResult,
+  type BatchFulfillmentResult,
   type WarehouseAllocation,
   type WarehouseAllocationCandidate,
   type WarehouseAllocationCandidateLine,
@@ -40,12 +45,31 @@ const STATUS_META = {
   blocked: { label: "已阻断", color: "error" },
 } as const;
 
+const BATCH_STATUS_META = {
+  succeeded: { label: "履约成功", color: "success" },
+  blocked: { label: "已阻断", color: "error" },
+  in_progress: { label: "处理中", color: "processing" },
+  failed: { label: "处理失败", color: "warning" },
+} as const;
+
 type AssignmentFilter = "all" | "allocated" | "unallocated";
+type BatchShipmentDraft = Pick<
+  BatchFulfillOrderItemPayload,
+  "carrier" | "trackingNo" | "trackingUrl"
+>;
 
 function allocationStatusTag(
   status: WarehouseAllocationListRow["allocationStatus"],
 ) {
   const meta = STATUS_META[status] ?? {
+    label: status || "未知",
+    color: "default",
+  };
+  return <Tag color={meta.color}>{meta.label}</Tag>;
+}
+
+function batchStatusTag(status: BatchFulfillmentItemResult["status"]) {
+  const meta = BATCH_STATUS_META[status] ?? {
     label: status || "未知",
     color: "default",
   };
@@ -73,6 +97,18 @@ export default function WarehouseAllocationsPage() {
     createOrderAllocationIdempotencyKey(),
   );
   const [confirming, setConfirming] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<WarehouseAllocationListRow[]>(
+    [],
+  );
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchRows, setBatchRows] = useState<WarehouseAllocationListRow[]>([]);
+  const [batchDrafts, setBatchDrafts] = useState<Record<string, BatchShipmentDraft>>(
+    {},
+  );
+  const [batchKey, setBatchKey] = useState("");
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [batchError, setBatchError] = useState("");
+  const [batchResult, setBatchResult] = useState<BatchFulfillmentResult>();
 
   const loadDetail = useCallback(async (orderId: string) => {
     setDetailLoading(true);
@@ -108,7 +144,89 @@ export default function WarehouseAllocationsPage() {
 
   useEffect(() => {
     void actionRef.current?.reloadAndRest?.();
+    setSelectedRows([]);
   }, [assignment, keyword]);
+
+  const openBatchFulfillment = useCallback(() => {
+    const rows = selectedRows.filter(
+      (row) => row.allocationStatus === "allocated" && row.warehouseId,
+    );
+    if (!canOperate || rows.length === 0) {
+      return;
+    }
+    setBatchRows(rows);
+    setBatchDrafts(
+      Object.fromEntries(
+        rows.map((row) => [
+          row.id,
+          { carrier: "", trackingNo: "", trackingUrl: "" },
+        ]),
+      ),
+    );
+    setBatchKey(createOrderBatchFulfillmentIdempotencyKey());
+    setBatchError("");
+    setBatchResult(undefined);
+    setBatchOpen(true);
+  }, [canOperate, selectedRows]);
+
+  const updateBatchDraft = useCallback(
+    (orderId: string, field: keyof BatchShipmentDraft, value: string) => {
+      setBatchDrafts((current) => ({
+        ...current,
+        [orderId]: { ...current[orderId], [field]: value },
+      }));
+    },
+    [],
+  );
+
+  const submitBatchFulfillment = useCallback(async () => {
+    if (!canOperate || batchSubmitting || batchRows.length === 0 || !batchKey) {
+      return;
+    }
+    const missing = batchRows.find((row) => {
+      const draft = batchDrafts[row.id];
+      return !draft?.carrier.trim() || !draft?.trackingNo.trim();
+    });
+    if (missing) {
+      setBatchError(`请补充订单 ${missing.orderNo} 的承运商和运单号`);
+      return;
+    }
+    setBatchSubmitting(true);
+    setBatchError("");
+    try {
+      const result = await batchFulfillOrders({
+        batchIdempotencyKey: batchKey,
+        items: batchRows.map((row) => ({
+          orderId: row.id,
+          warehouseId: row.warehouseId,
+          carrier: batchDrafts[row.id]?.carrier.trim() ?? "",
+          trackingNo: batchDrafts[row.id]?.trackingNo.trim() ?? "",
+          trackingUrl: batchDrafts[row.id]?.trackingUrl?.trim() || undefined,
+        })),
+      });
+      setBatchResult(result);
+      setSelectedRows([]);
+      await actionRef.current?.reload();
+      if (result.summary.succeeded > 0) {
+        message.success(`批量履约已处理 ${result.summary.succeeded} 单`);
+      }
+      if (result.summary.blocked + result.summary.failed + result.summary.inProgress > 0) {
+        message.warning("部分订单未完成，请根据异常结果处理后重试");
+      }
+    } catch (error) {
+      const errorMessage = (error as Error)?.message || "批量履约失败";
+      setBatchError(errorMessage);
+      message.error(errorMessage);
+    } finally {
+      setBatchSubmitting(false);
+    }
+  }, [
+    batchDrafts,
+    batchKey,
+    batchRows,
+    batchSubmitting,
+    canOperate,
+  ]);
 
   const selectedCandidate = useMemo(
     () =>
@@ -281,7 +399,7 @@ export default function WarehouseAllocationsPage() {
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
         title="履约分仓"
-        subTitle="按整单 SKU 可用库存计算单仓候选；人工确认后原子绑定仓库并预占库存。"
+        subTitle="按整单 SKU 可用库存计算单仓候选；人工确认后原子绑定并预占，已分仓订单可批量履约。"
       >
         {!canOperate ? (
           <Alert
@@ -294,7 +412,7 @@ export default function WarehouseAllocationsPage() {
         <Alert
           type="warning"
           showIcon
-          message="首版只支持单订单单仓。库存不足、SKU 未绑定、账本投影不一致或候选已变化时会失败关闭。"
+          message="分仓仍按单订单单仓绑定；已分仓订单可批量履约。库存不足、SKU 未绑定、账本投影不一致或候选已变化时会阻断。"
           style={{ marginBottom: 16 }}
         />
         {listError ? <ErrorAlert title={listError} /> : null}
@@ -305,34 +423,59 @@ export default function WarehouseAllocationsPage() {
           search={false}
           cardBordered
           scroll={{ x: 1200 }}
+          rowSelection={{
+            selectedRowKeys: selectedRows.map((row) => row.id),
+            onChange: (_keys, rows) => {
+              setSelectedRows(
+                rows.filter(
+                  (row) => row.allocationStatus === "allocated" && row.warehouseId,
+                ),
+              );
+            },
+            getCheckboxProps: (row) => ({
+              disabled: row.allocationStatus !== "allocated" || !row.warehouseId,
+            }),
+          }}
           locale={{ emptyText: "暂无待处理的已付款订单" }}
           toolBarRender={() => [
-            <Input.Search
-              key="keyword"
-              aria-label="搜索订单"
-              allowClear
-              value={keywordInput}
-              placeholder="订单号、客户或平台订单号"
-              style={{ width: 260, maxWidth: "100%" }}
-              onChange={(event) => setKeywordInput(event.target.value)}
-              onSearch={(value) => {
-                setKeyword(value.trim());
-              }}
-            />,
-            <Select<AssignmentFilter>
-              key="assignment"
-              aria-label="仓库分配状态"
-              value={assignment}
-              style={{ width: 140 }}
-              options={[
-                { value: "unallocated", label: "未绑定仓库" },
-                { value: "allocated", label: "已绑定仓库" },
-                { value: "all", label: "全部订单" },
-              ]}
-              onChange={(value) => {
-                setAssignment(value);
-              }}
-            />,
+            <Space
+              key="filters-and-actions"
+              wrap
+              size="small"
+              style={{ width: "100%" }}
+            >
+              <Input.Search
+                aria-label="搜索订单"
+                allowClear
+                value={keywordInput}
+                placeholder="订单号、客户或平台订单号"
+                style={{ width: "min(260px, 100%)" }}
+                onChange={(event) => setKeywordInput(event.target.value)}
+                onSearch={(value) => {
+                  setKeyword(value.trim());
+                }}
+              />
+              <Select<AssignmentFilter>
+                aria-label="仓库分配状态"
+                value={assignment}
+                style={{ width: 140 }}
+                options={[
+                  { value: "unallocated", label: "未绑定仓库" },
+                  { value: "allocated", label: "已绑定仓库" },
+                  { value: "all", label: "全部订单" },
+                ]}
+                onChange={(value) => {
+                  setAssignment(value);
+                }}
+              />
+              <Button
+                type="primary"
+                disabled={!canOperate || selectedRows.length === 0}
+                onClick={openBatchFulfillment}
+              >
+                批量履约（{selectedRows.length}）
+              </Button>
+            </Space>,
           ]}
           request={async (params) => {
             try {
@@ -464,6 +607,171 @@ export default function WarehouseAllocationsPage() {
             </Space>
           ) : null}
         </AppDrawer>
+
+        <Modal
+          title="批量履约"
+          open={batchOpen}
+          width={960}
+          style={{ maxWidth: "calc(100vw - 24px)" }}
+          destroyOnHidden
+          confirmLoading={batchSubmitting}
+          okText={batchResult ? "关闭" : "提交批量履约"}
+          cancelText="取消"
+          onCancel={() => {
+            if (!batchSubmitting) {
+              setBatchOpen(false);
+            }
+          }}
+          onOk={() => {
+            if (batchResult) {
+              setBatchOpen(false);
+              return;
+            }
+            void submitBatchFulfillment();
+          }}
+        >
+          {batchResult ? (
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Alert
+                type={
+                  batchResult.summary.blocked +
+                    batchResult.summary.failed +
+                    batchResult.summary.inProgress >
+                  0
+                    ? "warning"
+                    : "success"
+                }
+                showIcon
+                message={`已处理 ${batchResult.summary.requested} 单：成功 ${batchResult.summary.succeeded}，阻断 ${batchResult.summary.blocked}，处理中 ${batchResult.summary.inProgress}，失败 ${batchResult.summary.failed}`}
+                description="成功订单已在本地完成扣减、发货单和履约状态更新；异常项不会自动重试。"
+              />
+              <Table<BatchFulfillmentItemResult>
+                size="small"
+                rowKey="orderId"
+                pagination={false}
+                scroll={{ x: 720 }}
+                dataSource={batchResult.items}
+                columns={[
+                  { title: "订单", dataIndex: "orderNo", width: 180 },
+                  {
+                    title: "仓库",
+                    dataIndex: "warehouseId",
+                    width: 160,
+                    render: (value: string | undefined) => value || "—",
+                  },
+                  {
+                    title: "结果",
+                    dataIndex: "status",
+                    width: 100,
+                    render: (value: BatchFulfillmentItemResult["status"]) =>
+                      batchStatusTag(value),
+                  },
+                  { title: "异常说明", dataIndex: "error", ellipsis: true },
+                ]}
+              />
+              <Typography.Text strong>拣配汇总</Typography.Text>
+              <Table
+                size="small"
+                rowKey={(row) => `${row.warehouseId}-${row.productSkuId}`}
+                pagination={false}
+                scroll={{ x: 720 }}
+                locale={{ emptyText: "没有成功订单可生成拣配汇总" }}
+                dataSource={batchResult.pickList}
+                columns={[
+                  {
+                    title: "仓库",
+                    render: (_: unknown, row) =>
+                      row.warehouseCode
+                        ? `${row.warehouseCode} · ${row.warehouseName || ""}`
+                        : row.warehouseId,
+                    width: 190,
+                  },
+                  {
+                    title: "商品规格",
+                    render: (_: unknown, row) =>
+                      row.skuCode || row.skuName || row.productTitle || row.productSkuId,
+                    width: 220,
+                  },
+                  { title: "数量", dataIndex: "quantity", width: 80 },
+                  { title: "订单数", dataIndex: "orderCount", width: 80 },
+                ]}
+              />
+            </Space>
+          ) : (
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Alert
+                type="info"
+                showIcon
+                message={`本页已选 ${batchRows.length} 个已分仓订单`}
+                description="请为每个订单填写人工承运商和运单号。提交只写入本地履约事实，不调用真实平台或物流接口。"
+              />
+              {batchError ? <ErrorAlert title={batchError} /> : null}
+              <Table<WarehouseAllocationListRow>
+                size="small"
+                rowKey="id"
+                pagination={false}
+                scroll={{ x: 760 }}
+                dataSource={batchRows}
+                columns={[
+                  { title: "订单", dataIndex: "orderNo", width: 180 },
+                  {
+                    title: "仓库",
+                    render: (_: unknown, row) =>
+                      row.warehouseCode
+                        ? `${row.warehouseCode} · ${row.warehouseName || ""}`
+                        : row.warehouseId || "—",
+                    width: 190,
+                  },
+                  {
+                    title: "承运商 *",
+                    width: 180,
+                    render: (_: unknown, row) => (
+                      <Input
+                        aria-label={`${row.orderNo} 承运商`}
+                        value={batchDrafts[row.id]?.carrier}
+                        maxLength={128}
+                        placeholder="如：顺丰"
+                        onChange={(event) =>
+                          updateBatchDraft(row.id, "carrier", event.target.value)
+                        }
+                      />
+                    ),
+                  },
+                  {
+                    title: "运单号 *",
+                    width: 210,
+                    render: (_: unknown, row) => (
+                      <Input
+                        aria-label={`${row.orderNo} 运单号`}
+                        value={batchDrafts[row.id]?.trackingNo}
+                        maxLength={255}
+                        placeholder="填写运单号"
+                        onChange={(event) =>
+                          updateBatchDraft(row.id, "trackingNo", event.target.value)
+                        }
+                      />
+                    ),
+                  },
+                  {
+                    title: "轨迹链接",
+                    width: 240,
+                    render: (_: unknown, row) => (
+                      <Input
+                        aria-label={`${row.orderNo} 轨迹链接`}
+                        value={batchDrafts[row.id]?.trackingUrl}
+                        maxLength={2048}
+                        placeholder="可选，http(s)"
+                        onChange={(event) =>
+                          updateBatchDraft(row.id, "trackingUrl", event.target.value)
+                        }
+                      />
+                    ),
+                  },
+                ]}
+              />
+            </Space>
+          )}
+        </Modal>
       </TmPageContainer>
     </PermissionGuard>
   );

@@ -536,8 +536,7 @@ func (s *Service) applyOrderLineTx(ctx context.Context, tx *gorm.DB, o orderMirr
 		expectedBalanceVersions[skuID] = balance.Version
 	}
 	if action == orderInventoryDeduct {
-		if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
-			Updates(map[string]any{"stock": afterStock, "stock_status": stockStatusForSKU(sku, afterStock), "updated_at": time.Now().UTC()}).Error; err != nil {
+		if err := writeSKUStockProjectionTx(ctx, tx, &sku, afterStock); err != nil {
 			return out, err
 		}
 	}
@@ -864,8 +863,7 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 				return err
 			}
 			if effectType == EffectTypeRestore {
-				if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
-					Updates(map[string]any{"stock": afterStock, "stock_status": stockStatusForSKU(sku, afterStock), "updated_at": time.Now().UTC()}).Error; err != nil {
+				if err := writeSKUStockProjectionTx(ctx, tx, &sku, afterStock); err != nil {
 					return err
 				}
 			}

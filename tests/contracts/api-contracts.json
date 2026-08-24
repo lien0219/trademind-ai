@@ -424,6 +424,17 @@
       "requiredPermission": "order.operate"
     },
     {
+      "method": "POST",
+      "path": "/api/v1/orders/fulfillment-batch",
+      "auth": true,
+      "requestBody": ["batchIdempotencyKey", "items"],
+      "responseData": "OrderFulfillmentBatchResult",
+      "requiredPermission": "order.operate",
+      "atomicity": "per_order_atomic_partial",
+      "externalWrite": false,
+      "statusEnum": ["succeeded", "blocked", "in_progress", "failed"]
+    },
+    {
       "method": "GET",
       "path": "/api/v1/orders/:id/inventory-effects",
       "auth": true,
