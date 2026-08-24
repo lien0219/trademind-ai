@@ -727,7 +727,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 			Orders: orderSvc,
 		},
 		AfterSaleHandler: &salesreturn.DouyinAfterSaleWebhookHandler{Svc: salesReturnSvc},
-		AppEnv: "",
+		AppEnv:           "",
 	}
 	if dep.Config != nil {
 		webhookSvc.MaxPayloadBytes = dep.Config.WebhookMaxBodyBytes()

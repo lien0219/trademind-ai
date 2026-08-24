@@ -169,6 +169,22 @@ func TestRefundExecutionReviewBlocksAmbiguousPlatformFacts(t *testing.T) {
 	}
 }
 
+func TestRefundExecutionListSupportsLegacyTenantZero(t *testing.T) {
+	fx := newFixture(t, 1)
+
+	result, err := fx.service.ListRefundExecutions(t.Context(), RefundExecutionListQuery{
+		TenantID: 0,
+		Page:     1,
+		PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("legacy tenant zero list failed: %v", err)
+	}
+	if result == nil || len(result.List) != 0 || result.Page != 1 || result.PageSize != 20 {
+		t.Fatalf("unexpected legacy tenant zero list: %#v", result)
+	}
+}
+
 func uuidPointerDifferentFrom(other uuid.UUID) *uuid.UUID {
 	value := uuid.New()
 	for value == other {

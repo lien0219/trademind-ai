@@ -38,7 +38,7 @@ func (s *Service) CreateRefundExecution(ctx context.Context, tenantID int64, sal
 		return nil, err
 	}
 	key := strings.TrimSpace(in.IdempotencyKey)
-	if tenantID < 1 || salesReturnID == uuid.Nil || actor == nil || *actor == uuid.Nil || len(key) < 8 || len(key) > 128 || (in.PlatformAfterSaleID != nil && *in.PlatformAfterSaleID == uuid.Nil) {
+	if tenantID < 0 || salesReturnID == uuid.Nil || actor == nil || *actor == uuid.Nil || len(key) < 8 || len(key) > 128 || (in.PlatformAfterSaleID != nil && *in.PlatformAfterSaleID == uuid.Nil) {
 		return nil, ErrRefundExecutionInvalidInput
 	}
 	hash := refundHash("create", salesReturnID.String(), optionalUUID(in.PlatformAfterSaleID))
@@ -126,7 +126,7 @@ func (s *Service) GetRefundExecution(ctx context.Context, tenantID int64, id uui
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
-	if tenantID < 1 || id == uuid.Nil {
+	if tenantID < 0 || id == uuid.Nil {
 		return nil, ErrRefundExecutionAbsent
 	}
 	var row RefundExecution
@@ -151,7 +151,7 @@ func (s *Service) ListRefundExecutions(ctx context.Context, q RefundExecutionLis
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
-	if q.TenantID < 1 {
+	if q.TenantID < 0 {
 		return nil, ErrRefundExecutionInvalidInput
 	}
 	if q.Page < 1 {
@@ -200,7 +200,7 @@ func (s *Service) RecordRefundResult(ctx context.Context, tenantID int64, id uui
 	reason := strings.TrimSpace(in.Reason)
 	key := strings.TrimSpace(in.IdempotencyKey)
 	executedAt := in.ExecutedAt.UTC()
-	if tenantID < 1 || id == uuid.Nil || actor == nil || *actor == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || !validRefundResult(result) || in.ExecutedAt.IsZero() || in.ExecutedAt.After(time.Now().UTC().Add(5*time.Minute)) || len([]rune(externalID)) > 255 || len([]rune(reason)) > 255 || (result == RefundExecutionStatusSucceeded && externalID == "") || ((result == RefundExecutionStatusFailed || result == RefundExecutionStatusUnknown) && reason == "") {
+	if tenantID < 0 || id == uuid.Nil || actor == nil || *actor == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || !validRefundResult(result) || in.ExecutedAt.IsZero() || in.ExecutedAt.After(time.Now().UTC().Add(5*time.Minute)) || len([]rune(externalID)) > 255 || len([]rune(reason)) > 255 || (result == RefundExecutionStatusSucceeded && externalID == "") || ((result == RefundExecutionStatusFailed || result == RefundExecutionStatusUnknown) && reason == "") {
 		return nil, ErrRefundExecutionInvalidInput
 	}
 	hash := refundHash(refundActionRecordResult, fmt.Sprint(in.ExpectedRevision), result, externalID, executedAt.Format(time.RFC3339Nano), reason)
@@ -215,7 +215,7 @@ func (s *Service) RecordRefundResult(ctx context.Context, tenantID int64, id uui
 func (s *Service) ConfirmRefundFromPlatform(ctx context.Context, tenantID int64, id uuid.UUID, actor *uuid.UUID, in ConfirmRefundFromPlatformInput) (*RefundExecution, error) {
 	key := strings.TrimSpace(in.IdempotencyKey)
 	reason := strings.TrimSpace(in.Reason)
-	if tenantID < 1 || id == uuid.Nil || actor == nil || *actor == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || in.PlatformAfterSaleID == uuid.Nil || len([]rune(reason)) > 255 {
+	if tenantID < 0 || id == uuid.Nil || actor == nil || *actor == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || in.PlatformAfterSaleID == uuid.Nil || len([]rune(reason)) > 255 {
 		return nil, ErrRefundExecutionInvalidInput
 	}
 	hash := refundHash(refundActionConfirmPlatform, fmt.Sprint(in.ExpectedRevision), in.PlatformAfterSaleID.String(), reason)
@@ -243,7 +243,7 @@ func (s *Service) ConfirmRefundFromPlatform(ctx context.Context, tenantID int64,
 func (s *Service) CancelRefundExecution(ctx context.Context, tenantID int64, id uuid.UUID, actor *uuid.UUID, in ActionInput) (*RefundExecution, error) {
 	key := strings.TrimSpace(in.IdempotencyKey)
 	reason := strings.TrimSpace(in.Reason)
-	if tenantID < 1 || id == uuid.Nil || actor == nil || *actor == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || reason == "" || len([]rune(reason)) > 128 {
+	if tenantID < 0 || id == uuid.Nil || actor == nil || *actor == uuid.Nil || in.ExpectedRevision < 1 || len(key) < 8 || len(key) > 128 || reason == "" || len([]rune(reason)) > 128 {
 		return nil, ErrRefundExecutionInvalidInput
 	}
 	hash := refundHash(refundActionCancel, fmt.Sprint(in.ExpectedRevision), reason)

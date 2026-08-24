@@ -62,10 +62,13 @@ export default function StocktakesPage() {
   useEffect(() => { void loadOptions(); }, [loadOptions]);
   useEffect(() => { void actionRef.current?.reload(); }, [status]);
 
-  const openCreate = () => {
+  const initializeCreateForm = () => {
     form.resetFields();
     const defaultWarehouse = warehouses.find((row) => row.isDefault)?.id;
     form.setFieldsValue(defaultWarehouse ? { warehouseId: defaultWarehouse } : {});
+  };
+
+  const openCreate = () => {
     setCreateOpen(true);
     void loadOptions();
   };
@@ -163,7 +166,7 @@ export default function StocktakesPage() {
         try { const result = await queryInventoryStocktakes({ page: params.current, pageSize: params.pageSize, status }); setError(''); return { data: result.list ?? [], success: true, total: result.total ?? 0 }; }
         catch (nextError) { const msg = (nextError as Error)?.message || '盘点列表加载失败'; setError(msg); message.error(msg); return { data: [], success: false, total: 0 }; }
       }} />
-      <Modal title="新建库存盘点" open={createOpen} width={560} confirmLoading={submitting} okText="创建盘点单" cancelText="取消" onCancel={() => !submitting && setCreateOpen(false)} onOk={() => form.submit()} destroyOnHidden>
+      <Modal title="新建库存盘点" open={createOpen} width={560} confirmLoading={submitting} okText="创建盘点单" cancelText="取消" onCancel={() => !submitting && setCreateOpen(false)} onOk={() => form.submit()} afterOpenChange={(open) => { if (open) initializeCreateForm(); }} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false} onFinish={(values) => void submitCreate(values)}>
           <Form.Item label="盘点仓库" name="warehouseId" rules={[{ required: true, message: '请选择盘点仓库' }]}><Select showSearch optionFilterProp="label" placeholder="请选择盘点仓库" options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))} /></Form.Item>
           <Form.Item label="商品规格" name="productSkuId" rules={[{ required: true, message: '请选择商品规格' }]}><Select showSearch optionFilterProp="label" options={skuOptions} placeholder="选择需要盘点的商品规格" /></Form.Item>

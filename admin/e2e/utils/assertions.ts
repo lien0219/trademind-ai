@@ -50,6 +50,20 @@ export async function expectHeaderContentAligned(page: Page) {
   expect(value.rightDelta, `header/content right delta ${JSON.stringify(value)}`).toBeLessThanOrEqual(4);
 }
 
+export async function expectHeaderActionsSpaced(page: Page) {
+  const value = await page.locator('.tm-page-header-extra').first().evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      display: style.display,
+      columnGap: Number.parseFloat(style.columnGap || '0'),
+      rowGap: Number.parseFloat(style.rowGap || '0'),
+    };
+  });
+  expect(value.display, `header action layout ${JSON.stringify(value)}`).toMatch(/flex$/);
+  expect(value.columnGap, `header action column gap ${JSON.stringify(value)}`).toBeGreaterThanOrEqual(8);
+  expect(value.rowGap, `header action row gap ${JSON.stringify(value)}`).toBeGreaterThanOrEqual(8);
+}
+
 export async function expectPageContentGuttersWithin(page: Page, maxGutter: number) {
   const value = await page.evaluate(() => {
     const shell = document.querySelector('.ant-pro-layout-content')?.getBoundingClientRect();

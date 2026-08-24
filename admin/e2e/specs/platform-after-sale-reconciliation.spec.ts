@@ -22,7 +22,11 @@ test.describe('@smoke platform after-sale reconciliation', () => {
 
       await page.getByText('e2e-after-sale-1').click();
       await expect(page.getByText('平台事实')).toBeVisible();
-      await expect(page.getByText('e2e-after-sale-event-1')).toBeVisible();
+      await expect(
+        page
+          .locator('.ant-descriptions')
+          .getByText('e2e-after-sale-event-1', { exact: true }),
+      ).toBeVisible();
       await expect(page).toHaveURL(new RegExp(`/orders/sales-return-reconciliation/${E2E_PLATFORM_AFTER_SALE_ID}$`));
       await expectNoRootOverflow(page);
       await admin.writeGuard.expectRequestCount('unexpected', 0);
@@ -30,7 +34,8 @@ test.describe('@smoke platform after-sale reconciliation', () => {
   }
 
   test('distinguishes empty and API error states', async ({ admin, page }) => {
-    await page.route('**/api/v1/sales-return-reconciliation', async (route) => {
+    const listRoute = '**/api/v1/sales-return-reconciliation**';
+    await page.route(listRoute, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -39,8 +44,8 @@ test.describe('@smoke platform after-sale reconciliation', () => {
     });
     await admin.goto('/orders/sales-return-reconciliation');
     await expect(page.getByText('暂无平台售后事实。')).toBeVisible();
-    await page.unroute('**/api/v1/sales-return-reconciliation');
-    await page.route('**/api/v1/sales-return-reconciliation', async (route) => {
+    await page.unroute(listRoute);
+    await page.route(listRoute, async (route) => {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 50000, message: 'unavailable', data: null }) });
     });
     admin.consoleGuard.allowError(/Failed to load resource: the server responded with a status of 503/);

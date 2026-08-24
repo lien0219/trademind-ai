@@ -8,6 +8,7 @@ import {
   e2eSalesReturn,
 } from '../mocks/sales-returns';
 import {
+  expectHeaderActionsSpaced,
   expectHeaderContentAligned,
   expectModalWithinViewport,
   expectNoRootOverflow,
@@ -42,6 +43,9 @@ test.describe('@smoke sales returns workspace', () => {
         });
         await expectNoRootOverflow(page);
         await expectHeaderContentAligned(page);
+        if (route.path === '/orders/sales-returns') {
+          await expectHeaderActionsSpaced(page);
+        }
       }
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     });
@@ -144,6 +148,7 @@ test.describe('@smoke sales returns workspace', () => {
     admin,
     page,
   }) => {
+    const listRoute = '**/api/v1/sales-returns**';
     await page.route('**/api/v1/auth/profile', async (route) => {
       await route.fulfill({
         status: 200,
@@ -157,7 +162,7 @@ test.describe('@smoke sales returns workspace', () => {
         ),
       });
     });
-    await page.route('**/api/v1/sales-returns', async (route) => {
+    await page.route(listRoute, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -171,7 +176,7 @@ test.describe('@smoke sales returns workspace', () => {
     await expect(page.getByRole('button', { name: '选择订单' })).toBeDisabled();
     await expect(page.getByText(/只读模式/)).toBeVisible();
 
-    await page.unroute('**/api/v1/sales-returns');
+    await page.unroute(listRoute);
     await page.route(
       `**/api/v1/sales-returns/${E2E_SALES_RETURN_ID}`,
       async (route) => {

@@ -8,6 +8,7 @@ import {
   e2eSalesReturn,
 } from '../mocks/sales-returns';
 import {
+  expectHeaderActionsSpaced,
   expectHeaderContentAligned,
   expectModalWithinViewport,
   expectNoRootOverflow,
@@ -34,6 +35,7 @@ test.describe('@smoke refund execution workspace', () => {
       });
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
+      await expectHeaderActionsSpaced(page);
 
       await admin.goto(`/orders/refund-executions/${E2E_REFUND_EXECUTION_ID}`);
       await expect(page.getByText('外部退款编号').first()).toBeVisible();

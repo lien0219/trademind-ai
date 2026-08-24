@@ -21,7 +21,7 @@ type AfterSaleEventHandler interface {
 
 // douyinEventDispatcher routes normalized Douyin events to typed handlers.
 type douyinEventDispatcher struct {
-	OrderHandler    OrderEventHandler
+	OrderHandler     OrderEventHandler
 	AfterSaleHandler AfterSaleEventHandler
 }
 
