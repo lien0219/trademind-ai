@@ -133,6 +133,134 @@ export async function transitionSalesReturn(
   );
 }
 
+export type RefundExecutionStatus =
+  | 'pending'
+  | 'succeeded'
+  | 'failed'
+  | 'unknown'
+  | 'cancelled';
+
+export type RefundPlatformReview = {
+  status: PlatformAfterSaleReconciliationStatus | string;
+  reason: string;
+  platformAfterSaleId?: string;
+  platform?: string;
+  platformStatus?: string;
+  externalAfterSaleId?: string;
+  refundAmountMinor?: number;
+  currency?: string;
+  platformUpdatedAt?: string;
+};
+
+export type RefundExecutionEvent = {
+  id: string;
+  action: 'record_result' | 'confirm_platform' | 'cancel' | string;
+  fromStatus: string;
+  toStatus: string;
+  source?: string;
+  externalRefundId?: string;
+  reason?: string;
+  actorId?: string;
+  executedAt?: string;
+  createdAt: string;
+};
+
+export type RefundExecution = {
+  id: string;
+  executionNo: string;
+  salesReturnId: string;
+  returnNo?: string;
+  orderId: string;
+  orderNo?: string;
+  internalShopId?: string;
+  platformAfterSaleId?: string;
+  status: RefundExecutionStatus | string;
+  source?: 'manual' | 'platform_fact' | string;
+  currency: string;
+  refundAmountMinor: number;
+  revision: number;
+  externalRefundId?: string;
+  resultReason?: string;
+  executedAt?: string;
+  cancelledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  platformReview?: RefundPlatformReview;
+  events?: RefundExecutionEvent[];
+};
+
+export async function listRefundExecutions(params: {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  salesReturnId?: string;
+  orderId?: string;
+}) {
+  return getWithParams<{
+    list: RefundExecution[];
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  }>('/api/v1/refund-executions', params);
+}
+
+export async function getRefundExecution(id: string) {
+  return getJSON<RefundExecution>(`/api/v1/refund-executions/${enc(id)}`);
+}
+
+export async function createRefundExecution(
+  salesReturnId: string,
+  body: { idempotencyKey: string; platformAfterSaleId?: string },
+) {
+  return postJSON<RefundExecution>(
+    `/api/v1/sales-returns/${enc(salesReturnId)}/refund-execution`,
+    body,
+  );
+}
+
+export async function recordRefundResult(
+  id: string,
+  body: {
+    expectedRevision: number;
+    idempotencyKey: string;
+    result: 'succeeded' | 'failed' | 'unknown';
+    externalRefundId: string;
+    executedAt: string;
+    reason: string;
+  },
+) {
+  return postJSON<RefundExecution>(
+    `/api/v1/refund-executions/${enc(id)}/result`,
+    body,
+  );
+}
+
+export async function confirmRefundFromPlatform(
+  id: string,
+  body: {
+    expectedRevision: number;
+    idempotencyKey: string;
+    platformAfterSaleId: string;
+    reason: string;
+  },
+) {
+  return postJSON<RefundExecution>(
+    `/api/v1/refund-executions/${enc(id)}/confirm-from-platform`,
+    body,
+  );
+}
+
+export async function cancelRefundExecution(
+  id: string,
+  body: { expectedRevision: number; idempotencyKey: string; reason: string },
+) {
+  return postJSON<RefundExecution>(
+    `/api/v1/refund-executions/${enc(id)}/cancel`,
+    body,
+  );
+}
+
 export type SalesReturnAPIError = {
   code: number;
   message: string;
@@ -235,6 +363,20 @@ export function salesReturnErrorMessage(
     return '审批人与退货收货人必须为不同账号。';
   if (message.includes('warehouse unavailable'))
     return '原订单仓库当前不可用，售后单尚未执行。';
+  if (message.includes('refund execution revision conflict'))
+    return '退款执行单已被其他人更新，请确认最新状态。';
+  if (message.includes('refund execution transition'))
+    return '当前退款执行状态不允许执行此操作。';
+  if (message.includes('refund execution idempotency'))
+    return '相同退款操作编号已用于其他内容，请关闭窗口后重新发起。';
+  if (message.includes('refund execution already exists'))
+    return '该售后单已创建退款执行单，请前往退款执行工作台查看。';
+  if (message.includes('approver cannot record refund'))
+    return '售后审批人与退款结果登记人必须为不同账号。';
+  if (message.includes('platform refund fact does not match'))
+    return '平台退款事实与本地售后金额、币种或类型不一致，未执行确认。';
+  if (message.includes('platform refund fact is not final'))
+    return '平台退款状态尚未终结，请等待新的平台事实后再确认。';
   if (error.code === 403 || error.code === 40301)
     return '当前账号没有执行此操作的权限。';
   return fallback;

@@ -12,6 +12,8 @@ import {
   E2E_SALES_RETURN_ID,
   e2ePlatformAfterSale,
   E2E_PLATFORM_AFTER_SALE_ID,
+  E2E_REFUND_EXECUTION_ID,
+  e2eRefundExecution,
 } from '../mocks/sales-returns';
 
 async function fetchApi(page: import('@playwright/test').Page, path: string) {
@@ -76,5 +78,11 @@ test.describe('@contract API envelope contracts', () => {
       ok({ list: [e2ePlatformAfterSale], page: 1, pageSize: 20, total: 1, totalPages: 1 }),
     );
     expect(await fetchApi(page, `/api/v1/sales-return-reconciliation/${E2E_PLATFORM_AFTER_SALE_ID}`)).toEqual(ok(e2ePlatformAfterSale));
+    expect(await fetchApi(page, '/api/v1/refund-executions')).toEqual(
+      ok({ list: [e2eRefundExecution], page: 1, pageSize: 20, total: 1, totalPages: 1 }),
+    );
+    expect(await fetchApi(page, `/api/v1/refund-executions/${E2E_REFUND_EXECUTION_ID}`)).toEqual(
+      ok(e2eRefundExecution),
+    );
   });
 });

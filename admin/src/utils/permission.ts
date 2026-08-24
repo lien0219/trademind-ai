@@ -45,6 +45,7 @@ export const PERMISSIONS = {
   SALES_RETURN_MANAGE: 'sales_return.manage',
   SALES_RETURN_APPROVE: 'sales_return.approve',
   SALES_RETURN_RECEIVE: 'sales_return.receive',
+  SALES_RETURN_REFUND: 'sales_return.refund',
   PII_READ_FULL: 'pii.read_full',
   OBSERVABILITY_READ: 'observability.read',
   ALERTS_READ: 'alerts.read',
@@ -95,6 +96,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.SALES_RETURN_VIEW,
     PERMISSIONS.SALES_RETURN_MANAGE,
     PERMISSIONS.SALES_RETURN_RECEIVE,
+    PERMISSIONS.SALES_RETURN_REFUND,
   ],
   reviewer: [
     PERMISSIONS.OPERATION_TASK_AUDIT_READ,

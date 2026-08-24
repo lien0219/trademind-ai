@@ -2,12 +2,18 @@ import { request } from '@umijs/max';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createSalesReturn,
+  createRefundExecution,
+  cancelRefundExecution,
+  confirmRefundFromPlatform,
+  getRefundExecution,
   getSalesReturn,
   listReturnableSalesItems,
   listSalesReturns,
+  listRefundExecutions,
   listPlatformAfterSaleReconciliation,
   getPlatformAfterSaleReconciliation,
   transitionSalesReturn,
+  recordRefundResult,
 } from '../salesReturns';
 
 const requestMock = vi.mocked(request);
@@ -120,6 +126,79 @@ describe('sales return API service', () => {
     expect(requestMock).toHaveBeenCalledWith(
       '/api/v1/sales-returns/return%2Fone/complete',
       { method: 'POST', data: actionPayload },
+    );
+  });
+
+  it('uses encoded refund execution endpoints and exact write payloads', async () => {
+    requestMock.mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: { id: 'refund-execution-1', list: [], total: 0 },
+    });
+    const createPayload = {
+      idempotencyKey: 'refund-execution-create-key',
+      platformAfterSaleId: 'platform/fact',
+    };
+    const resultPayload = {
+      expectedRevision: 1,
+      idempotencyKey: 'refund-execution-result-key',
+      result: 'succeeded' as const,
+      externalRefundId: 'external-refund-1',
+      executedAt: '2026-08-24T08:00:00.000Z',
+      reason: 'provider console completed',
+    };
+    const confirmPayload = {
+      expectedRevision: 2,
+      idempotencyKey: 'refund-execution-confirm-key',
+      platformAfterSaleId: 'platform/fact',
+      reason: 'provider fact verified',
+    };
+    const cancelPayload = {
+      expectedRevision: 1,
+      idempotencyKey: 'refund-execution-cancel-key',
+      reason: 'external refund was not started',
+    };
+
+    await listRefundExecutions({
+      page: 2,
+      pageSize: 20,
+      status: 'pending',
+      salesReturnId: 'return/one',
+    });
+    await getRefundExecution('execution/one');
+    await createRefundExecution('return/one', createPayload);
+    await recordRefundResult('execution/one', resultPayload);
+    await confirmRefundFromPlatform('execution/one', confirmPayload);
+    await cancelRefundExecution('execution/one', cancelPayload);
+
+    expect(requestMock).toHaveBeenCalledWith('/api/v1/refund-executions', {
+      method: 'GET',
+      params: {
+        page: 2,
+        pageSize: 20,
+        status: 'pending',
+        salesReturnId: 'return/one',
+      },
+    });
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/refund-executions/execution%2Fone',
+      { method: 'GET' },
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/sales-returns/return%2Fone/refund-execution',
+      { method: 'POST', data: createPayload },
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/refund-executions/execution%2Fone/result',
+      { method: 'POST', data: resultPayload },
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/refund-executions/execution%2Fone/confirm-from-platform',
+      { method: 'POST', data: confirmPayload },
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/refund-executions/execution%2Fone/cancel',
+      { method: 'POST', data: cancelPayload },
     );
   });
 });

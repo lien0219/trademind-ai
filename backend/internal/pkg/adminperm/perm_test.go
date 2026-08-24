@@ -67,6 +67,9 @@ func TestPermissionsForRole(t *testing.T) {
 	if StrictHasPermission(RoleReadonly, PermWarehouseManage) || StrictHasPermission(RoleReadonly, PermSupplierManage) || StrictHasPermission(RoleReadonly, PermProcurementManage) {
 		t.Fatal("readonly must not mutate ERP resources")
 	}
+	if !StrictHasPermission(RoleOperator, PermSalesReturnRefund) || StrictHasPermission(RoleReviewer, PermSalesReturnRefund) || StrictHasPermission(RoleReadonly, PermSalesReturnRefund) {
+		t.Fatal("only operator and admin roles should execute sales refunds")
+	}
 	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) || StrictHasPermission("surprise", PermInventorySyncRun) || StrictHasPermission(RoleAdmin, "inventory.run") {
 		t.Fatal("unknown roles and synonymous permissions must not inherit permissions on strict path")
 	}

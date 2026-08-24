@@ -81,6 +81,12 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/purchase-returns/:id/approve",
         "POST /api/v1/purchase-returns/:id/complete",
         "POST /api/v1/purchase-returns/:id/cancel",
+        "GET /api/v1/refund-executions",
+        "GET /api/v1/refund-executions/:id",
+        "POST /api/v1/sales-returns/:id/refund-execution",
+        "POST /api/v1/refund-executions/:id/result",
+        "POST /api/v1/refund-executions/:id/confirm-from-platform",
+        "POST /api/v1/refund-executions/:id/cancel",
         "GET /api/v1/p10/status",
         "POST /api/v1/operation-tasks",
         "GET /api/v1/operation-tasks/:id",
@@ -306,6 +312,60 @@ describe("TradeMind API contract registry", () => {
     expect(detail?.requiredPermission).toBe("order.view");
     expect(list?.readonly).toBe(true);
     expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
+  });
+
+  it("defines local-only refund execution contracts with dedicated permission", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key) as
+        | {
+            query?: string[];
+            requestBody?: string[];
+            requiredPermission?: string;
+            readonly?: boolean;
+            externalWrite?: boolean;
+            statusEnum?: string[];
+            resultEnum?: string[];
+            platformFactPolicy?: string;
+          }
+        | undefined;
+    const list = endpoint("GET /api/v1/refund-executions");
+    expect(list?.query).toEqual([
+      "page",
+      "pageSize",
+      "status",
+      "salesReturnId",
+      "orderId",
+    ]);
+    expect(list?.requiredPermission).toBe("sales_return.view");
+    expect(list?.readonly).toBe(true);
+    expect(list?.statusEnum).toEqual([
+      "pending",
+      "succeeded",
+      "failed",
+      "unknown",
+      "cancelled",
+    ]);
+
+    const create = endpoint(
+      "POST /api/v1/sales-returns/:id/refund-execution",
+    );
+    expect(create?.requiredPermission).toBe("sales_return.refund");
+    expect(create?.externalWrite).toBe(false);
+    expect(create?.requestBody).toEqual([
+      "idempotencyKey",
+      "platformAfterSaleId",
+    ]);
+
+    const result = endpoint("POST /api/v1/refund-executions/:id/result");
+    expect(result?.requiredPermission).toBe("sales_return.refund");
+    expect(result?.externalWrite).toBe(false);
+    expect(result?.resultEnum).toEqual(["succeeded", "failed", "unknown"]);
+
+    const confirm = endpoint(
+      "POST /api/v1/refund-executions/:id/confirm-from-platform",
+    );
+    expect(confirm?.externalWrite).toBe(false);
+    expect(confirm?.platformFactPolicy).toBe("matched_final_readonly_fact_only");
   });
 
   it("keeps SKU metadata writes tenant-scoped and separate from warehouse inventory", () => {
@@ -534,7 +594,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(93);
+    expect(contracts.endpoints).toHaveLength(99);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

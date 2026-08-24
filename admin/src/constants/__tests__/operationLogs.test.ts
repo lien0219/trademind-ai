@@ -25,5 +25,8 @@ describe('operation log alert labels', () => {
     expect(operationLogActionLabel('sales_return.complete')).toBe(
       '完成销售售后单',
     );
+    expect(
+      operationLogActionLabel('sales_return.refund_execution.record_result'),
+    ).toBe('登记退款执行结果');
   });
 });

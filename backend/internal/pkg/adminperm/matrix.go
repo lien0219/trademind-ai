@@ -37,6 +37,7 @@ const (
 	PermSalesReturnManage  = "sales_return.manage"
 	PermSalesReturnApprove = "sales_return.approve"
 	PermSalesReturnReceive = "sales_return.receive"
+	PermSalesReturnRefund  = "sales_return.refund"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -107,6 +108,7 @@ var allPermissions = []string{
 	PermSalesReturnManage,
 	PermSalesReturnApprove,
 	PermSalesReturnReceive,
+	PermSalesReturnRefund,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -207,6 +209,7 @@ var operatorPermissions = []string{
 	PermSalesReturnView,
 	PermSalesReturnManage,
 	PermSalesReturnReceive,
+	PermSalesReturnRefund,
 }
 
 var readonlyPermissions = []string{

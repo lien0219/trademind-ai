@@ -250,11 +250,11 @@ func (h *Handler) writeLog(c *gin.Context, tenantID int64, actionName string, id
 
 func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ErrAbsent):
+	case errors.Is(err, ErrAbsent), errors.Is(err, ErrRefundExecutionAbsent):
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
-	case errors.Is(err, ErrInvalidInput):
+	case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrRefundExecutionInvalidInput):
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
-	case errors.Is(err, ErrInvalidTransition), errors.Is(err, ErrRevisionConflict), errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrOverReturn), errors.Is(err, ErrDutyConflict), errors.Is(err, ErrWarehouseUnavailable):
+	case errors.Is(err, ErrInvalidTransition), errors.Is(err, ErrRevisionConflict), errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrOverReturn), errors.Is(err, ErrDutyConflict), errors.Is(err, ErrWarehouseUnavailable), errors.Is(err, ErrRefundExecutionExists), errors.Is(err, ErrRefundExecutionInvalidTransition), errors.Is(err, ErrRefundExecutionRevisionConflict), errors.Is(err, ErrRefundExecutionIdempotencyConflict), errors.Is(err, ErrRefundExecutionDutyConflict), errors.Is(err, ErrRefundPlatformFactConflict), errors.Is(err, ErrRefundPlatformFactPending):
 		response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
 	default:
 		response.HandleError(c, err)

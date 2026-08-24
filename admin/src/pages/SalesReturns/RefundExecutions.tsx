@@ -1,7 +1,7 @@
-import { AuditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
+import { AuditOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
-import { Alert, Button, Select, Space, Tag } from 'antd';
+import { Alert, Button, Select, Tag } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import PermissionGuard from '@/components/PermissionGuard';
 import {
@@ -14,50 +14,50 @@ import { usePermission } from '@/hooks/usePermission';
 import {
   extractSalesReturnAPIError,
   formatSalesReturnAmount,
-  listSalesReturns,
+  listRefundExecutions,
   salesReturnErrorMessage,
-  type SalesReturn,
+  type RefundExecution,
 } from '@/services/salesReturns';
 import { PERMISSIONS } from '@/utils/permission';
 import './index.less';
 
-export const SALES_RETURN_STATUS: Record<
+export const REFUND_EXECUTION_STATUS: Record<
   string,
   { text: string; color: string }
 > = {
-  draft: { text: '草稿', color: 'default' },
-  pending_approval: { text: '待审批', color: 'gold' },
-  approved: { text: '待处理', color: 'blue' },
-  completed: { text: '已完成', color: 'success' },
-  cancelled: { text: '已取消', color: 'error' },
+  pending: { text: '待登记', color: 'processing' },
+  succeeded: { text: '退款成功', color: 'success' },
+  failed: { text: '退款失败', color: 'error' },
+  unknown: { text: '结果待确认', color: 'warning' },
+  cancelled: { text: '已取消', color: 'default' },
 };
 
-export const SALES_RETURN_TYPE: Record<
+export const REFUND_REVIEW_STATUS: Record<
   string,
   { text: string; color: string }
 > = {
-  refund_only: { text: '仅退款', color: 'cyan' },
-  return_refund: { text: '退货退款', color: 'purple' },
+  matched: { text: '账实一致', color: 'success' },
+  pending: { text: '待平台复核', color: 'processing' },
+  mismatch: { text: '账实不一致', color: 'error' },
+  blocked: { text: '平台事实阻塞', color: 'warning' },
 };
 
-export default function SalesReturnsPage() {
-  const { can, readonly } = usePermission();
-  const canManage = !readonly && can(PERMISSIONS.SALES_RETURN_MANAGE);
+export default function RefundExecutionsPage() {
+  const { readonly } = usePermission();
   const actionRef = useRef<ActionType>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const orderId = searchParams.get('orderId')?.trim() || undefined;
+  const salesReturnId = searchParams.get('salesReturnId')?.trim() || undefined;
   const [status, setStatus] = useState<string>();
-  const [returnType, setReturnType] = useState<string>();
   const [error, setError] = useState('');
 
   useEffect(() => {
     void actionRef.current?.reload();
-  }, [orderId, returnType, status]);
+  }, [salesReturnId, status]);
 
-  const columns: ProColumns<SalesReturn>[] = [
+  const columns: ProColumns<RefundExecution>[] = [
     {
-      title: '售后单号',
-      dataIndex: 'returnNo',
+      title: '退款执行单号',
+      dataIndex: 'executionNo',
       width: 190,
       copyable: true,
       ellipsis: true,
@@ -65,39 +65,46 @@ export default function SalesReturnsPage() {
         <Button
           type="link"
           size="small"
-          onClick={() => history.push(`/orders/sales-returns/${row.id}`)}
+          onClick={() => history.push(`/orders/refund-executions/${row.id}`)}
         >
-          {row.returnNo}
+          {row.executionNo}
         </Button>
       ),
     },
     {
+      title: '售后单号',
+      dataIndex: 'returnNo',
+      width: 180,
+      ellipsis: true,
+      render: (_, row) => row.returnNo || row.salesReturnId,
+    },
+    {
       title: '订单号',
       dataIndex: 'orderNo',
-      width: 190,
-      copyable: true,
+      width: 180,
       ellipsis: true,
       render: (_, row) => row.orderNo || row.orderId,
     },
     {
-      title: '类型',
-      dataIndex: 'type',
-      width: 112,
+      title: '执行状态',
+      dataIndex: 'status',
+      width: 120,
       render: (_, row) => {
-        const meta = SALES_RETURN_TYPE[row.type] || {
-          text: row.type,
+        const meta = REFUND_EXECUTION_STATUS[row.status] || {
+          text: row.status,
           color: 'default',
         };
         return <Tag color={meta.color}>{meta.text}</Tag>;
       },
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      width: 105,
+      title: '平台复核',
+      dataIndex: ['platformReview', 'status'],
+      width: 130,
       render: (_, row) => {
-        const meta = SALES_RETURN_STATUS[row.status] || {
-          text: row.status,
+        const value = row.platformReview?.status || 'pending';
+        const meta = REFUND_REVIEW_STATUS[value] || {
+          text: value,
           color: 'default',
         };
         return <Tag color={meta.color}>{meta.text}</Tag>;
@@ -112,13 +119,16 @@ export default function SalesReturnsPage() {
         formatSalesReturnAmount(row.refundAmountMinor, row.currency),
     },
     {
-      title: '收货仓库',
-      dataIndex: 'warehouseName',
-      minWidth: 150,
-      ellipsis: true,
-      render: (_, row) => row.warehouseName || row.warehouseId,
+      title: '结果来源',
+      dataIndex: 'source',
+      width: 120,
+      render: (_, row) =>
+        row.source === 'platform_fact'
+          ? '平台事实'
+          : row.source === 'manual'
+            ? '人工登记'
+            : '—',
     },
-    { title: '明细', dataIndex: 'itemCount', width: 72, align: 'right' },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
@@ -134,7 +144,7 @@ export default function SalesReturnsPage() {
           type="link"
           size="small"
           icon={<EyeOutlined />}
-          onClick={() => history.push(`/orders/sales-returns/${row.id}`)}
+          onClick={() => history.push(`/orders/refund-executions/${row.id}`)}
         >
           查看
         </Button>
@@ -146,23 +156,18 @@ export default function SalesReturnsPage() {
     <PermissionGuard require={PERMISSIONS.SALES_RETURN_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-sales-return-page"
-        title="退货退款"
-        subTitle="订单售后记录"
+        title="退款执行"
+        subTitle="记录外部退款结果并用平台只读事实复核，不会向平台发起退款"
         extra={
           <TmPageHeaderExtra>
-            <Button onClick={() => history.push('/orders/refund-executions')}>
-              退款执行
-            </Button>
-            <Button icon={<AuditOutlined />} onClick={() => history.push('/orders/sales-return-reconciliation')}>
+            <Button
+              icon={<AuditOutlined />}
+              onClick={() => history.push('/orders/sales-return-reconciliation')}
+            >
               平台售后对账
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              disabled={!canManage}
-              onClick={() => history.push('/orders/list')}
-            >
-              选择订单
+            <Button onClick={() => history.push('/orders/sales-returns')}>
+              返回退货退款
             </Button>
           </TmPageHeaderExtra>
         }
@@ -171,14 +176,14 @@ export default function SalesReturnsPage() {
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，可查看售后记录但不能发起或执行操作。"
+            message="当前账号为只读模式，可查看退款执行与平台复核结果，但不能登记或确认退款。"
           />
         ) : null}
-        {orderId ? (
+        {salesReturnId ? (
           <Alert
             type="info"
             showIcon
-            message="当前仅显示指定订单的售后记录。"
+            message="当前仅显示指定售后单的退款执行记录。"
             action={
               <Button size="small" onClick={() => setSearchParams({})}>
                 查看全部
@@ -196,34 +201,23 @@ export default function SalesReturnsPage() {
             }
           />
         ) : null}
-        <TmProTable<SalesReturn>
+        <TmProTable<RefundExecution>
           className="tm-sales-return-table"
           rowKey="id"
           actionRef={actionRef}
           columns={columns}
           search={false}
           cardBordered
-          scroll={{ x: 1320 }}
-          locale={{ emptyText: error ? '售后列表暂不可用' : '暂无售后记录。' }}
+          scroll={{ x: 1370 }}
+          locale={{ emptyText: error ? '退款执行列表暂不可用' : '暂无退款执行记录。' }}
           toolBarRender={() => [
-            <Select
-              key="type"
-              allowClear
-              placeholder="全部类型"
-              value={returnType}
-              style={{ width: 140 }}
-              options={Object.entries(SALES_RETURN_TYPE).map(
-                ([value, meta]) => ({ value, label: meta.text }),
-              )}
-              onChange={setReturnType}
-            />,
             <Select
               key="status"
               allowClear
-              placeholder="全部状态"
+              placeholder="全部执行状态"
               value={status}
-              style={{ width: 140 }}
-              options={Object.entries(SALES_RETURN_STATUS).map(
+              style={{ width: 160 }}
+              options={Object.entries(REFUND_EXECUTION_STATUS).map(
                 ([value, meta]) => ({ value, label: meta.text }),
               )}
               onChange={setStatus}
@@ -231,12 +225,11 @@ export default function SalesReturnsPage() {
           ]}
           request={async (params) => {
             try {
-              const result = await listSalesReturns({
+              const result = await listRefundExecutions({
                 page: params.current,
                 pageSize: params.pageSize,
                 status,
-                type: returnType,
-                orderId,
+                salesReturnId,
               });
               setError('');
               return {
@@ -248,7 +241,7 @@ export default function SalesReturnsPage() {
               setError(
                 salesReturnErrorMessage(
                   extractSalesReturnAPIError(nextError),
-                  '售后列表加载失败，请稍后重试。',
+                  '退款执行列表加载失败，请稍后重试。',
                 ),
               );
               return { data: [], success: false, total: 0 };

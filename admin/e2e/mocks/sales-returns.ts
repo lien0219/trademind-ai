@@ -4,6 +4,7 @@ export const E2E_SALES_ORDER_ID = 'e2e-sales-order-returnable';
 export const E2E_SALES_ORDER_ITEM_ID = 'e2e-sales-order-item-blue';
 export const E2E_SALES_RETURN_ID = 'e2e-sales-return-approved';
 export const E2E_PLATFORM_AFTER_SALE_ID = 'e2e-platform-after-sale-1';
+export const E2E_REFUND_EXECUTION_ID = 'e2e-refund-execution-1';
 
 export const e2eSalesOrder = {
   id: E2E_SALES_ORDER_ID,
@@ -127,6 +128,35 @@ export const e2ePlatformAfterSale = {
   updatedAt: '2026-08-22T03:00:00Z',
 };
 
+export const e2eRefundExecution = {
+  id: E2E_REFUND_EXECUTION_ID,
+  executionNo: 'RF-E2E-0001',
+  salesReturnId: E2E_SALES_RETURN_ID,
+  returnNo: e2eSalesReturn.returnNo,
+  orderId: E2E_SALES_ORDER_ID,
+  orderNo: e2eSalesOrder.orderNo,
+  internalShopId: 'e2e-douyin-shop-internal',
+  platformAfterSaleId: E2E_PLATFORM_AFTER_SALE_ID,
+  status: 'pending',
+  currency: 'CNY',
+  refundAmountMinor: 9999,
+  revision: 1,
+  createdAt: '2026-08-22T03:10:00Z',
+  updatedAt: '2026-08-22T03:10:00Z',
+  platformReview: {
+    status: 'pending',
+    reason: 'execution_result_pending',
+    platformAfterSaleId: E2E_PLATFORM_AFTER_SALE_ID,
+    platform: 'douyin_shop',
+    platformStatus: 'success',
+    externalAfterSaleId: e2ePlatformAfterSale.externalAfterSaleId,
+    refundAmountMinor: 9999,
+    currency: 'CNY',
+    platformUpdatedAt: '2026-08-22T03:00:00Z',
+  },
+  events: [],
+};
+
 export function salesReturnResponse(path: string) {
   if (path === `/api/v1/orders/${E2E_SALES_ORDER_ID}`) return ok(e2eSalesOrder);
   if (path === `/api/v1/orders/${E2E_SALES_ORDER_ID}/sku-matches`)
@@ -156,6 +186,10 @@ export function salesReturnResponse(path: string) {
   }
   if (path === `/api/v1/sales-returns/${E2E_SALES_RETURN_ID}`)
     return ok(e2eSalesReturn);
+  if (path === '/api/v1/refund-executions')
+    return ok({ list: [e2eRefundExecution], page: 1, pageSize: 20, total: 1, totalPages: 1 });
+  if (path === `/api/v1/refund-executions/${E2E_REFUND_EXECUTION_ID}`)
+    return ok(e2eRefundExecution);
   if (path === '/api/v1/sales-return-reconciliation')
     return ok({ list: [e2ePlatformAfterSale], page: 1, pageSize: 20, total: 1, totalPages: 1 });
   if (path === `/api/v1/sales-return-reconciliation/${E2E_PLATFORM_AFTER_SALE_ID}`)

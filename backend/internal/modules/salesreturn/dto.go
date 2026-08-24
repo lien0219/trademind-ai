@@ -85,3 +85,43 @@ type PlatformAfterSaleListResult struct {
 	Total      int64               `json:"total"`
 	TotalPages int                 `json:"totalPages"`
 }
+
+type CreateRefundExecutionInput struct {
+	IdempotencyKey      string     `json:"idempotencyKey"`
+	PlatformAfterSaleID *uuid.UUID `json:"platformAfterSaleId"`
+}
+
+type RecordRefundResultInput struct {
+	ExpectedRevision int       `json:"expectedRevision"`
+	IdempotencyKey   string    `json:"idempotencyKey"`
+	Result           string    `json:"result"`
+	ExternalRefundID string    `json:"externalRefundId"`
+	ExecutedAt       time.Time `json:"executedAt"`
+	Reason           string    `json:"reason"`
+}
+
+type ConfirmRefundFromPlatformInput struct {
+	ExpectedRevision    int       `json:"expectedRevision"`
+	IdempotencyKey      string    `json:"idempotencyKey"`
+	PlatformAfterSaleID uuid.UUID `json:"platformAfterSaleId"`
+	Reason              string    `json:"reason"`
+}
+
+type RefundExecutionListQuery struct {
+	TenantID           int64
+	Status             string
+	SalesReturnID      *uuid.UUID
+	OrderID            *uuid.UUID
+	AllowedShopIDs     []uuid.UUID
+	RestrictStoreScope bool
+	Page               int
+	PageSize           int
+}
+
+type RefundExecutionListResult struct {
+	List       []RefundExecution `json:"list"`
+	Page       int               `json:"page"`
+	PageSize   int               `json:"pageSize"`
+	Total      int64             `json:"total"`
+	TotalPages int               `json:"totalPages"`
+}

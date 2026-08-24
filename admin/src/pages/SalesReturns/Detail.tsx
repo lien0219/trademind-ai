@@ -25,11 +25,14 @@ import {
 import { usePermission } from '@/hooks/usePermission';
 import {
   createSalesReturnIdempotencyKey,
+  createRefundExecution,
   extractSalesReturnAPIError,
   formatSalesReturnAmount,
   getSalesReturn,
+  listRefundExecutions,
   salesReturnErrorMessage,
   transitionSalesReturn,
+  type RefundExecution,
   type SalesReturn,
   type SalesReturnItem,
 } from '@/services/salesReturns';
@@ -48,21 +51,32 @@ export default function SalesReturnDetailPage() {
   const canManage = !readonly && can(PERMISSIONS.SALES_RETURN_MANAGE);
   const canApprove = !readonly && can(PERMISSIONS.SALES_RETURN_APPROVE);
   const canReceive = !readonly && can(PERMISSIONS.SALES_RETURN_RECEIVE);
+  const canRefund = !readonly && can(PERMISSIONS.SALES_RETURN_REFUND);
   const [form] = Form.useForm<ActionValues>();
   const [row, setRow] = useState<SalesReturn>();
+  const [refundExecution, setRefundExecution] = useState<RefundExecution>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [action, setAction] = useState<ActionState>();
   const [actionKey, setActionKey] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [creatingRefund, setCreatingRefund] = useState(false);
+  const [refundCreateOpen, setRefundCreateOpen] = useState(false);
+  const [refundCreateKey, setRefundCreateKey] = useState('');
   const submittingRef = useRef(false);
+  const creatingRefundRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError('');
     try {
-      setRow(await getSalesReturn(id));
+      const [detail, executions] = await Promise.all([
+        getSalesReturn(id),
+        listRefundExecutions({ page: 1, pageSize: 1, salesReturnId: id }),
+      ]);
+      setRow(detail);
+      setRefundExecution(executions.list?.[0]);
     } catch (nextError) {
       setError(
         salesReturnErrorMessage(
@@ -113,6 +127,32 @@ export default function SalesReturnDetailPage() {
     }
   };
 
+  const startRefundExecution = async () => {
+    if (!row || creatingRefundRef.current) return;
+    creatingRefundRef.current = true;
+    setCreatingRefund(true);
+    try {
+      const execution = await createRefundExecution(row.id, {
+        idempotencyKey: refundCreateKey,
+      });
+      setRefundExecution(execution);
+      setRefundCreateOpen(false);
+      message.success('退款执行单已创建');
+      history.push(`/orders/refund-executions/${execution.id}`);
+    } catch (nextError) {
+      const apiError = extractSalesReturnAPIError(nextError);
+      message.error(
+        salesReturnErrorMessage(apiError, '退款执行单创建失败，请稍后重试。'),
+      );
+      if (apiError.message.toLowerCase().includes('already exists')) {
+        history.push(`/orders/refund-executions?salesReturnId=${encodeURIComponent(row.id)}`);
+      }
+    } finally {
+      creatingRefundRef.current = false;
+      setCreatingRefund(false);
+    }
+  };
+
   const columns: ProColumns<SalesReturnItem>[] = [
     {
       title: '商品',
@@ -159,7 +199,7 @@ export default function SalesReturnDetailPage() {
   const actions = useMemo(() => {
     if (!row) return null;
     const completeLabel =
-      row.type === 'refund_only' ? '确认退款记录' : '确认退货收货';
+      row.type === 'refund_only' ? '确认售后完成' : '确认退货收货';
     return (
       <Space wrap>
         <Button
@@ -209,9 +249,30 @@ export default function SalesReturnDetailPage() {
             取消售后单
           </Button>
         ) : null}
+        {row.status === 'completed' && refundExecution ? (
+          <Button
+            onClick={() => history.push(`/orders/refund-executions/${refundExecution.id}`)}
+          >
+            查看退款执行
+          </Button>
+        ) : null}
+        {row.status === 'completed' && !refundExecution && canRefund ? (
+          <Button
+            type="primary"
+            loading={creatingRefund}
+            onClick={() => {
+              setRefundCreateKey(
+                createSalesReturnIdempotencyKey('refund-execution-create'),
+              );
+              setRefundCreateOpen(true);
+            }}
+          >
+            创建退款执行单
+          </Button>
+        ) : null}
       </Space>
     );
-  }, [canApprove, canManage, canReceive, row]);
+  }, [canApprove, canManage, canReceive, canRefund, creatingRefund, refundExecution, row]);
 
   const statusMeta = row
     ? SALES_RETURN_STATUS[row.status] || { text: row.status, color: 'default' }
@@ -221,8 +282,8 @@ export default function SalesReturnDetailPage() {
     : undefined;
   const completeHint =
     row?.type === 'refund_only'
-      ? '确认后将完成退款记录，不写入库存。'
-      : '确认后将按明细处置结果收货到原订单仓库；审批人与收货人必须为不同账号。';
+      ? '确认后仅完成本地售后流程，不代表资金已退款；请随后创建退款执行单登记真实资金结果。'
+      : '确认后将按明细处置结果收货到原订单仓库；审批人与收货人必须为不同账号。资金退款仍需在退款执行单中登记。';
 
   return (
     <PermissionGuard require={PERMISSIONS.SALES_RETURN_VIEW} showForbiddenPage>
@@ -343,6 +404,21 @@ export default function SalesReturnDetailPage() {
               <Input.TextArea rows={3} maxLength={128} showCount />
             </Form.Item>
           </Form>
+        </Modal>
+        <Modal
+          title="创建退款执行单"
+          open={refundCreateOpen}
+          confirmLoading={creatingRefund}
+          okText="确认创建"
+          cancelText="取消"
+          onCancel={() => !creatingRefund && setRefundCreateOpen(false)}
+          onOk={() => void startRefundExecution()}
+        >
+          <Alert
+            type="info"
+            showIcon
+            message="创建后将进入待登记状态；本操作不会向平台或支付渠道发起退款。"
+          />
         </Modal>
       </TmPageContainer>
     </PermissionGuard>

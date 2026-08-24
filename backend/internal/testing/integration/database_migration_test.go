@@ -145,6 +145,8 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 		"purchase_return_items",
 		"purchase_return_actions",
 		"sales_returns",
+		"refund_executions",
+		"refund_execution_events",
 		"sales_return_items",
 		"sales_return_actions",
 		"sales_return_inventory_effects",

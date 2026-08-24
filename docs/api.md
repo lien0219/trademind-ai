@@ -148,7 +148,7 @@
 | `GET` | `/api/v1/sales-returns/:id` | `sales_return.view` | 售后详情、订单/仓库标签和原扣减数量。跨租户读取返回 `404`。 |
 | `POST` | `/api/v1/sales-returns/:id/submit` | `sales_return.manage` | 提交售后审批；JSON：`expectedRevision`、`idempotencyKey`、可选 `reason`。 |
 | `POST` | `/api/v1/sales-returns/:id/approve` | `sales_return.approve` | 审批售后单；审批人与最终完成/收货人必须为不同账号。 |
-| `POST` | `/api/v1/sales-returns/:id/complete` | `sales_return.receive` | 完成售后。仅退款不写库存；退货退款按明细收货到原订单仓，良品增加可售投影，残次品同时增加在手与残次库存、可售量不变。状态、action、余额、独立 effect、movement 和兼容日志在同一事务提交。 |
+| `POST` | `/api/v1/sales-returns/:id/complete` | `sales_return.receive` | 完成本地售后流程，但不代表资金已退款。仅退款不写库存；退货退款按明细收货到原订单仓，良品增加可售投影，残次品同时增加在手与残次库存、可售量不变。状态、action、余额、独立 effect、movement 和兼容日志在同一事务提交。 |
 | `POST` | `/api/v1/sales-returns/:id/cancel` | `sales_return.manage` | 取消草稿、待审批或已审批售后并释放累计可退占用；完成后不可取消。 |
 
 上述接口不执行支付退款，不调用真实平台售后或库存接口，不支持换货、自动重试、Worker 或自动采购。`400` 表示字段无效，`404` 表示当前租户不可见，`409` 表示 revision、状态、累计超退、仓库、职责分离或幂等冲突。
@@ -163,6 +163,21 @@
 | `GET` | `/api/v1/sales-return-reconciliation/:id` | `sales_return.view` | 平台售后事实详情、最近事件和对账说明；跨租户或越权店铺返回 `404`。 |
 
 平台售后事件要求外部售后单号、平台订单号、状态、退款金额、币种和事件号；字段不完整会保留 Webhook 处理错误，不会被当作成功。相同事件号 payload 改变返回幂等冲突，较旧 `platformUpdatedAt` 事件只记账不回退当前快照。对账状态为 `matched`、`pending`、`mismatch` 或 `blocked`；本地售后关联只按同订单、类型、币种和金额核对，不产生任何写请求。
+
+## 退款执行 / 资金事实闭环 V1
+
+退款执行单把“售后流程已完成”与“资金退款结果”拆开。V1 只允许登记已在外部完成的退款结果，或根据已同步的只读平台终态确认本地结果；所有 POST 都只写本地数据库，不调用支付 Provider、真实平台售后写接口，不启动 Worker，也不自动重试。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/refund-executions` | `sales_return.view` | 分页查询当前租户、授权店铺内的退款执行单；支持 `page`、`pageSize`、`status=pending|succeeded|failed|unknown|cancelled`、`salesReturnId`、`orderId`。列表返回当前平台复核结果。 |
+| `GET` | `/api/v1/refund-executions/:id` | `sales_return.view` | 查询退款执行详情、不可变操作事件和按当前平台快照派生的复核结果；跨租户或越权店铺返回 `404`。 |
+| `POST` | `/api/v1/sales-returns/:id/refund-execution` | `sales_return.refund` | 为已完成售后创建唯一退款执行单；JSON：`idempotencyKey`、可选 `platformAfterSaleId`。金额、币种、订单和店铺只从售后/订单事实复制，调用方不能覆盖。 |
+| `POST` | `/api/v1/refund-executions/:id/result` | `sales_return.refund` | 人工登记外部执行结果；JSON：`expectedRevision`、`idempotencyKey`、`result=succeeded|failed|unknown`、`externalRefundId`、`executedAt`、`reason`。成功必须填写外部退款编号；失败或未知必须填写说明。 |
+| `POST` | `/api/v1/refund-executions/:id/confirm-from-platform` | `sales_return.refund` | 用只读平台事实确认 `pending` 或 `unknown` 执行单；JSON：`expectedRevision`、`idempotencyKey`、`platformAfterSaleId`、`reason`。平台事实必须已安全关联同一售后单，类型、金额、币种一致且状态为可识别终态。 |
+| `POST` | `/api/v1/refund-executions/:id/cancel` | `sales_return.refund` | 取消尚未登记结果的执行单；JSON：`expectedRevision`、`idempotencyKey`、必填 `reason`。外部退款已发生时不得使用。 |
+
+每个售后单最多一个退款执行单；租户内非空 `externalRefundId` 唯一。状态动作使用 revision、稳定幂等键、请求 hash、行锁和条件更新保护，成功动作写入不可变 `refund_execution_events`。售后审批人不得登记或按平台事实确认自己审批的退款结果；非管理员还必须具有对应店铺的 operate/manage 授权。`400` 表示字段无效，`404` 表示租户或店铺范围不可见，`409` 表示状态、revision、职责分离、平台事实、外部退款编号或幂等冲突。
 
 ## 图片 AI
 

@@ -43,6 +43,7 @@ func newFixture(t *testing.T, deducted int) *fixture {
 		&inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{}, &inventory.InventoryChangeLog{},
 		&SalesReturn{}, &SalesReturnItem{}, &SalesReturnAction{}, &SalesReturnInventoryEffect{},
 		&PlatformAfterSale{}, &PlatformAfterSaleEvent{},
+		&RefundExecution{}, &RefundExecutionEvent{},
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -18,6 +18,15 @@ const (
 	StatusCompleted       = "completed"
 	StatusCancelled       = "cancelled"
 
+	RefundExecutionStatusPending   = "pending"
+	RefundExecutionStatusSucceeded = "succeeded"
+	RefundExecutionStatusFailed    = "failed"
+	RefundExecutionStatusUnknown   = "unknown"
+	RefundExecutionStatusCancelled = "cancelled"
+
+	RefundExecutionSourceManual       = "manual"
+	RefundExecutionSourcePlatformFact = "platform_fact"
+
 	PlatformReconciliationMatched  = "matched"
 	PlatformReconciliationPending  = "pending"
 	PlatformReconciliationMismatch = "mismatch"
@@ -160,3 +169,70 @@ type PlatformAfterSaleEvent struct {
 }
 
 func (PlatformAfterSaleEvent) TableName() string { return "platform_after_sale_events" }
+
+// RefundExecution is the local money-execution record for a completed sales
+// return. V1 only records externally executed results or confirms a read-only
+// platform fact; it never writes to a payment or marketplace provider.
+type RefundExecution struct {
+	model.Base
+	TenantID            int64                  `gorm:"not null;uniqueIndex:ux_refund_execution_tenant_no;uniqueIndex:ux_refund_execution_idempotency;uniqueIndex:ux_refund_execution_sales_return;uniqueIndex:ux_refund_execution_external_refund;index" json:"tenantId"`
+	ExecutionNo         string                 `gorm:"size:64;not null;uniqueIndex:ux_refund_execution_tenant_no" json:"executionNo"`
+	IdempotencyKey      string                 `gorm:"size:128;not null;uniqueIndex:ux_refund_execution_idempotency" json:"idempotencyKey"`
+	PayloadHash         string                 `gorm:"size:64;not null" json:"-"`
+	SalesReturnID       uuid.UUID              `gorm:"type:char(36);not null;uniqueIndex:ux_refund_execution_sales_return;index" json:"salesReturnId"`
+	OrderID             uuid.UUID              `gorm:"type:char(36);not null;index" json:"orderId"`
+	InternalShopID      *uuid.UUID             `gorm:"type:char(36);index" json:"internalShopId,omitempty"`
+	PlatformAfterSaleID *uuid.UUID             `gorm:"type:char(36);index" json:"platformAfterSaleId,omitempty"`
+	Status              string                 `gorm:"size:32;not null;index" json:"status"`
+	Source              string                 `gorm:"size:32" json:"source,omitempty"`
+	Currency            string                 `gorm:"size:16;not null" json:"currency"`
+	RefundAmountMinor   int64                  `gorm:"not null" json:"refundAmountMinor"`
+	Revision            int                    `gorm:"not null;default:1" json:"revision"`
+	ExternalRefundID    *string                `gorm:"size:255;uniqueIndex:ux_refund_execution_external_refund" json:"externalRefundId,omitempty"`
+	ResultReason        string                 `gorm:"size:255" json:"resultReason,omitempty"`
+	CreatedBy           *uuid.UUID             `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	ExecutedBy          *uuid.UUID             `gorm:"type:char(36);index" json:"executedBy,omitempty"`
+	ExecutedAt          *time.Time             `json:"executedAt,omitempty"`
+	CancelledBy         *uuid.UUID             `gorm:"type:char(36);index" json:"cancelledBy,omitempty"`
+	CancelledAt         *time.Time             `json:"cancelledAt,omitempty"`
+	ReturnNo            string                 `gorm:"-" json:"returnNo,omitempty"`
+	OrderNo             string                 `gorm:"-" json:"orderNo,omitempty"`
+	PlatformReview      *RefundPlatformReview  `gorm:"-" json:"platformReview,omitempty"`
+	Events              []RefundExecutionEvent `gorm:"-" json:"events,omitempty"`
+}
+
+func (RefundExecution) TableName() string { return "refund_executions" }
+
+// RefundExecutionEvent is an immutable local audit and replay-protection fact.
+type RefundExecutionEvent struct {
+	model.HardDeleteBase
+	TenantID            int64      `gorm:"not null;uniqueIndex:ux_refund_execution_event;uniqueIndex:ux_refund_execution_event_key;index" json:"tenantId"`
+	RefundExecutionID   uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_refund_execution_event;uniqueIndex:ux_refund_execution_event_key;index" json:"refundExecutionId"`
+	Action              string     `gorm:"size:32;not null;uniqueIndex:ux_refund_execution_event" json:"action"`
+	IdempotencyKey      string     `gorm:"size:128;not null;uniqueIndex:ux_refund_execution_event_key" json:"idempotencyKey"`
+	RequestHash         string     `gorm:"size:64;not null" json:"-"`
+	ActorID             *uuid.UUID `gorm:"type:char(36);index" json:"actorId,omitempty"`
+	FromStatus          string     `gorm:"size:32;not null" json:"fromStatus"`
+	ToStatus            string     `gorm:"size:32;not null" json:"toStatus"`
+	Source              string     `gorm:"size:32" json:"source,omitempty"`
+	ExternalRefundID    string     `gorm:"size:255" json:"externalRefundId,omitempty"`
+	Reason              string     `gorm:"size:255" json:"reason,omitempty"`
+	PlatformAfterSaleID *uuid.UUID `gorm:"type:char(36);index" json:"platformAfterSaleId,omitempty"`
+	ExecutedAt          *time.Time `json:"executedAt,omitempty"`
+}
+
+func (RefundExecutionEvent) TableName() string { return "refund_execution_events" }
+
+// RefundPlatformReview is derived from the current read-only provider fact.
+// It is not persisted, so later provider facts are reflected immediately.
+type RefundPlatformReview struct {
+	Status              string     `json:"status"`
+	Reason              string     `json:"reason"`
+	PlatformAfterSaleID *uuid.UUID `json:"platformAfterSaleId,omitempty"`
+	Platform            string     `json:"platform"`
+	PlatformStatus      string     `json:"platformStatus"`
+	ExternalAfterSaleID string     `json:"externalAfterSaleId"`
+	RefundAmountMinor   int64      `json:"refundAmountMinor"`
+	Currency            string     `json:"currency"`
+	PlatformUpdatedAt   *time.Time `json:"platformUpdatedAt,omitempty"`
+}

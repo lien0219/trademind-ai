@@ -250,6 +250,7 @@ const smokeRoutes = [
   { path: "/procurement/replenishment-suggestions", name: /补货建议/ },
   { path: "/orders/sales-returns", name: /退货退款/ },
   { path: "/orders/sales-return-reconciliation", name: /平台售后对账/ },
+  { path: "/orders/refund-executions", name: /退款执行/ },
   { path: "/ops/task-center/alerts", name: /告警中心/ },
   { path: "/ops/task-center/operation-tasks", name: /运营任务中心/ },
   { path: "/ops/observability", name: /可观测性中心/ },

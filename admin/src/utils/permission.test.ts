@@ -38,6 +38,12 @@ describe('ERP permission fallbacks', () => {
     expect(
       hasPermission(ROLES.REVIEWER, PERMISSIONS.SALES_RETURN_RECEIVE),
     ).toBe(false);
+    expect(
+      hasPermission(ROLES.OPERATOR, PERMISSIONS.SALES_RETURN_REFUND),
+    ).toBe(true);
+    expect(
+      hasPermission(ROLES.REVIEWER, PERMISSIONS.SALES_RETURN_REFUND),
+    ).toBe(false);
   });
 
   it('keeps readonly ERP access read-only', () => {
@@ -58,6 +64,9 @@ describe('ERP permission fallbacks', () => {
       true,
     );
     expect(hasPermission(ROLES.READONLY, PERMISSIONS.SALES_RETURN_MANAGE)).toBe(
+      false,
+    );
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.SALES_RETURN_REFUND)).toBe(
       false,
     );
   });

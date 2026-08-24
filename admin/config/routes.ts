@@ -363,6 +363,17 @@ export default [
         component: './SalesReturns/Reconciliation',
       },
       {
+        path: '/orders/refund-executions/:id',
+        name: '退款执行详情',
+        hideInMenu: true,
+        component: './SalesReturns/RefundExecutionDetail',
+      },
+      {
+        path: '/orders/refund-executions',
+        name: '退款执行',
+        component: './SalesReturns/RefundExecutions',
+      },
+      {
         path: '/orders/sales-returns',
         name: '退货退款',
         component: './SalesReturns',
