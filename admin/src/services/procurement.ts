@@ -179,6 +179,16 @@ export type ReplenishmentSuggestionStatus =
   | 'blocked_supplier_selection'
   | string;
 
+export type ReplenishmentSupplierOption = {
+  supplierId: string;
+  supplierSkuId: string;
+  supplierName: string;
+  unitCostMinor: number;
+  currency: string;
+  minOrderQty: number;
+  leadTimeDays: number;
+};
+
 export type ReplenishmentSuggestion = {
   warehouseId: string;
   warehouseCode: string;
@@ -200,7 +210,10 @@ export type ReplenishmentSuggestion = {
   currency: string;
   leadTimeDays: number;
   supplierId?: string;
+  supplierSkuId?: string;
   supplierName?: string;
+  supplierOptions: ReplenishmentSupplierOption[];
+  suggestionHash: string;
   status: ReplenishmentSuggestionStatus;
   blockReasonCode?: string;
   blockReason?: string;
@@ -218,6 +231,19 @@ export type ReplenishmentSuggestionList = {
   pageSize: number;
   total: number;
   totalPages: number;
+};
+
+export type CreateReplenishmentPurchaseOrderBody = {
+  idempotencyKey: string;
+  warehouseId: string;
+  supplierId: string;
+  remark: string;
+  items: Array<{
+    productSkuId: string;
+    supplierSkuId: string;
+    quantity: number;
+    suggestionHash: string;
+  }>;
 };
 
 const enc = encodeURIComponent;
@@ -325,6 +351,10 @@ export async function createPurchaseOrder(body: CreatePurchaseOrderBody) {
   return postJSON<PurchaseOrder>('/api/v1/purchase-orders', body);
 }
 
+export async function createPurchaseOrderFromReplenishment(body: CreateReplenishmentPurchaseOrderBody) {
+  return postJSON<PurchaseOrder>('/api/v1/purchase-orders/from-replenishment', body);
+}
+
 export async function transitionPurchaseOrder(
   id: string,
   action: 'submit' | 'approve' | 'cancel' | 'close',
@@ -399,6 +429,11 @@ export function extractProcurementAPIError(error: unknown): ProcurementAPIError 
 
 export function procurementErrorMessage(error: ProcurementAPIError, fallback = '操作失败，请稍后重试') {
   const message = error.message.toLowerCase();
+  if (message.includes('replenishment suggestion is stale')) return '补货建议已变化，请重新加载后再次确认。';
+  if (message.includes('replenishment suggestion is blocked')) return '该规格当前已不满足创建采购草稿的条件，请重新加载后核对。';
+  if (message.includes('replenishment supplier is invalid')) return '供应商资料已变化，请重新加载后选择。';
+  if (message.includes('replenishment quantity is invalid')) return '采购数量不再满足最新缺口或起订量，请重新加载后调整。';
+  if (message.includes('replenishment currency conflict')) return '所选规格的采购币种不一致，请按币种分批创建草稿。';
   if (message.includes('purchase return revision conflict')) return '采购退货单已被其他人更新，页面已重新加载，请确认最新状态。';
   if (message.includes('purchase return transition')) return '当前采购退货单状态不允许执行此操作。';
   if (message.includes('purchase return idempotency')) return '相同退货操作编号已用于其他内容，请关闭窗口后重新发起。';

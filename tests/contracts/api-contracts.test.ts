@@ -72,6 +72,7 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/purchase-orders",
         "GET /api/v1/procurement/replenishment-suggestions",
         "POST /api/v1/purchase-orders",
+        "POST /api/v1/purchase-orders/from-replenishment",
         "GET /api/v1/purchase-orders/:id",
         "POST /api/v1/purchase-orders/:id/submit",
         "POST /api/v1/purchase-orders/:id/approve",
@@ -177,7 +178,7 @@ describe("TradeMind API contract registry", () => {
     expect(endpoint("POST /api/v1/purchase-returns/:id/complete")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "reason"]);
   });
 
-  it("defines the read-only warehouse-bound replenishment contract", () => {
+  it("defines the warehouse-bound replenishment and confirmed-draft contracts", () => {
     const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
     expect(endpoint("GET /api/v1/procurement/replenishment-suggestions")?.query).toEqual([
       "warehouseId",
@@ -188,6 +189,14 @@ describe("TradeMind API contract registry", () => {
       "format",
     ]);
     expect(endpoint("GET /api/v1/procurement/replenishment-suggestions")?.requiredPermission).toBe("procurement.view");
+    expect(endpoint("POST /api/v1/purchase-orders/from-replenishment")?.requestBody).toEqual([
+      "idempotencyKey",
+      "warehouseId",
+      "supplierId",
+      "remark",
+      "items",
+    ]);
+    expect(endpoint("POST /api/v1/purchase-orders/from-replenishment")?.requiredPermission).toBe("procurement.manage");
   });
 
   it("defines warehouse-ledger adjustment, migration, and reconciliation contracts", () => {
@@ -636,7 +645,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(104);
+    expect(contracts.endpoints).toHaveLength(105);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

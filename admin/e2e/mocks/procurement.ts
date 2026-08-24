@@ -5,6 +5,7 @@ export const E2E_SUPPLIER_ID = 'e2e-supplier-primary';
 export const E2E_SUPPLIER_SKU_ID = 'e2e-supplier-sku-blue';
 export const E2E_PRODUCT_SKU_ID = 'e2e-product-sku-blue';
 export const E2E_PURCHASE_ORDER_ID = 'e2e-purchase-order-approved';
+export const E2E_REPLENISHMENT_DRAFT_ID = 'e2e-purchase-order-replenishment-draft';
 export const E2E_PURCHASE_ORDER_ITEM_ID = 'e2e-purchase-order-item-blue';
 export const E2E_GOODS_RECEIPT_ITEM_ID = 'e2e-goods-receipt-item-blue';
 export const E2E_PURCHASE_RETURN_ID = 'e2e-purchase-return-approved';
@@ -73,6 +74,23 @@ export const e2ePurchaseOrder = {
       lineAmountMinor: 12995,
     },
   ],
+};
+
+export const e2eReplenishmentDraft = {
+  ...e2ePurchaseOrder,
+  id: E2E_REPLENISHMENT_DRAFT_ID,
+  purchaseOrderNo: 'PO-E2E-REPLENISHMENT',
+  status: 'draft',
+  revision: 1,
+  totalAmountMinor: 20792,
+  remark: '补货建议人工确认',
+  approvedAt: undefined,
+  items: [{
+    ...e2ePurchaseOrder.items[0],
+    purchaseOrderId: E2E_REPLENISHMENT_DRAFT_ID,
+    quantity: 8,
+    lineAmountMinor: 20792,
+  }],
 };
 
 export const e2eReceivedPurchaseOrder = {
@@ -172,9 +190,21 @@ export function procurementResponse(path: string) {
         currency: 'CNY',
         leadTimeDays: 7,
         supplierId: E2E_SUPPLIER_ID,
+        supplierSkuId: E2E_SUPPLIER_SKU_ID,
         supplierName: e2eSupplier.name,
+        supplierOptions: [{
+          supplierId: E2E_SUPPLIER_ID,
+          supplierSkuId: E2E_SUPPLIER_SKU_ID,
+          supplierName: e2eSupplier.name,
+          unitCostMinor: 2599,
+          currency: 'CNY',
+          minOrderQty: 4,
+          leadTimeDays: 7,
+        }],
+        suggestionHash: 'a'.repeat(64),
         status: 'actionable',
         inventoryOnHandTotal: 2,
+        inventorySellableTotal: 2,
         inventoryBalanceCount: 1,
       }],
       page: 1,
@@ -184,6 +214,7 @@ export function procurementResponse(path: string) {
     });
   }
   if (path === `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}`) return ok(e2ePurchaseOrder);
+  if (path === `/api/v1/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}`) return ok(e2eReplenishmentDraft);
   if (path === `/api/v1/purchase-orders/${E2E_PURCHASE_ORDER_ID}/returnable-receipt-items`) return ok({ list: [e2eReturnableReceiptItem] });
   if (path === '/api/v1/purchase-returns') {
     return ok({ list: [{ ...e2ePurchaseReturn, items: undefined }], page: 1, pageSize: 20, total: 1, totalPages: 1 });

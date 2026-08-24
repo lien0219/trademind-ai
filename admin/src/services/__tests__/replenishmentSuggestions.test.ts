@@ -1,6 +1,10 @@
 import { request } from '@umijs/max';
 import { describe, expect, it, vi } from 'vitest';
-import { downloadReplenishmentSuggestions, queryReplenishmentSuggestions } from '../procurement';
+import {
+  createPurchaseOrderFromReplenishment,
+  downloadReplenishmentSuggestions,
+  queryReplenishmentSuggestions,
+} from '../procurement';
 
 const requestMock = vi.mocked(request);
 
@@ -50,5 +54,32 @@ describe('replenishment suggestions API service', () => {
     expect(click).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:replenishment');
     click.mockRestore();
+  });
+
+  it('creates one local draft from the confirmed suggestion snapshot', async () => {
+    requestMock.mockResolvedValue({
+      code: 0,
+      message: 'ok',
+      data: { id: 'purchase-order-1', status: 'draft' },
+    });
+    const body = {
+      idempotencyKey: 'admin-replenishment-draft-1',
+      warehouseId: 'warehouse-1',
+      supplierId: 'supplier-1',
+      remark: '补货建议人工确认',
+      items: [{
+        productSkuId: 'sku-1',
+        supplierSkuId: 'supplier-sku-1',
+        quantity: 8,
+        suggestionHash: 'a'.repeat(64),
+      }],
+    };
+
+    await createPurchaseOrderFromReplenishment(body);
+
+    expect(requestMock).toHaveBeenCalledWith('/api/v1/purchase-orders/from-replenishment', {
+      method: 'POST',
+      data: body,
+    });
   });
 });

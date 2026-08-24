@@ -133,6 +133,28 @@ func (h *Handler) Create(c *gin.Context) {
 	response.OK(c, row)
 }
 
+// CreateFromReplenishment creates a local draft after revalidating the
+// selected suggestion snapshot. It does not submit, approve, receive, or
+// call any external platform.
+func (h *Handler) CreateFromReplenishment(c *gin.Context) {
+	tenantID, principal, ok := h.authorize(c, adminperm.PermProcurementManage)
+	if !ok {
+		return
+	}
+	var in CreateReplenishmentPurchaseOrderInput
+	if err := httpapi.BindStrictJSON(c, &in, maxProcurementJSONBody); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.CreatePurchaseOrderFromReplenishment(c.Request.Context(), tenantID, procurementActor(principal), in)
+	if err != nil {
+		handleProcurementError(c, err)
+		return
+	}
+	h.writeLog(c, tenantID, "procurement.purchase_order.create_from_replenishment", row.ID, adminperm.PermProcurementManage, "")
+	response.OK(c, row)
+}
+
 func (h *Handler) Submit(c *gin.Context) {
 	h.transition(c, adminperm.PermProcurementManage, "submit")
 }
@@ -230,7 +252,8 @@ func handleProcurementError(c *gin.Context, err error) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 	case errors.Is(err, ErrInvalidTransition), errors.Is(err, ErrRevisionConflict), errors.Is(err, ErrOverReceipt), errors.Is(err, ErrIdempotencyConflict),
 		errors.Is(err, ErrReturnInvalidTransition), errors.Is(err, ErrReturnRevisionConflict), errors.Is(err, ErrReturnIdempotencyConflict),
-		errors.Is(err, ErrOverReturn), errors.Is(err, ErrReturnInsufficientStock), errors.Is(err, ErrReturnDutyConflict):
+		errors.Is(err, ErrOverReturn), errors.Is(err, ErrReturnInsufficientStock), errors.Is(err, ErrReturnDutyConflict),
+		isReplenishmentConflict(err):
 		response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
 	default:
 		response.HandleError(c, err)

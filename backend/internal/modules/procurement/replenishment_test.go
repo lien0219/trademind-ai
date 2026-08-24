@@ -2,6 +2,7 @@ package procurement
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -51,6 +52,62 @@ func TestListReplenishmentSuggestionsUsesAllIncomingQuantitiesAndMOQ(t *testing.
 	if row.Status != "actionable" || row.AvailableStock != 3 || row.InTransitTransfer != 2 || row.PendingPurchase != 3 || row.Deficit != 2 || row.SuggestedQuantity != 4 || row.MinOrderQty != 4 {
 		t.Fatalf("unexpected replenishment calculation: %#v", row)
 	}
+	if row.SupplierID == nil || *row.SupplierID != fx.Supplier.ID || row.SupplierSKUID == nil || *row.SupplierSKUID != fx.SupplierSKU.ID || row.SuggestionHash == "" {
+		t.Fatalf("replenishment supplier identity/hash should be explicit: %#v", row)
+	}
+}
+
+func TestCreatePurchaseOrderFromReplenishmentRevalidatesAndReplaysDraft(t *testing.T) {
+	fx := newProcurementFixture(t)
+	if err := fx.DB.AutoMigrate(&inventory.WarehouseTransfer{}, &inventory.WarehouseTransferItem{}); err != nil {
+		t.Fatalf("migrate transfers: %v", err)
+	}
+	stock := 0
+	if err := fx.DB.Model(&product.ProductSKU{}).Where("id = ?", fx.ProductSKU.ID).Updates(map[string]any{"stock": stock, "warning_stock": 7}).Error; err != nil {
+		t.Fatalf("update sku thresholds: %v", err)
+	}
+	if err := fx.DB.Create(&inventory.WarehouseStockBalance{TenantID: 1, WarehouseID: fx.Warehouse.ID, ProductSKUID: fx.ProductSKU.ID, OnHand: 0, Version: 1}).Error; err != nil {
+		t.Fatalf("create balance: %v", err)
+	}
+	ctx := context.Background()
+	suggestions, err := fx.Service.ListReplenishmentSuggestions(ctx, 1, ReplenishmentQuery{WarehouseID: fx.Warehouse.ID, Page: 1, PageSize: 20})
+	if err != nil || len(suggestions.List) != 1 {
+		t.Fatalf("load actionable suggestion: result=%#v err=%v", suggestions, err)
+	}
+	suggestion := suggestions.List[0]
+	supplierSKU := fx.SupplierSKU.ID
+	row, err := fx.Service.CreatePurchaseOrderFromReplenishment(ctx, 1, nil, CreateReplenishmentPurchaseOrderInput{
+		IdempotencyKey: "replenishment-po-001",
+		WarehouseID:    fx.Warehouse.ID,
+		SupplierID:     fx.Supplier.ID,
+		Remark:         "补货建议人工确认",
+		Items: []CreateReplenishmentPurchaseOrderItemInput{{
+			ProductSKUID: fx.ProductSKU.ID, SupplierSKUID: &supplierSKU, Quantity: suggestion.SuggestedQuantity, SuggestionHash: suggestion.SuggestionHash,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create local draft: %v", err)
+	}
+	if row.Status != StatusDraft || row.WarehouseID != fx.Warehouse.ID || row.SupplierID != fx.Supplier.ID || len(row.Items) != 1 || row.Items[0].Quantity != suggestion.SuggestedQuantity || row.Items[0].SupplierSKUID == nil || *row.Items[0].SupplierSKUID != supplierSKU {
+		t.Fatalf("unexpected replenishment draft: %#v", row)
+	}
+	replay, err := fx.Service.CreatePurchaseOrderFromReplenishment(ctx, 1, nil, CreateReplenishmentPurchaseOrderInput{
+		IdempotencyKey: "replenishment-po-001", WarehouseID: fx.Warehouse.ID, SupplierID: fx.Supplier.ID, Remark: "补货建议人工确认",
+		Items: []CreateReplenishmentPurchaseOrderItemInput{{ProductSKUID: fx.ProductSKU.ID, SupplierSKUID: &supplierSKU, Quantity: suggestion.SuggestedQuantity, SuggestionHash: suggestion.SuggestionHash}},
+	})
+	if err != nil || replay.ID != row.ID {
+		t.Fatalf("same request should replay the draft: row=%#v err=%v", replay, err)
+	}
+	if err := fx.DB.Model(&product.ProductSKU{}).Where("id = ?", fx.ProductSKU.ID).Update("warning_stock", 9).Error; err != nil {
+		t.Fatalf("change suggestion input: %v", err)
+	}
+	_, err = fx.Service.CreatePurchaseOrderFromReplenishment(ctx, 1, nil, CreateReplenishmentPurchaseOrderInput{
+		IdempotencyKey: "replenishment-po-002", WarehouseID: fx.Warehouse.ID, SupplierID: fx.Supplier.ID,
+		Items: []CreateReplenishmentPurchaseOrderItemInput{{ProductSKUID: fx.ProductSKU.ID, SupplierSKUID: &supplierSKU, Quantity: suggestion.SuggestedQuantity, SuggestionHash: suggestion.SuggestionHash}},
+	})
+	if !errors.Is(err, ErrReplenishmentStale) {
+		t.Fatalf("stale suggestion should be rejected, got %v", err)
+	}
 }
 
 func TestListReplenishmentSuggestionsBlocksLedgerAndSupplierAmbiguity(t *testing.T) {
@@ -96,6 +153,42 @@ func TestListReplenishmentSuggestionsBlocksLedgerAndSupplierAmbiguity(t *testing
 	result, err = fx.Service.ListReplenishmentSuggestions(context.Background(), 1, ReplenishmentQuery{WarehouseID: fx.Warehouse.ID, Page: 1, PageSize: 20, Status: "blocked_supplier_selection"})
 	if err != nil || len(result.List) != 1 || result.List[0].BlockReasonCode != "multiple_suppliers" {
 		t.Fatalf("expected supplier selection block, result=%#v err=%v", result, err)
+	}
+	ambiguous := result.List[0]
+	var secondOption *ReplenishmentSupplierOption
+	for index := range ambiguous.SupplierOptions {
+		if ambiguous.SupplierOptions[index].SupplierID == secondSupplier.ID {
+			secondOption = &ambiguous.SupplierOptions[index]
+			break
+		}
+	}
+	if secondOption == nil {
+		t.Fatalf("expected second supplier option: %#v", ambiguous.SupplierOptions)
+	}
+	minimum := ((ambiguous.Deficit + secondOption.MinOrderQty - 1) / secondOption.MinOrderQty) * secondOption.MinOrderQty
+	_, err = fx.Service.CreatePurchaseOrderFromReplenishment(context.Background(), 1, nil, CreateReplenishmentPurchaseOrderInput{
+		IdempotencyKey: "replenishment-manual-supplier-quantity",
+		WarehouseID:    fx.Warehouse.ID,
+		SupplierID:     secondSupplier.ID,
+		Items: []CreateReplenishmentPurchaseOrderItemInput{{
+			ProductSKUID: fx.ProductSKU.ID, SupplierSKUID: &secondOption.SupplierSKUID,
+			Quantity: minimum - 1, SuggestionHash: ambiguous.SuggestionHash,
+		}},
+	})
+	if !errors.Is(err, ErrReplenishmentQuantityInvalid) {
+		t.Fatalf("manual supplier quantity below MOQ-rounded deficit should fail, got %v", err)
+	}
+	draft, err := fx.Service.CreatePurchaseOrderFromReplenishment(context.Background(), 1, nil, CreateReplenishmentPurchaseOrderInput{
+		IdempotencyKey: "replenishment-manual-supplier-valid",
+		WarehouseID:    fx.Warehouse.ID,
+		SupplierID:     secondSupplier.ID,
+		Items: []CreateReplenishmentPurchaseOrderItemInput{{
+			ProductSKUID: fx.ProductSKU.ID, SupplierSKUID: &secondOption.SupplierSKUID,
+			Quantity: minimum, SuggestionHash: ambiguous.SuggestionHash,
+		}},
+	})
+	if err != nil || draft.SupplierID != secondSupplier.ID || draft.Status != StatusDraft || len(draft.Items) != 1 || draft.Items[0].Quantity != minimum {
+		t.Fatalf("manual supplier selection should create one valid draft: draft=%#v err=%v", draft, err)
 	}
 
 	noSupplierProduct := &product.Product{TenantID: 1, Source: "manual", Status: product.StatusDraft, Title: "No supplier"}

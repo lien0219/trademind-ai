@@ -519,6 +519,20 @@
       "requiredPermission": "procurement.manage"
     },
     {
+      "method": "POST",
+      "path": "/api/v1/purchase-orders/from-replenishment",
+      "auth": true,
+      "requestBody": [
+        "idempotencyKey",
+        "warehouseId",
+        "supplierId",
+        "remark",
+        "items"
+      ],
+      "responseData": "PurchaseOrder",
+      "requiredPermission": "procurement.manage"
+    },
+    {
       "method": "GET",
       "path": "/api/v1/purchase-orders/:id",
       "auth": true,

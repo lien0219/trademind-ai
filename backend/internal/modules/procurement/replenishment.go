@@ -2,7 +2,10 @@ package procurement
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,45 +27,64 @@ var (
 	ErrReplenishmentWarehouseInvalid  = errors.New("replenishment warehouse is not active")
 	ErrReplenishmentInvalidStatus     = errors.New("invalid replenishment status")
 	ErrReplenishmentTooManyRows       = errors.New("replenishment result exceeds export limit")
+	ErrReplenishmentBlocked           = errors.New("replenishment suggestion is blocked")
+	ErrReplenishmentStale             = errors.New("replenishment suggestion is stale")
+	ErrReplenishmentSupplierInvalid   = errors.New("replenishment supplier is invalid")
+	ErrReplenishmentQuantityInvalid   = errors.New("replenishment quantity is invalid")
+	ErrReplenishmentCurrencyConflict  = errors.New("replenishment currency conflict")
 )
 
 type ReplenishmentQuery struct {
-	WarehouseID uuid.UUID
-	Keyword     string
-	Status      string
-	Page        int
-	PageSize    int
-	Export      bool
+	WarehouseID   uuid.UUID
+	ProductSKUIDs []uuid.UUID
+	Keyword       string
+	Status        string
+	Page          int
+	PageSize      int
+	Export        bool
 }
 
 type ReplenishmentSuggestion struct {
-	WarehouseID            uuid.UUID  `json:"warehouseId"`
-	WarehouseCode          string     `json:"warehouseCode"`
-	WarehouseName          string     `json:"warehouseName"`
-	ProductID              uuid.UUID  `json:"productId"`
-	ProductTitle           string     `json:"productTitle"`
-	ProductSKUID           uuid.UUID  `json:"productSkuId"`
-	SKUCode                string     `json:"skuCode"`
-	SKUName                string     `json:"skuName"`
-	AvailableStock         int        `json:"availableStock"`
-	InTransitTransfer      int        `json:"inTransitTransfer"`
-	PendingPurchase        int        `json:"pendingPurchase"`
-	WarningStock           int        `json:"warningStock"`
-	SafetyStock            int        `json:"safetyStock"`
-	Deficit                int        `json:"deficit"`
-	SuggestedQuantity      int        `json:"suggestedQuantity"`
-	MinOrderQty            int        `json:"minOrderQty"`
-	UnitCostMinor          int64      `json:"unitCostMinor"`
-	Currency               string     `json:"currency"`
-	LeadTimeDays           int        `json:"leadTimeDays"`
-	SupplierID             *uuid.UUID `json:"supplierId,omitempty"`
-	SupplierName           string     `json:"supplierName,omitempty"`
-	Status                 string     `json:"status"`
-	BlockReasonCode        string     `json:"blockReasonCode,omitempty"`
-	BlockReason            string     `json:"blockReason,omitempty"`
-	InventoryOnHandTotal   int        `json:"inventoryOnHandTotal"`
-	InventorySellableTotal int        `json:"inventorySellableTotal"`
-	InventoryBalanceCount  int        `json:"inventoryBalanceCount"`
+	WarehouseID            uuid.UUID                     `json:"warehouseId"`
+	WarehouseCode          string                        `json:"warehouseCode"`
+	WarehouseName          string                        `json:"warehouseName"`
+	ProductID              uuid.UUID                     `json:"productId"`
+	ProductTitle           string                        `json:"productTitle"`
+	ProductSKUID           uuid.UUID                     `json:"productSkuId"`
+	SKUCode                string                        `json:"skuCode"`
+	SKUName                string                        `json:"skuName"`
+	AvailableStock         int                           `json:"availableStock"`
+	InTransitTransfer      int                           `json:"inTransitTransfer"`
+	PendingPurchase        int                           `json:"pendingPurchase"`
+	WarningStock           int                           `json:"warningStock"`
+	SafetyStock            int                           `json:"safetyStock"`
+	Deficit                int                           `json:"deficit"`
+	SuggestedQuantity      int                           `json:"suggestedQuantity"`
+	MinOrderQty            int                           `json:"minOrderQty"`
+	UnitCostMinor          int64                         `json:"unitCostMinor"`
+	Currency               string                        `json:"currency"`
+	LeadTimeDays           int                           `json:"leadTimeDays"`
+	SupplierID             *uuid.UUID                    `json:"supplierId,omitempty"`
+	SupplierSKUID          *uuid.UUID                    `json:"supplierSkuId,omitempty"`
+	SupplierName           string                        `json:"supplierName,omitempty"`
+	SupplierOptions        []ReplenishmentSupplierOption `json:"supplierOptions,omitempty"`
+	SuggestionHash         string                        `json:"suggestionHash"`
+	Status                 string                        `json:"status"`
+	BlockReasonCode        string                        `json:"blockReasonCode,omitempty"`
+	BlockReason            string                        `json:"blockReason,omitempty"`
+	InventoryOnHandTotal   int                           `json:"inventoryOnHandTotal"`
+	InventorySellableTotal int                           `json:"inventorySellableTotal"`
+	InventoryBalanceCount  int                           `json:"inventoryBalanceCount"`
+}
+
+type ReplenishmentSupplierOption struct {
+	SupplierID    uuid.UUID `json:"supplierId"`
+	SupplierSKUID uuid.UUID `json:"supplierSkuId"`
+	SupplierName  string    `json:"supplierName"`
+	UnitCostMinor int64     `json:"unitCostMinor"`
+	Currency      string    `json:"currency"`
+	MinOrderQty   int       `json:"minOrderQty"`
+	LeadTimeDays  int       `json:"leadTimeDays"`
 }
 
 type ReplenishmentResult struct {
@@ -94,13 +116,33 @@ type replenishmentSKU struct {
 }
 
 type replenishmentSupplier struct {
-	ID            uuid.UUID `gorm:"column:id"`
+	SupplierID    uuid.UUID `gorm:"column:supplier_id"`
+	SupplierSKUID uuid.UUID `gorm:"column:supplier_sku_id"`
 	ProductSKUID  uuid.UUID `gorm:"column:product_sku_id"`
 	SupplierName  string    `gorm:"column:supplier_name"`
 	UnitCostMinor int64     `gorm:"column:unit_cost_minor"`
 	Currency      string    `gorm:"column:currency"`
 	MinOrderQty   int       `gorm:"column:min_order_qty"`
 	LeadTimeDays  int       `gorm:"column:lead_time_days"`
+}
+
+type replenishmentSuggestionSnapshot struct {
+	WarehouseID            uuid.UUID
+	ProductSKUID           uuid.UUID
+	Status                 string
+	AvailableStock         int
+	InTransitTransfer      int
+	PendingPurchase        int
+	WarningStock           int
+	SafetyStock            int
+	Deficit                int
+	SuggestedQuantity      int
+	InventoryOnHandTotal   int
+	InventorySellableTotal int
+	InventoryBalanceCount  int
+	BlockReasonCode        string
+	Currency               string
+	Suppliers              []replenishmentSupplier
 }
 
 func (s *Service) ListReplenishmentSuggestions(ctx context.Context, tenantID int64, q ReplenishmentQuery) (*ReplenishmentResult, error) {
@@ -157,6 +199,9 @@ func (s *Service) ListReplenishmentSuggestions(ctx context.Context, tenantID int
 		Joins("JOIN products AS p ON p.id = sk.product_id AND p.tenant_id = ? AND p.deleted_at IS NULL", tenantID).
 		Joins("LEFT JOIN warehouse_stock_balances AS target ON target.tenant_id = ? AND target.warehouse_id = ? AND target.product_sku_id = sk.id", tenantID, q.WarehouseID).
 		Joins("LEFT JOIN (?) AS global_balances ON global_balances.product_sku_id = sk.id", globalBalances)
+	if len(q.ProductSKUIDs) > 0 {
+		base = base.Where("sk.id IN ?", q.ProductSKUIDs)
+	}
 	if keyword := strings.TrimSpace(q.Keyword); keyword != "" {
 		like := "%" + keyword + "%"
 		base = base.Where("p.title LIKE ? OR sk.sku_code LIKE ? OR sk.sku_name LIKE ?", like, like, like)
@@ -206,6 +251,7 @@ func (s *Service) ListReplenishmentSuggestions(ctx context.Context, tenantID int
 			InventorySellableTotal: row.InventorySellableTotal,
 			InventoryBalanceCount:  row.InventoryBalanceCount, Status: "not_needed",
 		}
+		item.SupplierOptions = replenishmentSupplierOptions(suppliers[row.ProductSKUID])
 		if row.InventoryBalanceCount == 0 {
 			item.Status, item.BlockReasonCode, item.BlockReason = "blocked_inventory_unmigrated", "inventory_unmigrated", "尚未建立完整仓库库存账，不能计算补货建议"
 		} else if row.InventorySellableTotal != row.AggregateStock {
@@ -217,7 +263,7 @@ func (s *Service) ListReplenishmentSuggestions(ctx context.Context, tenantID int
 				item.Status, item.BlockReasonCode, item.BlockReason = "blocked_supplier_missing", "supplier_missing", "未找到有效供应商，请先维护供应商绑定"
 			case 1:
 				item.Status = "actionable"
-				item.SupplierID, item.SupplierName = &bound[0].ID, bound[0].SupplierName
+				item.SupplierID, item.SupplierSKUID, item.SupplierName = &bound[0].SupplierID, &bound[0].SupplierSKUID, bound[0].SupplierName
 				item.MinOrderQty, item.UnitCostMinor, item.Currency, item.LeadTimeDays = bound[0].MinOrderQty, bound[0].UnitCostMinor, bound[0].Currency, bound[0].LeadTimeDays
 				if item.MinOrderQty < 1 {
 					item.MinOrderQty = 1
@@ -227,6 +273,7 @@ func (s *Service) ListReplenishmentSuggestions(ctx context.Context, tenantID int
 				item.Status, item.BlockReasonCode, item.BlockReason = "blocked_supplier_selection", "multiple_suppliers", "存在多个有效供应商，请人工选择后再采购"
 			}
 		}
+		item.SuggestionHash = replenishmentSuggestionHash(item, suppliers[row.ProductSKUID])
 		if q.Status == "" || q.Status == "all" || q.Status == item.Status {
 			all = append(all, item)
 		}
@@ -292,7 +339,7 @@ func (s *Service) pendingPurchaseQuantities(ctx context.Context, tenantID int64,
 func (s *Service) replenishmentSuppliers(ctx context.Context, tenantID int64, skuIDs []uuid.UUID) (map[uuid.UUID][]replenishmentSupplier, error) {
 	var rows []replenishmentSupplier
 	err := s.DB.WithContext(ctx).Table("supplier_skus AS ss").
-		Select("ss.id, ss.product_sku_id, suppliers.name AS supplier_name, ss.unit_cost_minor, ss.currency, ss.min_order_qty, ss.lead_time_days").
+		Select("ss.supplier_id, ss.id AS supplier_sku_id, ss.product_sku_id, suppliers.name AS supplier_name, ss.unit_cost_minor, ss.currency, ss.min_order_qty, ss.lead_time_days").
 		Joins("JOIN suppliers ON suppliers.id = ss.supplier_id AND suppliers.tenant_id = ? AND suppliers.status = ?", tenantID, supplier.StatusActive).
 		Where("ss.tenant_id = ? AND ss.product_sku_id IN ?", tenantID, skuIDs).
 		Order("ss.product_sku_id ASC, suppliers.name ASC, ss.id ASC").Scan(&rows).Error
@@ -304,6 +351,30 @@ func (s *Service) replenishmentSuppliers(ctx context.Context, tenantID int64, sk
 		out[r.ProductSKUID] = append(out[r.ProductSKUID], r)
 	}
 	return out, nil
+}
+
+func replenishmentSupplierOptions(rows []replenishmentSupplier) []ReplenishmentSupplierOption {
+	options := make([]ReplenishmentSupplierOption, 0, len(rows))
+	for _, row := range rows {
+		options = append(options, ReplenishmentSupplierOption{
+			SupplierID: row.SupplierID, SupplierSKUID: row.SupplierSKUID, SupplierName: row.SupplierName,
+			UnitCostMinor: row.UnitCostMinor, Currency: row.Currency, MinOrderQty: row.MinOrderQty, LeadTimeDays: row.LeadTimeDays,
+		})
+	}
+	return options
+}
+
+func replenishmentSuggestionHash(row ReplenishmentSuggestion, suppliers []replenishmentSupplier) string {
+	payload, _ := json.Marshal(replenishmentSuggestionSnapshot{
+		WarehouseID: row.WarehouseID, ProductSKUID: row.ProductSKUID, Status: row.Status,
+		AvailableStock: row.AvailableStock, InTransitTransfer: row.InTransitTransfer, PendingPurchase: row.PendingPurchase,
+		WarningStock: row.WarningStock, SafetyStock: row.SafetyStock, Deficit: row.Deficit, SuggestedQuantity: row.SuggestedQuantity,
+		InventoryOnHandTotal: row.InventoryOnHandTotal, InventorySellableTotal: row.InventorySellableTotal,
+		InventoryBalanceCount: row.InventoryBalanceCount, BlockReasonCode: row.BlockReasonCode, Currency: row.Currency,
+		Suppliers: suppliers,
+	})
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }
 
 func WriteReplenishmentCSV(w io.Writer, rows []ReplenishmentSuggestion) error {

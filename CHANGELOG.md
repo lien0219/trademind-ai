@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Replenishment to purchase draft (2026-08-24)
+
+- Added an explicitly confirmed Admin flow that turns selected warehouse replenishment suggestions into one local purchase-order draft for a common supplier, with quantity and supplier-SKU review before the write.
+- Revalidates tenant-scoped inventory, compatibility projection, supplier bindings, currency, minimum order quantities, and a deterministic suggestion snapshot before atomically reusing the existing purchase-order create transaction; stale or conflicting batches create nothing.
+- Added manage-permission and idempotency protection, audit labels, API/service contracts, backend and Admin regression coverage, while keeping submission, approval, receipt, supplier calls, marketplace writes, workers, and automatic purchasing disabled.
+
 ### Order warehouse allocation workbench (2026-08-24)
 
 - Added tenant- and store-scoped whole-order warehouse candidates for paid, unfulfilled orders, with deterministic default-warehouse preference and explicit blocks for missing SKU bindings, partial inventory facts, insufficient single-warehouse availability, and compatibility-projection mismatches.

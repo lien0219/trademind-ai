@@ -14,6 +14,7 @@ func TestRegisterExposesPurchaseOrderWorkflowRoutes(t *testing.T) {
 		"GET /api/v1/purchase-orders":                              false,
 		"GET /api/v1/procurement/replenishment-suggestions":        false,
 		"POST /api/v1/purchase-orders":                             false,
+		"POST /api/v1/purchase-orders/from-replenishment":          false,
 		"GET /api/v1/purchase-orders/:id":                          false,
 		"POST /api/v1/purchase-orders/:id/submit":                  false,
 		"POST /api/v1/purchase-orders/:id/approve":                 false,

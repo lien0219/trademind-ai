@@ -11,6 +11,24 @@ type CreatePurchaseOrderInput struct {
 	Items          []CreatePurchaseOrderItemInput `json:"items"`
 }
 
+// CreateReplenishmentPurchaseOrderInput creates one local purchase-order draft
+// from a user-confirmed set of current replenishment suggestions. It never
+// calls an external supplier or platform.
+type CreateReplenishmentPurchaseOrderInput struct {
+	IdempotencyKey string                                      `json:"idempotencyKey"`
+	WarehouseID    uuid.UUID                                   `json:"warehouseId"`
+	SupplierID     uuid.UUID                                   `json:"supplierId"`
+	Remark         string                                      `json:"remark"`
+	Items          []CreateReplenishmentPurchaseOrderItemInput `json:"items"`
+}
+
+type CreateReplenishmentPurchaseOrderItemInput struct {
+	ProductSKUID   uuid.UUID  `json:"productSkuId"`
+	SupplierSKUID  *uuid.UUID `json:"supplierSkuId"`
+	Quantity       int        `json:"quantity"`
+	SuggestionHash string     `json:"suggestionHash"`
+}
+
 type CreatePurchaseOrderItemInput struct {
 	ProductSKUID  uuid.UUID  `json:"productSkuId"`
 	SupplierSKUID *uuid.UUID `json:"supplierSkuId"`

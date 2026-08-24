@@ -7,12 +7,14 @@ import {
   E2E_PURCHASE_ORDER_ID,
   E2E_PURCHASE_ORDER_ITEM_ID,
   E2E_PURCHASE_RETURN_ID,
+  E2E_REPLENISHMENT_DRAFT_ID,
   E2E_SUPPLIER_ID,
   E2E_SUPPLIER_SKU_ID,
   E2E_WAREHOUSE_ID,
   e2eProductSkuHit,
   e2ePurchaseOrder,
   e2ePurchaseReturn,
+  e2eReplenishmentDraft,
   e2eReceivedPurchaseOrder,
   e2eReturnableReceiptItem,
   e2eSupplier,
@@ -40,7 +42,7 @@ test.describe('@smoke procurement workspace', () => {
         { path: '/procurement/suppliers', text: 'E2E 核心供应商' },
         { path: '/procurement/purchase-orders', text: 'PO-E2E-0001' },
         { path: '/procurement/purchase-returns', text: 'PR-E2E-0001' },
-        { path: '/procurement/replenishment-suggestions', text: 'E2E 补货耳机', requiresWarehouse: true },
+        { path: '/procurement/replenishment-suggestions', text: 'E2E 补货耳机', requiresWarehouse: true, checksDraftModal: true },
         { path: `/procurement/purchase-returns/${E2E_PURCHASE_RETURN_ID}`, text: '到货质量异常' },
       ]) {
         await admin.goto(route.path);
@@ -51,6 +53,12 @@ test.describe('@smoke procurement workspace', () => {
         await expect(page.getByText(route.text).first()).toBeVisible({ timeout: 30_000 });
         await expectNoRootOverflow(page);
         await expectHeaderContentAligned(page);
+        if (route.checksDraftModal) {
+          await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
+          await page.getByRole('button', { name: '创建采购草稿（1）' }).click();
+          await expectModalWithinViewport(page);
+          await page.getByRole('dialog', { name: '从补货建议创建采购草稿' }).getByRole('button', { name: /取\s*消/ }).click();
+        }
       }
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     });
@@ -132,7 +140,7 @@ test.describe('@smoke procurement workspace', () => {
     expect(String(payload.idempotencyKey)).toMatch(/^admin-purchase-order-/);
   });
 
-  test('requires a target warehouse and keeps replenishment suggestions read-only', async ({ admin, page }) => {
+  test('requires a target warehouse and keeps replenishment suggestions read-only before confirmation', async ({ admin, page }) => {
     await admin.goto('/procurement/replenishment-suggestions');
     await expect(page.getByText('必须选择目标仓库后才会加载建议。')).toBeVisible();
     await expect(page.getByText('E2E 补货耳机')).toHaveCount(0);
@@ -149,6 +157,50 @@ test.describe('@smoke procurement workspace', () => {
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe('replenishment-suggestions.csv');
     await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
+  test('creates one replenishment purchase draft only after explicit confirmation', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'create-replenishment-draft',
+      method: 'POST',
+      path: /^\/api\/v1\/purchase-orders\/from-replenishment$/,
+      response: ok(e2eReplenishmentDraft),
+    });
+
+    await admin.goto('/procurement/replenishment-suggestions');
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货耳机')).toBeVisible();
+    await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
+    await page.getByRole('button', { name: '创建采购草稿（1）' }).click();
+    let dialog = page.getByRole('dialog', { name: '从补货建议创建采购草稿' });
+    await expectModalWithinViewport(page);
+    await dialog.getByRole('button', { name: /取\s*消/ }).click();
+    await admin.writeGuard.expectRequestCount('create-replenishment-draft', 0);
+
+    await page.getByRole('button', { name: '创建采购草稿（1）' }).click();
+    dialog = page.getByRole('dialog', { name: '从补货建议创建采购草稿' });
+    await dialog.getByRole('combobox', { name: '采购供应商' }).click();
+    await page.locator('.ant-select-dropdown:visible').getByText('E2E 核心供应商', { exact: true }).click();
+    await expect(dialog.getByRole('spinbutton', { name: '采购数量 1' })).toHaveValue('8');
+    await dialog.getByRole('button', { name: '确认创建采购草稿' }).click();
+
+    await admin.writeGuard.expectRequestCount('create-replenishment-draft', 1);
+    const payload = admin.writeGuard.calls('create-replenishment-draft')[0]?.postDataJSON as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      warehouseId: E2E_WAREHOUSE_ID,
+      supplierId: E2E_SUPPLIER_ID,
+      remark: '补货建议人工确认',
+      items: [{
+        productSkuId: E2E_PRODUCT_SKU_ID,
+        supplierSkuId: E2E_SUPPLIER_SKU_ID,
+        quantity: 8,
+        suggestionHash: 'a'.repeat(64),
+      }],
+    });
+    expect(String(payload.idempotencyKey)).toMatch(/^admin-replenishment-draft-/);
+    await expect(page).toHaveURL(new RegExp(`/procurement/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}$`));
+    await expect(page.getByText('PO-E2E-REPLENISHMENT').first()).toBeVisible();
   });
 
   test('distinguishes replenishment empty and API error states', async ({ admin, page }) => {

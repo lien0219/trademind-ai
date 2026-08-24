@@ -155,6 +155,38 @@
   margin-top: 16px;
 }
 
+.tm-replenishment-draft-lines {
+  display: grid;
+  gap: 12px;
+  max-height: min(46vh, 460px);
+  margin: 16px 0;
+  overflow-y: auto;
+}
+
+.tm-replenishment-draft-line {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1fr) 150px;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+
+  &__identity,
+  &__binding {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding-bottom: 24px;
+  }
+
+  .ant-form-item,
+  .ant-input-number,
+  .ant-select {
+    width: 100%;
+  }
+}
+
 .tm-procurement-receipt-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 160px;
@@ -244,8 +276,19 @@
 
   .tm-procurement-form-grid,
   .tm-procurement-line,
-  .tm-procurement-receipt-row {
+  .tm-procurement-receipt-row,
+  .tm-replenishment-draft-line {
     display: block;
+  }
+
+  .tm-replenishment-draft-lines {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .tm-replenishment-draft-line__identity,
+  .tm-replenishment-draft-line__binding {
+    padding-bottom: 12px;
   }
 
   .tm-procurement-line > .ant-btn {
@@ -266,6 +309,15 @@
       grid-column: 1 / -1;
       justify-self: end;
       margin-bottom: 0;
+    }
+  }
+
+  .tm-replenishment-draft-line {
+    grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr);
+
+    .ant-form-item:last-child {
+      grid-column: 1 / -1;
+      max-width: 220px;
     }
   }
 }

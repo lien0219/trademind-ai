@@ -2,6 +2,7 @@ package procurement
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -60,5 +62,45 @@ func TestReplenishmentHTTPRejectsUnknownStatus(t *testing.T) {
 	}
 	if recorder.Code != http.StatusBadRequest || envelope.Code != response.CodeBadRequest {
 		t.Fatalf("unknown status should be a bad request: status=%d envelope=%#v", recorder.Code, envelope)
+	}
+}
+
+func TestReplenishmentHTTPCreatesOnlyLocalDraftWithPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fx := newProcurementFixture(t)
+	if err := fx.DB.AutoMigrate(&inventory.WarehouseTransfer{}, &inventory.WarehouseTransferItem{}); err != nil {
+		t.Fatalf("migrate transfers: %v", err)
+	}
+	stock := 0
+	if err := fx.DB.Model(&product.ProductSKU{}).Where("id = ?", fx.ProductSKU.ID).Updates(map[string]any{"stock": stock, "warning_stock": 6}).Error; err != nil {
+		t.Fatalf("update sku thresholds: %v", err)
+	}
+	if err := fx.DB.Create(&inventory.WarehouseStockBalance{TenantID: 1, WarehouseID: fx.Warehouse.ID, ProductSKUID: fx.ProductSKU.ID, OnHand: 0, Version: 1}).Error; err != nil {
+		t.Fatalf("create balance: %v", err)
+	}
+	ctx := t.Context()
+	suggestions, err := fx.Service.ListReplenishmentSuggestions(ctx, 1, ReplenishmentQuery{WarehouseID: fx.Warehouse.ID, Page: 1, PageSize: 20})
+	if err != nil || len(suggestions.List) != 1 {
+		t.Fatalf("load suggestion: result=%#v err=%v", suggestions, err)
+	}
+	supplierSKU := fx.SupplierSKU.ID
+	body := fmt.Sprintf(`{"idempotencyKey":"replenishment-http-001","warehouseId":%q,"supplierId":%q,"remark":"http draft","items":[{"productSkuId":%q,"supplierSkuId":%q,"quantity":%d,"suggestionHash":%q}]}`,
+		fx.Warehouse.ID, fx.Supplier.ID, fx.ProductSKU.ID, supplierSKU, suggestions.List[0].SuggestedQuantity, suggestions.List[0].SuggestionHash)
+	router := purchaseReturnHTTPRouter(t, fx, 1, adminperm.RoleOperator, uuid.New())
+	recorder, envelope := performPurchaseReturnRequest(t, router, http.MethodPost, "/api/v1/purchase-orders/from-replenishment", body)
+	if recorder.Code != http.StatusOK || envelope.Code != response.CodeOK {
+		t.Fatalf("replenishment draft should be created: status=%d envelope=%#v", recorder.Code, envelope)
+	}
+	var row PurchaseOrder
+	if err := json.Unmarshal(envelope.Data, &row); err != nil {
+		t.Fatalf("decode draft: %v", err)
+	}
+	if row.Status != StatusDraft || row.SupplierID != fx.Supplier.ID || row.WarehouseID != fx.Warehouse.ID {
+		t.Fatalf("unexpected HTTP draft: %#v", row)
+	}
+	readonlyRouter := purchaseReturnHTTPRouter(t, fx, 1, adminperm.RoleReadonly, uuid.New())
+	recorder, envelope = performPurchaseReturnRequest(t, readonlyRouter, http.MethodPost, "/api/v1/purchase-orders/from-replenishment", body)
+	if recorder.Code != http.StatusForbidden || envelope.Code != response.CodeForbidden {
+		t.Fatalf("readonly replenishment draft write should be denied: status=%d envelope=%#v", recorder.Code, envelope)
 	}
 }

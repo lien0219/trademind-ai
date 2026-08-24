@@ -9,6 +9,7 @@ func Register(group *gin.RouterGroup, handler *Handler) {
 	group.GET("/purchase-orders", handler.List)
 	group.GET("/procurement/replenishment-suggestions", handler.ListReplenishmentSuggestions)
 	group.POST("/purchase-orders", handler.Create)
+	group.POST("/purchase-orders/from-replenishment", handler.CreateFromReplenishment)
 	group.GET("/purchase-orders/:id", handler.Get)
 	group.POST("/purchase-orders/:id/submit", handler.Submit)
 	group.POST("/purchase-orders/:id/approve", handler.Approve)

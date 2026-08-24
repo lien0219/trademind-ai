@@ -1,4 +1,5 @@
-import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { history } from '@umijs/max';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { Alert, Button, Input, Select, Space, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -6,13 +7,19 @@ import PermissionGuard from '@/components/PermissionGuard';
 import { ErrorAlert, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import {
+  createProcurementIdempotencyKey,
+  createPurchaseOrderFromReplenishment,
   downloadReplenishmentSuggestions,
+  extractProcurementAPIError,
   listWarehouses,
+  procurementErrorMessage,
   queryReplenishmentSuggestions,
   type ReplenishmentSuggestion,
   type Warehouse,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import CreateDraftModal from './CreateDraftModal';
+import { formatMinorAmount } from '../helpers';
 import '../index.less';
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -29,8 +36,15 @@ function statusTag(status: string) {
   return <Tag color={meta.color}>{meta.label}</Tag>;
 }
 
+function canCreateDraft(row: ReplenishmentSuggestion) {
+  return (row.status === 'actionable' || row.status === 'blocked_supplier_selection')
+    && row.deficit > 0
+    && row.suggestionHash?.length === 64
+    && (row.supplierOptions?.length ?? 0) > 0;
+}
+
 export default function ReplenishmentSuggestionsPage() {
-  const { can } = usePermission();
+  const { can, readonly } = usePermission();
   const actionRef = useRef<ActionType>();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseLoading, setWarehouseLoading] = useState(true);
@@ -39,6 +53,10 @@ export default function ReplenishmentSuggestionsPage() {
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('');
   const [listError, setListError] = useState('');
+  const [selectedRows, setSelectedRows] = useState<ReplenishmentSuggestion[]>([]);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [draftSubmitting, setDraftSubmitting] = useState(false);
+  const [draftIdempotencyKey, setDraftIdempotencyKey] = useState('');
 
   const loadWarehouses = useCallback(async () => {
     setWarehouseLoading(true);
@@ -54,7 +72,10 @@ export default function ReplenishmentSuggestionsPage() {
   }, []);
 
   useEffect(() => { void loadWarehouses(); }, [loadWarehouses]);
-  useEffect(() => { void actionRef.current?.reload(); }, [warehouseId, status, keyword]);
+  useEffect(() => {
+    setSelectedRows([]);
+    void actionRef.current?.reload();
+  }, [warehouseId, status, keyword]);
 
   const warehouseLabel = useMemo(() => {
     const row = warehouses.find((item) => item.id === warehouseId);
@@ -74,8 +95,8 @@ export default function ReplenishmentSuggestionsPage() {
     { title: '预警 / 安全', dataIndex: 'warningStock', width: 112, align: 'right', search: false, render: (_, row) => `${row.warningStock} / ${row.safetyStock}` },
     { title: '缺口', dataIndex: 'deficit', width: 78, align: 'right', search: false },
     { title: '建议采购量', dataIndex: 'suggestedQuantity', width: 106, align: 'right', search: false, render: (_, row) => row.suggestedQuantity || '—' },
-    { title: '供应商 / MOQ', dataIndex: 'supplierName', minWidth: 160, search: false, render: (_, row) => row.supplierName ? `${row.supplierName} / ${row.minOrderQty}` : '—' },
-    { title: '采购价', dataIndex: 'unitCostMinor', width: 108, align: 'right', search: false, render: (_, row) => row.supplierName ? `${row.unitCostMinor} ${row.currency}` : '—' },
+    { title: '供应商 / 起订量', dataIndex: 'supplierName', minWidth: 170, search: false, render: (_, row) => row.supplierName ? `${row.supplierName} / ${row.minOrderQty}` : row.supplierOptions?.length ? `${new Set(row.supplierOptions.map((option) => option.supplierId)).size} 个可选供应商` : '—' },
+    { title: '采购价', dataIndex: 'unitCostMinor', width: 118, align: 'right', search: false, render: (_, row) => row.supplierName ? formatMinorAmount(row.unitCostMinor, row.currency) : '—' },
     { title: '交期', dataIndex: 'leadTimeDays', width: 70, align: 'right', search: false, render: (_, row) => row.supplierName ? `${row.leadTimeDays} 天` : '—' },
     { title: '状态', dataIndex: 'status', width: 130, search: false, render: (_, row) => statusTag(row.status) },
     { title: '阻断原因', dataIndex: 'blockReason', minWidth: 230, search: false, ellipsis: true, render: (_, row) => row.blockReason ? <Typography.Text type="danger" ellipsis={{ tooltip: row.blockReason }}>{row.blockReason}</Typography.Text> : '—' },
@@ -83,16 +104,49 @@ export default function ReplenishmentSuggestionsPage() {
 
   const statusOptions = Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label }));
   const canRead = can(PERMISSIONS.PROCUREMENT_VIEW);
+  const canManage = !readonly && can(PERMISSIONS.PROCUREMENT_MANAGE);
+
+  const openDraftModal = () => {
+    if (!selectedRows.length) return;
+    setDraftIdempotencyKey(createProcurementIdempotencyKey('replenishment-draft'));
+    setDraftModalOpen(true);
+  };
+
+  const createDraft = async (body: Parameters<typeof createPurchaseOrderFromReplenishment>[0]) => {
+    setDraftSubmitting(true);
+    try {
+      const order = await createPurchaseOrderFromReplenishment(body);
+      message.success('采购草稿已创建，请继续提交审批');
+      setDraftModalOpen(false);
+      setSelectedRows([]);
+      actionRef.current?.reload();
+      history.push(`/procurement/purchase-orders/${order.id}`);
+    } catch (error) {
+      const apiError = extractProcurementAPIError(error);
+      if (apiError.message.toLowerCase().includes('replenishment ')) {
+        setDraftModalOpen(false);
+        setSelectedRows([]);
+        actionRef.current?.reload();
+      }
+      message.error(procurementErrorMessage(
+        apiError,
+        '采购草稿创建失败，建议可能已变化，请重新加载后确认。',
+      ));
+    } finally {
+      setDraftSubmitting(false);
+    }
+  };
 
   return <PermissionGuard require={PERMISSIONS.PROCUREMENT_VIEW} showForbiddenPage>
     <TmPageContainer
       className="tm-procurement-page"
       title="补货建议"
-      subTitle="选择目标仓库后，查看只读安全库存缺口与人工采购参考；本页不会创建采购单或启动任务。"
-      extra={<TmPageHeaderExtra><Button icon={<DownloadOutlined />} disabled={!warehouseId} onClick={async () => { try { await downloadReplenishmentSuggestions({ warehouseId, keyword, status }); message.success('已开始下载筛选结果'); } catch (error) { message.error((error as Error)?.message || '导出失败，请稍后重试。'); } }}>导出筛选结果</Button></TmPageHeaderExtra>}
+      subTitle="选择目标仓库并复核缺口、供应商和数量后，可创建本地采购草稿；后续提交、审批和收货仍需人工完成。"
+      extra={<TmPageHeaderExtra><Button icon={<DownloadOutlined />} disabled={!warehouseId} onClick={async () => { try { await downloadReplenishmentSuggestions({ warehouseId, keyword, status }); message.success('已开始下载筛选结果'); } catch (error) { message.error((error as Error)?.message || '导出失败，请稍后重试。'); } }}>导出筛选结果</Button><Button type="primary" icon={<PlusOutlined />} disabled={!canManage || !warehouseId || selectedRows.length === 0} onClick={openDraftModal}>创建采购草稿{selectedRows.length ? `（${selectedRows.length}）` : ''}</Button></TmPageHeaderExtra>}
     >
       {warehouseError ? <ErrorAlert title={warehouseError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadWarehouses()}>重试</Button>} /> : null}
-      <Alert type="info" showIcon message="库存账和供应商资料采用 fail-closed 规则" description="库存账不一致或尚未迁移、无有效供应商、存在多个有效供应商时只展示阻断原因，不猜测采购对象。建议数量只供人工采购决策参考。" />
+      <Alert type="info" showIcon message="库存账和供应商资料采用安全阻断规则" description="库存账不一致、尚未迁移或无有效供应商时不能创建草稿；存在多个供应商时必须人工选择。创建前服务端会重新计算并校验建议，避免使用过期数据。" />
+      {!canManage ? <Alert type="warning" showIcon message="当前账号仅可查看和导出补货建议，不能创建采购草稿。" /> : null}
       <Space wrap size={[16, 12]} className="tm-replenishment-filters" style={{ width: '100%' }}>
         <Select aria-label="目标仓库" showSearch optionFilterProp="label" placeholder="请选择目标仓库（必选）" loading={warehouseLoading} disabled={!warehouseLoading && !warehouses.length} value={warehouseId || undefined} style={{ minWidth: 260 }} options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))} onChange={setWarehouseId} />
         <Input.Search aria-label="搜索商品或规格" allowClear placeholder="搜索商品标题、规格编码或名称" style={{ width: 300, maxWidth: '100%' }} onSearch={setKeyword} onChange={(event) => { if (!event.target.value) setKeyword(''); }} />
@@ -109,6 +163,14 @@ export default function ReplenishmentSuggestionsPage() {
         search={false}
         cardBordered
         scroll={{ x: 1500 }}
+        rowSelection={canManage ? {
+          selectedRowKeys: selectedRows.map((row) => row.productSkuId),
+          onChange: (_, rows) => setSelectedRows(rows),
+          getCheckboxProps: (row) => ({
+            disabled: !canCreateDraft(row),
+            'aria-label': `选择 ${row.skuCode || row.skuName || row.productSkuId}`,
+          }),
+        } : undefined}
         locale={{ emptyText: warehouseId ? (listError ? '补货建议暂不可用' : '暂无符合条件的规格') : '请选择目标仓库' }}
         request={async (params) => {
           if (!warehouseId || !canRead) return { data: [], total: 0, success: true };
@@ -122,6 +184,16 @@ export default function ReplenishmentSuggestionsPage() {
           }
         }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+      />
+      <CreateDraftModal
+        open={draftModalOpen}
+        warehouseId={warehouseId}
+        warehouseLabel={warehouseLabel}
+        rows={selectedRows}
+        idempotencyKey={draftIdempotencyKey}
+        submitting={draftSubmitting}
+        onCancel={() => setDraftModalOpen(false)}
+        onSubmit={(body) => void createDraft(body)}
       />
     </TmPageContainer>
   </PermissionGuard>;
