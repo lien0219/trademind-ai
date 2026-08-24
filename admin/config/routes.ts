@@ -351,6 +351,11 @@ export default [
         component: './Orders/WarehouseAllocations',
       },
       {
+        path: '/orders/fulfillment-waves',
+        name: '拣货波次',
+        component: './Orders/FulfillmentWaves',
+      },
+      {
         path: '/orders/sales-returns/:id',
         name: '售后详情',
         hideInMenu: true,

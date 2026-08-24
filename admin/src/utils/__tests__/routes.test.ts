@@ -112,6 +112,7 @@ describe('Admin route menu configuration', () => {
           path: '/orders/warehouse-allocations',
           name: '履约分仓',
         }),
+        expect.objectContaining({ path: '/orders/fulfillment-waves', name: '拣货波次' }),
         expect.objectContaining({ path: '/orders/sales-returns', name: '退货退款' }),
         expect.objectContaining({ path: '/orders/sales-returns/:id', hideInMenu: true }),
         expect.objectContaining({ path: '/orders/sales-return-reconciliation', name: '平台售后对账' }),

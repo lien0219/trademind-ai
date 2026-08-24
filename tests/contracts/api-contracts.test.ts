@@ -50,6 +50,14 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/orders/warehouse-allocations",
         "GET /api/v1/orders/:id/warehouse-allocation",
         "POST /api/v1/orders/:id/warehouse-allocation",
+        "GET /api/v1/fulfillment-waves",
+        "GET /api/v1/fulfillment-waves/:id",
+        "POST /api/v1/fulfillment-waves",
+        "POST /api/v1/fulfillment-waves/:id/start",
+        "POST /api/v1/fulfillment-waves/:id/picks",
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
+        "POST /api/v1/fulfillment-waves/:id/complete",
+        "POST /api/v1/fulfillment-waves/:id/cancel",
         "GET /api/v1/orders/fulfillment-reconciliation",
         "POST /api/v1/orders",
         "GET /api/v1/orders/:id",
@@ -365,6 +373,61 @@ describe("TradeMind API contract registry", () => {
     expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
   });
 
+  it("defines revision-bound local fulfillment wave contracts", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key) as
+        | {
+            query?: string[];
+            requestBody?: string[];
+            requiredPermission?: string;
+            readonly?: boolean;
+            externalWrite?: boolean;
+            reservationRelease?: boolean;
+          }
+        | undefined;
+    expect(endpoint("GET /api/v1/fulfillment-waves")?.query).toEqual([
+      "page",
+      "pageSize",
+      "keyword",
+      "status",
+      "warehouseId",
+    ]);
+    expect(endpoint("GET /api/v1/fulfillment-waves")?.readonly).toBe(true);
+    expect(endpoint("POST /api/v1/fulfillment-waves")?.requestBody).toEqual([
+      "idempotencyKey",
+      "warehouseId",
+      "orderIds",
+      "remark",
+    ]);
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/picks")?.requestBody,
+    ).toEqual(["expectedRevision", "idempotencyKey", "lines"]);
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack")
+        ?.requestBody,
+    ).toEqual([
+      "expectedRevision",
+      "idempotencyKey",
+      "carrier",
+      "trackingNo",
+      "trackingUrl",
+    ]);
+    for (const key of [
+      "POST /api/v1/fulfillment-waves",
+      "POST /api/v1/fulfillment-waves/:id/start",
+      "POST /api/v1/fulfillment-waves/:id/picks",
+      "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
+      "POST /api/v1/fulfillment-waves/:id/complete",
+      "POST /api/v1/fulfillment-waves/:id/cancel",
+    ]) {
+      expect(endpoint(key)?.requiredPermission).toBe("order.operate");
+      expect(endpoint(key)?.externalWrite).toBe(false);
+    }
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/cancel")?.reservationRelease,
+    ).toBe(false);
+  });
+
   it("defines local-only refund execution contracts with dedicated permission", () => {
     const endpoint = (key: string) =>
       contracts.endpoints.find((item) => routeKey(item) === key) as
@@ -645,7 +708,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(105);
+    expect(contracts.endpoints).toHaveLength(113);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

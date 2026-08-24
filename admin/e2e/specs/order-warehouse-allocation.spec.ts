@@ -173,7 +173,7 @@ test.describe("@smoke order warehouse allocation V1", () => {
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
-  test("batch fulfills selected allocated orders once and keeps cancel side-effect free", async ({
+  test("creates one same-warehouse picking wave and keeps cancel side-effect free", async ({
     admin,
     page,
   }) => {
@@ -188,81 +188,56 @@ test.describe("@smoke order warehouse allocation V1", () => {
       },
     );
     admin.writeGuard.allow({
-      operation: "batch-fulfill",
+      operation: "create-fulfillment-wave",
       method: "POST",
-      path: /^\/api\/v1\/orders\/fulfillment-batch$/,
+      path: /^\/api\/v1\/fulfillment-waves$/,
       response: ok({
-        batchIdempotencyKey: "batch-e2e-key",
-        summary: { requested: 1, succeeded: 1, blocked: 0, inProgress: 0, failed: 0 },
-        items: [
-          {
-            orderId: E2E_ALLOCATION_ORDER_ID,
-            orderNo: "SO-E2E-ALLOC-0001",
-            warehouseId: E2E_ALLOCATION_WAREHOUSE_ID,
-            status: "succeeded",
-            shipment: {
-              id: "e2e-batch-shipment",
-              orderId: E2E_ALLOCATION_ORDER_ID,
-              carrier: "E2E Carrier",
-              trackingNo: "E2E-BATCH-TRACK",
-              status: "shipped",
-              createdAt: "2026-08-24T02:00:00Z",
-              updatedAt: "2026-08-24T02:00:00Z",
-            },
-          },
-        ],
-        pickList: [
-          {
-            warehouseId: E2E_ALLOCATION_WAREHOUSE_ID,
-            warehouseCode: "MAIN",
-            warehouseName: "E2E 华东主仓",
-            productSkuId: "e2e-allocation-sku-blue",
-            skuCode: "BLUE-01",
-            quantity: 3,
-            orderCount: 1,
-          },
-        ],
+        id: "e2e-fulfillment-wave-1",
+        waveNo: "FW20260824-E2E0000001",
+        warehouseId: E2E_ALLOCATION_WAREHOUSE_ID,
+        status: "draft",
+        revision: 1,
+        orderCount: 1,
+        lineCount: 1,
+        requiredQuantity: 3,
+        pickedQuantity: 0,
+        shortageQuantity: 0,
+        fulfilledCount: 0,
+        failedCount: 0,
       }),
     });
 
     await admin.goto("/orders/warehouse-allocations");
     await page.getByRole("checkbox").nth(1).check();
-    const batchButton = page.getByRole("button", { name: /批量履约（1）/ });
-    await expect(batchButton).toBeEnabled();
-    await batchButton.click();
-    const modal = page.getByRole("dialog", { name: "批量履约" });
+    const waveButton = page.getByRole("button", { name: /创建拣货波次（1）/ });
+    await expect(waveButton).toBeEnabled();
+    await waveButton.click();
+    const modal = page.getByRole("dialog", { name: "创建拣货波次" });
     await expect(modal).toBeVisible();
-    await page.getByLabel("SO-E2E-ALLOC-0001 承运商").fill("E2E Carrier");
-    await page.getByLabel("SO-E2E-ALLOC-0001 运单号").fill("E2E-BATCH-TRACK");
+    await page.getByLabel("波次备注").fill("E2E 早班");
     await modal.getByRole("button", { name: /取\s*消/ }).click();
     await expect(modal).toBeHidden();
-    await admin.writeGuard.expectRequestCount("batch-fulfill", 0);
+    await admin.writeGuard.expectRequestCount("create-fulfillment-wave", 0);
 
-    await batchButton.click();
-    await page.getByLabel("SO-E2E-ALLOC-0001 承运商").fill("E2E Carrier");
-    await page.getByLabel("SO-E2E-ALLOC-0001 运单号").fill("E2E-BATCH-TRACK");
-    await modal.getByRole("button", { name: "提交批量履约" }).click();
-    await admin.writeGuard.expectRequestCount("batch-fulfill", 1);
-    const payload = admin.writeGuard.calls("batch-fulfill")[0]
+    await waveButton.click();
+    await page.getByLabel("波次备注").fill("E2E 早班");
+    await modal.getByRole("button", { name: "创建波次" }).click();
+    await admin.writeGuard.expectRequestCount("create-fulfillment-wave", 1);
+    const payload = admin.writeGuard.calls("create-fulfillment-wave")[0]
       ?.postDataJSON as Record<string, unknown>;
     expect(payload).toMatchObject({
-      items: [
-        {
-          orderId: E2E_ALLOCATION_ORDER_ID,
-          warehouseId: E2E_ALLOCATION_WAREHOUSE_ID,
-          carrier: "E2E Carrier",
-          trackingNo: "E2E-BATCH-TRACK",
-        },
-      ],
+      warehouseId: E2E_ALLOCATION_WAREHOUSE_ID,
+      orderIds: [E2E_ALLOCATION_ORDER_ID],
+      remark: "E2E 早班",
     });
-    expect(String(payload.batchIdempotencyKey)).toMatch(
-      /^admin-order-fulfillment-batch-/,
+    expect(String(payload.idempotencyKey)).toMatch(
+      /^admin-fulfillment-wave-create-/,
     );
-    await expect(modal.getByText("拣配汇总", { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/orders\/fulfillment-waves/);
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
-  test("keeps the batch modal inside a narrow viewport", async ({
+  test("keeps the create-wave modal inside a narrow viewport", async ({
     admin,
     page,
   }) => {
@@ -279,7 +254,7 @@ test.describe("@smoke order warehouse allocation V1", () => {
     );
     await admin.goto("/orders/warehouse-allocations");
     await page.getByRole("checkbox").nth(1).check();
-    await page.getByRole("button", { name: /批量履约（1）/ }).click();
+    await page.getByRole("button", { name: /创建拣货波次（1）/ }).click();
     await expectModalWithinViewport(page);
     await expectNoRootOverflow(page);
     await admin.writeGuard.expectRequestCount("unexpected", 0);

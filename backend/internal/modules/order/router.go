@@ -10,6 +10,16 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/order-item-sku-matches", h.ListGlobalSKUMatches)
 	g.POST("/order-items/:itemId/bind-sku", h.PostBindOrderItemSKU)
 
+	w := g.Group("/fulfillment-waves")
+	w.GET("", h.ListFulfillmentWaves)
+	w.POST("", h.PostFulfillmentWave)
+	w.GET("/:id", h.GetFulfillmentWave)
+	w.POST("/:id/start", h.PostStartFulfillmentWave)
+	w.POST("/:id/picks", h.PostRecordFulfillmentWavePick)
+	w.POST("/:id/orders/:orderId/pack", h.PostPackFulfillmentWaveOrder)
+	w.POST("/:id/complete", h.PostCompleteFulfillmentWave)
+	w.POST("/:id/cancel", h.PostCancelFulfillmentWave)
+
 	o := g.Group("/orders")
 	o.GET("", h.List)
 	o.POST("", h.Create)

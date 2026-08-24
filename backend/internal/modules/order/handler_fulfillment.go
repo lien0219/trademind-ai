@@ -42,6 +42,7 @@ func (h *Handler) PostFulfill(c *gin.Context) {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
 		case errors.Is(err, ErrFulfillmentInProgress), errors.Is(err, ErrFulfillmentAlreadyCompleted), errors.Is(err, ErrFulfillmentNotPaid),
+			errors.Is(err, ErrFulfillmentWaveRequired),
 			errors.Is(err, inventory.ErrInsufficientSKUStock), errors.Is(err, inventory.ErrOrderInventoryState),
 			errors.Is(err, inventory.ErrOrderWarehouseConflict), errors.Is(err, idempotency.ErrKeyConflict):
 			response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())

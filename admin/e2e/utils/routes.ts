@@ -14,6 +14,7 @@ import { procurementResponse } from '../mocks/procurement';
 import { salesReturnResponse } from '../mocks/sales-returns';
 import { fulfillmentOrderResponse } from '../mocks/order-fulfillment';
 import { warehouseAllocationResponse } from '../mocks/order-warehouse-allocation';
+import { fulfillmentWaveResponse } from '../mocks/fulfillment-waves';
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(([key, token]) => {
@@ -48,6 +49,7 @@ export async function routeAdminApi(page: Page) {
       inventorySyncResponse(path) ??
       procurementResponse(path) ??
       warehouseAllocationResponse(path) ??
+      fulfillmentWaveResponse(path) ??
       fulfillmentOrderResponse(path) ??
       salesReturnResponse(path) ??
       productsResponse(path) ??

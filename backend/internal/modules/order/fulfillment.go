@@ -1,6 +1,7 @@
 package order
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -109,6 +110,14 @@ func (s *Service) replayFulfillmentResult(c *gin.Context, orderID uuid.UUID, rec
 // deducts warehouse stock. The caller-generated idempotency record is completed
 // inside the same database transaction as the ledger and shipment facts.
 func (s *Service) FulfillOrder(c *gin.Context, inv *inventory.Service, orderID uuid.UUID, in FulfillOrderInput, actor *uuid.UUID) (*FulfillOrderResult, error) {
+	return s.fulfillOrder(c, inv, orderID, in, actor, nil)
+}
+
+func (s *Service) fulfillOrderForWave(c *gin.Context, inv *inventory.Service, orderID uuid.UUID, in FulfillOrderInput, actor *uuid.UUID, waveID uuid.UUID) (*FulfillOrderResult, error) {
+	return s.fulfillOrder(c, inv, orderID, in, actor, &waveID)
+}
+
+func (s *Service) fulfillOrder(c *gin.Context, inv *inventory.Service, orderID uuid.UUID, in FulfillOrderInput, actor *uuid.UUID, waveID *uuid.UUID) (*FulfillOrderResult, error) {
 	if s == nil || s.DB == nil || inv == nil {
 		return nil, fmt.Errorf("fulfillment unavailable")
 	}
@@ -146,6 +155,9 @@ func (s *Service) FulfillOrder(c *gin.Context, inv *inventory.Service, orderID u
 
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.requireFulfillmentWaveAssignment(c.Request.Context(), s.DB, tenantID, orderID, waveID); err != nil {
 		return nil, err
 	}
 	owner := fulfillmentOwner(actor)
@@ -236,6 +248,9 @@ func (s *Service) FulfillOrder(c *gin.Context, inv *inventory.Service, orderID u
 			if action != inventory.EffectTypeDeduct {
 				return ErrFulfillmentAlreadyCompleted
 			}
+			if err := s.requireFulfillmentWaveAssignment(c.Request.Context(), tx, tenantID, orderID, waveID); err != nil {
+				return err
+			}
 			var locked Order
 			if err := tx.WithContext(c.Request.Context()).Clauses(clause.Locking{Strength: "UPDATE"}).
 				Where("id = ? AND tenant_id = ? AND deleted_at IS NULL", orderID, tenantID).First(&locked).Error; err != nil {
@@ -301,6 +316,27 @@ func (s *Service) FulfillOrder(c *gin.Context, inv *inventory.Service, orderID u
 		_ = s.OpLog.Write(c, operationLogForFulfillment(actor, orderID, shipment.ID))
 	}
 	return &FulfillOrderResult{Order: detail, Shipment: &shipment, InventoryDeduction: deduction}, nil
+}
+
+func (s *Service) requireFulfillmentWaveAssignment(ctx context.Context, tx *gorm.DB, tenantID int64, orderID uuid.UUID, waveID *uuid.UUID) error {
+	if tx == nil {
+		return fmt.Errorf("fulfillment assignment unavailable")
+	}
+	var assignment FulfillmentWaveAssignment
+	err := tx.WithContext(ctx).Where("tenant_id = ? AND order_id = ?", tenantID, orderID).First(&assignment).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if waveID != nil {
+			return ErrFulfillmentWaveRequired
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if waveID == nil || *waveID == uuid.Nil || assignment.WaveID != *waveID {
+		return ErrFulfillmentWaveRequired
+	}
+	return nil
 }
 
 func operationLogForFulfillment(actor *uuid.UUID, orderID, shipmentID uuid.UUID) operationlog.WriteOpts {

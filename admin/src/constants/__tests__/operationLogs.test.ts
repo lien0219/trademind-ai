@@ -29,4 +29,17 @@ describe('operation log alert labels', () => {
       operationLogActionLabel('sales_return.refund_execution.record_result'),
     ).toBe('登记退款执行结果');
   });
+
+  it('keeps fulfillment wave audit records user-facing', () => {
+    expect(operationLogResourceLabel('fulfillment_wave')).toBe('拣货波次');
+    expect(operationLogActionLabel('order.fulfillment_wave.create')).toBe(
+      '创建拣货波次',
+    );
+    expect(operationLogActionLabel('order.fulfillment_wave.complete')).toBe(
+      '完成波次已打包订单',
+    );
+    expect(operationLogActionLabel('order.fulfillment_wave.cancel')).toBe(
+      '取消拣货波次',
+    );
+  });
 });

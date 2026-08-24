@@ -61,6 +61,79 @@
       "externalWrite": false
     },
     {
+      "method": "GET",
+      "path": "/api/v1/fulfillment-waves",
+      "auth": true,
+      "query": ["page", "pageSize", "keyword", "status", "warehouseId"],
+      "responseData": "FulfillmentWaveList",
+      "requiredPermission": "order.view",
+      "readonly": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/fulfillment-waves/:id",
+      "auth": true,
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.view",
+      "readonly": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves",
+      "auth": true,
+      "requestBody": ["idempotencyKey", "warehouseId", "orderIds", "remark"],
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.operate",
+      "atomicity": "snapshot_and_active_order_assignment",
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/start",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey"],
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.operate",
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/picks",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "lines"],
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.operate",
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/orders/:orderId/pack",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "carrier", "trackingNo", "trackingUrl"],
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.operate",
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/complete",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey"],
+      "responseData": "CompleteFulfillmentWaveResult",
+      "requiredPermission": "order.operate",
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/cancel",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey"],
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.operate",
+      "reservationRelease": false,
+      "externalWrite": false
+    },
+    {
       "method": "POST",
       "path": "/api/v1/warehouses",
       "auth": true,

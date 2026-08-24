@@ -31,6 +31,7 @@ func newFulfillmentFixture(t *testing.T) (*Service, *inventory.Service, *gin.Con
 		&Order{}, &OrderItem{}, &OrderShipment{}, &product.Product{}, &product.ProductSKU{},
 		&warehouse.Warehouse{}, &inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{},
 		&inventory.InventoryChangeLog{}, &inventory.OrderInventoryEffect{}, &idempotency.Record{},
+		&FulfillmentWaveAssignment{},
 	); err != nil {
 		t.Fatal(err)
 	}

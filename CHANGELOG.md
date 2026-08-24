@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Fulfillment picking waves and packing review (2026-08-24)
+
+- Replaced the Admin batch-fulfillment shortcut with persistent, tenant- and store-scoped waves for same-warehouse paid orders that already hold complete reservations, including immutable order/line snapshots and exclusive active assignments.
+- Added revision- and idempotency-protected start, pick/shortage, per-order packing, explicit completion and cancellation transitions; shortages block packing, completion persists partial results without automatic retry, and interrupted completion can be resumed under one server-owned lease.
+- Reused the existing local fulfillment transaction only after packing, blocked direct and legacy batch bypass for assigned orders, and retained reservations on wave cancellation while keeping automatic allocation, cross-warehouse splitting, logistics/marketplace writes and new workers disabled.
+
 ### Replenishment to purchase draft (2026-08-24)
 
 - Added an explicitly confirmed Admin flow that turns selected warehouse replenishment suggestions into one local purchase-order draft for a common supplier, with quantity and supplier-SKU review before the write.

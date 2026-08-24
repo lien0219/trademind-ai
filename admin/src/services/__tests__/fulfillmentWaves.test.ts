@@ -1,0 +1,145 @@
+import { request } from "@umijs/max";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  buildFulfillmentWavePickCSV,
+  cancelFulfillmentWave,
+  completeFulfillmentWave,
+  createFulfillmentWave,
+  createFulfillmentWaveIdempotencyKey,
+  packFulfillmentWaveOrder,
+  recordFulfillmentWavePicks,
+  type FulfillmentWave,
+} from "../fulfillmentWaves";
+
+const requestMock = vi.mocked(request);
+
+describe("fulfillment wave service", () => {
+  beforeEach(() => {
+    requestMock.mockReset();
+    requestMock.mockResolvedValue({ code: 0, message: "ok", data: {} });
+  });
+
+  it("keeps create, pick, pack, complete, and cancel contracts stable", async () => {
+    const createPayload = {
+      idempotencyKey: "wave-create-key",
+      warehouseId: "warehouse-1",
+      orderIds: ["order-1"],
+      remark: "morning shift",
+    };
+    await createFulfillmentWave(createPayload);
+    expect(requestMock).toHaveBeenLastCalledWith("/api/v1/fulfillment-waves", {
+      method: "POST",
+      data: createPayload,
+    });
+
+    const pickPayload = {
+      expectedRevision: 2,
+      idempotencyKey: "wave-pick-key",
+      lines: [{ lineId: "line-1", pickedQuantity: 2, shortageQuantity: 0 }],
+    };
+    await recordFulfillmentWavePicks("wave/1", pickPayload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/picks",
+      {
+        method: "POST",
+        data: pickPayload,
+      },
+    );
+
+    const packPayload = {
+      expectedRevision: 3,
+      idempotencyKey: "wave-pack-key",
+      carrier: "carrier",
+      trackingNo: "tracking-1",
+    };
+    await packFulfillmentWaveOrder("wave/1", "order/1", packPayload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/orders/order%2F1/pack",
+      { method: "POST", data: packPayload },
+    );
+
+    const revisionPayload = {
+      expectedRevision: 4,
+      idempotencyKey: "wave-complete-key",
+    };
+    await completeFulfillmentWave("wave/1", revisionPayload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/complete",
+      {
+        method: "POST",
+        data: revisionPayload,
+      },
+    );
+
+    await cancelFulfillmentWave("wave/1", revisionPayload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/cancel",
+      {
+        method: "POST",
+        data: revisionPayload,
+      },
+    );
+  });
+
+  it("creates bounded action-scoped keys", () => {
+    const first = createFulfillmentWaveIdempotencyKey("complete");
+    const second = createFulfillmentWaveIdempotencyKey("complete");
+    expect(first).toMatch(/^admin-fulfillment-wave-complete-/);
+    expect(first.length).toBeLessThanOrEqual(128);
+    expect(second).not.toBe(first);
+  });
+
+  it("builds an Excel-friendly pick CSV from persisted snapshots", () => {
+    const wave = {
+      id: "wave-1",
+      waveNo: "FW-1",
+      warehouseId: "warehouse-1",
+      warehouseCode: "WH-A",
+      warehouseName: "深圳仓",
+      status: "picking",
+      revision: 2,
+      orderCount: 1,
+      lineCount: 1,
+      requiredQuantity: 2,
+      pickedQuantity: 1,
+      shortageQuantity: 1,
+      fulfilledCount: 0,
+      failedCount: 0,
+      createdAt: "2026-08-24T00:00:00Z",
+      updatedAt: "2026-08-24T00:00:00Z",
+      orders: [
+        {
+          id: "wo-1",
+          waveId: "wave-1",
+          orderId: "order-1",
+          orderNo: "ORDER-1",
+          status: "blocked",
+        },
+      ],
+      lines: [
+        {
+          id: "line-1",
+          waveId: "wave-1",
+          waveOrderId: "wo-1",
+          orderId: "order-1",
+          orderItemId: "item-1",
+          productSkuId: "sku-1",
+          productTitle: '商品,"A"',
+          skuCode: "RED-L",
+          skuName: '=HYPERLINK("https://invalid.test")',
+          requiredQuantity: 2,
+          pickedQuantity: 1,
+          shortageQuantity: 1,
+          status: "shortage",
+        },
+      ],
+    } satisfies FulfillmentWave;
+
+    const csv = buildFulfillmentWavePickCSV(wave);
+    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toContain('"FW-1","WH-A · 深圳仓","ORDER-1"');
+    expect(csv).toContain('"商品,""A"""');
+    expect(csv).toContain('"\'=HYPERLINK(""https://invalid.test"")"');
+    expect(csv).toContain('"2","1","1"');
+  });
+});

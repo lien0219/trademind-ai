@@ -134,12 +134,20 @@
 | `GET` | `/api/v1/orders/:id/shipments/:shipmentId/events` | 只读查询包裹物流事件时间线（需要 `order.view`）；返回 `shipment`、按发生时间倒序的 `events` 和当前 `provider`。L0 默认仅为 `local`，不轮询真实承运商。 |
 | `POST` | `/api/v1/orders/:id/shipments/:shipmentId/events` | 人工追加本地物流事件（需要 `order.operate`）；JSON：`eventKey`、`status`、可选 `occurredAt`、`location`、`description`、`source`、`rawData`。同一包裹同一事件键同 payload 幂等重放，不同 payload 返回 `409`；已送达/已退回包裹不可倒退。敏感 raw 字段会在存储前脱敏，不调用真实平台写接口。 |
 | `POST` | `/api/v1/orders/:id/fulfill` | 单订单单仓履约 V1（需要 `order.operate`）。仅允许已支付订单，所有明细必须绑定本地 SKU；JSON：调用方生成的 `idempotencyKey`（最长 128，需保持稳定）、可选 `warehouseId`、`carrier`（最长 128）、`trackingNo`（最长 255）和可选 `trackingUrl`（最长 2048，仅 `http` / `https`）。库存实际扣减、发货单创建、订单状态 `shipped` / `fulfilled` 和幂等成功记录在同一事务提交；同键同 payload 重放原发货结果，同键不同 payload 返回 `409`。不调用真实物流平台，不启动 Worker/自动重试，不支持跨仓拆单。 |
-| `POST` | `/api/v1/orders/fulfillment-batch` | 已分仓订单批量履约 V2（需要 `order.operate`）。JSON：`batchIdempotencyKey`（最长 128）和 `items[]`，每项含 `orderId`、`carrier`、`trackingNo`、可选 `warehouseId` / `trackingUrl`；最多 100 单且订单不能重复。服务只接受已有单仓绑定的已付款订单，并顺序复用单订单履约事务；响应按订单返回 `succeeded`、`blocked`、`in_progress` 或 `failed`，并提供成功明细的仓库拣配汇总（SKU 数量和订单数）。同一批次会复用每订单幂等键，部分成功可安全重放；不调用真实物流/平台写接口，不启动 Worker 或自动重试。 |
+| `POST` | `/api/v1/orders/fulfillment-batch` | 旧批量履约兼容接口（需要 `order.operate`）。仍按顺序复用单订单履约事务，但不再作为 Admin 主流程；订单存在活动拣货波次时返回 `409`，防止绕过拣货和打包复核。 |
+| `GET` | `/api/v1/fulfillment-waves` | 拣货波次分页列表（需要 `order.view`）；支持 `page`、`pageSize`、`keyword`、`status`、`warehouseId`，按当前租户及账号可见店铺过滤。 |
+| `GET` | `/api/v1/fulfillment-waves/:id` | 波次详情（需要 `order.view`）；返回不可变订单/规格快照及当前拣货、缺货、打包、履约结果。仓库停用后仍保留历史标签。 |
+| `POST` | `/api/v1/fulfillment-waves` | 从同一仓库的已付款、未履约且整单预占完成的订单创建波次（需要 `order.operate`）；JSON：`idempotencyKey`、`warehouseId`、`orderIds`（1–50 个，不重复）、可选 `remark`。创建事务冻结订单/规格快照并写活动归属，同一订单不能进入两个活动波次。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/start` | 开始拣货（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。仅 `draft` 可进入 `picking`。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/picks` | 记录拣货结果（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`lines[]`，每项含 `lineId`、`pickedQuantity`、`shortageQuantity`。数量必须等于冻结需求；存在缺货的订单标记阻断，不能打包。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/pack` | 复核并打包一个已完全拣货订单（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`carrier`、`trackingNo`、可选 `trackingUrl`。只保存本地人工物流信息，不扣库存、不创建真实物流单。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/complete` | 明确完成已打包订单（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。逐单调用既有本地履约事务，成功后扣减预占、创建发货单并释放该订单的波次归属；失败保留为 `partial`，不自动重试。完成运行以服务端 revision 固定幂等身份，浏览器刷新后可安全恢复，且并发请求只能有一个租约持有者。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/cancel` | 取消未履约完成的波次（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。取消只释放波次归属，明确保留订单库存预占，后续释放仍由既有订单取消/库存补偿流程处理。 |
 | `GET` | `/api/v1/orders/:id/inventory-effects` | 查询订单库存 effect（需要 `order.view`），支持 `page`、`pageSize`；每条记录含 effect 类型、仓库、数量和兼容库存前后值。 |
 | `GET` | `/api/v1/orders/fulfillment-reconciliation` | 只读订单履约库存对账工作台（需要 `order.view`）；支持 `page`、`pageSize`、`orderNo`、`warehouseId`、`status`、`fulfillmentStatus`、`reconciliationStatus=matched|pending|mismatch|blocked`，返回预占/出库/释放/回补的 expected 与 actual、发货单和 effect 数量及最后库存动作时间。 |
 | `GET` | `/api/v1/orders/:id/fulfillment-reconciliation` | 只读订单履约库存对账详情（需要 `order.view`）；返回订单状态、履约仓库、各库存动作数量、发货单/effect 数量、最后库存动作时间和按时间排序的 effect、库存流水、发货单时间线；`mismatch` / `blocked` 可跳转订单异常工作台。 |
 
-分仓候选要求全部明细已绑定本地 SKU、单一启用仓可满足整单可用量，并要求各 SKU 的仓库可售合计与 `product_skus.stock` 兼容投影一致。revision 绑定订单、SKU 数量、仓库状态、余额版本和投影快照；确认事务还会按余额版本复核并发变化。预占不会提前修改 `product_skus.stock`；实际出库和回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。
+分仓候选要求全部明细已绑定本地 SKU、单一启用仓可满足整单可用量，并要求各 SKU 的仓库可售合计与 `product_skus.stock` 兼容投影一致。revision 绑定订单、SKU 数量、仓库状态、余额版本和投影快照；确认事务还会按余额版本复核并发变化。波次只消费已完成的整单单仓分配，不做自动分仓、跨仓拆单或库存重算。预占不会提前修改 `product_skus.stock`；波次完成时的实际出库和后续回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。
 
 ## 销售售后 / 退货退款 V1
 
