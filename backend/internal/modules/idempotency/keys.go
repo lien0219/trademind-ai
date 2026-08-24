@@ -53,6 +53,12 @@ func OrderFulfillment(orderID, callerKey string) string {
 	return fmt.Sprintf("order-fulfillment:%s:%s", norm(orderID), norm(callerKey))
 }
 
+// OrderWarehouseAllocation scopes a caller-generated manual allocation to one
+// order. Request-hash validation rejects reuse for another warehouse/revision.
+func OrderWarehouseAllocation(orderID, callerKey string) string {
+	return fmt.Sprintf("order-warehouse-allocation:%s:%s", norm(orderID), norm(callerKey))
+}
+
 func InventoryCompensate(orderID, orderItemID, skuID, reason string) string {
 	return fmt.Sprintf("inventory-compensate:%s:%s:%s:%s",
 		norm(orderID), norm(orderItemID), norm(skuID), norm(reason))

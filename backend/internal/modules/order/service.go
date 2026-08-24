@@ -86,6 +86,7 @@ type ListQuery struct {
 	Status                string
 	PaymentStatus         string
 	FulfillmentStatus     string
+	WarehouseAssignment   string
 	SKUMatchStatus        string
 	InventoryDeductStatus string
 	SyncStatus            string
@@ -174,6 +175,7 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 		"status":                q.Status,
 		"paymentStatus":         q.PaymentStatus,
 		"fulfillmentStatus":     q.FulfillmentStatus,
+		"warehouseAssignment":   q.WarehouseAssignment,
 		"skuMatchStatus":        q.SKUMatchStatus,
 		"inventoryDeductStatus": q.InventoryDeductStatus,
 		"syncStatus":            q.SyncStatus,
@@ -497,6 +499,12 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if v := strings.TrimSpace(q.FulfillmentStatus); v != "" {
 		tx = tx.Where("fulfillment_status = ?", v)
+	}
+	switch strings.ToLower(strings.TrimSpace(q.WarehouseAssignment)) {
+	case "allocated":
+		tx = tx.Where("warehouse_id IS NOT NULL")
+	case "unallocated":
+		tx = tx.Where("warehouse_id IS NULL")
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)

@@ -346,6 +346,11 @@ export default [
         component: './Orders/index',
       },
       {
+        path: '/orders/warehouse-allocations',
+        name: '履约分仓',
+        component: './Orders/WarehouseAllocations',
+      },
+      {
         path: '/orders/sales-returns/:id',
         name: '售后详情',
         hideInMenu: true,

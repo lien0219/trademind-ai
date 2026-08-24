@@ -84,8 +84,12 @@ type OrderInventoryOptions struct {
 	AllowNegativeStock *bool // nil = policy default
 	CreatedBy          *uuid.UUID
 	WarehouseID        *uuid.UUID // optional explicit binding for a manual order without one
-	TenantID           *int64     // optional caller scope for authenticated HTTP writes
-	CompensationOnly   bool       // platform sync may process only cancel/refund compensation
+	// ExpectedAllocationRevision binds an operator-confirmed warehouse
+	// candidate to the exact order, SKU and warehouse-balance snapshot that was
+	// displayed. It is validated inside the order inventory transaction.
+	ExpectedAllocationRevision string
+	TenantID                   *int64 // optional caller scope for authenticated HTTP writes
+	CompensationOnly           bool   // platform sync may process only cancel/refund compensation
 	// ForceDeduct makes a caller-owned fulfillment transaction apply the actual
 	// on-hand deduction even when the order status has not been updated yet.
 	ForceDeduct bool
@@ -384,7 +388,7 @@ func (s *Service) createOrderInventoryFactTx(tx *gorm.DB, o orderMirror, it orde
 	return &logRow, nil
 }
 
-func (s *Service) applyOrderLineTx(ctx context.Context, tx *gorm.DB, o orderMirror, it orderLineMirror, warehouseID uuid.UUID, action orderInventoryAction, reason string, allowNeg bool, opts OrderInventoryOptions) (deductLineOutcome, error) {
+func (s *Service) applyOrderLineTx(ctx context.Context, tx *gorm.DB, o orderMirror, it orderLineMirror, warehouseID uuid.UUID, action orderInventoryAction, reason string, allowNeg bool, expectedBalanceVersions map[uuid.UUID]int, opts OrderInventoryOptions) (deductLineOutcome, error) {
 	out := deductLineOutcome{}
 	var lockedItem orderLineMirror
 	if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -459,6 +463,12 @@ func (s *Service) applyOrderLineTx(ctx context.Context, tx *gorm.DB, o orderMirr
 	if err != nil {
 		return out, err
 	}
+	if expectedBalanceVersions != nil {
+		expectedVersion, ok := expectedBalanceVersions[skuID]
+		if !ok || balance.Version != expectedVersion {
+			return out, ErrOrderAllocationRevisionConflict
+		}
+	}
 	if concurrent, err := successfulOrderEffectTx(tx, o.TenantID, it.ID, skuID, effectType); err != nil {
 		return out, err
 	} else if concurrent != nil {
@@ -521,6 +531,9 @@ func (s *Service) applyOrderLineTx(ctx context.Context, tx *gorm.DB, o orderMirr
 	}
 	if err := updateOrderWarehouseBalanceTx(tx, &balance, afterOnHand, afterReserved); err != nil {
 		return out, err
+	}
+	if expectedBalanceVersions != nil {
+		expectedBalanceVersions[skuID] = balance.Version
 	}
 	if action == orderInventoryDeduct {
 		if err := tx.Model(&product.ProductSKU{}).Where("id = ?", sku.ID).
@@ -620,6 +633,7 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 	var warehouseID uuid.UUID
 	var items []orderLineMirror
 	var outcomes []deductLineOutcome
+	var expectedBalanceVersions map[uuid.UUID]int
 	var synced, skipped, failed int
 	txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Serialize lifecycle changes for the same order. The line and balance
@@ -637,17 +651,29 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 		if action == orderInventoryNone {
 			return nil
 		}
+		if err := tx.WithContext(ctx).Where("order_id = ?", orderID).Order("created_at ASC, id ASC").Find(&items).Error; err != nil {
+			return err
+		}
+		sortOrderInventoryItems(items)
+		if strings.TrimSpace(opts.ExpectedAllocationRevision) != "" {
+			if opts.WarehouseID == nil || *opts.WarehouseID == uuid.Nil {
+				return ErrOrderAllocationRevisionConflict
+			}
+			var validationErr error
+			expectedBalanceVersions, validationErr = validateOrderWarehouseAllocationTx(
+				ctx, tx, o.TenantID, orderID, *opts.WarehouseID, opts.ExpectedAllocationRevision,
+			)
+			if validationErr != nil {
+				return validationErr
+			}
+		}
 		var err error
 		warehouseID, err = s.resolveOrderWarehouseTx(ctx, tx, &o, opts)
 		if err != nil {
 			return err
 		}
-		if err := tx.WithContext(ctx).Where("order_id = ?", orderID).Order("created_at ASC, id ASC").Find(&items).Error; err != nil {
-			return err
-		}
-		sortOrderInventoryItems(items)
 		for _, it := range items {
-			outcome, applyErr := s.applyOrderLineTx(ctx, tx, o, it, warehouseID, action, reason, allowNeg, opts)
+			outcome, applyErr := s.applyOrderLineTx(ctx, tx, o, it, warehouseID, action, reason, allowNeg, expectedBalanceVersions, opts)
 			outcomes = append(outcomes, outcome)
 			if applyErr != nil {
 				return applyErr

@@ -121,7 +121,11 @@ export type PartialOrderCreate = {
 export function partialOrderCreateFromError(
   error: unknown,
 ): PartialOrderCreate | null {
-  if (!(error instanceof ApiRequestError) || !error.data || typeof error.data !== "object") {
+  if (
+    !(error instanceof ApiRequestError) ||
+    !error.data ||
+    typeof error.data !== "object"
+  ) {
     return null;
   }
   const data = error.data as Partial<PartialOrderCreate>;
@@ -163,6 +167,70 @@ export type OrderListRow = {
   latestShipmentStatus?: string;
   externalOrderId?: string;
   reconciliationStatus?: FulfillmentReconciliationStatus;
+};
+
+export type WarehouseAllocationBlock = {
+  code: string;
+  message: string;
+};
+
+export type WarehouseAllocationCandidateLine = {
+  productSkuId: string;
+  skuCode?: string;
+  skuName?: string;
+  required: number;
+  available: number;
+  shortage: number;
+};
+
+export type WarehouseAllocationCandidate = {
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
+  isDefault: boolean;
+  eligible: boolean;
+  shortageCount: number;
+  revision: string;
+  lines: WarehouseAllocationCandidateLine[];
+};
+
+export type WarehouseAllocationStatus = "allocated" | "allocatable" | "blocked";
+
+export type WarehouseAllocation = {
+  orderId: string;
+  status: WarehouseAllocationStatus;
+  warehouseId?: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  recommendedWarehouseId?: string;
+  candidateCount: number;
+  eligibleCandidateCount: number;
+  blocks: WarehouseAllocationBlock[];
+  candidates: WarehouseAllocationCandidate[];
+};
+
+export type WarehouseAllocationListRow = OrderListRow & {
+  allocationStatus: WarehouseAllocationStatus;
+  warehouseId?: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  recommendedWarehouseId?: string;
+  recommendedWarehouseCode?: string;
+  recommendedWarehouseName?: string;
+  candidateCount: number;
+  eligibleCandidateCount: number;
+  blocks: WarehouseAllocationBlock[];
+};
+
+export type ConfirmWarehouseAllocationPayload = {
+  warehouseId: string;
+  expectedRevision: string;
+  idempotencyKey: string;
+};
+
+export type ConfirmWarehouseAllocationResponse = {
+  allocation: WarehouseAllocation;
+  inventoryReserve?: Record<string, unknown>;
 };
 
 export type FulfillmentReconciliationStatus =
@@ -234,9 +302,55 @@ export async function queryOrders(params: {
   const query: Record<string, string | number | undefined> = {
     ...params,
     hasException:
-      params.hasException === undefined ? undefined : params.hasException ? 1 : 0,
+      params.hasException === undefined
+        ? undefined
+        : params.hasException
+          ? 1
+          : 0,
   };
   return getWithParams("/api/v1/orders", query);
+}
+
+export async function queryWarehouseAllocations(params: {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  assignment?: "all" | "allocated" | "unallocated";
+}): Promise<{
+  list: WarehouseAllocationListRow[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}> {
+  return getWithParams("/api/v1/orders/warehouse-allocations", params);
+}
+
+export async function getWarehouseAllocation(
+  orderId: string,
+): Promise<WarehouseAllocation> {
+  return getJSON(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/warehouse-allocation`,
+  );
+}
+
+export async function confirmWarehouseAllocation(
+  orderId: string,
+  payload: ConfirmWarehouseAllocationPayload,
+): Promise<ConfirmWarehouseAllocationResponse> {
+  return postJSON(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/warehouse-allocation`,
+    payload,
+  );
+}
+
+export function createOrderAllocationIdempotencyKey() {
+  const random =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `admin-order-warehouse-allocation-${random}`.slice(0, 128);
 }
 
 export async function createOrder(

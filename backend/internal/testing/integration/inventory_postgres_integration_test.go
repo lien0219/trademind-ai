@@ -305,3 +305,89 @@ func TestOrderInventoryReservationSerializesConcurrentOrders(t *testing.T) {
 	require.NoError(t, db.Model(&inventory.InventoryMovement{}).Where("product_sku_id = ? AND movement_type = ?", sku.ID, inventory.MovementOrderReserve).Count(&reserveMovements).Error)
 	require.EqualValues(t, 1, reserveMovements)
 }
+
+func TestOrderWarehouseAllocationRejectsConcurrentStaleCandidate(t *testing.T) {
+	harness := postgrestest.Require(t)
+	harness.EmitMetadata(t)
+	db := harness.DB
+	require.NoError(t, database.AutoMigrate(db))
+
+	tenantID := time.Now().UnixNano()
+	warehouseService := &warehouse.Service{DB: db}
+	warehouseRow, err := warehouseService.Create(context.Background(), tenantID, nil, warehouse.CreateInput{
+		Code: "ALLOC-CONCURRENT", Name: "Allocation concurrent", IsDefault: true,
+	})
+	require.NoError(t, err)
+	productRow := product.Product{TenantID: tenantID, Source: "manual", Status: product.StatusDraft, Title: "Allocation concurrent product"}
+	require.NoError(t, db.Create(&productRow).Error)
+	stock := 5
+	sku := product.ProductSKU{ProductID: productRow.ID, SKUCode: "ALLOC-CONCURRENT-SKU", SKUName: "Allocation concurrent SKU", Stock: &stock}
+	require.NoError(t, db.Create(&sku).Error)
+	require.NoError(t, db.Create(&inventory.WarehouseStockBalance{
+		TenantID: tenantID, WarehouseID: warehouseRow.ID, ProductSKUID: sku.ID, OnHand: stock, Version: 1,
+	}).Error)
+
+	orders := []order.Order{
+		{TenantID: tenantID, Platform: "manual", OrderNo: "ALLOC-CONCURRENT-A-" + uuid.NewString(), CustomerName: "A", Status: order.StatusPaid, PaymentStatus: order.PaymentPaid, FulfillmentStatus: order.FulfillmentUnfulfilled, Currency: "USD"},
+		{TenantID: tenantID, Platform: "manual", OrderNo: "ALLOC-CONCURRENT-B-" + uuid.NewString(), CustomerName: "B", Status: order.StatusPaid, PaymentStatus: order.PaymentPaid, FulfillmentStatus: order.FulfillmentUnfulfilled, Currency: "USD"},
+	}
+	require.NoError(t, db.Create(&orders).Error)
+	for i := range orders {
+		require.NoError(t, db.Create(&order.OrderItem{OrderID: orders[i].ID, ProductID: &productRow.ID, ProductSKUID: &sku.ID, ProductTitle: productRow.Title, Quantity: 4}).Error)
+	}
+	service := &inventory.Service{DB: db, Warehouses: warehouseService}
+	orderIDs := []uuid.UUID{orders[0].ID, orders[1].ID}
+	evaluations, err := service.EvaluateOrderWarehouseAllocations(context.Background(), tenantID, orderIDs)
+	require.NoError(t, err)
+	revisions := map[uuid.UUID]string{}
+	for _, orderID := range orderIDs {
+		evaluation := evaluations[orderID]
+		require.Equal(t, inventory.WarehouseAllocationAllocatable, evaluation.Status)
+		require.Len(t, evaluation.Candidates, 1)
+		require.True(t, evaluation.Candidates[0].Eligible)
+		revisions[orderID] = evaluation.Candidates[0].Revision
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, len(orderIDs))
+	var wg sync.WaitGroup
+	for _, orderID := range orderIDs {
+		wg.Add(1)
+		go func(id uuid.UUID) {
+			defer wg.Done()
+			<-start
+			_, reserveErr := service.DeductInventoryForOrder(context.Background(), id, inventory.OrderInventoryOptions{
+				Reason: "concurrent_warehouse_allocation", WarehouseID: &warehouseRow.ID, TenantID: &tenantID,
+				ExpectedAllocationRevision: revisions[id], RequireAllLinesApplied: true,
+			})
+			errs <- reserveErr
+		}(orderID)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	var successCount, rejectedCount int
+	for reserveErr := range errs {
+		if reserveErr == nil {
+			successCount++
+			continue
+		}
+		if errors.Is(reserveErr, inventory.ErrOrderAllocationRevisionConflict) ||
+			errors.Is(reserveErr, inventory.ErrOrderAllocationBlocked) ||
+			errors.Is(reserveErr, inventory.ErrInsufficientSKUStock) {
+			rejectedCount++
+			continue
+		}
+		require.NoError(t, reserveErr)
+	}
+	require.Equal(t, 1, successCount)
+	require.Equal(t, 1, rejectedCount)
+
+	var balance inventory.WarehouseStockBalance
+	require.NoError(t, db.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", tenantID, warehouseRow.ID, sku.ID).First(&balance).Error)
+	require.Equal(t, 4, balance.Reserved)
+	var assignedCount int64
+	require.NoError(t, db.Model(&order.Order{}).Where("id IN ? AND warehouse_id = ?", orderIDs, warehouseRow.ID).Count(&assignedCount).Error)
+	require.EqualValues(t, 1, assignedCount, "rejected confirmation must roll back its warehouse binding")
+}

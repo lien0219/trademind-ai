@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../request";
 import {
   appendOrderShipmentEvent,
+  confirmWarehouseAllocation,
+  createOrderAllocationIdempotencyKey,
   fulfillOrder,
+  getWarehouseAllocation,
   getOrderShipmentEvents,
   partialOrderCreateFromError,
+  queryWarehouseAllocations,
 } from "../orders";
 import { request } from "@umijs/max";
 
@@ -60,10 +64,10 @@ describe("order service helpers", () => {
     };
     await fulfillOrder("order-1", payload);
 
-    expect(requestMock).toHaveBeenCalledWith(
-      "/api/v1/orders/order-1/fulfill",
-      { method: "POST", data: payload },
-    );
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/orders/order-1/fulfill", {
+      method: "POST",
+      data: payload,
+    });
   });
 
   it("keeps shipment event read and append contracts stable", async () => {
@@ -81,7 +85,11 @@ describe("order service helpers", () => {
     requestMock.mockResolvedValueOnce({
       code: 0,
       message: "ok",
-      data: { event: { id: "event-1" }, shipment: { id: "shipment-1" }, replay: false },
+      data: {
+        event: { id: "event-1" },
+        shipment: { id: "shipment-1" },
+        replay: false,
+      },
     });
     const payload = {
       eventKey: "manual-1",
@@ -94,5 +102,63 @@ describe("order service helpers", () => {
       "/api/v1/orders/order-1/shipments/shipment-1/events",
       { method: "POST", data: payload },
     );
+  });
+
+  it("keeps warehouse allocation list, detail, and confirm contracts stable", async () => {
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: {
+        list: [],
+        pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+      },
+    });
+    await queryWarehouseAllocations({
+      page: 1,
+      pageSize: 20,
+      assignment: "unallocated",
+    });
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/orders/warehouse-allocations",
+      {
+        method: "GET",
+        params: { page: 1, pageSize: 20, assignment: "unallocated" },
+      },
+    );
+
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: { orderId: "order-1", status: "allocatable", candidates: [] },
+    });
+    await getWarehouseAllocation("order-1");
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/orders/order-1/warehouse-allocation",
+      { method: "GET" },
+    );
+
+    const payload = {
+      warehouseId: "warehouse-1",
+      expectedRevision: "a".repeat(64),
+      idempotencyKey: "allocation-key-1",
+    };
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: { allocation: { orderId: "order-1", status: "allocated" } },
+    });
+    await confirmWarehouseAllocation("order-1", payload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/orders/order-1/warehouse-allocation",
+      { method: "POST", data: payload },
+    );
+  });
+
+  it("creates bounded unique warehouse allocation idempotency keys", () => {
+    const first = createOrderAllocationIdempotencyKey();
+    const second = createOrderAllocationIdempotencyKey();
+    expect(first).not.toBe(second);
+    expect(first).toMatch(/^admin-order-warehouse-allocation-/);
+    expect(first.length).toBeLessThanOrEqual(128);
   });
 });

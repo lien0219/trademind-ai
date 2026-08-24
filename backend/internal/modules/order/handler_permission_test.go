@@ -63,6 +63,7 @@ func TestOrderWriteHandlersRejectReadonlyPrincipals(t *testing.T) {
 		{http.MethodPut, "/api/v1/orders/" + orderID.String() + "/items/" + itemID.String()},
 		{http.MethodDelete, "/api/v1/orders/" + orderID.String() + "/items/" + itemID.String()},
 		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/fulfill"},
+		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/warehouse-allocation"},
 		{http.MethodPost, "/api/v1/orders/" + orderID.String() + "/shipments"},
 		{http.MethodPut, "/api/v1/orders/" + orderID.String() + "/shipments/" + itemID.String()},
 		{http.MethodDelete, "/api/v1/orders/" + orderID.String() + "/shipments/" + itemID.String()},
@@ -112,7 +113,9 @@ func TestOrderReadHandlersRequireOrderView(t *testing.T) {
 	cases := []string{
 		"/api/v1/orders",
 		"/api/v1/orders/fulfillment-reconciliation",
+		"/api/v1/orders/warehouse-allocations",
 		"/api/v1/orders/" + orderID,
+		"/api/v1/orders/" + orderID + "/warehouse-allocation",
 		"/api/v1/orders/" + orderID + "/fulfillment-reconciliation",
 		"/api/v1/orders/" + orderID + "/inventory-effects",
 		"/api/v1/orders/" + orderID + "/sku-matches",

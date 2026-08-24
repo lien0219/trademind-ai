@@ -47,6 +47,9 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/inventory/stocktakes/:id/post",
         "POST /api/v1/inventory/stocktakes/:id/cancel",
         "GET /api/v1/orders",
+        "GET /api/v1/orders/warehouse-allocations",
+        "GET /api/v1/orders/:id/warehouse-allocation",
+        "POST /api/v1/orders/:id/warehouse-allocation",
         "GET /api/v1/orders/fulfillment-reconciliation",
         "POST /api/v1/orders",
         "GET /api/v1/orders/:id",
@@ -301,6 +304,26 @@ describe("TradeMind API contract registry", () => {
     expect(
       endpoint("GET /api/v1/orders/:id/inventory-effects")?.requiredPermission,
     ).toBe("order.view");
+    expect(endpoint("GET /api/v1/orders/warehouse-allocations")?.query).toEqual(
+      ["page", "pageSize", "keyword", "assignment"],
+    );
+    expect(endpoint("GET /api/v1/orders/warehouse-allocations")?.readonly).toBe(
+      true,
+    );
+    expect(
+      endpoint("GET /api/v1/orders/:id/warehouse-allocation")
+        ?.requiredPermission,
+    ).toBe("order.view");
+    expect(
+      endpoint("POST /api/v1/orders/:id/warehouse-allocation")?.requestBody,
+    ).toEqual(["warehouseId", "expectedRevision", "idempotencyKey"]);
+    expect(
+      endpoint("POST /api/v1/orders/:id/warehouse-allocation")
+        ?.requiredPermission,
+    ).toBe("order.operate");
+    expect(
+      endpoint("POST /api/v1/orders/:id/warehouse-allocation")?.externalWrite,
+    ).toBe(false);
   });
 
   it("defines read-only order fulfillment reconciliation contracts", () => {

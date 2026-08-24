@@ -37,6 +37,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/collect/monitor': PERMISSIONS.SETTINGS_MANAGE,
   '/shops/manage': PERMISSIONS.STORE_VIEW,
   '/orders/list': PERMISSIONS.ORDER_VIEW,
+  '/orders/warehouse-allocations': PERMISSIONS.ORDER_VIEW,
   '/orders/sync-tasks': PERMISSIONS.ORDER_VIEW,
   '/orders/sku-matches': PERMISSIONS.ORDER_VIEW,
   '/orders/exceptions': PERMISSIONS.ORDER_VIEW,

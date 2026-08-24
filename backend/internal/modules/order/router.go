@@ -13,6 +13,9 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	o := g.Group("/orders")
 	o.GET("", h.List)
 	o.POST("", h.Create)
+	o.GET("/warehouse-allocations", h.ListWarehouseAllocations)
+	o.GET("/:id/warehouse-allocation", h.GetWarehouseAllocation)
+	o.POST("/:id/warehouse-allocation", h.PostWarehouseAllocation)
 
 	o.POST("/:id/items", h.PostItem)
 	o.PUT("/:id/items/:itemId", h.PutItem)

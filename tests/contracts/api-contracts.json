@@ -32,6 +32,35 @@
       "requiredPermission": "order.view"
     },
     {
+      "method": "GET",
+      "path": "/api/v1/orders/warehouse-allocations",
+      "auth": true,
+      "query": ["page", "pageSize", "keyword", "assignment"],
+      "responseData": "OrderWarehouseAllocationList",
+      "requiredPermission": "order.view",
+      "readonly": true,
+      "statusEnum": ["allocated", "allocatable", "blocked"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/:id/warehouse-allocation",
+      "auth": true,
+      "responseData": "OrderWarehouseAllocation",
+      "requiredPermission": "order.view",
+      "readonly": true,
+      "statusEnum": ["allocated", "allocatable", "blocked"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/:id/warehouse-allocation",
+      "auth": true,
+      "requestBody": ["warehouseId", "expectedRevision", "idempotencyKey"],
+      "responseData": "OrderWarehouseAllocationConfirmation",
+      "requiredPermission": "order.operate",
+      "atomicity": "order_binding_and_full_reservation",
+      "externalWrite": false
+    },
+    {
       "method": "POST",
       "path": "/api/v1/warehouses",
       "auth": true,
@@ -636,7 +665,12 @@
       "method": "POST",
       "path": "/api/v1/refund-executions/:id/confirm-from-platform",
       "auth": true,
-      "requestBody": ["expectedRevision", "idempotencyKey", "platformAfterSaleId", "reason"],
+      "requestBody": [
+        "expectedRevision",
+        "idempotencyKey",
+        "platformAfterSaleId",
+        "reason"
+      ],
       "responseData": "RefundExecution",
       "requiredPermission": "sales_return.refund",
       "tenantScope": "current_tenant_refund_execution_or_not_found",

@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Order warehouse allocation workbench (2026-08-24)
+
+- Added tenant- and store-scoped whole-order warehouse candidates for paid, unfulfilled orders, with deterministic default-warehouse preference and explicit blocks for missing SKU bindings, partial inventory facts, insufficient single-warehouse availability, and compatibility-projection mismatches.
+- Added payload-bound idempotency and candidate revisions that are revalidated inside the order inventory transaction before atomically binding one warehouse and reserving every order line; stale balance versions or any line failure roll back the full confirmation.
+- Added the responsive Admin workbench, read-only mode, API and service contracts, backend transaction coverage, and five-viewport/write-safety E2E coverage without enabling automatic allocation rules, split fulfillment, workers, logistics integrations, or marketplace inventory writes.
+
 ### Warehouse-aware inventory center (2026-08-24)
 
 - Made warehouse balances the physical-stock read authority for the inventory center, including warehouse-scoped on-hand, reserved, in-transit, damaged, sellable, and available quantities with explicit compatibility-projection reconciliation.

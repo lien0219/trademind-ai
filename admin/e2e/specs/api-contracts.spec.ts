@@ -15,6 +15,7 @@ import {
   E2E_REFUND_EXECUTION_ID,
   e2eRefundExecution,
 } from '../mocks/sales-returns';
+import { E2E_ALLOCATION_ORDER_ID, e2eWarehouseAllocation } from '../mocks/order-warehouse-allocation';
 
 async function fetchApi(page: import('@playwright/test').Page, path: string) {
   if (page.url() === 'about:blank') {
@@ -70,6 +71,17 @@ test.describe('@contract API envelope contracts', () => {
     expect(await fetchApi(page, `/api/v1/orders/${E2E_SALES_ORDER_ID}/sales-returnable-items`)).toMatchObject(
       ok({ orderId: E2E_SALES_ORDER_ID, list: [e2eReturnableSalesItem] }),
     );
+    expect(await fetchApi(page, '/api/v1/orders/warehouse-allocations')).toMatchObject(
+      ok({
+        list: [
+          expect.objectContaining({
+            id: E2E_ALLOCATION_ORDER_ID,
+            allocationStatus: 'allocatable',
+          }),
+        ],
+      }),
+    );
+    expect(await fetchApi(page, `/api/v1/orders/${E2E_ALLOCATION_ORDER_ID}/warehouse-allocation`)).toEqual(ok(e2eWarehouseAllocation));
     expect(await fetchApi(page, '/api/v1/sales-returns')).toEqual(
       ok({ list: [{ ...e2eSalesReturn, items: undefined }], page: 1, pageSize: 20, total: 1, totalPages: 1 }),
     );
