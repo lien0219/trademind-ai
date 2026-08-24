@@ -27,6 +27,7 @@ describe("TradeMind API contract registry", () => {
         "DELETE /api/v1/products/:id/skus/:skuId",
         "GET /api/v1/products/:id/skus/:skuId/warehouse-balances",
         "POST /api/v1/products/:id/skus/:skuId/adjust-stock",
+        "GET /api/v1/inventory",
         "GET /api/v1/inventory/warehouse-ledger/reconciliation",
         "POST /api/v1/inventory/warehouse-ledger/migrate-legacy",
         "GET /api/v1/inventory/warehouse-transfers",
@@ -189,6 +190,14 @@ describe("TradeMind API contract registry", () => {
     const endpoint = (key: string) =>
       contracts.endpoints.find((item) => routeKey(item) === key);
 
+    expect(
+      endpoint("GET /api/v1/inventory")?.query,
+    ).toEqual([
+      "keyword", "productId", "productSkuId", "platform", "shopId", "warehouseId",
+      "stockStatus", "alertStatus", "skuBindStatus", "syncStatus", "hasException",
+      "page", "pageSize", "cursor", "limit",
+    ]);
+    expect(endpoint("GET /api/v1/inventory")?.requiredPermission).toBe("inventory.view");
     expect(
       endpoint("POST /api/v1/products/:id/skus/:skuId/adjust-stock")
         ?.requestBody,
@@ -594,7 +603,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(99);
+    expect(contracts.endpoints).toHaveLength(100);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

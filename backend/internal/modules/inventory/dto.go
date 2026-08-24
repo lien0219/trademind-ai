@@ -135,16 +135,18 @@ type LegacyStockMigrationResult struct {
 }
 
 type WarehouseLedgerReconciliationRow struct {
-	ProductID       uuid.UUID `json:"productId"`
-	ProductTitle    string    `json:"productTitle"`
-	ProductSKUID    uuid.UUID `json:"productSkuId"`
-	SKUCode         string    `json:"skuCode"`
-	SKUName         string    `json:"skuName"`
-	AggregateStock  int       `json:"aggregateStock"`
-	WarehouseOnHand int       `json:"warehouseOnHand"`
-	Difference      int       `json:"difference"`
-	BalanceCount    int       `json:"balanceCount"`
-	Status          string    `json:"status"`
+	ProductID         uuid.UUID `json:"productId"`
+	ProductTitle      string    `json:"productTitle"`
+	ProductSKUID      uuid.UUID `json:"productSkuId"`
+	SKUCode           string    `json:"skuCode"`
+	SKUName           string    `json:"skuName"`
+	AggregateStock    int       `json:"aggregateStock"`
+	WarehouseOnHand   int       `json:"warehouseOnHand"`
+	WarehouseDamaged  int       `json:"warehouseDamaged"`
+	WarehouseSellable int       `json:"warehouseSellable"`
+	Difference        int       `json:"difference"`
+	BalanceCount      int       `json:"balanceCount"`
+	Status            string    `json:"status"`
 }
 
 type WarehouseLedgerReconciliationResult struct {

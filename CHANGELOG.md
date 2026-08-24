@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Warehouse-aware inventory center (2026-08-24)
+
+- Made warehouse balances the physical-stock read authority for the inventory center, including warehouse-scoped on-hand, reserved, in-transit, damaged, sellable, and available quantities with explicit compatibility-projection reconciliation.
+- Reconciled `product_skus.stock` and replenishment fail-closed checks against global sellable stock instead of raw on-hand, so damaged returns remain non-sellable without producing false ledger mismatches.
+- Kept collected source stock only in raw SKU metadata while initializing new ERP SKU projections at zero, and added Admin warehouse filtering, responsive regression coverage, contracts, and documentation without enabling automatic repair, replenishment, workers, or platform inventory writes.
+
 ### ERP sales returns and refunds (2026-08-23)
 
 - Added tenant-scoped, item-level refund-only and return-and-refund cases with cumulative over-return protection, revision checks, payload-bound action idempotency, cancellation allocation release, and immutable action facts.

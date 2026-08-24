@@ -851,6 +851,14 @@ func (h *Handler) ListCenter(c *gin.Context) {
 			q.ShopID = &u
 		}
 	}
+	if raw := strings.TrimSpace(c.Query("warehouseId")); raw != "" {
+		u, parseErr := uuid.Parse(raw)
+		if parseErr != nil || u == uuid.Nil {
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid warehouseId")
+			return
+		}
+		q.WarehouseID = &u
+	}
 	res, err := h.Svc.ListInventoryCenter(c.Request.Context(), q)
 	if err != nil {
 		if code := pagination.ErrorCode(err); code != "" {

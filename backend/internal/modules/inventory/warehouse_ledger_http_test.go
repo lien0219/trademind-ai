@@ -122,3 +122,14 @@ func TestWarehouseBalancesHTTPReturnsNotFoundForCrossTenantSKU(t *testing.T) {
 		t.Fatalf("unexpected cross-tenant balance response: status=%d envelope=%#v", recorder.Code, envelope)
 	}
 }
+
+func TestInventoryCenterHTTPRejectsMalformedWarehouseID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := newWarehouseLedgerFixture(t, true)
+	router := warehouseLedgerHTTPRouter(t, fixture, 1, admin.RoleAdmin)
+
+	recorder, envelope := performWarehouseLedgerRequest(t, router, http.MethodGet, "/api/v1/inventory?warehouseId=not-a-uuid", "")
+	if recorder.Code != http.StatusBadRequest || envelope.Code != response.CodeBadRequest || envelope.Data != nil {
+		t.Fatalf("unexpected malformed warehouse response: status=%d envelope=%#v", recorder.Code, envelope)
+	}
+}

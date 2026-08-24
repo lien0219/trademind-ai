@@ -48,8 +48,10 @@ export default function WarehouseLedgerPage() {
         </Space>
       ),
     },
-    { title: '聚合库存', dataIndex: 'aggregateStock', width: 108, search: false },
-    { title: '仓库合计', dataIndex: 'warehouseOnHand', width: 108, search: false },
+    { title: '兼容投影', dataIndex: 'aggregateStock', width: 108, search: false },
+    { title: '仓库在手', dataIndex: 'warehouseOnHand', width: 108, search: false },
+    { title: '仓库残次', dataIndex: 'warehouseDamaged', width: 108, search: false },
+    { title: '仓库可售', dataIndex: 'warehouseSellable', width: 108, search: false },
     {
       title: '差异',
       dataIndex: 'difference',
@@ -95,7 +97,7 @@ export default function WarehouseLedgerPage() {
   return (
     <TmPageContainer
       title="仓库库存账"
-      subTitle="迁移历史聚合库存，并核对仓库余额合计与商品规格库存投影。"
+      subTitle="迁移历史兼容库存，并核对仓库可售合计与商品规格库存投影。"
       extra={[
         <Button key="migrate" type="primary" disabled={!canOperate} loading={migrating} onClick={runMigration}>
           迁移一批历史库存
@@ -103,11 +105,11 @@ export default function WarehouseLedgerPage() {
       ]}
     >
       <Typography.Paragraph type="secondary">
-        人工库存调整已按仓库记账。对账稳定前，商品规格库存仍保留为兼容聚合字段；本页不会同步真实平台库存，也不会自动补货。
+        人工库存调整已按仓库记账。对账以“在手减残次”的可售库存为准；商品规格库存仅保留为兼容投影。本页不会同步真实平台库存，也不会自动补货。
       </Typography.Paragraph>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8}>
-          <MetricCard title="一致" value={summary?.matched ?? '—'} description="仓库余额合计等于聚合库存" intent="success" />
+          <MetricCard title="一致" value={summary?.matched ?? '—'} description="仓库可售合计等于兼容投影" intent="success" />
         </Col>
         <Col xs={24} sm={8}>
           <MetricCard title="待迁移" value={summary?.unmigrated ?? '—'} description="尚未建立任何仓库余额" intent="warning" />
@@ -131,7 +133,7 @@ export default function WarehouseLedgerPage() {
         actionRef={actionRef}
         columns={columns}
         search={false}
-        scroll={{ x: 900 }}
+        scroll={{ x: 1100 }}
         locale={{ emptyText: '暂无库存账记录' }}
         toolBarRender={() => [
           <Select

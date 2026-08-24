@@ -131,6 +131,15 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/inventory",
+      "auth": true,
+      "query": ["keyword", "productId", "productSkuId", "platform", "shopId", "warehouseId", "stockStatus", "alertStatus", "skuBindStatus", "syncStatus", "hasException", "page", "pageSize", "cursor", "limit"],
+      "responseData": "WarehouseAwareInventoryCenter",
+      "requiredPermission": "inventory.view",
+      "tenantScope": "current_tenant_products_and_warehouse_balances"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/products/:id/skus/:skuId/warehouse-balances",
       "auth": true,
       "responseData": "WarehouseBalanceList",

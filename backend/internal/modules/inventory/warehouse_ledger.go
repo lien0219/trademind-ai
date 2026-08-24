@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -413,7 +412,7 @@ func reconciliationStatusFilter(status string) string {
 	}
 }
 
-// ReconcileWarehouseLedger compares product_skus.stock with the sum of warehouse balances.
+// ReconcileWarehouseLedger compares the compatibility projection with warehouse sellable stock.
 func (s *Service) ReconcileWarehouseLedger(ctx context.Context, tenantID int64, page, pageSize int, status string) (*WarehouseLedgerReconciliationResult, error) {
 	if s == nil || s.DB == nil || tenantID < 0 {
 		return nil, fmt.Errorf("inventory: db unavailable")
@@ -432,17 +431,23 @@ func (s *Service) ReconcileWarehouseLedger(ctx context.Context, tenantID int64, 
 		SELECT p.id AS product_id, p.title AS product_title, sk.id AS product_sku_id,
 		       sk.sku_code, sk.sku_name, COALESCE(sk.stock, 0) AS aggregate_stock,
 		       COALESCE(lb.warehouse_on_hand, 0) AS warehouse_on_hand,
+		       COALESCE(lb.warehouse_damaged, 0) AS warehouse_damaged,
+		       COALESCE(lb.warehouse_sellable, 0) AS warehouse_sellable,
 		       COALESCE(lb.balance_count, 0) AS balance_count,
 		       CASE
 		         WHEN COALESCE(sk.stock, 0) < 0 THEN 'mismatch'
 		         WHEN COALESCE(lb.balance_count, 0) = 0 THEN 'unmigrated'
-		         WHEN COALESCE(sk.stock, 0) = COALESCE(lb.warehouse_on_hand, 0) THEN 'matched'
+		         WHEN COALESCE(sk.stock, 0) = COALESCE(lb.warehouse_sellable, 0) THEN 'matched'
 		         ELSE 'mismatch'
 		       END AS status
 		FROM product_skus sk
 		JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL
 		LEFT JOIN (
-			SELECT tenant_id, product_sku_id, SUM(on_hand) AS warehouse_on_hand, COUNT(*) AS balance_count
+			SELECT tenant_id, product_sku_id,
+			       SUM(on_hand) AS warehouse_on_hand,
+			       SUM(damaged) AS warehouse_damaged,
+			       SUM(CASE WHEN on_hand > damaged THEN on_hand - damaged ELSE 0 END) AS warehouse_sellable,
+			       COUNT(*) AS balance_count
 			FROM warehouse_stock_balances
 			GROUP BY tenant_id, product_sku_id
 		) lb ON lb.tenant_id = p.tenant_id AND lb.product_sku_id = sk.id
@@ -455,16 +460,14 @@ func (s *Service) ReconcileWarehouseLedger(ctx context.Context, tenantID int64, 
 	}
 	result := &WarehouseLedgerReconciliationResult{Page: page, PageSize: pageSize, Items: []WarehouseLedgerReconciliationRow{}}
 	if err := s.DB.WithContext(ctx).Raw("SELECT COUNT(*) FROM ("+filteredSQL+") filtered", args...).Scan(&result.Total).Error; err != nil {
-		slog.Error("reconcile_debug_count", "error", err)
 		return nil, fmt.Errorf("count reconciliation rows: %w", err)
 	}
 	if err := s.DB.WithContext(ctx).Raw(filteredSQL+" ORDER BY product_title ASC, sku_code ASC, product_sku_id ASC LIMIT ? OFFSET ?", append(args, pageSize, (page-1)*pageSize)...).
 		Scan(&result.Items).Error; err != nil {
-		slog.Error("reconcile_debug_list", "error", err)
 		return nil, fmt.Errorf("list reconciliation rows: %w", err)
 	}
 	for i := range result.Items {
-		result.Items[i].Difference = result.Items[i].WarehouseOnHand - result.Items[i].AggregateStock
+		result.Items[i].Difference = result.Items[i].WarehouseSellable - result.Items[i].AggregateStock
 	}
 	type summary struct {
 		Matched    int64
@@ -478,7 +481,6 @@ func (s *Service) ReconcileWarehouseLedger(ctx context.Context, tenantID int64, 
 		COALESCE(SUM(CASE WHEN status = 'mismatch' THEN 1 ELSE 0 END), 0) AS mismatch
 		FROM (` + baseSQL + `) ledger_summary`
 	if err := s.DB.WithContext(ctx).Raw(summarySQL, tenantID).Scan(&counts).Error; err != nil {
-		slog.Error("reconcile_debug_summary", "error", err)
 		return nil, fmt.Errorf("summarize reconciliation rows: %w", err)
 	}
 	result.Matched, result.Unmigrated, result.Mismatch = counts.Matched, counts.Unmigrated, counts.Mismatch

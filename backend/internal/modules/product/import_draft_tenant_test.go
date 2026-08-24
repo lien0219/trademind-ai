@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,6 +41,26 @@ func TestImportDraftWithContextPersistsTenant(t *testing.T) {
 	var stored Product
 	require.NoError(t, db.First(&stored, "id = ?", created.ID).Error)
 	require.Equal(t, int64(42), stored.TenantID)
+}
+
+func TestImportDraftKeepsSourceStockAsMetadataAndStartsERPStockAtZero(t *testing.T) {
+	db := openImportDraftTenantTestDB(t)
+	svc := &Service{DB: db}
+	ctx := security.WithTenantContext(context.Background(), security.WorkerTenantContext(42, uuid.Nil))
+	sourceStock := 17
+	rawSKU := json.RawMessage(`{"skuCode":"SOURCE-17","stock":17}`)
+
+	created, err := svc.ImportDraftWithContext(ctx, nil, ImportDraftParams{
+		Source: "1688", Title: "Collected stock metadata", Currency: "CNY",
+		SKUs: []ImportSKUParams{{SKUCode: "SOURCE-17", SKUName: "Source stock", Stock: &sourceStock, RawSKU: rawSKU}},
+	})
+	require.NoError(t, err)
+
+	var stored ProductSKU
+	require.NoError(t, db.First(&stored, "product_id = ?", created.ID).Error)
+	require.NotNil(t, stored.Stock)
+	require.Zero(t, *stored.Stock)
+	require.JSONEq(t, string(rawSKU), string(stored.RawData))
 }
 
 func TestImportDraftWithContextPersistsLegacyDevelopmentTenantZero(t *testing.T) {

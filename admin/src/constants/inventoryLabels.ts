@@ -47,6 +47,12 @@ export const INVENTORY_SYNC_STATUS: Record<string, { text: string; color: string
   cancelled: { text: '已取消', color: 'default' },
 };
 
+export const INVENTORY_RECONCILIATION_STATUS: Record<string, { text: string; color: string }> = {
+  matched: { text: '投影一致', color: 'green' },
+  unmigrated: { text: '待建仓库账', color: 'gold' },
+  mismatch: { text: '需要对账', color: 'red' },
+};
+
 export const INVENTORY_DEDUCT_SOURCE: Record<string, string> = {
   deduct: '订单同步扣减',
   restore: '系统回滚',

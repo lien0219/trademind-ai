@@ -70,7 +70,7 @@
 | `PUT` | `/api/v1/warehouses/:id` | `warehouse.manage` | 更新仓库名称、启停状态和默认仓；JSON：`name`、`status`、`isDefault`。默认仓必须启用，同租户默认仓在事务内唯一切换。 |
 | `GET` | `/api/v1/products/:id/skus/:skuId/warehouse-balances` | `inventory.view` | 读取当前租户下该规格的分仓余额；返回仓库名称、在手、预占、在途、残损、可用量和版本。 |
 | `POST` | `/api/v1/products/:id/skus/:skuId/adjust-stock` | `inventory.operate` | 人工调整所选仓库的在手库存；JSON：`warehouseId`、`stock`、`idempotencyKey`、可选 `reason` / `remark`。同键同 payload 幂等返回，同键不同 payload 返回 `409`；仓库余额、不可变流水、兼容变更日志与 `product_skus.stock` 兼容聚合字段在同一事务提交，并保留尚未迁移订单路径形成的差额，不创建平台同步任务。 |
-| `GET` | `/api/v1/inventory/warehouse-ledger/reconciliation` | `inventory.view` | 分页对账仓库在手合计与 `product_skus.stock`；支持 `page`、`pageSize`、`status=matched|unmigrated|mismatch`。 |
+| `GET` | `/api/v1/inventory/warehouse-ledger/reconciliation` | `inventory.view` | 分页对账仓库可售合计（各仓在手减残次）与 `product_skus.stock` 兼容投影；返回仓库在手、残次、可售、差异和余额数，支持 `page`、`pageSize`、`status=matched|unmigrated|mismatch`。 |
 | `POST` | `/api/v1/inventory/warehouse-ledger/migrate-legacy` | `inventory.operate` | 重复安全地迁移一批尚无仓库余额的历史规格；JSON：`limit`（默认 100，最大 500）。优先进入启用的默认仓，没有默认仓时创建/复用租户级 `PENDING_ALLOCATION` 待分配仓。 |
 | `GET` | `/api/v1/inventory/warehouse-transfers` | `inventory.view` | 分页查看当前租户调拨单；支持 `page`、`pageSize`、`status`。 |
 | `GET` | `/api/v1/inventory/warehouse-transfers/:id` | `inventory.view` | 查看调拨单明细和当前 revision。 |
@@ -94,7 +94,7 @@
 | `GET` | `/api/v1/suppliers/:id/skus` | `supplier.view` | 查询供应商关联的本地商品规格及供应商货号、采购价、起订量和交期。 |
 | `POST` | `/api/v1/suppliers/:id/skus` | `supplier.manage` | 绑定本地 SKU；JSON：`productSkuId`、`supplierSkuCode`、`unitCostMinor`、`currency`、`minOrderQty`、`leadTimeDays`。 |
 | `GET` | `/api/v1/purchase-orders` | `procurement.view` | 采购单分页列表，支持 `page`、`pageSize`。 |
-| `GET` | `/api/v1/procurement/replenishment-suggestions` | `procurement.view` | 只读安全库存/补货建议工作台；必须提供 `warehouseId`，支持 `keyword`、`status=actionable|not_needed|blocked_inventory_mismatch|blocked_inventory_unmigrated|blocked_supplier_missing|blocked_supplier_selection`、`page`、`pageSize`；`format=csv` 导出当前筛选结果（最多 5000 行）。计算口径为 `warningStock - (available + inTransitTransfer + pendingPurchase)`，按唯一有效供应商 MOQ 向上取整。库存账不一致/未迁移、无供应商或多个供应商均不猜测并返回阻断状态。只读 GET，不创建采购单、不启动 Worker、不调用真实平台。 |
+| `GET` | `/api/v1/procurement/replenishment-suggestions` | `procurement.view` | 只读安全库存/补货建议工作台；必须提供 `warehouseId`，支持 `keyword`、`status=actionable|not_needed|blocked_inventory_mismatch|blocked_inventory_unmigrated|blocked_supplier_missing|blocked_supplier_selection`、`page`、`pageSize`；`format=csv` 导出当前筛选结果（最多 5000 行）。计算口径为 `warningStock - (available + inTransitTransfer + pendingPurchase)`，按唯一有效供应商 MOQ 向上取整。兼容投影按全局仓库可售合计对账；库存账不一致/未迁移、无供应商或多个供应商均不猜测并返回阻断状态。只读 GET，不创建采购单、不启动 Worker、不调用真实平台。 |
 | `POST` | `/api/v1/purchase-orders` | `procurement.manage` | 幂等创建采购单；JSON：`idempotencyKey`、`supplierId`、`warehouseId`、`currency`、`remark`、`items[]`。明细含 `productSkuId`、可选 `supplierSkuId`、`quantity`、`unitCostMinor`。 |
 | `GET` | `/api/v1/purchase-orders/:id` | `procurement.view` | 采购单及明细；明细附带租户内商品标题、规格编码和规格名称作为只读展示字段。 |
 | `POST` | `/api/v1/purchase-orders/:id/submit` | `procurement.manage` | 草稿提交审批；JSON：`expectedRevision`、可选 `reason`。 |
@@ -232,7 +232,7 @@
 | `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述；body 支持 `aiDescription`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/undo-ai-description` | 安全撤销最近一次 AI 描述应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
 
-SKU 元数据写接口只允许访问当前租户可见商品；跨租户商品统一按 `404` 处理。`POST` / `PUT .../skus` 一旦收到 `stock` 即返回 `400`，库存调整必须改用需 `inventory.operate` 的分仓接口 `POST /api/v1/products/:id/skus/:skuId/adjust-stock`。手工新建 SKU 不隐式创建历史库存事实；历史导入数据继续通过有界库存账迁移接口处理。
+SKU 元数据写接口只允许访问当前租户可见商品；跨租户商品统一按 `404` 处理。`POST` / `PUT .../skus` 一旦收到 `stock` 即返回 `400`，库存调整必须改用需 `inventory.operate` 的分仓接口 `POST /api/v1/products/:id/skus/:skuId/adjust-stock`。手工新建与采集导入 SKU 的 ERP 兼容投影从 `0` 开始；采集来源库存只保留在原始 SKU 元数据中。历史导入数据继续通过有界库存账迁移接口处理。
 
 ### 本地 SKU 搜索安全合同
 
@@ -503,7 +503,7 @@ L3 只代表上述 `save_as_platform_draft` 能力；不包含正式发布、上
 | `GET` | `/api/v1/products/:id/publication-skus` | 商品详情库存 Tab 读取刊登 SKU 映射与 `inventorySyncCapability`（`douyin_shop` 为 `beta`）。 |
 | `POST` | `/api/v1/product-publication-skus/:id/sync-inventory` | 单 SKU 库存同步；body：`stock`、`options`、`fromInventoryAlert`。要求 `product_publications.external_product_id` 与 `product_publication_skus.external_sku_id` 已绑定。 |
 | `POST` | `/api/v1/products/:id/sync-inventory` | 单商品多 SKU 库存同步；body：`shopId`、`skuIds[]`、`options`。 |
-| `GET` | `/api/v1/inventory` | 库存中心 SKU 列表（F3）；筛选 stockStatus / skuBindStatus / syncStatus / hasException 等。 |
+| `GET` | `/api/v1/inventory` | 分仓可用库存中心；支持 `warehouseId`、`stockStatus`、`skuBindStatus`、`syncStatus`、`hasException`、分页和 cursor 等筛选。返回当前范围的在手、预占、在途、残次、可售、可用库存，以及全局兼容投影、仓库余额数和 `matched|unmigrated|mismatch` 对账状态。`stockStatus` 按当前仓库范围的可用库存计算；平台同步状态仍沿用兼容投影，不会因本查询自动写平台。 |
 | `GET` | `/api/v1/inventory/alerts` | 库存预警列表。 |
 | `GET` | `/api/v1/inventory/effects` | 订单库存扣减/回滚影响（扣减记录页数据源）。 |
 | `GET` | `/api/v1/inventory/logs` | 本地库存变更流水。 |

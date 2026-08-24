@@ -222,6 +222,29 @@ func TestLegacyMigrationUsesPendingWarehouseAndReconciles(t *testing.T) {
 	}
 }
 
+func TestWarehouseLedgerReconciliationUsesSellableStock(t *testing.T) {
+	fx := newWarehouseLedgerFixture(t, true)
+	requireBalance := &WarehouseStockBalance{
+		TenantID: 1, WarehouseID: fx.main.ID, ProductSKUID: fx.sku.ID,
+		OnHand: 12, Reserved: 1, Damaged: 2, Version: 1,
+	}
+	if err := fx.db.Create(requireBalance).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := fx.service.ReconcileWarehouseLedger(context.Background(), 1, 1, 20, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Matched != 1 || result.Mismatch != 0 || len(result.Items) != 1 {
+		t.Fatalf("expected damaged stock to reconcile against sellable projection: %#v", result)
+	}
+	row := result.Items[0]
+	if row.WarehouseOnHand != 12 || row.WarehouseDamaged != 2 || row.WarehouseSellable != 10 || row.Difference != 0 || row.Status != reconciliationMatched {
+		t.Fatalf("unexpected sellable reconciliation row: %#v", row)
+	}
+}
+
 func TestLegacyMigrationDoesNotCreatePendingWarehouseForEmptyBatch(t *testing.T) {
 	fx := newWarehouseLedgerFixture(t, false)
 	if err := fx.db.Delete(&product.ProductSKU{}, "id = ?", fx.sku.ID).Error; err != nil {

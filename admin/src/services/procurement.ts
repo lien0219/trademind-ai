@@ -205,6 +205,7 @@ export type ReplenishmentSuggestion = {
   blockReasonCode?: string;
   blockReason?: string;
   inventoryOnHandTotal: number;
+  inventorySellableTotal: number;
   inventoryBalanceCount: number;
 };
 

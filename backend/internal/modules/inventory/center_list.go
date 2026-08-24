@@ -41,6 +41,7 @@ type CenterListQuery struct {
 	AlertStatus   string
 	SKUBindStatus string
 	SyncStatus    string
+	WarehouseID   *uuid.UUID
 	HasException  bool
 	Page          int
 	PageSize      int
@@ -52,12 +53,24 @@ type CenterListQuery struct {
 // InventoryCenterEntry is one SKU row in the inventory center list.
 type InventoryCenterEntry struct {
 	InventoryAlertEntry
-	AvailableStock     int        `json:"availableStock"`
-	SKUBindStatus      string     `json:"skuBindStatus"`
-	PlatformSyncStatus string     `json:"platformSyncStatus"`
-	LastDeductAt       *time.Time `json:"lastDeductAt,omitempty"`
-	ExceptionCount     int        `json:"exceptionCount"`
-	AffectedOrderCount int        `json:"affectedOrderCount"`
+	ProjectionStock       int        `json:"projectionStock"`
+	InventoryScope        string     `json:"inventoryScope"`
+	WarehouseID           *uuid.UUID `json:"warehouseId,omitempty"`
+	WarehouseCode         string     `json:"warehouseCode,omitempty"`
+	WarehouseName         string     `json:"warehouseName,omitempty"`
+	OnHandStock           int        `json:"onHandStock"`
+	ReservedStock         int        `json:"reservedStock"`
+	InTransitStock        int        `json:"inTransitStock"`
+	DamagedStock          int        `json:"damagedStock"`
+	SellableStock         int        `json:"sellableStock"`
+	AvailableStock        int        `json:"availableStock"`
+	WarehouseBalanceCount int        `json:"warehouseBalanceCount"`
+	ReconciliationStatus  string     `json:"reconciliationStatus"`
+	SKUBindStatus         string     `json:"skuBindStatus"`
+	PlatformSyncStatus    string     `json:"platformSyncStatus"`
+	LastDeductAt          *time.Time `json:"lastDeductAt,omitempty"`
+	ExceptionCount        int        `json:"exceptionCount"`
+	AffectedOrderCount    int        `json:"affectedOrderCount"`
 }
 
 // CenterListResult paginates center rows.
@@ -88,9 +101,119 @@ func inventoryCenterCursorScope(q CenterListQuery) (string, string) {
 		"alertStatus":   q.AlertStatus,
 		"skuBindStatus": q.SKUBindStatus,
 		"syncStatus":    q.SyncStatus,
+		"warehouseId":   q.WarehouseID,
 		"hasException":  q.HasException,
 		"sort":          "updated_at_desc_id_desc",
 	}), shopScope
+}
+
+const (
+	centerInventoryScopeGlobal    = "global"
+	centerInventoryScopeWarehouse = "warehouse"
+)
+
+type centerWarehouseFact struct {
+	ProductSKUID  uuid.UUID `gorm:"column:product_sku_id"`
+	WarehouseCode string    `gorm:"column:warehouse_code"`
+	WarehouseName string    `gorm:"column:warehouse_name"`
+	OnHand        int       `gorm:"column:on_hand"`
+	Reserved      int       `gorm:"column:reserved"`
+	InTransit     int       `gorm:"column:in_transit"`
+	Damaged       int       `gorm:"column:damaged"`
+	Sellable      int       `gorm:"column:sellable"`
+	Available     int       `gorm:"column:available"`
+	BalanceCount  int       `gorm:"column:balance_count"`
+}
+
+func centerAvailableStockSQL(warehouseID *uuid.UUID) (string, []any) {
+	where := "wsb.tenant_id = ? AND wsb.product_sku_id = sk.id"
+	args := []any{}
+	if warehouseID != nil && *warehouseID != uuid.Nil {
+		where += " AND wsb.warehouse_id = ?"
+		args = append(args, *warehouseID)
+	}
+	return `COALESCE((
+		SELECT SUM(CASE
+			WHEN wsb.on_hand - wsb.reserved - wsb.damaged > 0
+			THEN wsb.on_hand - wsb.reserved - wsb.damaged
+			ELSE 0 END)
+		FROM warehouse_stock_balances wsb
+		WHERE ` + where + `
+	), 0)`, args
+}
+
+func applyCenterStockStatusFilter(tx *gorm.DB, tenantID int64, warehouseID *uuid.UUID, status string) *gorm.DB {
+	expr, scopeArgs := centerAvailableStockSQL(warehouseID)
+	args := func(repeat int) []any {
+		out := make([]any, 0, repeat*(len(scopeArgs)+1))
+		for i := 0; i < repeat; i++ {
+			out = append(out, tenantID)
+			out = append(out, scopeArgs...)
+		}
+		return out
+	}
+	switch strings.TrimSpace(status) {
+	case product.StockStatusOutOfStock:
+		return tx.Where(expr+" <= 0", args(1)...)
+	case product.StockStatusBelowSafetyStock:
+		return tx.Where("sk.safety_stock > 0 AND "+expr+" > 0 AND "+expr+" <= sk.safety_stock", args(2)...)
+	case product.StockStatusLowStock:
+		return tx.Where(expr+" > 0 AND (sk.safety_stock = 0 OR "+expr+" > sk.safety_stock) AND "+expr+" <= sk.warning_stock", args(3)...)
+	case product.StockStatusNormal:
+		return tx.Where(expr+" > sk.warning_stock", args(1)...)
+	default:
+		return tx
+	}
+}
+
+func (s *Service) loadCenterWarehouseFacts(ctx context.Context, tenantID int64, skuIDs []uuid.UUID, warehouseID *uuid.UUID) (map[uuid.UUID]centerWarehouseFact, error) {
+	out := map[uuid.UUID]centerWarehouseFact{}
+	if len(skuIDs) == 0 {
+		return out, nil
+	}
+	query := s.DB.WithContext(ctx).Table("warehouse_stock_balances AS wsb").
+		Select(`wsb.product_sku_id,
+			COALESCE(SUM(wsb.on_hand), 0) AS on_hand,
+			COALESCE(SUM(wsb.reserved), 0) AS reserved,
+			COALESCE(SUM(wsb.in_transit), 0) AS in_transit,
+			COALESCE(SUM(wsb.damaged), 0) AS damaged,
+			COALESCE(SUM(CASE WHEN wsb.on_hand > wsb.damaged THEN wsb.on_hand - wsb.damaged ELSE 0 END), 0) AS sellable,
+			COALESCE(SUM(CASE WHEN wsb.on_hand - wsb.reserved - wsb.damaged > 0 THEN wsb.on_hand - wsb.reserved - wsb.damaged ELSE 0 END), 0) AS available,
+			COUNT(*) AS balance_count`).
+		Where("wsb.tenant_id = ? AND wsb.product_sku_id IN ?", tenantID, skuIDs)
+	if warehouseID != nil && *warehouseID != uuid.Nil {
+		query = query.Select(`wsb.product_sku_id, MAX(w.code) AS warehouse_code, MAX(w.name) AS warehouse_name,
+			COALESCE(SUM(wsb.on_hand), 0) AS on_hand,
+			COALESCE(SUM(wsb.reserved), 0) AS reserved,
+			COALESCE(SUM(wsb.in_transit), 0) AS in_transit,
+			COALESCE(SUM(wsb.damaged), 0) AS damaged,
+			COALESCE(SUM(CASE WHEN wsb.on_hand > wsb.damaged THEN wsb.on_hand - wsb.damaged ELSE 0 END), 0) AS sellable,
+			COALESCE(SUM(CASE WHEN wsb.on_hand - wsb.reserved - wsb.damaged > 0 THEN wsb.on_hand - wsb.reserved - wsb.damaged ELSE 0 END), 0) AS available,
+			COUNT(*) AS balance_count`).
+			Joins("JOIN warehouses w ON w.id = wsb.warehouse_id AND w.tenant_id = ?", tenantID).
+			Where("wsb.warehouse_id = ?", *warehouseID)
+	}
+	var rows []centerWarehouseFact
+	if err := query.Group("wsb.product_sku_id").Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("load inventory center warehouse facts: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ProductSKUID] = row
+	}
+	return out, nil
+}
+
+func centerReconciliationStatus(projection int, fact centerWarehouseFact) string {
+	if projection < 0 {
+		return reconciliationMismatch
+	}
+	if fact.BalanceCount == 0 {
+		return reconciliationUnmigrated
+	}
+	if projection == fact.Sellable {
+		return reconciliationMatched
+	}
+	return reconciliationMismatch
 }
 
 func aggregateBindStatus(pubs []pubJoinScan) string {
@@ -375,12 +498,24 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		ProductSKUID:  q.ProductSKUID,
 		Platform:      q.Platform,
 		ShopID:        q.ShopID,
-		StockStatus:   q.StockStatus,
+		StockStatus:   "",
 		OnlyPublished: false,
 	})
 	base = base.Where("p.tenant_id = ?", q.TenantID)
+	if q.WarehouseID != nil && *q.WarehouseID != uuid.Nil {
+		base = base.Where(`EXISTS (
+			SELECT 1 FROM warehouse_stock_balances center_balance
+			WHERE center_balance.tenant_id = ? AND center_balance.warehouse_id = ? AND center_balance.product_sku_id = sk.id
+		)`, q.TenantID, *q.WarehouseID)
+	}
+	base = applyCenterStockStatusFilter(base, q.TenantID, q.WarehouseID, q.StockStatus)
 	if strings.TrimSpace(q.AlertStatus) != "" {
-		base = s.applyAlertsSQLAlertType(base, q.AlertStatus, th, q.TenantID)
+		switch strings.TrimSpace(q.AlertStatus) {
+		case AlertTypeOutOfStock, AlertTypeLowStock, AlertTypeBelowSafetyStock:
+			base = applyCenterStockStatusFilter(base, q.TenantID, q.WarehouseID, q.AlertStatus)
+		default:
+			base = s.applyAlertsSQLAlertType(base, q.AlertStatus, th, q.TenantID)
+		}
 	}
 	if strings.TrimSpace(q.SKUBindStatus) != "" {
 		base = s.applyCenterBindFilter(base, q.SKUBindStatus, q.TenantID)
@@ -430,6 +565,17 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 	for _, r := range scans {
 		skuIDs = append(skuIDs, r.ID)
 	}
+	globalFacts, err := s.loadCenterWarehouseFacts(ctx, q.TenantID, skuIDs, nil)
+	if err != nil {
+		return nil, err
+	}
+	scopeFacts := globalFacts
+	if q.WarehouseID != nil && *q.WarehouseID != uuid.Nil {
+		scopeFacts, err = s.loadCenterWarehouseFacts(ctx, q.TenantID, skuIDs, q.WarehouseID)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	pubBySKU := map[uuid.UUID][]pubJoinScan{}
 	if len(skuIDs) > 0 {
@@ -463,7 +609,9 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 
 	items := make([]InventoryCenterEntry, 0, len(scans))
 	for _, row := range scans {
-		st := product.CalculateSKUStockStatus(derefStock(row.Stock), row.WarningStock, row.SafetyStock)
+		scopeFact := scopeFacts[row.ID]
+		globalFact := globalFacts[row.ID]
+		st := product.CalculateSKUStockStatus(scopeFact.Available, row.WarningStock, row.SafetyStock)
 		alerts := make([]string, 0, 6)
 		if pol.EnableInventoryAlerts {
 			switch st {
@@ -523,6 +671,12 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		}
 
 		localStock := derefStock(row.Stock)
+		inventoryScope := centerInventoryScopeGlobal
+		var warehouseID *uuid.UUID
+		if q.WarehouseID != nil && *q.WarehouseID != uuid.Nil {
+			inventoryScope = centerInventoryScopeWarehouse
+			warehouseID = q.WarehouseID
+		}
 		alertEntry := InventoryAlertEntry{
 			ProductID:             row.ProductID,
 			ProductTitle:          row.ProductTitle,
@@ -548,13 +702,25 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		}
 
 		items = append(items, InventoryCenterEntry{
-			InventoryAlertEntry: alertEntry,
-			AvailableStock:      localStock,
-			SKUBindStatus:       bindSt,
-			PlatformSyncStatus:  aggregateSyncStatus(pubs, taskByPub, bindSt),
-			LastDeductAt:        ptrTime(lastDeduct[row.ID]),
-			ExceptionCount:      exCounts[row.ID],
-			AffectedOrderCount:  orderCounts[row.ID],
+			InventoryAlertEntry:   alertEntry,
+			ProjectionStock:       localStock,
+			InventoryScope:        inventoryScope,
+			WarehouseID:           warehouseID,
+			WarehouseCode:         scopeFact.WarehouseCode,
+			WarehouseName:         scopeFact.WarehouseName,
+			OnHandStock:           scopeFact.OnHand,
+			ReservedStock:         scopeFact.Reserved,
+			InTransitStock:        scopeFact.InTransit,
+			DamagedStock:          scopeFact.Damaged,
+			SellableStock:         scopeFact.Sellable,
+			AvailableStock:        scopeFact.Available,
+			WarehouseBalanceCount: globalFact.BalanceCount,
+			ReconciliationStatus:  centerReconciliationStatus(localStock, globalFact),
+			SKUBindStatus:         bindSt,
+			PlatformSyncStatus:    aggregateSyncStatus(pubs, taskByPub, bindSt),
+			LastDeductAt:          ptrTime(lastDeduct[row.ID]),
+			ExceptionCount:        exCounts[row.ID],
+			AffectedOrderCount:    orderCounts[row.ID],
 		})
 	}
 

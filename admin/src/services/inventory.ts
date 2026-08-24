@@ -66,7 +66,19 @@ export type OrderInventoryEffectRow = {
 };
 
 export type InventoryCenterRow = InventoryAlertRow & {
+  projectionStock: number;
+  inventoryScope: 'global' | 'warehouse' | string;
+  warehouseId?: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  onHandStock: number;
+  reservedStock: number;
+  inTransitStock: number;
+  damagedStock: number;
+  sellableStock: number;
   availableStock: number;
+  warehouseBalanceCount: number;
+  reconciliationStatus: 'matched' | 'unmigrated' | 'mismatch' | string;
   skuBindStatus: string;
   platformSyncStatus: string;
   lastDeductAt?: string;
@@ -311,6 +323,8 @@ export type WarehouseLedgerReconciliationRow = {
   skuName: string;
   aggregateStock: number;
   warehouseOnHand: number;
+  warehouseDamaged: number;
+  warehouseSellable: number;
   difference: number;
   balanceCount: number;
   status: "matched" | "unmigrated" | "mismatch" | string;
@@ -420,6 +434,7 @@ export async function queryInventorySyncTasks(params?: {
   productId?: string;
   productSkuId?: string;
   shopId?: string;
+  warehouseId?: string;
   batchId?: string;
   platform?: string;
   status?: string;
@@ -485,6 +500,7 @@ export async function queryInventoryCenter(params?: {
   productSkuId?: string;
   platform?: string;
   shopId?: string;
+  warehouseId?: string;
   stockStatus?: string;
   alertStatus?: string;
   skuBindStatus?: string;
@@ -499,6 +515,7 @@ export async function queryInventoryCenter(params?: {
     productSkuId: params?.productSkuId,
     platform: params?.platform?.trim() || undefined,
     shopId: params?.shopId,
+    warehouseId: params?.warehouseId,
     stockStatus: params?.stockStatus?.trim() || undefined,
     alertStatus: params?.alertStatus?.trim() || undefined,
     skuBindStatus: params?.skuBindStatus?.trim() || undefined,

@@ -29,8 +29,9 @@ type InventoryChangeLog struct {
 func (InventoryChangeLog) TableName() string { return "inventory_change_logs" }
 
 // WarehouseStockBalance is the tenant-scoped warehouse ledger introduced for
-// ERP flows. During the compatibility migration product_skus.stock remains the
-// aggregate authority until every legacy stock writer has moved to this ledger.
+// ERP flows. Warehouse balances are the physical-stock authority;
+// product_skus.stock remains a compatibility sellable projection while legacy
+// writers and historical rows are reconciled.
 type WarehouseStockBalance struct {
 	model.HardDeleteBase
 	TenantID     int64     `gorm:"not null;uniqueIndex:ux_warehouse_stock_balance;index" json:"tenantId"`

@@ -115,3 +115,35 @@ func TestListReplenishmentSuggestionsBlocksLedgerAndSupplierAmbiguity(t *testing
 		t.Fatalf("expected missing supplier block, result=%#v err=%v", result, err)
 	}
 }
+
+func TestListReplenishmentSuggestionsReconcilesDamagedStockAsNonSellable(t *testing.T) {
+	fx := newProcurementFixture(t)
+	if err := fx.DB.AutoMigrate(&inventory.WarehouseTransfer{}, &inventory.WarehouseTransferItem{}); err != nil {
+		t.Fatalf("migrate transfers: %v", err)
+	}
+	projection := 8
+	if err := fx.DB.Model(&product.ProductSKU{}).Where("id = ?", fx.ProductSKU.ID).
+		Updates(map[string]any{"stock": projection, "warning_stock": 10, "safety_stock": 4}).Error; err != nil {
+		t.Fatalf("update sku thresholds: %v", err)
+	}
+	if err := fx.DB.Create(&inventory.WarehouseStockBalance{
+		TenantID: 1, WarehouseID: fx.Warehouse.ID, ProductSKUID: fx.ProductSKU.ID,
+		OnHand: 10, Reserved: 1, Damaged: 2, Version: 1,
+	}).Error; err != nil {
+		t.Fatalf("create damaged balance: %v", err)
+	}
+
+	result, err := fx.Service.ListReplenishmentSuggestions(context.Background(), 1, ReplenishmentQuery{
+		WarehouseID: fx.Warehouse.ID, Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("list suggestions: %v", err)
+	}
+	if len(result.List) != 1 {
+		t.Fatalf("expected one suggestion, got %#v", result.List)
+	}
+	row := result.List[0]
+	if row.Status != "actionable" || row.BlockReasonCode != "" || row.AvailableStock != 7 || row.InventoryOnHandTotal != 10 || row.InventorySellableTotal != 8 {
+		t.Fatalf("unexpected damaged-stock replenishment result: %#v", row)
+	}
+}
