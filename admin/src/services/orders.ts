@@ -282,6 +282,26 @@ export type FulfillmentReconciliation = {
   timeline?: FulfillmentTimelineEntry[];
 };
 
+export async function queryFulfillmentReconciliation(params: {
+  page?: number;
+  pageSize?: number;
+  orderNo?: string;
+  warehouseId?: string;
+  status?: string;
+  fulfillmentStatus?: string;
+  reconciliationStatus?: FulfillmentReconciliationStatus;
+}): Promise<{
+  list: FulfillmentReconciliation[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}> {
+  return getWithParams("/api/v1/orders/fulfillment-reconciliation", params);
+}
+
 export async function queryOrders(params: {
   page?: number;
   pageSize?: number;
@@ -376,7 +396,9 @@ export async function getOrder(id: string): Promise<OrderDetailDTO> {
 export async function getOrderFulfillmentReconciliation(
   id: string,
 ): Promise<FulfillmentReconciliation> {
-  return getJSON(`/api/v1/orders/${id}/fulfillment-reconciliation`);
+  return getJSON(
+    `/api/v1/orders/${encodeURIComponent(id)}/fulfillment-reconciliation`,
+  );
 }
 
 export async function updateOrder(

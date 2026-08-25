@@ -7,9 +7,11 @@ import {
   createOrderBatchFulfillmentIdempotencyKey,
   createOrderAllocationIdempotencyKey,
   fulfillOrder,
+  getOrderFulfillmentReconciliation,
   getWarehouseAllocation,
   getOrderShipmentEvents,
   partialOrderCreateFromError,
+  queryFulfillmentReconciliation,
   queryWarehouseAllocations,
 } from "../orders";
 import { request } from "@umijs/max";
@@ -201,5 +203,51 @@ describe("order service helpers", () => {
     expect(first).not.toBe(second);
     expect(first).toMatch(/^admin-order-fulfillment-batch-/);
     expect(first.length).toBeLessThanOrEqual(128);
+  });
+
+  it("keeps fulfillment reconciliation read contracts stable and encodes detail ids", async () => {
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: {
+        list: [],
+        pagination: { page: 2, pageSize: 50, total: 0, totalPages: 0 },
+      },
+    });
+    await queryFulfillmentReconciliation({
+      page: 2,
+      pageSize: 50,
+      orderNo: "SO-1001",
+      warehouseId: "warehouse-1",
+      status: "shipped",
+      fulfillmentStatus: "fulfilled",
+      reconciliationStatus: "mismatch",
+    });
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/orders/fulfillment-reconciliation",
+      {
+        method: "GET",
+        params: {
+          page: 2,
+          pageSize: 50,
+          orderNo: "SO-1001",
+          warehouseId: "warehouse-1",
+          status: "shipped",
+          fulfillmentStatus: "fulfilled",
+          reconciliationStatus: "mismatch",
+        },
+      },
+    );
+
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: { orderId: "order/one", reconciliationStatus: "matched" },
+    });
+    await getOrderFulfillmentReconciliation("order/one");
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/orders/order%2Fone/fulfillment-reconciliation",
+      { method: "GET" },
+    );
   });
 });

@@ -39,6 +39,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/orders/list': PERMISSIONS.ORDER_VIEW,
   '/orders/warehouse-allocations': PERMISSIONS.ORDER_VIEW,
   '/orders/fulfillment-waves': PERMISSIONS.ORDER_VIEW,
+  '/orders/fulfillment-reconciliation': PERMISSIONS.ORDER_VIEW,
   '/orders/sync-tasks': PERMISSIONS.ORDER_VIEW,
   '/orders/sku-matches': PERMISSIONS.ORDER_VIEW,
   '/orders/exceptions': PERMISSIONS.ORDER_VIEW,

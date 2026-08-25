@@ -356,6 +356,11 @@ export default [
         component: './Orders/FulfillmentWaves',
       },
       {
+        path: '/orders/fulfillment-reconciliation',
+        name: '履约库存对账',
+        component: './Orders/FulfillmentReconciliation',
+      },
+      {
         path: '/orders/sales-returns/:id',
         name: '售后详情',
         hideInMenu: true,
