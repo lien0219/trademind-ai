@@ -45,6 +45,10 @@ export type FulfillmentWaveLine = {
   productTitle?: string;
   skuCode?: string;
   skuName?: string;
+  barcode?: string;
+  locationId?: string;
+  locationCode?: string;
+  locationName?: string;
   requiredQuantity: number;
   pickedQuantity: number;
   shortageQuantity: number;
@@ -157,6 +161,8 @@ export async function recordFulfillmentWavePicks(
       lineId: string;
       pickedQuantity: number;
       shortageQuantity: number;
+      scannedBarcode?: string;
+      scannedLocationCode?: string;
     }>;
   },
 ) {

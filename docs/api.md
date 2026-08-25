@@ -68,10 +68,16 @@
 | `GET` | `/api/v1/warehouses` | `warehouse.view` | 当前租户仓库列表。 |
 | `POST` | `/api/v1/warehouses` | `warehouse.manage` | 创建仓库；JSON：`code`、`name`、`isDefault`。 |
 | `PUT` | `/api/v1/warehouses/:id` | `warehouse.manage` | 更新仓库名称、启停状态和默认仓；JSON：`name`、`status`、`isDefault`。默认仓必须启用，同租户默认仓在事务内唯一切换。 |
+| `GET` | `/api/v1/warehouses/:id/locations` | `warehouse.view` | 查询指定仓库库位；默认仅返回启用库位，传 `includeInactive=true` 可包含停用库位。 |
+| `POST` | `/api/v1/warehouses/:id/locations` | `warehouse.manage` | 创建库位；JSON：`code`、`name`、可选 `zone`。编码在租户仓库内唯一且创建后不可变。 |
+| `PUT` | `/api/v1/warehouses/:id/locations/:locationId` | `warehouse.manage` | 更新库位资料和状态；JSON：`name`、可选 `zone`、`status=active|inactive`。 |
 | `GET` | `/api/v1/products/:id/skus/:skuId/warehouse-balances` | `inventory.view` | 读取当前租户下该规格的分仓余额；返回仓库名称、在手、预占、在途、残损、可用量和版本。 |
 | `POST` | `/api/v1/products/:id/skus/:skuId/adjust-stock` | `inventory.operate` | 人工调整所选仓库的在手库存；JSON：`warehouseId`、`stock`、`idempotencyKey`、可选 `reason` / `remark`。同键同 payload 幂等返回，同键不同 payload 返回 `409`；仓库余额、不可变流水、兼容变更日志与 `product_skus.stock` 兼容聚合字段在同一事务提交，并保留尚未迁移订单路径形成的差额，不创建平台同步任务。 |
 | `GET` | `/api/v1/inventory/warehouse-ledger/reconciliation` | `inventory.view` | 分页对账仓库可售合计（各仓在手减残次）与 `product_skus.stock` 兼容投影；返回仓库在手、残次、可售、差异和余额数，支持 `page`、`pageSize`、`status=matched|unmigrated|mismatch`。 |
 | `POST` | `/api/v1/inventory/warehouse-ledger/migrate-legacy` | `inventory.operate` | 重复安全地迁移一批尚无仓库余额的历史规格；JSON：`limit`（默认 100，最大 500）。优先进入启用的默认仓，没有默认仓时创建/复用租户级 `PENDING_ALLOCATION` 待分配仓。 |
+| `GET` | `/api/v1/inventory/warehouse-placements` | `inventory.view` | 查询指定仓库的 SKU 条码/库位绑定；必须提供 `warehouseId`，可选 `productSkuId`、`includeInactive=true`。 |
+| `POST` | `/api/v1/inventory/warehouse-placements` | `inventory.operate` | 创建单仓 SKU 绑定；JSON：`warehouseId`、`productSkuId`、可选 `locationId`、`barcode`、`status`。同仓同 SKU 只能有一条绑定，启用条码在仓内不可重复。 |
+| `PUT` | `/api/v1/inventory/warehouse-placements/:id` | `inventory.operate` | 更新绑定的库位、条码和状态；不会改写历史波次快照。 |
 | `GET` | `/api/v1/inventory/warehouse-transfers` | `inventory.view` | 分页查看当前租户调拨单；支持 `page`、`pageSize`、`status`。 |
 | `GET` | `/api/v1/inventory/warehouse-transfers/:id` | `inventory.view` | 查看调拨单明细和当前 revision。 |
 | `POST` | `/api/v1/inventory/warehouse-transfers` | `inventory.operate` | 创建单仓到单仓调拨草稿；JSON：`idempotencyKey`、`sourceWarehouseId`、`targetWarehouseId`、`reason`、`remark`、`items[]`，第一版每个 SKU 仅允许一条明细。 |
@@ -139,7 +145,7 @@
 | `GET` | `/api/v1/fulfillment-waves/:id` | 波次详情（需要 `order.view`）；返回不可变订单/规格快照及当前拣货、缺货、打包、履约结果。仓库停用后仍保留历史标签。 |
 | `POST` | `/api/v1/fulfillment-waves` | 从同一仓库的已付款、未履约且整单预占完成的订单创建波次（需要 `order.operate`）；JSON：`idempotencyKey`、`warehouseId`、`orderIds`（1–50 个，不重复）、可选 `remark`。创建事务冻结订单/规格快照并写活动归属，同一订单不能进入两个活动波次。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/start` | 开始拣货（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。仅 `draft` 可进入 `picking`。 |
-| `POST` | `/api/v1/fulfillment-waves/:id/picks` | 记录拣货结果（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`lines[]`，每项含 `lineId`、`pickedQuantity`、`shortageQuantity`。数量必须等于冻结需求；存在缺货的订单标记阻断，不能打包。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/picks` | 记录拣货结果（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`lines[]`，每项含 `lineId`、`pickedQuantity`、`shortageQuantity`，可带 `scannedBarcode`、`scannedLocationCode`。波次行创建时冻结绑定；若行配置了条码/库位，提交值必须匹配，否则返回 `409`。成功动作写入 revision 幂等事实和不可变扫描审计记录。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/pack` | 复核并打包一个已完全拣货订单（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`carrier`、`trackingNo`、可选 `trackingUrl`。只保存本地人工物流信息，不扣库存、不创建真实物流单。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/complete` | 明确完成已打包订单（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。逐单调用既有本地履约事务，成功后扣减预占、创建发货单并释放该订单的波次归属；失败保留为 `partial`，不自动重试。完成运行以服务端 revision 固定幂等身份，浏览器刷新后可安全恢复，且并发请求只能有一个租约持有者。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/cancel` | 取消未履约完成的波次（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。取消只释放波次归属，明确保留订单库存预占，后续释放仍由既有订单取消/库存补偿流程处理。 |

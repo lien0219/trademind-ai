@@ -72,6 +72,7 @@ func handleFulfillmentWaveError(c *gin.Context, err error) {
 		errors.Is(err, ErrFulfillmentWaveIdempotency), errors.Is(err, ErrFulfillmentWaveOrderUnavailable),
 		errors.Is(err, ErrFulfillmentWaveOrderAssigned), errors.Is(err, ErrFulfillmentWaveReservation),
 		errors.Is(err, ErrFulfillmentWavePickIncomplete), errors.Is(err, ErrFulfillmentWavePackingIncomplete),
+		errors.Is(err, ErrFulfillmentWaveScanMismatch),
 		errors.Is(err, ErrFulfillmentWaveCompleting), errors.Is(err, ErrFulfillmentWaveRequired),
 		errors.Is(err, idempotency.ErrKeyConflict), errors.Is(err, inventory.ErrOrderInventoryState),
 		errors.Is(err, inventory.ErrInsufficientSKUStock):

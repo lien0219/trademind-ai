@@ -11,9 +11,12 @@ func TestRegisterExposesWarehouseManagementRoutes(t *testing.T) {
 	engine := gin.New()
 	Register(engine.Group("/api/v1"), &Handler{})
 	want := map[string]bool{
-		"GET /api/v1/warehouses":     false,
-		"POST /api/v1/warehouses":    false,
-		"PUT /api/v1/warehouses/:id": false,
+		"GET /api/v1/warehouses":                           false,
+		"POST /api/v1/warehouses":                          false,
+		"PUT /api/v1/warehouses/:id":                       false,
+		"GET /api/v1/warehouses/:id/locations":             false,
+		"POST /api/v1/warehouses/:id/locations":            false,
+		"PUT /api/v1/warehouses/:id/locations/:locationId": false,
 	}
 	for _, route := range engine.Routes() {
 		key := route.Method + " " + route.Path

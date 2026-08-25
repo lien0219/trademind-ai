@@ -76,6 +76,11 @@ describe('Admin route menu configuration', () => {
           name: '库存中心',
           component: './Inventory',
         }),
+        expect.objectContaining({
+          path: '/inventory/warehouse-placements',
+          name: '库位与条码',
+          component: './Inventory/WarehousePlacements',
+        }),
       ]),
     );
     expect(legacyInventoryRoute).not.toHaveProperty('name');

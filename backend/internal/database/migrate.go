@@ -231,6 +231,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&order.FulfillmentWaveLine{},
 		&order.FulfillmentWaveAssignment{},
 		&order.FulfillmentWaveAction{},
+		&order.FulfillmentWavePickScan{},
 		&orderexception.OrderExceptionMark{},
 		&ordersync.OrderSyncTask{},
 		&customersync.CustomerMessageSyncTask{},
@@ -239,7 +240,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&inventory.InventoryChangeLog{},
 		&inventory.OrderInventoryEffect{},
 		&warehouse.Warehouse{},
+		&warehouse.WarehouseLocation{},
 		&inventory.WarehouseStockBalance{},
+		&inventory.WarehouseSKUPlacement{},
 		&inventory.InventoryMovement{},
 		&inventory.WarehouseTransfer{},
 		&inventory.WarehouseTransferItem{},
@@ -297,6 +300,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.RateLimitPolicy{},
 		&performance.QuotaPolicy{},
 	); err != nil {
+		return err
+	}
+	if err := migrateWarehousePlacementIndexes(db); err != nil {
 		return err
 	}
 	if err := backfillOrderInventoryEffectTenants(db); err != nil {

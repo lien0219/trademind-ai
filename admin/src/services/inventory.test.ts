@@ -5,11 +5,19 @@ const requestMocks = vi.hoisted(() => ({
   getWithParams: vi.fn(),
   patchJSON: vi.fn(),
   postJSON: vi.fn(),
+  putJSON: vi.fn(),
 }));
 
 vi.mock('./request', () => requestMocks);
 
-import { createInventoryIdempotencyKey, queryInventoryCenter } from './inventory';
+import {
+  createInventoryIdempotencyKey,
+  createWarehouseSKUPlacement,
+  listWarehouseLocations,
+  listWarehouseSKUPlacements,
+  queryInventoryCenter,
+  updateWarehouseSKUPlacement,
+} from './inventory';
 
 describe('inventory service helpers', () => {
   beforeEach(() => {
@@ -53,6 +61,35 @@ describe('inventory service helpers', () => {
       page: 2,
       pageSize: 50,
       hasException: 'true',
+    });
+  });
+
+  it('keeps placement and location requests tenant-scoped by warehouse', async () => {
+    requestMocks.getJSON.mockResolvedValue({ list: [] });
+    requestMocks.getWithParams.mockResolvedValue({ list: [] });
+
+    await listWarehouseLocations('warehouse-main');
+    await listWarehouseSKUPlacements({ warehouseId: 'warehouse-main', includeInactive: true });
+    await createWarehouseSKUPlacement({ warehouseId: 'warehouse-main', productSkuId: 'sku-1', status: 'active' });
+    await updateWarehouseSKUPlacement('placement-1', { status: 'inactive' });
+
+    expect(requestMocks.getJSON).toHaveBeenCalledWith(
+      '/api/v1/warehouses/warehouse-main/locations?includeInactive=false',
+    );
+    expect(requestMocks.getWithParams).toHaveBeenCalledWith('/api/v1/inventory/warehouse-placements', {
+      warehouseId: 'warehouse-main',
+      productSkuId: undefined,
+      includeInactive: 'true',
+    });
+    expect(requestMocks.postJSON).toHaveBeenCalledWith('/api/v1/inventory/warehouse-placements', {
+      warehouseId: 'warehouse-main',
+      productSkuId: 'sku-1',
+      locationId: undefined,
+      barcode: undefined,
+      status: 'active',
+    });
+    expect(requestMocks.putJSON).toHaveBeenCalledWith('/api/v1/inventory/warehouse-placements/placement-1', {
+      status: 'inactive',
     });
   });
 });

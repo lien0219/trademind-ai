@@ -17,7 +17,7 @@ func newWarehouseTestService(t *testing.T) *Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&Warehouse{}); err != nil {
+	if err := db.AutoMigrate(&Warehouse{}, &WarehouseLocation{}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -25,6 +25,37 @@ func newWarehouseTestService(t *testing.T) *Service {
 		_ = sqlDB.Close()
 	})
 	return &Service{DB: db}
+}
+
+func TestWarehouseLocationsAreTenantScopedAndStable(t *testing.T) {
+	service := newWarehouseTestService(t)
+	ctx := context.Background()
+	main, err := service.Create(ctx, 1, nil, CreateInput{Code: "MAIN", Name: "Main", IsDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := service.Create(ctx, 2, nil, CreateInput{Code: "MAIN", Name: "Other", IsDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := service.CreateLocation(ctx, 1, main.ID, nil, CreateLocationInput{Code: "A-01", Name: "Rack A01", Zone: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateLocation(ctx, 1, main.ID, nil, CreateLocationInput{Code: "A-01", Name: "Duplicate"}); !errors.Is(err, ErrLocationConflict) {
+		t.Fatalf("duplicate location should conflict, got %v", err)
+	}
+	rows, err := service.ListLocations(ctx, 1, main.ID, false)
+	if err != nil || len(rows) != 1 || rows[0].ID != row.ID {
+		t.Fatalf("unexpected tenant locations: %#v %v", rows, err)
+	}
+	if _, err := service.ListLocations(ctx, 1, other.ID, false); !errors.Is(err, ErrWarehouseAbsent) {
+		t.Fatalf("cross-tenant warehouse must be absent, got %v", err)
+	}
+	updated, err := service.UpdateLocation(ctx, 1, main.ID, row.ID, UpdateLocationInput{Name: "Rack A01 updated", Zone: "B", Status: StatusInactive})
+	if err != nil || updated.Status != StatusInactive || updated.Code != "A-01" {
+		t.Fatalf("location code must stay immutable: %#v %v", updated, err)
+	}
 }
 
 func TestUpdateWarehouseKeepsDefaultTenantScoped(t *testing.T) {

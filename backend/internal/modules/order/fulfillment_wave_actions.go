@@ -41,15 +41,19 @@ func findFulfillmentWaveActionTx(tx *gorm.DB, tenantID int64, waveID uuid.UUID, 
 	return true, nil
 }
 
-func createFulfillmentWaveActionTx(tx *gorm.DB, tenantID int64, waveID uuid.UUID, action, key, hash string, expectedRevision, resultRevision int, actor *uuid.UUID) error {
-	err := tx.Create(&FulfillmentWaveAction{
+func createFulfillmentWaveActionTx(tx *gorm.DB, tenantID int64, waveID uuid.UUID, action, key, hash string, expectedRevision, resultRevision int, actor *uuid.UUID) (*FulfillmentWaveAction, error) {
+	row := &FulfillmentWaveAction{
 		TenantID: tenantID, WaveID: waveID, Action: action, IdempotencyKey: key, RequestHash: hash,
 		ExpectedRevision: expectedRevision, ResultRevision: resultRevision, ActorID: actor,
-	}).Error
-	if isFulfillmentWaveUniqueViolation(err) {
-		return ErrFulfillmentWaveIdempotency
 	}
-	return err
+	err := tx.Create(row).Error
+	if isFulfillmentWaveUniqueViolation(err) {
+		return nil, ErrFulfillmentWaveIdempotency
+	}
+	if err != nil {
+		return nil, err
+	}
+	return row, nil
 }
 
 func validateWaveRevisionInput(in FulfillmentWaveRevisionInput) (string, error) {
@@ -104,7 +108,8 @@ func (s *Service) StartFulfillmentWave(ctx context.Context, tenantID int64, prin
 		if result.RowsAffected != 1 {
 			return ErrFulfillmentWaveRevision
 		}
-		return createFulfillmentWaveActionTx(tx, tenantID, id, "start", key, hash, in.ExpectedRevision, resultRevision, actor)
+		_, err = createFulfillmentWaveActionTx(tx, tenantID, id, "start", key, hash, in.ExpectedRevision, resultRevision, actor)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -179,6 +184,12 @@ func (s *Service) RecordFulfillmentWavePick(ctx context.Context, tenantID int64,
 			if input.PickedQty+input.ShortageQty != row.RequiredQty {
 				return ErrFulfillmentWavePickIncomplete
 			}
+			if scanned := strings.TrimSpace(input.ScannedBarcode); row.Barcode != "" && !strings.EqualFold(scanned, row.Barcode) {
+				return ErrFulfillmentWaveScanMismatch
+			}
+			if scanned := strings.TrimSpace(input.ScannedLocationCode); row.LocationCode != "" && !strings.EqualFold(scanned, row.LocationCode) {
+				return ErrFulfillmentWaveScanMismatch
+			}
 			var waveOrder FulfillmentWaveOrder
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND id = ? AND wave_id = ?", tenantID, row.WaveOrderID, id).First(&waveOrder).Error; err != nil {
 				return err
@@ -224,12 +235,32 @@ func (s *Service) RecordFulfillmentWavePick(ctx context.Context, tenantID int64,
 		if result.RowsAffected != 1 {
 			return ErrFulfillmentWaveRevision
 		}
-		return createFulfillmentWaveActionTx(tx, tenantID, id, "record_pick", key, hash, in.ExpectedRevision, resultRevision, actor)
+		action, err := createFulfillmentWaveActionTx(tx, tenantID, id, "record_pick", key, hash, in.ExpectedRevision, resultRevision, actor)
+		if err != nil {
+			return err
+		}
+		scans := make([]FulfillmentWavePickScan, 0, len(lines))
+		for _, row := range rows {
+			input := byID[row.ID]
+			scans = append(scans, FulfillmentWavePickScan{
+				TenantID: tenantID, WaveID: id, WaveLineID: row.ID, ActionID: action.ID,
+				ExpectedBarcode: row.Barcode, ScannedBarcode: strings.TrimSpace(input.ScannedBarcode),
+				ExpectedLocation: row.LocationCode, ScannedLocation: strings.TrimSpace(input.ScannedLocationCode),
+				PickedQty: input.PickedQty, ShortageQty: input.ShortageQty, Validated: true, ActorID: actor,
+			})
+		}
+		return tx.Create(&scans).Error
 	})
 	if err != nil {
 		return nil, err
 	}
-	s.writeFulfillmentWaveLog(ctx, tenantID, actor, id, "record_pick", fmt.Sprintf("lineCount=%d", len(lines)))
+	scannedCount := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line.ScannedBarcode) != "" || strings.TrimSpace(line.ScannedLocationCode) != "" {
+			scannedCount++
+		}
+	}
+	s.writeFulfillmentWaveLog(ctx, tenantID, actor, id, "record_pick", fmt.Sprintf("lineCount=%d scannedLineCount=%d", len(lines), scannedCount))
 	return s.GetFulfillmentWave(ctx, tenantID, principal, id)
 }
 
@@ -376,7 +407,8 @@ func (s *Service) PackFulfillmentWaveOrder(ctx context.Context, tenantID int64, 
 		if result.RowsAffected != 1 {
 			return ErrFulfillmentWaveRevision
 		}
-		return createFulfillmentWaveActionTx(tx, tenantID, waveID, "pack", key, hash, in.ExpectedRevision, resultRevision, actor)
+		_, err = createFulfillmentWaveActionTx(tx, tenantID, waveID, "pack", key, hash, in.ExpectedRevision, resultRevision, actor)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -439,7 +471,8 @@ func (s *Service) CancelFulfillmentWave(ctx context.Context, tenantID int64, pri
 		if err := tx.Where("tenant_id = ? AND wave_id = ?", tenantID, id).Delete(&FulfillmentWaveAssignment{}).Error; err != nil {
 			return err
 		}
-		return createFulfillmentWaveActionTx(tx, tenantID, id, "cancel", key, hash, in.ExpectedRevision, resultRevision, actor)
+		_, err = createFulfillmentWaveActionTx(tx, tenantID, id, "cancel", key, hash, in.ExpectedRevision, resultRevision, actor)
+		return err
 	})
 	if err != nil {
 		return nil, err

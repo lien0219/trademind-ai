@@ -112,6 +112,109 @@ func (h *Handler) Update(c *gin.Context) {
 	response.OK(c, row)
 }
 
+func parseWarehousePathID(c *gin.Context, name string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(c.Param(name))
+	if err != nil || id == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid warehouse location id")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func (h *Handler) ListLocations(c *gin.Context) {
+	tenantID, _, ok := h.authorize(c, adminperm.PermWarehouseView)
+	if !ok {
+		return
+	}
+	warehouseID, ok := parseWarehousePathID(c, "id")
+	if !ok {
+		return
+	}
+	rows, err := h.Svc.ListLocations(c.Request.Context(), tenantID, warehouseID, c.Query("includeInactive") == "true")
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrWarehouseAbsent):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+		case errors.Is(err, ErrInvalidLocation):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	response.OK(c, gin.H{"list": rows})
+}
+
+func (h *Handler) CreateLocation(c *gin.Context) {
+	tenantID, principal, ok := h.authorize(c, adminperm.PermWarehouseManage)
+	if !ok {
+		return
+	}
+	warehouseID, ok := parseWarehousePathID(c, "id")
+	if !ok {
+		return
+	}
+	var in CreateLocationInput
+	if err := httpapi.BindStrictJSON(c, &in, maxJSONBody); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.CreateLocation(c.Request.Context(), tenantID, warehouseID, principalActor(principal), in)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidLocation):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrLocationConflict):
+			response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrWarehouseAbsent):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, Action: "warehouse.location.create", Resource: "warehouse_location", ResourceID: row.ID.String(), Permission: adminperm.PermWarehouseManage, Status: "success", Message: "warehouseId=" + warehouseID.String()})
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) UpdateLocation(c *gin.Context) {
+	tenantID, _, ok := h.authorize(c, adminperm.PermWarehouseManage)
+	if !ok {
+		return
+	}
+	warehouseID, ok := parseWarehousePathID(c, "id")
+	if !ok {
+		return
+	}
+	id, ok := parseWarehousePathID(c, "locationId")
+	if !ok {
+		return
+	}
+	var in UpdateLocationInput
+	if err := httpapi.BindStrictJSON(c, &in, maxJSONBody); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.UpdateLocation(c.Request.Context(), tenantID, warehouseID, id, in)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidLocation):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrLocationAbsent):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, Action: "warehouse.location.update", Resource: "warehouse_location", ResourceID: row.ID.String(), Permission: adminperm.PermWarehouseManage, Status: "success", Message: "warehouseId=" + warehouseID.String()})
+	}
+	response.OK(c, row)
+}
+
 func principalActor(principal *adminperm.Principal) *uuid.UUID {
 	if principal == nil || principal.UserID == uuid.Nil {
 		return nil

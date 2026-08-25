@@ -14,6 +14,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/httpapi"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -173,6 +174,117 @@ func (h *Handler) ListWarehouseBalances(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"list": rows})
+}
+
+func (h *Handler) ListWarehouseSKUPlacements(c *gin.Context) {
+	if !h.requireInventoryRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	warehouseID, err := uuid.Parse(strings.TrimSpace(c.Query("warehouseId")))
+	if err != nil || warehouseID == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid warehouseId")
+		return
+	}
+	var skuID *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("productSkuId")); raw != "" {
+		parsed, parseErr := uuid.Parse(raw)
+		if parseErr != nil || parsed == uuid.Nil {
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid productSkuId")
+			return
+		}
+		skuID = &parsed
+	}
+	rows, err := h.Svc.ListWarehouseSKUPlacements(c.Request.Context(), tenantID, warehouseID, skuID, c.Query("includeInactive") == "true")
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidPlacement):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrPlacementAbsent):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	response.OK(c, gin.H{"list": rows})
+}
+
+func (h *Handler) CreateWarehouseSKUPlacement(c *gin.Context) {
+	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	var in WarehouseSKUPlacementInput
+	if err := httpapi.BindStrictJSON(c, &in, 32<<10); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.CreateWarehouseSKUPlacement(c.Request.Context(), tenantID, adminUUID(c), in)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidPlacement):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrPlacementConflict):
+			response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrPlacementAbsent):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.warehouse_sku_placement.create", Resource: "warehouse_sku_placement", ResourceID: row.ID.String(), Permission: adminperm.PermInventoryOperate, Status: "success", Message: "warehouseId=" + row.WarehouseID.String()})
+	}
+	response.OK(c, row)
+}
+
+func (h *Handler) UpdateWarehouseSKUPlacement(c *gin.Context) {
+	if !h.requireInventoryWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil || id == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid placement id")
+		return
+	}
+	var in WarehouseSKUPlacementUpdateInput
+	if err := httpapi.BindStrictJSON(c, &in, 32<<10); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	row, err := h.Svc.UpdateWarehouseSKUPlacement(c.Request.Context(), tenantID, id, adminUUID(c), in)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidPlacement):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrPlacementConflict):
+			response.Fail(c, http.StatusConflict, response.CodeBadRequest, err.Error())
+		case errors.Is(err, ErrPlacementAbsent):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, err.Error())
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{TenantID: tenantID, AdminUserID: adminUUID(c), Action: "inventory.warehouse_sku_placement.update", Resource: "warehouse_sku_placement", ResourceID: row.ID.String(), Permission: adminperm.PermInventoryOperate, Status: "success", Message: "warehouseId=" + row.WarehouseID.String()})
+	}
+	response.OK(c, row)
 }
 
 // ReconcileWarehouseLedger GET /inventory/warehouse-ledger/reconciliation

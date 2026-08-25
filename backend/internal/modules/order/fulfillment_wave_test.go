@@ -29,7 +29,8 @@ func newFulfillmentWaveFixture(t *testing.T) (*Service, *inventory.Service, *war
 	orders, inv, ctx, orderRow, _, warehouseRow, _ := newFulfillmentFixture(t)
 	if err := orders.DB.AutoMigrate(
 		&FulfillmentWave{}, &FulfillmentWaveOrder{}, &FulfillmentWaveLine{},
-		&FulfillmentWaveAssignment{}, &FulfillmentWaveAction{},
+		&FulfillmentWaveAssignment{}, &FulfillmentWaveAction{}, &FulfillmentWavePickScan{},
+		&warehouse.WarehouseLocation{}, &inventory.WarehouseSKUPlacement{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -169,5 +170,45 @@ func TestFulfillmentWaveWriteRequiresStoreOperateGrant(t *testing.T) {
 		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-start-store-view-only",
 	}); !errors.Is(err, ErrFulfillmentWaveStorePermission) {
 		t.Fatalf("view-only store grant must not advance a wave, got %v", err)
+	}
+}
+
+func TestFulfillmentWavePickValidatesFrozenBarcodeAndLocation(t *testing.T) {
+	orders, _, _, wave, _, line := newFulfillmentWaveFixture(t)
+	if err := orders.DB.Model(&FulfillmentWaveLine{}).Where("id = ?", line.ID).Updates(map[string]any{
+		"barcode": "SCAN-001", "location_code": "A-01", "location_name": "Rack A01",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	ctx, _ := newWaveGinContext(t)
+	started, err := orders.StartFulfillmentWave(ctx.Request.Context(), 41, nil, nil, wave.ID, FulfillmentWaveRevisionInput{ExpectedRevision: wave.Revision, IdempotencyKey: "wave-start-scan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := orders.RecordFulfillmentWavePick(ctx.Request.Context(), 41, nil, nil, wave.ID, RecordFulfillmentWavePickInput{
+		ExpectedRevision: started.Revision, IdempotencyKey: "wave-pick-scan-wrong",
+		Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty, ScannedBarcode: "WRONG", ScannedLocationCode: "A-01"}},
+	}); !errors.Is(err, ErrFulfillmentWaveScanMismatch) {
+		t.Fatalf("wrong barcode must be rejected, got %v", err)
+	}
+	var unchanged FulfillmentWave
+	if err := orders.DB.First(&unchanged, "id = ?", wave.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.Revision != started.Revision {
+		t.Fatalf("rejected scan must not advance revision: %#v", unchanged)
+	}
+	picked, err := orders.RecordFulfillmentWavePick(ctx.Request.Context(), 41, nil, nil, wave.ID, RecordFulfillmentWavePickInput{
+		ExpectedRevision: started.Revision, IdempotencyKey: "wave-pick-scan-right",
+		Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty, ScannedBarcode: "scan-001", ScannedLocationCode: "a-01"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if picked.Status != FulfillmentWavePacking || len(picked.PickScans) != 1 || picked.PickScans[0].Validated != true {
+		t.Fatalf("successful scan must be audited: %#v", picked)
+	}
+	if picked.PickScans[0].ScannedBarcode != "scan-001" || picked.PickScans[0].ExpectedLocation != "A-01" {
+		t.Fatalf("scan audit must preserve operator and expected values: %#v", picked.PickScans[0])
 	}
 }

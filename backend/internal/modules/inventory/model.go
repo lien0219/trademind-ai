@@ -46,6 +46,23 @@ type WarehouseStockBalance struct {
 
 func (WarehouseStockBalance) TableName() string { return "warehouse_stock_balances" }
 
+// WarehouseSKUPlacement binds one SKU in one warehouse to its operator-facing
+// barcode and optional physical location. It is mutable master data; wave
+// lines copy it into an immutable snapshot at wave creation time.
+type WarehouseSKUPlacement struct {
+	model.Base
+	TenantID     int64      `gorm:"not null;uniqueIndex:ux_warehouse_sku_placement,priority:1;index" json:"tenantId"`
+	WarehouseID  uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_warehouse_sku_placement,priority:2;index" json:"warehouseId"`
+	ProductSKUID uuid.UUID  `gorm:"column:product_sku_id;type:char(36);not null;uniqueIndex:ux_warehouse_sku_placement,priority:3;index" json:"productSkuId"`
+	LocationID   *uuid.UUID `gorm:"type:char(36);index" json:"locationId,omitempty"`
+	Barcode      string     `gorm:"size:128;index" json:"barcode,omitempty"`
+	Status       string     `gorm:"size:24;not null;default:active;index" json:"status"`
+	CreatedBy    *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	UpdatedBy    *uuid.UUID `gorm:"type:char(36);index" json:"updatedBy,omitempty"`
+}
+
+func (WarehouseSKUPlacement) TableName() string { return "warehouse_sku_placements" }
+
 // Available returns stock that may be promised to an order or marketplace.
 func (b WarehouseStockBalance) Available() int {
 	available := b.OnHand - b.Reserved - b.Damaged

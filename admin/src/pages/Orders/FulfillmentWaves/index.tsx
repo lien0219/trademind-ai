@@ -68,7 +68,12 @@ const ORDER_STATUS_META: Record<string, { label: string; color: string }> = {
   failed: { label: "履约失败", color: "warning" },
 };
 
-type PickDraft = Record<string, number>;
+type PickDraftValue = {
+  pickedQuantity: number;
+  scannedBarcode: string;
+  scannedLocationCode: string;
+};
+type PickDraft = Record<string, PickDraftValue>;
 type PackDraft = { carrier: string; trackingNo: string; trackingUrl: string };
 
 function waveStatusTag(status: FulfillmentWaveStatus) {
@@ -215,7 +220,14 @@ export default function FulfillmentWavesPage() {
     if (!detail || editablePickLines.length === 0) return;
     setPickDraft(
       Object.fromEntries(
-        editablePickLines.map((line) => [line.id, line.pickedQuantity]),
+        editablePickLines.map((line) => [
+          line.id,
+          {
+            pickedQuantity: line.pickedQuantity,
+            scannedBarcode: "",
+            scannedLocationCode: "",
+          },
+        ]),
       ),
     );
     setPickOpen(true);
@@ -230,11 +242,18 @@ export default function FulfillmentWavesPage() {
         expectedRevision: detail.revision,
         idempotencyKey: createFulfillmentWaveIdempotencyKey("pick"),
         lines: editablePickLines.map((line) => {
-          const pickedQuantity = pickDraft[line.id] ?? 0;
+          const draft = pickDraft[line.id] ?? {
+            pickedQuantity: 0,
+            scannedBarcode: "",
+            scannedLocationCode: "",
+          };
+          const pickedQuantity = draft.pickedQuantity;
           return {
             lineId: line.id,
             pickedQuantity,
             shortageQuantity: line.requiredQuantity - pickedQuantity,
+            scannedBarcode: draft.scannedBarcode.trim() || undefined,
+            scannedLocationCode: draft.scannedLocationCode.trim() || undefined,
           };
         }),
       });
@@ -418,6 +437,16 @@ export default function FulfillmentWavesPage() {
           <Typography.Text type="secondary">
             {line.skuCode || line.skuName || line.productSkuId}
           </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: "库位 / 条码",
+      width: 180,
+      render: (_: unknown, line: FulfillmentWaveLine) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text>{line.locationCode || "未配置库位"}</Typography.Text>
+          <Typography.Text type="secondary">{line.barcode || "未配置条码"}</Typography.Text>
         </Space>
       ),
     },
@@ -764,11 +793,18 @@ export default function FulfillmentWavesPage() {
                     min={0}
                     max={line.requiredQuantity}
                     precision={0}
-                    value={pickDraft[line.id] ?? 0}
+                    value={pickDraft[line.id]?.pickedQuantity ?? 0}
                     onChange={(value) =>
                       setPickDraft((current) => ({
                         ...current,
-                        [line.id]: Number(value ?? 0),
+                        [line.id]: {
+                          ...(current[line.id] ?? {
+                            pickedQuantity: 0,
+                            scannedBarcode: "",
+                            scannedLocationCode: "",
+                          }),
+                          pickedQuantity: Number(value ?? 0),
+                        },
                       }))
                     }
                   />
@@ -778,7 +814,57 @@ export default function FulfillmentWavesPage() {
                 title: "缺货",
                 width: 80,
                 render: (_: unknown, line) =>
-                  line.requiredQuantity - (pickDraft[line.id] ?? 0),
+                  line.requiredQuantity - (pickDraft[line.id]?.pickedQuantity ?? 0),
+              },
+              {
+                title: "扫描条码",
+                width: 170,
+                render: (_: unknown, line) => (
+                  <Input
+                    aria-label={`${line.skuCode || line.productSkuId} 扫描条码`}
+                    maxLength={128}
+                    placeholder={line.barcode || "未配置条码"}
+                    value={pickDraft[line.id]?.scannedBarcode ?? ""}
+                    onChange={(event) =>
+                      setPickDraft((current) => ({
+                        ...current,
+                        [line.id]: {
+                          ...(current[line.id] ?? {
+                            pickedQuantity: 0,
+                            scannedBarcode: "",
+                            scannedLocationCode: "",
+                          }),
+                          scannedBarcode: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                ),
+              },
+              {
+                title: "扫描库位",
+                width: 150,
+                render: (_: unknown, line) => (
+                  <Input
+                    aria-label={`${line.skuCode || line.productSkuId} 扫描库位`}
+                    maxLength={64}
+                    placeholder={line.locationCode || "未配置库位"}
+                    value={pickDraft[line.id]?.scannedLocationCode ?? ""}
+                    onChange={(event) =>
+                      setPickDraft((current) => ({
+                        ...current,
+                        [line.id]: {
+                          ...(current[line.id] ?? {
+                            pickedQuantity: 0,
+                            scannedBarcode: "",
+                            scannedLocationCode: "",
+                          }),
+                          scannedLocationCode: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                ),
               },
             ]}
           />

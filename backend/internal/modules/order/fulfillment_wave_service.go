@@ -36,6 +36,7 @@ var (
 	ErrFulfillmentWaveReservation       = errors.New("order inventory reservation is incomplete")
 	ErrFulfillmentWavePickIncomplete    = errors.New("picking result is incomplete")
 	ErrFulfillmentWavePackingIncomplete = errors.New("packing review is incomplete")
+	ErrFulfillmentWaveScanMismatch      = errors.New("fulfillment wave scan does not match expected sku or location")
 	ErrFulfillmentWaveCompleting        = errors.New("fulfillment wave completion is in progress")
 	ErrFulfillmentWaveRequired          = errors.New("order must be fulfilled from its active fulfillment wave")
 	ErrFulfillmentWaveStorePermission   = errors.New("fulfillment wave store operation permission denied")
@@ -72,9 +73,11 @@ type FulfillmentWaveRevisionInput struct {
 }
 
 type FulfillmentWavePickLineInput struct {
-	LineID      uuid.UUID `json:"lineId"`
-	PickedQty   int       `json:"pickedQuantity"`
-	ShortageQty int       `json:"shortageQuantity"`
+	LineID              uuid.UUID `json:"lineId"`
+	PickedQty           int       `json:"pickedQuantity"`
+	ShortageQty         int       `json:"shortageQuantity"`
+	ScannedBarcode      string    `json:"scannedBarcode,omitempty"`
+	ScannedLocationCode string    `json:"scannedLocationCode,omitempty"`
 }
 
 type RecordFulfillmentWavePickInput struct {
@@ -232,8 +235,13 @@ func (s *Service) loadFulfillmentWave(ctx context.Context, tenantID int64, princ
 	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND wave_id = ?", tenantID, id).Order("sku_code ASC, order_id ASC, id ASC").Find(&lines).Error; err != nil {
 		return nil, err
 	}
+	var scans []FulfillmentWavePickScan
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND wave_id = ?", tenantID, id).Order("created_at ASC, id ASC").Find(&scans).Error; err != nil {
+		return nil, err
+	}
 	wave.Orders = orders
 	wave.Lines = lines
+	wave.PickScans = scans
 	var warehouseLabel struct {
 		Code string
 		Name string
@@ -396,6 +404,20 @@ func (s *Service) CreateFulfillmentWave(ctx context.Context, tenantID int64, pri
 		if err := tx.Where("order_id IN ?", orderIDs).Order("order_id ASC, created_at ASC, id ASC").Find(&items).Error; err != nil {
 			return err
 		}
+		skuIDs := make([]uuid.UUID, 0, len(items))
+		seenSKU := make(map[uuid.UUID]struct{}, len(items))
+		for _, item := range items {
+			if item.ProductSKUID != nil && *item.ProductSKUID != uuid.Nil {
+				if _, ok := seenSKU[*item.ProductSKUID]; !ok {
+					seenSKU[*item.ProductSKUID] = struct{}{}
+					skuIDs = append(skuIDs, *item.ProductSKUID)
+				}
+			}
+		}
+		placementBySKU, err := inventory.LoadWarehouseSKUPlacementSnapshots(ctx, tx, tenantID, in.WarehouseID, skuIDs)
+		if err != nil {
+			return err
+		}
 		itemsByOrder := make(map[uuid.UUID][]OrderItem, len(orders))
 		for _, item := range items {
 			itemsByOrder[item.OrderID] = append(itemsByOrder[item.OrderID], item)
@@ -452,10 +474,12 @@ func (s *Service) CreateFulfillmentWave(ctx context.Context, tenantID int64, pri
 				if !ok || reserve.WarehouseID == nil || *reserve.WarehouseID != in.WarehouseID || reserve.ProductSKUID != *item.ProductSKUID || reserve.Quantity != item.Quantity {
 					return ErrFulfillmentWaveReservation
 				}
+				placement := placementBySKU[*item.ProductSKUID]
 				waveLines = append(waveLines, FulfillmentWaveLine{
 					TenantID: tenantID, WaveID: wave.ID, WaveOrderID: waveOrder.ID, OrderID: orderRow.ID,
 					OrderItemID: item.ID, ProductID: item.ProductID, ProductSKUID: *item.ProductSKUID,
 					ProductTitle: clampWaveText(item.ProductTitle, 512), SKUCode: clampWaveText(item.SKUCode, 128), SKUName: clampWaveText(item.SKUName, 512),
+					Barcode: placement.Barcode, LocationID: placement.LocationID, LocationCode: placement.LocationCode, LocationName: placement.LocationName,
 					RequiredQty: item.Quantity, Status: FulfillmentWaveLinePending,
 				})
 				wave.RequiredQty += item.Quantity

@@ -447,6 +447,11 @@ export default [
         component: './Inventory/Stocktakes',
       },
       {
+        path: '/inventory/warehouse-placements',
+        name: '库位与条码',
+        component: './Inventory/WarehousePlacements',
+      },
+      {
         path: '/inventory/deductions',
         name: '库存扣减记录',
         component: './Inventory/Deductions',

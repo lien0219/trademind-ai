@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, patchJSON, postJSON } from "@/services/request";
+import { getJSON, getWithParams, patchJSON, postJSON, putJSON } from "@/services/request";
 
 export type PaginatedInventory<T> = {
   list: T[];
@@ -154,8 +154,96 @@ export type InventoryWarehouse = {
   isDefault: boolean;
 };
 
+export type WarehouseLocation = {
+  id: string;
+  tenantId: number;
+  warehouseId: string;
+  code: string;
+  name: string;
+  zone?: string;
+  status: 'active' | 'inactive' | string;
+};
+
+export type WarehouseSKUPlacement = {
+  id: string;
+  warehouseId: string;
+  productSkuId: string;
+  locationId?: string;
+  barcode?: string;
+  status: 'active' | 'inactive' | string;
+  skuCode?: string;
+  skuName?: string;
+  productTitle?: string;
+  locationCode?: string;
+  locationName?: string;
+  locationZone?: string;
+};
+
 export async function listInventoryWarehouses() {
   return getJSON<{ list: InventoryWarehouse[] }>("/api/v1/warehouses");
+}
+
+export async function listWarehouseLocations(warehouseId: string, includeInactive = false) {
+  return getJSON<{ list: WarehouseLocation[] }>(
+    `/api/v1/warehouses/${encodeURIComponent(warehouseId)}/locations?includeInactive=${includeInactive ? 'true' : 'false'}`,
+  );
+}
+
+export async function createWarehouseLocation(
+  warehouseId: string,
+  body: { code: string; name: string; zone?: string },
+) {
+  return postJSON<WarehouseLocation>(
+    `/api/v1/warehouses/${encodeURIComponent(warehouseId)}/locations`,
+    body,
+  );
+}
+
+export async function updateWarehouseLocation(
+  warehouseId: string,
+  id: string,
+  body: { name: string; zone?: string; status: string },
+) {
+  return putJSON<WarehouseLocation, typeof body>(
+    `/api/v1/warehouses/${encodeURIComponent(warehouseId)}/locations/${encodeURIComponent(id)}`,
+    body,
+  );
+}
+
+export async function listWarehouseSKUPlacements(params: {
+  warehouseId: string;
+  productSkuId?: string;
+  includeInactive?: boolean;
+}) {
+  return getWithParams<{ list: WarehouseSKUPlacement[] }>(
+    '/api/v1/inventory/warehouse-placements',
+    {
+      warehouseId: params.warehouseId,
+      productSkuId: params.productSkuId,
+      includeInactive: params.includeInactive ? 'true' : undefined,
+    },
+  );
+}
+
+export async function createWarehouseSKUPlacement(body: {
+  warehouseId: string;
+  productSkuId: string;
+  locationId?: string;
+  barcode?: string;
+  status: string;
+}) {
+  return postJSON<WarehouseSKUPlacement>('/api/v1/inventory/warehouse-placements', body);
+}
+
+export async function updateWarehouseSKUPlacement(id: string, body: {
+  locationId?: string;
+  barcode?: string;
+  status: string;
+}) {
+  return putJSON<WarehouseSKUPlacement, typeof body>(
+    `/api/v1/inventory/warehouse-placements/${encodeURIComponent(id)}`,
+    body,
+  );
 }
 
 export type WarehouseTransferStatus = 'draft' | 'pending_approval' | 'approved' | 'in_transit' | 'received' | 'cancelled' | string;

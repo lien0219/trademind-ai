@@ -50,18 +50,19 @@ type FulfillmentWave struct {
 	// CompletionBaseRevision pins all retries of one explicit completion run to
 	// a server-owned idempotency identity. It is intentionally not exposed to
 	// clients and is cleared when the run is finalized.
-	CompletionBaseRevision int                    `gorm:"not null;default:0" json:"-"`
-	CreatedBy              *uuid.UUID             `gorm:"type:char(36);index" json:"createdBy,omitempty"`
-	StartedBy              *uuid.UUID             `gorm:"type:char(36);index" json:"startedBy,omitempty"`
-	StartedAt              *time.Time             `json:"startedAt,omitempty"`
-	CompletedBy            *uuid.UUID             `gorm:"type:char(36);index" json:"completedBy,omitempty"`
-	CompletedAt            *time.Time             `json:"completedAt,omitempty"`
-	CancelledBy            *uuid.UUID             `gorm:"type:char(36);index" json:"cancelledBy,omitempty"`
-	CancelledAt            *time.Time             `json:"cancelledAt,omitempty"`
-	WarehouseCode          string                 `gorm:"-" json:"warehouseCode,omitempty"`
-	WarehouseName          string                 `gorm:"-" json:"warehouseName,omitempty"`
-	Orders                 []FulfillmentWaveOrder `gorm:"foreignKey:WaveID" json:"orders,omitempty"`
-	Lines                  []FulfillmentWaveLine  `gorm:"foreignKey:WaveID" json:"lines,omitempty"`
+	CompletionBaseRevision int                       `gorm:"not null;default:0" json:"-"`
+	CreatedBy              *uuid.UUID                `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	StartedBy              *uuid.UUID                `gorm:"type:char(36);index" json:"startedBy,omitempty"`
+	StartedAt              *time.Time                `json:"startedAt,omitempty"`
+	CompletedBy            *uuid.UUID                `gorm:"type:char(36);index" json:"completedBy,omitempty"`
+	CompletedAt            *time.Time                `json:"completedAt,omitempty"`
+	CancelledBy            *uuid.UUID                `gorm:"type:char(36);index" json:"cancelledBy,omitempty"`
+	CancelledAt            *time.Time                `json:"cancelledAt,omitempty"`
+	WarehouseCode          string                    `gorm:"-" json:"warehouseCode,omitempty"`
+	WarehouseName          string                    `gorm:"-" json:"warehouseName,omitempty"`
+	Orders                 []FulfillmentWaveOrder    `gorm:"foreignKey:WaveID" json:"orders,omitempty"`
+	Lines                  []FulfillmentWaveLine     `gorm:"foreignKey:WaveID" json:"lines,omitempty"`
+	PickScans              []FulfillmentWavePickScan `gorm:"foreignKey:WaveID" json:"pickScans,omitempty"`
 }
 
 func (FulfillmentWave) TableName() string { return "fulfillment_waves" }
@@ -104,6 +105,10 @@ type FulfillmentWaveLine struct {
 	ProductTitle string     `gorm:"size:512" json:"productTitle,omitempty"`
 	SKUCode      string     `gorm:"size:128" json:"skuCode,omitempty"`
 	SKUName      string     `gorm:"size:512" json:"skuName,omitempty"`
+	Barcode      string     `gorm:"size:128;index" json:"barcode,omitempty"`
+	LocationID   *uuid.UUID `gorm:"type:char(36);index" json:"locationId,omitempty"`
+	LocationCode string     `gorm:"size:64" json:"locationCode,omitempty"`
+	LocationName string     `gorm:"size:160" json:"locationName,omitempty"`
 	RequiredQty  int        `gorm:"not null" json:"requiredQuantity"`
 	PickedQty    int        `gorm:"not null;default:0" json:"pickedQuantity"`
 	ShortageQty  int        `gorm:"not null;default:0" json:"shortageQuantity"`
@@ -138,3 +143,23 @@ type FulfillmentWaveAction struct {
 }
 
 func (FulfillmentWaveAction) TableName() string { return "fulfillment_wave_actions" }
+
+// FulfillmentWavePickScan is an immutable validation fact for one recorded
+// pick action. It preserves expected and operator-provided values for audit.
+type FulfillmentWavePickScan struct {
+	model.HardDeleteBase
+	TenantID         int64      `gorm:"not null;index" json:"tenantId"`
+	WaveID           uuid.UUID  `gorm:"type:char(36);not null;index" json:"waveId"`
+	WaveLineID       uuid.UUID  `gorm:"type:char(36);not null;index" json:"waveLineId"`
+	ActionID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"actionId"`
+	ExpectedBarcode  string     `gorm:"size:128" json:"expectedBarcode,omitempty"`
+	ScannedBarcode   string     `gorm:"size:128" json:"scannedBarcode,omitempty"`
+	ExpectedLocation string     `gorm:"size:64" json:"expectedLocationCode,omitempty"`
+	ScannedLocation  string     `gorm:"size:64" json:"scannedLocationCode,omitempty"`
+	PickedQty        int        `gorm:"not null" json:"pickedQuantity"`
+	ShortageQty      int        `gorm:"not null" json:"shortageQuantity"`
+	Validated        bool       `gorm:"not null;default:true" json:"validated"`
+	ActorID          *uuid.UUID `gorm:"type:char(36);index" json:"actorId,omitempty"`
+}
+
+func (FulfillmentWavePickScan) TableName() string { return "fulfillment_wave_pick_scans" }
