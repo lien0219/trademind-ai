@@ -121,8 +121,8 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/orders` | 订单列表（需要 `order.view`）；支持订单、支付、履约、库存 effect 和同步状态筛选。 |
-| `GET` | `/api/v1/orders/warehouse-allocations` | 履约分仓工作台列表（需要 `order.view`）；只返回已付款、未履约订单，支持 `page`、`pageSize`、`keyword` 和 `assignment=all|allocated|unallocated`。候选状态为 `allocated`、`allocatable` 或 `blocked`。 |
-| `GET` | `/api/v1/orders/:id/warehouse-allocation` | 只读计算单订单的单仓候选（需要 `order.view`）；每个候选返回按 SKU 聚合的需求、可用量、缺口和 64 位 revision。查询不会创建仓库余额或修改库存。 |
+| `GET` | `/api/v1/orders/warehouse-allocations` | 履约分仓工作台列表（需要 `order.view`）；只返回已付款、未履约订单，支持 `page`、`pageSize`、`keyword` 和 `assignment=all|allocated|unallocated`。候选状态为 `allocated`、`allocatable` 或 `blocked`；未分仓订单同时返回版本化推荐规则、推荐仓依据和候选排名。 |
+| `GET` | `/api/v1/orders/:id/warehouse-allocation` | 只读计算单订单的单仓候选（需要 `order.view`）；返回版本化推荐规则、候选排名、理由，以及按 SKU 聚合的需求、可用量、缺口和 64 位 revision。查询不会创建仓库余额或修改库存；阻断订单可从 Admin 详情跳转现有异常工作台处置。 |
 | `POST` | `/api/v1/orders/:id/warehouse-allocation` | 人工确认分仓（需要 `order.operate`）；JSON：`warehouseId`、`expectedRevision`、`idempotencyKey`。事务内重新校验候选、绑定订单仓库并整单预占；任一 SKU、库存投影、仓库状态、revision 或可用量异常均返回 `409` 且整笔回滚。同键同 payload 重放成功结果，不调用真实平台或物流接口。 |
 | `POST` | `/api/v1/orders` | 创建订单（需要 `order.operate`）；可含 `warehouseId`、`items[]`、`deductInventory`、`syncInventory`。当创建后应用库存且为手工订单时仓库必填。若订单已持久化但库存处理失败，返回 `409`，`data` 包含 `orderId`、`order` 和 `inventoryDeduction`，可在详情中重试。 |
 | `GET` | `/api/v1/orders/:id` | 订单详情（需要 `order.view`）；返回订单级 `warehouseId` 与库存生命周期摘要。 |
@@ -147,7 +147,7 @@
 | `GET` | `/api/v1/orders/fulfillment-reconciliation` | 只读订单履约库存对账工作台（需要 `order.view`）；支持 `page`、`pageSize`、`orderNo`、`warehouseId`、`status`、`fulfillmentStatus`、`reconciliationStatus=matched|pending|mismatch|blocked`，返回预占/出库/释放/回补的 expected 与 actual、发货单和 effect 数量及最后库存动作时间。 |
 | `GET` | `/api/v1/orders/:id/fulfillment-reconciliation` | 只读订单履约库存对账详情（需要 `order.view`）；返回订单状态、履约仓库、各库存动作数量、发货单/effect 数量、最后库存动作时间和按时间排序的 effect、库存流水、发货单时间线；`mismatch` / `blocked` 可跳转订单异常工作台。 |
 
-分仓候选要求全部明细已绑定本地 SKU、单一启用仓可满足整单可用量，并要求各 SKU 的仓库可售合计与 `product_skus.stock` 兼容投影一致。revision 绑定订单、SKU 数量、仓库状态、余额版本和投影快照；确认事务还会按余额版本复核并发变化。波次只消费已完成的整单单仓分配，不做自动分仓、跨仓拆单或库存重算。预占不会提前修改 `product_skus.stock`；波次完成时的实际出库和后续回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。
+分仓候选要求全部明细已绑定本地 SKU、单一启用仓可满足整单可用量，并要求各 SKU 的仓库可售合计与 `product_skus.stock` 兼容投影一致。只读推荐规则 `single_warehouse_default_first_v1` 按“整单可满足、默认仓优先、仓库编码稳定排序”生成候选排名和理由；它不自动绑定仓库或拆单。revision 绑定订单、SKU 数量、仓库状态、余额版本和投影快照；确认事务还会按余额版本复核并发变化。波次只消费已完成的整单单仓分配，不做自动分仓、跨仓拆单或库存重算。预占不会提前修改 `product_skus.stock`；波次完成时的实际出库和后续回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。
 
 ## 销售售后 / 退货退款 V1
 

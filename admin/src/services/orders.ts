@@ -183,6 +183,11 @@ export type WarehouseAllocationCandidateLine = {
   shortage: number;
 };
 
+export type WarehouseAllocationRecommendationReason = {
+  code: string;
+  message: string;
+};
+
 export type WarehouseAllocationCandidate = {
   warehouseId: string;
   warehouseCode: string;
@@ -190,6 +195,8 @@ export type WarehouseAllocationCandidate = {
   isDefault: boolean;
   eligible: boolean;
   shortageCount: number;
+  recommendationRank?: number;
+  recommendationReasons?: WarehouseAllocationRecommendationReason[];
   revision: string;
   lines: WarehouseAllocationCandidateLine[];
 };
@@ -202,7 +209,9 @@ export type WarehouseAllocation = {
   warehouseId?: string;
   warehouseCode?: string;
   warehouseName?: string;
+  recommendationPolicy?: string;
   recommendedWarehouseId?: string;
+  recommendedWarehouseReasons?: WarehouseAllocationRecommendationReason[];
   candidateCount: number;
   eligibleCandidateCount: number;
   blocks: WarehouseAllocationBlock[];
@@ -217,6 +226,7 @@ export type WarehouseAllocationListRow = OrderListRow & {
   recommendedWarehouseId?: string;
   recommendedWarehouseCode?: string;
   recommendedWarehouseName?: string;
+  recommendedWarehouseReasons?: WarehouseAllocationRecommendationReason[];
   candidateCount: number;
   eligibleCandidateCount: number;
   blocks: WarehouseAllocationBlock[];

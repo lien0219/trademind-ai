@@ -105,8 +105,35 @@ func TestWarehouseAllocationCandidatesAreSingleWarehouseAndFailClosed(t *testing
 	if evaluation.RecommendedWarehouseID == nil || *evaluation.RecommendedWarehouseID != fx.main.ID {
 		t.Fatalf("default sufficient warehouse should be recommended: %#v", evaluation.RecommendedWarehouseID)
 	}
+	if evaluation.RecommendationPolicy != inventory.WarehouseAllocationRecommendationPolicy || len(evaluation.RecommendedWarehouseReasons) != 3 {
+		t.Fatalf("recommendation policy and explanation must be explicit: %#v", evaluation)
+	}
+	if evaluation.Candidates[0].RecommendationRank != 1 || len(evaluation.Candidates[0].RecommendationReasons) != 2 || evaluation.Candidates[0].RecommendationReasons[0].Code != "FULL_ORDER_COVERAGE" {
+		t.Fatalf("recommended candidate must expose deterministic reasons: %#v", evaluation.Candidates[0])
+	}
 	if evaluation.Candidates[0].WarehouseID != fx.main.ID || !evaluation.Candidates[0].Eligible || evaluation.Candidates[1].Eligible {
 		t.Fatalf("candidate ordering and eligibility must be deterministic: %#v", evaluation.Candidates)
+	}
+	if err := fx.db.Model(&inventory.WarehouseStockBalance{}).
+		Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", 41, fx.main.ID, fx.sku.ID).
+		Update("on_hand", 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.db.Model(&inventory.WarehouseStockBalance{}).
+		Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", 41, fx.secondary.ID, fx.sku.ID).
+		Update("on_hand", 10).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.db.Model(&product.ProductSKU{}).Where("id = ?", fx.sku.ID).Update("stock", 11).Error; err != nil {
+		t.Fatal(err)
+	}
+	evaluations, err = fx.inv.EvaluateOrderWarehouseAllocations(t.Context(), 41, []uuid.UUID{fx.order.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eligibleBackup := evaluations[fx.order.ID]
+	if eligibleBackup.RecommendedWarehouseID == nil || *eligibleBackup.RecommendedWarehouseID != fx.secondary.ID || eligibleBackup.Candidates[0].WarehouseID != fx.secondary.ID || !eligibleBackup.Candidates[0].Eligible {
+		t.Fatalf("an eligible backup must outrank a default warehouse with shortage: %#v", eligibleBackup)
 	}
 
 	if err := fx.db.Model(&product.ProductSKU{}).Where("id = ?", fx.sku.ID).Update("stock", 99).Error; err != nil {

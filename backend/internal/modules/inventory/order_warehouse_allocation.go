@@ -18,6 +18,8 @@ const (
 	WarehouseAllocationAllocated   = "allocated"
 	WarehouseAllocationAllocatable = "allocatable"
 	WarehouseAllocationBlocked     = "blocked"
+
+	WarehouseAllocationRecommendationPolicy = "single_warehouse_default_first_v1"
 )
 
 var (
@@ -28,6 +30,14 @@ var (
 
 // WarehouseAllocationBlock is a stable machine code plus safe operator copy.
 type WarehouseAllocationBlock struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// WarehouseAllocationRecommendationReason is an operator-visible explanation
+// for the deterministic candidate ordering. It is deliberately read-only and
+// derived from the same snapshot that produces the candidate revision.
+type WarehouseAllocationRecommendationReason struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
@@ -47,28 +57,32 @@ type WarehouseAllocationCandidateLine struct {
 
 // WarehouseAllocationCandidate is one single-warehouse fulfillment option.
 type WarehouseAllocationCandidate struct {
-	WarehouseID   uuid.UUID                          `json:"warehouseId"`
-	WarehouseCode string                             `json:"warehouseCode"`
-	WarehouseName string                             `json:"warehouseName"`
-	IsDefault     bool                               `json:"isDefault"`
-	Eligible      bool                               `json:"eligible"`
-	ShortageCount int                                `json:"shortageCount"`
-	Revision      string                             `json:"revision"`
-	Lines         []WarehouseAllocationCandidateLine `json:"lines"`
+	WarehouseID           uuid.UUID                                 `json:"warehouseId"`
+	WarehouseCode         string                                    `json:"warehouseCode"`
+	WarehouseName         string                                    `json:"warehouseName"`
+	IsDefault             bool                                      `json:"isDefault"`
+	Eligible              bool                                      `json:"eligible"`
+	ShortageCount         int                                       `json:"shortageCount"`
+	RecommendationRank    int                                       `json:"recommendationRank"`
+	RecommendationReasons []WarehouseAllocationRecommendationReason `json:"recommendationReasons"`
+	Revision              string                                    `json:"revision"`
+	Lines                 []WarehouseAllocationCandidateLine        `json:"lines"`
 }
 
 // WarehouseAllocationEvaluation is the fail-closed allocation projection for one order.
 type WarehouseAllocationEvaluation struct {
-	OrderID                uuid.UUID                      `json:"orderId"`
-	Status                 string                         `json:"status"`
-	WarehouseID            *uuid.UUID                     `json:"warehouseId,omitempty"`
-	WarehouseCode          string                         `json:"warehouseCode,omitempty"`
-	WarehouseName          string                         `json:"warehouseName,omitempty"`
-	RecommendedWarehouseID *uuid.UUID                     `json:"recommendedWarehouseId,omitempty"`
-	CandidateCount         int                            `json:"candidateCount"`
-	EligibleCandidateCount int                            `json:"eligibleCandidateCount"`
-	Blocks                 []WarehouseAllocationBlock     `json:"blocks"`
-	Candidates             []WarehouseAllocationCandidate `json:"candidates"`
+	OrderID                     uuid.UUID                                 `json:"orderId"`
+	Status                      string                                    `json:"status"`
+	WarehouseID                 *uuid.UUID                                `json:"warehouseId,omitempty"`
+	WarehouseCode               string                                    `json:"warehouseCode,omitempty"`
+	WarehouseName               string                                    `json:"warehouseName,omitempty"`
+	RecommendationPolicy        string                                    `json:"recommendationPolicy"`
+	RecommendedWarehouseID      *uuid.UUID                                `json:"recommendedWarehouseId,omitempty"`
+	RecommendedWarehouseReasons []WarehouseAllocationRecommendationReason `json:"recommendedWarehouseReasons"`
+	CandidateCount              int                                       `json:"candidateCount"`
+	EligibleCandidateCount      int                                       `json:"eligibleCandidateCount"`
+	Blocks                      []WarehouseAllocationBlock                `json:"blocks"`
+	Candidates                  []WarehouseAllocationCandidate            `json:"candidates"`
 }
 
 type allocationSKURow struct {
@@ -239,8 +253,49 @@ func allocationCandidateRevision(order orderMirror, wh warehouse.Warehouse, line
 	return idempotency.HashRequest(payload)
 }
 
+func allocationCandidateReasons(candidate WarehouseAllocationCandidate) []WarehouseAllocationRecommendationReason {
+	reasons := make([]WarehouseAllocationRecommendationReason, 0, 2)
+	if candidate.Eligible {
+		reasons = append(reasons, WarehouseAllocationRecommendationReason{
+			Code: "FULL_ORDER_COVERAGE", Message: "可用库存覆盖整单需求",
+		})
+	} else {
+		reasons = append(reasons, WarehouseAllocationRecommendationReason{
+			Code: "STOCK_SHORTAGE", Message: fmt.Sprintf("有 %d 个 SKU 存在库存缺口", candidate.ShortageCount),
+		})
+	}
+	if candidate.IsDefault {
+		reasons = append(reasons, WarehouseAllocationRecommendationReason{
+			Code: "DEFAULT_WAREHOUSE", Message: "默认仓优先",
+		})
+	} else {
+		reasons = append(reasons, WarehouseAllocationRecommendationReason{
+			Code: "FALLBACK_WAREHOUSE", Message: "非默认仓作为备选",
+		})
+	}
+	return reasons
+}
+
+func allocationCandidateLess(left, right WarehouseAllocationCandidate) bool {
+	if left.Eligible != right.Eligible {
+		return left.Eligible
+	}
+	if left.IsDefault != right.IsDefault {
+		return left.IsDefault
+	}
+	if left.WarehouseCode != right.WarehouseCode {
+		return left.WarehouseCode < right.WarehouseCode
+	}
+	return left.WarehouseID.String() < right.WarehouseID.String()
+}
+
 func evaluateAllocation(snapshot *allocationSnapshot, order orderMirror) WarehouseAllocationEvaluation {
-	out := WarehouseAllocationEvaluation{OrderID: order.ID, Status: WarehouseAllocationBlocked, Blocks: []WarehouseAllocationBlock{}, Candidates: []WarehouseAllocationCandidate{}}
+	out := WarehouseAllocationEvaluation{
+		OrderID: order.ID, Status: WarehouseAllocationBlocked,
+		RecommendationPolicy: WarehouseAllocationRecommendationPolicy,
+		Blocks:               []WarehouseAllocationBlock{}, Candidates: []WarehouseAllocationCandidate{},
+		RecommendedWarehouseReasons: []WarehouseAllocationRecommendationReason{},
+	}
 	items := snapshot.items[order.ID]
 	required, skuIDs, validItems := aggregateAllocationItems(items)
 	if orderInventoryActionFor(order) != orderInventoryReserve {
@@ -347,13 +402,28 @@ func evaluateAllocation(snapshot *allocationSnapshot, order orderMirror) Warehou
 				candidate.ShortageCount++
 			}
 		}
+		candidate.RecommendationReasons = allocationCandidateReasons(candidate)
 		candidate.Revision = allocationCandidateRevision(order, wh, candidate.Lines)
 		out.Candidates = append(out.Candidates, candidate)
-		if candidate.Eligible {
-			out.EligibleCandidateCount++
-			if out.RecommendedWarehouseID == nil {
-				out.RecommendedWarehouseID = ptrUUID(wh.ID)
-			}
+	}
+	sort.SliceStable(out.Candidates, func(i, j int) bool {
+		return allocationCandidateLess(out.Candidates[i], out.Candidates[j])
+	})
+	for i := range out.Candidates {
+		out.Candidates[i].RecommendationRank = i + 1
+		if !out.Candidates[i].Eligible {
+			continue
+		}
+		out.EligibleCandidateCount++
+		if out.RecommendedWarehouseID == nil {
+			out.RecommendedWarehouseID = ptrUUID(out.Candidates[i].WarehouseID)
+			out.RecommendedWarehouseReasons = append(
+				out.RecommendedWarehouseReasons,
+				out.Candidates[i].RecommendationReasons...,
+			)
+			out.RecommendedWarehouseReasons = append(out.RecommendedWarehouseReasons, WarehouseAllocationRecommendationReason{
+				Code: "RECOMMENDED_BY_POLICY", Message: "按整单可满足、默认仓优先、仓库编码稳定排序",
+			})
 		}
 	}
 	out.CandidateCount = len(out.Candidates)

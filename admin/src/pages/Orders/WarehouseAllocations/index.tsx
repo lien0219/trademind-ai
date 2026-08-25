@@ -60,6 +60,13 @@ function candidateLabel(candidate: WarehouseAllocationCandidate) {
   return `${candidate.warehouseCode} · ${candidate.warehouseName}`;
 }
 
+function recommendationPolicyLabel(policy?: string) {
+  if (policy === "single_warehouse_default_first_v1") {
+    return "整单可满足优先，其次默认仓，再按仓库编码稳定排序";
+  }
+  return policy || "当前接口未返回推荐规则";
+}
+
 export default function WarehouseAllocationsPage() {
   const { can, readonly } = usePermission();
   const canOperate = !readonly && can(PERMISSIONS.ORDER_OPERATE);
@@ -288,7 +295,18 @@ export default function WarehouseAllocationsPage() {
             : "已绑定仓库";
         }
         if (row.recommendedWarehouseId) {
-          return `${row.recommendedWarehouseCode} · ${row.recommendedWarehouseName}`;
+          return (
+            <Space direction="vertical" size={0}>
+              <span>
+                {row.recommendedWarehouseCode} · {row.recommendedWarehouseName}
+              </span>
+              {row.recommendedWarehouseReasons?.[0]?.message ? (
+                <Typography.Text type="secondary" ellipsis>
+                  {row.recommendedWarehouseReasons[0].message}
+                </Typography.Text>
+              ) : null}
+            </Space>
+          );
         }
         return <Typography.Text type="secondary">暂无可用建议</Typography.Text>;
       },
@@ -486,8 +504,18 @@ export default function WarehouseAllocationsPage() {
                 <Descriptions.Item label="可用候选">
                   {detail.eligibleCandidateCount} / {detail.candidateCount}
                 </Descriptions.Item>
+                <Descriptions.Item label="推荐规则">
+                  {recommendationPolicyLabel(detail.recommendationPolicy)}
+                </Descriptions.Item>
+                {detail.recommendedWarehouseReasons?.length ? (
+                  <Descriptions.Item label="推荐依据">
+                    {detail.recommendedWarehouseReasons
+                      .map((reason) => reason.message)
+                      .join("；")}
+                  </Descriptions.Item>
+                ) : null}
                 {detail.warehouseId ? (
-                  <Descriptions.Item label="已分配仓库" span={2}>
+                  <Descriptions.Item label="已分配仓库" span={{ xs: 1, sm: 2 }}>
                     {detail.warehouseCode} · {detail.warehouseName}
                   </Descriptions.Item>
                 ) : null}
@@ -500,6 +528,19 @@ export default function WarehouseAllocationsPage() {
                   description={detail.blocks
                     .map((block) => block.message)
                     .join("；")}
+                  action={
+                    <Button
+                      type="link"
+                      onClick={() =>
+                        drawer.id &&
+                        history.push(
+                          `/orders/exceptions?orderId=${encodeURIComponent(drawer.id)}`,
+                        )
+                      }
+                    >
+                      打开异常工作台
+                    </Button>
+                  }
                 />
               ) : null}
               {detail.candidates.map((candidate) => (
@@ -525,6 +566,11 @@ export default function WarehouseAllocationsPage() {
                       </Typography.Text>
                     </Radio>
                     <Space wrap>
+                      {candidate.recommendationRank ? (
+                        <Tag color="processing">
+                          推荐排序 #{candidate.recommendationRank}
+                        </Tag>
+                      ) : null}
                       {candidate.isDefault ? (
                         <Tag color="blue">默认仓</Tag>
                       ) : null}
@@ -534,6 +580,13 @@ export default function WarehouseAllocationsPage() {
                         <Tag color="error">库存不足</Tag>
                       )}
                     </Space>
+                    {candidate.recommendationReasons?.length ? (
+                      <Typography.Text type="secondary">
+                        {candidate.recommendationReasons
+                          .map((reason) => reason.message)
+                          .join("；")}
+                      </Typography.Text>
+                    ) : null}
                     <Table<WarehouseAllocationCandidateLine>
                       size="small"
                       rowKey="productSkuId"

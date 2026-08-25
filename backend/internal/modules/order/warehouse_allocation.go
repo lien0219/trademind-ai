@@ -27,16 +27,17 @@ var (
 
 type WarehouseAllocationListRow struct {
 	ListOrderRow
-	AllocationStatus         string                               `json:"allocationStatus"`
-	WarehouseID              *uuid.UUID                           `json:"warehouseId,omitempty"`
-	WarehouseCode            string                               `json:"warehouseCode,omitempty"`
-	WarehouseName            string                               `json:"warehouseName,omitempty"`
-	RecommendedWarehouseID   *uuid.UUID                           `json:"recommendedWarehouseId,omitempty"`
-	RecommendedWarehouseCode string                               `json:"recommendedWarehouseCode,omitempty"`
-	RecommendedWarehouseName string                               `json:"recommendedWarehouseName,omitempty"`
-	CandidateCount           int                                  `json:"candidateCount"`
-	EligibleCandidateCount   int                                  `json:"eligibleCandidateCount"`
-	Blocks                   []inventory.WarehouseAllocationBlock `json:"blocks"`
+	AllocationStatus            string                                              `json:"allocationStatus"`
+	WarehouseID                 *uuid.UUID                                          `json:"warehouseId,omitempty"`
+	WarehouseCode               string                                              `json:"warehouseCode,omitempty"`
+	WarehouseName               string                                              `json:"warehouseName,omitempty"`
+	RecommendedWarehouseID      *uuid.UUID                                          `json:"recommendedWarehouseId,omitempty"`
+	RecommendedWarehouseCode    string                                              `json:"recommendedWarehouseCode,omitempty"`
+	RecommendedWarehouseName    string                                              `json:"recommendedWarehouseName,omitempty"`
+	RecommendedWarehouseReasons []inventory.WarehouseAllocationRecommendationReason `json:"recommendedWarehouseReasons"`
+	CandidateCount              int                                                 `json:"candidateCount"`
+	EligibleCandidateCount      int                                                 `json:"eligibleCandidateCount"`
+	Blocks                      []inventory.WarehouseAllocationBlock                `json:"blocks"`
 }
 
 type WarehouseAllocationListResult struct {
@@ -119,7 +120,8 @@ func (s *Service) ListWarehouseAllocations(c *gin.Context, inv *inventory.Servic
 			ListOrderRow: row, AllocationStatus: evaluation.Status, WarehouseID: evaluation.WarehouseID,
 			WarehouseCode: evaluation.WarehouseCode, WarehouseName: evaluation.WarehouseName,
 			RecommendedWarehouseID: evaluation.RecommendedWarehouseID, CandidateCount: evaluation.CandidateCount,
-			EligibleCandidateCount: evaluation.EligibleCandidateCount, Blocks: evaluation.Blocks,
+			RecommendedWarehouseReasons: evaluation.RecommendedWarehouseReasons,
+			EligibleCandidateCount:      evaluation.EligibleCandidateCount, Blocks: evaluation.Blocks,
 		}
 		if candidate := recommendedAllocationCandidate(evaluation); candidate != nil {
 			out.RecommendedWarehouseCode = candidate.WarehouseCode

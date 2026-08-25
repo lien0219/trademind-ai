@@ -6,6 +6,8 @@ import {
   E2E_ALLOCATION_REVISION,
   E2E_ALLOCATION_WAREHOUSE_ID,
   allocatedWarehouseAllocationListResponse,
+  blockedWarehouseAllocationListResponse,
+  e2eBlockedWarehouseAllocation,
   e2eWarehouseAllocation,
 } from "../mocks/order-warehouse-allocation";
 import {
@@ -42,6 +44,15 @@ test.describe("@smoke order warehouse allocation V1", () => {
       ).toBeVisible();
       await expect(
         allocationDrawer.getByText("SECOND · E2E 华南备仓", { exact: true }),
+      ).toBeVisible();
+      const recommendedCandidate = allocationDrawer.locator(".ant-card").first();
+      await expect(
+        recommendedCandidate.getByText("推荐排序 #1"),
+      ).toBeVisible();
+      await expect(
+        recommendedCandidate.getByText("可用库存覆盖整单需求；默认仓优先", {
+          exact: true,
+        }),
       ).toBeVisible();
       await expectNoRootOverflow(page);
       await admin.writeGuard.expectRequestCount("unexpected", 0);
@@ -148,6 +159,43 @@ test.describe("@smoke order warehouse allocation V1", () => {
     await expect(
       page.locator("#root .ant-alert-message").getByText("E2E 分仓列表失败"),
     ).toBeVisible();
+    await admin.writeGuard.expectRequestCount("unexpected", 0);
+  });
+
+  test("links a blocked allocation to the existing exception workbench without writing", async ({
+    admin,
+    page,
+  }) => {
+    await page.route(
+      "**/api/v1/orders/warehouse-allocations*",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(blockedWarehouseAllocationListResponse()),
+        });
+      },
+    );
+    await page.route(
+      `**/api/v1/orders/${E2E_ALLOCATION_ORDER_ID}/warehouse-allocation`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(ok(e2eBlockedWarehouseAllocation)),
+        });
+      },
+    );
+
+    await admin.goto("/orders/warehouse-allocations");
+    await page.getByRole("button", { name: "查看" }).click();
+    await expect(
+      page.getByRole("button", { name: "打开异常工作台" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "打开异常工作台" }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/orders/exceptions\\?orderId=${E2E_ALLOCATION_ORDER_ID}`),
+    );
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
