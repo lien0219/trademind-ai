@@ -1,7 +1,18 @@
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Alert, Button, Descriptions, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Descriptions,
+  Input,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  type TableColumnsType,
+} from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppDrawer from '@/components/AppDrawer';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -234,7 +245,8 @@ export default function FulfillmentReconciliationPage() {
       title: '最后库存动作',
       dataIndex: 'lastInventoryActionAt',
       width: 168,
-      render: (value) => (value ? formatDateTime(value) : '—'),
+      render: (_, row) =>
+        row.lastInventoryActionAt ? formatDateTime(row.lastInventoryActionAt) : '—',
     },
     {
       title: '操作',
@@ -249,12 +261,33 @@ export default function FulfillmentReconciliationPage() {
     },
   ];
 
-  const timelineColumns: ProColumns<FulfillmentTimelineEntry>[] = [
-    { title: '事实', dataIndex: 'type', width: 110, render: (value) => timelineType(value) },
+  const timelineColumns: TableColumnsType<FulfillmentTimelineEntry> = [
+    {
+      title: '事实',
+      dataIndex: 'type',
+      width: 110,
+      render: (_, row) => timelineType(row.type),
+    },
     { title: '动作', dataIndex: 'action', width: 150, ellipsis: true },
-    { title: '状态', dataIndex: 'status', width: 96, render: (value) => value || '—' },
-    { title: '数量', dataIndex: 'quantity', width: 72, align: 'right', render: (value) => value ?? '—' },
-    { title: '时间', dataIndex: 'createdAt', width: 180, render: (value) => formatDateTime(value) },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 96,
+      render: (_, row) => row.status || '—',
+    },
+    {
+      title: '数量',
+      dataIndex: 'quantity',
+      width: 72,
+      align: 'right',
+      render: (_, row) => row.quantity ?? '—',
+    },
+    {
+      title: '时间',
+      dataIndex: 'createdAt',
+      width: 180,
+      render: (_, row) => formatDateTime(row.createdAt),
+    },
   ];
 
   return (
