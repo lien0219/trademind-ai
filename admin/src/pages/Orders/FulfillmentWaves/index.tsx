@@ -2,6 +2,7 @@ import {
   CheckCircleOutlined,
   DownloadOutlined,
   EyeOutlined,
+  FileTextOutlined,
   InboxOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
@@ -617,6 +618,16 @@ export default function FulfillmentWavesPage() {
                 />
               ) : null}
               <Space wrap>
+                <Button
+                  icon={<FileTextOutlined />}
+                  onClick={() =>
+                    history.push(
+                      `/orders/fulfillment-waves/${encodeURIComponent(detail.id)}/documents`,
+                    )
+                  }
+                >
+                  出库单据中心
+                </Button>
                 <Button
                   icon={<DownloadOutlined />}
                   onClick={() => downloadFulfillmentWavePickCSV(detail)}

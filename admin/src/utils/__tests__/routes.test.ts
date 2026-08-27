@@ -119,6 +119,11 @@ describe('Admin route menu configuration', () => {
         }),
         expect.objectContaining({ path: '/orders/fulfillment-waves', name: '拣货波次' }),
         expect.objectContaining({
+          path: '/orders/fulfillment-waves/:id/documents',
+          name: '履约出库单据中心',
+          hideInMenu: true,
+        }),
+        expect.objectContaining({
           path: '/orders/fulfillment-reconciliation',
           name: '履约库存对账',
           component: './Orders/FulfillmentReconciliation',

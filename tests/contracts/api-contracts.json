@@ -78,6 +78,44 @@
       "readonly": true
     },
     {
+      "method": "GET",
+      "path": "/api/v1/fulfillment-waves/:id/documents",
+      "auth": true,
+      "query": ["page", "pageSize"],
+      "responseData": "FulfillmentWaveDocumentList",
+      "requiredPermission": "order.view",
+      "readonly": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/fulfillment-waves/:id/documents/:documentId",
+      "auth": true,
+      "responseData": "FulfillmentWaveDocumentDetail",
+      "requiredPermission": "order.view",
+      "readonly": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/documents",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey"],
+      "responseData": "FulfillmentWaveDocumentDetail",
+      "requiredPermission": "order.operate",
+      "atomicity": "immutable_local_snapshot_version",
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+      "auth": true,
+      "requestBody": ["documentType", "copies", "reason", "idempotencyKey"],
+      "responseData": "FulfillmentWaveDocumentPrintEvent",
+      "requiredPermission": "order.operate",
+      "printFact": "browser_print_initiated",
+      "printerControl": false,
+      "externalWrite": false
+    },
+    {
       "method": "POST",
       "path": "/api/v1/fulfillment-waves",
       "auth": true,

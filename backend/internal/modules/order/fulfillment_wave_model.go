@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
+	"gorm.io/datatypes"
 )
 
 const (
@@ -215,3 +216,43 @@ type FulfillmentWavePackScan struct {
 }
 
 func (FulfillmentWavePackScan) TableName() string { return "fulfillment_wave_pack_scans" }
+
+// FulfillmentWaveDocument stores an immutable, local-only print snapshot. It
+// does not represent a carrier label, tracking-number application or printer
+// acknowledgement. A new row is created for every explicitly generated
+// version so historical print output can be reproduced exactly.
+type FulfillmentWaveDocument struct {
+	model.HardDeleteBase
+	TenantID       int64          `gorm:"not null;default:0;uniqueIndex:ux_fulfillment_wave_document_version,priority:1;uniqueIndex:ux_fulfillment_wave_document_key,priority:1;index" json:"tenantId"`
+	WaveID         uuid.UUID      `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_document_version,priority:2;uniqueIndex:ux_fulfillment_wave_document_key,priority:2;index" json:"waveId"`
+	Version        int            `gorm:"not null;uniqueIndex:ux_fulfillment_wave_document_version,priority:3" json:"version"`
+	SourceRevision int            `gorm:"not null" json:"sourceRevision"`
+	IdempotencyKey string         `gorm:"size:128;not null;uniqueIndex:ux_fulfillment_wave_document_key,priority:3" json:"idempotencyKey"`
+	RequestHash    string         `gorm:"size:64;not null" json:"requestHash"`
+	SnapshotHash   string         `gorm:"size:64;not null" json:"snapshotHash"`
+	Snapshot       datatypes.JSON `gorm:"type:jsonb;not null" json:"-"`
+	CreatedBy      *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+}
+
+func (FulfillmentWaveDocument) TableName() string { return "fulfillment_wave_documents" }
+
+// FulfillmentWaveDocumentPrintEvent records that an operator initiated a
+// browser print for one immutable document version. It intentionally does not
+// claim that a physical printer completed the job.
+type FulfillmentWaveDocumentPrintEvent struct {
+	model.HardDeleteBase
+	TenantID       int64      `gorm:"not null;default:0;uniqueIndex:ux_fulfillment_wave_document_print_key,priority:1;index" json:"tenantId"`
+	WaveID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"waveId"`
+	DocumentID     uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_document_print_key,priority:2;index" json:"documentId"`
+	DocumentType   string     `gorm:"size:32;not null;index" json:"documentType"`
+	Copies         int        `gorm:"not null" json:"copies"`
+	Reprint        bool       `gorm:"not null;default:false" json:"reprint"`
+	Reason         string     `gorm:"size:500" json:"reason,omitempty"`
+	IdempotencyKey string     `gorm:"size:128;not null;uniqueIndex:ux_fulfillment_wave_document_print_key,priority:3" json:"idempotencyKey"`
+	RequestHash    string     `gorm:"size:64;not null" json:"requestHash"`
+	ActorID        *uuid.UUID `gorm:"type:char(36);index" json:"actorId,omitempty"`
+}
+
+func (FulfillmentWaveDocumentPrintEvent) TableName() string {
+	return "fulfillment_wave_document_print_events"
+}

@@ -128,6 +128,96 @@ export type FulfillmentWaveRevisionPayload = {
   idempotencyKey: string;
 };
 
+export type FulfillmentWaveDocumentType =
+  | "pick_list"
+  | "packing_list"
+  | "sku_labels"
+  | "package_labels";
+
+export type FulfillmentWaveDocumentSnapshotOrder = {
+  waveOrderId: string;
+  orderId: string;
+  orderNo: string;
+  status: FulfillmentWaveOrderStatus;
+  carrier?: string;
+  trackingNo?: string;
+  trackingUrl?: string;
+  packageCode?: string;
+  actualWeightGrams?: number;
+};
+
+export type FulfillmentWaveDocumentSnapshotLine = {
+  waveLineId: string;
+  waveOrderId: string;
+  orderId: string;
+  orderNo: string;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+  barcode?: string;
+  locationCode?: string;
+  locationName?: string;
+  requiredQuantity: number;
+  pickedQuantity: number;
+  shortageQuantity: number;
+  status: "pending" | "picked" | "shortage";
+};
+
+export type FulfillmentWaveDocumentSnapshot = {
+  waveId: string;
+  waveNo: string;
+  waveStatus: FulfillmentWaveStatus;
+  sourceRevision: number;
+  warehouseId: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  generatedAt: string;
+  orderCount: number;
+  lineCount: number;
+  requiredQuantity: number;
+  pickedQuantity: number;
+  shortageQuantity: number;
+  orders: FulfillmentWaveDocumentSnapshotOrder[];
+  lines: FulfillmentWaveDocumentSnapshotLine[];
+};
+
+export type FulfillmentWaveDocumentPrintEvent = {
+  id: string;
+  waveId: string;
+  documentId: string;
+  documentType: FulfillmentWaveDocumentType;
+  copies: number;
+  reprint: boolean;
+  reason?: string;
+  actorId?: string;
+  createdAt: string;
+};
+
+export type FulfillmentWaveDocumentSummary = {
+  id: string;
+  waveId: string;
+  version: number;
+  sourceRevision: number;
+  snapshotHash: string;
+  createdBy?: string;
+  createdAt: string;
+};
+
+export type FulfillmentWaveDocumentDetail = FulfillmentWaveDocumentSummary & {
+  snapshot: FulfillmentWaveDocumentSnapshot;
+  printEvents: FulfillmentWaveDocumentPrintEvent[];
+};
+
+export type FulfillmentWaveDocumentList = {
+  list: FulfillmentWaveDocumentSummary[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 export type CompleteFulfillmentWaveResult = {
   wave: FulfillmentWave;
   processed: number;
@@ -259,6 +349,51 @@ export async function cancelFulfillmentWave(
 ) {
   return postJSON<FulfillmentWave>(
     `/api/v1/fulfillment-waves/${enc(id)}/cancel`,
+    payload,
+  );
+}
+
+export async function queryFulfillmentWaveDocuments(
+  waveId: string,
+  params?: { page?: number; pageSize?: number },
+) {
+  return getWithParams<FulfillmentWaveDocumentList>(
+    `/api/v1/fulfillment-waves/${enc(waveId)}/documents`,
+    params,
+  );
+}
+
+export async function getFulfillmentWaveDocument(
+  waveId: string,
+  documentId: string,
+) {
+  return getJSON<FulfillmentWaveDocumentDetail>(
+    `/api/v1/fulfillment-waves/${enc(waveId)}/documents/${enc(documentId)}`,
+  );
+}
+
+export async function generateFulfillmentWaveDocument(
+  waveId: string,
+  payload: FulfillmentWaveRevisionPayload,
+) {
+  return postJSON<FulfillmentWaveDocumentDetail>(
+    `/api/v1/fulfillment-waves/${enc(waveId)}/documents`,
+    payload,
+  );
+}
+
+export async function recordFulfillmentWaveDocumentPrint(
+  waveId: string,
+  documentId: string,
+  payload: {
+    documentType: FulfillmentWaveDocumentType;
+    copies: number;
+    reason?: string;
+    idempotencyKey: string;
+  },
+) {
+  return postJSON<FulfillmentWaveDocumentPrintEvent>(
+    `/api/v1/fulfillment-waves/${enc(waveId)}/documents/${enc(documentId)}/print-events`,
     payload,
   );
 }

@@ -6,7 +6,11 @@ import {
   completeFulfillmentWave,
   createFulfillmentWave,
   createFulfillmentWaveIdempotencyKey,
+  generateFulfillmentWaveDocument,
+  getFulfillmentWaveDocument,
   packFulfillmentWaveOrder,
+  queryFulfillmentWaveDocuments,
+  recordFulfillmentWaveDocumentPrint,
   recordFulfillmentWavePicks,
   verifyFulfillmentWavePack,
   type FulfillmentWave,
@@ -106,6 +110,46 @@ describe("fulfillment wave service", () => {
     expect(first).toMatch(/^admin-fulfillment-wave-complete-/);
     expect(first.length).toBeLessThanOrEqual(128);
     expect(second).not.toBe(first);
+  });
+
+  it("keeps document snapshot and print audit contracts stable", async () => {
+    await queryFulfillmentWaveDocuments("wave/1", { page: 1, pageSize: 100 });
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/documents",
+      { method: "GET", params: { page: 1, pageSize: 100 } },
+    );
+
+    await getFulfillmentWaveDocument("wave/1", "document/1");
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/documents/document%2F1",
+      { method: "GET" },
+    );
+
+    const generatePayload = {
+      expectedRevision: 4,
+      idempotencyKey: "wave-document-generate-key",
+    };
+    await generateFulfillmentWaveDocument("wave/1", generatePayload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/documents",
+      { method: "POST", data: generatePayload },
+    );
+
+    const printPayload = {
+      documentType: "package_labels" as const,
+      copies: 2,
+      reason: "damaged paper",
+      idempotencyKey: "wave-document-print-key",
+    };
+    await recordFulfillmentWaveDocumentPrint(
+      "wave/1",
+      "document/1",
+      printPayload,
+    );
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/documents/document%2F1/print-events",
+      { method: "POST", data: printPayload },
+    );
   });
 
   it("builds an Excel-friendly pick CSV from persisted snapshots", () => {

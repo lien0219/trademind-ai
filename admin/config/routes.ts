@@ -362,6 +362,12 @@ export default [
         component: './Orders/FulfillmentPackVerification',
       },
       {
+        path: '/orders/fulfillment-waves/:id/documents',
+        name: '履约出库单据中心',
+        hideInMenu: true,
+        component: './Orders/FulfillmentDocuments',
+      },
+      {
         path: '/orders/fulfillment-reconciliation',
         name: '履约库存对账',
         component: './Orders/FulfillmentReconciliation',

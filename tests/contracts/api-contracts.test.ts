@@ -52,7 +52,11 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/orders/:id/warehouse-allocation",
         "GET /api/v1/fulfillment-waves",
         "GET /api/v1/fulfillment-waves/:id",
+        "GET /api/v1/fulfillment-waves/:id/documents",
+        "GET /api/v1/fulfillment-waves/:id/documents/:documentId",
         "POST /api/v1/fulfillment-waves",
+        "POST /api/v1/fulfillment-waves/:id/documents",
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
         "POST /api/v1/fulfillment-waves/:id/start",
         "POST /api/v1/fulfillment-waves/:id/picks",
         "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
@@ -384,6 +388,8 @@ describe("TradeMind API contract registry", () => {
             readonly?: boolean;
             externalWrite?: boolean;
             reservationRelease?: boolean;
+            printerControl?: boolean;
+            printFact?: string;
           }
         | undefined;
     expect(endpoint("GET /api/v1/fulfillment-waves")?.query).toEqual([
@@ -443,6 +449,37 @@ describe("TradeMind API contract registry", () => {
     expect(
       endpoint("POST /api/v1/fulfillment-waves/:id/cancel")?.reservationRelease,
     ).toBe(false);
+    expect(
+      endpoint("GET /api/v1/fulfillment-waves/:id/documents")?.query,
+    ).toEqual(["page", "pageSize"]);
+    expect(
+      endpoint("GET /api/v1/fulfillment-waves/:id/documents")?.readonly,
+    ).toBe(true);
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/documents")?.requestBody,
+    ).toEqual(["expectedRevision", "idempotencyKey"]);
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+      )?.requestBody,
+    ).toEqual(["documentType", "copies", "reason", "idempotencyKey"]);
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+      )?.printFact,
+    ).toBe("browser_print_initiated");
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+      )?.printerControl,
+    ).toBe(false);
+    for (const key of [
+      "POST /api/v1/fulfillment-waves/:id/documents",
+      "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+    ]) {
+      expect(endpoint(key)?.requiredPermission).toBe("order.operate");
+      expect(endpoint(key)?.externalWrite).toBe(false);
+    }
   });
 
   it("defines local-only refund execution contracts with dedicated permission", () => {
@@ -725,7 +762,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(114);
+    expect(contracts.endpoints).toHaveLength(118);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

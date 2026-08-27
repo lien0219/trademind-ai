@@ -143,6 +143,10 @@
 | `POST` | `/api/v1/orders/fulfillment-batch` | 旧批量履约兼容接口（需要 `order.operate`）。仍按顺序复用单订单履约事务，但不再作为 Admin 主流程；订单存在活动拣货波次时返回 `409`，防止绕过拣货和打包复核。 |
 | `GET` | `/api/v1/fulfillment-waves` | 拣货波次分页列表（需要 `order.view`）；支持 `page`、`pageSize`、`keyword`、`status`、`warehouseId`，按当前租户及账号可见店铺过滤。 |
 | `GET` | `/api/v1/fulfillment-waves/:id` | 波次详情（需要 `order.view`）；返回不可变订单/规格快照及当前拣货、缺货、打包、履约结果。仓库停用后仍保留历史标签。 |
+| `GET` | `/api/v1/fulfillment-waves/:id/documents` | 波次出库单据快照分页列表（需要 `order.view`）；支持 `page`、`pageSize`，按版本倒序返回当前租户及账号可见店铺范围内的本地快照摘要。 |
+| `GET` | `/api/v1/fulfillment-waves/:id/documents/:documentId` | 读取一个不可变单据版本（需要 `order.view`）；返回生成时冻结的波次、仓库、订单、SKU、库位、拣货/缺货及本地包裹字段，并附带浏览器打印发起记录。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/documents` | 基于指定波次 revision 生成新的本地单据快照版本（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。事务锁定波次、校验租户/店铺操作范围并保存快照 hash；已取消波次不可新建版本，同键同 payload 返回原版本。接口不申请运单号、不生成承运商官方面单、不调用真实物流或平台。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/documents/:documentId/print-events` | 登记操作员已发起一个版本的浏览器打印（需要 `order.operate`）；JSON：`documentType=pick_list|packing_list|sku_labels|package_labels`、`copies`（1–100）、可选 `reason`、`idempotencyKey`。同版本同类型再次登记视为重打并强制至少 2 字原因。该事实不声明物理打印成功，也不控制打印机。 |
 | `POST` | `/api/v1/fulfillment-waves` | 从同一仓库的已付款、未履约且整单预占完成的订单创建波次（需要 `order.operate`）；JSON：`idempotencyKey`、`warehouseId`、`orderIds`（1–50 个，不重复）、可选 `remark`。创建事务冻结订单/规格快照并写活动归属，同一订单不能进入两个活动波次。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/start` | 开始拣货（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。仅 `draft` 可进入 `picking`。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/picks` | 记录拣货结果（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`lines[]`，每项含 `lineId`、`pickedQuantity`、`shortageQuantity`，可带 `scannedBarcode`、`scannedLocationCode`。波次行创建时冻结绑定；若行配置了条码/库位，提交值必须匹配，否则返回 `409`。成功动作写入 revision 幂等事实和不可变扫描审计记录。 |

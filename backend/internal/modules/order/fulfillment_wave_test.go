@@ -31,6 +31,7 @@ func newFulfillmentWaveFixture(t *testing.T) (*Service, *inventory.Service, *war
 		&FulfillmentWave{}, &FulfillmentWaveOrder{}, &FulfillmentWaveLine{},
 		&FulfillmentWaveAssignment{}, &FulfillmentWaveAction{}, &FulfillmentWavePickScan{},
 		&FulfillmentWavePackVerification{}, &FulfillmentWavePackScan{},
+		&FulfillmentWaveDocument{}, &FulfillmentWaveDocumentPrintEvent{},
 		&warehouse.WarehouseLocation{}, &inventory.WarehouseSKUPlacement{},
 	); err != nil {
 		t.Fatal(err)
@@ -220,6 +221,12 @@ func TestFulfillmentWaveShortageBlocksPackingAndCancelKeepsReservation(t *testin
 
 func TestFulfillmentWaveWriteRequiresStoreOperateGrant(t *testing.T) {
 	orders, _, _, wave, orderRow, line := newFulfillmentWaveFixture(t)
+	document, err := orders.GenerateFulfillmentWaveDocument(context.Background(), 41, nil, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-before-store-scope",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	shopID := uuid.New()
 	if err := orders.DB.Model(&FulfillmentWaveOrder{}).Where("tenant_id = ? AND wave_id = ?", 41, wave.ID).Update("shop_id", shopID).Error; err != nil {
 		t.Fatal(err)
@@ -241,6 +248,19 @@ func TestFulfillmentWaveWriteRequiresStoreOperateGrant(t *testing.T) {
 		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: line.SKUCode, VerifiedQty: line.RequiredQty}},
 	}); !errors.Is(err, ErrFulfillmentWaveStorePermission) {
 		t.Fatalf("view-only store grant must not verify packing, got %v", err)
+	}
+	if _, err := orders.GetFulfillmentWaveDocument(context.Background(), 41, principal, wave.ID, document.ID); err != nil {
+		t.Fatalf("view-only store grant should read document history, got %v", err)
+	}
+	if _, err := orders.GenerateFulfillmentWaveDocument(context.Background(), 41, principal, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-store-view-only",
+	}); !errors.Is(err, ErrFulfillmentWaveStorePermission) {
+		t.Fatalf("view-only store grant must not generate documents, got %v", err)
+	}
+	if _, err := orders.RecordFulfillmentWaveDocumentPrint(context.Background(), 41, principal, nil, wave.ID, document.ID, RecordFulfillmentWaveDocumentPrintInput{
+		DocumentType: FulfillmentWaveDocumentPickList, Copies: 1, IdempotencyKey: "wave-document-print-store-view-only",
+	}); !errors.Is(err, ErrFulfillmentWaveStorePermission) {
+		t.Fatalf("view-only store grant must not record printing, got %v", err)
 	}
 }
 
@@ -281,5 +301,134 @@ func TestFulfillmentWavePickValidatesFrozenBarcodeAndLocation(t *testing.T) {
 	}
 	if picked.PickScans[0].ScannedBarcode != "scan-001" || picked.PickScans[0].ExpectedLocation != "A-01" {
 		t.Fatalf("scan audit must preserve operator and expected values: %#v", picked.PickScans[0])
+	}
+}
+
+func TestFulfillmentWaveDocumentSnapshotIsVersionedAndImmutable(t *testing.T) {
+	orders, _, _, wave, _, line := newFulfillmentWaveFixture(t)
+	ctx := context.Background()
+	document, err := orders.GenerateFulfillmentWaveDocument(ctx, 41, nil, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-generate-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Version != 1 || document.SourceRevision != wave.Revision || document.Snapshot.WaveNo != wave.WaveNo {
+		t.Fatalf("unexpected document summary: %#v", document)
+	}
+	if len(document.Snapshot.Lines) != 1 || document.Snapshot.Lines[0].WaveLineID != line.ID {
+		t.Fatalf("unexpected document snapshot lines: %#v", document.Snapshot.Lines)
+	}
+	replayed, err := orders.GenerateFulfillmentWaveDocument(ctx, 41, nil, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-generate-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed.ID != document.ID {
+		t.Fatalf("expected idempotent replay, got %s and %s", document.ID, replayed.ID)
+	}
+	if err := orders.DB.Model(&FulfillmentWaveLine{}).Where("tenant_id = ? AND id = ?", 41, line.ID).Update("sku_name", "changed after snapshot").Error; err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := orders.GetFulfillmentWaveDocument(ctx, 41, nil, wave.ID, document.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Snapshot.Lines[0].SKUName == "changed after snapshot" {
+		t.Fatal("document snapshot changed with live wave data")
+	}
+	second, err := orders.GenerateFulfillmentWaveDocument(ctx, 41, nil, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-generate-2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Version != 2 || second.ID == document.ID || second.Snapshot.Lines[0].SKUName != "changed after snapshot" {
+		t.Fatalf("expected a new snapshot version, got %#v", second)
+	}
+	list, err := orders.ListFulfillmentWaveDocuments(ctx, 41, nil, wave.ID, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list.Pagination.Total != 2 || len(list.List) != 2 || list.List[0].Version != 2 {
+		t.Fatalf("unexpected document list: %#v", list)
+	}
+}
+
+func TestFulfillmentWaveDocumentPrintAuditRequiresReasonForReprint(t *testing.T) {
+	orders, _, _, wave, _, _ := newFulfillmentWaveFixture(t)
+	ctx := context.Background()
+	document, err := orders.GenerateFulfillmentWaveDocument(ctx, 41, nil, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-print-source",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := orders.RecordFulfillmentWaveDocumentPrint(ctx, 41, nil, nil, wave.ID, document.ID, RecordFulfillmentWaveDocumentPrintInput{
+		DocumentType: FulfillmentWaveDocumentPickList, Copies: 1, IdempotencyKey: "wave-document-print-first",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Reprint {
+		t.Fatal("first print must not be marked as a reprint")
+	}
+	replayed, err := orders.RecordFulfillmentWaveDocumentPrint(ctx, 41, nil, nil, wave.ID, document.ID, RecordFulfillmentWaveDocumentPrintInput{
+		DocumentType: FulfillmentWaveDocumentPickList, Copies: 1, IdempotencyKey: "wave-document-print-first",
+	})
+	if err != nil || replayed.ID != first.ID {
+		t.Fatalf("expected print idempotency replay, got %#v err=%v", replayed, err)
+	}
+	if _, err := orders.RecordFulfillmentWaveDocumentPrint(ctx, 41, nil, nil, wave.ID, document.ID, RecordFulfillmentWaveDocumentPrintInput{
+		DocumentType: FulfillmentWaveDocumentPickList, Copies: 1, IdempotencyKey: "wave-document-print-no-reason",
+	}); !errors.Is(err, ErrFulfillmentWaveDocumentReprintReasonRequired) {
+		t.Fatalf("expected reprint reason error, got %v", err)
+	}
+	second, err := orders.RecordFulfillmentWaveDocumentPrint(ctx, 41, nil, nil, wave.ID, document.ID, RecordFulfillmentWaveDocumentPrintInput{
+		DocumentType: FulfillmentWaveDocumentPickList, Copies: 2, Reason: "damaged paper", IdempotencyKey: "wave-document-print-retry",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !second.Reprint || second.Reason != "damaged paper" || second.Copies != 2 {
+		t.Fatalf("unexpected reprint audit: %#v", second)
+	}
+	loaded, err := orders.GetFulfillmentWaveDocument(ctx, 41, nil, wave.ID, document.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.PrintEvents) != 2 {
+		t.Fatalf("expected two immutable print events, got %#v", loaded.PrintEvents)
+	}
+}
+
+func TestCancelledFulfillmentWaveDocumentIsReadOnly(t *testing.T) {
+	orders, _, _, wave, _, _ := newFulfillmentWaveFixture(t)
+	ctx := context.Background()
+	document, err := orders.GenerateFulfillmentWaveDocument(ctx, 41, nil, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-before-cancel",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, err := orders.CancelFulfillmentWave(ctx, 41, nil, nil, wave.ID, FulfillmentWaveRevisionInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-document-cancel-wave",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := orders.GenerateFulfillmentWaveDocument(ctx, 41, nil, nil, wave.ID, GenerateFulfillmentWaveDocumentInput{
+		ExpectedRevision: cancelled.Revision, IdempotencyKey: "wave-document-after-cancel",
+	}); !errors.Is(err, ErrFulfillmentWaveState) {
+		t.Fatalf("expected cancelled wave generation conflict, got %v", err)
+	}
+	if _, err := orders.RecordFulfillmentWaveDocumentPrint(ctx, 41, nil, nil, wave.ID, document.ID, RecordFulfillmentWaveDocumentPrintInput{
+		DocumentType: FulfillmentWaveDocumentPickList, Copies: 1, IdempotencyKey: "wave-document-print-after-cancel",
+	}); !errors.Is(err, ErrFulfillmentWaveState) {
+		t.Fatalf("expected cancelled wave print conflict, got %v", err)
+	}
+	if _, err := orders.GetFulfillmentWaveDocument(ctx, 41, nil, wave.ID, document.ID); err != nil {
+		t.Fatalf("cancelled wave must retain readable history: %v", err)
 	}
 }

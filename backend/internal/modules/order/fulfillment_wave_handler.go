@@ -62,7 +62,7 @@ func bindFulfillmentWaveJSON(c *gin.Context, out any) bool {
 
 func handleFulfillmentWaveError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ErrFulfillmentWaveNotFound), errors.Is(err, gorm.ErrRecordNotFound):
+	case errors.Is(err, ErrFulfillmentWaveNotFound), errors.Is(err, ErrFulfillmentWaveDocumentNotFound), errors.Is(err, gorm.ErrRecordNotFound):
 		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
 	case errors.Is(err, ErrFulfillmentWaveInvalidInput):
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
@@ -75,6 +75,7 @@ func handleFulfillmentWaveError(c *gin.Context, err error) {
 		errors.Is(err, ErrFulfillmentWaveScanMismatch), errors.Is(err, ErrFulfillmentWavePackVerificationRequired),
 		errors.Is(err, ErrFulfillmentWavePackageMismatch), errors.Is(err, ErrFulfillmentWaveOrderScanMismatch),
 		errors.Is(err, ErrFulfillmentWavePackScanMismatch),
+		errors.Is(err, ErrFulfillmentWaveDocumentReprintReasonRequired),
 		errors.Is(err, ErrFulfillmentWaveCompleting), errors.Is(err, ErrFulfillmentWaveRequired),
 		errors.Is(err, idempotency.ErrKeyConflict), errors.Is(err, inventory.ErrOrderInventoryState),
 		errors.Is(err, inventory.ErrInsufficientSKUStock):
@@ -82,6 +83,96 @@ func handleFulfillmentWaveError(c *gin.Context, err error) {
 	default:
 		response.HandleError(c, err)
 	}
+}
+
+// ListFulfillmentWaveDocuments GET /fulfillment-waves/:id/documents.
+func (h *Handler) ListFulfillmentWaveDocuments(c *gin.Context) {
+	tenantID, principal, ok := h.fulfillmentWavePrincipal(c, false)
+	if !ok {
+		return
+	}
+	waveID, ok := fulfillmentWaveID(c, "id")
+	if !ok {
+		return
+	}
+	page, _ := strconv.Atoi(strings.TrimSpace(c.DefaultQuery("page", "1")))
+	pageSize, _ := strconv.Atoi(strings.TrimSpace(c.DefaultQuery("pageSize", "20")))
+	out, err := h.Svc.ListFulfillmentWaveDocuments(c.Request.Context(), tenantID, principal, waveID, page, pageSize)
+	if err != nil {
+		handleFulfillmentWaveError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// GetFulfillmentWaveDocument GET /fulfillment-waves/:id/documents/:documentId.
+func (h *Handler) GetFulfillmentWaveDocument(c *gin.Context) {
+	tenantID, principal, ok := h.fulfillmentWavePrincipal(c, false)
+	if !ok {
+		return
+	}
+	waveID, ok := fulfillmentWaveID(c, "id")
+	if !ok {
+		return
+	}
+	documentID, ok := fulfillmentWaveID(c, "documentId")
+	if !ok {
+		return
+	}
+	out, err := h.Svc.GetFulfillmentWaveDocument(c.Request.Context(), tenantID, principal, waveID, documentID)
+	if err != nil {
+		handleFulfillmentWaveError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// PostFulfillmentWaveDocument POST /fulfillment-waves/:id/documents.
+func (h *Handler) PostFulfillmentWaveDocument(c *gin.Context) {
+	tenantID, principal, ok := h.fulfillmentWavePrincipal(c, true)
+	if !ok {
+		return
+	}
+	waveID, ok := fulfillmentWaveID(c, "id")
+	if !ok {
+		return
+	}
+	var body GenerateFulfillmentWaveDocumentInput
+	if !bindFulfillmentWaveJSON(c, &body) {
+		return
+	}
+	out, err := h.Svc.GenerateFulfillmentWaveDocument(c.Request.Context(), tenantID, principal, adminUUID(c), waveID, body)
+	if err != nil {
+		handleFulfillmentWaveError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// PostFulfillmentWaveDocumentPrintEvent POST /fulfillment-waves/:id/documents/:documentId/print-events.
+func (h *Handler) PostFulfillmentWaveDocumentPrintEvent(c *gin.Context) {
+	tenantID, principal, ok := h.fulfillmentWavePrincipal(c, true)
+	if !ok {
+		return
+	}
+	waveID, ok := fulfillmentWaveID(c, "id")
+	if !ok {
+		return
+	}
+	documentID, ok := fulfillmentWaveID(c, "documentId")
+	if !ok {
+		return
+	}
+	var body RecordFulfillmentWaveDocumentPrintInput
+	if !bindFulfillmentWaveJSON(c, &body) {
+		return
+	}
+	out, err := h.Svc.RecordFulfillmentWaveDocumentPrint(c.Request.Context(), tenantID, principal, adminUUID(c), waveID, documentID, body)
+	if err != nil {
+		handleFulfillmentWaveError(c, err)
+		return
+	}
+	response.OK(c, out)
 }
 
 // ListFulfillmentWaves GET /fulfillment-waves.
