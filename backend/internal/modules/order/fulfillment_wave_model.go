@@ -47,22 +47,28 @@ type FulfillmentWave struct {
 	ShortageQty    int       `gorm:"not null;default:0" json:"shortageQuantity"`
 	FulfilledCount int       `gorm:"not null;default:0" json:"fulfilledCount"`
 	FailedCount    int       `gorm:"not null;default:0" json:"failedCount"`
+	// PackingVerificationRequired is enabled for newly created waves. Keeping
+	// the database default false lets waves created before this capability use
+	// the legacy manual packing action without an unsafe migration backfill.
+	PackingVerificationRequired bool `gorm:"not null;default:false" json:"packingVerificationRequired"`
 	// CompletionBaseRevision pins all retries of one explicit completion run to
 	// a server-owned idempotency identity. It is intentionally not exposed to
 	// clients and is cleared when the run is finalized.
-	CompletionBaseRevision int                       `gorm:"not null;default:0" json:"-"`
-	CreatedBy              *uuid.UUID                `gorm:"type:char(36);index" json:"createdBy,omitempty"`
-	StartedBy              *uuid.UUID                `gorm:"type:char(36);index" json:"startedBy,omitempty"`
-	StartedAt              *time.Time                `json:"startedAt,omitempty"`
-	CompletedBy            *uuid.UUID                `gorm:"type:char(36);index" json:"completedBy,omitempty"`
-	CompletedAt            *time.Time                `json:"completedAt,omitempty"`
-	CancelledBy            *uuid.UUID                `gorm:"type:char(36);index" json:"cancelledBy,omitempty"`
-	CancelledAt            *time.Time                `json:"cancelledAt,omitempty"`
-	WarehouseCode          string                    `gorm:"-" json:"warehouseCode,omitempty"`
-	WarehouseName          string                    `gorm:"-" json:"warehouseName,omitempty"`
-	Orders                 []FulfillmentWaveOrder    `gorm:"foreignKey:WaveID" json:"orders,omitempty"`
-	Lines                  []FulfillmentWaveLine     `gorm:"foreignKey:WaveID" json:"lines,omitempty"`
-	PickScans              []FulfillmentWavePickScan `gorm:"foreignKey:WaveID" json:"pickScans,omitempty"`
+	CompletionBaseRevision int                               `gorm:"not null;default:0" json:"-"`
+	CreatedBy              *uuid.UUID                        `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	StartedBy              *uuid.UUID                        `gorm:"type:char(36);index" json:"startedBy,omitempty"`
+	StartedAt              *time.Time                        `json:"startedAt,omitempty"`
+	CompletedBy            *uuid.UUID                        `gorm:"type:char(36);index" json:"completedBy,omitempty"`
+	CompletedAt            *time.Time                        `json:"completedAt,omitempty"`
+	CancelledBy            *uuid.UUID                        `gorm:"type:char(36);index" json:"cancelledBy,omitempty"`
+	CancelledAt            *time.Time                        `json:"cancelledAt,omitempty"`
+	WarehouseCode          string                            `gorm:"-" json:"warehouseCode,omitempty"`
+	WarehouseName          string                            `gorm:"-" json:"warehouseName,omitempty"`
+	Orders                 []FulfillmentWaveOrder            `gorm:"foreignKey:WaveID" json:"orders,omitempty"`
+	Lines                  []FulfillmentWaveLine             `gorm:"foreignKey:WaveID" json:"lines,omitempty"`
+	PickScans              []FulfillmentWavePickScan         `gorm:"foreignKey:WaveID" json:"pickScans,omitempty"`
+	PackVerifications      []FulfillmentWavePackVerification `gorm:"foreignKey:WaveID" json:"packVerifications,omitempty"`
+	PackScans              []FulfillmentWavePackScan         `gorm:"foreignKey:WaveID" json:"packScans,omitempty"`
 }
 
 func (FulfillmentWave) TableName() string { return "fulfillment_waves" }
@@ -71,21 +77,23 @@ func (FulfillmentWave) TableName() string { return "fulfillment_waves" }
 // mutable packing/fulfillment result for that order.
 type FulfillmentWaveOrder struct {
 	model.HardDeleteBase
-	TenantID      int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	WaveID        uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:1;index" json:"waveId"`
-	OrderID       uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:2;index" json:"orderId"`
-	ShopID        *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
-	OrderNo       string     `gorm:"size:128;not null" json:"orderNo"`
-	Status        string     `gorm:"size:32;not null;index" json:"status"`
-	Carrier       string     `gorm:"size:128" json:"carrier,omitempty"`
-	TrackingNo    string     `gorm:"size:255" json:"trackingNo,omitempty"`
-	TrackingURL   string     `gorm:"size:2048" json:"trackingUrl,omitempty"`
-	FailureCode   string     `gorm:"size:64" json:"failureCode,omitempty"`
-	FailureReason string     `gorm:"size:500" json:"failureReason,omitempty"`
-	ShipmentID    *uuid.UUID `gorm:"type:char(36);index" json:"shipmentId,omitempty"`
-	PackedBy      *uuid.UUID `gorm:"type:char(36);index" json:"packedBy,omitempty"`
-	PackedAt      *time.Time `json:"packedAt,omitempty"`
-	FulfilledAt   *time.Time `json:"fulfilledAt,omitempty"`
+	TenantID          int64      `gorm:"not null;default:0;index" json:"tenantId"`
+	WaveID            uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:1;index" json:"waveId"`
+	OrderID           uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:2;index" json:"orderId"`
+	ShopID            *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	OrderNo           string     `gorm:"size:128;not null" json:"orderNo"`
+	Status            string     `gorm:"size:32;not null;index" json:"status"`
+	Carrier           string     `gorm:"size:128" json:"carrier,omitempty"`
+	TrackingNo        string     `gorm:"size:255" json:"trackingNo,omitempty"`
+	TrackingURL       string     `gorm:"size:2048" json:"trackingUrl,omitempty"`
+	PackageCode       string     `gorm:"size:255" json:"packageCode,omitempty"`
+	ActualWeightGrams *int       `json:"actualWeightGrams,omitempty"`
+	FailureCode       string     `gorm:"size:64" json:"failureCode,omitempty"`
+	FailureReason     string     `gorm:"size:500" json:"failureReason,omitempty"`
+	ShipmentID        *uuid.UUID `gorm:"type:char(36);index" json:"shipmentId,omitempty"`
+	PackedBy          *uuid.UUID `gorm:"type:char(36);index" json:"packedBy,omitempty"`
+	PackedAt          *time.Time `json:"packedAt,omitempty"`
+	FulfilledAt       *time.Time `json:"fulfilledAt,omitempty"`
 }
 
 func (FulfillmentWaveOrder) TableName() string { return "fulfillment_wave_orders" }
@@ -163,3 +171,47 @@ type FulfillmentWavePickScan struct {
 }
 
 func (FulfillmentWavePickScan) TableName() string { return "fulfillment_wave_pick_scans" }
+
+// FulfillmentWavePackVerification is an immutable header audit for one
+// successful order/package verification. Re-verification is intentionally not
+// supported after the order becomes packed.
+type FulfillmentWavePackVerification struct {
+	model.HardDeleteBase
+	TenantID          int64      `gorm:"not null;index;uniqueIndex:ux_fulfillment_wave_pack_verification_order,priority:1" json:"tenantId"`
+	WaveID            uuid.UUID  `gorm:"type:char(36);not null;index" json:"waveId"`
+	WaveOrderID       uuid.UUID  `gorm:"type:char(36);not null;index;uniqueIndex:ux_fulfillment_wave_pack_verification_order,priority:2" json:"waveOrderId"`
+	OrderID           uuid.UUID  `gorm:"type:char(36);not null;index" json:"orderId"`
+	ActionID          uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex" json:"actionId"`
+	PackageCode       string     `gorm:"size:255;not null" json:"packageCode"`
+	ScannedOrderNo    string     `gorm:"size:128;not null" json:"scannedOrderNo"`
+	Carrier           string     `gorm:"size:128;not null" json:"carrier"`
+	TrackingNo        string     `gorm:"size:255;not null" json:"trackingNo"`
+	TrackingURL       string     `gorm:"size:2048" json:"trackingUrl,omitempty"`
+	ActualWeightGrams *int       `json:"actualWeightGrams,omitempty"`
+	LineCount         int        `gorm:"not null" json:"lineCount"`
+	VerifiedQty       int        `gorm:"not null" json:"verifiedQuantity"`
+	ActorID           *uuid.UUID `gorm:"type:char(36);index" json:"actorId,omitempty"`
+}
+
+func (FulfillmentWavePackVerification) TableName() string {
+	return "fulfillment_wave_pack_verifications"
+}
+
+// FulfillmentWavePackScan preserves the expected frozen SKU/barcode and the
+// operator-provided value used by one successful packing verification.
+type FulfillmentWavePackScan struct {
+	model.HardDeleteBase
+	TenantID       int64      `gorm:"not null;index" json:"tenantId"`
+	WaveID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"waveId"`
+	WaveOrderID    uuid.UUID  `gorm:"type:char(36);not null;index" json:"waveOrderId"`
+	WaveLineID     uuid.UUID  `gorm:"type:char(36);not null;index;uniqueIndex:ux_fulfillment_wave_pack_scan_line,priority:2" json:"waveLineId"`
+	VerificationID uuid.UUID  `gorm:"type:char(36);not null;index;uniqueIndex:ux_fulfillment_wave_pack_scan_line,priority:1" json:"verificationId"`
+	ExpectedCode   string     `gorm:"size:128;not null" json:"expectedCode"`
+	ScannedCode    string     `gorm:"size:128;not null" json:"scannedCode"`
+	ExpectedQty    int        `gorm:"not null" json:"expectedQuantity"`
+	VerifiedQty    int        `gorm:"not null" json:"verifiedQuantity"`
+	Validated      bool       `gorm:"not null;default:true" json:"validated"`
+	ActorID        *uuid.UUID `gorm:"type:char(36);index" json:"actorId,omitempty"`
+}
+
+func (FulfillmentWavePackScan) TableName() string { return "fulfillment_wave_pack_scans" }

@@ -44,6 +44,48 @@ test.describe("@smoke fulfillment picking waves", () => {
       ).toBeVisible();
       await expectNoRootOverflow(page);
       await admin.writeGuard.expectRequestCount("unexpected", 0);
+
+      await page.route(
+        `**/api/v1/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}`,
+        async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(
+              ok({
+                ...e2eFulfillmentWave,
+                status: "packing",
+                revision: 3,
+                pickedQuantity: 3,
+                orders: [
+                  {
+                    ...e2eFulfillmentWave.orders[0],
+                    status: "ready_to_pack",
+                  },
+                ],
+                lines: [
+                  {
+                    ...e2eFulfillmentWave.lines[0],
+                    status: "picked",
+                    pickedQuantity: 3,
+                  },
+                ],
+              }),
+            ),
+          });
+        },
+      );
+      await admin.goto(
+        `/orders/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}/verify-pack`,
+      );
+      await page.getByLabel("扫描订单号").fill("SO-E2E-ALLOC-0001");
+      await page.getByLabel("扫描订单号").press("Enter");
+      await expect(page.getByLabel("扫描商品条码")).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "确认复核并标记已打包" }),
+      ).toBeVisible();
+      await expectNoRootOverflow(page);
+      await admin.writeGuard.expectRequestCount("unexpected", 0);
     });
   }
 
@@ -103,6 +145,7 @@ test.describe("@smoke fulfillment picking waves", () => {
   }) => {
     let detail = {
       ...e2eFulfillmentWave,
+      packingVerificationRequired: false,
       status: "packing",
       revision: 3,
       pickedQuantity: 3,
@@ -205,6 +248,112 @@ test.describe("@smoke fulfillment picking waves", () => {
     );
   });
 
+  test("blocks mismatches and submits one complete packing scan verification", async ({
+    admin,
+    page,
+  }) => {
+    const detail = {
+      ...e2eFulfillmentWave,
+      status: "packing",
+      revision: 3,
+      pickedQuantity: 3,
+      packingVerificationRequired: true,
+      orders: [{ ...e2eFulfillmentWave.orders[0], status: "ready_to_pack" }],
+      lines: [
+        { ...e2eFulfillmentWave.lines[0], status: "picked", pickedQuantity: 3 },
+      ],
+    };
+    await page.route(
+      `**/api/v1/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(ok(detail)),
+        });
+      },
+    );
+    admin.writeGuard.allow({
+      operation: "verify-wave-pack",
+      method: "POST",
+      path: new RegExp(
+        `^/api/v1/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}/orders/e2e-order-warehouse-allocation/verify-pack$`,
+      ),
+      response: ok({
+        ...detail,
+        revision: 4,
+        orders: [
+          {
+            ...detail.orders[0],
+            status: "packed",
+            carrier: "顺丰",
+            trackingNo: "SF-E2E-SCAN-1",
+            packageCode: "SF-E2E-SCAN-1",
+            actualWeightGrams: 850,
+          },
+        ],
+      }),
+    });
+
+    await admin.goto(
+      `/orders/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}/verify-pack`,
+    );
+    const orderInput = page.getByLabel("扫描订单号");
+    await orderInput.fill("NOT-IN-WAVE");
+    await orderInput.press("Enter");
+    await expect(page.getByText(/订单号不属于当前波次/)).toBeVisible();
+    await admin.writeGuard.expectRequestCount("verify-wave-pack", 0);
+
+    await orderInput.fill("SO-E2E-ALLOC-0001");
+    await orderInput.press("Enter");
+    const itemInput = page.getByLabel("扫描商品条码");
+    await itemInput.fill("WRONG-SKU");
+    await itemInput.press("Enter");
+    await expect(page.getByText(/商品条码与当前订单/)).toBeVisible();
+    await admin.writeGuard.expectRequestCount("verify-wave-pack", 0);
+
+    for (let index = 0; index < 3; index += 1) {
+      await itemInput.fill("BLUE-01");
+      await itemInput.press("Enter");
+    }
+    await expect(page.getByText("3 / 3 件")).toBeVisible();
+    await page.getByLabel("承运商").fill("顺丰");
+    await page.getByLabel("运单号").fill("SF-E2E-SCAN-1");
+    await page.getByLabel("扫描面单条码").fill("WRONG-LABEL");
+    await expect(
+      page.getByRole("button", { name: "确认复核并标记已打包" }),
+    ).toBeDisabled();
+    await admin.writeGuard.expectRequestCount("verify-wave-pack", 0);
+
+    await page.getByLabel("扫描面单条码").fill("SF-E2E-SCAN-1");
+    await page.getByLabel("实际重量（克，可选）").fill("850");
+    await page
+      .getByRole("button", { name: "确认复核并标记已打包" })
+      .click();
+    await admin.writeGuard.expectRequestCount("verify-wave-pack", 1);
+    const payload = admin.writeGuard.calls("verify-wave-pack")[0]
+      ?.postDataJSON as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      expectedRevision: 3,
+      scannedOrderNo: "SO-E2E-ALLOC-0001",
+      carrier: "顺丰",
+      trackingNo: "SF-E2E-SCAN-1",
+      packageCode: "SF-E2E-SCAN-1",
+      actualWeightGrams: 850,
+      lines: [
+        {
+          lineId: E2E_FULFILLMENT_WAVE_LINE_ID,
+          scannedCode: "BLUE-01",
+          verifiedQuantity: 3,
+        },
+      ],
+    });
+    expect(String(payload.idempotencyKey)).toMatch(
+      /^admin-fulfillment-wave-verify-pack-/,
+    );
+    await admin.writeGuard.expectRequestCount("unexpected", 0);
+  });
+
   test("shows loading, empty, error, and readonly states without writes", async ({
     admin,
     page,
@@ -268,6 +417,10 @@ test.describe("@smoke fulfillment picking waves", () => {
     await expect(
       page.getByRole("button", { name: "录入拣货结果" }),
     ).toBeDisabled();
+    await admin.goto(
+      `/orders/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}/verify-pack`,
+    );
+    await expect(page.getByLabel("扫描订单号")).toBeDisabled();
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 });

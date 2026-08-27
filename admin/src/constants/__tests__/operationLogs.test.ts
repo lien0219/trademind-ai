@@ -38,6 +38,9 @@ describe('operation log alert labels', () => {
     expect(operationLogActionLabel('order.fulfillment_wave.complete')).toBe(
       '完成波次已打包订单',
     );
+    expect(operationLogActionLabel('order.fulfillment_wave.verify_pack')).toBe(
+      '完成波次出库扫描复核',
+    );
     expect(operationLogActionLabel('order.fulfillment_wave.cancel')).toBe(
       '取消拣货波次',
     );

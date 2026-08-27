@@ -380,6 +380,9 @@ func (s *Service) PackFulfillmentWaveOrder(ctx context.Context, tenantID int64, 
 		if wave.Status != FulfillmentWavePacking && wave.Status != FulfillmentWavePartial {
 			return ErrFulfillmentWaveState
 		}
+		if wave.PackingVerificationRequired {
+			return ErrFulfillmentWavePackVerificationRequired
+		}
 		var waveOrder FulfillmentWaveOrder
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND wave_id = ? AND order_id = ?", tenantID, waveID, orderID).First(&waveOrder).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

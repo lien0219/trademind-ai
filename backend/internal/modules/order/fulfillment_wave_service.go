@@ -26,20 +26,24 @@ const (
 )
 
 var (
-	ErrFulfillmentWaveInvalidInput      = errors.New("invalid fulfillment wave input")
-	ErrFulfillmentWaveNotFound          = errors.New("fulfillment wave not found")
-	ErrFulfillmentWaveState             = errors.New("fulfillment wave state conflict")
-	ErrFulfillmentWaveRevision          = errors.New("fulfillment wave revision conflict")
-	ErrFulfillmentWaveIdempotency       = errors.New("fulfillment wave idempotency conflict")
-	ErrFulfillmentWaveOrderUnavailable  = errors.New("order is not eligible for a fulfillment wave")
-	ErrFulfillmentWaveOrderAssigned     = errors.New("order already belongs to an active fulfillment wave")
-	ErrFulfillmentWaveReservation       = errors.New("order inventory reservation is incomplete")
-	ErrFulfillmentWavePickIncomplete    = errors.New("picking result is incomplete")
-	ErrFulfillmentWavePackingIncomplete = errors.New("packing review is incomplete")
-	ErrFulfillmentWaveScanMismatch      = errors.New("fulfillment wave scan does not match expected sku or location")
-	ErrFulfillmentWaveCompleting        = errors.New("fulfillment wave completion is in progress")
-	ErrFulfillmentWaveRequired          = errors.New("order must be fulfilled from its active fulfillment wave")
-	ErrFulfillmentWaveStorePermission   = errors.New("fulfillment wave store operation permission denied")
+	ErrFulfillmentWaveInvalidInput             = errors.New("invalid fulfillment wave input")
+	ErrFulfillmentWaveNotFound                 = errors.New("fulfillment wave not found")
+	ErrFulfillmentWaveState                    = errors.New("fulfillment wave state conflict")
+	ErrFulfillmentWaveRevision                 = errors.New("fulfillment wave revision conflict")
+	ErrFulfillmentWaveIdempotency              = errors.New("fulfillment wave idempotency conflict")
+	ErrFulfillmentWaveOrderUnavailable         = errors.New("order is not eligible for a fulfillment wave")
+	ErrFulfillmentWaveOrderAssigned            = errors.New("order already belongs to an active fulfillment wave")
+	ErrFulfillmentWaveReservation              = errors.New("order inventory reservation is incomplete")
+	ErrFulfillmentWavePickIncomplete           = errors.New("picking result is incomplete")
+	ErrFulfillmentWavePackingIncomplete        = errors.New("packing review is incomplete")
+	ErrFulfillmentWaveScanMismatch             = errors.New("fulfillment wave scan does not match expected sku or location")
+	ErrFulfillmentWavePackVerificationRequired = errors.New("packing scan verification is required")
+	ErrFulfillmentWavePackageMismatch          = errors.New("package scan does not match tracking number")
+	ErrFulfillmentWaveOrderScanMismatch        = errors.New("order scan does not match the selected order")
+	ErrFulfillmentWavePackScanMismatch         = errors.New("packing scan does not match the expected sku")
+	ErrFulfillmentWaveCompleting               = errors.New("fulfillment wave completion is in progress")
+	ErrFulfillmentWaveRequired                 = errors.New("order must be fulfilled from its active fulfillment wave")
+	ErrFulfillmentWaveStorePermission          = errors.New("fulfillment wave store operation permission denied")
 )
 
 type CreateFulfillmentWaveInput struct {
@@ -92,6 +96,24 @@ type PackFulfillmentWaveOrderInput struct {
 	Carrier          string `json:"carrier"`
 	TrackingNo       string `json:"trackingNo"`
 	TrackingURL      string `json:"trackingUrl,omitempty"`
+}
+
+type FulfillmentWavePackLineInput struct {
+	LineID      uuid.UUID `json:"lineId"`
+	ScannedCode string    `json:"scannedCode"`
+	VerifiedQty int       `json:"verifiedQuantity"`
+}
+
+type VerifyFulfillmentWavePackInput struct {
+	ExpectedRevision  int                            `json:"expectedRevision"`
+	IdempotencyKey    string                         `json:"idempotencyKey"`
+	ScannedOrderNo    string                         `json:"scannedOrderNo"`
+	Carrier           string                         `json:"carrier"`
+	TrackingNo        string                         `json:"trackingNo"`
+	TrackingURL       string                         `json:"trackingUrl,omitempty"`
+	PackageCode       string                         `json:"packageCode"`
+	ActualWeightGrams *int                           `json:"actualWeightGrams,omitempty"`
+	Lines             []FulfillmentWavePackLineInput `json:"lines"`
 }
 
 type CompleteFulfillmentWaveResult struct {
@@ -239,9 +261,19 @@ func (s *Service) loadFulfillmentWave(ctx context.Context, tenantID int64, princ
 	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND wave_id = ?", tenantID, id).Order("created_at ASC, id ASC").Find(&scans).Error; err != nil {
 		return nil, err
 	}
+	var packVerifications []FulfillmentWavePackVerification
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND wave_id = ?", tenantID, id).Order("created_at ASC, id ASC").Find(&packVerifications).Error; err != nil {
+		return nil, err
+	}
+	var packScans []FulfillmentWavePackScan
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND wave_id = ?", tenantID, id).Order("created_at ASC, id ASC").Find(&packScans).Error; err != nil {
+		return nil, err
+	}
 	wave.Orders = orders
 	wave.Lines = lines
 	wave.PickScans = scans
+	wave.PackVerifications = packVerifications
+	wave.PackScans = packScans
 	var warehouseLabel struct {
 		Code string
 		Name string
@@ -440,6 +472,7 @@ func (s *Service) CreateFulfillmentWave(ctx context.Context, tenantID int64, pri
 		wave = FulfillmentWave{
 			TenantID: tenantID, WaveNo: fulfillmentWaveNo(now), WarehouseID: in.WarehouseID,
 			Status: FulfillmentWaveDraft, Revision: 1, Remark: remark, CreatedBy: actor,
+			PackingVerificationRequired: true,
 		}
 		if err := tx.Create(&wave).Error; err != nil {
 			return err

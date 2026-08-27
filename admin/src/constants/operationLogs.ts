@@ -195,6 +195,7 @@ export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   'order.fulfillment_wave.start': '开始波次拣货',
   'order.fulfillment_wave.record_pick': '登记波次拣货结果',
   'order.fulfillment_wave.pack': '复核波次订单打包',
+  'order.fulfillment_wave.verify_pack': '完成波次出库扫描复核',
   'order.fulfillment_wave.complete': '完成波次已打包订单',
   'order.fulfillment_wave.cancel': '取消拣货波次',
   'order.sync.create': '创建订单同步任务',

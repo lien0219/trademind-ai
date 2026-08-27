@@ -356,6 +356,12 @@ export default [
         component: './Orders/FulfillmentWaves',
       },
       {
+        path: '/orders/fulfillment-waves/:id/verify-pack',
+        name: '出库扫描复核',
+        hideInMenu: true,
+        component: './Orders/FulfillmentPackVerification',
+      },
+      {
         path: '/orders/fulfillment-reconciliation',
         name: '履约库存对账',
         component: './Orders/FulfillmentReconciliation',

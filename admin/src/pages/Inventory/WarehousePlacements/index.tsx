@@ -91,6 +91,21 @@ export default function WarehousePlacementsPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!modalOpen) return;
+    form.setFieldsValue({
+      productSkuId: editing?.productSkuId,
+      locationId: editing?.locationId,
+      barcode: editing?.barcode ?? "",
+      status: editing?.status ?? "active",
+    });
+  }, [editing, form, modalOpen]);
+
+  useEffect(() => {
+    if (!locationModalOpen) return;
+    locationForm.resetFields();
+  }, [locationForm, locationModalOpen]);
+
   const skuOptions = useMemo(
     () =>
       skus.map((row) => ({
@@ -102,13 +117,11 @@ export default function WarehousePlacementsPage() {
 
   const openCreate = () => {
     setEditing(undefined);
-    form.setFieldsValue({ productSkuId: undefined, locationId: undefined, barcode: "", status: "active" });
     setModalOpen(true);
   };
 
   const openEdit = (row: WarehouseSKUPlacement) => {
     setEditing(row);
-    form.setFieldsValue({ productSkuId: row.productSkuId, locationId: row.locationId, barcode: row.barcode, status: row.status });
     setModalOpen(true);
   };
 
@@ -185,7 +198,7 @@ export default function WarehousePlacementsPage() {
               onChange={setWarehouseId}
             />
             <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>刷新</Button>
-            <Button icon={<PlusOutlined />} disabled={!canManage || !warehouseId} onClick={() => { locationForm.resetFields(); setLocationModalOpen(true); }}>新增库位</Button>
+            <Button icon={<PlusOutlined />} disabled={!canManage || !warehouseId} onClick={() => setLocationModalOpen(true)}>新增库位</Button>
             <Button type="primary" icon={<PlusOutlined />} disabled={!canManage || !warehouseId} onClick={openCreate}>新增绑定</Button>
           </Space>
         }

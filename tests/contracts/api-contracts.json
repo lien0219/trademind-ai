@@ -116,6 +116,16 @@
     },
     {
       "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "scannedOrderNo", "carrier", "trackingNo", "trackingUrl", "packageCode", "actualWeightGrams", "lines"],
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.operate",
+      "atomicity": "validate_pack_and_append_immutable_audit",
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
       "path": "/api/v1/fulfillment-waves/:id/complete",
       "auth": true,
       "requestBody": ["expectedRevision", "idempotencyKey"],

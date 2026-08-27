@@ -56,6 +56,7 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/fulfillment-waves/:id/start",
         "POST /api/v1/fulfillment-waves/:id/picks",
         "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
         "POST /api/v1/fulfillment-waves/:id/complete",
         "POST /api/v1/fulfillment-waves/:id/cancel",
         "GET /api/v1/orders/fulfillment-reconciliation",
@@ -412,11 +413,27 @@ describe("TradeMind API contract registry", () => {
       "trackingNo",
       "trackingUrl",
     ]);
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
+      )?.requestBody,
+    ).toEqual([
+      "expectedRevision",
+      "idempotencyKey",
+      "scannedOrderNo",
+      "carrier",
+      "trackingNo",
+      "trackingUrl",
+      "packageCode",
+      "actualWeightGrams",
+      "lines",
+    ]);
     for (const key of [
       "POST /api/v1/fulfillment-waves",
       "POST /api/v1/fulfillment-waves/:id/start",
       "POST /api/v1/fulfillment-waves/:id/picks",
       "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
+      "POST /api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
       "POST /api/v1/fulfillment-waves/:id/complete",
       "POST /api/v1/fulfillment-waves/:id/cancel",
     ]) {
@@ -708,7 +725,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(113);
+    expect(contracts.endpoints).toHaveLength(114);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

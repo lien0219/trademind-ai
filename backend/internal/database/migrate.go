@@ -232,6 +232,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&order.FulfillmentWaveAssignment{},
 		&order.FulfillmentWaveAction{},
 		&order.FulfillmentWavePickScan{},
+		&order.FulfillmentWavePackVerification{},
+		&order.FulfillmentWavePackScan{},
 		&orderexception.OrderExceptionMark{},
 		&ordersync.OrderSyncTask{},
 		&customersync.CustomerMessageSyncTask{},

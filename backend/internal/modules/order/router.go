@@ -17,6 +17,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	w.POST("/:id/start", h.PostStartFulfillmentWave)
 	w.POST("/:id/picks", h.PostRecordFulfillmentWavePick)
 	w.POST("/:id/orders/:orderId/pack", h.PostPackFulfillmentWaveOrder)
+	w.POST("/:id/orders/:orderId/verify-pack", h.PostVerifyFulfillmentWavePack)
 	w.POST("/:id/complete", h.PostCompleteFulfillmentWave)
 	w.POST("/:id/cancel", h.PostCancelFulfillmentWave)
 

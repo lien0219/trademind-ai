@@ -27,6 +27,8 @@ export type FulfillmentWaveOrder = {
   carrier?: string;
   trackingNo?: string;
   trackingUrl?: string;
+  packageCode?: string;
+  actualWeightGrams?: number;
   failureCode?: string;
   failureReason?: string;
   shipmentId?: string;
@@ -71,6 +73,7 @@ export type FulfillmentWave = {
   shortageQuantity: number;
   fulfilledCount: number;
   failedCount: number;
+  packingVerificationRequired: boolean;
   startedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
@@ -78,6 +81,36 @@ export type FulfillmentWave = {
   updatedAt: string;
   orders?: FulfillmentWaveOrder[];
   lines?: FulfillmentWaveLine[];
+  packVerifications?: FulfillmentWavePackVerification[];
+  packScans?: FulfillmentWavePackScan[];
+};
+
+export type FulfillmentWavePackVerification = {
+  id: string;
+  waveId: string;
+  waveOrderId: string;
+  orderId: string;
+  packageCode: string;
+  scannedOrderNo: string;
+  carrier: string;
+  trackingNo: string;
+  trackingUrl?: string;
+  actualWeightGrams?: number;
+  lineCount: number;
+  verifiedQuantity: number;
+  createdAt: string;
+};
+
+export type FulfillmentWavePackScan = {
+  id: string;
+  waveLineId: string;
+  verificationId: string;
+  expectedCode: string;
+  scannedCode: string;
+  expectedQuantity: number;
+  verifiedQuantity: number;
+  validated: boolean;
+  createdAt: string;
 };
 
 export type FulfillmentWaveList = {
@@ -183,6 +216,29 @@ export async function packFulfillmentWaveOrder(
 ) {
   return postJSON<FulfillmentWave>(
     `/api/v1/fulfillment-waves/${enc(waveId)}/orders/${enc(orderId)}/pack`,
+    payload,
+  );
+}
+
+export async function verifyFulfillmentWavePack(
+  waveId: string,
+  orderId: string,
+  payload: FulfillmentWaveRevisionPayload & {
+    scannedOrderNo: string;
+    carrier: string;
+    trackingNo: string;
+    trackingUrl?: string;
+    packageCode: string;
+    actualWeightGrams?: number;
+    lines: Array<{
+      lineId: string;
+      scannedCode: string;
+      verifiedQuantity: number;
+    }>;
+  },
+) {
+  return postJSON<FulfillmentWave>(
+    `/api/v1/fulfillment-waves/${enc(waveId)}/orders/${enc(orderId)}/verify-pack`,
     payload,
   );
 }

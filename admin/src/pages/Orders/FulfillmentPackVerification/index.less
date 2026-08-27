@@ -1,0 +1,41 @@
+.tm-pack-verification-page {
+  .tm-page-container__content {
+    min-width: 0;
+    gap: 20px;
+  }
+
+  .tm-section-card,
+  .tm-pack-verification-table {
+    min-width: 0;
+  }
+}
+
+.tm-pack-verification-loading {
+  display: flex;
+  justify-content: center;
+  padding: 64px 0;
+}
+
+.tm-pack-verification-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+
+  .ant-input-number {
+    width: 100%;
+  }
+}
+
+.tm-pack-verification-form-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 767px) {
+  .tm-pack-verification-page .tm-page-container__content {
+    gap: 16px;
+  }
+
+  .tm-pack-verification-form {
+    display: block;
+  }
+}

@@ -5,6 +5,7 @@ import {
   InboxOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
+  ScanOutlined,
   StopOutlined,
 } from "@ant-design/icons";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
@@ -642,6 +643,20 @@ export default function FulfillmentWavesPage() {
                     录入拣货结果
                   </Button>
                 ) : null}
+                {detail.packingVerificationRequired &&
+                ["packing", "partial"].includes(detail.status) ? (
+                  <Button
+                    icon={<ScanOutlined />}
+                    disabled={!canOperate || Boolean(submitting)}
+                    onClick={() =>
+                      history.push(
+                        `/orders/fulfillment-waves/${encodeURIComponent(detail.id)}/verify-pack`,
+                      )
+                    }
+                  >
+                    进入出库扫描复核
+                  </Button>
+                ) : null}
                 {packedCount > 0 &&
                 ["packing", "partial"].includes(detail.status) ? (
                   <Button
@@ -697,6 +712,13 @@ export default function FulfillmentWavesPage() {
                     render: (value?: string) => value || "—",
                   },
                   {
+                    title: "称重",
+                    dataIndex: "actualWeightGrams",
+                    width: 110,
+                    render: (value?: number) =>
+                      typeof value === "number" ? `${value} 克` : "—",
+                  },
+                  {
                     title: "结果",
                     dataIndex: "failureReason",
                     ellipsis: true,
@@ -713,10 +735,33 @@ export default function FulfillmentWavesPage() {
                     title: "操作",
                     width: 100,
                     fixed: "right",
-                    render: (_: unknown, order: FulfillmentWaveOrder) =>
-                      ["ready_to_pack", "failed", "packed"].includes(
-                        order.status,
-                      ) ? (
+                    render: (_: unknown, order: FulfillmentWaveOrder) => {
+                      if (
+                        detail.packingVerificationRequired &&
+                        ["ready_to_pack", "failed"].includes(order.status)
+                      ) {
+                        return (
+                          <Button
+                            type="link"
+                            size="small"
+                            disabled={!canOperate || Boolean(submitting)}
+                            onClick={() =>
+                              history.push(
+                                `/orders/fulfillment-waves/${encodeURIComponent(detail.id)}/verify-pack`,
+                              )
+                            }
+                          >
+                            扫描复核
+                          </Button>
+                        );
+                      }
+                      if (
+                        !detail.packingVerificationRequired &&
+                        ["ready_to_pack", "failed", "packed"].includes(
+                          order.status,
+                        )
+                      ) {
+                        return (
                         <Button
                           type="link"
                           size="small"
@@ -725,9 +770,10 @@ export default function FulfillmentWavesPage() {
                         >
                           {order.status === "packed" ? "修改复核" : "打包复核"}
                         </Button>
-                      ) : (
-                        "—"
-                      ),
+                        );
+                      }
+                      return "—";
+                    },
                   },
                 ]}
               />

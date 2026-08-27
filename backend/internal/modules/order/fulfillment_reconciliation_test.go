@@ -14,14 +14,15 @@ func reconciliationFixtureOrder(status, paymentStatus, fulfillmentStatus string)
 	o := Order{Base: model.Base{ID: orderID}, TenantID: 7, OrderNo: "RECON-" + orderID.String(), Status: status, PaymentStatus: paymentStatus, FulfillmentStatus: fulfillmentStatus, WarehouseID: &warehouseID}
 	item := reconciliationItemAgg{OrderID: orderID, ID: itemID, ProductSKUID: &skuID, Quantity: 3}
 	d := reconciliationBuildData{
-		Items:       map[uuid.UUID][]reconciliationItemAgg{orderID: {item}},
-		Effects:     map[uuid.UUID][]reconciliationEffectAgg{},
-		Movements:   map[uuid.UUID][]reconciliationMovementAgg{},
-		Shipments:   map[uuid.UUID][]OrderShipment{},
-		LegacyFacts: map[uuid.UUID]bool{},
-		Balances:    map[string]bool{fmtBalanceKey(warehouseID, skuID): true},
-		Warehouses:  map[uuid.UUID]bool{warehouseID: true},
-		SKUs:        map[uuid.UUID]bool{skuID: true},
+		Items:             map[uuid.UUID][]reconciliationItemAgg{orderID: {item}},
+		Effects:           map[uuid.UUID][]reconciliationEffectAgg{},
+		Movements:         map[uuid.UUID][]reconciliationMovementAgg{},
+		Shipments:         map[uuid.UUID][]OrderShipment{},
+		PackVerifications: map[uuid.UUID][]FulfillmentWavePackVerification{},
+		LegacyFacts:       map[uuid.UUID]bool{},
+		Balances:          map[string]bool{fmtBalanceKey(warehouseID, skuID): true},
+		Warehouses:        map[uuid.UUID]bool{warehouseID: true},
+		SKUs:              map[uuid.UUID]bool{skuID: true},
 	}
 	return o, item, d
 }
@@ -125,6 +126,19 @@ func TestBuildOneReconciliationBlocksLegacyTenantZeroFacts(t *testing.T) {
 	row := buildOneReconciliation(o, d, false)
 	if row.ReconciliationStatus != ReconciliationBlocked || !containsIssue(row.Issues, "inventory_history_not_migrated") {
 		t.Fatalf("tenant zero history must be blocked: %#v", row)
+	}
+}
+
+func TestBuildOneReconciliationIncludesPackingVerificationTimeline(t *testing.T) {
+	o, _, d := reconciliationFixtureOrder(StatusPending, PaymentUnpaid, FulfillmentUnfulfilled)
+	verificationID := uuid.New()
+	d.PackVerifications[o.ID] = []FulfillmentWavePackVerification{{
+		HardDeleteBase: model.HardDeleteBase{ID: verificationID, CreatedAt: time.Unix(102, 0).UTC()},
+		OrderID:        o.ID, VerifiedQty: 3,
+	}}
+	row := buildOneReconciliation(o, d, true)
+	if len(row.Timeline) != 1 || row.Timeline[0].ID != verificationID.String() || row.Timeline[0].Type != "packing_verification" || row.Timeline[0].Quantity != 3 {
+		t.Fatalf("packing verification must appear in the read-only fulfillment timeline: %#v", row.Timeline)
 	}
 }
 

@@ -8,6 +8,7 @@ import {
   createFulfillmentWaveIdempotencyKey,
   packFulfillmentWaveOrder,
   recordFulfillmentWavePicks,
+  verifyFulfillmentWavePack,
   type FulfillmentWave,
 } from "../fulfillmentWaves";
 
@@ -58,6 +59,24 @@ describe("fulfillment wave service", () => {
       { method: "POST", data: packPayload },
     );
 
+    const verifyPayload = {
+      expectedRevision: 3,
+      idempotencyKey: "wave-verify-pack-key",
+      scannedOrderNo: "ORDER-1",
+      carrier: "carrier",
+      trackingNo: "tracking-1",
+      packageCode: "tracking-1",
+      actualWeightGrams: 850,
+      lines: [
+        { lineId: "line-1", scannedCode: "SKU-1", verifiedQuantity: 2 },
+      ],
+    };
+    await verifyFulfillmentWavePack("wave/1", "order/1", verifyPayload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/orders/order%2F1/verify-pack",
+      { method: "POST", data: verifyPayload },
+    );
+
     const revisionPayload = {
       expectedRevision: 4,
       idempotencyKey: "wave-complete-key",
@@ -105,6 +124,7 @@ describe("fulfillment wave service", () => {
       shortageQuantity: 1,
       fulfilledCount: 0,
       failedCount: 0,
+      packingVerificationRequired: true,
       createdAt: "2026-08-24T00:00:00Z",
       updatedAt: "2026-08-24T00:00:00Z",
       orders: [

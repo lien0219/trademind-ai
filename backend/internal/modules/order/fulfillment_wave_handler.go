@@ -72,7 +72,9 @@ func handleFulfillmentWaveError(c *gin.Context, err error) {
 		errors.Is(err, ErrFulfillmentWaveIdempotency), errors.Is(err, ErrFulfillmentWaveOrderUnavailable),
 		errors.Is(err, ErrFulfillmentWaveOrderAssigned), errors.Is(err, ErrFulfillmentWaveReservation),
 		errors.Is(err, ErrFulfillmentWavePickIncomplete), errors.Is(err, ErrFulfillmentWavePackingIncomplete),
-		errors.Is(err, ErrFulfillmentWaveScanMismatch),
+		errors.Is(err, ErrFulfillmentWaveScanMismatch), errors.Is(err, ErrFulfillmentWavePackVerificationRequired),
+		errors.Is(err, ErrFulfillmentWavePackageMismatch), errors.Is(err, ErrFulfillmentWaveOrderScanMismatch),
+		errors.Is(err, ErrFulfillmentWavePackScanMismatch),
 		errors.Is(err, ErrFulfillmentWaveCompleting), errors.Is(err, ErrFulfillmentWaveRequired),
 		errors.Is(err, idempotency.ErrKeyConflict), errors.Is(err, inventory.ErrOrderInventoryState),
 		errors.Is(err, inventory.ErrInsufficientSKUStock):
@@ -227,6 +229,31 @@ func (h *Handler) PostPackFulfillmentWaveOrder(c *gin.Context) {
 		return
 	}
 	out, err := h.Svc.PackFulfillmentWaveOrder(c.Request.Context(), tenantID, principal, adminUUID(c), waveID, orderID, body)
+	if err != nil {
+		handleFulfillmentWaveError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) PostVerifyFulfillmentWavePack(c *gin.Context) {
+	tenantID, principal, ok := h.fulfillmentWavePrincipal(c, true)
+	if !ok {
+		return
+	}
+	waveID, ok := fulfillmentWaveID(c, "id")
+	if !ok {
+		return
+	}
+	orderID, ok := fulfillmentWaveID(c, "orderId")
+	if !ok {
+		return
+	}
+	var body VerifyFulfillmentWavePackInput
+	if !bindFulfillmentWaveJSON(c, &body) {
+		return
+	}
+	out, err := h.Svc.VerifyFulfillmentWavePack(c.Request.Context(), tenantID, principal, adminUUID(c), waveID, orderID, body)
 	if err != nil {
 		handleFulfillmentWaveError(c, err)
 		return

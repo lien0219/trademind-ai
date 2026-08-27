@@ -20,6 +20,7 @@ export const e2eFulfillmentWave = {
   shortageQuantity: 0,
   fulfilledCount: 0,
   failedCount: 0,
+  packingVerificationRequired: true,
   createdAt: "2026-08-24T02:00:00Z",
   updatedAt: "2026-08-24T02:01:00Z",
   orders: [

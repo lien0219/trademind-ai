@@ -110,14 +110,15 @@ type reconciliationMovementAgg struct {
 }
 
 type reconciliationBuildData struct {
-	Items       map[uuid.UUID][]reconciliationItemAgg
-	Effects     map[uuid.UUID][]reconciliationEffectAgg
-	Movements   map[uuid.UUID][]reconciliationMovementAgg
-	Shipments   map[uuid.UUID][]OrderShipment
-	LegacyFacts map[uuid.UUID]bool
-	Balances    map[string]bool
-	Warehouses  map[uuid.UUID]bool
-	SKUs        map[uuid.UUID]bool
+	Items             map[uuid.UUID][]reconciliationItemAgg
+	Effects           map[uuid.UUID][]reconciliationEffectAgg
+	Movements         map[uuid.UUID][]reconciliationMovementAgg
+	Shipments         map[uuid.UUID][]OrderShipment
+	PackVerifications map[uuid.UUID][]FulfillmentWavePackVerification
+	LegacyFacts       map[uuid.UUID]bool
+	Balances          map[string]bool
+	Warehouses        map[uuid.UUID]bool
+	SKUs              map[uuid.UUID]bool
 }
 
 func reconciliationPageTotal(total int64, pageSize int) int {
@@ -128,8 +129,9 @@ func (s *Service) buildReconciliationData(c *gin.Context, orders []Order) (recon
 	d := reconciliationBuildData{
 		Items: map[uuid.UUID][]reconciliationItemAgg{}, Effects: map[uuid.UUID][]reconciliationEffectAgg{},
 		Movements: map[uuid.UUID][]reconciliationMovementAgg{}, Shipments: map[uuid.UUID][]OrderShipment{},
-		LegacyFacts: map[uuid.UUID]bool{},
-		Balances:    map[string]bool{}, Warehouses: map[uuid.UUID]bool{}, SKUs: map[uuid.UUID]bool{},
+		PackVerifications: map[uuid.UUID][]FulfillmentWavePackVerification{},
+		LegacyFacts:       map[uuid.UUID]bool{},
+		Balances:          map[string]bool{}, Warehouses: map[uuid.UUID]bool{}, SKUs: map[uuid.UUID]bool{},
 	}
 	if len(orders) == 0 {
 		return d, nil
@@ -195,6 +197,15 @@ func (s *Service) buildReconciliationData(c *gin.Context, orders []Order) (recon
 	}
 	for _, sh := range shipments {
 		d.Shipments[sh.OrderID] = append(d.Shipments[sh.OrderID], sh)
+	}
+	if s.DB.Migrator().HasTable(&FulfillmentWavePackVerification{}) {
+		var verifications []FulfillmentWavePackVerification
+		if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND order_id IN ?", orders[0].TenantID, orderIDs).Order("created_at ASC, id ASC").Find(&verifications).Error; err != nil {
+			return d, err
+		}
+		for _, verification := range verifications {
+			d.PackVerifications[verification.OrderID] = append(d.PackVerifications[verification.OrderID], verification)
+		}
 	}
 	if len(warehouseIDs) > 0 && s.DB.Migrator().HasTable("warehouses") {
 		type warehouseRow struct {
@@ -398,6 +409,12 @@ func buildOneReconciliation(o Order, d reconciliationBuildData, timeline bool) F
 		for _, sh := range d.Shipments[o.ID] {
 			t := sh.CreatedAt
 			r.Timeline = append(r.Timeline, FulfillmentTimelineEntry{ID: sh.ID.String(), Type: "shipment", Action: sh.Status, CreatedAt: t})
+		}
+		for _, verification := range d.PackVerifications[o.ID] {
+			r.Timeline = append(r.Timeline, FulfillmentTimelineEntry{
+				ID: verification.ID.String(), Type: "packing_verification", Action: "verified", Status: "validated",
+				Quantity: verification.VerifiedQty, CreatedAt: verification.CreatedAt,
+			})
 		}
 		sort.SliceStable(r.Timeline, func(i, j int) bool {
 			if r.Timeline[i].CreatedAt.Equal(r.Timeline[j].CreatedAt) {

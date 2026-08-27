@@ -30,6 +30,7 @@ func newFulfillmentWaveFixture(t *testing.T) (*Service, *inventory.Service, *war
 	if err := orders.DB.AutoMigrate(
 		&FulfillmentWave{}, &FulfillmentWaveOrder{}, &FulfillmentWaveLine{},
 		&FulfillmentWaveAssignment{}, &FulfillmentWaveAction{}, &FulfillmentWavePickScan{},
+		&FulfillmentWavePackVerification{}, &FulfillmentWavePackScan{},
 		&warehouse.WarehouseLocation{}, &inventory.WarehouseSKUPlacement{},
 	); err != nil {
 		t.Fatal(err)
@@ -56,6 +57,12 @@ func newFulfillmentWaveFixture(t *testing.T) (*Service, *inventory.Service, *war
 func TestFulfillmentWaveRequiresPickAndPackBeforeLocalFulfillment(t *testing.T) {
 	orders, inv, _, wave, orderRow, line := newFulfillmentWaveFixture(t)
 	ctx, _ := newWaveGinContext(t)
+	if !wave.PackingVerificationRequired {
+		t.Fatal("new waves must require packing scan verification")
+	}
+	if err := orders.DB.Model(&FulfillmentWaveLine{}).Where("id = ?", line.ID).Update("barcode", "PACK-001").Error; err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := orders.FulfillOrder(ctx, inv, orderRow.ID, FulfillOrderInput{
 		IdempotencyKey: "direct-bypass-test", WarehouseID: orderRow.WarehouseID, Carrier: "Carrier", TrackingNo: "BYPASS-1",
@@ -69,7 +76,7 @@ func TestFulfillmentWaveRequiresPickAndPackBeforeLocalFulfillment(t *testing.T) 
 	}
 	picked, err := orders.RecordFulfillmentWavePick(ctx.Request.Context(), 41, nil, nil, wave.ID, RecordFulfillmentWavePickInput{
 		ExpectedRevision: started.Revision, IdempotencyKey: "wave-pick-test-1",
-		Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty}},
+		Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty, ScannedBarcode: "PACK-001"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -77,11 +84,63 @@ func TestFulfillmentWaveRequiresPickAndPackBeforeLocalFulfillment(t *testing.T) 
 	if picked.Status != FulfillmentWavePacking || picked.Orders[0].Status != FulfillmentWaveOrderReadyToPack {
 		t.Fatalf("fully picked order must become ready to pack: %#v", picked)
 	}
-	packed, err := orders.PackFulfillmentWaveOrder(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, PackFulfillmentWaveOrderInput{
+	if _, err := orders.PackFulfillmentWaveOrder(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, PackFulfillmentWaveOrderInput{
 		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-pack-test-1", Carrier: "Carrier", TrackingNo: "WAVE-TRACK-1",
+	}); !errors.Is(err, ErrFulfillmentWavePackVerificationRequired) {
+		t.Fatalf("new waves must reject legacy packing, got %v", err)
+	}
+	if _, err := orders.VerifyFulfillmentWavePack(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-verify-wrong-package", ScannedOrderNo: orderRow.OrderNo,
+		Carrier: "Carrier", TrackingNo: "WAVE-TRACK-1", PackageCode: "WRONG",
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "PACK-001", VerifiedQty: line.RequiredQty}},
+	}); !errors.Is(err, ErrFulfillmentWavePackageMismatch) {
+		t.Fatalf("wrong package scan must be rejected, got %v", err)
+	}
+	if _, err := orders.VerifyFulfillmentWavePack(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-verify-wrong-order", ScannedOrderNo: "WRONG-ORDER",
+		Carrier: "Carrier", TrackingNo: "WAVE-TRACK-1", PackageCode: "WAVE-TRACK-1",
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "PACK-001", VerifiedQty: line.RequiredQty}},
+	}); !errors.Is(err, ErrFulfillmentWaveOrderScanMismatch) {
+		t.Fatalf("wrong order scan must be rejected, got %v", err)
+	}
+	if _, err := orders.VerifyFulfillmentWavePack(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-verify-wrong-sku", ScannedOrderNo: orderRow.OrderNo,
+		Carrier: "Carrier", TrackingNo: "WAVE-TRACK-1", PackageCode: "WAVE-TRACK-1",
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "WRONG", VerifiedQty: line.RequiredQty}},
+	}); !errors.Is(err, ErrFulfillmentWavePackScanMismatch) {
+		t.Fatalf("wrong sku scan must be rejected, got %v", err)
+	}
+	var unchanged FulfillmentWave
+	var rejectedAuditCount int64
+	if err := orders.DB.First(&unchanged, "id = ?", wave.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := orders.DB.Model(&FulfillmentWavePackVerification{}).Where("wave_id = ?", wave.ID).Count(&rejectedAuditCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.Revision != picked.Revision || rejectedAuditCount != 0 {
+		t.Fatalf("rejected verification must not advance or create a success audit: wave=%#v audits=%d", unchanged, rejectedAuditCount)
+	}
+	weight := 850
+	packed, err := orders.VerifyFulfillmentWavePack(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-verify-pack-test-1", ScannedOrderNo: orderRow.OrderNo,
+		Carrier: "Carrier", TrackingNo: "WAVE-TRACK-1", PackageCode: "wave-track-1", ActualWeightGrams: &weight,
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "pack-001", VerifiedQty: line.RequiredQty}},
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(packed.PackVerifications) != 1 || len(packed.PackScans) != 1 || packed.Orders[0].PackageCode != "wave-track-1" ||
+		packed.Orders[0].ActualWeightGrams == nil || *packed.Orders[0].ActualWeightGrams != weight {
+		t.Fatalf("packing verification must preserve immutable scan and weight facts: %#v", packed)
+	}
+	replayed, err := orders.VerifyFulfillmentWavePack(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-verify-pack-test-1", ScannedOrderNo: orderRow.OrderNo,
+		Carrier: "Carrier", TrackingNo: "WAVE-TRACK-1", PackageCode: "wave-track-1", ActualWeightGrams: &weight,
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "pack-001", VerifiedQty: line.RequiredQty}},
+	})
+	if err != nil || len(replayed.PackVerifications) != 1 || len(replayed.PackScans) != 1 {
+		t.Fatalf("packing verification replay must not duplicate audit rows: wave=%#v err=%v", replayed, err)
 	}
 	completed, err := orders.CompleteFulfillmentWave(ctx, inv, 41, nil, nil, wave.ID, FulfillmentWaveRevisionInput{
 		ExpectedRevision: packed.Revision, IdempotencyKey: "wave-complete-test-1",
@@ -92,14 +151,14 @@ func TestFulfillmentWaveRequiresPickAndPackBeforeLocalFulfillment(t *testing.T) 
 	if completed.Wave.Status != FulfillmentWaveCompleted || completed.Succeeded != 1 || completed.Failed != 0 {
 		t.Fatalf("unexpected completion result: %#v", completed)
 	}
-	replayed, err := orders.CompleteFulfillmentWave(ctx, inv, 41, nil, nil, wave.ID, FulfillmentWaveRevisionInput{
+	completedReplay, err := orders.CompleteFulfillmentWave(ctx, inv, 41, nil, nil, wave.ID, FulfillmentWaveRevisionInput{
 		ExpectedRevision: packed.Revision, IdempotencyKey: "wave-complete-test-replay-after-refresh",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replayed.Wave.Status != FulfillmentWaveCompleted || replayed.Succeeded != 1 {
-		t.Fatalf("completion replay must return the persisted run result: %#v", replayed)
+	if completedReplay.Wave.Status != FulfillmentWaveCompleted || completedReplay.Succeeded != 1 {
+		t.Fatalf("completion replay must return the persisted run result: %#v", completedReplay)
 	}
 	var assignmentCount, shipmentCount int64
 	if err := orders.DB.Model(&FulfillmentWaveAssignment{}).Where("tenant_id = ? AND order_id = ?", 41, orderRow.ID).Count(&assignmentCount).Error; err != nil {
@@ -115,6 +174,9 @@ func TestFulfillmentWaveRequiresPickAndPackBeforeLocalFulfillment(t *testing.T) 
 
 func TestFulfillmentWaveShortageBlocksPackingAndCancelKeepsReservation(t *testing.T) {
 	orders, _, _, wave, orderRow, line := newFulfillmentWaveFixture(t)
+	if err := orders.DB.Model(&FulfillmentWaveLine{}).Where("id = ?", line.ID).Update("barcode", "SHORTAGE-SKU").Error; err != nil {
+		t.Fatal(err)
+	}
 	ctx, _ := newWaveGinContext(t)
 	started, err := orders.StartFulfillmentWave(ctx.Request.Context(), 41, nil, nil, wave.ID, FulfillmentWaveRevisionInput{ExpectedRevision: wave.Revision, IdempotencyKey: "wave-start-shortage"})
 	if err != nil {
@@ -122,7 +184,7 @@ func TestFulfillmentWaveShortageBlocksPackingAndCancelKeepsReservation(t *testin
 	}
 	picked, err := orders.RecordFulfillmentWavePick(ctx.Request.Context(), 41, nil, nil, wave.ID, RecordFulfillmentWavePickInput{
 		ExpectedRevision: started.Revision, IdempotencyKey: "wave-pick-shortage",
-		Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty - 1, ShortageQty: 1}},
+		Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty - 1, ShortageQty: 1, ScannedBarcode: "SHORTAGE-SKU"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -130,8 +192,10 @@ func TestFulfillmentWaveShortageBlocksPackingAndCancelKeepsReservation(t *testin
 	if picked.Orders[0].Status != FulfillmentWaveOrderBlocked || picked.ShortageQty != 1 {
 		t.Fatalf("shortage must block packing: %#v", picked)
 	}
-	if _, err := orders.PackFulfillmentWaveOrder(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, PackFulfillmentWaveOrderInput{
-		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-pack-shortage", Carrier: "Carrier", TrackingNo: "SHORT-1",
+	if _, err := orders.VerifyFulfillmentWavePack(ctx.Request.Context(), 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-pack-shortage", ScannedOrderNo: orderRow.OrderNo,
+		Carrier: "Carrier", TrackingNo: "SHORT-1", PackageCode: "SHORT-1",
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "SHORTAGE-SKU", VerifiedQty: line.RequiredQty}},
 	}); !errors.Is(err, ErrFulfillmentWavePackingIncomplete) {
 		t.Fatalf("shortage order must not pack, got %v", err)
 	}
@@ -155,7 +219,7 @@ func TestFulfillmentWaveShortageBlocksPackingAndCancelKeepsReservation(t *testin
 }
 
 func TestFulfillmentWaveWriteRequiresStoreOperateGrant(t *testing.T) {
-	orders, _, _, wave, _, _ := newFulfillmentWaveFixture(t)
+	orders, _, _, wave, orderRow, line := newFulfillmentWaveFixture(t)
 	shopID := uuid.New()
 	if err := orders.DB.Model(&FulfillmentWaveOrder{}).Where("tenant_id = ? AND wave_id = ?", 41, wave.ID).Update("shop_id", shopID).Error; err != nil {
 		t.Fatal(err)
@@ -170,6 +234,13 @@ func TestFulfillmentWaveWriteRequiresStoreOperateGrant(t *testing.T) {
 		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-start-store-view-only",
 	}); !errors.Is(err, ErrFulfillmentWaveStorePermission) {
 		t.Fatalf("view-only store grant must not advance a wave, got %v", err)
+	}
+	if _, err := orders.VerifyFulfillmentWavePack(context.Background(), 41, principal, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-pack-store-view-only", ScannedOrderNo: orderRow.OrderNo,
+		Carrier: "Carrier", TrackingNo: "TRACK-1", PackageCode: "TRACK-1",
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: line.SKUCode, VerifiedQty: line.RequiredQty}},
+	}); !errors.Is(err, ErrFulfillmentWaveStorePermission) {
+		t.Fatalf("view-only store grant must not verify packing, got %v", err)
 	}
 }
 

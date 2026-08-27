@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Outbound packing scan verification (2026-08-27)
+
+- Required newly created fulfillment waves to scan the frozen order number, every expected SKU/barcode quantity and the carrier label before an order can become packed, with optional positive integer gram weight capture.
+- Added revision- and idempotency-protected transactional validation plus immutable verification and line-scan facts, while surfacing successful verification in the read-only fulfillment reconciliation timeline.
+- Added a responsive, permission-aware Admin scanning workbench and preserved the legacy manual packing path only for pre-existing waves, without enabling carrier, printer, scale, marketplace, worker or automatic retry integrations.
+
 ### Fulfillment picking waves and packing review (2026-08-24)
 
 - Replaced the Admin batch-fulfillment shortcut with persistent, tenant- and store-scoped waves for same-warehouse paid orders that already hold complete reservations, including immutable order/line snapshots and exclusive active assignments.
