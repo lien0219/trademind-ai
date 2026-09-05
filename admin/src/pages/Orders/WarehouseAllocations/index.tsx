@@ -415,13 +415,8 @@ export default function WarehouseAllocationsPage() {
             }),
           }}
           locale={{ emptyText: "暂无待处理的已付款订单" }}
-          toolBarRender={() => [
-            <Space
-              key="filters-and-actions"
-              wrap
-              size="small"
-              style={{ width: "100%" }}
-            >
+          filterBar={
+            <Space wrap size="small">
               <Input.Search
                 aria-label="搜索订单"
                 allowClear
@@ -446,14 +441,17 @@ export default function WarehouseAllocationsPage() {
                   setAssignment(value);
                 }}
               />
-              <Button
-                type="primary"
-                disabled={!canOperate || selectedRows.length === 0}
-                onClick={openCreateWave}
-              >
-                创建拣货波次（{selectedRows.length}）
-              </Button>
-            </Space>,
+            </Space>
+          }
+          toolBarRender={() => [
+            <Button
+              key="create-wave"
+              type="primary"
+              disabled={!canOperate || selectedRows.length === 0}
+              onClick={openCreateWave}
+            >
+              创建拣货波次（{selectedRows.length}）
+            </Button>,
           ]}
           request={async (params) => {
             try {

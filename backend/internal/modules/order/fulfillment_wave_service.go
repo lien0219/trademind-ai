@@ -44,6 +44,7 @@ var (
 	ErrFulfillmentWaveCompleting               = errors.New("fulfillment wave completion is in progress")
 	ErrFulfillmentWaveRequired                 = errors.New("order must be fulfilled from its active fulfillment wave")
 	ErrFulfillmentWaveStorePermission          = errors.New("fulfillment wave store operation permission denied")
+	ErrFulfillmentWaveFreightQuoteRequired     = errors.New("confirmed freight quote is stale; re-quote for the actual weight")
 )
 
 type CreateFulfillmentWaveInput struct {
@@ -268,6 +269,20 @@ func (s *Service) loadFulfillmentWave(ctx context.Context, tenantID int64, princ
 	var packScans []FulfillmentWavePackScan
 	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND wave_id = ?", tenantID, id).Order("created_at ASC, id ASC").Find(&packScans).Error; err != nil {
 		return nil, err
+	}
+	var freightQuotes []FulfillmentWaveFreightQuote
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND wave_id = ?", tenantID, id).Order("version DESC, created_at DESC, id DESC").Find(&freightQuotes).Error; err != nil {
+		return nil, err
+	}
+	latestQuote := make(map[uuid.UUID]*FulfillmentWaveFreightQuote, len(freightQuotes))
+	for i := range freightQuotes {
+		if _, ok := latestQuote[freightQuotes[i].WaveOrderID]; !ok {
+			quote := freightQuotes[i]
+			latestQuote[quote.WaveOrderID] = &quote
+		}
+	}
+	for i := range orders {
+		orders[i].FreightQuote = latestQuote[orders[i].ID]
 	}
 	wave.Orders = orders
 	wave.Lines = lines

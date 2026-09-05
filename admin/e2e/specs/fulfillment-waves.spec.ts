@@ -9,6 +9,7 @@ import {
 import {
   expectModalWithinViewport,
   expectNoRootOverflow,
+  expectTableFilterBarAlignedLeft,
 } from "../utils/assertions";
 
 const viewports = [
@@ -31,6 +32,7 @@ test.describe("@smoke fulfillment picking waves", () => {
         page.getByText("FW20260824-E2E0000001", { exact: true }).first(),
       ).toBeVisible();
       await expectNoRootOverflow(page);
+      await expectTableFilterBarAlignedLeft(page);
       await page.getByRole("button", { name: "查看" }).click();
       const drawer = page.getByRole("dialog", {
         name: /拣货波次 FW20260824-E2E0000001/,
@@ -273,6 +275,79 @@ test.describe("@smoke fulfillment picking waves", () => {
         });
       },
     );
+    await page.route(
+      `**/api/v1/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}/orders/e2e-order-warehouse-allocation/freight-quotes**`,
+      async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            ok({
+              destinationCountryCode: "CN",
+              destinationRegion: "广东",
+              destinationPostalCode: "518000",
+              candidates: [
+                {
+                  rateTemplateId: "e2e-rate-1",
+                  rateTemplateCode: "CN-1KG",
+                  rateTemplateName: "国内 1kg",
+                  rateTemplateRevision: 2,
+                  channelId: "e2e-channel-1",
+                  channelCode: "SF_LOCAL",
+                  channelName: "顺丰本地规则",
+                  carrier: "顺丰",
+                  weightGrams: 850,
+                  minWeightGrams: 0,
+                  maxWeightGrams: 1000,
+                  amountMinor: 1200,
+                  currency: "CNY",
+                  explanation: "基础费 1000；超过 0g 后按每起始千克 200 计费",
+                },
+              ],
+            }),
+          ),
+        });
+      },
+    );
+    const confirmedQuote = {
+      id: "e2e-freight-quote-1",
+      version: 1,
+      sourceRevision: 3,
+      rateTemplateId: "e2e-rate-1",
+      rateTemplateCode: "CN-1KG",
+      rateTemplateName: "国内 1kg",
+      rateTemplateRevision: 2,
+      channelId: "e2e-channel-1",
+      channelCode: "SF_LOCAL",
+      channelName: "顺丰本地规则",
+      carrier: "顺丰",
+      destinationCountryCode: "CN",
+      destinationRegion: "广东",
+      destinationPostalCode: "518000",
+      weightGrams: 850,
+      minWeightGrams: 0,
+      maxWeightGrams: 1000,
+      amountMinor: 1200,
+      currency: "CNY",
+      explanation: "本地计费",
+      createdAt: "2026-08-28T00:00:00Z",
+    };
+    admin.writeGuard.allow({
+      operation: "confirm-wave-freight-quote",
+      method: "POST",
+      path: new RegExp(
+        `^/api/v1/fulfillment-waves/${E2E_FULFILLMENT_WAVE_ID}/orders/e2e-order-warehouse-allocation/freight-quotes/confirm$`,
+      ),
+      response: ok({
+        ...detail,
+        revision: 4,
+        orders: [{ ...detail.orders[0], freightQuote: confirmedQuote }],
+      }),
+    });
     admin.writeGuard.allow({
       operation: "verify-wave-pack",
       method: "POST",
@@ -281,7 +356,7 @@ test.describe("@smoke fulfillment picking waves", () => {
       ),
       response: ok({
         ...detail,
-        revision: 4,
+        revision: 5,
         orders: [
           {
             ...detail.orders[0],
@@ -317,7 +392,22 @@ test.describe("@smoke fulfillment picking waves", () => {
       await itemInput.press("Enter");
     }
     await expect(page.getByText("3 / 3 件")).toBeVisible();
-    await page.getByLabel("承运商").fill("顺丰");
+    await page.getByLabel("实际重量（克，可选）").fill("850");
+    await page.getByRole("button", { name: "试算运费" }).click();
+    await expect(page.getByText("顺丰本地规则")).toBeVisible();
+    await page.getByRole("radio").check();
+    await page.getByRole("button", { name: "人工确认所选报价" }).click();
+    await admin.writeGuard.expectRequestCount("confirm-wave-freight-quote", 1);
+    expect(
+      admin.writeGuard.calls("confirm-wave-freight-quote")[0]?.postDataJSON,
+    ).toMatchObject({
+      expectedRevision: 3,
+      rateTemplateId: "e2e-rate-1",
+      rateTemplateRevision: 2,
+      weightGrams: 850,
+    });
+    await expect(page.getByText("CNY 12.00")).toBeVisible();
+    await expect(page.getByLabel("承运商")).toHaveValue("顺丰");
     await page.getByLabel("运单号").fill("SF-E2E-SCAN-1");
     await page.getByLabel("扫描面单条码").fill("WRONG-LABEL");
     await expect(
@@ -326,15 +416,12 @@ test.describe("@smoke fulfillment picking waves", () => {
     await admin.writeGuard.expectRequestCount("verify-wave-pack", 0);
 
     await page.getByLabel("扫描面单条码").fill("SF-E2E-SCAN-1");
-    await page.getByLabel("实际重量（克，可选）").fill("850");
-    await page
-      .getByRole("button", { name: "确认复核并标记已打包" })
-      .click();
+    await page.getByRole("button", { name: "确认复核并标记已打包" }).click();
     await admin.writeGuard.expectRequestCount("verify-wave-pack", 1);
     const payload = admin.writeGuard.calls("verify-wave-pack")[0]
       ?.postDataJSON as Record<string, unknown>;
     expect(payload).toMatchObject({
-      expectedRevision: 3,
+      expectedRevision: 4,
       scannedOrderNo: "SO-E2E-ALLOC-0001",
       carrier: "顺丰",
       trackingNo: "SF-E2E-SCAN-1",

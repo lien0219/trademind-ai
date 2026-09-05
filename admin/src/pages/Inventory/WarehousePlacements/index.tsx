@@ -189,14 +189,6 @@ export default function WarehousePlacementsPage() {
         subTitle="维护单仓 SKU 的拣货条码和物理库位；波次创建时会冻结当前绑定。"
         extra={
           <Space wrap>
-            <Select
-              aria-label="选择仓库"
-              value={warehouseId || undefined}
-              placeholder="选择仓库"
-              style={{ minWidth: 220 }}
-              options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))}
-              onChange={setWarehouseId}
-            />
             <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>刷新</Button>
             <Button icon={<PlusOutlined />} disabled={!canManage || !warehouseId} onClick={() => setLocationModalOpen(true)}>新增库位</Button>
             <Button type="primary" icon={<PlusOutlined />} disabled={!canManage || !warehouseId} onClick={openCreate}>新增绑定</Button>
@@ -210,6 +202,16 @@ export default function WarehousePlacementsPage() {
           columns={columns}
           dataSource={placements}
           loading={loading}
+          filterBar={
+            <Select
+              aria-label="选择仓库"
+              value={warehouseId || undefined}
+              placeholder="选择仓库"
+              style={{ width: 220, maxWidth: '100%' }}
+              options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))}
+              onChange={setWarehouseId}
+            />
+          }
           search={false}
           options={false}
           pagination={false}

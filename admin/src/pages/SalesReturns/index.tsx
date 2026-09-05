@@ -205,9 +205,10 @@ export default function SalesReturnsPage() {
           cardBordered
           scroll={{ x: 1320 }}
           locale={{ emptyText: error ? '售后列表暂不可用' : '暂无售后记录。' }}
-          toolBarRender={() => [
+          filterBar={
+            <Space wrap>
             <Select
-              key="type"
+              aria-label="售后类型"
               allowClear
               placeholder="全部类型"
               value={returnType}
@@ -216,9 +217,9 @@ export default function SalesReturnsPage() {
                 ([value, meta]) => ({ value, label: meta.text }),
               )}
               onChange={setReturnType}
-            />,
+            />
             <Select
-              key="status"
+              aria-label="售后状态"
               allowClear
               placeholder="全部状态"
               value={status}
@@ -227,8 +228,9 @@ export default function SalesReturnsPage() {
                 ([value, meta]) => ({ value, label: meta.text }),
               )}
               onChange={setStatus}
-            />,
-          ]}
+            />
+            </Space>
+          }
           request={async (params) => {
             try {
               const result = await listSalesReturns({

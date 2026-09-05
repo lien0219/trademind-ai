@@ -135,17 +135,17 @@ export default function WarehouseLedgerPage() {
         search={false}
         scroll={{ x: 1100 }}
         locale={{ emptyText: '暂无库存账记录' }}
-        toolBarRender={() => [
+        filterBar={
           <Select
-            key="status"
+            aria-label="库存账状态"
             allowClear
             placeholder="全部状态"
             value={status}
             style={{ width: 140 }}
             options={Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.text }))}
             onChange={setStatus}
-          />,
-        ]}
+          />
+        }
         request={async (params) => {
           try {
             const result = await queryWarehouseLedgerReconciliation({

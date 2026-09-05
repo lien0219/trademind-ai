@@ -4,6 +4,18 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Order profit estimate and fee-gap workbench (2026-09-06)
+
+- Added tenant- and store-scoped read-only order profit list/detail APIs and bounded CSV export using exact currency minor-unit conversion, JavaScript-safe integers, and spreadsheet-formula neutralization.
+- Added a responsive, permission-aware Finance workbench that separates known contribution from complete estimated profit and links operators to the supporting order, fulfillment wave, supplier, and refund facts.
+- Uses current supplier catalog prices only as estimates and leaves missing platform, advertising, and warehouse fees unset; no historical COGS ledger, accounting settlement, automatic allocation, platform write, worker, or retry was enabled.
+
+### Local shipping rates and manual freight confirmation (2026-08-28)
+
+- Added tenant-scoped local shipping channels and deterministic rate templates matched by warehouse, destination and weight, using integer minor-unit fees and optimistic revisions.
+- Added explicit wave-order freight quoting and an idempotent transaction that revalidates the wave, order destination and selected rate revision before preserving an immutable quote snapshot; changed weight or carrier requires re-quotation before packing.
+- Added the permission-aware Admin configuration and packing-workbench flow, contracts and regression coverage without enabling carrier quotes, waybill or official-label creation, automatic channel selection, marketplace writes, workers or retries.
+
 ### Outbound packing scan verification (2026-08-27)
 
 - Required newly created fulfillment waves to scan the frozen order number, every expected SKU/barcode quantity and the carrier label before an order can become packed, with optional positive integer gram weight capture.

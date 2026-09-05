@@ -67,6 +67,12 @@ func TestPermissionsForRole(t *testing.T) {
 	if StrictHasPermission(RoleReadonly, PermWarehouseManage) || StrictHasPermission(RoleReadonly, PermSupplierManage) || StrictHasPermission(RoleReadonly, PermProcurementManage) {
 		t.Fatal("readonly must not mutate ERP resources")
 	}
+	if !StrictHasPermission(RoleOperator, PermLogisticsManage) || !StrictHasPermission(RoleReviewer, PermLogisticsView) || !StrictHasPermission(RoleReadonly, PermLogisticsView) {
+		t.Fatal("ERP roles should receive the intended logistics permissions")
+	}
+	if StrictHasPermission(RoleReviewer, PermLogisticsManage) || StrictHasPermission(RoleReadonly, PermLogisticsManage) {
+		t.Fatal("reviewer and readonly must not mutate logistics configuration")
+	}
 	if !StrictHasPermission(RoleOperator, PermSalesReturnRefund) || StrictHasPermission(RoleReviewer, PermSalesReturnRefund) || StrictHasPermission(RoleReadonly, PermSalesReturnRefund) {
 		t.Fatal("only operator and admin roles should execute sales refunds")
 	}

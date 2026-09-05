@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildFulfillmentWavePickCSV,
   cancelFulfillmentWave,
+  confirmFulfillmentWaveFreightQuote,
   completeFulfillmentWave,
   createFulfillmentWave,
   createFulfillmentWaveIdempotencyKey,
   generateFulfillmentWaveDocument,
   getFulfillmentWaveDocument,
   packFulfillmentWaveOrder,
+  quoteFulfillmentWaveFreight,
   queryFulfillmentWaveDocuments,
   recordFulfillmentWaveDocumentPrint,
   recordFulfillmentWavePicks,
@@ -71,14 +73,31 @@ describe("fulfillment wave service", () => {
       trackingNo: "tracking-1",
       packageCode: "tracking-1",
       actualWeightGrams: 850,
-      lines: [
-        { lineId: "line-1", scannedCode: "SKU-1", verifiedQuantity: 2 },
-      ],
+      lines: [{ lineId: "line-1", scannedCode: "SKU-1", verifiedQuantity: 2 }],
     };
     await verifyFulfillmentWavePack("wave/1", "order/1", verifyPayload);
     expect(requestMock).toHaveBeenLastCalledWith(
       "/api/v1/fulfillment-waves/wave%2F1/orders/order%2F1/verify-pack",
       { method: "POST", data: verifyPayload },
+    );
+
+    await quoteFulfillmentWaveFreight("wave/1", "order/1", 850);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/orders/order%2F1/freight-quotes",
+      { method: "GET", params: { weightGrams: 850 } },
+    );
+
+    const quotePayload = {
+      expectedRevision: 4,
+      idempotencyKey: "wave-freight-quote-key",
+      rateTemplateId: "rate-1",
+      rateTemplateRevision: 2,
+      weightGrams: 850,
+    };
+    await confirmFulfillmentWaveFreightQuote("wave/1", "order/1", quotePayload);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/fulfillment-waves/wave%2F1/orders/order%2F1/freight-quotes/confirm",
+      { method: "POST", data: quotePayload },
     );
 
     const revisionPayload = {

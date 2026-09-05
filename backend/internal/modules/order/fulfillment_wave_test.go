@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -24,6 +25,68 @@ func newWaveGinContext(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) 
 	return ctx, recorder
 }
 
+func TestFulfillmentWaveFreightQuoteRequiresExplicitFreshConfirmation(t *testing.T) {
+	orders, _, _, wave, orderRow, line := newFulfillmentWaveFixture(t)
+	if err := orders.DB.AutoMigrate(&logistics.ShippingChannel{}, &logistics.ShippingRateTemplate{}); err != nil {
+		t.Fatal(err)
+	}
+	logisticsSvc := &logistics.Service{DB: orders.DB}
+	orders.Logistics = logisticsSvc
+	if err := orders.DB.Model(&Order{}).Where("id = ?", orderRow.ID).Updates(map[string]any{"destination_country_code": "CN", "destination_region": "广东", "destination_postal_code": "518000"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := orders.DB.Model(&FulfillmentWaveLine{}).Where("id = ?", line.ID).Update("barcode", "FREIGHT-SKU").Error; err != nil {
+		t.Fatal(err)
+	}
+	channel, err := logisticsSvc.CreateChannel(context.Background(), 41, nil, logistics.CreateChannelInput{Code: "LOCAL", Name: "Local", Carrier: "Carrier A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = logisticsSvc.CreateRate(context.Background(), 41, nil, logistics.CreateRateInput{RateInput: logistics.RateInput{ChannelID: channel.ID, WarehouseID: &wave.WarehouseID, Code: "CN-GD", Name: "CN Guangdong", CountryCode: "CN", Region: "广东", MinWeightGrams: 0, MaxWeightGrams: 2000, BaseFeeMinor: 800, PerKilogramFeeMinor: 200, Currency: "CNY", Priority: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, _ := newWaveGinContext(t)
+	started, err := orders.StartFulfillmentWave(ctx, 41, nil, nil, wave.ID, FulfillmentWaveRevisionInput{ExpectedRevision: wave.Revision, IdempotencyKey: "freight-start"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	picked, err := orders.RecordFulfillmentWavePick(ctx, 41, nil, nil, wave.ID, RecordFulfillmentWavePickInput{ExpectedRevision: started.Revision, IdempotencyKey: "freight-pick", Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty, ScannedBarcode: "FREIGHT-SKU"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := orders.QuoteFulfillmentWaveFreight(ctx, 41, nil, wave.ID, orderRow.ID, 850)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Candidates) != 1 || result.Candidates[0].AmountMinor != 1000 {
+		t.Fatalf("unexpected quotes: %#v", result)
+	}
+	if _, err := orders.ConfirmFulfillmentWaveFreightQuote(ctx, 41, nil, nil, wave.ID, orderRow.ID, ConfirmFulfillmentWaveFreightQuoteInput{ExpectedRevision: picked.Revision, IdempotencyKey: "freight-stale-rate", RateTemplateID: result.Candidates[0].RateTemplateID, RateTemplateRevision: result.Candidates[0].RateTemplateRevision + 1, WeightGrams: 850}); !errors.Is(err, ErrFulfillmentWaveRevision) {
+		t.Fatalf("stale rate template revision must conflict, got %v", err)
+	}
+	confirmed, err := orders.ConfirmFulfillmentWaveFreightQuote(ctx, 41, nil, nil, wave.ID, orderRow.ID, ConfirmFulfillmentWaveFreightQuoteInput{ExpectedRevision: picked.Revision, IdempotencyKey: "freight-confirm", RateTemplateID: result.Candidates[0].RateTemplateID, RateTemplateRevision: result.Candidates[0].RateTemplateRevision, WeightGrams: 850})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if confirmed.Revision != picked.Revision+1 || confirmed.Orders[0].FreightQuote == nil || confirmed.Orders[0].FreightQuote.AmountMinor != 1000 {
+		t.Fatalf("quote confirmation must persist immutable snapshot: %#v", confirmed)
+	}
+	wrongWeight := 900
+	_, err = orders.VerifyFulfillmentWavePack(ctx, 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{ExpectedRevision: confirmed.Revision, IdempotencyKey: "freight-wrong-weight", ScannedOrderNo: orderRow.OrderNo, Carrier: "Carrier A", TrackingNo: "TRACK-1", PackageCode: "TRACK-1", ActualWeightGrams: &wrongWeight, Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "FREIGHT-SKU", VerifiedQty: line.RequiredQty}}})
+	if !errors.Is(err, ErrFulfillmentWaveFreightQuoteRequired) {
+		t.Fatalf("changed weight must require re-quote, got %v", err)
+	}
+	weight := 850
+	packed, err := orders.VerifyFulfillmentWavePack(ctx, 41, nil, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{ExpectedRevision: confirmed.Revision, IdempotencyKey: "freight-pack", ScannedOrderNo: orderRow.OrderNo, Carrier: "Carrier A", TrackingNo: "TRACK-1", PackageCode: "TRACK-1", ActualWeightGrams: &weight, Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "FREIGHT-SKU", VerifiedQty: line.RequiredQty}}})
+	if err != nil {
+		t.Fatalf("pack failed: %v quote=%#v", err, confirmed.Orders[0].FreightQuote)
+	}
+	if packed.Orders[0].Status != FulfillmentWaveOrderPacked {
+		t.Fatalf("fresh quote should allow packing: %#v", packed.Orders[0])
+	}
+}
+
 func newFulfillmentWaveFixture(t *testing.T) (*Service, *inventory.Service, *warehouse.Service, *FulfillmentWave, *Order, *FulfillmentWaveLine) {
 	t.Helper()
 	orders, inv, ctx, orderRow, _, warehouseRow, _ := newFulfillmentFixture(t)
@@ -32,6 +95,7 @@ func newFulfillmentWaveFixture(t *testing.T) (*Service, *inventory.Service, *war
 		&FulfillmentWaveAssignment{}, &FulfillmentWaveAction{}, &FulfillmentWavePickScan{},
 		&FulfillmentWavePackVerification{}, &FulfillmentWavePackScan{},
 		&FulfillmentWaveDocument{}, &FulfillmentWaveDocumentPrintEvent{},
+		&FulfillmentWaveFreightQuote{},
 		&warehouse.WarehouseLocation{}, &inventory.WarehouseSKUPlacement{},
 	); err != nil {
 		t.Fatal(err)

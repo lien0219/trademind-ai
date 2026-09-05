@@ -34,6 +34,55 @@ export type FulfillmentWaveOrder = {
   shipmentId?: string;
   packedAt?: string;
   fulfilledAt?: string;
+  freightQuote?: FulfillmentWaveFreightQuote;
+};
+
+export type FulfillmentWaveFreightQuote = {
+  id: string;
+  version: number;
+  sourceRevision: number;
+  rateTemplateId: string;
+  rateTemplateCode: string;
+  rateTemplateName: string;
+  rateTemplateRevision: number;
+  channelId: string;
+  channelCode: string;
+  channelName: string;
+  carrier: string;
+  destinationCountryCode: string;
+  destinationRegion?: string;
+  destinationPostalCode?: string;
+  weightGrams: number;
+  minWeightGrams: number;
+  maxWeightGrams: number;
+  amountMinor: number;
+  currency: string;
+  explanation: string;
+  createdAt: string;
+};
+
+export type FulfillmentFreightQuoteCandidate = {
+  rateTemplateId: string;
+  rateTemplateCode: string;
+  rateTemplateName: string;
+  rateTemplateRevision: number;
+  channelId: string;
+  channelCode: string;
+  channelName: string;
+  carrier: string;
+  weightGrams: number;
+  minWeightGrams: number;
+  maxWeightGrams: number;
+  amountMinor: number;
+  currency: string;
+  explanation: string;
+};
+
+export type FulfillmentFreightQuoteResult = {
+  destinationCountryCode: string;
+  destinationRegion?: string;
+  destinationPostalCode?: string;
+  candidates: FulfillmentFreightQuoteCandidate[];
 };
 
 export type FulfillmentWaveLine = {
@@ -329,6 +378,32 @@ export async function verifyFulfillmentWavePack(
 ) {
   return postJSON<FulfillmentWave>(
     `/api/v1/fulfillment-waves/${enc(waveId)}/orders/${enc(orderId)}/verify-pack`,
+    payload,
+  );
+}
+
+export async function quoteFulfillmentWaveFreight(
+  waveId: string,
+  orderId: string,
+  weightGrams: number,
+) {
+  return getWithParams<FulfillmentFreightQuoteResult>(
+    `/api/v1/fulfillment-waves/${enc(waveId)}/orders/${enc(orderId)}/freight-quotes`,
+    { weightGrams },
+  );
+}
+
+export async function confirmFulfillmentWaveFreightQuote(
+  waveId: string,
+  orderId: string,
+  payload: FulfillmentWaveRevisionPayload & {
+    rateTemplateId: string;
+    rateTemplateRevision: number;
+    weightGrams: number;
+  },
+) {
+  return postJSON<FulfillmentWave>(
+    `/api/v1/fulfillment-waves/${enc(waveId)}/orders/${enc(orderId)}/freight-quotes/confirm`,
     payload,
   );
 }

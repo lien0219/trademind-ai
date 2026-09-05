@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures/admin.fixture';
 import { ok } from '../mocks/envelope';
 import { e2eUser } from '../mocks/auth';
 import { E2E_RECONCILIATION_ORDER_ID } from '../mocks/order-fulfillment-reconciliation';
-import { expectHeaderContentAligned, expectNoRootOverflow } from '../utils/assertions';
+import { expectHeaderContentAligned, expectNoRootOverflow, expectTableFilterBarAlignedLeft } from '../utils/assertions';
 
 test.describe('@smoke order fulfillment reconciliation', () => {
   test('renders the read-only reconciliation workbench and opens detail', async ({ admin, page }) => {
@@ -15,6 +15,7 @@ test.describe('@smoke order fulfillment reconciliation', () => {
     await expect(page.getByRole('dialog')).toContainText('库存 effect');
     await expectNoRootOverflow(page);
     await expectHeaderContentAligned(page);
+    await expectTableFilterBarAlignedLeft(page);
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 

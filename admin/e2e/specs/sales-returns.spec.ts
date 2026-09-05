@@ -12,6 +12,7 @@ import {
   expectHeaderContentAligned,
   expectModalWithinViewport,
   expectNoRootOverflow,
+  expectTableFilterBarAlignedLeft,
 } from '../utils/assertions';
 
 const viewports = [
@@ -45,6 +46,7 @@ test.describe('@smoke sales returns workspace', () => {
         await expectHeaderContentAligned(page);
         if (route.path === '/orders/sales-returns') {
           await expectHeaderActionsSpaced(page);
+          await expectTableFilterBarAlignedLeft(page);
         }
       }
       await admin.writeGuard.expectRequestCount('unexpected', 0);

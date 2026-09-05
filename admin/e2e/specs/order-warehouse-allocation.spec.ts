@@ -13,6 +13,7 @@ import {
 import {
   expectModalWithinViewport,
   expectNoRootOverflow,
+  expectTableFilterBarAlignedLeft,
 } from "../utils/assertions";
 
 const viewports = [
@@ -35,6 +36,7 @@ test.describe("@smoke order warehouse allocation V1", () => {
         page.getByText("SO-E2E-ALLOC-0001", { exact: true }),
       ).toBeVisible();
       await expectNoRootOverflow(page);
+      await expectTableFilterBarAlignedLeft(page);
 
       await page.getByRole("button", { name: "查看" }).click();
       await expect(page.getByText("分仓候选详情")).toBeVisible();

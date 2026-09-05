@@ -26,6 +26,8 @@ const (
 	// ERP foundation permissions
 	PermWarehouseView      = "warehouse.view"
 	PermWarehouseManage    = "warehouse.manage"
+	PermLogisticsView      = "logistics.view"
+	PermLogisticsManage    = "logistics.manage"
 	PermSupplierView       = "supplier.view"
 	PermSupplierManage     = "supplier.manage"
 	PermProcurementView    = "procurement.view"
@@ -38,6 +40,8 @@ const (
 	PermSalesReturnApprove = "sales_return.approve"
 	PermSalesReturnReceive = "sales_return.receive"
 	PermSalesReturnRefund  = "sales_return.refund"
+	PermOrderProfitView    = "order_profit.view"
+	PermOrderProfitExport  = "order_profit.export"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -97,6 +101,8 @@ var allPermissions = []string{
 	PermStoreOperate,
 	PermWarehouseView,
 	PermWarehouseManage,
+	PermLogisticsView,
+	PermLogisticsManage,
 	PermSupplierView,
 	PermSupplierManage,
 	PermProcurementView,
@@ -109,6 +115,8 @@ var allPermissions = []string{
 	PermSalesReturnApprove,
 	PermSalesReturnReceive,
 	PermSalesReturnRefund,
+	PermOrderProfitView,
+	PermOrderProfitExport,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -159,6 +167,7 @@ var reviewerPermissions = []string{
 	PermSKUBindingResolveManual,
 	PermInventorySyncAuditRead,
 	PermWarehouseView,
+	PermLogisticsView,
 	PermSupplierView,
 	PermProcurementView,
 	PermProcurementApprove,
@@ -200,6 +209,8 @@ var operatorPermissions = []string{
 	PermSKUBindingManage,
 	PermWarehouseView,
 	PermWarehouseManage,
+	PermLogisticsView,
+	PermLogisticsManage,
 	PermSupplierView,
 	PermSupplierManage,
 	PermProcurementView,
@@ -210,6 +221,8 @@ var operatorPermissions = []string{
 	PermSalesReturnManage,
 	PermSalesReturnReceive,
 	PermSalesReturnRefund,
+	PermOrderProfitView,
+	PermOrderProfitExport,
 }
 
 var readonlyPermissions = []string{
@@ -230,9 +243,11 @@ var readonlyPermissions = []string{
 	PermInventorySnapshotRead,
 	PermSKUBindingRead,
 	PermWarehouseView,
+	PermLogisticsView,
 	PermSupplierView,
 	PermProcurementView,
 	PermSalesReturnView,
+	PermOrderProfitView,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

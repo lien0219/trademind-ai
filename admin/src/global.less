@@ -730,6 +730,32 @@ html.tm-theme-switching body #root *::after {
 }
 
 /* ProTable：表格区域内部横向滚动，不撑破页面 */
+.tm-table-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .ant-pro-table.tm-pro-table.tm-pro-table--has-filter-bar {
+    .ant-pro-table-list-toolbar-container {
+      align-items: stretch;
+    }
+
+    .ant-pro-table-list-toolbar-left,
+    .ant-pro-table-list-toolbar-title {
+      width: 100%;
+      min-width: 0;
+      justify-content: flex-start;
+    }
+  }
+}
+
 .ant-pro-table {
   min-width: 0;
   max-width: 100%;

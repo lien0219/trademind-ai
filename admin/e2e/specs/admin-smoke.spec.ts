@@ -3,6 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import {
   expectAccountInTopNavbar,
   expectNoRootOverflow,
+  expectTableFilterBarAlignedLeft,
 } from "../utils/assertions";
 import { AUTH_TOKEN_KEY } from "../../src/constants/auth";
 import { THEME_MODE_STORAGE_KEY } from "../../src/theme/themeMode";
@@ -250,6 +251,7 @@ const smokeRoutes = [
   { path: "/procurement/replenishment-suggestions", name: /补货建议/ },
   { path: "/orders/sales-returns", name: /退货退款/ },
   { path: "/orders/fulfillment-reconciliation", name: /履约库存对账/ },
+  { path: "/orders/logistics-channels", name: /物流渠道与运费模板/ },
   { path: "/orders/sales-return-reconciliation", name: /平台售后对账/ },
   { path: "/orders/refund-executions", name: /退款执行/ },
   { path: "/ops/task-center/alerts", name: /告警中心/ },
@@ -271,6 +273,9 @@ test.describe("@smoke Admin route smoke", () => {
       await expect(page).not.toHaveURL(/\/user\/login/);
       await expectAccountInTopNavbar(page);
       await expectNoRootOverflow(page);
+      if (await page.locator(".tm-table-filter-bar:visible").count()) {
+        await expectTableFilterBarAlignedLeft(page);
+      }
       await admin.writeGuard.expectRequestCount("unexpected", 0);
     });
   }

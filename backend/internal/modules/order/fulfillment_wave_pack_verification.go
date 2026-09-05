@@ -108,6 +108,14 @@ func (s *Service) VerifyFulfillmentWavePack(ctx context.Context, tenantID int64,
 		if waveOrder.Status != FulfillmentWaveOrderReadyToPack && waveOrder.Status != FulfillmentWaveOrderFailed {
 			return ErrFulfillmentWavePackingIncomplete
 		}
+		var freightQuote FulfillmentWaveFreightQuote
+		quoteErr := tx.Where("tenant_id = ? AND wave_id = ? AND wave_order_id = ?", tenantID, waveID, waveOrder.ID).Order("version DESC, created_at DESC, id DESC").First(&freightQuote).Error
+		if quoteErr != nil && !errors.Is(quoteErr, gorm.ErrRecordNotFound) {
+			return quoteErr
+		}
+		if quoteErr == nil && (in.ActualWeightGrams == nil || *in.ActualWeightGrams != freightQuote.WeightGrams || !strings.EqualFold(carrier, freightQuote.Carrier)) {
+			return ErrFulfillmentWaveFreightQuoteRequired
+		}
 		var storedLines []FulfillmentWaveLine
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND wave_id = ? AND wave_order_id = ?", tenantID, waveID, waveOrder.ID).Order("id ASC").Find(&storedLines).Error; err != nil {
 			return err

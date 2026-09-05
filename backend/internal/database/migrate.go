@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -236,6 +237,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&order.FulfillmentWavePackScan{},
 		&order.FulfillmentWaveDocument{},
 		&order.FulfillmentWaveDocumentPrintEvent{},
+		&order.FulfillmentWaveFreightQuote{},
 		&orderexception.OrderExceptionMark{},
 		&ordersync.OrderSyncTask{},
 		&customersync.CustomerMessageSyncTask{},
@@ -245,6 +247,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&inventory.OrderInventoryEffect{},
 		&warehouse.Warehouse{},
 		&warehouse.WarehouseLocation{},
+		&logistics.ShippingChannel{},
+		&logistics.ShippingRateTemplate{},
 		&inventory.WarehouseStockBalance{},
 		&inventory.WarehouseSKUPlacement{},
 		&inventory.InventoryMovement{},

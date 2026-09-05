@@ -210,9 +210,9 @@ export default function RefundExecutionsPage() {
           cardBordered
           scroll={{ x: 1370 }}
           locale={{ emptyText: error ? '退款执行列表暂不可用' : '暂无退款执行记录。' }}
-          toolBarRender={() => [
+          filterBar={
             <Select
-              key="status"
+              aria-label="退款执行状态"
               allowClear
               placeholder="全部执行状态"
               value={status}
@@ -221,8 +221,8 @@ export default function RefundExecutionsPage() {
                 ([value, meta]) => ({ value, label: meta.text }),
               )}
               onChange={setStatus}
-            />,
-          ]}
+            />
+          }
           request={async (params) => {
             try {
               const result = await listRefundExecutions({

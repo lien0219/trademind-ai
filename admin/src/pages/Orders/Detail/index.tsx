@@ -188,9 +188,9 @@ export default function OrderDetailPage() {
     if (tab === "inventory" || tab === "inv") setActiveTab("inv");
     else if (tab === "reconciliation" || tab === "fulfillment-reconciliation") {
       setActiveTab("reconciliation");
-    }
-    else if (tab === "sku") setActiveTab("sku");
-    else if (tab === "tracking" || tab === "shipments") setActiveTab("tracking");
+    } else if (tab === "sku") setActiveTab("sku");
+    else if (tab === "tracking" || tab === "shipments")
+      setActiveTab("tracking");
     else if (tab === "exceptions") setActiveTab("exceptions");
   }, [searchParams]);
 
@@ -477,6 +477,15 @@ export default function OrderDetailPage() {
                   <Descriptions.Item label="电话">
                     {detail.customerPhone || "—"}
                   </Descriptions.Item>
+                  <Descriptions.Item label="物流目的地">
+                    {[
+                      detail.destinationCountryCode,
+                      detail.destinationRegion,
+                      detail.destinationPostalCode,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </Descriptions.Item>
                   <Descriptions.Item label="说明">
                     <Typography.Text type="secondary">
                       联系方式已脱敏展示；完整信息需相应权限。
@@ -726,7 +735,9 @@ export default function OrderDetailPage() {
             {
               key: "tracking",
               label: "物流轨迹",
-              children: <OrderTrackingTab orderId={detail.id} readOnly={!writable} />,
+              children: (
+                <OrderTrackingTab orderId={detail.id} readOnly={!writable} />
+              ),
             },
             {
               key: "reconciliation",
@@ -734,10 +745,18 @@ export default function OrderDetailPage() {
               children: reconciliationLoading ? (
                 <Alert type="info" message="正在加载履约对账" />
               ) : reconciliationError ? (
-                <Alert type="error" message="履约对账加载失败" description={reconciliationError} />
+                <Alert
+                  type="error"
+                  message="履约对账加载失败"
+                  description={reconciliationError}
+                />
               ) : reconciliation ? (
                 <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                  <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }}>
+                  <Descriptions
+                    bordered
+                    size="small"
+                    column={{ xs: 1, sm: 2, md: 3 }}
+                  >
                     <Descriptions.Item label="对账状态">
                       {tagFromMap(
                         reconciliation.reconciliationStatus,
@@ -748,7 +767,10 @@ export default function OrderDetailPage() {
                       {tagFromMap(reconciliation.status, ORDER_STATUS)}
                     </Descriptions.Item>
                     <Descriptions.Item label="履约状态">
-                      {tagFromMap(reconciliation.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}
+                      {tagFromMap(
+                        reconciliation.fulfillmentStatus,
+                        ORDER_FULFILLMENT_STATUS,
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="履约仓库">
                       {reconciliation.warehouseId || "—"}
@@ -774,27 +796,52 @@ export default function OrderDetailPage() {
                     columns={[
                       { title: "事实", dataIndex: "type", width: 96 },
                       { title: "动作", dataIndex: "action", width: 150 },
-                      { title: "状态", dataIndex: "status", width: 96, render: (v) => v || "—" },
-                      { title: "数量", dataIndex: "quantity", width: 72, render: (v) => v ?? "—" },
-                      { title: "时间", dataIndex: "createdAt", width: 180, render: (v) => formatDateTime(v) },
+                      {
+                        title: "状态",
+                        dataIndex: "status",
+                        width: 96,
+                        render: (v) => v || "—",
+                      },
+                      {
+                        title: "数量",
+                        dataIndex: "quantity",
+                        width: 72,
+                        render: (v) => v ?? "—",
+                      },
+                      {
+                        title: "时间",
+                        dataIndex: "createdAt",
+                        width: 180,
+                        render: (v) => formatDateTime(v),
+                      },
                     ]}
                   />
                   <Space wrap>
-                    {(["reserve", "deduct", "release", "restore"] as const).map((key) => {
-                      const summary = reconciliation[key];
-                      return (
-                        <Tag key={key} color={summary.expected === summary.actual ? "success" : "error"}>
-                          {key}: {summary.actual}/{summary.expected}
-                        </Tag>
-                      );
-                    })}
+                    {(["reserve", "deduct", "release", "restore"] as const).map(
+                      (key) => {
+                        const summary = reconciliation[key];
+                        return (
+                          <Tag
+                            key={key}
+                            color={
+                              summary.expected === summary.actual
+                                ? "success"
+                                : "error"
+                            }
+                          >
+                            {key}: {summary.actual}/{summary.expected}
+                          </Tag>
+                        );
+                      },
+                    )}
                     {reconciliation.issues?.length ? (
                       <Typography.Text type="danger">
                         异常：
                         {reconciliation.issues
                           .map(
                             (issue) =>
-                              ORDER_FULFILLMENT_RECONCILIATION_ISSUES[issue] || issue,
+                              ORDER_FULFILLMENT_RECONCILIATION_ISSUES[issue] ||
+                              issue,
                           )
                           .join("、")}
                       </Typography.Text>

@@ -1,5 +1,6 @@
 import { CheckCircleOutlined, LinkOutlined, PlusOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
+import { useSearchParams } from '@umijs/max';
 import { Alert, Button, Form, Input, InputNumber, Modal, Radio, Select, Space, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppDrawer from '@/components/AppDrawer';
@@ -41,6 +42,7 @@ type BindingFormValues = {
 };
 
 export default function SuppliersPage() {
+	const [searchParams] = useSearchParams();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.SUPPLIER_MANAGE);
   const canReadFullPII = can(PERMISSIONS.PII_READ_FULL);
@@ -49,7 +51,7 @@ export default function SuppliersPage() {
   const [rows, setRows] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(() => searchParams.get('keyword')?.trim() || '');
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier>();
   const [supplierSubmitting, setSupplierSubmitting] = useState(false);
@@ -290,7 +292,7 @@ export default function SuppliersPage() {
         <TmProTable<Supplier>
           className="tm-procurement-table"
           rowKey="id" columns={columns} dataSource={filteredRows} loading={loading} search={false} options={false}
-          headerTitle={
+          filterBar={
             <Input.Search
               allowClear
               aria-label="搜索供应商"

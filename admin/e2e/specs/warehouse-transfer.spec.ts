@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures/admin.fixture';
 import { ok } from '../mocks/envelope';
 import { e2eUser } from '../mocks/auth';
-import { expectModalWithinViewport, expectNoRootOverflow } from '../utils/assertions';
+import { expectModalWithinViewport, expectNoRootOverflow, expectTableFilterBarAlignedLeft } from '../utils/assertions';
 
 const viewports = [
   { width: 1440, height: 900 },
@@ -45,6 +45,7 @@ test.describe('@smoke warehouse transfers', () => {
     for (const viewport of viewports) {
       await page.setViewportSize(viewport);
       await admin.goto('/inventory/warehouse-transfers');
+      await expectTableFilterBarAlignedLeft(page);
       await page.getByRole('button', { name: '新建调拨' }).click();
       const dialog = page.getByRole('dialog', { name: '新建仓库调拨' });
       await expect(dialog).toBeVisible();

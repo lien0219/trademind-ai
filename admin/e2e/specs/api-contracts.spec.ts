@@ -16,6 +16,11 @@ import {
   e2eRefundExecution,
 } from '../mocks/sales-returns';
 import { E2E_ALLOCATION_ORDER_ID, e2eWarehouseAllocation } from '../mocks/order-warehouse-allocation';
+import {
+  E2E_ORDER_PROFIT_ORDER_ID,
+  e2eOrderProfit,
+  e2eOrderProfitDetail,
+} from '../mocks/order-profits';
 
 async function fetchApi(page: import('@playwright/test').Page, path: string) {
   if (page.url() === 'about:blank') {
@@ -95,6 +100,19 @@ test.describe('@contract API envelope contracts', () => {
     );
     expect(await fetchApi(page, `/api/v1/refund-executions/${E2E_REFUND_EXECUTION_ID}`)).toEqual(
       ok(e2eRefundExecution),
+    );
+    expect(await fetchApi(page, '/api/v1/order-profits')).toMatchObject(
+      ok({
+        list: [e2eOrderProfit],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+        formula: { version: 'order_profit_estimate_v1' },
+      }),
+    );
+    expect(await fetchApi(page, `/api/v1/order-profits/${E2E_ORDER_PROFIT_ORDER_ID}`)).toEqual(
+      ok(e2eOrderProfitDetail),
     );
   });
 });

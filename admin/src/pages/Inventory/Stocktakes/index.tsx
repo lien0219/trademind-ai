@@ -162,7 +162,7 @@ export default function StocktakesPage() {
     <TmPageContainer title="库存盘点" subTitle="记录仓库实盘数量，审核后过账差异并保留不可变库存流水。" extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canOperate} onClick={openCreate}>新建盘点</Button></TmPageHeaderExtra>}>
       {!canOperate ? <Alert type="info" showIcon message="当前账号为只读模式，可查看盘点记录但不能创建或修改盘点。" style={{ marginBottom: 16 }} /> : null}
       {error ? <ErrorAlert title={error} /> : null}
-      <TmProTable<InventoryStocktake> rowKey="id" actionRef={actionRef} columns={columns} search={false} scroll={{ x: 1120 }} cardBordered locale={{ emptyText: '暂无库存盘点记录' }} toolBarRender={() => [<Select key="status" allowClear placeholder="全部状态" value={status} style={{ width: 140 }} options={Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label }))} onChange={setStatus} />]} request={async (params) => {
+      <TmProTable<InventoryStocktake> rowKey="id" actionRef={actionRef} columns={columns} search={false} scroll={{ x: 1120 }} cardBordered locale={{ emptyText: '暂无库存盘点记录' }} filterBar={<Select aria-label="盘点状态" allowClear placeholder="全部状态" value={status} style={{ width: 140 }} options={Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label }))} onChange={setStatus} />} request={async (params) => {
         try { const result = await queryInventoryStocktakes({ page: params.current, pageSize: params.pageSize, status }); setError(''); return { data: result.list ?? [], success: true, total: result.total ?? 0 }; }
         catch (nextError) { const msg = (nextError as Error)?.message || '盘点列表加载失败'; setError(msg); message.error(msg); return { data: [], success: false, total: 0 }; }
       }} />

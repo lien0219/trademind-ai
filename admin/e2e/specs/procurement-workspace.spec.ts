@@ -23,6 +23,7 @@ import {
   expectHeaderContentAligned,
   expectModalWithinViewport,
   expectNoRootOverflow,
+  expectTableFilterBarAlignedLeft,
 } from '../utils/assertions';
 
 const viewports = [
@@ -53,6 +54,9 @@ test.describe('@smoke procurement workspace', () => {
         await expect(page.getByText(route.text).first()).toBeVisible({ timeout: 30_000 });
         await expectNoRootOverflow(page);
         await expectHeaderContentAligned(page);
+        if (['/procurement/warehouses', '/procurement/suppliers', '/procurement/purchase-returns'].includes(route.path)) {
+          await expectTableFilterBarAlignedLeft(page);
+        }
         if (route.checksDraftModal) {
           await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
           await page.getByRole('button', { name: '创建采购草稿（1）' }).click();

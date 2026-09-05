@@ -42,6 +42,9 @@ describe('ERP permission fallbacks', () => {
       hasPermission(ROLES.OPERATOR, PERMISSIONS.SALES_RETURN_REFUND),
     ).toBe(true);
     expect(
+      hasPermission(ROLES.OPERATOR, PERMISSIONS.ORDER_PROFIT_EXPORT),
+    ).toBe(true);
+    expect(
       hasPermission(ROLES.REVIEWER, PERMISSIONS.SALES_RETURN_REFUND),
     ).toBe(false);
   });
@@ -67,6 +70,12 @@ describe('ERP permission fallbacks', () => {
       false,
     );
     expect(hasPermission(ROLES.READONLY, PERMISSIONS.SALES_RETURN_REFUND)).toBe(
+      false,
+    );
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.ORDER_PROFIT_VIEW)).toBe(
+      true,
+    );
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.ORDER_PROFIT_EXPORT)).toBe(
       false,
     );
   });

@@ -118,6 +118,7 @@ describe('Admin route menu configuration', () => {
           name: '履约分仓',
         }),
         expect.objectContaining({ path: '/orders/fulfillment-waves', name: '拣货波次' }),
+        expect.objectContaining({ path: '/orders/logistics-channels', name: '物流渠道' }),
         expect.objectContaining({
           path: '/orders/fulfillment-waves/:id/documents',
           name: '履约出库单据中心',
@@ -132,6 +133,20 @@ describe('Admin route menu configuration', () => {
         expect.objectContaining({ path: '/orders/sales-returns/:id', hideInMenu: true }),
         expect.objectContaining({ path: '/orders/sales-return-reconciliation', name: '平台售后对账' }),
         expect.objectContaining({ path: '/orders/sales-return-reconciliation/:id', hideInMenu: true }),
+      ]),
+    );
+  });
+
+  it('exposes order profit estimates under a dedicated finance workspace', () => {
+    const finance = routes.find((route) => route.path === '/finance');
+
+    expect(finance?.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '/finance/order-profits',
+          name: '订单预估利润',
+          component: './Finance/OrderProfits',
+        }),
       ]),
     );
   });

@@ -73,17 +73,17 @@ export default function PurchaseReturnsPage() {
           cardBordered
           scroll={{ x: 1220 }}
           locale={{ emptyText: error ? '采购退货列表暂不可用' : '暂无采购退货记录。' }}
-          toolBarRender={() => [
+          filterBar={
             <Select
-              key="status"
+              aria-label="采购退货状态"
               allowClear
               placeholder="全部状态"
               value={status}
               style={{ width: 140 }}
               options={Object.entries(RETURN_STATUS).map(([value, meta]) => ({ value, label: meta.text }))}
               onChange={setStatus}
-            />,
-          ]}
+            />
+          }
           request={async (params) => {
             try {
               const result = await listPurchaseReturns({ page: params.current, pageSize: params.pageSize, status, purchaseOrderId });

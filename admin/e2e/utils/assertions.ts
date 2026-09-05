@@ -50,6 +50,31 @@ export async function expectHeaderContentAligned(page: Page) {
   expect(value.rightDelta, `header/content right delta ${JSON.stringify(value)}`).toBeLessThanOrEqual(4);
 }
 
+export async function expectTableFilterBarAlignedLeft(page: Page) {
+  const filterBars = page.locator('.tm-table-filter-bar:visible');
+  await expect(filterBars.first(), 'visible table filter bar').toBeVisible();
+  const count = await filterBars.count();
+
+  for (let index = 0; index < count; index += 1) {
+    const metrics = await filterBars.nth(index).evaluate((filterBar) => {
+      const table = filterBar.closest<HTMLElement>('.tm-pro-table');
+      if (!table) return null;
+      const filterRect = filterBar.getBoundingClientRect();
+      const tableRect = table.getBoundingClientRect();
+      return {
+        filterLeft: filterRect.left,
+        tableLeft: tableRect.left,
+        leftDelta: filterRect.left - tableRect.left,
+      };
+    });
+
+    expect(metrics, `table filter bar ${index + 1} metrics`).not.toBeNull();
+    if (!metrics) continue;
+    expect(metrics.leftDelta, `table filter bar ${index + 1} ${JSON.stringify(metrics)}`).toBeGreaterThanOrEqual(-1);
+    expect(metrics.leftDelta, `table filter bar ${index + 1} ${JSON.stringify(metrics)}`).toBeLessThanOrEqual(32);
+  }
+}
+
 export async function expectHeaderActionsSpaced(page: Page) {
   const value = await page.locator('.tm-page-header-extra').first().evaluate((element) => {
     const style = window.getComputedStyle(element);

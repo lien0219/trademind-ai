@@ -356,6 +356,11 @@ export default [
         component: './Orders/FulfillmentWaves',
       },
       {
+        path: '/orders/logistics-channels',
+        name: '物流渠道',
+        component: './Orders/LogisticsChannels',
+      },
+      {
         path: '/orders/fulfillment-waves/:id/verify-pack',
         name: '出库扫描复核',
         hideInMenu: true,
@@ -425,6 +430,23 @@ export default [
         path: '/orders/exceptions',
         name: '异常工作台',
         component: './Orders/Exceptions',
+      },
+    ],
+  },
+  {
+    path: '/finance',
+    name: '财务',
+    icon: 'FundOutlined',
+    component: '@/layouts/FinanceGroupLayout',
+    routes: [
+      {
+        path: '/finance',
+        redirect: '/finance/order-profits',
+      },
+      {
+        path: '/finance/order-profits',
+        name: '订单预估利润',
+        component: './Finance/OrderProfits',
       },
     ],
   },

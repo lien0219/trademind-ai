@@ -78,23 +78,24 @@ func (FulfillmentWave) TableName() string { return "fulfillment_waves" }
 // mutable packing/fulfillment result for that order.
 type FulfillmentWaveOrder struct {
 	model.HardDeleteBase
-	TenantID          int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	WaveID            uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:1;index" json:"waveId"`
-	OrderID           uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:2;index" json:"orderId"`
-	ShopID            *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
-	OrderNo           string     `gorm:"size:128;not null" json:"orderNo"`
-	Status            string     `gorm:"size:32;not null;index" json:"status"`
-	Carrier           string     `gorm:"size:128" json:"carrier,omitempty"`
-	TrackingNo        string     `gorm:"size:255" json:"trackingNo,omitempty"`
-	TrackingURL       string     `gorm:"size:2048" json:"trackingUrl,omitempty"`
-	PackageCode       string     `gorm:"size:255" json:"packageCode,omitempty"`
-	ActualWeightGrams *int       `json:"actualWeightGrams,omitempty"`
-	FailureCode       string     `gorm:"size:64" json:"failureCode,omitempty"`
-	FailureReason     string     `gorm:"size:500" json:"failureReason,omitempty"`
-	ShipmentID        *uuid.UUID `gorm:"type:char(36);index" json:"shipmentId,omitempty"`
-	PackedBy          *uuid.UUID `gorm:"type:char(36);index" json:"packedBy,omitempty"`
-	PackedAt          *time.Time `json:"packedAt,omitempty"`
-	FulfilledAt       *time.Time `json:"fulfilledAt,omitempty"`
+	TenantID          int64                        `gorm:"not null;default:0;index" json:"tenantId"`
+	WaveID            uuid.UUID                    `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:1;index" json:"waveId"`
+	OrderID           uuid.UUID                    `gorm:"type:char(36);not null;uniqueIndex:ux_fulfillment_wave_order,priority:2;index" json:"orderId"`
+	ShopID            *uuid.UUID                   `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	OrderNo           string                       `gorm:"size:128;not null" json:"orderNo"`
+	Status            string                       `gorm:"size:32;not null;index" json:"status"`
+	Carrier           string                       `gorm:"size:128" json:"carrier,omitempty"`
+	TrackingNo        string                       `gorm:"size:255" json:"trackingNo,omitempty"`
+	TrackingURL       string                       `gorm:"size:2048" json:"trackingUrl,omitempty"`
+	PackageCode       string                       `gorm:"size:255" json:"packageCode,omitempty"`
+	ActualWeightGrams *int                         `json:"actualWeightGrams,omitempty"`
+	FailureCode       string                       `gorm:"size:64" json:"failureCode,omitempty"`
+	FailureReason     string                       `gorm:"size:500" json:"failureReason,omitempty"`
+	ShipmentID        *uuid.UUID                   `gorm:"type:char(36);index" json:"shipmentId,omitempty"`
+	PackedBy          *uuid.UUID                   `gorm:"type:char(36);index" json:"packedBy,omitempty"`
+	PackedAt          *time.Time                   `json:"packedAt,omitempty"`
+	FulfilledAt       *time.Time                   `json:"fulfilledAt,omitempty"`
+	FreightQuote      *FulfillmentWaveFreightQuote `gorm:"-" json:"freightQuote,omitempty"`
 }
 
 func (FulfillmentWaveOrder) TableName() string { return "fulfillment_wave_orders" }
@@ -216,6 +217,41 @@ type FulfillmentWavePackScan struct {
 }
 
 func (FulfillmentWavePackScan) TableName() string { return "fulfillment_wave_pack_scans" }
+
+// FulfillmentWaveFreightQuote is an immutable, manually confirmed snapshot of
+// one local rate calculation. It is not a carrier quote and performs no
+// external write. Re-quoting creates a new version.
+type FulfillmentWaveFreightQuote struct {
+	model.HardDeleteBase
+	TenantID               int64      `gorm:"not null;uniqueIndex:ux_wave_freight_quote_version,priority:1;index" json:"tenantId"`
+	WaveID                 uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_wave_freight_quote_version,priority:2;index" json:"waveId"`
+	WaveOrderID            uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_wave_freight_quote_version,priority:3;index" json:"waveOrderId"`
+	OrderID                uuid.UUID  `gorm:"type:char(36);not null;index" json:"orderId"`
+	Version                int        `gorm:"not null;uniqueIndex:ux_wave_freight_quote_version,priority:4" json:"version"`
+	SourceRevision         int        `gorm:"not null" json:"sourceRevision"`
+	ActionID               uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex" json:"actionId"`
+	WarehouseID            uuid.UUID  `gorm:"type:char(36);not null;index" json:"warehouseId"`
+	RateTemplateID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"rateTemplateId"`
+	RateTemplateCode       string     `gorm:"size:64;not null" json:"rateTemplateCode"`
+	RateTemplateName       string     `gorm:"size:160;not null" json:"rateTemplateName"`
+	RateTemplateRevision   int        `gorm:"not null" json:"rateTemplateRevision"`
+	ChannelID              uuid.UUID  `gorm:"type:char(36);not null;index" json:"channelId"`
+	ChannelCode            string     `gorm:"size:64;not null" json:"channelCode"`
+	ChannelName            string     `gorm:"size:160;not null" json:"channelName"`
+	Carrier                string     `gorm:"size:128;not null" json:"carrier"`
+	DestinationCountryCode string     `gorm:"size:2;not null" json:"destinationCountryCode"`
+	DestinationRegion      string     `gorm:"size:120" json:"destinationRegion,omitempty"`
+	DestinationPostalCode  string     `gorm:"size:32" json:"destinationPostalCode,omitempty"`
+	WeightGrams            int        `gorm:"not null" json:"weightGrams"`
+	MinWeightGrams         int        `gorm:"not null" json:"minWeightGrams"`
+	MaxWeightGrams         int        `gorm:"not null" json:"maxWeightGrams"`
+	AmountMinor            int64      `gorm:"not null" json:"amountMinor"`
+	Currency               string     `gorm:"size:8;not null" json:"currency"`
+	Explanation            string     `gorm:"size:500;not null" json:"explanation"`
+	ActorID                *uuid.UUID `gorm:"type:char(36);index" json:"actorId,omitempty"`
+}
+
+func (FulfillmentWaveFreightQuote) TableName() string { return "fulfillment_wave_freight_quotes" }
 
 // FulfillmentWaveDocument stores an immutable, local-only print snapshot. It
 // does not represent a carrier label, tracking-number application or printer

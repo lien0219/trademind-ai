@@ -26,10 +26,87 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/logistics/channels",
+      "auth": true,
+      "responseData": "ShippingChannelList",
+      "requiredPermission": "logistics.view",
+      "readonly": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/logistics/channels",
+      "auth": true,
+      "requestBody": ["code", "name", "carrier"],
+      "responseData": "ShippingChannel",
+      "requiredPermission": "logistics.manage",
+      "externalWrite": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/logistics/channels/:id",
+      "auth": true,
+      "requestBody": ["expectedRevision", "name", "carrier", "status"],
+      "responseData": "ShippingChannel",
+      "requiredPermission": "logistics.manage",
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/logistics/rate-templates",
+      "auth": true,
+      "responseData": "ShippingRateTemplateList",
+      "requiredPermission": "logistics.view",
+      "readonly": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/logistics/rate-templates",
+      "auth": true,
+      "requestBody": ["channelId", "warehouseId", "code", "name", "countryCode", "region", "postalCodePrefix", "minWeightGrams", "maxWeightGrams", "baseFeeMinor", "perKilogramFeeMinor", "currency", "priority"],
+      "responseData": "ShippingRateTemplate",
+      "requiredPermission": "logistics.manage",
+      "externalWrite": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/logistics/rate-templates/:id",
+      "auth": true,
+      "requestBody": ["expectedRevision", "status", "channelId", "warehouseId", "code", "name", "countryCode", "region", "postalCodePrefix", "minWeightGrams", "maxWeightGrams", "baseFeeMinor", "perKilogramFeeMinor", "currency", "priority"],
+      "responseData": "ShippingRateTemplate",
+      "requiredPermission": "logistics.manage",
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/orders",
       "auth": true,
       "responseData": "OrderList",
       "requiredPermission": "order.view"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/order-profits",
+      "auth": true,
+      "query": ["page", "pageSize", "orderNo", "platform", "shopId", "warehouseId", "currency", "status", "start", "end", "format"],
+      "responseData": "OrderProfitEstimateListOrCSV",
+      "requiredPermission": "order_profit.view",
+      "exportPermission": "order_profit.export",
+      "readonly": true,
+      "externalWrite": false,
+      "statusEnum": ["complete", "pending", "mismatch", "blocked"],
+      "nullableMoneyFields": ["estimatedProfitMinor", "estimatedMarginBps", "components.*.amountMinor"],
+      "exportLimit": 5000
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/order-profits/:orderId",
+      "auth": true,
+      "responseData": "OrderProfitEstimateDetail",
+      "requiredPermission": "order_profit.view",
+      "readonly": true,
+      "externalWrite": false,
+      "statusEnum": ["complete", "pending", "mismatch", "blocked"],
+      "formulaVersion": "order_profit_estimate_v1"
     },
     {
       "method": "GET",
@@ -132,6 +209,26 @@
       "requestBody": ["expectedRevision", "idempotencyKey"],
       "responseData": "FulfillmentWave",
       "requiredPermission": "order.operate",
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes",
+      "auth": true,
+      "query": ["weightGrams"],
+      "responseData": "FulfillmentFreightQuoteCandidateList",
+      "requiredPermission": "order.view",
+      "readonly": true,
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes/confirm",
+      "auth": true,
+      "requestBody": ["expectedRevision", "idempotencyKey", "rateTemplateId", "rateTemplateRevision", "weightGrams"],
+      "responseData": "FulfillmentWave",
+      "requiredPermission": "order.operate",
+      "atomicity": "immutable_local_quote_snapshot_and_wave_revision",
       "externalWrite": false
     },
     {

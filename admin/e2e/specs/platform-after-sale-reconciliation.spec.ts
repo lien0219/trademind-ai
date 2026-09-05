@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/admin.fixture';
 import { E2E_PLATFORM_AFTER_SALE_ID } from '../mocks/sales-returns';
-import { expectHeaderContentAligned, expectNoRootOverflow } from '../utils/assertions';
+import { expectHeaderContentAligned, expectNoRootOverflow, expectTableFilterBarAlignedLeft } from '../utils/assertions';
 
 const viewports = [
   { width: 1440, height: 900 },
@@ -19,6 +19,7 @@ test.describe('@smoke platform after-sale reconciliation', () => {
       await expect(page.getByText('已匹配')).toBeVisible();
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
+      await expectTableFilterBarAlignedLeft(page);
 
       await page.getByText('e2e-after-sale-1').click();
       await expect(page.getByText('平台事实')).toBeVisible();

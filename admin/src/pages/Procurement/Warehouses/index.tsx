@@ -156,7 +156,7 @@ export default function WarehousesPage() {
           columns={columns}
           dataSource={filteredRows}
           loading={loading}
-          headerTitle={
+          filterBar={
             <Input.Search
               allowClear
               aria-label="搜索仓库"

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -75,6 +76,7 @@ func handleFulfillmentWaveError(c *gin.Context, err error) {
 		errors.Is(err, ErrFulfillmentWaveScanMismatch), errors.Is(err, ErrFulfillmentWavePackVerificationRequired),
 		errors.Is(err, ErrFulfillmentWavePackageMismatch), errors.Is(err, ErrFulfillmentWaveOrderScanMismatch),
 		errors.Is(err, ErrFulfillmentWavePackScanMismatch),
+		errors.Is(err, ErrFulfillmentWaveFreightQuoteRequired), errors.Is(err, logistics.ErrDestination), errors.Is(err, logistics.ErrNoQuote),
 		errors.Is(err, ErrFulfillmentWaveDocumentReprintReasonRequired),
 		errors.Is(err, ErrFulfillmentWaveCompleting), errors.Is(err, ErrFulfillmentWaveRequired),
 		errors.Is(err, idempotency.ErrKeyConflict), errors.Is(err, inventory.ErrOrderInventoryState),
@@ -83,6 +85,59 @@ func handleFulfillmentWaveError(c *gin.Context, err error) {
 	default:
 		response.HandleError(c, err)
 	}
+}
+
+// GetFulfillmentWaveFreightQuotes performs a local, read-only rate calculation.
+func (h *Handler) GetFulfillmentWaveFreightQuotes(c *gin.Context) {
+	tenantID, principal, ok := h.fulfillmentWavePrincipal(c, false)
+	if !ok {
+		return
+	}
+	waveID, ok := fulfillmentWaveID(c, "id")
+	if !ok {
+		return
+	}
+	orderID, ok := fulfillmentWaveID(c, "orderId")
+	if !ok {
+		return
+	}
+	weight, err := strconv.Atoi(strings.TrimSpace(c.Query("weightGrams")))
+	if err != nil || weight <= 0 {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid weightGrams")
+		return
+	}
+	out, err := h.Svc.QuoteFulfillmentWaveFreight(c.Request.Context(), tenantID, principal, waveID, orderID, weight)
+	if err != nil {
+		handleFulfillmentWaveError(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// PostFulfillmentWaveFreightQuote confirms one immutable local quote snapshot.
+func (h *Handler) PostFulfillmentWaveFreightQuote(c *gin.Context) {
+	tenantID, principal, ok := h.fulfillmentWavePrincipal(c, true)
+	if !ok {
+		return
+	}
+	waveID, ok := fulfillmentWaveID(c, "id")
+	if !ok {
+		return
+	}
+	orderID, ok := fulfillmentWaveID(c, "orderId")
+	if !ok {
+		return
+	}
+	var body ConfirmFulfillmentWaveFreightQuoteInput
+	if !bindFulfillmentWaveJSON(c, &body) {
+		return
+	}
+	out, err := h.Svc.ConfirmFulfillmentWaveFreightQuote(c.Request.Context(), tenantID, principal, adminUUID(c), waveID, orderID, body)
+	if err != nil {
+		handleFulfillmentWaveError(c, err)
+		return
+	}
+	response.OK(c, out)
 }
 
 // ListFulfillmentWaveDocuments GET /fulfillment-waves/:id/documents.

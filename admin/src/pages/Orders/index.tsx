@@ -273,6 +273,9 @@ export default function OrdersPage() {
         customerName: d.customerName,
         customerEmail: d.customerEmail,
         customerPhone: d.customerPhone,
+        destinationCountryCode: d.destinationCountryCode,
+        destinationRegion: d.destinationRegion,
+        destinationPostalCode: d.destinationPostalCode,
         status: d.status,
         paymentStatus: d.paymentStatus,
         fulfillmentStatus: d.fulfillmentStatus,
@@ -763,7 +766,9 @@ export default function OrdersPage() {
               } catch (error) {
                 const partial = partialOrderCreateFromError(error);
                 if (!partial) throw error;
-                message.warning("订单已创建，但库存处理失败，请打开订单详情重试库存操作");
+                message.warning(
+                  "订单已创建，但库存处理失败，请打开订单详情重试库存操作",
+                );
               }
               actionRef.current?.reload();
               return true;
@@ -800,6 +805,28 @@ export default function OrdersPage() {
             />
             <ProFormText name="customerEmail" label="邮箱" />
             <ProFormText name="customerPhone" label="电话" />
+            <ProFormText
+              name="destinationCountryCode"
+              label="目的国家/地区代码"
+              placeholder="例如 CN"
+              fieldProps={{ maxLength: 2 }}
+              rules={[
+                {
+                  pattern: /^[A-Za-z]{2}$/,
+                  message: "请输入 2 位国家/地区代码",
+                },
+              ]}
+            />
+            <ProFormText
+              name="destinationRegion"
+              label="目的省/州"
+              fieldProps={{ maxLength: 120 }}
+            />
+            <ProFormText
+              name="destinationPostalCode"
+              label="目的邮编"
+              fieldProps={{ maxLength: 32 }}
+            />
             <ProFormSelect
               name="status"
               label="订单状态"
@@ -895,7 +922,8 @@ export default function OrdersPage() {
             status: qp.status,
             paymentStatus: qp.paymentStatus,
             fulfillmentStatus: qp.fulfillmentStatus,
-            reconciliationStatus: qp.reconciliationStatus as OrderListRow["reconciliationStatus"],
+            reconciliationStatus:
+              qp.reconciliationStatus as OrderListRow["reconciliationStatus"],
             skuMatchStatus: qp.skuMatchStatus,
             inventoryDeductStatus: qp.inventoryDeductStatus,
             hasException: qp.hasException,
@@ -971,6 +999,11 @@ export default function OrdersPage() {
                           customerName: v.customerName,
                           customerEmail: v.customerEmail ?? undefined,
                           customerPhone: v.customerPhone ?? undefined,
+                          destinationCountryCode:
+                            v.destinationCountryCode ?? undefined,
+                          destinationRegion: v.destinationRegion ?? undefined,
+                          destinationPostalCode:
+                            v.destinationPostalCode ?? undefined,
                           status: v.status,
                           paymentStatus: v.paymentStatus,
                           fulfillmentStatus: v.fulfillmentStatus,
@@ -1004,6 +1037,24 @@ export default function OrdersPage() {
                       </Form.Item>
                       <Form.Item name="customerPhone" label="电话">
                         <Input />
+                      </Form.Item>
+                      <Form.Item
+                        name="destinationCountryCode"
+                        label="目的国家/地区代码"
+                        rules={[
+                          {
+                            pattern: /^[A-Za-z]{2}$/,
+                            message: "请输入 2 位国家/地区代码",
+                          },
+                        ]}
+                      >
+                        <Input maxLength={2} placeholder="例如 CN" />
+                      </Form.Item>
+                      <Form.Item name="destinationRegion" label="目的省/州">
+                        <Input maxLength={120} />
+                      </Form.Item>
+                      <Form.Item name="destinationPostalCode" label="目的邮编">
+                        <Input maxLength={32} />
                       </Form.Item>
                       <Form.Item name="shopId" label="关联店铺">
                         <Select

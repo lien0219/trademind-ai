@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -33,6 +34,7 @@ type Service struct {
 	Settings    *settings.Service
 	Idempotency *idempotency.Service
 	Warehouses  *warehouse.Service
+	Logistics   *logistics.Service
 	Tracking    TrackingProvider
 }
 
@@ -233,25 +235,28 @@ type OrderShipmentInput struct {
 
 // CreateBody POST /orders
 type CreateBody struct {
-	Platform          string               `json:"platform"`
-	ShopID            *uuid.UUID           `json:"shopId,omitempty"`
-	WarehouseID       *uuid.UUID           `json:"warehouseId,omitempty"`
-	ExternalOrderID   *string              `json:"externalOrderId,omitempty"`
-	OrderNo           string               `json:"orderNo"`
-	CustomerName      string               `json:"customerName"`
-	CustomerEmail     string               `json:"customerEmail,omitempty"`
-	CustomerPhone     string               `json:"customerPhone,omitempty"`
-	Status            string               `json:"status"`
-	PaymentStatus     string               `json:"paymentStatus"`
-	FulfillmentStatus string               `json:"fulfillmentStatus"`
-	Currency          string               `json:"currency"`
-	TotalAmount       float64              `json:"totalAmount"`
-	PaidAt            *time.Time           `json:"paidAt,omitempty"`
-	OrderedAt         *time.Time           `json:"orderedAt,omitempty"`
-	ShippedAt         *time.Time           `json:"shippedAt,omitempty"`
-	DeliveredAt       *time.Time           `json:"deliveredAt,omitempty"`
-	Items             []OrderItemInput     `json:"items,omitempty"`
-	Shipments         []OrderShipmentInput `json:"shipments,omitempty"`
+	Platform               string               `json:"platform"`
+	ShopID                 *uuid.UUID           `json:"shopId,omitempty"`
+	WarehouseID            *uuid.UUID           `json:"warehouseId,omitempty"`
+	ExternalOrderID        *string              `json:"externalOrderId,omitempty"`
+	OrderNo                string               `json:"orderNo"`
+	CustomerName           string               `json:"customerName"`
+	CustomerEmail          string               `json:"customerEmail,omitempty"`
+	CustomerPhone          string               `json:"customerPhone,omitempty"`
+	DestinationCountryCode string               `json:"destinationCountryCode,omitempty"`
+	DestinationRegion      string               `json:"destinationRegion,omitempty"`
+	DestinationPostalCode  string               `json:"destinationPostalCode,omitempty"`
+	Status                 string               `json:"status"`
+	PaymentStatus          string               `json:"paymentStatus"`
+	FulfillmentStatus      string               `json:"fulfillmentStatus"`
+	Currency               string               `json:"currency"`
+	TotalAmount            float64              `json:"totalAmount"`
+	PaidAt                 *time.Time           `json:"paidAt,omitempty"`
+	OrderedAt              *time.Time           `json:"orderedAt,omitempty"`
+	ShippedAt              *time.Time           `json:"shippedAt,omitempty"`
+	DeliveredAt            *time.Time           `json:"deliveredAt,omitempty"`
+	Items                  []OrderItemInput     `json:"items,omitempty"`
+	Shipments              []OrderShipmentInput `json:"shipments,omitempty"`
 
 	DeductInventory bool `json:"deductInventory"`
 	SyncInventory   bool `json:"syncInventory"`
@@ -259,31 +264,34 @@ type CreateBody struct {
 
 // UpdateBody PATCH-like PUT semantics (only non-nil / non-empty fragments apply).
 type UpdateBody struct {
-	ShopID            *uuid.UUID           `json:"shopId,omitempty"`
-	SetShopIDNil      bool                 `json:"setShopIdNil,omitempty"`
-	WarehouseID       *uuid.UUID           `json:"warehouseId,omitempty"`
-	SetWarehouseIDNil bool                 `json:"setWarehouseIdNil,omitempty"`
-	ExternalOrderID   *string              `json:"externalOrderId,omitempty"`
-	Status            string               `json:"status,omitempty"`
-	PaymentStatus     string               `json:"paymentStatus,omitempty"`
-	FulfillmentStatus string               `json:"fulfillmentStatus,omitempty"`
-	Currency          string               `json:"currency,omitempty"`
-	CustomerName      string               `json:"customerName,omitempty"`
-	CustomerEmail     *string              `json:"customerEmail,omitempty"`
-	CustomerPhone     *string              `json:"customerPhone,omitempty"`
-	TotalAmount       *float64             `json:"totalAmount,omitempty"`
-	PaidAt            *time.Time           `json:"paidAt,omitempty"`
-	OrderedAt         *time.Time           `json:"orderedAt,omitempty"`
-	ShippedAt         *time.Time           `json:"shippedAt,omitempty"`
-	DeliveredAt       *time.Time           `json:"deliveredAt,omitempty"`
-	SetPaidAtNil      bool                 `json:"setPaidAtNil,omitempty"`
-	SetOrderedAtNil   bool                 `json:"setOrderedAtNil,omitempty"`
-	SetShippedAtNil   bool                 `json:"setShippedAtNil,omitempty"`
-	SetDeliveredAtNil bool                 `json:"setDeliveredAtNil,omitempty"`
-	Items             []OrderItemInput     `json:"items,omitempty"`
-	Shipments         []OrderShipmentInput `json:"shipments,omitempty"`
-	ReplaceItems      bool                 `json:"replaceItems,omitempty"`
-	ReplaceShipments  bool                 `json:"replaceShipments,omitempty"`
+	ShopID                 *uuid.UUID           `json:"shopId,omitempty"`
+	SetShopIDNil           bool                 `json:"setShopIdNil,omitempty"`
+	WarehouseID            *uuid.UUID           `json:"warehouseId,omitempty"`
+	SetWarehouseIDNil      bool                 `json:"setWarehouseIdNil,omitempty"`
+	ExternalOrderID        *string              `json:"externalOrderId,omitempty"`
+	Status                 string               `json:"status,omitempty"`
+	PaymentStatus          string               `json:"paymentStatus,omitempty"`
+	FulfillmentStatus      string               `json:"fulfillmentStatus,omitempty"`
+	Currency               string               `json:"currency,omitempty"`
+	CustomerName           string               `json:"customerName,omitempty"`
+	CustomerEmail          *string              `json:"customerEmail,omitempty"`
+	CustomerPhone          *string              `json:"customerPhone,omitempty"`
+	DestinationCountryCode *string              `json:"destinationCountryCode,omitempty"`
+	DestinationRegion      *string              `json:"destinationRegion,omitempty"`
+	DestinationPostalCode  *string              `json:"destinationPostalCode,omitempty"`
+	TotalAmount            *float64             `json:"totalAmount,omitempty"`
+	PaidAt                 *time.Time           `json:"paidAt,omitempty"`
+	OrderedAt              *time.Time           `json:"orderedAt,omitempty"`
+	ShippedAt              *time.Time           `json:"shippedAt,omitempty"`
+	DeliveredAt            *time.Time           `json:"deliveredAt,omitempty"`
+	SetPaidAtNil           bool                 `json:"setPaidAtNil,omitempty"`
+	SetOrderedAtNil        bool                 `json:"setOrderedAtNil,omitempty"`
+	SetShippedAtNil        bool                 `json:"setShippedAtNil,omitempty"`
+	SetDeliveredAtNil      bool                 `json:"setDeliveredAtNil,omitempty"`
+	Items                  []OrderItemInput     `json:"items,omitempty"`
+	Shipments              []OrderShipmentInput `json:"shipments,omitempty"`
+	ReplaceItems           bool                 `json:"replaceItems,omitempty"`
+	ReplaceShipments       bool                 `json:"replaceShipments,omitempty"`
 }
 
 // DetailDTO GET /orders/:id (flattened header + nested children).
@@ -309,27 +317,30 @@ type InventoryUIMini struct {
 
 // OrderRow base scalar fields shared by list-ish projections.
 type OrderRow struct {
-	ID                uuid.UUID  `json:"id"`
-	TenantID          int64      `json:"tenantId"`
-	Platform          string     `json:"platform"`
-	ShopID            *uuid.UUID `json:"shopId,omitempty"`
-	WarehouseID       *uuid.UUID `json:"warehouseId,omitempty"`
-	ExternalOrderID   *string    `json:"externalOrderId,omitempty"`
-	OrderNo           string     `json:"orderNo"`
-	CustomerName      string     `json:"customerName"`
-	CustomerEmail     string     `json:"customerEmail,omitempty"`
-	CustomerPhone     string     `json:"customerPhone,omitempty"`
-	Status            string     `json:"status"`
-	PaymentStatus     string     `json:"paymentStatus"`
-	FulfillmentStatus string     `json:"fulfillmentStatus"`
-	Currency          string     `json:"currency"`
-	TotalAmount       float64    `json:"totalAmount"`
-	PaidAt            *time.Time `json:"paidAt,omitempty"`
-	OrderedAt         *time.Time `json:"orderedAt,omitempty"`
-	Remark            string     `json:"remark,omitempty"`
-	CreatedBy         *uuid.UUID `json:"createdBy,omitempty"`
-	CreatedAt         time.Time  `json:"createdAt"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
+	ID                     uuid.UUID  `json:"id"`
+	TenantID               int64      `json:"tenantId"`
+	Platform               string     `json:"platform"`
+	ShopID                 *uuid.UUID `json:"shopId,omitempty"`
+	WarehouseID            *uuid.UUID `json:"warehouseId,omitempty"`
+	ExternalOrderID        *string    `json:"externalOrderId,omitempty"`
+	OrderNo                string     `json:"orderNo"`
+	CustomerName           string     `json:"customerName"`
+	CustomerEmail          string     `json:"customerEmail,omitempty"`
+	CustomerPhone          string     `json:"customerPhone,omitempty"`
+	DestinationCountryCode string     `json:"destinationCountryCode,omitempty"`
+	DestinationRegion      string     `json:"destinationRegion,omitempty"`
+	DestinationPostalCode  string     `json:"destinationPostalCode,omitempty"`
+	Status                 string     `json:"status"`
+	PaymentStatus          string     `json:"paymentStatus"`
+	FulfillmentStatus      string     `json:"fulfillmentStatus"`
+	Currency               string     `json:"currency"`
+	TotalAmount            float64    `json:"totalAmount"`
+	PaidAt                 *time.Time `json:"paidAt,omitempty"`
+	OrderedAt              *time.Time `json:"orderedAt,omitempty"`
+	Remark                 string     `json:"remark,omitempty"`
+	CreatedBy              *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt              time.Time  `json:"createdAt"`
+	UpdatedAt              time.Time  `json:"updatedAt"`
 }
 
 func mapAttrs(a map[string]any) datatypes.JSON {
@@ -355,6 +366,10 @@ func (s *Service) normalizedCreate(body CreateBody) (*Order, []OrderItem, []Orde
 	name := strings.TrimSpace(body.CustomerName)
 	if name == "" {
 		return nil, nil, nil, fmt.Errorf("customerName is required")
+	}
+	country := strings.ToUpper(strings.TrimSpace(body.DestinationCountryCode))
+	if country != "" && len(country) != 2 {
+		return nil, nil, nil, fmt.Errorf("invalid destinationCountryCode")
 	}
 	st := strings.TrimSpace(body.Status)
 	if st == "" {
@@ -382,23 +397,26 @@ func (s *Service) normalizedCreate(body CreateBody) (*Order, []OrderItem, []Orde
 		cur = "USD"
 	}
 	o := &Order{
-		Platform:          platform,
-		ShopID:            body.ShopID,
-		WarehouseID:       body.WarehouseID,
-		ExternalOrderID:   body.ExternalOrderID,
-		OrderNo:           orderNo,
-		CustomerName:      name,
-		CustomerEmail:     strings.TrimSpace(body.CustomerEmail),
-		CustomerPhone:     strings.TrimSpace(body.CustomerPhone),
-		Status:            st,
-		PaymentStatus:     ps,
-		FulfillmentStatus: fs,
-		Currency:          strings.ToUpper(cur),
-		TotalAmount:       body.TotalAmount,
-		PaidAt:            body.PaidAt,
-		OrderedAt:         body.OrderedAt,
-		ShippedAt:         body.ShippedAt,
-		DeliveredAt:       body.DeliveredAt,
+		Platform:               platform,
+		ShopID:                 body.ShopID,
+		WarehouseID:            body.WarehouseID,
+		ExternalOrderID:        body.ExternalOrderID,
+		OrderNo:                orderNo,
+		CustomerName:           name,
+		CustomerEmail:          strings.TrimSpace(body.CustomerEmail),
+		CustomerPhone:          strings.TrimSpace(body.CustomerPhone),
+		DestinationCountryCode: country,
+		DestinationRegion:      strings.TrimSpace(body.DestinationRegion),
+		DestinationPostalCode:  strings.ToUpper(strings.TrimSpace(body.DestinationPostalCode)),
+		Status:                 st,
+		PaymentStatus:          ps,
+		FulfillmentStatus:      fs,
+		Currency:               strings.ToUpper(cur),
+		TotalAmount:            body.TotalAmount,
+		PaidAt:                 body.PaidAt,
+		OrderedAt:              body.OrderedAt,
+		ShippedAt:              body.ShippedAt,
+		DeliveredAt:            body.DeliveredAt,
 	}
 
 	var items []OrderItem
@@ -674,27 +692,30 @@ func orderRowDTO(o *Order) OrderRow {
 		return OrderRow{}
 	}
 	return OrderRow{
-		ID:                o.ID,
-		TenantID:          o.TenantID,
-		Platform:          o.Platform,
-		ShopID:            o.ShopID,
-		WarehouseID:       o.WarehouseID,
-		ExternalOrderID:   o.ExternalOrderID,
-		OrderNo:           o.OrderNo,
-		CustomerName:      o.CustomerName,
-		CustomerEmail:     o.CustomerEmail,
-		CustomerPhone:     o.CustomerPhone,
-		Status:            o.Status,
-		PaymentStatus:     o.PaymentStatus,
-		FulfillmentStatus: o.FulfillmentStatus,
-		Currency:          o.Currency,
-		TotalAmount:       o.TotalAmount,
-		PaidAt:            o.PaidAt,
-		OrderedAt:         o.OrderedAt,
-		Remark:            o.Remark,
-		CreatedBy:         o.CreatedBy,
-		CreatedAt:         o.CreatedAt,
-		UpdatedAt:         o.UpdatedAt,
+		ID:                     o.ID,
+		TenantID:               o.TenantID,
+		Platform:               o.Platform,
+		ShopID:                 o.ShopID,
+		WarehouseID:            o.WarehouseID,
+		ExternalOrderID:        o.ExternalOrderID,
+		OrderNo:                o.OrderNo,
+		CustomerName:           o.CustomerName,
+		CustomerEmail:          o.CustomerEmail,
+		CustomerPhone:          o.CustomerPhone,
+		DestinationCountryCode: o.DestinationCountryCode,
+		DestinationRegion:      o.DestinationRegion,
+		DestinationPostalCode:  o.DestinationPostalCode,
+		Status:                 o.Status,
+		PaymentStatus:          o.PaymentStatus,
+		FulfillmentStatus:      o.FulfillmentStatus,
+		Currency:               o.Currency,
+		TotalAmount:            o.TotalAmount,
+		PaidAt:                 o.PaidAt,
+		OrderedAt:              o.OrderedAt,
+		Remark:                 o.Remark,
+		CreatedBy:              o.CreatedBy,
+		CreatedAt:              o.CreatedAt,
+		UpdatedAt:              o.UpdatedAt,
 	}
 }
 
@@ -1019,6 +1040,19 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 	}
 	if body.CustomerPhone != nil {
 		o.CustomerPhone = strings.TrimSpace(*body.CustomerPhone)
+	}
+	if body.DestinationCountryCode != nil {
+		country := strings.ToUpper(strings.TrimSpace(*body.DestinationCountryCode))
+		if country != "" && len(country) != 2 {
+			return nil, fmt.Errorf("invalid destinationCountryCode")
+		}
+		o.DestinationCountryCode = country
+	}
+	if body.DestinationRegion != nil {
+		o.DestinationRegion = strings.TrimSpace(*body.DestinationRegion)
+	}
+	if body.DestinationPostalCode != nil {
+		o.DestinationPostalCode = strings.ToUpper(strings.TrimSpace(*body.DestinationPostalCode))
 	}
 
 	if body.SetShopIDNil {

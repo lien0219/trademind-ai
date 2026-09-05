@@ -313,8 +313,8 @@ export default function FulfillmentReconciliationPage() {
           cardBordered
           scroll={{ x: 1500 }}
           locale={{ emptyText: listError ? '对账数据暂不可用' : '暂无符合条件的履约对账记录' }}
-          toolBarRender={() => [
-            <Space key="filters" wrap>
+          filterBar={
+            <Space wrap>
               <Input.Search
                 allowClear
                 aria-label="订单号"
@@ -362,8 +362,8 @@ export default function FulfillmentReconciliationPage() {
                 options={RECONCILIATION_OPTIONS}
                 onChange={(value) => updateFilter('reconciliationStatus', value)}
               />
-            </Space>,
-          ]}
+            </Space>
+          }
           pagination={{
             current: page,
             pageSize,

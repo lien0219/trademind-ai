@@ -510,8 +510,8 @@ export default function FulfillmentWavesPage() {
           locale={{
             emptyText: "暂无拣货波次，可从履约分仓页选择已分仓订单创建",
           }}
-          toolBarRender={() => [
-            <Space key="filters" wrap size="small" style={{ width: "100%" }}>
+          filterBar={
+            <Space wrap size="small">
               <Input.Search
                 aria-label="搜索波次"
                 allowClear
@@ -535,12 +535,15 @@ export default function FulfillmentWavesPage() {
                 )}
                 onChange={setStatus}
               />
-              <Button
-                onClick={() => history.push("/orders/warehouse-allocations")}
-              >
-                前往履约分仓
-              </Button>
-            </Space>,
+            </Space>
+          }
+          toolBarRender={() => [
+            <Button
+              key="warehouse-allocations"
+              onClick={() => history.push("/orders/warehouse-allocations")}
+            >
+              前往履约分仓
+            </Button>,
           ]}
           request={async (params) => {
             try {

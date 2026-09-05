@@ -68,6 +68,12 @@
 | `GET` | `/api/v1/warehouses` | `warehouse.view` | 当前租户仓库列表。 |
 | `POST` | `/api/v1/warehouses` | `warehouse.manage` | 创建仓库；JSON：`code`、`name`、`isDefault`。 |
 | `PUT` | `/api/v1/warehouses/:id` | `warehouse.manage` | 更新仓库名称、启停状态和默认仓；JSON：`name`、`status`、`isDefault`。默认仓必须启用，同租户默认仓在事务内唯一切换。 |
+| `GET` | `/api/v1/logistics/channels` | `logistics.view` | 当前租户物流渠道列表。渠道只含本地主数据，不含承运商凭据。 |
+| `POST` | `/api/v1/logistics/channels` | `logistics.manage` | 创建本地物流渠道；JSON：`code`、`name`、`carrier`。编码在租户内唯一且创建后不可变。 |
+| `PUT` | `/api/v1/logistics/channels/:id` | `logistics.manage` | 按 `expectedRevision` 更新名称、承运商和启停状态；并发版本不一致返回 `409`。 |
+| `GET` | `/api/v1/logistics/rate-templates` | `logistics.view` | 当前租户本地运费模板列表，包含渠道与可选仓库标签。 |
+| `POST` | `/api/v1/logistics/rate-templates` | `logistics.manage` | 创建运费模板；按渠道、可选仓库、2 位国家/地区代码、可选区域/邮编前缀、闭合重量区间匹配，金额字段为整数最小货币单位。基础费覆盖起始重量，超出部分按每个起始千克计费。 |
+| `PUT` | `/api/v1/logistics/rate-templates/:id` | `logistics.manage` | 按 `expectedRevision` 更新模板资料与状态；模板编码不可变，并发版本不一致返回 `409`。 |
 | `GET` | `/api/v1/warehouses/:id/locations` | `warehouse.view` | 查询指定仓库库位；默认仅返回启用库位，传 `includeInactive=true` 可包含停用库位。 |
 | `POST` | `/api/v1/warehouses/:id/locations` | `warehouse.manage` | 创建库位；JSON：`code`、`name`、可选 `zone`。编码在租户仓库内唯一且创建后不可变。 |
 | `PUT` | `/api/v1/warehouses/:id/locations/:locationId` | `warehouse.manage` | 更新库位资料和状态；JSON：`name`、可选 `zone`、`status=active|inactive`。 |
@@ -149,6 +155,8 @@
 | `POST` | `/api/v1/fulfillment-waves/:id/documents/:documentId/print-events` | 登记操作员已发起一个版本的浏览器打印（需要 `order.operate`）；JSON：`documentType=pick_list|packing_list|sku_labels|package_labels`、`copies`（1–100）、可选 `reason`、`idempotencyKey`。同版本同类型再次登记视为重打并强制至少 2 字原因。该事实不声明物理打印成功，也不控制打印机。 |
 | `POST` | `/api/v1/fulfillment-waves` | 从同一仓库的已付款、未履约且整单预占完成的订单创建波次（需要 `order.operate`）；JSON：`idempotencyKey`、`warehouseId`、`orderIds`（1–50 个，不重复）、可选 `remark`。创建事务冻结订单/规格快照并写活动归属，同一订单不能进入两个活动波次。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/start` | 开始拣货（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。仅 `draft` 可进入 `picking`。 |
+| `GET` | `/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes` | 本地只读运费试算（需要 `order.view`）；查询参数 `weightGrams`。按订单目的国家/区域/邮编、波次仓库和启用模板返回候选、模板 revision、整数最小单位金额及计算说明；目的国家不完整或无匹配模板时失败关闭。不会调用承运商。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes/confirm` | 人工确认一个本地报价（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`rateTemplateId`、`rateTemplateRevision`、`weightGrams`。事务内锁定波次和订单，重算并验证模板版本后保存不可变目的地/渠道/费率快照并递增波次 revision。同键同 payload 安全重放；模板或波次已变化返回 `409`。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/picks` | 记录拣货结果（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`lines[]`，每项含 `lineId`、`pickedQuantity`、`shortageQuantity`，可带 `scannedBarcode`、`scannedLocationCode`。波次行创建时冻结绑定；若行配置了条码/库位，提交值必须匹配，否则返回 `409`。成功动作写入 revision 幂等事实和不可变扫描审计记录。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/pack` | 历史波次兼容打包入口（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`carrier`、`trackingNo`、可选 `trackingUrl`。扫描复核功能上线后创建的新波次会返回 `409`，必须改用 `verify-pack`；历史波次仍可继续完成，不做危险回填。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack` | 对新波次中的一个已完全拣货订单执行出库扫描复核（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`scannedOrderNo`、`carrier`、`trackingNo`、可选 `trackingUrl`、`packageCode`、可选正整数 `actualWeightGrams`、`lines[]`（`lineId`、`scannedCode`、`verifiedQuantity`）。订单号、冻结条码（未配置时用冻结 SKU 编码）、整行数量及面单条码与运单号必须全部匹配；成功后在同一事务标记订单已打包、递增 revision，并追加不可变复核/逐行扫描事实。接口不扣库存，也不调用真实物流、打印机、电子秤或平台。 |
@@ -202,6 +210,17 @@
 | `POST` | `/api/v1/refund-executions/:id/cancel` | `sales_return.refund` | 取消尚未登记结果的执行单；JSON：`expectedRevision`、`idempotencyKey`、必填 `reason`。外部退款已发生时不得使用。 |
 
 每个售后单最多一个退款执行单；租户内非空 `externalRefundId` 唯一。状态动作使用 revision、稳定幂等键、请求 hash、行锁和条件更新保护，成功动作写入不可变 `refund_execution_events`。售后审批人不得登记或按平台事实确认自己审批的退款结果；非管理员还必须具有对应店铺的 operate/manage 授权。`400` 表示字段无效，`404` 表示租户或店铺范围不可见，`409` 表示状态、revision、职责分离、平台事实、外部退款编号或幂等冲突。
+
+## 订单预估利润与费用缺口 V1
+
+V1 按订单动态汇总现有只读事实，不新增利润或结算表，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；商品成本使用当前唯一有效供应商采购价，仅是当前估算而非历史实际成本；运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实。平台、广告和仓储费用尚无可靠账本时保持 `amountMinor=null`，不得按零参与完整利润。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
+| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、当前供应商成本明细及履约波次、供应商、退款执行关联；跨租户或越权店铺返回 `404`。 |
+
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v1`。该模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或结算流程。
 
 ## 图片 AI
 

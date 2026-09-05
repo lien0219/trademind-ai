@@ -95,6 +95,9 @@ export type OrderDetailDTO = {
   customerName: string;
   customerEmail?: string;
   customerPhone?: string;
+  destinationCountryCode?: string;
+  destinationRegion?: string;
+  destinationPostalCode?: string;
   status: string;
   paymentStatus: string;
   fulfillmentStatus: string;

@@ -39,6 +39,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -52,6 +53,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/profitability"
 	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
@@ -413,6 +415,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
 	warehouseSvc := &warehouse.Service{DB: dep.DB}
+	logisticsSvc := &logistics.Service{DB: dep.DB}
+	logisticsH := &logistics.Handler{Svc: logisticsSvc, OpLog: opLogSvc}
 	inventorySvc := &inventory.Service{
 		DB:          dep.DB,
 		Redis:       dep.Redis,
@@ -445,8 +449,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	salesReturnSvc := &salesreturn.Service{DB: dep.DB, Stock: inventory.WarehouseStockService{}, Warehouses: warehouseSvc}
 	salesReturnH := &salesreturn.Handler{Svc: salesReturnSvc, OpLog: opLogSvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc}
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc, Logistics: logisticsSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
+	profitabilitySvc := &profitability.Service{DB: dep.DB}
+	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}
 
 	orderSyncSvc := &ordersync.Service{
 		DB:          dep.DB,
@@ -682,6 +688,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	profitability.Register(authed, profitabilityH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)
@@ -744,6 +751,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)
 	warehouse.Register(authed, warehouseH)
+	logistics.Register(authed, logisticsH)
 	supplier.Register(authed, supplierH)
 	procurement.Register(authed, procurementH)
 	salesreturn.Register(authed, salesReturnH)

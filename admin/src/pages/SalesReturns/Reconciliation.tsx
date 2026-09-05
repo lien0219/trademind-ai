@@ -147,9 +147,10 @@ export default function PlatformAfterSaleReconciliationPage() {
           cardBordered
           scroll={{ x: 1420 }}
           locale={{ emptyText: error ? '对账数据暂不可用' : '暂无平台售后事实。' }}
-          toolBarRender={() => [
-            <Space key="filters" wrap>
+          filterBar={
+            <Space wrap>
               <Select
+                aria-label="售后平台"
                 allowClear
                 placeholder="全部平台"
                 value={platform}
@@ -158,6 +159,7 @@ export default function PlatformAfterSaleReconciliationPage() {
                 onChange={setPlatform}
               />
               <Select
+                aria-label="售后对账状态"
                 allowClear
                 placeholder="全部对账状态"
                 value={reconciliationStatus}
@@ -166,14 +168,15 @@ export default function PlatformAfterSaleReconciliationPage() {
                 onChange={setReconciliationStatus}
               />
               <Input
+                aria-label="售后订单号"
                 allowClear
                 placeholder="搜索订单号"
                 value={orderNo}
                 style={{ width: 190 }}
                 onChange={(event) => setOrderNo(event.target.value)}
               />
-            </Space>,
-          ]}
+            </Space>
+          }
           request={async (params) => {
             try {
               const result = await listPlatformAfterSaleReconciliation({

@@ -19,6 +19,12 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/auth/profile",
         "GET /api/v1/image/providers",
         "GET /api/v1/warehouses",
+        "GET /api/v1/logistics/channels",
+        "POST /api/v1/logistics/channels",
+        "PUT /api/v1/logistics/channels/:id",
+        "GET /api/v1/logistics/rate-templates",
+        "POST /api/v1/logistics/rate-templates",
+        "PUT /api/v1/logistics/rate-templates/:id",
         "POST /api/v1/warehouses",
         "PUT /api/v1/warehouses/:id",
         "POST /api/v1/products/:id/skus",
@@ -47,6 +53,8 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/inventory/stocktakes/:id/post",
         "POST /api/v1/inventory/stocktakes/:id/cancel",
         "GET /api/v1/orders",
+        "GET /api/v1/order-profits",
+        "GET /api/v1/order-profits/:orderId",
         "GET /api/v1/orders/warehouse-allocations",
         "GET /api/v1/orders/:id/warehouse-allocation",
         "POST /api/v1/orders/:id/warehouse-allocation",
@@ -58,6 +66,8 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/fulfillment-waves/:id/documents",
         "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
         "POST /api/v1/fulfillment-waves/:id/start",
+        "GET /api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes",
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes/confirm",
         "POST /api/v1/fulfillment-waves/:id/picks",
         "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
         "POST /api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
@@ -762,9 +772,25 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(118);
+    expect(contracts.endpoints).toHaveLength(128);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);
+  });
+
+  it("keeps order profit estimates read-only and fails closed for missing money", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const list = endpoint("GET /api/v1/order-profits");
+    const detail = endpoint("GET /api/v1/order-profits/:orderId");
+
+    expect(list?.requiredPermission).toBe("order_profit.view");
+    expect(list?.exportPermission).toBe("order_profit.export");
+    expect(list?.exportLimit).toBe(5000);
+    expect(list?.readonly).toBe(true);
+    expect(list?.externalWrite).toBe(false);
+    expect(list?.nullableMoneyFields).toContain("estimatedProfitMinor");
+    expect(detail?.formulaVersion).toBe("order_profit_estimate_v1");
+    expect(detail?.statusEnum).toEqual(["complete", "pending", "mismatch", "blocked"]);
   });
 });
