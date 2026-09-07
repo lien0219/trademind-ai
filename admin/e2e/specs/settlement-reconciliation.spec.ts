@@ -38,6 +38,10 @@ test.describe('@smoke settlement reconciliation', () => {
       const drawer = page.getByRole('dialog');
       await expect(drawer).toContainText('SETTLEMENT-E2E-0001');
       await expect(drawer).toContainText('CNY 90.00');
+      await expect(page.locator('.ant-drawer-content-wrapper:visible').first()).toHaveCSS(
+        'transform',
+        'none',
+      );
       await expectDrawerWithinViewport(page);
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     });
@@ -46,7 +50,7 @@ test.describe('@smoke settlement reconciliation', () => {
   test('cancels import without any POST request', async ({ admin, page }) => {
     await admin.goto('/finance/settlement-reconciliation');
     await page.getByRole('button', { name: '导入账单' }).click();
-    await page.getByRole('button', { name: '取消' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: /取\s*消/ }).click();
     await admin.writeGuard.expectRequestCount('settlement-preview', 0);
     await admin.writeGuard.expectRequestCount('settlement-confirm', 0);
   });
@@ -88,8 +92,11 @@ test.describe('@smoke settlement reconciliation', () => {
     });
     await admin.goto('/finance/settlement-reconciliation');
     await page.getByRole('button', { name: '导入账单' }).click();
-    await page.getByLabel('账单店铺').click();
-    await page.getByRole('option').first().click();
+    await page.getByRole('combobox', { name: '账单店铺' }).click();
+    await page
+      .locator('.ant-select-dropdown:visible')
+      .getByText('E2E 抖店测试店铺 · 抖店', { exact: true })
+      .click();
     await page.locator('input[type="file"]').setInputFiles({ name: 'bill.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
     await page.getByRole('button', { name: '校验预览' }).click();
     await expect(page.getByText('账单校验通过')).toBeVisible();

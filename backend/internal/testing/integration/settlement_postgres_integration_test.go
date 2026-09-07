@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -82,23 +81,30 @@ func TestSettlementPostgresConcurrentImportConstraints(t *testing.T) {
 	wg.Wait()
 	close(errs)
 
-	var successes, conflicts int
+	var successes int
 	for confirmErr := range errs {
-		switch {
-		case confirmErr == nil:
-			successes++
-		case errors.Is(confirmErr, settlement.ErrConflict):
-			conflicts++
-		default:
-			require.NoError(t, confirmErr)
-		}
+		require.NoError(t, confirmErr)
+		successes++
 	}
-	require.Equal(t, 1, successes)
-	require.Equal(t, 1, conflicts)
+	require.Equal(t, 2, successes)
 
-	var importCount, transactionCount int64
+	var importCount, transactionCount, sharedTransactionCount, duplicateRowCount int64
 	require.NoError(t, db.Model(&settlement.Import{}).Where("tenant_id = ?", tenantID).Count(&importCount).Error)
+	require.NoError(t, db.Model(&settlement.Import{}).
+		Where("tenant_id = ?", tenantID).
+		Select("COALESCE(SUM(duplicate_rows), 0)").
+		Scan(&duplicateRowCount).Error)
 	require.NoError(t, db.Model(&settlement.Transaction{}).Where("tenant_id = ?", tenantID).Count(&transactionCount).Error)
-	require.EqualValues(t, 1, importCount)
-	require.EqualValues(t, 2, transactionCount)
+	require.NoError(t, db.Model(&settlement.Transaction{}).
+		Where("tenant_id = ? AND external_transaction_id = ?", tenantID, "SETTLEMENT-PG-SHARED").
+		Count(&sharedTransactionCount).Error)
+	require.EqualValues(t, 2, importCount)
+	require.EqualValues(t, 3, transactionCount)
+	require.EqualValues(t, 1, sharedTransactionCount)
+	require.EqualValues(t, 1, duplicateRowCount)
+
+	list, err := (&settlement.Service{DB: db}).List(t.Context(), tenantID, settlement.Scope{}, settlement.ListQuery{Page: 1, PageSize: 20})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, list.Total)
+	require.Len(t, list.List, 1)
 }

@@ -79,6 +79,11 @@ func (s *Service) Confirm(ctx context.Context, tenantID int64, scope Scope, shop
 	var result ImportResult
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		repo := repository{db: tx}
+		// Serialize imports per shop so overlapping files deterministically observe
+		// committed external transactions before deciding which rows are new.
+		if lockErr := repo.lockShop(ctx, tenantID, shopID); lockErr != nil {
+			return lockErr
+		}
 		if existing, findErr := repo.findImportByIdempotency(ctx, tenantID, idempotencyKey); findErr == nil {
 			if existing.ShopID != shopID || existing.Platform != preview.Platform || existing.FileHash != expectedHash {
 				return ErrConflict

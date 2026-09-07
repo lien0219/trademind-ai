@@ -29,6 +29,20 @@ func (r repository) shop(ctx context.Context, tenantID int64, shopID uuid.UUID) 
 	return &row, nil
 }
 
+func (r repository) lockShop(ctx context.Context, tenantID int64, shopID uuid.UUID) error {
+	var row struct {
+		ID uuid.UUID
+	}
+	if err := r.db.WithContext(ctx).Table("shops").
+		Select("id").
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("tenant_id = ? AND id = ? AND deleted_at IS NULL", tenantID, shopID).
+		Take(&row).Error; err != nil {
+		return fmt.Errorf("lock settlement import shop: %w", err)
+	}
+	return nil
+}
+
 func (r repository) existingTransactions(ctx context.Context, tenantID int64, shopID uuid.UUID, platform string, externalIDs []string, lock bool) ([]Transaction, error) {
 	rows := make([]Transaction, 0)
 	if len(externalIDs) == 0 {
@@ -103,17 +117,17 @@ func (r repository) listGroups(ctx context.Context, tenantID int64, scope Scope,
 	if r.db == nil {
 		return nil, 0, fmt.Errorf("settlement repository unavailable")
 	}
-	base := r.groupQuery(ctx, tenantID, scope, q)
-	countQuery := base.Select("settlement.reconciliation_id").Group("settlement.reconciliation_id")
 	var total int64
-	if err := r.db.WithContext(ctx).Table("(?) AS settlement_groups", countQuery).Count(&total).Error; err != nil {
+	if err := r.groupQuery(ctx, tenantID, scope, q).
+		Distinct("settlement.reconciliation_id").
+		Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("count settlement reconciliation groups: %w", err)
 	}
 	rows := make([]groupFact, 0)
 	if total == 0 || limit < 1 {
 		return rows, total, nil
 	}
-	err := base.
+	err := r.groupQuery(ctx, tenantID, scope, q).
 		Select(`settlement.reconciliation_id, settlement.shop_id,
 			MAX(COALESCE(shops.shop_name, '')) AS shop_name,
 			MAX(settlement.platform) AS platform, MAX(settlement.order_no) AS order_no`).
