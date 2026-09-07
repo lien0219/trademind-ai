@@ -22,9 +22,10 @@ var (
 const maxJSONSafeInteger int64 = 9007199254740991
 
 type Service struct {
-	DB    *gorm.DB
-	Repo  Repository
-	Clock func() time.Time
+	DB           *gorm.DB
+	Repo         Repository
+	PlatformFees PlatformFeeReader
+	Clock        func() time.Time
 }
 
 func (s *Service) repository() Repository {
@@ -182,6 +183,13 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 	if err != nil {
 		return nil, nil, err
 	}
+	platformFees := make(map[uuid.UUID]PlatformFeeFact)
+	if s.PlatformFees != nil {
+		platformFees, err = s.PlatformFees.ListPlatformFees(ctx, tenantID, orderIDs)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	costsBySKU := make(map[uuid.UUID][]SupplierCostFact)
 	for _, row := range costs {
 		costsBySKU[row.ProductSKUID] = append(costsBySKU[row.ProductSKUID], row)
@@ -197,14 +205,19 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 	profits := make([]OrderProfit, 0, len(orders))
 	linesByOrder := make(map[uuid.UUID][]ProductCostLine, len(orders))
 	for _, order := range orders {
-		profit, lines := calculateOrder(order, itemsByOrder[order.ID], costsBySKU, freightByOrder[order.ID], refundByOrder[order.ID], calculatedAt)
+		platformFee, hasPlatformFee := platformFees[order.ID]
+		var platformFeePtr *PlatformFeeFact
+		if hasPlatformFee {
+			platformFeePtr = &platformFee
+		}
+		profit, lines := calculateOrder(order, itemsByOrder[order.ID], costsBySKU, freightByOrder[order.ID], refundByOrder[order.ID], platformFeePtr, calculatedAt)
 		profits = append(profits, profit)
 		linesByOrder[order.ID] = lines
 	}
 	return profits, linesByOrder, nil
 }
 
-func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, freight []FreightFact, refunds []RefundFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
+func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, freight []FreightFact, refunds []RefundFact, platformFeeFact *PlatformFeeFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
 	currency := strings.ToUpper(strings.TrimSpace(order.Currency))
 	issues := make([]Issue, 0)
 	revenue := component(currency, ComponentAvailable, "order_total", &order.UpdatedAt)
@@ -223,11 +236,11 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 	issues = append(issues, freightIssues...)
 	refundComponent, refundIDs, refundIssues := calculateRefunds(currency, refunds)
 	issues = append(issues, refundIssues...)
-	platformFee := missingFee(currency, "platform_settlement", "platform_fee_missing", "缺少平台结算费用")
+	platformFee, platformFeeIssues := calculatePlatformFee(currency, platformFeeFact)
+	issues = append(issues, platformFeeIssues...)
 	advertisingFee := missingFee(currency, "advertising_ledger", "advertising_fee_missing", "缺少订单归属广告费用")
 	warehouseFee := missingFee(currency, "warehouse_fee_ledger", "warehouse_fee_missing", "缺少仓储作业费用")
 	issues = append(issues,
-		Issue{Code: platformFee.ReasonCode, Component: "platformFee", Message: platformFee.Reason},
 		Issue{Code: advertisingFee.ReasonCode, Component: "advertisingFee", Message: advertisingFee.Reason},
 		Issue{Code: warehouseFee.ReasonCode, Component: "warehouseFee", Message: warehouseFee.Reason},
 	)
@@ -265,9 +278,58 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 		Currency: currency, Status: status, OrderStatus: order.Status, PaymentStatus: order.PaymentStatus,
 		FulfillmentStatus: order.FulfillmentStatus, KnownContributionMinor: knownContribution,
 		EstimatedProfitMinor: estimatedProfit, EstimatedMarginBps: marginBps, Components: components,
-		Issues: issues, Related: RelatedFacts{FulfillmentWaveID: freightWaveID, SupplierIDs: supplierIDs, RefundExecutionIDs: refundIDs},
+		Issues: issues, Related: RelatedFacts{FulfillmentWaveID: freightWaveID, SupplierIDs: supplierIDs, RefundExecutionIDs: refundIDs,
+			SettlementReconciliationID: platformFeeReconciliationID(platformFeeFact), SettlementTransactionIDs: platformFeeTransactionIDs(platformFeeFact)},
 		OrderedAt: order.OrderedAt, CalculatedAt: calculatedAt, FormulaVersion: FormulaVersion,
 	}, costLines
+}
+
+func calculatePlatformFee(currency string, fact *PlatformFeeFact) (MoneyComponent, []Issue) {
+	if fact == nil {
+		row := missingFee(currency, "platform_settlement_ledger", "platform_fee_missing", "缺少平台结算费用")
+		return row, []Issue{{Code: row.ReasonCode, Component: "platformFee", Message: row.Reason}}
+	}
+	row := component(currency, ComponentAvailable, "platform_settlement_ledger", &fact.SourceAt)
+	switch fact.Status {
+	case "matched":
+		if strings.ToUpper(strings.TrimSpace(fact.Currency)) != currency {
+			row.Status, row.ReasonCode, row.Reason = ComponentMismatch, "platform_fee_currency_mismatch", "平台结算费用币种与订单币种不一致"
+		} else if !jsonSafeInteger(fact.AmountMinor) {
+			row.Status, row.ReasonCode, row.Reason = ComponentBlocked, "platform_fee_amount_invalid", "平台结算费用超出安全整数范围"
+		} else {
+			row.AmountMinor, row.KnownAmountMinor = int64Pointer(fact.AmountMinor), fact.AmountMinor
+			return row, nil
+		}
+	case "pending":
+		row.Status, row.ReasonCode, row.Reason = ComponentPending, nonEmpty(fact.ReasonCode, "platform_fee_pending"), nonEmpty(fact.Reason, "平台结算费用尚未完成对账")
+	case "mismatch":
+		row.Status, row.ReasonCode, row.Reason = ComponentMismatch, nonEmpty(fact.ReasonCode, "platform_fee_mismatch"), nonEmpty(fact.Reason, "平台结算费用对账不一致")
+	default:
+		row.Status, row.ReasonCode, row.Reason = ComponentBlocked, nonEmpty(fact.ReasonCode, "platform_fee_blocked"), nonEmpty(fact.Reason, "平台结算费用对账已阻断")
+	}
+	return row, []Issue{{Code: row.ReasonCode, Component: "platformFee", Message: row.Reason}}
+}
+
+func platformFeeReconciliationID(fact *PlatformFeeFact) *uuid.UUID {
+	if fact == nil || fact.ReconciliationID == uuid.Nil {
+		return nil
+	}
+	id := fact.ReconciliationID
+	return &id
+}
+
+func platformFeeTransactionIDs(fact *PlatformFeeFact) []uuid.UUID {
+	if fact == nil || len(fact.SettlementTransactionIDs) == 0 {
+		return []uuid.UUID{}
+	}
+	return append([]uuid.UUID(nil), fact.SettlementTransactionIDs...)
+}
+
+func nonEmpty(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 func component(currency, status, source string, sourceAt *time.Time) MoneyComponent {

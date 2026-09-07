@@ -23,6 +23,14 @@ type fakeRepository struct {
 	lastScope Scope
 }
 
+type fakePlatformFeeReader struct {
+	facts map[uuid.UUID]PlatformFeeFact
+}
+
+func (r fakePlatformFeeReader) ListPlatformFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]PlatformFeeFact, error) {
+	return r.facts, nil
+}
+
 func (r *fakeRepository) ListOrders(_ context.Context, _ int64, scope Scope, _ ListQuery, offset, limit int) ([]OrderFact, int64, error) {
 	r.lastScope = scope
 	if r.listErr != nil {
@@ -105,6 +113,61 @@ func TestCalculateOrderProfitKeepsMissingFeesOutOfEstimatedProfit(t *testing.T) 
 	}
 }
 
+func TestCalculateOrderProfitConsumesOnlyMatchedSettlementFee(t *testing.T) {
+	now := time.Date(2026, 9, 7, 2, 0, 0, 0, time.UTC)
+	orderID, reconciliationID, transactionID := uuid.New(), uuid.New(), uuid.New()
+	repo := &fakeRepository{orders: []OrderFact{{ID: orderID, OrderNo: "TM-SETTLED", Currency: "CNY", TotalAmountText: "10.00", CreatedAt: now, UpdatedAt: now}}}
+	svc := &Service{
+		Repo: repo,
+		PlatformFees: fakePlatformFeeReader{facts: map[uuid.UUID]PlatformFeeFact{
+			orderID: {OrderID: orderID, ReconciliationID: reconciliationID, SettlementTransactionIDs: []uuid.UUID{transactionID}, AmountMinor: 100, Currency: "CNY", Status: "matched", SourceAt: now},
+		}},
+		Clock: func() time.Time { return now },
+	}
+
+	result, err := svc.List(context.Background(), 41, Scope{}, ListQuery{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	row := result.List[0]
+	if row.Components.PlatformFee.Status != ComponentAvailable || row.Components.PlatformFee.AmountMinor == nil || *row.Components.PlatformFee.AmountMinor != 100 {
+		t.Fatalf("platform fee = %#v", row.Components.PlatformFee)
+	}
+	if row.KnownContributionMinor == nil || *row.KnownContributionMinor != 900 {
+		t.Fatalf("known contribution = %#v, want 900", row.KnownContributionMinor)
+	}
+	if row.Related.SettlementReconciliationID == nil || *row.Related.SettlementReconciliationID != reconciliationID || len(row.Related.SettlementTransactionIDs) != 1 {
+		t.Fatalf("related settlement facts = %#v", row.Related)
+	}
+	if row.FormulaVersion != "order_profit_estimate_v2" {
+		t.Fatalf("formula version = %s", row.FormulaVersion)
+	}
+}
+
+func TestCalculateOrderProfitRejectsMismatchedSettlementFee(t *testing.T) {
+	now := time.Date(2026, 9, 7, 3, 0, 0, 0, time.UTC)
+	orderID := uuid.New()
+	repo := &fakeRepository{orders: []OrderFact{{ID: orderID, OrderNo: "TM-MISMATCH", Currency: "CNY", TotalAmountText: "10.00", CreatedAt: now, UpdatedAt: now}}}
+	svc := &Service{
+		Repo: repo,
+		PlatformFees: fakePlatformFeeReader{facts: map[uuid.UUID]PlatformFeeFact{
+			orderID: {OrderID: orderID, ReconciliationID: uuid.New(), Status: "mismatch", Currency: "CNY", ReasonCode: "order_amount_mismatch", Reason: "账单交易总额与本地订单金额不一致", SourceAt: now},
+		}},
+	}
+
+	result, err := svc.List(context.Background(), 41, Scope{}, ListQuery{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	row := result.List[0]
+	if row.Status != StatusMismatch || row.Components.PlatformFee.Status != ComponentMismatch || row.Components.PlatformFee.AmountMinor != nil {
+		t.Fatalf("mismatched platform fee was consumed: %#v", row)
+	}
+	if row.KnownContributionMinor == nil || *row.KnownContributionMinor != 1000 {
+		t.Fatalf("known contribution = %#v, want revenue only", row.KnownContributionMinor)
+	}
+}
+
 func TestCalculateOrderProfitFailsClosedForAmbiguousSupplierCostAndCurrency(t *testing.T) {
 	now := time.Date(2026, 9, 6, 2, 0, 0, 0, time.UTC)
 	orderID, itemID, skuID := uuid.New(), uuid.New(), uuid.New()
@@ -153,6 +216,7 @@ func TestCalculateOrderRejectsRevenueOutsideJSONSafeIntegerRange(t *testing.T) {
 	now := time.Now().UTC()
 	profit, _ := calculateOrder(
 		OrderFact{ID: uuid.New(), Currency: "USD", TotalAmountText: "90071992547409.92", UpdatedAt: now},
+		nil,
 		nil,
 		nil,
 		nil,

@@ -21,6 +21,7 @@ import {
   e2eOrderProfit,
   e2eOrderProfitDetail,
 } from '../mocks/order-profits';
+import { E2E_SETTLEMENT_ID, e2eSettlementDetail, e2eSettlementReconciliation } from '../mocks/settlement';
 
 async function fetchApi(page: import('@playwright/test').Page, path: string) {
   if (page.url() === 'about:blank') {
@@ -108,11 +109,17 @@ test.describe('@contract API envelope contracts', () => {
         pageSize: 20,
         total: 1,
         totalPages: 1,
-        formula: { version: 'order_profit_estimate_v1' },
+        formula: { version: 'order_profit_estimate_v2' },
       }),
     );
     expect(await fetchApi(page, `/api/v1/order-profits/${E2E_ORDER_PROFIT_ORDER_ID}`)).toEqual(
       ok(e2eOrderProfitDetail),
+    );
+    expect(await fetchApi(page, '/api/v1/settlement-reconciliation')).toEqual(
+      ok({ list: [e2eSettlementReconciliation], page: 1, pageSize: 20, total: 1, totalPages: 1 }),
+    );
+    expect(await fetchApi(page, `/api/v1/settlement-reconciliation/${E2E_SETTLEMENT_ID}`)).toEqual(
+      ok(e2eSettlementDetail),
     );
   });
 });

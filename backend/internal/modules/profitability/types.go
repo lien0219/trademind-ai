@@ -1,13 +1,14 @@
 package profitability
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 const (
-	FormulaVersion = "order_profit_estimate_v1"
+	FormulaVersion = "order_profit_estimate_v2"
 
 	StatusComplete = "complete"
 	StatusPending  = "pending"
@@ -51,7 +52,24 @@ type FormulaDescriptor struct {
 	ProductCostSource  string `json:"productCostSource"`
 	FreightSource      string `json:"freightSource"`
 	RefundSource       string `json:"refundSource"`
+	PlatformFeeSource  string `json:"platformFeeSource"`
 	MissingFeeBehavior string `json:"missingFeeBehavior"`
+}
+
+type PlatformFeeFact struct {
+	OrderID                  uuid.UUID
+	ReconciliationID         uuid.UUID
+	SettlementTransactionIDs []uuid.UUID
+	AmountMinor              int64
+	Currency                 string
+	Status                   string
+	SourceAt                 time.Time
+	ReasonCode               string
+	Reason                   string
+}
+
+type PlatformFeeReader interface {
+	ListPlatformFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]PlatformFeeFact, error)
 }
 
 type MoneyComponent struct {
@@ -82,9 +100,11 @@ type Issue struct {
 }
 
 type RelatedFacts struct {
-	FulfillmentWaveID  *uuid.UUID  `json:"fulfillmentWaveId,omitempty"`
-	SupplierIDs        []uuid.UUID `json:"supplierIds"`
-	RefundExecutionIDs []uuid.UUID `json:"refundExecutionIds"`
+	FulfillmentWaveID          *uuid.UUID  `json:"fulfillmentWaveId,omitempty"`
+	SupplierIDs                []uuid.UUID `json:"supplierIds"`
+	RefundExecutionIDs         []uuid.UUID `json:"refundExecutionIds"`
+	SettlementReconciliationID *uuid.UUID  `json:"settlementReconciliationId,omitempty"`
+	SettlementTransactionIDs   []uuid.UUID `json:"settlementTransactionIds"`
 }
 
 type OrderProfit struct {
@@ -152,6 +172,7 @@ func formulaDescriptor() FormulaDescriptor {
 		ProductCostSource:  "current active supplier catalog binding; estimate only, not historical COGS",
 		FreightSource:      "latest confirmed local freight quote on one non-cancelled fulfillment wave",
 		RefundSource:       "succeeded local refund execution facts",
-		MissingFeeBehavior: "platform, advertising and warehouse fees remain missing and are never treated as zero",
+		PlatformFeeSource:  "matched immutable platform settlement transactions",
+		MissingFeeBehavior: "unmatched platform fees and missing advertising or warehouse fees remain null and are never treated as zero",
 	}
 }

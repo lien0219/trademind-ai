@@ -52,6 +52,8 @@ export type OrderProfit = {
     fulfillmentWaveId?: string;
     supplierIds: string[];
     refundExecutionIds: string[];
+    settlementReconciliationId?: string;
+    settlementTransactionIds: string[];
   };
   orderedAt?: string;
   calculatedAt: string;
@@ -86,6 +88,7 @@ export type OrderProfitFormula = {
   productCostSource: string;
   freightSource: string;
   refundSource: string;
+  platformFeeSource: string;
   missingFeeBehavior: string;
 };
 

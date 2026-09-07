@@ -448,6 +448,11 @@ export default [
         name: '订单预估利润',
         component: './Finance/OrderProfits',
       },
+      {
+        path: '/finance/settlement-reconciliation',
+        name: '平台结算对账',
+        component: './Finance/SettlementReconciliation',
+      },
     ],
   },
   {

@@ -211,16 +211,35 @@
 
 每个售后单最多一个退款执行单；租户内非空 `externalRefundId` 唯一。状态动作使用 revision、稳定幂等键、请求 hash、行锁和条件更新保护，成功动作写入不可变 `refund_execution_events`。售后审批人不得登记或按平台事实确认自己审批的退款结果；非管理员还必须具有对应店铺的 operate/manage 授权。`400` 表示字段无效，`404` 表示租户或店铺范围不可见，`409` 表示状态、revision、职责分离、平台事实、外部退款编号或幂等冲突。
 
-## 订单预估利润与费用缺口 V1
+## 平台结算账单导入与订单费用对账 V1
 
-V1 按订单动态汇总现有只读事实，不新增利润或结算表，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；商品成本使用当前唯一有效供应商采购价，仅是当前估算而非历史实际成本；运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实。平台、广告和仓储费用尚无可靠账本时保持 `amountMinor=null`，不得按零参与完整利润。
+V1 只接收操作员明确选择店铺后上传的本地 CSV，不调用平台、支付或银行接口。预览接口只解析、校验并查询重复交易，不写数据库；确认接口要求提交预览返回的文件 SHA-256 和稳定幂等键，在一个事务中写入不可变导入批次与交易事实。单文件最多 2 MiB、1000 条数据，表头必须严格为：
+
+```text
+external_transaction_id,order_no,currency,order_gross_minor,platform_fee_minor,settlement_amount_minor,settled_at
+```
+
+金额均为 JavaScript 安全整数范围内的最小货币单位；`order_gross_minor` 不得为负，`settlement_amount_minor` 必须等于 `order_gross_minor - platform_fee_minor`。同一订单可有多笔交易；调整或冲正必须使用新的 `external_transaction_id`，并以 `order_gross_minor=0` 和有符号平台费用表达。租户、店铺、平台和外部交易号共同防止重复计费；完全相同的既有交易会跳过，内容不同的同号交易会使整批失败。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/settlement-imports/preview` | `settlement.import` + 店铺 operate/manage | multipart：`file`、`shopId`。返回文件 hash、有效性、新增/重复数、逐行预览和校验问题；数据库零写入。 |
+| `POST` | `/api/v1/settlement-imports` | `settlement.import` + 店铺 operate/manage | multipart：`file`、`shopId`、`expectedFileHash`、`idempotencyKey`。服务端重新解析并核对预览 hash，原子追加导入批次与交易；相同请求安全重放。 |
+| `GET` | `/api/v1/settlement-reconciliation` | `settlement.view`；CSV 需 `settlement.export` | 按订单聚合不可变结算交易；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`currency`、`status=matched\|pending\|mismatch\|blocked`、`start`、`end`，`format=csv` 导出最多 5000 组。 |
+| `GET` | `/api/v1/settlement-reconciliation/:id` | `settlement.view` | 返回聚合金额、差异说明和全部原始交易；跨租户或越权店铺返回 `404`。 |
+
+`matched` 表示店铺、平台、币种、聚合交易总额和本地订单金额一致；未找到本地订单为 `pending`；订单金额、币种或平台不同为 `mismatch`；店铺/交易事实缺失、多币种或金额不安全为 `blocked`。Operator 可查看、导入和导出，Reviewer 可查看和导出，Readonly 只能查看。该能力不更新或删除已导入交易，不自动修复差异，不生成付款、收款、应收应付或会计凭证，不启动 Worker 或重试。
+
+## 订单预估利润与费用缺口 V2
+
+V2 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；商品成本使用当前唯一有效供应商采购价，仅是当前估算而非历史实际成本；运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。缺少结算账单或结算状态不是 `matched` 时，平台费保持 `amountMinor=null`；广告和仓储费用仍无可靠账本，也不得补零。
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
-| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、当前供应商成本明细及履约波次、供应商、退款执行关联；跨租户或越权店铺返回 `404`。 |
+| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、当前供应商成本明细及履约波次、供应商、退款执行、结算对账与交易关联；跨租户或越权店铺返回 `404`。 |
 
-所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v1`。该模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或结算流程。
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v2`。该模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
 
 ## 图片 AI
 

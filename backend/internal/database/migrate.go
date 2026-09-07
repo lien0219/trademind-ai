@@ -31,6 +31,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settlement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
@@ -275,6 +276,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&salesreturn.PlatformAfterSaleEvent{},
 		&salesreturn.RefundExecution{},
 		&salesreturn.RefundExecutionEvent{},
+		&settlement.Import{},
+		&settlement.Transaction{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
 		&shop.PlatformCategory{},

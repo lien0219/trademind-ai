@@ -35,7 +35,7 @@ export const e2eOrderProfit = {
   orderStatus: 'shipped',
   paymentStatus: 'paid',
   fulfillmentStatus: 'fulfilled',
-  knownContributionMinor: 4500,
+  knownContributionMinor: 3500,
   estimatedProfitMinor: null,
   estimatedMarginBps: null,
   components: {
@@ -43,12 +43,11 @@ export const e2eOrderProfit = {
     productCost: available(4000, 'current_supplier_catalog', '2026-09-04T02:00:00Z'),
     freight: available(1000, 'confirmed_local_freight_quote', '2026-09-05T03:00:00Z'),
     refund: available(500, 'refund_execution_ledger', '2026-09-05T04:00:00Z'),
-    platformFee: missing('platform_settlement', 'platform_fee_missing', '缺少平台结算费用'),
+    platformFee: available(1000, 'platform_settlement_ledger', '2026-09-05T05:00:00Z'),
     advertisingFee: missing('advertising_ledger', 'advertising_fee_missing', '缺少订单归属广告费用'),
     warehouseFee: missing('warehouse_fee_ledger', 'warehouse_fee_missing', '缺少仓储作业费用'),
   },
   issues: [
-    { code: 'platform_fee_missing', component: 'platformFee', message: '缺少平台结算费用' },
     { code: 'advertising_fee_missing', component: 'advertisingFee', message: '缺少订单归属广告费用' },
     { code: 'warehouse_fee_missing', component: 'warehouseFee', message: '缺少仓储作业费用' },
   ],
@@ -56,10 +55,12 @@ export const e2eOrderProfit = {
     fulfillmentWaveId: 'e2e-wave-profit-1',
     supplierIds: ['e2e-supplier-primary'],
     refundExecutionIds: ['e2e-refund-profit-1'],
+    settlementReconciliationId: 'e2e-settlement-reconciliation-1',
+    settlementTransactionIds: ['e2e-settlement-transaction-1'],
   },
   orderedAt: '2026-09-05T01:00:00Z',
   calculatedAt: '2026-09-06T01:00:00Z',
-  formulaVersion: 'order_profit_estimate_v1',
+  formulaVersion: 'order_profit_estimate_v2',
 };
 
 export const e2eOrderProfitDetail = {
@@ -93,11 +94,12 @@ export function orderProfitResponse(path: string) {
       totalPages: 1,
       calculatedAt: e2eOrderProfit.calculatedAt,
       formula: {
-        version: 'order_profit_estimate_v1',
+        version: 'order_profit_estimate_v2',
         revenueSource: 'orders.total_amount',
         productCostSource: 'current supplier catalog',
         freightSource: 'confirmed local quote',
         refundSource: 'succeeded refund execution',
+        platformFeeSource: 'matched immutable platform settlement transactions',
         missingFeeBehavior: 'missing fees remain null',
       },
     });

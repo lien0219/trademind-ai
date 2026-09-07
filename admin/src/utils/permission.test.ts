@@ -44,6 +44,11 @@ describe('ERP permission fallbacks', () => {
     expect(
       hasPermission(ROLES.OPERATOR, PERMISSIONS.ORDER_PROFIT_EXPORT),
     ).toBe(true);
+    expect(hasPermission(ROLES.OPERATOR, PERMISSIONS.SETTLEMENT_IMPORT)).toBe(true);
+    expect(hasPermission(ROLES.OPERATOR, PERMISSIONS.SETTLEMENT_EXPORT)).toBe(true);
+    expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.SETTLEMENT_VIEW)).toBe(true);
+    expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.SETTLEMENT_EXPORT)).toBe(true);
+    expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.SETTLEMENT_IMPORT)).toBe(false);
     expect(
       hasPermission(ROLES.REVIEWER, PERMISSIONS.SALES_RETURN_REFUND),
     ).toBe(false);
@@ -78,5 +83,8 @@ describe('ERP permission fallbacks', () => {
     expect(hasPermission(ROLES.READONLY, PERMISSIONS.ORDER_PROFIT_EXPORT)).toBe(
       false,
     );
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.SETTLEMENT_VIEW)).toBe(true);
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.SETTLEMENT_IMPORT)).toBe(false);
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.SETTLEMENT_EXPORT)).toBe(false);
   });
 });

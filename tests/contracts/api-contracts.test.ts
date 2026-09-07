@@ -55,6 +55,10 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/orders",
         "GET /api/v1/order-profits",
         "GET /api/v1/order-profits/:orderId",
+        "POST /api/v1/settlement-imports/preview",
+        "POST /api/v1/settlement-imports",
+        "GET /api/v1/settlement-reconciliation",
+        "GET /api/v1/settlement-reconciliation/:id",
         "GET /api/v1/orders/warehouse-allocations",
         "GET /api/v1/orders/:id/warehouse-allocation",
         "POST /api/v1/orders/:id/warehouse-allocation",
@@ -772,7 +776,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(128);
+    expect(contracts.endpoints).toHaveLength(132);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);
@@ -790,7 +794,25 @@ describe("TradeMind API contract registry", () => {
     expect(list?.readonly).toBe(true);
     expect(list?.externalWrite).toBe(false);
     expect(list?.nullableMoneyFields).toContain("estimatedProfitMinor");
-    expect(detail?.formulaVersion).toBe("order_profit_estimate_v1");
+    expect(detail?.formulaVersion).toBe("order_profit_estimate_v2");
     expect(detail?.statusEnum).toEqual(["complete", "pending", "mismatch", "blocked"]);
+  });
+
+  it("keeps settlement preview read-only and confirmation append-only", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const preview = endpoint("POST /api/v1/settlement-imports/preview");
+    const confirm = endpoint("POST /api/v1/settlement-imports");
+    const list = endpoint("GET /api/v1/settlement-reconciliation");
+
+    expect(preview?.requestBody).toEqual(["file", "shopId"]);
+    expect(preview?.databaseWrite).toBe(false);
+    expect(preview?.maxRows).toBe(1000);
+    expect(confirm?.requestBody).toEqual(["file", "shopId", "expectedFileHash", "idempotencyKey"]);
+    expect(confirm?.appendOnly).toBe(true);
+    expect(confirm?.externalWrite).toBe(false);
+    expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
+    expect(list?.exportPermission).toBe("settlement.export");
+    expect(list?.exportLimit).toBe(5000);
   });
 });

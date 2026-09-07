@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Platform settlement reconciliation and profit estimate V2 (2026-09-07)
+
+- Added store-scoped local CSV validation preview and explicit, hash-bound confirmation that atomically appends immutable settlement import and transaction facts with idempotent replay, duplicate suppression, and conflicting external-transaction rejection.
+- Added `matched`, `pending`, `mismatch`, and `blocked` order reconciliation list/detail APIs, bounded CSV export, dedicated permissions, audit logging, and a responsive Finance workbench with preview-before-confirm and readonly write safety.
+- Upgraded order profit estimates to `order_profit_estimate_v2`; only matched platform fees enter known contribution through an injected read contract, while unmatched, advertising, and warehouse fees remain unset. No marketplace, payment, banking, automatic repair, payout, accounting voucher, worker, or retry capability was enabled.
+
 ### Order profit estimate and fee-gap workbench (2026-09-06)
 
 - Added tenant- and store-scoped read-only order profit list/detail APIs and bounded CSV export using exact currency minor-unit conversion, JavaScript-safe integers, and spreadsheet-formula neutralization.

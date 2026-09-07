@@ -130,6 +130,7 @@ function sourceLabel(source: string) {
     confirmed_local_freight_quote: '已确认本地运费试算',
     refund_execution_ledger: '退款执行事实',
     platform_settlement: '平台结算',
+    platform_settlement_ledger: '平台结算账单',
     advertising_ledger: '广告费用账',
     warehouse_fee_ledger: '仓储费用账',
   };

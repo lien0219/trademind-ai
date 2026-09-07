@@ -106,7 +106,55 @@
       "readonly": true,
       "externalWrite": false,
       "statusEnum": ["complete", "pending", "mismatch", "blocked"],
-      "formulaVersion": "order_profit_estimate_v1"
+      "formulaVersion": "order_profit_estimate_v2"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/settlement-imports/preview",
+      "auth": true,
+      "requestBody": ["file", "shopId"],
+      "responseData": "SettlementImportPreview",
+      "requiredPermission": "settlement.import",
+      "storeOperationScope": true,
+      "databaseWrite": false,
+      "externalWrite": false,
+      "maxFileBytes": 2097152,
+      "maxRows": 1000
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/settlement-imports",
+      "auth": true,
+      "requestBody": ["file", "shopId", "expectedFileHash", "idempotencyKey"],
+      "responseData": "SettlementImportResult",
+      "requiredPermission": "settlement.import",
+      "storeOperationScope": true,
+      "databaseWrite": true,
+      "externalWrite": false,
+      "appendOnly": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settlement-reconciliation",
+      "auth": true,
+      "query": ["page", "pageSize", "orderNo", "platform", "shopId", "currency", "status", "start", "end", "format"],
+      "responseData": "SettlementReconciliationListOrCSV",
+      "requiredPermission": "settlement.view",
+      "exportPermission": "settlement.export",
+      "readonly": true,
+      "externalWrite": false,
+      "statusEnum": ["matched", "pending", "mismatch", "blocked"],
+      "exportLimit": 5000
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settlement-reconciliation/:id",
+      "auth": true,
+      "responseData": "SettlementReconciliationDetail",
+      "requiredPermission": "settlement.view",
+      "readonly": true,
+      "externalWrite": false,
+      "statusEnum": ["matched", "pending", "mismatch", "blocked"]
     },
     {
       "method": "GET",

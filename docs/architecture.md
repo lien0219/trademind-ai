@@ -73,7 +73,7 @@ Collector 是独立 Node.js 服务：
 
 ## ERP 领域扩展
 
-ERP 采用仓库、物流、供应商、采购、销售售后和库存等明确领域模块渐进扩展。`logistics` 只维护租户级本地渠道与确定性费率规则；`shipping_channels`、`shipping_rate_templates` 保存可变主数据，订单模块用 `fulfillment_wave_freight_quotes` 保存人工确认的不可变版本快照，且不调用承运商。采购单、收货和采购退货状态机由 `procurement` 编排，订单明细级仅退款/退货退款由 `salesreturn` 编排，库存变化必须通过 `inventory` 领域事务内接口写入余额、不可变流水和兼容聚合库存。完整边界、状态机与库存迁移顺序见 [ERP 扩展架构](ERP_ARCHITECTURE.md)。
+ERP 采用仓库、物流、供应商、采购、销售售后、结算和库存等明确领域模块渐进扩展。`logistics` 只维护租户级本地渠道与确定性费率规则；`shipping_channels`、`shipping_rate_templates` 保存可变主数据，订单模块用 `fulfillment_wave_freight_quotes` 保存人工确认的不可变版本快照，且不调用承运商。采购单、收货和采购退货状态机由 `procurement` 编排，订单明细级仅退款/退货退款由 `salesreturn` 编排，库存变化必须通过 `inventory` 领域事务内接口写入余额、不可变流水和兼容聚合库存。`settlement` 只接收人工确认的本地 CSV 并保存不可变平台费用事实，`profitability` 通过注入的只读契约消费 matched 费用，不直接拥有结算表。完整边界、状态机与库存迁移顺序见 [ERP 扩展架构](ERP_ARCHITECTURE.md)。
 
 ## 扩展方向
 

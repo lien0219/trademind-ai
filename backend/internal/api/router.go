@@ -57,6 +57,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settlement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
@@ -82,6 +83,30 @@ import (
 
 type collectRunnerAdapter struct {
 	c *collect.CollectorClient
+}
+
+type settlementProfitabilityAdapter struct {
+	svc *settlement.Service
+}
+
+func (a settlementProfitabilityAdapter) ListPlatformFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.PlatformFeeFact, error) {
+	result := make(map[uuid.UUID]profitability.PlatformFeeFact)
+	if a.svc == nil {
+		return result, nil
+	}
+	facts, err := a.svc.PlatformFeesForOrders(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	for orderID, fact := range facts {
+		result[orderID] = profitability.PlatformFeeFact{
+			OrderID: fact.OrderID, ReconciliationID: fact.ReconciliationID,
+			SettlementTransactionIDs: append([]uuid.UUID(nil), fact.TransactionIDs...),
+			AmountMinor:              fact.AmountMinor, Currency: fact.Currency, Status: fact.Status,
+			SourceAt: fact.SourceAt, ReasonCode: fact.ReasonCode, Reason: fact.Reason,
+		}
+	}
+	return result, nil
 }
 
 func (a collectRunnerAdapter) RunCollect(ctx context.Context, source, rawURL string, options map[string]any) (json.RawMessage, error) {
@@ -448,10 +473,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	procurementH := &procurement.Handler{Svc: procurementSvc, OpLog: opLogSvc}
 	salesReturnSvc := &salesreturn.Service{DB: dep.DB, Stock: inventory.WarehouseStockService{}, Warehouses: warehouseSvc}
 	salesReturnH := &salesreturn.Handler{Svc: salesReturnSvc, OpLog: opLogSvc}
+	settlementSvc := &settlement.Service{DB: dep.DB}
+	settlementH := &settlement.Handler{Svc: settlementSvc, OpLog: opLogSvc}
 
 	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc, Logistics: logisticsSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
-	profitabilitySvc := &profitability.Service{DB: dep.DB}
+	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}}
 	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}
 
 	orderSyncSvc := &ordersync.Service{
@@ -689,6 +716,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	profitability.Register(authed, profitabilityH)
+	settlement.Register(authed, settlementH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)

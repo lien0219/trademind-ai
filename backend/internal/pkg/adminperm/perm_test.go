@@ -76,6 +76,15 @@ func TestPermissionsForRole(t *testing.T) {
 	if !StrictHasPermission(RoleOperator, PermSalesReturnRefund) || StrictHasPermission(RoleReviewer, PermSalesReturnRefund) || StrictHasPermission(RoleReadonly, PermSalesReturnRefund) {
 		t.Fatal("only operator and admin roles should execute sales refunds")
 	}
+	if !StrictHasPermission(RoleOperator, PermSettlementImport) || !StrictHasPermission(RoleOperator, PermSettlementExport) {
+		t.Fatal("operator should import and export settlement facts")
+	}
+	if !StrictHasPermission(RoleReviewer, PermSettlementView) || !StrictHasPermission(RoleReviewer, PermSettlementExport) || StrictHasPermission(RoleReviewer, PermSettlementImport) {
+		t.Fatal("reviewer should inspect and export settlements without importing")
+	}
+	if !StrictHasPermission(RoleReadonly, PermSettlementView) || StrictHasPermission(RoleReadonly, PermSettlementImport) || StrictHasPermission(RoleReadonly, PermSettlementExport) {
+		t.Fatal("readonly should inspect settlements without importing or exporting")
+	}
 	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) || StrictHasPermission("surprise", PermInventorySyncRun) || StrictHasPermission(RoleAdmin, "inventory.run") {
 		t.Fatal("unknown roles and synonymous permissions must not inherit permissions on strict path")
 	}

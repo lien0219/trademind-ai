@@ -28,7 +28,7 @@ test.describe('@smoke order profit estimates', () => {
       await expect(page.getByText('订单预估利润', { exact: true }).first()).toBeVisible();
       await expect(page.getByText('SO-E2E-PROFIT-0001', { exact: true })).toBeVisible();
       await expect(page.getByText('本页为动态预估，不是会计利润')).toBeVisible();
-      await expect(page.getByText('CNY 45.00', { exact: true })).toBeVisible();
+      await expect(page.getByText('CNY 35.00', { exact: true })).toBeVisible();
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
       await expectTableFilterBarAlignedLeft(page);
@@ -36,7 +36,7 @@ test.describe('@smoke order profit estimates', () => {
       await page.getByRole('button', { name: '查看' }).first().click();
       const drawer = page.getByRole('dialog');
       await expect(drawer).toContainText('SO-E2E-PROFIT-0001');
-      await expect(drawer).toContainText('平台结算费用');
+      await expect(drawer).toContainText('平台结算账单');
       await expect(drawer).toContainText('E2E 蓝牙耳机');
       await expect(page.locator('.ant-drawer-content-wrapper:visible').first()).toHaveCSS(
         'transform',
