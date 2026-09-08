@@ -438,6 +438,26 @@ func (s *Service) Confirm(ctx context.Context, tenantID int64, scope Scope, shop
 		if previewErr != nil {
 			return previewErr
 		}
+		// previewWithDB holds the shop row lock. Recheck after lock acquisition so a
+		// concurrent confirmation that committed while this transaction waited is replayed.
+		if existing, findErr := s.findImport(ctx, tx, tenantID, scope, "idempotency_key = ?", key); findErr == nil {
+			if existing.ShopID != shopID || existing.RequestHash != requestHash {
+				return ErrConflict
+			}
+			result = ImportResult{Import: *existing, Replayed: true}
+			return nil
+		} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return findErr
+		}
+		if existing, findErr := s.findImport(ctx, tx, tenantID, scope, "shop_id = ? AND file_hash = ?", shopID, expectedFileHash); findErr == nil {
+			if existing.CalculationHash != expectedCalculationHash {
+				return ErrConflict
+			}
+			result = ImportResult{Import: *existing, Replayed: true}
+			return nil
+		} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return findErr
+		}
 		if !preview.Valid || preview.FileHash != expectedFileHash || preview.CalculationHash != expectedCalculationHash {
 			return ErrConflict
 		}
