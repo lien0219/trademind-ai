@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -59,7 +60,53 @@ type SupplierSKUListItem struct {
 	LeadTimeDays    int       `json:"leadTimeDays"`
 }
 
+// ActiveCostFact is the supplier-owned read contract used by downstream
+// transactions that need to freeze the current catalog state.
+type ActiveCostFact struct {
+	SupplierSKUID   uuid.UUID `gorm:"column:supplier_sku_id"`
+	SupplierID      uuid.UUID `gorm:"column:supplier_id"`
+	ProductSKUID    uuid.UUID `gorm:"column:product_sku_id"`
+	SupplierCode    string    `gorm:"column:supplier_code"`
+	SupplierName    string    `gorm:"column:supplier_name"`
+	SupplierSKUCode string    `gorm:"column:supplier_sku_code"`
+	UnitCostMinor   int64     `gorm:"column:unit_cost_minor"`
+	Currency        string    `gorm:"column:currency"`
+	SourceUpdatedAt time.Time `gorm:"column:source_updated_at"`
+}
+
 type Service struct{ DB *gorm.DB }
+
+// ListActiveCosts returns all active supplier catalog entries for the supplied
+// tenant-local SKUs. When tx is provided, the read participates in the caller's
+// transaction so a downstream immutable snapshot can be committed atomically.
+func (s *Service) ListActiveCosts(ctx context.Context, tx *gorm.DB, tenantID int64, skuIDs []uuid.UUID) ([]ActiveCostFact, error) {
+	rows := make([]ActiveCostFact, 0)
+	if s == nil || (s.DB == nil && tx == nil) {
+		return nil, fmt.Errorf("supplier: db unavailable")
+	}
+	if tenantID < 0 {
+		return nil, ErrInvalidSupplier
+	}
+	if len(skuIDs) == 0 {
+		return rows, nil
+	}
+	if tx == nil {
+		tx = s.DB
+	}
+	err := tx.WithContext(ctx).Table("supplier_skus AS supplier_sku").
+		Select(`supplier_sku.id AS supplier_sku_id, supplier_sku.supplier_id, supplier_sku.product_sku_id,
+			supplier.code AS supplier_code, supplier.name AS supplier_name,
+			supplier_sku.supplier_sku_code, supplier_sku.unit_cost_minor, supplier_sku.currency,
+			supplier_sku.updated_at AS source_updated_at`).
+		Joins("JOIN suppliers AS supplier ON supplier.id = supplier_sku.supplier_id AND supplier.tenant_id = ? AND supplier.status = ? AND supplier.deleted_at IS NULL", tenantID, StatusActive).
+		Where("supplier_sku.tenant_id = ? AND supplier_sku.deleted_at IS NULL AND supplier_sku.product_sku_id IN ?", tenantID, skuIDs).
+		Order("supplier_sku.product_sku_id ASC, supplier.code ASC, supplier_sku.id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list active supplier costs: %w", err)
+	}
+	return rows, nil
+}
 
 func (s *Service) Create(ctx context.Context, tenantID int64, actor *uuid.UUID, in CreateInput) (*Supplier, error) {
 	if s == nil || s.DB == nil {

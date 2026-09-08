@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
@@ -35,6 +36,7 @@ type Service struct {
 	Idempotency *idempotency.Service
 	Warehouses  *warehouse.Service
 	Logistics   *logistics.Service
+	Suppliers   *supplier.Service
 	Tracking    TrackingProvider
 }
 

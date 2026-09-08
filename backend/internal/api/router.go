@@ -476,7 +476,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	settlementSvc := &settlement.Service{DB: dep.DB}
 	settlementH := &settlement.Handler{Svc: settlementSvc, OpLog: opLogSvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc, Logistics: logisticsSvc}
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc, Logistics: logisticsSvc, Suppliers: supplierSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}}
 	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}

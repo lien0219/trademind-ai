@@ -40,7 +40,7 @@ export const e2eOrderProfit = {
   estimatedMarginBps: null,
   components: {
     revenue: available(10000, 'order_total', '2026-09-05T02:00:00Z'),
-    productCost: available(4000, 'current_supplier_catalog', '2026-09-04T02:00:00Z'),
+    productCost: available(4000, 'fulfillment_cost_snapshot', '2026-09-05T03:05:00Z'),
     freight: available(1000, 'confirmed_local_freight_quote', '2026-09-05T03:00:00Z'),
     refund: available(500, 'refund_execution_ledger', '2026-09-05T04:00:00Z'),
     platformFee: available(1000, 'platform_settlement_ledger', '2026-09-05T05:00:00Z'),
@@ -54,13 +54,14 @@ export const e2eOrderProfit = {
   related: {
     fulfillmentWaveId: 'e2e-wave-profit-1',
     supplierIds: ['e2e-supplier-primary'],
+    productCostSnapshotIds: ['e2e-cost-snapshot-1'],
     refundExecutionIds: ['e2e-refund-profit-1'],
     settlementReconciliationId: 'e2e-settlement-reconciliation-1',
     settlementTransactionIds: ['e2e-settlement-transaction-1'],
   },
   orderedAt: '2026-09-05T01:00:00Z',
   calculatedAt: '2026-09-06T01:00:00Z',
-  formulaVersion: 'order_profit_estimate_v2',
+  formulaVersion: 'order_profit_estimate_v3',
 };
 
 export const e2eOrderProfitDetail = {
@@ -76,10 +77,17 @@ export const e2eOrderProfitDetail = {
       lineCostMinor: 4000,
       currency: 'CNY',
       status: 'available',
-      source: 'current_supplier_catalog',
+      source: 'fulfillment_cost_snapshot',
+      costBasis: 'snapshot',
       sourceAt: '2026-09-04T02:00:00Z',
+      snapshotId: 'e2e-cost-snapshot-1',
+      resolutionStatus: 'resolved',
+      capturedAt: '2026-09-05T03:05:00Z',
       supplierId: 'e2e-supplier-primary',
+      supplierSkuId: 'e2e-supplier-sku-primary',
       supplierName: 'E2E 核心供应商',
+      supplierSkuCode: 'E2E-BLUE-01',
+      candidateCount: 1,
     },
   ],
 };
@@ -94,9 +102,9 @@ export function orderProfitResponse(path: string) {
       totalPages: 1,
       calculatedAt: e2eOrderProfit.calculatedAt,
       formula: {
-        version: 'order_profit_estimate_v2',
+        version: 'order_profit_estimate_v3',
         revenueSource: 'orders.total_amount',
-        productCostSource: 'current supplier catalog',
+        productCostSource: 'fulfilled snapshot or unfulfilled catalog estimate',
         freightSource: 'confirmed local quote',
         refundSource: 'succeeded refund execution',
         platformFeeSource: 'matched immutable platform settlement transactions',

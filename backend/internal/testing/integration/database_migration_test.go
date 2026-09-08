@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
 	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
@@ -153,6 +154,7 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 		"sales_return_inventory_effects",
 		"settlement_imports",
 		"settlement_transactions",
+		"order_item_cost_snapshots",
 	} {
 		require.Truef(t, db.Migrator().HasTable(table), "expected migrated table %s", table)
 	}
@@ -190,6 +192,7 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 	require.True(t, db.Migrator().HasIndex(&settlement.Import{}, "ux_settlement_import_idempotency"))
 	require.True(t, db.Migrator().HasIndex(&settlement.Import{}, "ux_settlement_import_file"))
 	require.True(t, db.Migrator().HasIndex(&settlement.Transaction{}, "ux_settlement_external_transaction"))
+	require.True(t, db.Migrator().HasIndex(&order.OrderItemCostSnapshot{}, "ux_order_item_cost_snapshot"))
 	require.True(t, db.Migrator().HasColumn(&inventory.InventoryMovement{}, "before_damaged"))
 	require.True(t, db.Migrator().HasColumn(&inventory.InventoryMovement{}, "after_damaged"))
 }

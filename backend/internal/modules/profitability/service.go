@@ -158,11 +158,19 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 	if err != nil {
 		return nil, nil, err
 	}
+	snapshots, err := repo.ListOrderItemCostSnapshots(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	snapshotOrders := make(map[uuid.UUID]bool, len(orders))
+	for _, order := range orders {
+		snapshotOrders[order.ID] = usesFulfillmentCostSnapshot(order)
+	}
 	skuSet := make(map[uuid.UUID]struct{})
 	itemsByOrder := make(map[uuid.UUID][]OrderItemFact)
 	for _, item := range items {
 		itemsByOrder[item.OrderID] = append(itemsByOrder[item.OrderID], item)
-		if item.ProductSKUID != nil && *item.ProductSKUID != uuid.Nil {
+		if !snapshotOrders[item.OrderID] && item.ProductSKUID != nil && *item.ProductSKUID != uuid.Nil {
 			skuSet[*item.ProductSKUID] = struct{}{}
 		}
 	}
@@ -194,6 +202,10 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 	for _, row := range costs {
 		costsBySKU[row.ProductSKUID] = append(costsBySKU[row.ProductSKUID], row)
 	}
+	snapshotsByItem := make(map[uuid.UUID][]OrderItemCostSnapshotFact)
+	for _, row := range snapshots {
+		snapshotsByItem[row.OrderItemID] = append(snapshotsByItem[row.OrderItemID], row)
+	}
 	freightByOrder := make(map[uuid.UUID][]FreightFact)
 	for _, row := range freight {
 		freightByOrder[row.OrderID] = append(freightByOrder[row.OrderID], row)
@@ -210,14 +222,14 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 		if hasPlatformFee {
 			platformFeePtr = &platformFee
 		}
-		profit, lines := calculateOrder(order, itemsByOrder[order.ID], costsBySKU, freightByOrder[order.ID], refundByOrder[order.ID], platformFeePtr, calculatedAt)
+		profit, lines := calculateOrder(order, itemsByOrder[order.ID], costsBySKU, snapshotsByItem, freightByOrder[order.ID], refundByOrder[order.ID], platformFeePtr, calculatedAt)
 		profits = append(profits, profit)
 		linesByOrder[order.ID] = lines
 	}
 	return profits, linesByOrder, nil
 }
 
-func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, freight []FreightFact, refunds []RefundFact, platformFeeFact *PlatformFeeFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
+func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, snapshotsByItem map[uuid.UUID][]OrderItemCostSnapshotFact, freight []FreightFact, refunds []RefundFact, platformFeeFact *PlatformFeeFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
 	currency := strings.ToUpper(strings.TrimSpace(order.Currency))
 	issues := make([]Issue, 0)
 	revenue := component(currency, ComponentAvailable, "order_total", &order.UpdatedAt)
@@ -230,7 +242,7 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 		revenue.KnownAmountMinor = revenueMinor
 	}
 
-	productCost, costLines, costIssues := calculateProductCost(currency, items, costsBySKU)
+	productCost, costLines, costIssues := calculateProductCost(order, currency, items, costsBySKU, snapshotsByItem)
 	issues = append(issues, costIssues...)
 	freightComponent, freightWaveID, freightIssues := calculateFreight(currency, freight)
 	issues = append(issues, freightIssues...)
@@ -272,13 +284,14 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 		}
 	}
 	supplierIDs := uniqueSupplierIDs(costLines)
+	snapshotIDs := uniqueSnapshotIDs(costLines)
 	return OrderProfit{
 		OrderID: order.ID, OrderNo: order.OrderNo, Platform: order.Platform, ShopID: order.ShopID, ShopName: order.ShopName,
 		WarehouseID: order.WarehouseID, WarehouseCode: order.WarehouseCode, WarehouseName: order.WarehouseName,
 		Currency: currency, Status: status, OrderStatus: order.Status, PaymentStatus: order.PaymentStatus,
 		FulfillmentStatus: order.FulfillmentStatus, KnownContributionMinor: knownContribution,
 		EstimatedProfitMinor: estimatedProfit, EstimatedMarginBps: marginBps, Components: components,
-		Issues: issues, Related: RelatedFacts{FulfillmentWaveID: freightWaveID, SupplierIDs: supplierIDs, RefundExecutionIDs: refundIDs,
+		Issues: issues, Related: RelatedFacts{FulfillmentWaveID: freightWaveID, SupplierIDs: supplierIDs, ProductCostSnapshotIDs: snapshotIDs, RefundExecutionIDs: refundIDs,
 			SettlementReconciliationID: platformFeeReconciliationID(platformFeeFact), SettlementTransactionIDs: platformFeeTransactionIDs(platformFeeFact)},
 		OrderedAt: order.OrderedAt, CalculatedAt: calculatedAt, FormulaVersion: FormulaVersion,
 	}, costLines
@@ -342,8 +355,24 @@ func missingFee(currency, source, code, reason string) MoneyComponent {
 	return row
 }
 
-func calculateProductCost(currency string, items []OrderItemFact, costs map[uuid.UUID][]SupplierCostFact) (MoneyComponent, []ProductCostLine, []Issue) {
-	result := component(currency, ComponentAvailable, "current_supplier_catalog", nil)
+func usesFulfillmentCostSnapshot(order OrderFact) bool {
+	fulfillmentStatus := strings.ToLower(strings.TrimSpace(order.FulfillmentStatus))
+	if fulfillmentStatus == "fulfilled" || fulfillmentStatus == "partial" || fulfillmentStatus == "returned" {
+		return true
+	}
+	orderStatus := strings.ToLower(strings.TrimSpace(order.Status))
+	return orderStatus == "shipped" || orderStatus == "delivered"
+}
+
+func calculateProductCost(order OrderFact, currency string, items []OrderItemFact, costs map[uuid.UUID][]SupplierCostFact, snapshots map[uuid.UUID][]OrderItemCostSnapshotFact) (MoneyComponent, []ProductCostLine, []Issue) {
+	if usesFulfillmentCostSnapshot(order) {
+		return calculateSnapshotProductCost(currency, items, snapshots)
+	}
+	return calculateCatalogProductCost(currency, items, costs)
+}
+
+func calculateCatalogProductCost(currency string, items []OrderItemFact, costs map[uuid.UUID][]SupplierCostFact) (MoneyComponent, []ProductCostLine, []Issue) {
+	result := component(currency, ComponentAvailable, "current_supplier_catalog_estimate", nil)
 	lines := make([]ProductCostLine, 0, len(items))
 	issues := make([]Issue, 0)
 	var known int64
@@ -352,7 +381,7 @@ func calculateProductCost(currency string, items []OrderItemFact, costs map[uuid
 		return result, lines, []Issue{{Code: result.ReasonCode, Component: "productCost", Message: result.Reason}}
 	}
 	for _, item := range items {
-		line := ProductCostLine{OrderItemID: item.ID, ProductSKUID: item.ProductSKUID, ProductTitle: item.ProductTitle, SKUCode: item.SKUCode, Quantity: item.Quantity, Currency: currency, Status: ComponentAvailable, Source: "current_supplier_catalog"}
+		line := ProductCostLine{OrderItemID: item.ID, ProductSKUID: item.ProductSKUID, ProductTitle: item.ProductTitle, SKUCode: item.SKUCode, Quantity: item.Quantity, Currency: currency, Status: ComponentAvailable, Source: "current_supplier_catalog_estimate", CostBasis: "estimate"}
 		switch {
 		case item.Quantity < 1:
 			line.Status, line.ReasonCode, line.Reason = ComponentBlocked, "item_quantity_invalid", "订单明细数量无效"
@@ -360,12 +389,13 @@ func calculateProductCost(currency string, items []OrderItemFact, costs map[uuid
 			line.Status, line.ReasonCode, line.Reason = ComponentMissing, "product_sku_unbound", "订单明细尚未绑定内部规格"
 		default:
 			bindings := costs[*item.ProductSKUID]
+			line.CandidateCount = len(bindings)
 			switch len(bindings) {
 			case 0:
 				line.Status, line.ReasonCode, line.Reason = ComponentMissing, "supplier_cost_missing", "规格缺少有效供应商采购价"
 			case 1:
 				binding := bindings[0]
-				line.SupplierID, line.SupplierName, line.SourceAt = &binding.SupplierID, binding.SupplierName, &binding.UpdatedAt
+				line.SupplierID, line.SupplierSKUID, line.SupplierName, line.SourceAt = &binding.SupplierID, &binding.SupplierSKUID, binding.SupplierName, &binding.UpdatedAt
 				if strings.ToUpper(strings.TrimSpace(binding.Currency)) != currency {
 					line.Status, line.ReasonCode, line.Reason = ComponentMismatch, "supplier_cost_currency_mismatch", "供应商采购价币种与订单币种不一致"
 				} else if binding.UnitCostMinor < 0 || !jsonSafeInteger(binding.UnitCostMinor) || (item.Quantity > 0 && binding.UnitCostMinor > math.MaxInt64/int64(item.Quantity)) {
@@ -387,6 +417,7 @@ func calculateProductCost(currency string, items []OrderItemFact, costs map[uuid
 		if line.Status != ComponentAvailable {
 			issues = append(issues, Issue{Code: line.ReasonCode, Component: "productCost", Message: line.Reason})
 		}
+		promoteLatestTime(&result.SourceAt, line.SourceAt)
 		lines = append(lines, line)
 	}
 	result.KnownAmountMinor = known
@@ -397,6 +428,132 @@ func calculateProductCost(currency string, items []OrderItemFact, costs map[uuid
 		result.ReasonCode, result.Reason = summarizeLineIssue(lines)
 	}
 	return result, lines, issues
+}
+
+func calculateSnapshotProductCost(currency string, items []OrderItemFact, snapshots map[uuid.UUID][]OrderItemCostSnapshotFact) (MoneyComponent, []ProductCostLine, []Issue) {
+	result := component(currency, ComponentAvailable, "fulfillment_cost_snapshot", nil)
+	lines := make([]ProductCostLine, 0, len(items))
+	issues := make([]Issue, 0)
+	var known int64
+	if len(items) == 0 {
+		result.Status, result.ReasonCode, result.Reason = ComponentMissing, "order_items_missing", "订单缺少可计算商品成本的明细"
+		return result, lines, []Issue{{Code: result.ReasonCode, Component: "productCost", Message: result.Reason}}
+	}
+	for _, item := range items {
+		line := ProductCostLine{
+			OrderItemID: item.ID, ProductSKUID: item.ProductSKUID, ProductTitle: item.ProductTitle,
+			SKUCode: item.SKUCode, Quantity: item.Quantity, Currency: currency, Status: ComponentMissing,
+			Source: "fulfillment_cost_snapshot", CostBasis: "snapshot",
+		}
+		facts := snapshots[item.ID]
+		switch len(facts) {
+		case 0:
+			line.ReasonCode, line.Reason = "historical_cost_snapshot_missing", "已履约订单缺少当次成本快照，禁止使用当前采购价回填"
+		case 1:
+			fact := facts[0]
+			line.SnapshotID, line.ResolutionStatus = uuidFactPointer(fact.ID), fact.ResolutionStatus
+			line.CapturedAt, line.SourceAt = timeFactPointer(fact.CapturedAt), fact.SourceUpdatedAt
+			line.SupplierID, line.SupplierSKUID = fact.SupplierID, fact.SupplierSKUID
+			line.SupplierName, line.SupplierSKUCode, line.CandidateCount = fact.SupplierName, fact.SupplierSKUCode, fact.CandidateCount
+			if strings.TrimSpace(fact.CostCurrency) != "" {
+				line.Currency = strings.ToUpper(strings.TrimSpace(fact.CostCurrency))
+			}
+			line.UnitCostMinor, line.LineCostMinor = fact.UnitCostMinor, fact.LineCostMinor
+			promoteLatestTime(&result.SourceAt, line.CapturedAt)
+			applySnapshotResolution(&line, item, fact, currency, &known)
+			sanitizeSnapshotLineAmounts(&line)
+		default:
+			line.Status, line.ReasonCode, line.Reason = ComponentMismatch, "duplicate_cost_snapshots", "订单明细存在重复履约成本快照，需要人工核对"
+		}
+		if line.Status != ComponentAvailable {
+			issues = append(issues, Issue{Code: line.ReasonCode, Component: "productCost", Message: line.Reason})
+		}
+		lines = append(lines, line)
+	}
+	result.KnownAmountMinor = known
+	result.Status = worstComponentStatus(lines)
+	if result.Status == ComponentAvailable {
+		result.AmountMinor = int64Pointer(known)
+	} else {
+		result.ReasonCode, result.Reason = summarizeLineIssue(lines)
+	}
+	return result, lines, issues
+}
+
+func sanitizeSnapshotLineAmounts(line *ProductCostLine) {
+	if line == nil {
+		return
+	}
+	if line.UnitCostMinor != nil && !jsonSafeInteger(*line.UnitCostMinor) {
+		line.UnitCostMinor = nil
+	}
+	if line.LineCostMinor != nil && !jsonSafeInteger(*line.LineCostMinor) {
+		line.LineCostMinor = nil
+	}
+}
+
+func applySnapshotResolution(line *ProductCostLine, item OrderItemFact, fact OrderItemCostSnapshotFact, currency string, known *int64) {
+	if line == nil || known == nil {
+		return
+	}
+	reasonCode := strings.TrimSpace(fact.ReasonCode)
+	switch fact.ResolutionStatus {
+	case "missing":
+		line.Status, line.ReasonCode, line.Reason = ComponentMissing, nonEmpty(reasonCode, "supplier_cost_missing"), "履约时规格缺少有效供应商采购价"
+	case "ambiguous":
+		line.Status, line.ReasonCode, line.Reason = ComponentMismatch, nonEmpty(reasonCode, "multiple_supplier_costs"), "履约时规格存在多个有效供应商采购价，未自动选择"
+	case "currency_mismatch":
+		line.Status, line.ReasonCode, line.Reason = ComponentMismatch, nonEmpty(reasonCode, "supplier_cost_currency_mismatch"), "履约成本快照币种与订单币种不一致"
+	case "invalid":
+		line.Status, line.ReasonCode, line.Reason = ComponentBlocked, nonEmpty(reasonCode, "snapshot_cost_invalid"), "履约成本快照金额无效"
+	case "resolved":
+		if fact.OrderID != item.OrderID || fact.OrderItemID != item.ID || item.ProductSKUID == nil || *item.ProductSKUID == uuid.Nil || fact.ProductSKUID != *item.ProductSKUID || fact.Quantity != item.Quantity || strings.ToUpper(strings.TrimSpace(fact.OrderCurrency)) != currency {
+			line.Status, line.ReasonCode, line.Reason = ComponentMismatch, "cost_snapshot_source_mismatch", "履约成本快照与订单明细不一致"
+			return
+		}
+		if strings.ToUpper(strings.TrimSpace(fact.CostCurrency)) != currency {
+			line.Status, line.ReasonCode, line.Reason = ComponentMismatch, "supplier_cost_currency_mismatch", "履约成本快照币种与订单币种不一致"
+			return
+		}
+		if fact.UnitCostMinor == nil || fact.LineCostMinor == nil || *fact.UnitCostMinor < 0 || !jsonSafeInteger(*fact.UnitCostMinor) || fact.Quantity < 1 || *fact.UnitCostMinor > math.MaxInt64/int64(fact.Quantity) || *fact.LineCostMinor != *fact.UnitCostMinor*int64(fact.Quantity) || !jsonSafeInteger(*fact.LineCostMinor) {
+			line.Status, line.ReasonCode, line.Reason = ComponentBlocked, "cost_snapshot_amount_invalid", "履约成本快照金额无法安全计算"
+			return
+		}
+		next, ok := safeAdd(*known, *fact.LineCostMinor)
+		if !ok || !jsonSafeInteger(next) {
+			line.Status, line.ReasonCode, line.Reason = ComponentBlocked, "product_cost_overflow", "商品成本合计超出整数范围"
+			return
+		}
+		*known = next
+		line.Status, line.ReasonCode, line.Reason = ComponentAvailable, "", ""
+	default:
+		line.Status, line.ReasonCode, line.Reason = ComponentBlocked, "cost_snapshot_status_invalid", "履约成本快照状态无效"
+	}
+}
+
+func promoteLatestTime(current **time.Time, candidate *time.Time) {
+	if candidate == nil {
+		return
+	}
+	if *current == nil || candidate.After(**current) {
+		value := candidate.UTC()
+		*current = &value
+	}
+}
+
+func uuidFactPointer(value uuid.UUID) *uuid.UUID {
+	if value == uuid.Nil {
+		return nil
+	}
+	return &value
+}
+
+func timeFactPointer(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	value = value.UTC()
+	return &value
 }
 
 func calculateFreight(currency string, rows []FreightFact) (MoneyComponent, *uuid.UUID, []Issue) {
@@ -553,6 +710,21 @@ func uniqueSupplierIDs(lines []ProductCostLine) []uuid.UUID {
 	for _, line := range lines {
 		if line.SupplierID != nil && *line.SupplierID != uuid.Nil {
 			set[*line.SupplierID] = struct{}{}
+		}
+	}
+	out := make([]uuid.UUID, 0, len(set))
+	for id := range set {
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+	return out
+}
+
+func uniqueSnapshotIDs(lines []ProductCostLine) []uuid.UUID {
+	set := make(map[uuid.UUID]struct{})
+	for _, line := range lines {
+		if line.SnapshotID != nil && *line.SnapshotID != uuid.Nil {
+			set[*line.SnapshotID] = struct{}{}
 		}
 	}
 	out := make([]uuid.UUID, 0, len(set))

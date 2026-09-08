@@ -230,16 +230,18 @@ external_transaction_id,order_no,currency,order_gross_minor,platform_fee_minor,s
 
 `matched` 表示店铺、平台、币种、聚合交易总额和本地订单金额一致；未找到本地订单为 `pending`；订单金额、币种或平台不同为 `mismatch`；店铺/交易事实缺失、多币种或金额不安全为 `blocked`。Operator 可查看、导入和导出，Reviewer 可查看和导出，Readonly 只能查看。该能力不更新或删除已导入交易，不自动修复差异，不生成付款、收款、应收应付或会计凭证，不启动 Worker 或重试。
 
-## 订单预估利润与费用缺口 V2
+## 订单预估利润与费用缺口 V3
 
-V2 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；商品成本使用当前唯一有效供应商采购价，仅是当前估算而非历史实际成本；运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。缺少结算账单或结算状态不是 `matched` 时，平台费保持 `amountMinor=null`；广告和仓储费用仍无可靠账本，也不得补零。
+V3 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；新完成的本地履约会在库存扣减、发货单、订单状态和幂等完成的同一事务中，为每个订单明细冻结一条不可变成本快照。快照记录数量、订单/成本币种、供应商及供应商 SKU 标识、目录来源时间、采集时间和 `resolved|missing|ambiguous|currency_mismatch|invalid` 状态。成本缺失、多绑定或币种不一致会随快照落库但不阻断发货；快照基础设施写入失败则整笔履约回滚。
+
+已履约订单只读取履约成本快照，缺失快照的历史订单返回 `historical_cost_snapshot_missing`，不使用当前采购价静默回填；未履约订单仍使用当前唯一有效供应商采购价并标记为目录估算。两者都不是 FIFO、移动加权平均或会计实际成本，系统不自动换汇。运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。缺少结算账单或结算状态不是 `matched` 时，平台费保持 `amountMinor=null`；广告和仓储费用仍无可靠账本，也不得补零。
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
-| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、当前供应商成本明细及履约波次、供应商、退款执行、结算对账与交易关联；跨租户或越权店铺返回 `404`。 |
+| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账与交易关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
 
-所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v2`。该模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v3`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
 
 ## 图片 AI
 

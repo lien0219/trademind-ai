@@ -127,6 +127,8 @@ function sourceLabel(source: string) {
   const labels: Record<string, string> = {
     order_total: '订单金额',
     current_supplier_catalog: '当前供应商采购价',
+    current_supplier_catalog_estimate: '当前目录估算',
+    fulfillment_cost_snapshot: '履约成本快照',
     confirmed_local_freight_quote: '已确认本地运费试算',
     refund_execution_ledger: '退款执行事实',
     platform_settlement: '平台结算',
@@ -374,17 +376,19 @@ export default function OrderProfitsPage() {
     { title: '规格编码', dataIndex: 'skuCode', width: 140, ellipsis: true, render: (value) => value || '—' },
     { title: '数量', dataIndex: 'quantity', width: 72, align: 'right' },
     {
-      title: '当前采购单价',
+      title: '成本单价',
       width: 150,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.unitCostMinor, row.currency),
     },
     {
-      title: '预估商品成本',
+      title: '商品成本',
       width: 150,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.lineCostMinor, row.currency),
     },
+    { title: '成本依据', dataIndex: 'source', width: 150, render: (value) => sourceLabel(value) },
+    { title: '快照时间', dataIndex: 'capturedAt', width: 180, render: (value) => (value ? formatDateTime(value) : '—') },
     { title: '来源状态', dataIndex: 'status', width: 108, render: (value) => componentStatusTag(value) },
     { title: '供应商', dataIndex: 'supplierName', width: 170, ellipsis: true, render: (value) => value || '—' },
     { title: '缺口说明', dataIndex: 'reason', width: 220, ellipsis: true, render: (value) => value || '—' },
@@ -407,7 +411,7 @@ export default function OrderProfitsPage() {
       <TmPageContainer
         className="tm-order-profit-page"
         title="订单预估利润"
-        subTitle="按订单收入、当前供应商采购价、已确认本地运费和成功退款汇总；缺失费用不计为零"
+        subTitle="已履约订单使用履约成本快照，未履约订单使用当前目录估算；缺失费用不计为零"
         extra={
           <TmPageHeaderExtra>
             <Tooltip title={canExport ? '导出当前筛选结果，最多 5000 条' : '当前账号无导出权限'}>
@@ -427,7 +431,7 @@ export default function OrderProfitsPage() {
           type="warning"
           showIcon
           message="本页为动态预估，不是会计利润"
-          description="当前供应商采购价不代表历史实际成本；平台、广告和仓储费用缺失时，预估利润保持为空，仅展示已知贡献额。"
+          description="履约快照冻结的是发货当时的本地供应商目录成本，不等于会计实际成本；历史已履约订单缺少快照时不会用当前价格回填。平台、广告和仓储费用缺失时，仅展示已知贡献额。"
         />
         {filterSourceError ? <Alert type="warning" showIcon message={filterSourceError} /> : null}
         {listError ? (
@@ -603,7 +607,7 @@ export default function OrderProfitsPage() {
                 rowKey="orderItemId"
                 size="small"
                 pagination={false}
-                scroll={{ x: 1220 }}
+                scroll={{ x: 1510 }}
                 columns={costColumns}
                 dataSource={detail.productCostLines || []}
                 locale={{ emptyText: '暂无订单商品明细' }}

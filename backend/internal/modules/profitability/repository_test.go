@@ -19,7 +19,7 @@ func TestGormRepositoryAppliesTenantAndStoreScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&shop.Shop{}, &warehouse.Warehouse{}, &ordermod.Order{}, &ordermod.OrderItem{}); err != nil {
+	if err := db.AutoMigrate(&shop.Shop{}, &warehouse.Warehouse{}, &ordermod.Order{}, &ordermod.OrderItem{}, &ordermod.OrderItemCostSnapshot{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	shopA := shop.Shop{TenantID: 41, Platform: "manual", ShopName: "A", Status: "active", AuthStatus: "active"}
@@ -56,5 +56,21 @@ func TestGormRepositoryAppliesTenantAndStoreScope(t *testing.T) {
 	}
 	if _, err := repo.GetOrder(context.Background(), 41, Scope{RestrictStoreScope: true, AllowedShopIDs: []uuid.UUID{shopA.ID}}, orders[1].ID); err != gorm.ErrRecordNotFound {
 		t.Fatalf("out-of-scope GetOrder() error = %v, want record not found", err)
+	}
+	itemA, itemOther := uuid.New(), uuid.New()
+	for _, snapshot := range []*ordermod.OrderItemCostSnapshot{
+		{TenantID: 41, OrderID: orders[0].ID, OrderItemID: itemA, ShipmentID: uuid.New(), WarehouseID: uuid.New(), ProductSKUID: uuid.New(), Quantity: 1, OrderCurrency: "CNY", ResolutionStatus: ordermod.CostSnapshotMissing, ReasonCode: "supplier_cost_missing", SourceType: ordermod.CostSnapshotSourceSupplierCatalog, CandidateCount: 0, SourceCandidates: []byte("[]"), CapturedAt: now},
+		{TenantID: 42, OrderID: orders[2].ID, OrderItemID: itemOther, ShipmentID: uuid.New(), WarehouseID: uuid.New(), ProductSKUID: uuid.New(), Quantity: 1, OrderCurrency: "CNY", ResolutionStatus: ordermod.CostSnapshotMissing, ReasonCode: "supplier_cost_missing", SourceType: ordermod.CostSnapshotSourceSupplierCatalog, CandidateCount: 0, SourceCandidates: []byte("[]"), CapturedAt: now},
+	} {
+		if err := db.Create(snapshot).Error; err != nil {
+			t.Fatalf("create cost snapshot: %v", err)
+		}
+	}
+	snapshots, err := repo.ListOrderItemCostSnapshots(context.Background(), 41, []uuid.UUID{orders[0].ID, orders[2].ID})
+	if err != nil {
+		t.Fatalf("ListOrderItemCostSnapshots() error = %v", err)
+	}
+	if len(snapshots) != 1 || snapshots[0].OrderItemID != itemA {
+		t.Fatalf("tenant-scoped cost snapshots = %#v", snapshots)
 	}
 }

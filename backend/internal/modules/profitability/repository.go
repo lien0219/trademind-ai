@@ -48,6 +48,27 @@ type SupplierCostFact struct {
 	UpdatedAt     time.Time `gorm:"column:updated_at"`
 }
 
+type OrderItemCostSnapshotFact struct {
+	ID               uuid.UUID  `gorm:"column:id"`
+	OrderID          uuid.UUID  `gorm:"column:order_id"`
+	OrderItemID      uuid.UUID  `gorm:"column:order_item_id"`
+	ProductSKUID     uuid.UUID  `gorm:"column:product_sku_id"`
+	Quantity         int        `gorm:"column:quantity"`
+	OrderCurrency    string     `gorm:"column:order_currency"`
+	UnitCostMinor    *int64     `gorm:"column:unit_cost_minor"`
+	LineCostMinor    *int64     `gorm:"column:line_cost_minor"`
+	CostCurrency     string     `gorm:"column:cost_currency"`
+	ResolutionStatus string     `gorm:"column:resolution_status"`
+	ReasonCode       string     `gorm:"column:reason_code"`
+	SupplierID       *uuid.UUID `gorm:"column:supplier_id"`
+	SupplierSKUID    *uuid.UUID `gorm:"column:supplier_sku_id"`
+	SupplierName     string     `gorm:"column:supplier_name"`
+	SupplierSKUCode  string     `gorm:"column:supplier_sku_code"`
+	SourceUpdatedAt  *time.Time `gorm:"column:source_updated_at"`
+	CandidateCount   int        `gorm:"column:candidate_count"`
+	CapturedAt       time.Time  `gorm:"column:captured_at"`
+}
+
 type FreightFact struct {
 	ID          uuid.UUID `gorm:"column:id"`
 	OrderID     uuid.UUID `gorm:"column:order_id"`
@@ -74,6 +95,7 @@ type Repository interface {
 	ListOrders(context.Context, int64, Scope, ListQuery, int, int) ([]OrderFact, int64, error)
 	GetOrder(context.Context, int64, Scope, uuid.UUID) (*OrderFact, error)
 	ListOrderItems(context.Context, int64, []uuid.UUID) ([]OrderItemFact, error)
+	ListOrderItemCostSnapshots(context.Context, int64, []uuid.UUID) ([]OrderItemCostSnapshotFact, error)
 	ListSupplierCosts(context.Context, int64, []uuid.UUID) ([]SupplierCostFact, error)
 	ListFreightFacts(context.Context, int64, []uuid.UUID) ([]FreightFact, error)
 	ListRefundFacts(context.Context, int64, []uuid.UUID) ([]RefundFact, error)
@@ -181,6 +203,26 @@ func (r *GormRepository) ListOrderItems(ctx context.Context, tenantID int64, ord
 		Order("item.order_id ASC, item.created_at ASC, item.id ASC").Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("list order profit items: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *GormRepository) ListOrderItemCostSnapshots(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) ([]OrderItemCostSnapshotFact, error) {
+	rows := make([]OrderItemCostSnapshotFact, 0)
+	if len(orderIDs) == 0 {
+		return rows, nil
+	}
+	err := r.DB.WithContext(ctx).Table("order_item_cost_snapshots AS snapshot").
+		Select(`snapshot.id, snapshot.order_id, snapshot.order_item_id, snapshot.product_sku_id,
+			snapshot.quantity, snapshot.order_currency, snapshot.unit_cost_minor, snapshot.line_cost_minor,
+			snapshot.cost_currency, snapshot.resolution_status, snapshot.reason_code,
+			snapshot.supplier_id, snapshot.supplier_sku_id, snapshot.supplier_name, snapshot.supplier_sku_code,
+			snapshot.source_updated_at, snapshot.candidate_count, snapshot.captured_at`).
+		Joins("JOIN orders ON orders.id = snapshot.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", tenantID).
+		Where("snapshot.tenant_id = ? AND snapshot.order_id IN ?", tenantID, orderIDs).
+		Order("snapshot.order_id ASC, snapshot.order_item_id ASC, snapshot.id ASC").Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list order item cost snapshots: %w", err)
 	}
 	return rows, nil
 }

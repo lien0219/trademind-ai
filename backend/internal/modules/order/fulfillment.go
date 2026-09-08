@@ -271,6 +271,9 @@ func (s *Service) fulfillOrder(c *gin.Context, inv *inventory.Service, orderID u
 			if err := tx.WithContext(c.Request.Context()).Create(&shipment).Error; err != nil {
 				return err
 			}
+			if err := s.captureFulfillmentCostSnapshots(c.Request.Context(), tx, tenantID, locked, shipment, actor, now); err != nil {
+				return fmt.Errorf("capture fulfillment cost snapshots: %w", err)
+			}
 			if err := tx.Model(&Order{}).Where("id = ? AND tenant_id = ?", orderID, tenantID).Updates(map[string]any{
 				"status": StatusShipped, "fulfillment_status": FulfillmentFulfilled, "shipped_at": now, "updated_at": now,
 			}).Error; err != nil {
@@ -282,7 +285,7 @@ func (s *Service) fulfillOrder(c *gin.Context, inv *inventory.Service, orderID u
 			})
 		},
 	})
-	if err != nil && shipment.ID == uuid.Nil {
+	if err != nil {
 		_ = s.Idempotency.Fail(c.Request.Context(), acquired.Record.ID, owner, err.Error(), true)
 		return nil, err
 	}

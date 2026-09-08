@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
@@ -31,7 +32,7 @@ func newFulfillmentFixture(t *testing.T) (*Service, *inventory.Service, *gin.Con
 		&Order{}, &OrderItem{}, &OrderShipment{}, &product.Product{}, &product.ProductSKU{},
 		&warehouse.Warehouse{}, &inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{},
 		&inventory.InventoryChangeLog{}, &inventory.OrderInventoryEffect{}, &idempotency.Record{},
-		&FulfillmentWaveAssignment{},
+		&FulfillmentWaveAssignment{}, &supplier.Supplier{}, &supplier.SupplierSKU{}, &OrderItemCostSnapshot{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +63,7 @@ func newFulfillmentFixture(t *testing.T) (*Service, *inventory.Service, *gin.Con
 	}
 	idem := &idempotency.Service{DB: db}
 	inv := &inventory.Service{DB: db, Warehouses: warehouseSvc, Idempotency: idem}
-	orderSvc := &Service{DB: db, Idempotency: idem}
+	orderSvc := &Service{DB: db, Idempotency: idem, Suppliers: &supplier.Service{DB: db}}
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest("POST", "/api/v1/orders/"+orderRow.ID.String()+"/fulfill", nil)
 	ctx.Set(ctxkey.TenantID, int64(41))
@@ -70,8 +71,25 @@ func newFulfillmentFixture(t *testing.T) (*Service, *inventory.Service, *gin.Con
 	return orderSvc, inv, ctx, orderRow, sku, warehouseRow, idem
 }
 
+func bindFulfillmentCost(t *testing.T, orderSvc *Service, skuID uuid.UUID, code string, unitCost int64, currency string) (*supplier.Supplier, *supplier.SupplierSKU) {
+	t.Helper()
+	supplierRow := &supplier.Supplier{TenantID: 41, Code: code, Name: code + " supplier", Status: supplier.StatusActive}
+	if err := orderSvc.DB.Create(supplierRow).Error; err != nil {
+		t.Fatal(err)
+	}
+	binding := &supplier.SupplierSKU{
+		TenantID: 41, SupplierID: supplierRow.ID, ProductSKUID: skuID, SupplierSKUCode: code + "-SKU",
+		UnitCostMinor: unitCost, Currency: currency, MinOrderQty: 1,
+	}
+	if err := orderSvc.DB.Create(binding).Error; err != nil {
+		t.Fatal(err)
+	}
+	return supplierRow, binding
+}
+
 func TestFulfillOrderCommitsShipmentAndInventoryAtomically(t *testing.T) {
 	orderSvc, inv, ctx, orderRow, sku, warehouseRow, _ := newFulfillmentFixture(t)
+	supplierRow, supplierSKU := bindFulfillmentCost(t, orderSvc, sku.ID, "FULFILL-SUP", 250, "CNY")
 	key := "fulfill-key-1"
 	result, err := orderSvc.FulfillOrder(ctx, inv, orderRow.ID, FulfillOrderInput{
 		IdempotencyKey: key, WarehouseID: &warehouseRow.ID, Carrier: "Carrier", TrackingNo: "TRACK-1",
@@ -104,6 +122,13 @@ func TestFulfillOrderCommitsShipmentAndInventoryAtomically(t *testing.T) {
 	if shipmentCount != 1 {
 		t.Fatalf("expected one shipment, got %d", shipmentCount)
 	}
+	var costSnapshot OrderItemCostSnapshot
+	if err := orderSvc.DB.Where("tenant_id = ? AND order_id = ?", 41, orderRow.ID).First(&costSnapshot).Error; err != nil {
+		t.Fatal(err)
+	}
+	if costSnapshot.ResolutionStatus != CostSnapshotResolved || costSnapshot.UnitCostMinor == nil || *costSnapshot.UnitCostMinor != 250 || costSnapshot.LineCostMinor == nil || *costSnapshot.LineCostMinor != 750 || costSnapshot.SupplierID == nil || *costSnapshot.SupplierID != supplierRow.ID || costSnapshot.SupplierSKUID == nil || *costSnapshot.SupplierSKUID != supplierSKU.ID || costSnapshot.ShipmentID != result.Shipment.ID {
+		t.Fatalf("unexpected fulfillment cost snapshot: %#v", costSnapshot)
+	}
 	var idemRow idempotency.Record
 	if err := orderSvc.DB.Where("scope = ? AND idempotency_key = ?", orderFulfillmentScope, idempotency.OrderFulfillment(orderRow.ID.String(), key)).First(&idemRow).Error; err != nil {
 		t.Fatal(err)
@@ -124,6 +149,91 @@ func TestFulfillOrderCommitsShipmentAndInventoryAtomically(t *testing.T) {
 	}
 	if shipmentCount != 1 {
 		t.Fatalf("replay must not create another shipment, got %d", shipmentCount)
+	}
+	var snapshotCount int64
+	if err := orderSvc.DB.Model(&OrderItemCostSnapshot{}).Where("order_id = ?", orderRow.ID).Count(&snapshotCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if snapshotCount != 1 {
+		t.Fatalf("replay must not create another cost snapshot, got %d", snapshotCount)
+	}
+}
+
+func TestFulfillOrderRecordsUnresolvedCostsWithoutBlockingShipment(t *testing.T) {
+	tests := []struct {
+		name       string
+		configure  func(*testing.T, *Service, uuid.UUID)
+		wantStatus string
+		wantCount  int
+	}{
+		{name: "missing", wantStatus: CostSnapshotMissing, wantCount: 0},
+		{name: "ambiguous", wantStatus: CostSnapshotAmbiguous, wantCount: 2, configure: func(t *testing.T, service *Service, skuID uuid.UUID) {
+			bindFulfillmentCost(t, service, skuID, "FULFILL-A", 100, "CNY")
+			bindFulfillmentCost(t, service, skuID, "FULFILL-B", 110, "CNY")
+		}},
+		{name: "currency mismatch", wantStatus: CostSnapshotCurrencyMismatch, wantCount: 1, configure: func(t *testing.T, service *Service, skuID uuid.UUID) {
+			bindFulfillmentCost(t, service, skuID, "FULFILL-USD", 100, "USD")
+		}},
+		{name: "invalid amount", wantStatus: CostSnapshotInvalid, wantCount: 1, configure: func(t *testing.T, service *Service, skuID uuid.UUID) {
+			bindFulfillmentCost(t, service, skuID, "FULFILL-UNSAFE", maxSafeCostMinor+1, "CNY")
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orderSvc, inv, ctx, orderRow, sku, warehouseRow, _ := newFulfillmentFixture(t)
+			if tt.configure != nil {
+				tt.configure(t, orderSvc, sku.ID)
+			}
+			result, err := orderSvc.FulfillOrder(ctx, inv, orderRow.ID, FulfillOrderInput{
+				IdempotencyKey: "fulfill-unresolved-" + strings.ReplaceAll(tt.name, " ", "-"),
+				WarehouseID:    &warehouseRow.ID, Carrier: "Carrier", TrackingNo: "TRACK-" + tt.name,
+			}, nil)
+			if err != nil || result.Shipment == nil {
+				t.Fatalf("unresolved cost must not block fulfillment: result=%#v err=%v", result, err)
+			}
+			var snapshot OrderItemCostSnapshot
+			if err := orderSvc.DB.Where("order_id = ?", orderRow.ID).First(&snapshot).Error; err != nil {
+				t.Fatal(err)
+			}
+			if snapshot.ResolutionStatus != tt.wantStatus || snapshot.CandidateCount != tt.wantCount {
+				t.Fatalf("snapshot = %#v, want status=%s candidates=%d", snapshot, tt.wantStatus, tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestFulfillOrderRollsBackWhenCostSnapshotCannotPersist(t *testing.T) {
+	orderSvc, inv, ctx, orderRow, sku, warehouseRow, _ := newFulfillmentFixture(t)
+	if err := orderSvc.DB.Migrator().DropTable(&OrderItemCostSnapshot{}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := orderSvc.FulfillOrder(ctx, inv, orderRow.ID, FulfillOrderInput{
+		IdempotencyKey: "fulfill-cost-persist-failure", WarehouseID: &warehouseRow.ID,
+		Carrier: "Carrier", TrackingNo: "TRACK-COST-PERSIST-FAILURE",
+	}, nil)
+	if err == nil || !strings.Contains(err.Error(), "persist fulfillment cost snapshots") {
+		t.Fatalf("expected snapshot persistence failure, got %v", err)
+	}
+	var stored Order
+	if err := orderSvc.DB.First(&stored, "id = ?", orderRow.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != StatusPaid || stored.FulfillmentStatus != FulfillmentUnfulfilled {
+		t.Fatalf("order lifecycle must roll back: %#v", stored)
+	}
+	var shipmentCount int64
+	if err := orderSvc.DB.Model(&OrderShipment{}).Where("order_id = ?", orderRow.ID).Count(&shipmentCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if shipmentCount != 0 {
+		t.Fatalf("failed snapshot persistence must roll back shipment, got %d", shipmentCount)
+	}
+	var storedSKU product.ProductSKU
+	if err := orderSvc.DB.First(&storedSKU, "id = ?", sku.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if storedSKU.Stock == nil || *storedSKU.Stock != 10 {
+		t.Fatalf("failed snapshot persistence must roll back stock: %#v", storedSKU.Stock)
 	}
 }
 

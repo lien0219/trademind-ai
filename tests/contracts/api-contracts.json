@@ -94,6 +94,8 @@
       "readonly": true,
       "externalWrite": false,
       "statusEnum": ["complete", "pending", "mismatch", "blocked"],
+      "productCostPolicy": "fulfilled_snapshot_unfulfilled_catalog_estimate",
+      "costSnapshotResolutionEnum": ["resolved", "missing", "ambiguous", "currency_mismatch", "invalid"],
       "nullableMoneyFields": ["estimatedProfitMinor", "estimatedMarginBps", "components.*.amountMinor"],
       "exportLimit": 5000
     },
@@ -106,7 +108,9 @@
       "readonly": true,
       "externalWrite": false,
       "statusEnum": ["complete", "pending", "mismatch", "blocked"],
-      "formulaVersion": "order_profit_estimate_v2"
+      "productCostPolicy": "fulfilled_snapshot_unfulfilled_catalog_estimate",
+      "costSnapshotResolutionEnum": ["resolved", "missing", "ambiguous", "currency_mismatch", "invalid"],
+      "formulaVersion": "order_profit_estimate_v3"
     },
     {
       "method": "POST",

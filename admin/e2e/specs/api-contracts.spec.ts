@@ -109,7 +109,7 @@ test.describe('@contract API envelope contracts', () => {
         pageSize: 20,
         total: 1,
         totalPages: 1,
-        formula: { version: 'order_profit_estimate_v2' },
+        formula: { version: 'order_profit_estimate_v3' },
       }),
     );
     expect(await fetchApi(page, `/api/v1/order-profits/${E2E_ORDER_PROFIT_ORDER_ID}`)).toEqual(

@@ -4,6 +4,12 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Fulfillment cost snapshots and profit estimate V3 (2026-09-08)
+
+- Added one immutable, tenant-scoped cost fact per fulfilled order item, freezing quantity, currency, supplier identifiers, source timestamps, candidate evidence, and explicit resolution status in the same transaction as inventory deduction, shipment, order lifecycle, and fulfillment idempotency.
+- Made missing, ambiguous, currency-mismatched, or invalid catalog costs non-blocking for shipment while keeping profitability incomplete; snapshot persistence failures roll back fulfillment, and idempotent replay cannot duplicate facts.
+- Upgraded order profit estimates to `order_profit_estimate_v3`: fulfilled orders read only immutable snapshots, historical fulfilled orders without snapshots never fall back to current prices, and unfulfilled orders keep clearly labeled catalog estimates. No FIFO, weighted-average valuation, historical backfill, FX conversion, accounting COGS, marketplace/carrier/payment write, worker, or retry was enabled.
+
 ### Platform settlement reconciliation and profit estimate V2 (2026-09-07)
 
 - Added store-scoped local CSV validation preview and explicit, hash-bound confirmation that atomically appends immutable settlement import and transaction facts with idempotent replay, duplicate suppression, and conflicting external-transaction rejection.

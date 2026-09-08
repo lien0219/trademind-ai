@@ -17,6 +17,7 @@ type fakeRepository struct {
 	orders    []OrderFact
 	items     []OrderItemFact
 	costs     []SupplierCostFact
+	snapshots []OrderItemCostSnapshotFact
 	freight   []FreightFact
 	refunds   []RefundFact
 	listErr   error
@@ -66,6 +67,10 @@ func (r *fakeRepository) ListSupplierCosts(context.Context, int64, []uuid.UUID) 
 	return append([]SupplierCostFact(nil), r.costs...), nil
 }
 
+func (r *fakeRepository) ListOrderItemCostSnapshots(context.Context, int64, []uuid.UUID) ([]OrderItemCostSnapshotFact, error) {
+	return append([]OrderItemCostSnapshotFact(nil), r.snapshots...), nil
+}
+
 func (r *fakeRepository) ListFreightFacts(context.Context, int64, []uuid.UUID) ([]FreightFact, error) {
 	return append([]FreightFact(nil), r.freight...), nil
 }
@@ -77,10 +82,17 @@ func (r *fakeRepository) ListRefundFacts(context.Context, int64, []uuid.UUID) ([
 func TestCalculateOrderProfitKeepsMissingFeesOutOfEstimatedProfit(t *testing.T) {
 	now := time.Date(2026, 9, 6, 2, 0, 0, 0, time.UTC)
 	orderID, itemID, skuID, supplierID, waveID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	snapshotID := uuid.New()
 	repo := &fakeRepository{
-		orders:  []OrderFact{{ID: orderID, OrderNo: "TM-1001", Platform: "douyin_shop", Currency: "CNY", TotalAmountText: "12.34", Status: "confirmed", PaymentStatus: "paid", FulfillmentStatus: "fulfilled", CreatedAt: now, UpdatedAt: now}},
-		items:   []OrderItemFact{{ID: itemID, OrderID: orderID, ProductSKUID: &skuID, ProductTitle: "商品", Quantity: 2}},
-		costs:   []SupplierCostFact{{SupplierID: supplierID, ProductSKUID: skuID, SupplierName: "供应商", UnitCostMinor: 300, Currency: "CNY", UpdatedAt: now.Add(-time.Hour)}},
+		orders: []OrderFact{{ID: orderID, OrderNo: "TM-1001", Platform: "douyin_shop", Currency: "CNY", TotalAmountText: "12.34", Status: "confirmed", PaymentStatus: "paid", FulfillmentStatus: "fulfilled", CreatedAt: now, UpdatedAt: now}},
+		items:  []OrderItemFact{{ID: itemID, OrderID: orderID, ProductSKUID: &skuID, ProductTitle: "商品", Quantity: 2}},
+		costs:  []SupplierCostFact{{SupplierID: supplierID, ProductSKUID: skuID, SupplierName: "已改价供应商", UnitCostMinor: 999, Currency: "CNY", UpdatedAt: now}},
+		snapshots: []OrderItemCostSnapshotFact{{
+			ID: snapshotID, OrderID: orderID, OrderItemID: itemID, ProductSKUID: skuID, Quantity: 2,
+			OrderCurrency: "CNY", UnitCostMinor: int64Pointer(300), LineCostMinor: int64Pointer(600), CostCurrency: "CNY",
+			ResolutionStatus: "resolved", SupplierID: &supplierID, SupplierName: "供应商", CandidateCount: 1,
+			SourceUpdatedAt: timePointer(now.Add(-time.Hour)), CapturedAt: now.Add(-30 * time.Minute),
+		}},
 		freight: []FreightFact{{ID: uuid.New(), OrderID: orderID, WaveID: waveID, Version: 1, AmountMinor: 100, Currency: "CNY", CreatedAt: now.Add(-30 * time.Minute)}},
 		refunds: []RefundFact{{SalesReturnID: uuid.New(), OrderID: orderID, SalesReturnAmount: 200, SalesReturnCurrency: "CNY", ExecutionID: uuidPointer(uuid.New()), ExecutionStatus: "succeeded", ExecutionAmount: 200, ExecutionCurrency: "CNY", ExecutionUpdatedAt: timePointer(now.Add(-time.Minute))}},
 	}
@@ -99,6 +111,9 @@ func TestCalculateOrderProfitKeepsMissingFeesOutOfEstimatedProfit(t *testing.T) 
 	}
 	if row.Components.ProductCost.AmountMinor == nil || *row.Components.ProductCost.AmountMinor != 600 {
 		t.Fatalf("product cost = %#v, want 600", row.Components.ProductCost.AmountMinor)
+	}
+	if row.Components.ProductCost.Source != "fulfillment_cost_snapshot" || len(row.Related.ProductCostSnapshotIDs) != 1 || row.Related.ProductCostSnapshotIDs[0] != snapshotID {
+		t.Fatalf("fulfilled order did not use immutable snapshot: %#v", row)
 	}
 	if row.KnownContributionMinor == nil || *row.KnownContributionMinor != 334 {
 		t.Fatalf("known contribution = %#v, want 334", row.KnownContributionMinor)
@@ -139,7 +154,7 @@ func TestCalculateOrderProfitConsumesOnlyMatchedSettlementFee(t *testing.T) {
 	if row.Related.SettlementReconciliationID == nil || *row.Related.SettlementReconciliationID != reconciliationID || len(row.Related.SettlementTransactionIDs) != 1 {
 		t.Fatalf("related settlement facts = %#v", row.Related)
 	}
-	if row.FormulaVersion != "order_profit_estimate_v2" {
+	if row.FormulaVersion != "order_profit_estimate_v3" {
 		t.Fatalf("formula version = %s", row.FormulaVersion)
 	}
 }
@@ -194,6 +209,92 @@ func TestCalculateOrderProfitFailsClosedForAmbiguousSupplierCostAndCurrency(t *t
 	}
 }
 
+func TestCalculateFulfilledOrderNeverFallsBackToCurrentCatalog(t *testing.T) {
+	now := time.Date(2026, 9, 8, 2, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name              string
+		orderStatus       string
+		fulfillmentStatus string
+	}{
+		{name: "fulfilled", fulfillmentStatus: "fulfilled"},
+		{name: "partially fulfilled", fulfillmentStatus: "partial"},
+		{name: "returned", fulfillmentStatus: "returned"},
+		{name: "shipped lifecycle conflict", orderStatus: "shipped", fulfillmentStatus: "unfulfilled"},
+		{name: "delivered lifecycle conflict", orderStatus: "delivered", fulfillmentStatus: "unfulfilled"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orderID, itemID, skuID := uuid.New(), uuid.New(), uuid.New()
+			repo := &fakeRepository{
+				orders: []OrderFact{{ID: orderID, OrderNo: "TM-HISTORICAL", Currency: "CNY", TotalAmountText: "10.00", Status: tt.orderStatus, FulfillmentStatus: tt.fulfillmentStatus, CreatedAt: now, UpdatedAt: now}},
+				items:  []OrderItemFact{{ID: itemID, OrderID: orderID, ProductSKUID: &skuID, ProductTitle: "historical item", Quantity: 1}},
+				costs:  []SupplierCostFact{{SupplierID: uuid.New(), ProductSKUID: skuID, UnitCostMinor: 100, Currency: "CNY", UpdatedAt: now}},
+			}
+			svc := &Service{Repo: repo, Clock: func() time.Time { return now }}
+
+			detail, err := svc.Get(context.Background(), 41, Scope{}, orderID)
+			if err != nil {
+				t.Fatalf("Get() error = %v", err)
+			}
+			if detail.Components.ProductCost.AmountMinor != nil || detail.Components.ProductCost.Status != ComponentMissing || detail.ProductCostLines[0].ReasonCode != "historical_cost_snapshot_missing" || detail.ProductCostLines[0].CostBasis != "snapshot" {
+				t.Fatalf("order with fulfillment evidence fell back to current catalog: %#v", detail)
+			}
+			if detail.KnownContributionMinor == nil || *detail.KnownContributionMinor != 1000 {
+				t.Fatalf("known contribution = %#v, want revenue-only 1000", detail.KnownContributionMinor)
+			}
+		})
+	}
+}
+
+func TestCalculateFulfilledOrderDoesNotExposeUnsafeSnapshotAmounts(t *testing.T) {
+	now := time.Date(2026, 9, 8, 2, 30, 0, 0, time.UTC)
+	orderID, itemID, skuID := uuid.New(), uuid.New(), uuid.New()
+	unsafeAmount := maxJSONSafeInteger + 1
+	repo := &fakeRepository{
+		orders: []OrderFact{{ID: orderID, OrderNo: "TM-UNSAFE-SNAPSHOT", Currency: "CNY", TotalAmountText: "10.00", FulfillmentStatus: "fulfilled", CreatedAt: now, UpdatedAt: now}},
+		items:  []OrderItemFact{{ID: itemID, OrderID: orderID, ProductSKUID: &skuID, ProductTitle: "unsafe snapshot item", Quantity: 1}},
+		snapshots: []OrderItemCostSnapshotFact{{
+			ID: uuid.New(), OrderID: orderID, OrderItemID: itemID, ProductSKUID: skuID, Quantity: 1,
+			OrderCurrency: "CNY", UnitCostMinor: &unsafeAmount, LineCostMinor: &unsafeAmount, CostCurrency: "CNY",
+			ResolutionStatus: "invalid", ReasonCode: "product_cost_overflow", CandidateCount: 1, CapturedAt: now,
+		}},
+	}
+	svc := &Service{Repo: repo, Clock: func() time.Time { return now }}
+
+	detail, err := svc.Get(context.Background(), 41, Scope{}, orderID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	line := detail.ProductCostLines[0]
+	if line.Status != ComponentBlocked || line.UnitCostMinor != nil || line.LineCostMinor != nil || line.ReasonCode != "product_cost_overflow" {
+		t.Fatalf("unsafe snapshot amount was exposed: %#v", line)
+	}
+}
+
+func TestCalculateFulfilledOrderSurfacesUnresolvedSnapshot(t *testing.T) {
+	now := time.Date(2026, 9, 8, 3, 0, 0, 0, time.UTC)
+	orderID, itemID, skuID, snapshotID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	repo := &fakeRepository{
+		orders: []OrderFact{{ID: orderID, OrderNo: "TM-AMBIGUOUS", Currency: "CNY", TotalAmountText: "10.00", FulfillmentStatus: "fulfilled", CreatedAt: now, UpdatedAt: now}},
+		items:  []OrderItemFact{{ID: itemID, OrderID: orderID, ProductSKUID: &skuID, ProductTitle: "ambiguous item", Quantity: 1}},
+		snapshots: []OrderItemCostSnapshotFact{{
+			ID: snapshotID, OrderID: orderID, OrderItemID: itemID, ProductSKUID: skuID, Quantity: 1,
+			OrderCurrency: "CNY", ResolutionStatus: "ambiguous", ReasonCode: "multiple_supplier_costs",
+			CandidateCount: 2, CapturedAt: now,
+		}},
+	}
+	svc := &Service{Repo: repo, Clock: func() time.Time { return now }}
+
+	detail, err := svc.Get(context.Background(), 41, Scope{}, orderID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	line := detail.ProductCostLines[0]
+	if detail.Status != StatusMismatch || line.Status != ComponentMismatch || line.ResolutionStatus != "ambiguous" || line.CandidateCount != 2 || line.SnapshotID == nil || *line.SnapshotID != snapshotID {
+		t.Fatalf("unresolved snapshot was not exposed: %#v", detail)
+	}
+}
+
 func TestParseMajorToMinorRejectsLossyPrecisionAndOverflow(t *testing.T) {
 	if value, err := parseMajorToMinor("123.45", "USD"); err != nil || value != 12345 {
 		t.Fatalf("parse USD = %d, %v", value, err)
@@ -216,6 +317,7 @@ func TestCalculateOrderRejectsRevenueOutsideJSONSafeIntegerRange(t *testing.T) {
 	now := time.Now().UTC()
 	profit, _ := calculateOrder(
 		OrderFact{ID: uuid.New(), Currency: "USD", TotalAmountText: "90071992547409.92", UpdatedAt: now},
+		nil,
 		nil,
 		nil,
 		nil,

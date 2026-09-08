@@ -794,8 +794,16 @@ describe("TradeMind API contract registry", () => {
     expect(list?.readonly).toBe(true);
     expect(list?.externalWrite).toBe(false);
     expect(list?.nullableMoneyFields).toContain("estimatedProfitMinor");
-    expect(detail?.formulaVersion).toBe("order_profit_estimate_v2");
+    expect(detail?.formulaVersion).toBe("order_profit_estimate_v3");
     expect(detail?.statusEnum).toEqual(["complete", "pending", "mismatch", "blocked"]);
+    expect(detail?.productCostPolicy).toBe("fulfilled_snapshot_unfulfilled_catalog_estimate");
+    expect(detail?.costSnapshotResolutionEnum).toEqual([
+      "resolved",
+      "missing",
+      "ambiguous",
+      "currency_mismatch",
+      "invalid",
+    ]);
   });
 
   it("keeps settlement preview read-only and confirmation append-only", () => {

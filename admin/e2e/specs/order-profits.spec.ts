@@ -37,6 +37,7 @@ test.describe('@smoke order profit estimates', () => {
       const drawer = page.getByRole('dialog');
       await expect(drawer).toContainText('SO-E2E-PROFIT-0001');
       await expect(drawer).toContainText('平台结算账单');
+      await expect(drawer).toContainText('履约成本快照');
       await expect(drawer).toContainText('E2E 蓝牙耳机');
       await expect(page.locator('.ant-drawer-content-wrapper:visible').first()).toHaveCSS(
         'transform',

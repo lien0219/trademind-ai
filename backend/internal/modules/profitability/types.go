@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	FormulaVersion = "order_profit_estimate_v2"
+	FormulaVersion = "order_profit_estimate_v3"
 
 	StatusComplete = "complete"
 	StatusPending  = "pending"
@@ -102,6 +102,7 @@ type Issue struct {
 type RelatedFacts struct {
 	FulfillmentWaveID          *uuid.UUID  `json:"fulfillmentWaveId,omitempty"`
 	SupplierIDs                []uuid.UUID `json:"supplierIds"`
+	ProductCostSnapshotIDs     []uuid.UUID `json:"productCostSnapshotIds"`
 	RefundExecutionIDs         []uuid.UUID `json:"refundExecutionIds"`
 	SettlementReconciliationID *uuid.UUID  `json:"settlementReconciliationId,omitempty"`
 	SettlementTransactionIDs   []uuid.UUID `json:"settlementTransactionIds"`
@@ -133,21 +134,28 @@ type OrderProfit struct {
 }
 
 type ProductCostLine struct {
-	OrderItemID   uuid.UUID  `json:"orderItemId"`
-	ProductSKUID  *uuid.UUID `json:"productSkuId,omitempty"`
-	ProductTitle  string     `json:"productTitle"`
-	SKUCode       string     `json:"skuCode,omitempty"`
-	Quantity      int        `json:"quantity"`
-	UnitCostMinor *int64     `json:"unitCostMinor"`
-	LineCostMinor *int64     `json:"lineCostMinor"`
-	Currency      string     `json:"currency"`
-	Status        string     `json:"status"`
-	Source        string     `json:"source"`
-	SourceAt      *time.Time `json:"sourceAt,omitempty"`
-	SupplierID    *uuid.UUID `json:"supplierId,omitempty"`
-	SupplierName  string     `json:"supplierName,omitempty"`
-	ReasonCode    string     `json:"reasonCode,omitempty"`
-	Reason        string     `json:"reason,omitempty"`
+	OrderItemID      uuid.UUID  `json:"orderItemId"`
+	ProductSKUID     *uuid.UUID `json:"productSkuId,omitempty"`
+	ProductTitle     string     `json:"productTitle"`
+	SKUCode          string     `json:"skuCode,omitempty"`
+	Quantity         int        `json:"quantity"`
+	UnitCostMinor    *int64     `json:"unitCostMinor"`
+	LineCostMinor    *int64     `json:"lineCostMinor"`
+	Currency         string     `json:"currency"`
+	Status           string     `json:"status"`
+	Source           string     `json:"source"`
+	CostBasis        string     `json:"costBasis"`
+	SourceAt         *time.Time `json:"sourceAt,omitempty"`
+	SnapshotID       *uuid.UUID `json:"snapshotId,omitempty"`
+	ResolutionStatus string     `json:"resolutionStatus,omitempty"`
+	CapturedAt       *time.Time `json:"capturedAt,omitempty"`
+	SupplierID       *uuid.UUID `json:"supplierId,omitempty"`
+	SupplierSKUID    *uuid.UUID `json:"supplierSkuId,omitempty"`
+	SupplierName     string     `json:"supplierName,omitempty"`
+	SupplierSKUCode  string     `json:"supplierSkuCode,omitempty"`
+	CandidateCount   int        `json:"candidateCount"`
+	ReasonCode       string     `json:"reasonCode,omitempty"`
+	Reason           string     `json:"reason,omitempty"`
 }
 
 type Detail struct {
@@ -169,7 +177,7 @@ func formulaDescriptor() FormulaDescriptor {
 	return FormulaDescriptor{
 		Version:            FormulaVersion,
 		RevenueSource:      "orders.total_amount converted exactly to the currency minor unit",
-		ProductCostSource:  "current active supplier catalog binding; estimate only, not historical COGS",
+		ProductCostSource:  "immutable fulfillment cost snapshots for fulfilled orders; current active supplier catalog estimates for unfulfilled orders only",
 		FreightSource:      "latest confirmed local freight quote on one non-cancelled fulfillment wave",
 		RefundSource:       "succeeded local refund execution facts",
 		PlatformFeeSource:  "matched immutable platform settlement transactions",

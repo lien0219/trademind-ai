@@ -109,3 +109,50 @@ func TestSupplierAllowsLegacyTenantZero(t *testing.T) {
 		t.Fatalf("unexpected updated legacy tenant supplier: %#v", updated)
 	}
 }
+
+func TestListActiveCostsUsesCallerTransactionAndTenantScope(t *testing.T) {
+	service, db := newSupplierTestService(t)
+	ctx := context.Background()
+	productRow := &product.Product{TenantID: 1, Source: "manual", Status: product.StatusDraft, Title: "Cost source product"}
+	if err := db.Create(productRow).Error; err != nil {
+		t.Fatal(err)
+	}
+	sku := &product.ProductSKU{ProductID: productRow.ID, SKUCode: "COST-SKU", SKUName: "Cost SKU"}
+	if err := db.Create(sku).Error; err != nil {
+		t.Fatal(err)
+	}
+	active, err := service.Create(ctx, 1, nil, CreateInput{Code: "ACTIVE-COST", Name: "Active cost supplier"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inactive, err := service.Create(ctx, 1, nil, CreateInput{Code: "INACTIVE-COST", Name: "Inactive cost supplier"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Update(ctx, 1, inactive.ID, UpdateInput{Name: inactive.Name, Status: StatusInactive}); err != nil {
+		t.Fatal(err)
+	}
+	activeBinding, err := service.BindSKU(ctx, 1, active.ID, BindSKUInput{ProductSKUID: sku.ID, SupplierSKUCode: "ACTIVE-SKU", UnitCostMinor: 321, Currency: "CNY", MinOrderQty: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&SupplierSKU{TenantID: 1, SupplierID: inactive.ID, ProductSKUID: sku.ID, SupplierSKUCode: "INACTIVE-SKU", UnitCostMinor: 111, Currency: "CNY", MinOrderQty: 1}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var rows []ActiveCostFact
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var listErr error
+		rows, listErr = service.ListActiveCosts(ctx, tx, 1, []uuid.UUID{sku.ID})
+		return listErr
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].SupplierSKUID != activeBinding.ID || rows[0].UnitCostMinor != 321 || rows[0].SupplierCode != active.Code {
+		t.Fatalf("unexpected active cost facts: %#v", rows)
+	}
+	otherTenantRows, err := service.ListActiveCosts(ctx, nil, 2, []uuid.UUID{sku.ID})
+	if err != nil || len(otherTenantRows) != 0 {
+		t.Fatalf("cross-tenant costs = %#v err=%v", otherTenantRows, err)
+	}
+}

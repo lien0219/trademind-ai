@@ -51,6 +51,7 @@ export type OrderProfit = {
   related: {
     fulfillmentWaveId?: string;
     supplierIds: string[];
+    productCostSnapshotIds: string[];
     refundExecutionIds: string[];
     settlementReconciliationId?: string;
     settlementTransactionIds: string[];
@@ -71,9 +72,16 @@ export type ProductCostLine = {
   currency: string;
   status: ProfitComponentStatus;
   source: string;
+  costBasis: 'estimate' | 'snapshot';
   sourceAt?: string;
+  snapshotId?: string;
+  resolutionStatus?: 'resolved' | 'missing' | 'ambiguous' | 'currency_mismatch' | 'invalid';
+  capturedAt?: string;
   supplierId?: string;
+  supplierSkuId?: string;
   supplierName?: string;
+  supplierSkuCode?: string;
+  candidateCount: number;
   reasonCode?: string;
   reason?: string;
 };
