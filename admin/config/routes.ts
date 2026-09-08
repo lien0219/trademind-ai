@@ -453,6 +453,11 @@ export default [
         name: '平台结算对账',
         component: './Finance/SettlementReconciliation',
       },
+      {
+        path: '/finance/warehouse-fees',
+        name: '仓库操作费',
+        component: './Finance/WarehouseFees',
+      },
     ],
   },
   {

@@ -87,7 +87,7 @@ const COMPONENT_LABELS: Record<string, string> = {
   refund: '成功退款',
   platformFee: '平台费用',
   advertisingFee: '广告费用',
-  warehouseFee: '仓储费用',
+  warehouseFee: '仓库操作费',
 };
 
 const CURRENCY_OPTIONS = ['CNY', 'USD', 'EUR', 'GBP', 'JPY', 'KRW', 'SGD', 'AUD', 'CAD'].map(
@@ -134,7 +134,7 @@ function sourceLabel(source: string) {
     platform_settlement: '平台结算',
     platform_settlement_ledger: '平台结算账单',
     advertising_ledger: '广告费用账',
-    warehouse_fee_ledger: '仓储费用账',
+    warehouse_fee_ledger: '仓库操作费台账',
   };
   return labels[source] || source || '—';
 }
@@ -641,6 +641,14 @@ export default function OrderProfitsPage() {
                     退款执行 {index + 1}
                   </Button>
                 ))}
+                {detail.related.warehouseFeeSnapshotId ? (
+                  <Button
+                    icon={<LinkOutlined />}
+                    onClick={() => history.push(`/finance/warehouse-fees?drawer=warehouse-fee&id=${encodeURIComponent(detail.related.warehouseFeeSnapshotId!)}`)}
+                  >
+                    仓库操作费
+                  </Button>
+                ) : null}
               </Space>
             </Space>
           ) : null}

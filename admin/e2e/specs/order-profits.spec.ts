@@ -28,7 +28,7 @@ test.describe('@smoke order profit estimates', () => {
       await expect(page.getByText('订单预估利润', { exact: true }).first()).toBeVisible();
       await expect(page.getByText('SO-E2E-PROFIT-0001', { exact: true })).toBeVisible();
       await expect(page.getByText('本页为动态预估，不是会计利润')).toBeVisible();
-      await expect(page.getByText('CNY 35.00', { exact: true })).toBeVisible();
+      await expect(page.getByText('CNY 33.10', { exact: true })).toBeVisible();
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
       await expectTableFilterBarAlignedLeft(page);

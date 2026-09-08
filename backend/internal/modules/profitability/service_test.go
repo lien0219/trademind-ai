@@ -32,6 +32,14 @@ func (r fakePlatformFeeReader) ListPlatformFees(context.Context, int64, []uuid.U
 	return r.facts, nil
 }
 
+type fakeWarehouseFeeReader struct {
+	facts map[uuid.UUID]WarehouseFeeFact
+}
+
+func (r fakeWarehouseFeeReader) ListWarehouseFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]WarehouseFeeFact, error) {
+	return r.facts, nil
+}
+
 func (r *fakeRepository) ListOrders(_ context.Context, _ int64, scope Scope, _ ListQuery, offset, limit int) ([]OrderFact, int64, error) {
 	r.lastScope = scope
 	if r.listErr != nil {
@@ -154,8 +162,36 @@ func TestCalculateOrderProfitConsumesOnlyMatchedSettlementFee(t *testing.T) {
 	if row.Related.SettlementReconciliationID == nil || *row.Related.SettlementReconciliationID != reconciliationID || len(row.Related.SettlementTransactionIDs) != 1 {
 		t.Fatalf("related settlement facts = %#v", row.Related)
 	}
-	if row.FormulaVersion != "order_profit_estimate_v3" {
+	if row.FormulaVersion != "order_profit_estimate_v4" {
 		t.Fatalf("formula version = %s", row.FormulaVersion)
+	}
+}
+
+func TestCalculateOrderProfitConsumesConfirmedWarehouseFee(t *testing.T) {
+	now := time.Date(2026, 9, 8, 4, 0, 0, 0, time.UTC)
+	orderID, snapshotID, adjustmentID := uuid.New(), uuid.New(), uuid.New()
+	repo := &fakeRepository{orders: []OrderFact{{ID: orderID, OrderNo: "TM-WAREHOUSE-FEE", Currency: "CNY", TotalAmountText: "10.00", CreatedAt: now, UpdatedAt: now}}}
+	svc := &Service{
+		Repo: repo,
+		WarehouseFees: fakeWarehouseFeeReader{facts: map[uuid.UUID]WarehouseFeeFact{
+			orderID: {OrderID: orderID, SnapshotID: snapshotID, AdjustmentIDs: []uuid.UUID{adjustmentID}, AmountMinor: 125, Currency: "CNY", Status: "confirmed", SourceAt: now},
+		}},
+		Clock: func() time.Time { return now },
+	}
+
+	result, err := svc.List(context.Background(), 41, Scope{}, ListQuery{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	row := result.List[0]
+	if row.Components.WarehouseFee.Status != ComponentAvailable || row.Components.WarehouseFee.AmountMinor == nil || *row.Components.WarehouseFee.AmountMinor != 125 {
+		t.Fatalf("warehouse fee = %#v", row.Components.WarehouseFee)
+	}
+	if row.KnownContributionMinor == nil || *row.KnownContributionMinor != 875 {
+		t.Fatalf("known contribution = %#v, want 875", row.KnownContributionMinor)
+	}
+	if row.Related.WarehouseFeeSnapshotID == nil || *row.Related.WarehouseFeeSnapshotID != snapshotID || len(row.Related.WarehouseFeeAdjustmentIDs) != 1 || row.Related.WarehouseFeeAdjustmentIDs[0] != adjustmentID {
+		t.Fatalf("related warehouse fee facts = %#v", row.Related)
 	}
 }
 
@@ -317,6 +353,7 @@ func TestCalculateOrderRejectsRevenueOutsideJSONSafeIntegerRange(t *testing.T) {
 	now := time.Now().UTC()
 	profit, _ := calculateOrder(
 		OrderFact{ID: uuid.New(), Currency: "USD", TotalAmountText: "90071992547409.92", UpdatedAt: now},
+		nil,
 		nil,
 		nil,
 		nil,

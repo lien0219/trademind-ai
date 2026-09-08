@@ -153,7 +153,7 @@ func positiveInt(raw string, fallback int) int {
 
 func WriteCSV(writer interface{ Write([]byte) (int, error) }, rows []OrderProfit) error {
 	csvWriter := csv.NewWriter(writer)
-	if err := csvWriter.Write([]string{"订单号", "平台", "店铺", "仓库", "币种", "收入(最小单位)", "已知商品成本(最小单位)", "已知运费(最小单位)", "已成功退款(最小单位)", "平台费用(最小单位)", "已知贡献额(最小单位)", "预估利润(最小单位)", "完整性状态", "缺口代码", "计算版本", "计算时间"}); err != nil {
+	if err := csvWriter.Write([]string{"订单号", "平台", "店铺", "仓库", "币种", "收入(最小单位)", "已知商品成本(最小单位)", "已知运费(最小单位)", "已成功退款(最小单位)", "平台费用(最小单位)", "仓库操作费(最小单位)", "已知贡献额(最小单位)", "预估利润(最小单位)", "完整性状态", "缺口代码", "计算版本", "计算时间"}); err != nil {
 		return err
 	}
 	for _, row := range rows {
@@ -165,7 +165,7 @@ func WriteCSV(writer interface{ Write([]byte) (int, error) }, rows []OrderProfit
 			csvSafe(row.OrderNo), csvSafe(row.Platform), csvSafe(row.ShopName), csvSafe(strings.TrimSpace(row.WarehouseCode + " " + row.WarehouseName)), row.Currency,
 			optionalInt(row.Components.Revenue.AmountMinor), strconv.FormatInt(row.Components.ProductCost.KnownAmountMinor, 10),
 			strconv.FormatInt(row.Components.Freight.KnownAmountMinor, 10), strconv.FormatInt(row.Components.Refund.KnownAmountMinor, 10),
-			optionalInt(row.Components.PlatformFee.AmountMinor), optionalInt(row.KnownContributionMinor), optionalInt(row.EstimatedProfitMinor), row.Status, strings.Join(issues, "|"), row.FormulaVersion, row.CalculatedAt.Format(time.RFC3339),
+			optionalInt(row.Components.PlatformFee.AmountMinor), optionalInt(row.Components.WarehouseFee.AmountMinor), optionalInt(row.KnownContributionMinor), optionalInt(row.EstimatedProfitMinor), row.Status, strings.Join(issues, "|"), row.FormulaVersion, row.CalculatedAt.Format(time.RFC3339),
 		}
 		if err := csvWriter.Write(values); err != nil {
 			return err

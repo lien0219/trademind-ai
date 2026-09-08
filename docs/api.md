@@ -230,18 +230,40 @@ external_transaction_id,order_no,currency,order_gross_minor,platform_fee_minor,s
 
 `matched` 表示店铺、平台、币种、聚合交易总额和本地订单金额一致；未找到本地订单为 `pending`；订单金额、币种或平台不同为 `mismatch`；店铺/交易事实缺失、多币种或金额不安全为 `blocked`。Operator 可查看、导入和导出，Reviewer 可查看和导出，Readonly 只能查看。该能力不更新或删除已导入交易，不自动修复差异，不生成付款、收款、应收应付或会计凭证，不启动 Worker 或重试。
 
-## 订单预估利润与费用缺口 V3
+## 仓库操作费台账 V1
 
-V3 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；新完成的本地履约会在库存扣减、发货单、订单状态和幂等完成的同一事务中，为每个订单明细冻结一条不可变成本快照。快照记录数量、订单/成本币种、供应商及供应商 SKU 标识、目录来源时间、采集时间和 `resolved|missing|ambiguous|currency_mismatch|invalid` 状态。成本缺失、多绑定或币种不一致会随快照落库但不阻断发货；快照基础设施写入失败则整笔履约回滚。
+V1 只根据本地已完成履约和打包扫描复核事实登记每单出库基础费、按件拣货费和按包裹打包费。费率卡按租户、仓库和编码唯一，修改时提交 `expectedRevision` 并追加不可变修订；预览只读取费率修订和最新已履约波次，要求订单币种与费率币种一致，数据库零写入。确认必须原样提交费率修订、波次 revision、计算 hash 和稳定幂等键，服务端在事务内重新锁定并计算后，按订单保存唯一不可变费用快照。
 
-已履约订单只读取履约成本快照，缺失快照的历史订单返回 `historical_cost_snapshot_missing`，不使用当前采购价静默回填；未履约订单仍使用当前唯一有效供应商采购价并标记为目录估算。两者都不是 FIFO、移动加权平均或会计实际成本，系统不自动换汇。运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。缺少结算账单或结算状态不是 `matched` 时，平台费保持 `amountMinor=null`；广告和仓储费用仍无可靠账本，也不得补零。
+金额均为 JavaScript 安全整数范围内的最小货币单位。调整只能追加有符号、非零事实，调整后净额不能为负；冲正只能引用一条原始调整并追加其相反数，同一调整只能冲正一次。快照、调整和冲正没有更新或删除接口。Operator 和 Admin 可管理，Reviewer 与 Readonly 只能查看；非管理员读取按店铺 view 范围限制，预览、确认、调整和冲正按店铺 operate/manage 范围限制，幂等重放也重新校验该范围。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/warehouse-fee-rate-cards` | `warehouse_fee.view` | 查询当前租户费率卡；支持 `warehouseId` 和 `includeInactive=true`。 |
+| `GET` | `/api/v1/warehouse-fee-rate-cards/:id` | `warehouse_fee.view` | 查询费率卡当前投影及全部不可变修订。 |
+| `POST` | `/api/v1/warehouse-fee-rate-cards` | `warehouse_fee.manage` | 创建费率卡；JSON：`warehouseId`、`code`、`name`、`currency`、`outboundBaseFeeMinor`、`pickingFeePerItemMinor`、`packingFeePerPackageMinor`。 |
+| `PUT` | `/api/v1/warehouse-fee-rate-cards/:id` | `warehouse_fee.manage` | 追加新修订并移动当前投影；JSON：`expectedRevision`、`name`、`currency`、三项费率和 `status=active\|inactive`。仓库和编码不可修改。 |
+| `GET` | `/api/v1/warehouse-operation-fees/candidates` | `warehouse_fee.view` + 店铺 view | 查询最新已履约、已形成打包扫描复核事实的订单；支持 `page`、`pageSize`、`orderNo`、`warehouseId`。 |
+| `POST` | `/api/v1/warehouse-operation-fees/preview` | `warehouse_fee.manage` + 店铺 operate/manage | JSON：`orderId`、`rateCardId`、`rateCardRevision`。返回费率分解、履约来源和 `calculationHash`；数据库零写入。 |
+| `POST` | `/api/v1/warehouse-operation-fees` | `warehouse_fee.manage` + 店铺 operate/manage | JSON：预览三字段、`waveRevision`、`calculationHash`、`idempotencyKey`。服务端重算后原子保存不可变快照；同请求安全重放。 |
+| `GET` | `/api/v1/warehouse-operation-fees` | `warehouse_fee.view` + 店铺 view | 分页查询已确认快照和调整后净额；支持 `page`、`pageSize`、`orderNo`、`warehouseId`、`currency`。 |
+| `GET` | `/api/v1/warehouse-operation-fees/:id` | `warehouse_fee.view` + 店铺 view | 查询不可变快照、费用分解及全部调整/冲正事实；越权范围返回 `404`。 |
+| `POST` | `/api/v1/warehouse-operation-fees/:id/adjustments` | `warehouse_fee.manage` + 店铺 operate/manage | 追加费用调整；JSON：非零 `amountMinor`、`reason`、`idempotencyKey`。 |
+| `POST` | `/api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse` | `warehouse_fee.manage` + 店铺 operate/manage | 一次性冲正原调整；JSON：`reason`、`idempotencyKey`。 |
+
+该能力不计算每日仓储租金，不回填历史履约订单，不接 WMS 或仓储服务商，不自动登记、分摊、换汇、重试、付款、生成应付/凭证，也不执行真实平台、物流或支付写请求。
+
+## 订单预估利润与费用缺口 V4
+
+V4 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；新完成的本地履约会在库存扣减、发货单、订单状态和幂等完成的同一事务中，为每个订单明细冻结一条不可变成本快照。快照记录数量、订单/成本币种、供应商及供应商 SKU 标识、目录来源时间、采集时间和 `resolved|missing|ambiguous|currency_mismatch|invalid` 状态。成本缺失、多绑定或币种不一致会随快照落库但不阻断发货；快照基础设施写入失败则整笔履约回滚。
+
+已履约订单只读取履约成本快照，缺失快照的历史订单返回 `historical_cost_snapshot_missing`，不使用当前采购价静默回填；未履约订单仍使用当前唯一有效供应商采购价并标记为目录估算。两者都不是 FIFO、移动加权平均或会计实际成本，系统不自动换汇。运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。仓库操作费只读取通过结构校验、调整/冲正关系有效且币种与订单一致的已确认快照净额；缺失、损坏或币种不一致时保持 `amountMinor=null`。广告费用仍无可靠账本，不得补零。
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
-| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账与交易关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
+| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账、仓库操作费快照与调整关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
 
-所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v3`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费与有效仓库操作费；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v4`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
 
 ## 图片 AI
 

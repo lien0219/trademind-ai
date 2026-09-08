@@ -4,6 +4,13 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Warehouse operation fee ledger and profit estimate V4 (2026-09-08)
+
+- Added tenant- and warehouse-scoped versioned rate cards for outbound, per-item picking, and per-package packing fees, with zero-write preview and currency-consistent confirmation against completed, packing-verified fulfillment facts.
+- Added immutable one-per-order fee snapshots, payload-bound idempotency, optimistic rate and wave revisions, append-only signed adjustments, one-time reversals, non-negative net enforcement, operation logging, and store-scoped read/write permissions.
+- Added a responsive Finance workbench with guarded preview-before-confirm flows, stable retry keys, readonly and request-state coverage, direct links to orders and profit details, plus contract, Go, Admin unit, Playwright, migration, and isolated PostgreSQL concurrency regression coverage.
+- Upgraded order profit estimates to `order_profit_estimate_v4`; only structurally valid, confirmed, currency-consistent warehouse-operation fees enter known contribution. No historical backfill, daily storage rent, WMS/provider integration, automatic posting, FX conversion, AP/AR, voucher, payment, marketplace write, worker, or retry capability was enabled.
+
 ### Fulfillment cost snapshots and profit estimate V3 (2026-09-08)
 
 - Added one immutable, tenant-scoped cost fact per fulfilled order item, freezing quantity, currency, supplier identifiers, source timestamps, candidate evidence, and explicit resolution status in the same transaction as inventory deduction, shipment, order lifecycle, and fulfillment idempotency.

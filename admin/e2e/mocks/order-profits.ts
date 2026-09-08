@@ -35,7 +35,7 @@ export const e2eOrderProfit = {
   orderStatus: 'shipped',
   paymentStatus: 'paid',
   fulfillmentStatus: 'fulfilled',
-  knownContributionMinor: 3500,
+  knownContributionMinor: 3310,
   estimatedProfitMinor: null,
   estimatedMarginBps: null,
   components: {
@@ -45,11 +45,10 @@ export const e2eOrderProfit = {
     refund: available(500, 'refund_execution_ledger', '2026-09-05T04:00:00Z'),
     platformFee: available(1000, 'platform_settlement_ledger', '2026-09-05T05:00:00Z'),
     advertisingFee: missing('advertising_ledger', 'advertising_fee_missing', '缺少订单归属广告费用'),
-    warehouseFee: missing('warehouse_fee_ledger', 'warehouse_fee_missing', '缺少仓储作业费用'),
+    warehouseFee: available(190, 'warehouse_fee_ledger', '2026-09-08T01:10:00Z'),
   },
   issues: [
     { code: 'advertising_fee_missing', component: 'advertisingFee', message: '缺少订单归属广告费用' },
-    { code: 'warehouse_fee_missing', component: 'warehouseFee', message: '缺少仓储作业费用' },
   ],
   related: {
     fulfillmentWaveId: 'e2e-wave-profit-1',
@@ -58,10 +57,12 @@ export const e2eOrderProfit = {
     refundExecutionIds: ['e2e-refund-profit-1'],
     settlementReconciliationId: 'e2e-settlement-reconciliation-1',
     settlementTransactionIds: ['e2e-settlement-transaction-1'],
+    warehouseFeeSnapshotId: 'e2e-warehouse-fee-snapshot-1',
+    warehouseFeeAdjustmentIds: ['e2e-warehouse-fee-adjustment-1'],
   },
   orderedAt: '2026-09-05T01:00:00Z',
   calculatedAt: '2026-09-06T01:00:00Z',
-  formulaVersion: 'order_profit_estimate_v3',
+  formulaVersion: 'order_profit_estimate_v4',
 };
 
 export const e2eOrderProfitDetail = {
@@ -102,12 +103,13 @@ export function orderProfitResponse(path: string) {
       totalPages: 1,
       calculatedAt: e2eOrderProfit.calculatedAt,
       formula: {
-        version: 'order_profit_estimate_v3',
+        version: 'order_profit_estimate_v4',
         revenueSource: 'orders.total_amount',
         productCostSource: 'fulfilled snapshot or unfulfilled catalog estimate',
         freightSource: 'confirmed local quote',
         refundSource: 'succeeded refund execution',
         platformFeeSource: 'matched immutable platform settlement transactions',
+        warehouseFeeSource: 'confirmed immutable warehouse operation fee snapshots plus append-only adjustments',
         missingFeeBehavior: 'missing fees remain null',
       },
     });

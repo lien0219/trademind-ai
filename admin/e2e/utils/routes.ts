@@ -18,6 +18,7 @@ import { fulfillmentWaveResponse } from '../mocks/fulfillment-waves';
 import { fulfillmentReconciliationResponse } from '../mocks/order-fulfillment-reconciliation';
 import { orderProfitResponse } from '../mocks/order-profits';
 import { settlementResponse } from '../mocks/settlement';
+import { warehouseFeeResponse } from '../mocks/warehouse-fees';
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(([key, token]) => {
@@ -56,6 +57,7 @@ export async function routeAdminApi(page: Page) {
       fulfillmentReconciliationResponse(path) ??
       orderProfitResponse(path) ??
       settlementResponse(path) ??
+      warehouseFeeResponse(path) ??
       fulfillmentOrderResponse(path) ??
       salesReturnResponse(path) ??
       productsResponse(path) ??

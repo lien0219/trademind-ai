@@ -36,6 +36,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehousefee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"gorm.io/gorm"
 )
@@ -279,6 +280,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&salesreturn.RefundExecutionEvent{},
 		&settlement.Import{},
 		&settlement.Transaction{},
+		&warehousefee.RateCard{},
+		&warehousefee.RateCardRevision{},
+		&warehousefee.Snapshot{},
+		&warehousefee.Adjustment{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
 		&shop.PlatformCategory{},

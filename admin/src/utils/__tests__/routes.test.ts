@@ -152,6 +152,11 @@ describe('Admin route menu configuration', () => {
           name: '平台结算对账',
           component: './Finance/SettlementReconciliation',
         }),
+        expect.objectContaining({
+          path: '/finance/warehouse-fees',
+          name: '仓库操作费',
+          component: './Finance/WarehouseFees',
+        }),
       ]),
     );
   });

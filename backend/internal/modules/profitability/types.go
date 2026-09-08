@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	FormulaVersion = "order_profit_estimate_v3"
+	FormulaVersion = "order_profit_estimate_v4"
 
 	StatusComplete = "complete"
 	StatusPending  = "pending"
@@ -53,6 +53,7 @@ type FormulaDescriptor struct {
 	FreightSource      string `json:"freightSource"`
 	RefundSource       string `json:"refundSource"`
 	PlatformFeeSource  string `json:"platformFeeSource"`
+	WarehouseFeeSource string `json:"warehouseFeeSource"`
 	MissingFeeBehavior string `json:"missingFeeBehavior"`
 }
 
@@ -70,6 +71,22 @@ type PlatformFeeFact struct {
 
 type PlatformFeeReader interface {
 	ListPlatformFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]PlatformFeeFact, error)
+}
+
+type WarehouseFeeFact struct {
+	OrderID       uuid.UUID
+	SnapshotID    uuid.UUID
+	AdjustmentIDs []uuid.UUID
+	AmountMinor   int64
+	Currency      string
+	Status        string
+	SourceAt      time.Time
+	ReasonCode    string
+	Reason        string
+}
+
+type WarehouseFeeReader interface {
+	ListWarehouseFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]WarehouseFeeFact, error)
 }
 
 type MoneyComponent struct {
@@ -106,6 +123,8 @@ type RelatedFacts struct {
 	RefundExecutionIDs         []uuid.UUID `json:"refundExecutionIds"`
 	SettlementReconciliationID *uuid.UUID  `json:"settlementReconciliationId,omitempty"`
 	SettlementTransactionIDs   []uuid.UUID `json:"settlementTransactionIds"`
+	WarehouseFeeSnapshotID     *uuid.UUID  `json:"warehouseFeeSnapshotId,omitempty"`
+	WarehouseFeeAdjustmentIDs  []uuid.UUID `json:"warehouseFeeAdjustmentIds"`
 }
 
 type OrderProfit struct {
@@ -181,6 +200,7 @@ func formulaDescriptor() FormulaDescriptor {
 		FreightSource:      "latest confirmed local freight quote on one non-cancelled fulfillment wave",
 		RefundSource:       "succeeded local refund execution facts",
 		PlatformFeeSource:  "matched immutable platform settlement transactions",
+		WarehouseFeeSource: "confirmed immutable warehouse operation fee snapshots plus append-only adjustments",
 		MissingFeeBehavior: "unmatched platform fees and missing advertising or warehouse fees remain null and are never treated as zero",
 	}
 }

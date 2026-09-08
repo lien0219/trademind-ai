@@ -78,6 +78,122 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/warehouse-fee-rate-cards",
+      "auth": true,
+      "query": ["warehouseId", "includeInactive"],
+      "responseData": "WarehouseFeeRateCardList",
+      "requiredPermission": "warehouse_fee.view",
+      "readonly": true,
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/warehouse-fee-rate-cards/:id",
+      "auth": true,
+      "responseData": "WarehouseFeeRateCardDetail",
+      "requiredPermission": "warehouse_fee.view",
+      "readonly": true,
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warehouse-fee-rate-cards",
+      "auth": true,
+      "requestBody": ["warehouseId", "code", "name", "currency", "outboundBaseFeeMinor", "pickingFeePerItemMinor", "packingFeePerPackageMinor"],
+      "responseData": "WarehouseFeeRateCard",
+      "requiredPermission": "warehouse_fee.manage",
+      "externalWrite": false,
+      "versioned": true
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/warehouse-fee-rate-cards/:id",
+      "auth": true,
+      "requestBody": ["expectedRevision", "name", "currency", "outboundBaseFeeMinor", "pickingFeePerItemMinor", "packingFeePerPackageMinor", "status"],
+      "responseData": "WarehouseFeeRateCard",
+      "requiredPermission": "warehouse_fee.manage",
+      "externalWrite": false,
+      "versioned": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/warehouse-operation-fees/candidates",
+      "auth": true,
+      "query": ["page", "pageSize", "orderNo", "warehouseId"],
+      "responseData": "WarehouseFeeCandidateList",
+      "requiredPermission": "warehouse_fee.view",
+      "readonly": true,
+      "storeViewScope": true,
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warehouse-operation-fees/preview",
+      "auth": true,
+      "requestBody": ["orderId", "rateCardId", "rateCardRevision"],
+      "responseData": "WarehouseFeePreview",
+      "requiredPermission": "warehouse_fee.manage",
+      "storeOperationScope": true,
+      "databaseWrite": false,
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warehouse-operation-fees",
+      "auth": true,
+      "requestBody": ["orderId", "rateCardId", "rateCardRevision", "waveRevision", "calculationHash", "idempotencyKey"],
+      "responseData": "WarehouseFeeConfirmation",
+      "requiredPermission": "warehouse_fee.manage",
+      "storeOperationScope": true,
+      "databaseWrite": true,
+      "appendOnly": true,
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/warehouse-operation-fees",
+      "auth": true,
+      "query": ["page", "pageSize", "orderNo", "warehouseId", "currency"],
+      "responseData": "WarehouseFeeSnapshotList",
+      "requiredPermission": "warehouse_fee.view",
+      "readonly": true,
+      "storeViewScope": true,
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/warehouse-operation-fees/:id",
+      "auth": true,
+      "responseData": "WarehouseFeeSnapshotDetail",
+      "requiredPermission": "warehouse_fee.view",
+      "readonly": true,
+      "storeViewScope": true,
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warehouse-operation-fees/:id/adjustments",
+      "auth": true,
+      "requestBody": ["amountMinor", "reason", "idempotencyKey"],
+      "responseData": "WarehouseFeeAdjustment",
+      "requiredPermission": "warehouse_fee.manage",
+      "storeOperationScope": true,
+      "appendOnly": true,
+      "externalWrite": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse",
+      "auth": true,
+      "requestBody": ["reason", "idempotencyKey"],
+      "responseData": "WarehouseFeeReversal",
+      "requiredPermission": "warehouse_fee.manage",
+      "storeOperationScope": true,
+      "appendOnly": true,
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/orders",
       "auth": true,
       "responseData": "OrderList",
@@ -96,6 +212,7 @@
       "statusEnum": ["complete", "pending", "mismatch", "blocked"],
       "productCostPolicy": "fulfilled_snapshot_unfulfilled_catalog_estimate",
       "costSnapshotResolutionEnum": ["resolved", "missing", "ambiguous", "currency_mismatch", "invalid"],
+      "warehouseFeePolicy": "confirmed_snapshot_plus_append_only_adjustments",
       "nullableMoneyFields": ["estimatedProfitMinor", "estimatedMarginBps", "components.*.amountMinor"],
       "exportLimit": 5000
     },
@@ -110,7 +227,8 @@
       "statusEnum": ["complete", "pending", "mismatch", "blocked"],
       "productCostPolicy": "fulfilled_snapshot_unfulfilled_catalog_estimate",
       "costSnapshotResolutionEnum": ["resolved", "missing", "ambiguous", "currency_mismatch", "invalid"],
-      "formulaVersion": "order_profit_estimate_v3"
+      "formulaVersion": "order_profit_estimate_v4",
+      "warehouseFeePolicy": "confirmed_snapshot_plus_append_only_adjustments"
     },
     {
       "method": "POST",

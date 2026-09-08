@@ -45,6 +45,8 @@ const (
 	PermSettlementView     = "settlement.view"
 	PermSettlementImport   = "settlement.import"
 	PermSettlementExport   = "settlement.export"
+	PermWarehouseFeeView   = "warehouse_fee.view"
+	PermWarehouseFeeManage = "warehouse_fee.manage"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -123,6 +125,8 @@ var allPermissions = []string{
 	PermSettlementView,
 	PermSettlementImport,
 	PermSettlementExport,
+	PermWarehouseFeeView,
+	PermWarehouseFeeManage,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -181,6 +185,7 @@ var reviewerPermissions = []string{
 	PermSalesReturnApprove,
 	PermSettlementView,
 	PermSettlementExport,
+	PermWarehouseFeeView,
 }
 
 var operatorPermissions = []string{
@@ -234,6 +239,8 @@ var operatorPermissions = []string{
 	PermSettlementView,
 	PermSettlementImport,
 	PermSettlementExport,
+	PermWarehouseFeeView,
+	PermWarehouseFeeManage,
 }
 
 var readonlyPermissions = []string{
@@ -260,6 +267,7 @@ var readonlyPermissions = []string{
 	PermSalesReturnView,
 	PermOrderProfitView,
 	PermSettlementView,
+	PermWarehouseFeeView,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

@@ -55,6 +55,17 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/orders",
         "GET /api/v1/order-profits",
         "GET /api/v1/order-profits/:orderId",
+        "GET /api/v1/warehouse-fee-rate-cards",
+        "GET /api/v1/warehouse-fee-rate-cards/:id",
+        "POST /api/v1/warehouse-fee-rate-cards",
+        "PUT /api/v1/warehouse-fee-rate-cards/:id",
+        "GET /api/v1/warehouse-operation-fees/candidates",
+        "POST /api/v1/warehouse-operation-fees/preview",
+        "POST /api/v1/warehouse-operation-fees",
+        "GET /api/v1/warehouse-operation-fees",
+        "GET /api/v1/warehouse-operation-fees/:id",
+        "POST /api/v1/warehouse-operation-fees/:id/adjustments",
+        "POST /api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse",
         "POST /api/v1/settlement-imports/preview",
         "POST /api/v1/settlement-imports",
         "GET /api/v1/settlement-reconciliation",
@@ -776,7 +787,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(132);
+    expect(contracts.endpoints).toHaveLength(143);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);
@@ -794,7 +805,8 @@ describe("TradeMind API contract registry", () => {
     expect(list?.readonly).toBe(true);
     expect(list?.externalWrite).toBe(false);
     expect(list?.nullableMoneyFields).toContain("estimatedProfitMinor");
-    expect(detail?.formulaVersion).toBe("order_profit_estimate_v3");
+    expect(detail?.formulaVersion).toBe("order_profit_estimate_v4");
+    expect(detail?.warehouseFeePolicy).toBe("confirmed_snapshot_plus_append_only_adjustments");
     expect(detail?.statusEnum).toEqual(["complete", "pending", "mismatch", "blocked"]);
     expect(detail?.productCostPolicy).toBe("fulfilled_snapshot_unfulfilled_catalog_estimate");
     expect(detail?.costSnapshotResolutionEnum).toEqual([
@@ -822,5 +834,25 @@ describe("TradeMind API contract registry", () => {
     expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
     expect(list?.exportPermission).toBe("settlement.export");
     expect(list?.exportLimit).toBe(5000);
+  });
+
+  it("keeps warehouse fee previews zero-write and ledger corrections append-only", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const rateUpdate = endpoint("PUT /api/v1/warehouse-fee-rate-cards/:id");
+    const preview = endpoint("POST /api/v1/warehouse-operation-fees/preview");
+    const confirm = endpoint("POST /api/v1/warehouse-operation-fees");
+    const adjustment = endpoint("POST /api/v1/warehouse-operation-fees/:id/adjustments");
+    const reversal = endpoint("POST /api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse");
+
+    expect(rateUpdate?.requestBody).toContain("expectedRevision");
+    expect(rateUpdate?.versioned).toBe(true);
+    expect(preview?.databaseWrite).toBe(false);
+    expect(preview?.storeOperationScope).toBe(true);
+    expect(confirm?.requestBody).toEqual(["orderId", "rateCardId", "rateCardRevision", "waveRevision", "calculationHash", "idempotencyKey"]);
+    expect(confirm?.appendOnly).toBe(true);
+    expect(adjustment?.appendOnly).toBe(true);
+    expect(reversal?.appendOnly).toBe(true);
+    expect(reversal?.externalWrite).toBe(false);
   });
 });
