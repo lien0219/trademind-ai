@@ -4,6 +4,13 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Advertising fee attribution ledger and profit estimate V5 (2026-09-08)
+
+- Added a strict, store-scoped local advertising-spend CSV flow with a zero-write preview, 2 MiB/1000-row limits, file and calculation hashes, shop IANA timezone boundaries, and deterministic equal allocation across paid, non-cancelled orders.
+- Added immutable import, spend, and order-allocation facts, payload-bound idempotent confirmation, append-only signed adjustments, one-time reversals, non-negative net enforcement, dedicated permissions, operation logging, and tenant/store fail-closed reads and writes.
+- Added a responsive Finance workbench, order-profit deep links, API contracts, backend/Admin regression tests, isolated PostgreSQL concurrency coverage, and five-viewport guarded Playwright scenarios.
+- Upgraded order profit estimates to `order_profit_estimate_v5`; only confirmed advertising allocations explicitly declared outside settlement coverage enter known contribution. No advertising-platform API, authorization, automatic pull, scheduler, FX conversion, accounting posting, voucher, marketplace write, worker, or retry capability was enabled.
+
 ### Warehouse operation fee ledger and profit estimate V4 (2026-09-08)
 
 - Added tenant- and warehouse-scoped versioned rate cards for outbound, per-item picking, and per-package packing fees, with zero-write preview and currency-consistent confirmation against completed, packing-verified fulfillment facts.

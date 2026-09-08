@@ -24,29 +24,32 @@ const (
 	PermStoreView          = "store.view"
 	PermStoreOperate       = "store.operate"
 	// ERP foundation permissions
-	PermWarehouseView      = "warehouse.view"
-	PermWarehouseManage    = "warehouse.manage"
-	PermLogisticsView      = "logistics.view"
-	PermLogisticsManage    = "logistics.manage"
-	PermSupplierView       = "supplier.view"
-	PermSupplierManage     = "supplier.manage"
-	PermProcurementView    = "procurement.view"
-	PermProcurementManage  = "procurement.manage"
-	PermProcurementApprove = "procurement.approve"
-	PermProcurementReceive = "procurement.receive"
-	PermProcurementReturn  = "procurement.return"
-	PermSalesReturnView    = "sales_return.view"
-	PermSalesReturnManage  = "sales_return.manage"
-	PermSalesReturnApprove = "sales_return.approve"
-	PermSalesReturnReceive = "sales_return.receive"
-	PermSalesReturnRefund  = "sales_return.refund"
-	PermOrderProfitView    = "order_profit.view"
-	PermOrderProfitExport  = "order_profit.export"
-	PermSettlementView     = "settlement.view"
-	PermSettlementImport   = "settlement.import"
-	PermSettlementExport   = "settlement.export"
-	PermWarehouseFeeView   = "warehouse_fee.view"
-	PermWarehouseFeeManage = "warehouse_fee.manage"
+	PermWarehouseView        = "warehouse.view"
+	PermWarehouseManage      = "warehouse.manage"
+	PermLogisticsView        = "logistics.view"
+	PermLogisticsManage      = "logistics.manage"
+	PermSupplierView         = "supplier.view"
+	PermSupplierManage       = "supplier.manage"
+	PermProcurementView      = "procurement.view"
+	PermProcurementManage    = "procurement.manage"
+	PermProcurementApprove   = "procurement.approve"
+	PermProcurementReceive   = "procurement.receive"
+	PermProcurementReturn    = "procurement.return"
+	PermSalesReturnView      = "sales_return.view"
+	PermSalesReturnManage    = "sales_return.manage"
+	PermSalesReturnApprove   = "sales_return.approve"
+	PermSalesReturnReceive   = "sales_return.receive"
+	PermSalesReturnRefund    = "sales_return.refund"
+	PermOrderProfitView      = "order_profit.view"
+	PermOrderProfitExport    = "order_profit.export"
+	PermSettlementView       = "settlement.view"
+	PermSettlementImport     = "settlement.import"
+	PermSettlementExport     = "settlement.export"
+	PermWarehouseFeeView     = "warehouse_fee.view"
+	PermWarehouseFeeManage   = "warehouse_fee.manage"
+	PermAdvertisingFeeView   = "advertising_fee.view"
+	PermAdvertisingFeeImport = "advertising_fee.import"
+	PermAdvertisingFeeManage = "advertising_fee.manage"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -127,6 +130,9 @@ var allPermissions = []string{
 	PermSettlementExport,
 	PermWarehouseFeeView,
 	PermWarehouseFeeManage,
+	PermAdvertisingFeeView,
+	PermAdvertisingFeeImport,
+	PermAdvertisingFeeManage,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -186,6 +192,7 @@ var reviewerPermissions = []string{
 	PermSettlementView,
 	PermSettlementExport,
 	PermWarehouseFeeView,
+	PermAdvertisingFeeView,
 }
 
 var operatorPermissions = []string{
@@ -241,6 +248,9 @@ var operatorPermissions = []string{
 	PermSettlementExport,
 	PermWarehouseFeeView,
 	PermWarehouseFeeManage,
+	PermAdvertisingFeeView,
+	PermAdvertisingFeeImport,
+	PermAdvertisingFeeManage,
 }
 
 var readonlyPermissions = []string{
@@ -268,6 +278,7 @@ var readonlyPermissions = []string{
 	PermOrderProfitView,
 	PermSettlementView,
 	PermWarehouseFeeView,
+	PermAdvertisingFeeView,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

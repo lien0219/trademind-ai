@@ -8,10 +8,11 @@ import {
 
 /** Route path → minimum view permission (undefined = all authenticated users). */
 export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> = {
-  '/finance': [PERMISSIONS.ORDER_PROFIT_VIEW, PERMISSIONS.SETTLEMENT_VIEW, PERMISSIONS.WAREHOUSE_FEE_VIEW],
+  '/finance': [PERMISSIONS.ORDER_PROFIT_VIEW, PERMISSIONS.SETTLEMENT_VIEW, PERMISSIONS.WAREHOUSE_FEE_VIEW, PERMISSIONS.ADVERTISING_FEE_VIEW],
   '/finance/order-profits': PERMISSIONS.ORDER_PROFIT_VIEW,
   '/finance/settlement-reconciliation': PERMISSIONS.SETTLEMENT_VIEW,
   '/finance/warehouse-fees': PERMISSIONS.WAREHOUSE_FEE_VIEW,
+  '/finance/advertising-fees': PERMISSIONS.ADVERTISING_FEE_VIEW,
   '/procurement': [PERMISSIONS.PROCUREMENT_VIEW, PERMISSIONS.WAREHOUSE_VIEW, PERMISSIONS.SUPPLIER_VIEW],
   '/orders/sales-returns': PERMISSIONS.SALES_RETURN_VIEW,
   '/orders/sales-return-reconciliation': PERMISSIONS.SALES_RETURN_VIEW,

@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/adminuser"
+	"github.com/trademind-ai/trademind/backend/internal/modules/advertisingfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiopsworkbench"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
@@ -94,6 +95,10 @@ type warehouseFeeProfitabilityAdapter struct {
 	svc *warehousefee.Service
 }
 
+type advertisingFeeProfitabilityAdapter struct {
+	svc *advertisingfee.Service
+}
+
 func (a settlementProfitabilityAdapter) ListPlatformFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.PlatformFeeFact, error) {
 	result := make(map[uuid.UUID]profitability.PlatformFeeFact)
 	if a.svc == nil {
@@ -127,6 +132,26 @@ func (a warehouseFeeProfitabilityAdapter) ListWarehouseFees(ctx context.Context,
 		result[orderID] = profitability.WarehouseFeeFact{
 			OrderID: fact.OrderID, SnapshotID: fact.SnapshotID, AdjustmentIDs: append([]uuid.UUID(nil), fact.AdjustmentIDs...),
 			AmountMinor: fact.AmountMinor, Currency: fact.Currency, Status: fact.Status, SourceAt: fact.SourceAt,
+			ReasonCode: fact.ReasonCode, Reason: fact.Reason,
+		}
+	}
+	return result, nil
+}
+
+func (a advertisingFeeProfitabilityAdapter) ListAdvertisingFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.AdvertisingFeeFact, error) {
+	result := make(map[uuid.UUID]profitability.AdvertisingFeeFact)
+	if a.svc == nil {
+		return result, nil
+	}
+	facts, err := a.svc.ProfitabilityFeesForOrders(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	for orderID, fact := range facts {
+		result[orderID] = profitability.AdvertisingFeeFact{
+			OrderID: fact.OrderID, ImportID: fact.ImportID, SpendID: fact.SpendID, AllocationID: fact.AllocationID,
+			AdjustmentIDs: append([]uuid.UUID(nil), fact.AdjustmentIDs...), AmountMinor: fact.AmountMinor,
+			Currency: fact.Currency, Status: fact.Status, SourceAt: fact.SourceAt,
 			ReasonCode: fact.ReasonCode, Reason: fact.Reason,
 		}
 	}
@@ -504,7 +529,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 	warehouseFeeSvc := &warehousefee.Service{DB: dep.DB, Fulfillment: orderSvc}
 	warehouseFeeH := &warehousefee.Handler{Svc: warehouseFeeSvc, OpLog: opLogSvc}
-	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}, WarehouseFees: warehouseFeeProfitabilityAdapter{svc: warehouseFeeSvc}}
+	advertisingFeeSvc := &advertisingfee.Service{DB: dep.DB}
+	advertisingFeeH := &advertisingfee.Handler{Svc: advertisingFeeSvc, OpLog: opLogSvc}
+	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}, AdvertisingFees: advertisingFeeProfitabilityAdapter{svc: advertisingFeeSvc}, WarehouseFees: warehouseFeeProfitabilityAdapter{svc: warehouseFeeSvc}}
 	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}
 
 	orderSyncSvc := &ordersync.Service{
@@ -744,6 +771,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	profitability.Register(authed, profitabilityH)
 	settlement.Register(authed, settlementH)
 	warehousefee.Register(authed, warehouseFeeH)
+	advertisingfee.Register(authed, advertisingFeeH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)

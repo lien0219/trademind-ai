@@ -55,6 +55,10 @@ export type OrderProfit = {
     refundExecutionIds: string[];
     settlementReconciliationId?: string;
     settlementTransactionIds: string[];
+    advertisingFeeImportId?: string;
+    advertisingFeeSpendId?: string;
+    advertisingFeeAllocationId?: string;
+    advertisingFeeAdjustmentIds: string[];
     warehouseFeeSnapshotId?: string;
     warehouseFeeAdjustmentIds: string[];
   };
@@ -99,6 +103,7 @@ export type OrderProfitFormula = {
   freightSource: string;
   refundSource: string;
   platformFeeSource: string;
+  advertisingFeeSource: string;
   warehouseFeeSource: string;
   missingFeeBehavior: string;
 };

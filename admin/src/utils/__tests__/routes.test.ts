@@ -157,6 +157,11 @@ describe('Admin route menu configuration', () => {
           name: '仓库操作费',
           component: './Finance/WarehouseFees',
         }),
+        expect.objectContaining({
+          path: '/finance/advertising-fees',
+          name: '广告费用归属',
+          component: './Finance/AdvertisingFees',
+        }),
       ]),
     );
   });

@@ -252,18 +252,36 @@ V1 只根据本地已完成履约和打包扫描复核事实登记每单出库�
 
 该能力不计算每日仓储租金，不回填历史履约订单，不接 WMS 或仓储服务商，不自动登记、分摊、换汇、重试、付款、生成应付/凭证，也不执行真实平台、物流或支付写请求。
 
-## 订单预估利润与费用缺口 V4
+## 订单广告费用归属账 V1
 
-V4 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；新完成的本地履约会在库存扣减、发货单、订单状态和幂等完成的同一事务中，为每个订单明细冻结一条不可变成本快照。快照记录数量、订单/成本币种、供应商及供应商 SKU 标识、目录来源时间、采集时间和 `resolved|missing|ambiguous|currency_mismatch|invalid` 状态。成本缺失、多绑定或币种不一致会随快照落库但不阻断发货；快照基础设施写入失败则整笔履约回滚。
+V1 只导入本地广告费用 CSV，不连接广告平台。CSV 必须严格使用 `spend_date,currency,spend_minor,settlement_coverage` 表头，最多 2 MiB/1000 行；`settlement_coverage` 只能为 `excluded|included|unknown`。预览以店铺配置的 IANA 时区计算当地日，读取当日订单但数据库零写入；仅已支付或部分退款、未取消、支付日和币种一致且尚未归属的订单纳入。订单按支付时间、订单号和 ID 稳定排序，整数余数从排序首项开始分配，保证订单归属总额与费用行总额严格相等。
 
-已履约订单只读取履约成本快照，缺失快照的历史订单返回 `historical_cost_snapshot_missing`，不使用当前采购价静默回填；未履约订单仍使用当前唯一有效供应商采购价并标记为目录估算。两者都不是 FIFO、移动加权平均或会计实际成本，系统不自动换汇。运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。仓库操作费只读取通过结构校验、调整/冲正关系有效且币种与订单一致的已确认快照净额；缺失、损坏或币种不一致时保持 `amountMinor=null`。广告费用仍无可靠账本，不得补零。
+确认必须原样提交文件 hash、计算 hash 和稳定幂等键。服务端在事务中锁定店铺与订单并重新解析、复算后，追加不可变导入、日费用和订单归属事实；同店铺日期/币种和同订单均有唯一约束。后续更正只能追加非零有符号调整，净额不得为负；冲正只能追加原调整的相反数且每条调整只能冲正一次。Operator 和 Admin 可导入、调整，Reviewer 与 Readonly 只能查看；所有读写均按租户和店铺 view/operate 范围失败关闭。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/advertising-fee-imports/preview` | `advertising_fee.import` + 店铺 operate/manage | multipart：`file`、`shopId`。返回文件/计算 hash、逐费用行和纳入/排除订单明细；数据库零写入。 |
+| `POST` | `/api/v1/advertising-fee-imports` | `advertising_fee.import` + 店铺 operate/manage | multipart：`file`、`shopId`、`expectedFileHash`、`expectedCalculationHash`、`idempotencyKey`。服务端锁定并复算后原子追加事实。 |
+| `GET` | `/api/v1/advertising-fee-imports` | `advertising_fee.view` + 店铺 view | 分页查询授权店铺内的导入记录；支持 `page`、`pageSize`。 |
+| `GET` | `/api/v1/advertising-fees` | `advertising_fee.view` + 店铺 view | 分页查询订单归属及调整后净额；支持 `page`、`pageSize`、`orderNo`、`shopId`、`currency`、`settlementCoverage`。 |
+| `GET` | `/api/v1/advertising-fees/:id` | `advertising_fee.view` + 店铺 view | 查询不可变归属来源及全部调整/冲正事实；越权范围返回 `404`。 |
+| `POST` | `/api/v1/advertising-fees/:id/adjustments` | `advertising_fee.manage` + 店铺 operate/manage | 追加调整；JSON：非零 `amountMinor`、`reason`、`idempotencyKey`。 |
+| `POST` | `/api/v1/advertising-fees/:id/adjustments/:adjustmentId/reverse` | `advertising_fee.manage` + 店铺 operate/manage | 一次性冲正原调整；JSON：`reason`、`idempotencyKey`。 |
+
+广告归属是运营估算，不是订单级会计实际成本。只有明确声明平台结算未包含广告费的 `excluded` 事实可进入预估利润；`included` 防止重复计费并返回口径不一致，`unknown` 保持阻断。该能力不提供真实广告 API、授权、自动拉取、计划任务、换汇、凭证、自动过账、Worker 或重试。
+
+## 订单预估利润与费用缺口 V5
+
+V5 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行自动费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；新完成的本地履约会在库存扣减、发货单、订单状态和幂等完成的同一事务中，为每个订单明细冻结一条不可变成本快照。快照记录数量、订单/成本币种、供应商及供应商 SKU 标识、目录来源时间、采集时间和 `resolved|missing|ambiguous|currency_mismatch|invalid` 状态。成本缺失、多绑定或币种不一致会随快照落库但不阻断发货；快照基础设施写入失败则整笔履约回滚。
+
+已履约订单只读取履约成本快照，缺失快照的历史订单返回 `historical_cost_snapshot_missing`，不使用当前采购价静默回填；未履约订单仍使用当前唯一有效供应商采购价并标记为目录估算。两者都不是 FIFO、移动加权平均或会计实际成本，系统不自动换汇。运费使用同一订单唯一未取消波次的最新已确认本地报价；退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。仓库操作费只读取通过结构校验、调整/冲正关系有效且币种与订单一致的已确认快照净额。广告费用只读取事实完整、币种一致且 `settlement_coverage=excluded` 的确认归属净额；`included` 为 `mismatch`，`unknown` 或损坏事实为 `blocked`。所有缺失或不可消费费用保持 `amountMinor=null`，不补零。
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
-| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账、仓库操作费快照与调整关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
+| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账、广告费用导入/来源/归属/调整、仓库操作费快照与调整关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
 
-所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费与有效仓库操作费；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v4`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v5`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
 
 ## 图片 AI
 

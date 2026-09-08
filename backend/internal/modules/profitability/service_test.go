@@ -32,6 +32,14 @@ func (r fakePlatformFeeReader) ListPlatformFees(context.Context, int64, []uuid.U
 	return r.facts, nil
 }
 
+type fakeAdvertisingFeeReader struct {
+	facts map[uuid.UUID]AdvertisingFeeFact
+}
+
+func (r fakeAdvertisingFeeReader) ListAdvertisingFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]AdvertisingFeeFact, error) {
+	return r.facts, nil
+}
+
 type fakeWarehouseFeeReader struct {
 	facts map[uuid.UUID]WarehouseFeeFact
 }
@@ -162,8 +170,36 @@ func TestCalculateOrderProfitConsumesOnlyMatchedSettlementFee(t *testing.T) {
 	if row.Related.SettlementReconciliationID == nil || *row.Related.SettlementReconciliationID != reconciliationID || len(row.Related.SettlementTransactionIDs) != 1 {
 		t.Fatalf("related settlement facts = %#v", row.Related)
 	}
-	if row.FormulaVersion != "order_profit_estimate_v4" {
+	if row.FormulaVersion != "order_profit_estimate_v5" {
 		t.Fatalf("formula version = %s", row.FormulaVersion)
+	}
+}
+
+func TestCalculateOrderProfitConsumesConfirmedAdvertisingFee(t *testing.T) {
+	now := time.Date(2026, 9, 8, 3, 0, 0, 0, time.UTC)
+	orderID, importID, spendID, allocationID, adjustmentID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	repo := &fakeRepository{orders: []OrderFact{{ID: orderID, OrderNo: "TM-ADVERTISING-FEE", Currency: "CNY", TotalAmountText: "10.00", CreatedAt: now, UpdatedAt: now}}}
+	svc := &Service{
+		Repo: repo,
+		AdvertisingFees: fakeAdvertisingFeeReader{facts: map[uuid.UUID]AdvertisingFeeFact{
+			orderID: {OrderID: orderID, ImportID: importID, SpendID: spendID, AllocationID: allocationID, AdjustmentIDs: []uuid.UUID{adjustmentID}, AmountMinor: 125, Currency: "CNY", Status: "confirmed", SourceAt: now},
+		}},
+		Clock: func() time.Time { return now },
+	}
+
+	result, err := svc.List(context.Background(), 41, Scope{}, ListQuery{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	row := result.List[0]
+	if row.Components.Advertising.Status != ComponentAvailable || row.Components.Advertising.AmountMinor == nil || *row.Components.Advertising.AmountMinor != 125 {
+		t.Fatalf("advertising fee = %#v", row.Components.Advertising)
+	}
+	if row.KnownContributionMinor == nil || *row.KnownContributionMinor != 875 {
+		t.Fatalf("known contribution = %#v, want 875", row.KnownContributionMinor)
+	}
+	if row.Related.AdvertisingFeeImportID == nil || *row.Related.AdvertisingFeeImportID != importID || row.Related.AdvertisingFeeSpendID == nil || *row.Related.AdvertisingFeeSpendID != spendID || row.Related.AdvertisingFeeAllocationID == nil || *row.Related.AdvertisingFeeAllocationID != allocationID || len(row.Related.AdvertisingFeeAdjustmentIDs) != 1 || row.Related.AdvertisingFeeAdjustmentIDs[0] != adjustmentID {
+		t.Fatalf("related advertising fee facts = %#v", row.Related)
 	}
 }
 
@@ -353,6 +389,7 @@ func TestCalculateOrderRejectsRevenueOutsideJSONSafeIntegerRange(t *testing.T) {
 	now := time.Now().UTC()
 	profit, _ := calculateOrder(
 		OrderFact{ID: uuid.New(), Currency: "USD", TotalAmountText: "90071992547409.92", UpdatedAt: now},
+		nil,
 		nil,
 		nil,
 		nil,

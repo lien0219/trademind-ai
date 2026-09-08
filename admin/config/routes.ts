@@ -458,6 +458,11 @@ export default [
         name: '仓库操作费',
         component: './Finance/WarehouseFees',
       },
+      {
+        path: '/finance/advertising-fees',
+        name: '广告费用归属',
+        component: './Finance/AdvertisingFees',
+      },
     ],
   },
   {

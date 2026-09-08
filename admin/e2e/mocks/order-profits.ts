@@ -11,16 +11,6 @@ const available = (amountMinor: number, source: string, sourceAt: string) => ({
   sourceAt,
 });
 
-const missing = (source: string, reasonCode: string, reason: string) => ({
-  amountMinor: null,
-  knownAmountMinor: 0,
-  currency: 'CNY',
-  status: 'missing',
-  source,
-  reasonCode,
-  reason,
-});
-
 export const e2eOrderProfit = {
   orderId: E2E_ORDER_PROFIT_ORDER_ID,
   orderNo: 'SO-E2E-PROFIT-0001',
@@ -31,25 +21,23 @@ export const e2eOrderProfit = {
   warehouseCode: 'WH-EAST',
   warehouseName: 'E2E 华东主仓',
   currency: 'CNY',
-  status: 'pending',
+  status: 'complete',
   orderStatus: 'shipped',
   paymentStatus: 'paid',
   fulfillmentStatus: 'fulfilled',
-  knownContributionMinor: 3310,
-  estimatedProfitMinor: null,
-  estimatedMarginBps: null,
+  knownContributionMinor: 3010,
+  estimatedProfitMinor: 3010,
+  estimatedMarginBps: 3010,
   components: {
     revenue: available(10000, 'order_total', '2026-09-05T02:00:00Z'),
     productCost: available(4000, 'fulfillment_cost_snapshot', '2026-09-05T03:05:00Z'),
     freight: available(1000, 'confirmed_local_freight_quote', '2026-09-05T03:00:00Z'),
     refund: available(500, 'refund_execution_ledger', '2026-09-05T04:00:00Z'),
     platformFee: available(1000, 'platform_settlement_ledger', '2026-09-05T05:00:00Z'),
-    advertisingFee: missing('advertising_ledger', 'advertising_fee_missing', '缺少订单归属广告费用'),
+    advertisingFee: available(300, 'advertising_fee_ledger', '2026-09-08T02:00:00Z'),
     warehouseFee: available(190, 'warehouse_fee_ledger', '2026-09-08T01:10:00Z'),
   },
-  issues: [
-    { code: 'advertising_fee_missing', component: 'advertisingFee', message: '缺少订单归属广告费用' },
-  ],
+  issues: [],
   related: {
     fulfillmentWaveId: 'e2e-wave-profit-1',
     supplierIds: ['e2e-supplier-primary'],
@@ -57,12 +45,16 @@ export const e2eOrderProfit = {
     refundExecutionIds: ['e2e-refund-profit-1'],
     settlementReconciliationId: 'e2e-settlement-reconciliation-1',
     settlementTransactionIds: ['e2e-settlement-transaction-1'],
+    advertisingFeeImportId: 'e2e-advertising-fee-import-1',
+    advertisingFeeSpendId: 'e2e-advertising-fee-spend-1',
+    advertisingFeeAllocationId: 'e2e-advertising-fee-allocation-1',
+    advertisingFeeAdjustmentIds: ['e2e-advertising-fee-adjustment-1'],
     warehouseFeeSnapshotId: 'e2e-warehouse-fee-snapshot-1',
     warehouseFeeAdjustmentIds: ['e2e-warehouse-fee-adjustment-1'],
   },
   orderedAt: '2026-09-05T01:00:00Z',
   calculatedAt: '2026-09-06T01:00:00Z',
-  formulaVersion: 'order_profit_estimate_v4',
+  formulaVersion: 'order_profit_estimate_v5',
 };
 
 export const e2eOrderProfitDetail = {
@@ -103,12 +95,13 @@ export function orderProfitResponse(path: string) {
       totalPages: 1,
       calculatedAt: e2eOrderProfit.calculatedAt,
       formula: {
-        version: 'order_profit_estimate_v4',
+        version: 'order_profit_estimate_v5',
         revenueSource: 'orders.total_amount',
         productCostSource: 'fulfilled snapshot or unfulfilled catalog estimate',
         freightSource: 'confirmed local quote',
         refundSource: 'succeeded refund execution',
         platformFeeSource: 'matched immutable platform settlement transactions',
+        advertisingFeeSource: 'confirmed shop-local-day equal paid-order allocations plus append-only adjustments',
         warehouseFeeSource: 'confirmed immutable warehouse operation fee snapshots plus append-only adjustments',
         missingFeeBehavior: 'missing fees remain null',
       },

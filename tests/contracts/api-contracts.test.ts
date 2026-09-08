@@ -66,6 +66,13 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/warehouse-operation-fees/:id",
         "POST /api/v1/warehouse-operation-fees/:id/adjustments",
         "POST /api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse",
+        "POST /api/v1/advertising-fee-imports/preview",
+        "POST /api/v1/advertising-fee-imports",
+        "GET /api/v1/advertising-fee-imports",
+        "GET /api/v1/advertising-fees",
+        "GET /api/v1/advertising-fees/:id",
+        "POST /api/v1/advertising-fees/:id/adjustments",
+        "POST /api/v1/advertising-fees/:id/adjustments/:adjustmentId/reverse",
         "POST /api/v1/settlement-imports/preview",
         "POST /api/v1/settlement-imports",
         "GET /api/v1/settlement-reconciliation",
@@ -787,7 +794,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(143);
+    expect(contracts.endpoints).toHaveLength(150);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);
@@ -805,7 +812,8 @@ describe("TradeMind API contract registry", () => {
     expect(list?.readonly).toBe(true);
     expect(list?.externalWrite).toBe(false);
     expect(list?.nullableMoneyFields).toContain("estimatedProfitMinor");
-    expect(detail?.formulaVersion).toBe("order_profit_estimate_v4");
+    expect(detail?.formulaVersion).toBe("order_profit_estimate_v5");
+    expect(detail?.advertisingFeePolicy).toBe("confirmed_excluded_shop_day_allocation_plus_append_only_adjustments");
     expect(detail?.warehouseFeePolicy).toBe("confirmed_snapshot_plus_append_only_adjustments");
     expect(detail?.statusEnum).toEqual(["complete", "pending", "mismatch", "blocked"]);
     expect(detail?.productCostPolicy).toBe("fulfilled_snapshot_unfulfilled_catalog_estimate");
@@ -834,6 +842,29 @@ describe("TradeMind API contract registry", () => {
     expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
     expect(list?.exportPermission).toBe("settlement.export");
     expect(list?.exportLimit).toBe(5000);
+  });
+
+  it("keeps advertising fee attribution local, preview-only before confirmation, and append-only", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const preview = endpoint("POST /api/v1/advertising-fee-imports/preview");
+    const confirm = endpoint("POST /api/v1/advertising-fee-imports");
+    const list = endpoint("GET /api/v1/advertising-fees");
+    const adjustment = endpoint("POST /api/v1/advertising-fees/:id/adjustments");
+    const reversal = endpoint("POST /api/v1/advertising-fees/:id/adjustments/:adjustmentId/reverse");
+
+    expect(preview?.requestBody).toEqual(["file", "shopId"]);
+    expect(preview?.databaseWrite).toBe(false);
+    expect(preview?.maxFileBytes).toBe(2097152);
+    expect(preview?.maxRows).toBe(1000);
+    expect(preview?.policyVersion).toBe("shop_day_equal_paid_order_v1");
+    expect(confirm?.requestBody).toEqual(["file", "shopId", "expectedFileHash", "expectedCalculationHash", "idempotencyKey"]);
+    expect(confirm?.appendOnly).toBe(true);
+    expect(confirm?.externalWrite).toBe(false);
+    expect(list?.settlementCoverageEnum).toEqual(["excluded", "included", "unknown"]);
+    expect(list?.profitStatusEnum).toEqual(["confirmed", "mismatch", "blocked"]);
+    expect(adjustment?.appendOnly).toBe(true);
+    expect(reversal?.appendOnly).toBe(true);
   });
 
   it("keeps warehouse fee previews zero-write and ledger corrections append-only", () => {

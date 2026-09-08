@@ -23,6 +23,7 @@ import {
 } from '../mocks/order-profits';
 import { E2E_SETTLEMENT_ID, e2eSettlementDetail, e2eSettlementReconciliation } from '../mocks/settlement';
 import { E2E_WAREHOUSE_FEE_RATE_ID, E2E_WAREHOUSE_FEE_SNAPSHOT_ID, e2eWarehouseFeeDetail, e2eWarehouseFeeRate, e2eWarehouseFeeSnapshot } from '../mocks/warehouse-fees';
+import { E2E_ADVERTISING_FEE_ALLOCATION_ID, e2eAdvertisingFeeAllocation, e2eAdvertisingFeeDetail } from '../mocks/advertising-fees';
 
 async function fetchApi(page: import('@playwright/test').Page, path: string) {
   if (page.url() === 'about:blank') {
@@ -110,7 +111,7 @@ test.describe('@contract API envelope contracts', () => {
         pageSize: 20,
         total: 1,
         totalPages: 1,
-        formula: { version: 'order_profit_estimate_v4' },
+        formula: { version: 'order_profit_estimate_v5' },
       }),
     );
     expect(await fetchApi(page, `/api/v1/order-profits/${E2E_ORDER_PROFIT_ORDER_ID}`)).toEqual(
@@ -126,5 +127,7 @@ test.describe('@contract API envelope contracts', () => {
     expect(await fetchApi(page, `/api/v1/warehouse-fee-rate-cards/${E2E_WAREHOUSE_FEE_RATE_ID}`)).toMatchObject(ok({ id: E2E_WAREHOUSE_FEE_RATE_ID, revisions: expect.any(Array) }));
     expect(await fetchApi(page, '/api/v1/warehouse-operation-fees')).toEqual(ok({ list: [e2eWarehouseFeeSnapshot], page: 1, pageSize: 20, total: 1, totalPages: 1 }));
     expect(await fetchApi(page, `/api/v1/warehouse-operation-fees/${E2E_WAREHOUSE_FEE_SNAPSHOT_ID}`)).toEqual(ok(e2eWarehouseFeeDetail));
+    expect(await fetchApi(page, '/api/v1/advertising-fees')).toEqual(ok({ list: [e2eAdvertisingFeeAllocation], page: 1, pageSize: 20, total: 1, totalPages: 1 }));
+    expect(await fetchApi(page, `/api/v1/advertising-fees/${E2E_ADVERTISING_FEE_ALLOCATION_ID}`)).toEqual(ok(e2eAdvertisingFeeDetail));
   });
 });

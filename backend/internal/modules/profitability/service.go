@@ -22,11 +22,12 @@ var (
 const maxJSONSafeInteger int64 = 9007199254740991
 
 type Service struct {
-	DB            *gorm.DB
-	Repo          Repository
-	PlatformFees  PlatformFeeReader
-	WarehouseFees WarehouseFeeReader
-	Clock         func() time.Time
+	DB              *gorm.DB
+	Repo            Repository
+	PlatformFees    PlatformFeeReader
+	AdvertisingFees AdvertisingFeeReader
+	WarehouseFees   WarehouseFeeReader
+	Clock           func() time.Time
 }
 
 func (s *Service) repository() Repository {
@@ -199,6 +200,13 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 			return nil, nil, err
 		}
 	}
+	advertisingFees := make(map[uuid.UUID]AdvertisingFeeFact)
+	if s.AdvertisingFees != nil {
+		advertisingFees, err = s.AdvertisingFees.ListAdvertisingFees(ctx, tenantID, orderIDs)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	warehouseFees := make(map[uuid.UUID]WarehouseFeeFact)
 	if s.WarehouseFees != nil {
 		warehouseFees, err = s.WarehouseFees.ListWarehouseFees(ctx, tenantID, orderIDs)
@@ -230,19 +238,24 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 		if hasPlatformFee {
 			platformFeePtr = &platformFee
 		}
+		advertisingFee, hasAdvertisingFee := advertisingFees[order.ID]
+		var advertisingFeePtr *AdvertisingFeeFact
+		if hasAdvertisingFee {
+			advertisingFeePtr = &advertisingFee
+		}
 		warehouseFee, hasWarehouseFee := warehouseFees[order.ID]
 		var warehouseFeePtr *WarehouseFeeFact
 		if hasWarehouseFee {
 			warehouseFeePtr = &warehouseFee
 		}
-		profit, lines := calculateOrder(order, itemsByOrder[order.ID], costsBySKU, snapshotsByItem, freightByOrder[order.ID], refundByOrder[order.ID], platformFeePtr, warehouseFeePtr, calculatedAt)
+		profit, lines := calculateOrder(order, itemsByOrder[order.ID], costsBySKU, snapshotsByItem, freightByOrder[order.ID], refundByOrder[order.ID], platformFeePtr, advertisingFeePtr, warehouseFeePtr, calculatedAt)
 		profits = append(profits, profit)
 		linesByOrder[order.ID] = lines
 	}
 	return profits, linesByOrder, nil
 }
 
-func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, snapshotsByItem map[uuid.UUID][]OrderItemCostSnapshotFact, freight []FreightFact, refunds []RefundFact, platformFeeFact *PlatformFeeFact, warehouseFeeFact *WarehouseFeeFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
+func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, snapshotsByItem map[uuid.UUID][]OrderItemCostSnapshotFact, freight []FreightFact, refunds []RefundFact, platformFeeFact *PlatformFeeFact, advertisingFeeFact *AdvertisingFeeFact, warehouseFeeFact *WarehouseFeeFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
 	currency := strings.ToUpper(strings.TrimSpace(order.Currency))
 	issues := make([]Issue, 0)
 	revenue := component(currency, ComponentAvailable, "order_total", &order.UpdatedAt)
@@ -263,9 +276,9 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 	issues = append(issues, refundIssues...)
 	platformFee, platformFeeIssues := calculatePlatformFee(currency, platformFeeFact)
 	issues = append(issues, platformFeeIssues...)
-	advertisingFee := missingFee(currency, "advertising_ledger", "advertising_fee_missing", "缺少订单归属广告费用")
+	advertisingFee, advertisingFeeIssues := calculateAdvertisingFee(currency, advertisingFeeFact)
 	warehouseFee, warehouseFeeIssues := calculateWarehouseFee(currency, warehouseFeeFact)
-	issues = append(issues, Issue{Code: advertisingFee.ReasonCode, Component: "advertisingFee", Message: advertisingFee.Reason})
+	issues = append(issues, advertisingFeeIssues...)
 	issues = append(issues, warehouseFeeIssues...)
 
 	components := ProfitComponents{Revenue: revenue, ProductCost: productCost, Freight: freightComponent, Refund: refundComponent, PlatformFee: platformFee, Advertising: advertisingFee, WarehouseFee: warehouseFee}
@@ -304,9 +317,66 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 		EstimatedProfitMinor: estimatedProfit, EstimatedMarginBps: marginBps, Components: components,
 		Issues: issues, Related: RelatedFacts{FulfillmentWaveID: freightWaveID, SupplierIDs: supplierIDs, ProductCostSnapshotIDs: snapshotIDs, RefundExecutionIDs: refundIDs,
 			SettlementReconciliationID: platformFeeReconciliationID(platformFeeFact), SettlementTransactionIDs: platformFeeTransactionIDs(platformFeeFact),
+			AdvertisingFeeImportID: advertisingFeeImportID(advertisingFeeFact), AdvertisingFeeSpendID: advertisingFeeSpendID(advertisingFeeFact),
+			AdvertisingFeeAllocationID: advertisingFeeAllocationID(advertisingFeeFact), AdvertisingFeeAdjustmentIDs: advertisingFeeAdjustmentIDs(advertisingFeeFact),
 			WarehouseFeeSnapshotID: warehouseFeeSnapshotID(warehouseFeeFact), WarehouseFeeAdjustmentIDs: warehouseFeeAdjustmentIDs(warehouseFeeFact)},
 		OrderedAt: order.OrderedAt, CalculatedAt: calculatedAt, FormulaVersion: FormulaVersion,
 	}, costLines
+}
+
+func calculateAdvertisingFee(currency string, fact *AdvertisingFeeFact) (MoneyComponent, []Issue) {
+	if fact == nil {
+		row := missingFee(currency, "advertising_fee_ledger", "advertising_fee_missing", "缺少订单归属广告费用")
+		return row, []Issue{{Code: row.ReasonCode, Component: "advertisingFee", Message: row.Reason}}
+	}
+	row := component(currency, ComponentAvailable, "advertising_fee_ledger", &fact.SourceAt)
+	switch fact.Status {
+	case "confirmed":
+		if strings.ToUpper(strings.TrimSpace(fact.Currency)) != currency {
+			row.Status, row.ReasonCode, row.Reason = ComponentMismatch, "advertising_fee_currency_mismatch", "广告费用币种与订单币种不一致"
+		} else if fact.AmountMinor < 0 || !jsonSafeInteger(fact.AmountMinor) {
+			row.Status, row.ReasonCode, row.Reason = ComponentBlocked, "advertising_fee_amount_invalid", "广告费用金额无效"
+		} else {
+			row.AmountMinor, row.KnownAmountMinor = int64Pointer(fact.AmountMinor), fact.AmountMinor
+			return row, nil
+		}
+	case "mismatch":
+		row.Status, row.ReasonCode, row.Reason = ComponentMismatch, nonEmpty(fact.ReasonCode, "advertising_fee_mismatch"), nonEmpty(fact.Reason, "广告费用归属与平台结算口径冲突")
+	default:
+		row.Status, row.ReasonCode, row.Reason = ComponentBlocked, nonEmpty(fact.ReasonCode, "advertising_fee_blocked"), nonEmpty(fact.Reason, "广告费用归属事实已阻断")
+	}
+	return row, []Issue{{Code: row.ReasonCode, Component: "advertisingFee", Message: row.Reason}}
+}
+
+func advertisingFeeImportID(fact *AdvertisingFeeFact) *uuid.UUID {
+	if fact == nil || fact.ImportID == uuid.Nil {
+		return nil
+	}
+	id := fact.ImportID
+	return &id
+}
+
+func advertisingFeeSpendID(fact *AdvertisingFeeFact) *uuid.UUID {
+	if fact == nil || fact.SpendID == uuid.Nil {
+		return nil
+	}
+	id := fact.SpendID
+	return &id
+}
+
+func advertisingFeeAllocationID(fact *AdvertisingFeeFact) *uuid.UUID {
+	if fact == nil || fact.AllocationID == uuid.Nil {
+		return nil
+	}
+	id := fact.AllocationID
+	return &id
+}
+
+func advertisingFeeAdjustmentIDs(fact *AdvertisingFeeFact) []uuid.UUID {
+	if fact == nil || len(fact.AdjustmentIDs) == 0 {
+		return []uuid.UUID{}
+	}
+	return append([]uuid.UUID(nil), fact.AdjustmentIDs...)
 }
 
 func calculateWarehouseFee(currency string, fact *WarehouseFeeFact) (MoneyComponent, []Issue) {

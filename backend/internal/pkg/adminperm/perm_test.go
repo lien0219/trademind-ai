@@ -94,6 +94,15 @@ func TestPermissionsForRole(t *testing.T) {
 	if !StrictHasPermission(RoleReadonly, PermWarehouseFeeView) || StrictHasPermission(RoleReadonly, PermWarehouseFeeManage) {
 		t.Fatal("readonly should inspect warehouse fees without managing them")
 	}
+	if !StrictHasPermission(RoleOperator, PermAdvertisingFeeView) || !StrictHasPermission(RoleOperator, PermAdvertisingFeeImport) || !StrictHasPermission(RoleOperator, PermAdvertisingFeeManage) {
+		t.Fatal("operator should inspect, import, and correct advertising fees")
+	}
+	if !StrictHasPermission(RoleReviewer, PermAdvertisingFeeView) || StrictHasPermission(RoleReviewer, PermAdvertisingFeeImport) || StrictHasPermission(RoleReviewer, PermAdvertisingFeeManage) {
+		t.Fatal("reviewer should inspect advertising fees without mutating them")
+	}
+	if !StrictHasPermission(RoleReadonly, PermAdvertisingFeeView) || StrictHasPermission(RoleReadonly, PermAdvertisingFeeImport) || StrictHasPermission(RoleReadonly, PermAdvertisingFeeManage) {
+		t.Fatal("readonly should inspect advertising fees without mutating them")
+	}
 	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) || StrictHasPermission("surprise", PermInventorySyncRun) || StrictHasPermission(RoleAdmin, "inventory.run") {
 		t.Fatal("unknown roles and synonymous permissions must not inherit permissions on strict path")
 	}

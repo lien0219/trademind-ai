@@ -133,7 +133,7 @@ function sourceLabel(source: string) {
     refund_execution_ledger: '退款执行事实',
     platform_settlement: '平台结算',
     platform_settlement_ledger: '平台结算账单',
-    advertising_ledger: '广告费用账',
+    advertising_fee_ledger: '广告费用账',
     warehouse_fee_ledger: '仓库操作费台账',
   };
   return labels[source] || source || '—';
@@ -641,6 +641,14 @@ export default function OrderProfitsPage() {
                     退款执行 {index + 1}
                   </Button>
                 ))}
+                {detail.related.advertisingFeeAllocationId ? (
+                  <Button
+                    icon={<LinkOutlined />}
+                    onClick={() => history.push(`/finance/advertising-fees?drawer=advertising-fee&id=${encodeURIComponent(detail.related.advertisingFeeAllocationId!)}`)}
+                  >
+                    广告费用归属
+                  </Button>
+                ) : null}
                 {detail.related.warehouseFeeSnapshotId ? (
                   <Button
                     icon={<LinkOutlined />}

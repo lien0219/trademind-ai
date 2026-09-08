@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/database"
+	"github.com/trademind-ai/trademind/backend/internal/modules/advertisingfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
@@ -160,6 +161,10 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 		"warehouse_fee_rate_card_revisions",
 		"warehouse_fee_snapshots",
 		"warehouse_fee_adjustments",
+		"advertising_fee_imports",
+		"advertising_fee_spends",
+		"advertising_fee_allocations",
+		"advertising_fee_adjustments",
 	} {
 		require.Truef(t, db.Migrator().HasTable(table), "expected migrated table %s", table)
 	}
@@ -204,6 +209,12 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 	require.True(t, db.Migrator().HasIndex(&warehousefee.Snapshot{}, "ux_warehouse_fee_snapshot_key"))
 	require.True(t, db.Migrator().HasIndex(&warehousefee.Adjustment{}, "ux_warehouse_fee_adjustment_key"))
 	require.True(t, db.Migrator().HasIndex(&warehousefee.Adjustment{}, "ux_warehouse_fee_adjustment_reversal"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Import{}, "ux_ad_fee_import_key"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Import{}, "ux_ad_fee_import_file"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Spend{}, "ux_ad_fee_spend_day"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Allocation{}, "ux_ad_fee_allocation_order"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Adjustment{}, "ux_ad_fee_adjustment_key"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Adjustment{}, "ux_ad_fee_adjustment_reversal"))
 	require.True(t, db.Migrator().HasColumn(&inventory.InventoryMovement{}, "before_damaged"))
 	require.True(t, db.Migrator().HasColumn(&inventory.InventoryMovement{}, "after_damaged"))
 }

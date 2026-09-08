@@ -53,6 +53,12 @@ describe('ERP permission fallbacks', () => {
     expect(hasPermission(ROLES.OPERATOR, PERMISSIONS.WAREHOUSE_FEE_MANAGE)).toBe(true);
     expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.WAREHOUSE_FEE_VIEW)).toBe(true);
     expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.WAREHOUSE_FEE_MANAGE)).toBe(false);
+    expect(hasPermission(ROLES.OPERATOR, PERMISSIONS.ADVERTISING_FEE_VIEW)).toBe(true);
+    expect(hasPermission(ROLES.OPERATOR, PERMISSIONS.ADVERTISING_FEE_IMPORT)).toBe(true);
+    expect(hasPermission(ROLES.OPERATOR, PERMISSIONS.ADVERTISING_FEE_MANAGE)).toBe(true);
+    expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.ADVERTISING_FEE_VIEW)).toBe(true);
+    expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.ADVERTISING_FEE_IMPORT)).toBe(false);
+    expect(hasPermission(ROLES.REVIEWER, PERMISSIONS.ADVERTISING_FEE_MANAGE)).toBe(false);
     expect(
       hasPermission(ROLES.REVIEWER, PERMISSIONS.SALES_RETURN_REFUND),
     ).toBe(false);
@@ -92,5 +98,8 @@ describe('ERP permission fallbacks', () => {
     expect(hasPermission(ROLES.READONLY, PERMISSIONS.SETTLEMENT_EXPORT)).toBe(false);
     expect(hasPermission(ROLES.READONLY, PERMISSIONS.WAREHOUSE_FEE_VIEW)).toBe(true);
     expect(hasPermission(ROLES.READONLY, PERMISSIONS.WAREHOUSE_FEE_MANAGE)).toBe(false);
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.ADVERTISING_FEE_VIEW)).toBe(true);
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.ADVERTISING_FEE_IMPORT)).toBe(false);
+    expect(hasPermission(ROLES.READONLY, PERMISSIONS.ADVERTISING_FEE_MANAGE)).toBe(false);
   });
 });

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	FormulaVersion = "order_profit_estimate_v4"
+	FormulaVersion = "order_profit_estimate_v5"
 
 	StatusComplete = "complete"
 	StatusPending  = "pending"
@@ -47,14 +47,15 @@ type ListQuery struct {
 }
 
 type FormulaDescriptor struct {
-	Version            string `json:"version"`
-	RevenueSource      string `json:"revenueSource"`
-	ProductCostSource  string `json:"productCostSource"`
-	FreightSource      string `json:"freightSource"`
-	RefundSource       string `json:"refundSource"`
-	PlatformFeeSource  string `json:"platformFeeSource"`
-	WarehouseFeeSource string `json:"warehouseFeeSource"`
-	MissingFeeBehavior string `json:"missingFeeBehavior"`
+	Version              string `json:"version"`
+	RevenueSource        string `json:"revenueSource"`
+	ProductCostSource    string `json:"productCostSource"`
+	FreightSource        string `json:"freightSource"`
+	RefundSource         string `json:"refundSource"`
+	PlatformFeeSource    string `json:"platformFeeSource"`
+	AdvertisingFeeSource string `json:"advertisingFeeSource"`
+	WarehouseFeeSource   string `json:"warehouseFeeSource"`
+	MissingFeeBehavior   string `json:"missingFeeBehavior"`
 }
 
 type PlatformFeeFact struct {
@@ -89,6 +90,24 @@ type WarehouseFeeReader interface {
 	ListWarehouseFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]WarehouseFeeFact, error)
 }
 
+type AdvertisingFeeFact struct {
+	OrderID       uuid.UUID
+	ImportID      uuid.UUID
+	SpendID       uuid.UUID
+	AllocationID  uuid.UUID
+	AdjustmentIDs []uuid.UUID
+	AmountMinor   int64
+	Currency      string
+	Status        string
+	SourceAt      time.Time
+	ReasonCode    string
+	Reason        string
+}
+
+type AdvertisingFeeReader interface {
+	ListAdvertisingFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]AdvertisingFeeFact, error)
+}
+
 type MoneyComponent struct {
 	AmountMinor      *int64     `json:"amountMinor"`
 	KnownAmountMinor int64      `json:"knownAmountMinor"`
@@ -117,14 +136,18 @@ type Issue struct {
 }
 
 type RelatedFacts struct {
-	FulfillmentWaveID          *uuid.UUID  `json:"fulfillmentWaveId,omitempty"`
-	SupplierIDs                []uuid.UUID `json:"supplierIds"`
-	ProductCostSnapshotIDs     []uuid.UUID `json:"productCostSnapshotIds"`
-	RefundExecutionIDs         []uuid.UUID `json:"refundExecutionIds"`
-	SettlementReconciliationID *uuid.UUID  `json:"settlementReconciliationId,omitempty"`
-	SettlementTransactionIDs   []uuid.UUID `json:"settlementTransactionIds"`
-	WarehouseFeeSnapshotID     *uuid.UUID  `json:"warehouseFeeSnapshotId,omitempty"`
-	WarehouseFeeAdjustmentIDs  []uuid.UUID `json:"warehouseFeeAdjustmentIds"`
+	FulfillmentWaveID           *uuid.UUID  `json:"fulfillmentWaveId,omitempty"`
+	SupplierIDs                 []uuid.UUID `json:"supplierIds"`
+	ProductCostSnapshotIDs      []uuid.UUID `json:"productCostSnapshotIds"`
+	RefundExecutionIDs          []uuid.UUID `json:"refundExecutionIds"`
+	SettlementReconciliationID  *uuid.UUID  `json:"settlementReconciliationId,omitempty"`
+	SettlementTransactionIDs    []uuid.UUID `json:"settlementTransactionIds"`
+	AdvertisingFeeImportID      *uuid.UUID  `json:"advertisingFeeImportId,omitempty"`
+	AdvertisingFeeSpendID       *uuid.UUID  `json:"advertisingFeeSpendId,omitempty"`
+	AdvertisingFeeAllocationID  *uuid.UUID  `json:"advertisingFeeAllocationId,omitempty"`
+	AdvertisingFeeAdjustmentIDs []uuid.UUID `json:"advertisingFeeAdjustmentIds"`
+	WarehouseFeeSnapshotID      *uuid.UUID  `json:"warehouseFeeSnapshotId,omitempty"`
+	WarehouseFeeAdjustmentIDs   []uuid.UUID `json:"warehouseFeeAdjustmentIds"`
 }
 
 type OrderProfit struct {
@@ -194,13 +217,14 @@ type ListResult struct {
 
 func formulaDescriptor() FormulaDescriptor {
 	return FormulaDescriptor{
-		Version:            FormulaVersion,
-		RevenueSource:      "orders.total_amount converted exactly to the currency minor unit",
-		ProductCostSource:  "immutable fulfillment cost snapshots for fulfilled orders; current active supplier catalog estimates for unfulfilled orders only",
-		FreightSource:      "latest confirmed local freight quote on one non-cancelled fulfillment wave",
-		RefundSource:       "succeeded local refund execution facts",
-		PlatformFeeSource:  "matched immutable platform settlement transactions",
-		WarehouseFeeSource: "confirmed immutable warehouse operation fee snapshots plus append-only adjustments",
-		MissingFeeBehavior: "unmatched platform fees and missing advertising or warehouse fees remain null and are never treated as zero",
+		Version:              FormulaVersion,
+		RevenueSource:        "orders.total_amount converted exactly to the currency minor unit",
+		ProductCostSource:    "immutable fulfillment cost snapshots for fulfilled orders; current active supplier catalog estimates for unfulfilled orders only",
+		FreightSource:        "latest confirmed local freight quote on one non-cancelled fulfillment wave",
+		RefundSource:         "succeeded local refund execution facts",
+		PlatformFeeSource:    "matched immutable platform settlement transactions",
+		AdvertisingFeeSource: "confirmed shop-local-day equal paid-order allocations plus append-only adjustments",
+		WarehouseFeeSource:   "confirmed immutable warehouse operation fee snapshots plus append-only adjustments",
+		MissingFeeBehavior:   "unmatched platform fees and missing, settlement-covered, or invalid advertising and warehouse fees remain null and are never treated as zero",
 	}
 }

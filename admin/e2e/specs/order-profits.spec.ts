@@ -19,7 +19,7 @@ const viewports = [
 
 test.describe('@smoke order profit estimates', () => {
   for (const viewport of viewports) {
-    test(`renders partial profit facts at ${viewport.width}x${viewport.height}`, async ({
+    test(`renders profit facts at ${viewport.width}x${viewport.height}`, async ({
       admin,
       page,
     }) => {
@@ -28,7 +28,10 @@ test.describe('@smoke order profit estimates', () => {
       await expect(page.getByText('订单预估利润', { exact: true }).first()).toBeVisible();
       await expect(page.getByText('SO-E2E-PROFIT-0001', { exact: true })).toBeVisible();
       await expect(page.getByText('本页为动态预估，不是会计利润')).toBeVisible();
-      await expect(page.getByText('CNY 33.10', { exact: true })).toBeVisible();
+      const contributionAndProfitCells = page.getByRole('cell', { name: 'CNY 30.10', exact: true });
+      await expect(contributionAndProfitCells).toHaveCount(2);
+      await expect(contributionAndProfitCells.first()).toBeVisible();
+      await expect(contributionAndProfitCells.last()).toBeVisible();
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
       await expectTableFilterBarAlignedLeft(page);
@@ -38,6 +41,8 @@ test.describe('@smoke order profit estimates', () => {
       await expect(drawer).toContainText('SO-E2E-PROFIT-0001');
       await expect(drawer).toContainText('平台结算账单');
       await expect(drawer).toContainText('履约成本快照');
+      await expect(drawer).toContainText('广告费用账');
+      await expect(drawer.getByRole('button', { name: '广告费用归属' })).toBeVisible();
       await expect(drawer).toContainText('E2E 蓝牙耳机');
       await expect(page.locator('.ant-drawer-content-wrapper:visible').first()).toHaveCSS(
         'transform',
