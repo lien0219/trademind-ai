@@ -1,6 +1,6 @@
 module github.com/trademind-ai/trademind/backend
 
-go 1.25.0
+go 1.26.0
 
 exclude google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
 
@@ -33,7 +33,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0
 	golang.org/x/crypto v0.51.0
 	golang.org/x/image v0.40.0
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.23.0
 	golang.org/x/text v0.37.0
 	golang.org/x/time v0.15.0
 	gorm.io/datatypes v1.2.7
