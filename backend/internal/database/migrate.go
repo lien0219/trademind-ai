@@ -230,6 +230,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&productpublish.ProductPublicationSKU{},
 		&order.Order{},
 		&order.OrderItem{},
+		&order.OrderShipment{},
 		&order.OrderItemCostSnapshot{},
 		&order.OrderItemSKUMatch{},
 		&order.FulfillmentWave{},

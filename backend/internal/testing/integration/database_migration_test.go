@@ -127,6 +127,7 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 		"products",
 		"product_skus",
 		"product_publish_tasks",
+		"order_shipments",
 		"inventory_sync_tasks",
 		"image_task_items",
 		"inventory_sync_runs",

@@ -312,6 +312,7 @@ export async function expectNoFatalConsoleErrors(consoleGuard: ConsoleGuard) {
 
 async function expectOverlayWithinViewport(locator: Locator, page: Page, label: string) {
   await expect(locator, `${label} visible`).toBeVisible();
+  await expect(locator, `${label} fully within viewport`).toBeInViewport({ ratio: 1 });
   const box = await locator.boundingBox();
   const viewport = page.viewportSize();
   expect(box, `${label} bounding box`).not.toBeNull();

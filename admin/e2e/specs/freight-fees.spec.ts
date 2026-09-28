@@ -34,7 +34,7 @@ test.describe('@smoke carrier freight fee ledger', () => {
       await admin.goto(`/finance/freight-fees?drawer=freight-fee&id=${E2E_FREIGHT_FEE_CHARGE_ID}`);
       await expect(page.getByText('承运商运费账单', { exact: true }).first()).toBeVisible();
       await expect(page.getByText(e2eFreightFeeCharge.orderNo, { exact: true }).first()).toBeVisible();
-      await expect(page.getByText('CNY 5.25', { exact: true })).toBeVisible();
+      await expect(page.getByRole('table').first().getByRole('cell', { name: 'CNY 5.25', exact: true })).toBeVisible();
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
       await expect(page.getByRole('dialog')).toContainText('TRACK-E2E-FREIGHT-1');
@@ -68,8 +68,10 @@ test.describe('@smoke carrier freight fee ledger', () => {
     await admin.goto('/finance/freight-fees');
     await page.getByRole('button', { name: '导入账单' }).click();
     const dialog = page.getByRole('dialog').first();
-    await dialog.getByPlaceholder('选择账单所属店铺').click();
-    await page.locator('.ant-select-dropdown:visible').getByText('E2E 抖店测试店铺 · 抖店', { exact: true }).click();
+    const shopSelect = dialog.getByRole('combobox');
+    await shopSelect.click();
+    await shopSelect.press('ArrowDown');
+    await shopSelect.press('Enter');
     await dialog.locator('input[type="file"]').setInputFiles({ name: 'freight.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
     await dialog.getByRole('button', { name: '校验预览' }).click();
     await expect(dialog.getByText(/校验通过/)).toBeVisible();
@@ -108,10 +110,10 @@ test.describe('@smoke carrier freight fee ledger', () => {
 
     await admin.goto(`/finance/freight-fees?drawer=freight-fee&id=${E2E_FREIGHT_FEE_CHARGE_ID}`);
     await page.getByRole('button', { name: '追加调整' }).click();
-    const adjustmentDialog = page.getByRole('dialog').last();
+    const adjustmentDialog = page.getByRole('dialog', { name: '追加运费调整' });
     await adjustmentDialog.getByRole('spinbutton', { name: /调整金额/ }).fill('25');
     await adjustmentDialog.getByRole('textbox', { name: '更正原因' }).fill('E2E 修正包裹附加费');
-    await adjustmentDialog.getByRole('button', { name: '追加' }).click();
+    await adjustmentDialog.getByRole('button').last().click();
     await expect(page.getByText('调整已追加')).toBeVisible();
     await admin.writeGuard.expectRequestCount('freight-fee-adjust', 1);
     expect(admin.writeGuard.calls('freight-fee-adjust')[0].postDataJSON).toMatchObject({
@@ -120,9 +122,9 @@ test.describe('@smoke carrier freight fee ledger', () => {
     });
 
     await page.getByRole('button', { name: /冲\s*正$/ }).click();
-    const reversalDialog = page.getByRole('dialog').last();
+    const reversalDialog = page.getByRole('dialog', { name: '冲正调整' });
     await reversalDialog.getByRole('textbox', { name: '更正原因' }).fill('E2E 撤销错误调整');
-    await reversalDialog.getByRole('button', { name: '确认冲正' }).click();
+    await reversalDialog.getByRole('button').last().click();
     await expect(page.getByText('冲正已追加')).toBeVisible();
     await admin.writeGuard.expectRequestCount('freight-fee-reverse', 1);
     expect(admin.writeGuard.calls('freight-fee-reverse')[0].postDataJSON).toMatchObject({

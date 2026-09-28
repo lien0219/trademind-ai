@@ -387,7 +387,7 @@ export default function FreightFeesPage() {
           title="导入承运商运费账单"
           open={importOpen}
           width={1000}
-          destroyOnClose
+          destroyOnHidden
           closable={!submitting}
           keyboard={!submitting}
           maskClosable={!submitting}
@@ -444,7 +444,7 @@ export default function FreightFeesPage() {
           </Space>
         </Modal>
 
-        <Drawer title="运费账单详情" open={drawer.open} width="min(720px, 100vw)" onClose={drawer.closeDrawer} destroyOnClose>
+        <Drawer title="运费账单详情" open={drawer.open} width="min(720px, 100vw)" onClose={drawer.closeDrawer} destroyOnHidden>
           {detailError ? <ErrorAlert title={detailError} actionHint={drawer.id ? <Button icon={<ReloadOutlined />} onClick={() => { const id = drawer.id; if (id) void loadDetail(id); }}>重新加载</Button> : undefined} /> : null}
           {detailLoading ? <div className="freight-fee-detail-loading">加载中…</div> : null}
           {detail ? (
@@ -499,7 +499,6 @@ export default function FreightFeesPage() {
           okText={adjustmentMode === 'adjust' ? '追加' : '确认冲正'}
           onCancel={() => { if (!adjusting) setAdjustmentOpen(false); }}
           onOk={() => adjustmentForm.submit()}
-          destroyOnClose
         >
           <Form form={adjustmentForm} layout="vertical" onFinish={(values) => void submitAdjustment(values)}>
             {adjustmentMode === 'adjust' ? (
