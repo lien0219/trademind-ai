@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	FormulaVersion = "order_profit_estimate_v5"
+	FormulaVersion = "order_profit_estimate_v6"
 
 	StatusComplete = "complete"
 	StatusPending  = "pending"
@@ -51,6 +51,7 @@ type FormulaDescriptor struct {
 	RevenueSource        string `json:"revenueSource"`
 	ProductCostSource    string `json:"productCostSource"`
 	FreightSource        string `json:"freightSource"`
+	FreightActualSource  string `json:"freightActualSource"`
 	RefundSource         string `json:"refundSource"`
 	PlatformFeeSource    string `json:"platformFeeSource"`
 	AdvertisingFeeSource string `json:"advertisingFeeSource"`
@@ -88,6 +89,25 @@ type WarehouseFeeFact struct {
 
 type WarehouseFeeReader interface {
 	ListWarehouseFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]WarehouseFeeFact, error)
+}
+
+type FreightFeeFact struct {
+	OrderID             uuid.UUID
+	ChargeIDs           []uuid.UUID
+	ImportIDs           []uuid.UUID
+	AdjustmentIDs       []uuid.UUID
+	AmountMinor         int64
+	Currency            string
+	Status              string
+	ShipmentCount       int
+	BilledShipmentCount int
+	SourceAt            time.Time
+	ReasonCode          string
+	Reason              string
+}
+
+type FreightFeeReader interface {
+	ListFreightFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]FreightFeeFact, error)
 }
 
 type AdvertisingFeeFact struct {
@@ -148,6 +168,11 @@ type RelatedFacts struct {
 	AdvertisingFeeAdjustmentIDs []uuid.UUID `json:"advertisingFeeAdjustmentIds"`
 	WarehouseFeeSnapshotID      *uuid.UUID  `json:"warehouseFeeSnapshotId,omitempty"`
 	WarehouseFeeAdjustmentIDs   []uuid.UUID `json:"warehouseFeeAdjustmentIds"`
+	FreightFeeChargeIDs         []uuid.UUID `json:"freightFeeChargeIds"`
+	FreightFeeImportIDs         []uuid.UUID `json:"freightFeeImportIds"`
+	FreightFeeAdjustmentIDs     []uuid.UUID `json:"freightFeeAdjustmentIds"`
+	FreightShipmentCount        int         `json:"freightShipmentCount"`
+	FreightBilledShipmentCount  int         `json:"freightBilledShipmentCount"`
 }
 
 type OrderProfit struct {
@@ -220,11 +245,12 @@ func formulaDescriptor() FormulaDescriptor {
 		Version:              FormulaVersion,
 		RevenueSource:        "orders.total_amount converted exactly to the currency minor unit",
 		ProductCostSource:    "immutable fulfillment cost snapshots for fulfilled orders; current active supplier catalog estimates for unfulfilled orders only",
-		FreightSource:        "latest confirmed local freight quote on one non-cancelled fulfillment wave",
+		FreightSource:        "latest confirmed local freight quote unless a complete, currency-consistent carrier bill covers every current shipment",
+		FreightActualSource:  "confirmed carrier invoice facts with full shipment coverage; partial, mismatched, or invalid facts do not replace the local estimate",
 		RefundSource:         "succeeded local refund execution facts",
 		PlatformFeeSource:    "matched immutable platform settlement transactions",
 		AdvertisingFeeSource: "confirmed shop-local-day equal paid-order allocations plus append-only adjustments",
 		WarehouseFeeSource:   "confirmed immutable warehouse operation fee snapshots plus append-only adjustments",
-		MissingFeeBehavior:   "unmatched platform fees and missing, settlement-covered, or invalid advertising and warehouse fees remain null and are never treated as zero",
+		MissingFeeBehavior:   "unmatched platform fees and missing, settlement-covered, or invalid advertising and warehouse fees remain null; incomplete carrier bills leave the local freight estimate marked pending",
 	}
 }

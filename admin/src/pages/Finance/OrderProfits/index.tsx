@@ -130,6 +130,7 @@ function sourceLabel(source: string) {
     current_supplier_catalog_estimate: '当前目录估算',
     fulfillment_cost_snapshot: '履约成本快照',
     confirmed_local_freight_quote: '已确认本地运费试算',
+    carrier_freight_ledger: '承运商运费实账',
     refund_execution_ledger: '退款执行事实',
     platform_settlement: '平台结算',
     platform_settlement_ledger: '平台结算账单',
@@ -656,6 +657,20 @@ export default function OrderProfitsPage() {
                   >
                     仓库操作费
                   </Button>
+                ) : null}
+                {detail.related.freightFeeChargeIds.map((id, index) => (
+                  <Button
+                    key={id}
+                    icon={<LinkOutlined />}
+                    onClick={() => history.push(`/finance/freight-fees?drawer=freight-fee&id=${encodeURIComponent(id)}`)}
+                  >
+                    承运商运费账单 {index + 1}
+                  </Button>
+                ))}
+                {detail.related.freightShipmentCount > 0 && detail.related.freightBilledShipmentCount < detail.related.freightShipmentCount ? (
+                  <Typography.Text type="warning">
+                    运费账单已覆盖 {detail.related.freightBilledShipmentCount}/{detail.related.freightShipmentCount} 个包裹；当前利润仍使用本地估价。
+                  </Typography.Text>
                 ) : null}
               </Space>
             </Space>

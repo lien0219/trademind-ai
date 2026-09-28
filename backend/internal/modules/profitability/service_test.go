@@ -170,7 +170,7 @@ func TestCalculateOrderProfitConsumesOnlyMatchedSettlementFee(t *testing.T) {
 	if row.Related.SettlementReconciliationID == nil || *row.Related.SettlementReconciliationID != reconciliationID || len(row.Related.SettlementTransactionIDs) != 1 {
 		t.Fatalf("related settlement facts = %#v", row.Related)
 	}
-	if row.FormulaVersion != "order_profit_estimate_v5" {
+	if row.FormulaVersion != "order_profit_estimate_v6" {
 		t.Fatalf("formula version = %s", row.FormulaVersion)
 	}
 }

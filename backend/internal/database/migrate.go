@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/freightfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysync"
@@ -289,6 +290,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&advertisingfee.Spend{},
 		&advertisingfee.Allocation{},
 		&advertisingfee.Adjustment{},
+		&freightfee.Import{},
+		&freightfee.Charge{},
+		&freightfee.Adjustment{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
 		&shop.PlatformCategory{},

@@ -463,6 +463,11 @@ export default [
         name: '广告费用归属',
         component: './Finance/AdvertisingFees',
       },
+      {
+        path: '/finance/freight-fees',
+        name: '承运商运费账单',
+        component: './Finance/FreightFees',
+      },
     ],
   },
   {

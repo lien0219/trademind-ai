@@ -18,6 +18,7 @@ import {
 import { E2E_ALLOCATION_ORDER_ID, e2eWarehouseAllocation } from '../mocks/order-warehouse-allocation';
 import {
   E2E_ORDER_PROFIT_ORDER_ID,
+  E2E_ORDER_PROFIT_FORMULA_VERSION,
   e2eOrderProfit,
   e2eOrderProfitDetail,
 } from '../mocks/order-profits';
@@ -111,7 +112,10 @@ test.describe('@contract API envelope contracts', () => {
         pageSize: 20,
         total: 1,
         totalPages: 1,
-        formula: { version: 'order_profit_estimate_v5' },
+        formula: {
+          version: E2E_ORDER_PROFIT_FORMULA_VERSION,
+          freightActualSource: 'confirmed carrier invoice facts with full shipment coverage; partial, mismatched, or invalid facts do not replace the local estimate',
+        },
       }),
     );
     expect(await fetchApi(page, `/api/v1/order-profits/${E2E_ORDER_PROFIT_ORDER_ID}`)).toEqual(

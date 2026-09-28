@@ -36,6 +36,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/freightfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -99,6 +100,10 @@ type advertisingFeeProfitabilityAdapter struct {
 	svc *advertisingfee.Service
 }
 
+type freightFeeProfitabilityAdapter struct {
+	svc *freightfee.Service
+}
+
 func (a settlementProfitabilityAdapter) ListPlatformFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.PlatformFeeFact, error) {
 	result := make(map[uuid.UUID]profitability.PlatformFeeFact)
 	if a.svc == nil {
@@ -153,6 +158,27 @@ func (a advertisingFeeProfitabilityAdapter) ListAdvertisingFees(ctx context.Cont
 			AdjustmentIDs: append([]uuid.UUID(nil), fact.AdjustmentIDs...), AmountMinor: fact.AmountMinor,
 			Currency: fact.Currency, Status: fact.Status, SourceAt: fact.SourceAt,
 			ReasonCode: fact.ReasonCode, Reason: fact.Reason,
+		}
+	}
+	return result, nil
+}
+
+func (a freightFeeProfitabilityAdapter) ListFreightFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.FreightFeeFact, error) {
+	result := make(map[uuid.UUID]profitability.FreightFeeFact)
+	if a.svc == nil {
+		return result, nil
+	}
+	facts, err := a.svc.ProfitabilityFeesForOrders(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	for orderID, fact := range facts {
+		result[orderID] = profitability.FreightFeeFact{
+			OrderID: fact.OrderID, ChargeIDs: append([]uuid.UUID(nil), fact.ChargeIDs...),
+			ImportIDs: append([]uuid.UUID(nil), fact.ImportIDs...), AdjustmentIDs: append([]uuid.UUID(nil), fact.AdjustmentIDs...),
+			AmountMinor: fact.AmountMinor, Currency: fact.Currency, Status: fact.Status,
+			ShipmentCount: fact.ShipmentCount, BilledShipmentCount: fact.BilledShipmentCount,
+			SourceAt: fact.SourceAt, ReasonCode: fact.ReasonCode, Reason: fact.Reason,
 		}
 	}
 	return result, nil
@@ -531,7 +557,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	warehouseFeeH := &warehousefee.Handler{Svc: warehouseFeeSvc, OpLog: opLogSvc}
 	advertisingFeeSvc := &advertisingfee.Service{DB: dep.DB}
 	advertisingFeeH := &advertisingfee.Handler{Svc: advertisingFeeSvc, OpLog: opLogSvc}
-	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}, AdvertisingFees: advertisingFeeProfitabilityAdapter{svc: advertisingFeeSvc}, WarehouseFees: warehouseFeeProfitabilityAdapter{svc: warehouseFeeSvc}}
+	freightFeeSvc := &freightfee.Service{DB: dep.DB}
+	freightFeeH := &freightfee.Handler{Svc: freightFeeSvc, OpLog: opLogSvc}
+	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}, AdvertisingFees: advertisingFeeProfitabilityAdapter{svc: advertisingFeeSvc}, WarehouseFees: warehouseFeeProfitabilityAdapter{svc: warehouseFeeSvc}, FreightFees: freightFeeProfitabilityAdapter{svc: freightFeeSvc}}
 	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}
 
 	orderSyncSvc := &ordersync.Service{
@@ -772,6 +800,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	settlement.Register(authed, settlementH)
 	warehousefee.Register(authed, warehouseFeeH)
 	advertisingfee.Register(authed, advertisingFeeH)
+	freightfee.Register(authed, freightFeeH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)

@@ -27,6 +27,7 @@ type Service struct {
 	PlatformFees    PlatformFeeReader
 	AdvertisingFees AdvertisingFeeReader
 	WarehouseFees   WarehouseFeeReader
+	FreightFees     FreightFeeReader
 	Clock           func() time.Time
 }
 
@@ -214,6 +215,13 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 			return nil, nil, err
 		}
 	}
+	freightFees := make(map[uuid.UUID]FreightFeeFact)
+	if s.FreightFees != nil {
+		freightFees, err = s.FreightFees.ListFreightFees(ctx, tenantID, orderIDs)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	costsBySKU := make(map[uuid.UUID][]SupplierCostFact)
 	for _, row := range costs {
 		costsBySKU[row.ProductSKUID] = append(costsBySKU[row.ProductSKUID], row)
@@ -248,7 +256,12 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 		if hasWarehouseFee {
 			warehouseFeePtr = &warehouseFee
 		}
-		profit, lines := calculateOrder(order, itemsByOrder[order.ID], costsBySKU, snapshotsByItem, freightByOrder[order.ID], refundByOrder[order.ID], platformFeePtr, advertisingFeePtr, warehouseFeePtr, calculatedAt)
+		freightFee, hasFreightFee := freightFees[order.ID]
+		var freightFeePtr *FreightFeeFact
+		if hasFreightFee {
+			freightFeePtr = &freightFee
+		}
+		profit, lines := calculateOrderWithFreightFee(order, itemsByOrder[order.ID], costsBySKU, snapshotsByItem, freightByOrder[order.ID], refundByOrder[order.ID], platformFeePtr, advertisingFeePtr, warehouseFeePtr, freightFeePtr, calculatedAt)
 		profits = append(profits, profit)
 		linesByOrder[order.ID] = lines
 	}
@@ -256,6 +269,10 @@ func (s *Service) calculate(ctx context.Context, tenantID int64, orders []OrderF
 }
 
 func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, snapshotsByItem map[uuid.UUID][]OrderItemCostSnapshotFact, freight []FreightFact, refunds []RefundFact, platformFeeFact *PlatformFeeFact, advertisingFeeFact *AdvertisingFeeFact, warehouseFeeFact *WarehouseFeeFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
+	return calculateOrderWithFreightFee(order, items, costsBySKU, snapshotsByItem, freight, refunds, platformFeeFact, advertisingFeeFact, warehouseFeeFact, nil, calculatedAt)
+}
+
+func calculateOrderWithFreightFee(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.UUID][]SupplierCostFact, snapshotsByItem map[uuid.UUID][]OrderItemCostSnapshotFact, freight []FreightFact, refunds []RefundFact, platformFeeFact *PlatformFeeFact, advertisingFeeFact *AdvertisingFeeFact, warehouseFeeFact *WarehouseFeeFact, freightFeeFact *FreightFeeFact, calculatedAt time.Time) (OrderProfit, []ProductCostLine) {
 	currency := strings.ToUpper(strings.TrimSpace(order.Currency))
 	issues := make([]Issue, 0)
 	revenue := component(currency, ComponentAvailable, "order_total", &order.UpdatedAt)
@@ -271,6 +288,11 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 	productCost, costLines, costIssues := calculateProductCost(order, currency, items, costsBySKU, snapshotsByItem)
 	issues = append(issues, costIssues...)
 	freightComponent, freightWaveID, freightIssues := calculateFreight(currency, freight)
+	freightComponent, freightFeeIssues := applyFreightFee(currency, freightComponent, freightFeeFact)
+	if freightComponent.Source == "carrier_freight_ledger" {
+		freightIssues = nil
+	}
+	freightIssues = append(freightIssues, freightFeeIssues...)
 	issues = append(issues, freightIssues...)
 	refundComponent, refundIDs, refundIssues := calculateRefunds(currency, refunds)
 	issues = append(issues, refundIssues...)
@@ -319,9 +341,85 @@ func calculateOrder(order OrderFact, items []OrderItemFact, costsBySKU map[uuid.
 			SettlementReconciliationID: platformFeeReconciliationID(platformFeeFact), SettlementTransactionIDs: platformFeeTransactionIDs(platformFeeFact),
 			AdvertisingFeeImportID: advertisingFeeImportID(advertisingFeeFact), AdvertisingFeeSpendID: advertisingFeeSpendID(advertisingFeeFact),
 			AdvertisingFeeAllocationID: advertisingFeeAllocationID(advertisingFeeFact), AdvertisingFeeAdjustmentIDs: advertisingFeeAdjustmentIDs(advertisingFeeFact),
-			WarehouseFeeSnapshotID: warehouseFeeSnapshotID(warehouseFeeFact), WarehouseFeeAdjustmentIDs: warehouseFeeAdjustmentIDs(warehouseFeeFact)},
+			WarehouseFeeSnapshotID: warehouseFeeSnapshotID(warehouseFeeFact), WarehouseFeeAdjustmentIDs: warehouseFeeAdjustmentIDs(warehouseFeeFact),
+			FreightFeeChargeIDs: freightFeeChargeIDs(freightFeeFact), FreightFeeImportIDs: freightFeeImportIDs(freightFeeFact),
+			FreightFeeAdjustmentIDs: freightFeeAdjustmentIDs(freightFeeFact),
+			FreightShipmentCount:    freightFeeShipmentCount(freightFeeFact), FreightBilledShipmentCount: freightFeeBilledShipmentCount(freightFeeFact)},
 		OrderedAt: order.OrderedAt, CalculatedAt: calculatedAt, FormulaVersion: FormulaVersion,
 	}, costLines
+}
+
+func applyFreightFee(currency string, estimate MoneyComponent, fact *FreightFeeFact) (MoneyComponent, []Issue) {
+	if fact == nil || fact.Status == "" || fact.Status == "missing" {
+		return estimate, nil
+	}
+	if fact.Status == "confirmed" {
+		if fact.ShipmentCount < 1 || fact.BilledShipmentCount != fact.ShipmentCount || len(fact.ChargeIDs) != fact.BilledShipmentCount {
+			fact.Status, fact.ReasonCode, fact.Reason = "blocked", "freight_shipment_coverage_invalid", "运费实账未完整覆盖当前全部包裹"
+		} else if strings.ToUpper(strings.TrimSpace(fact.Currency)) != currency {
+			fact.Status, fact.ReasonCode, fact.Reason = "mismatch", "freight_currency_mismatch", "承运商运费实账币种与订单币种不一致"
+		} else if fact.AmountMinor < 0 || !jsonSafeInteger(fact.AmountMinor) {
+			fact.Status, fact.ReasonCode, fact.Reason = "blocked", "freight_amount_invalid", "承运商运费实账金额无效"
+		} else {
+			estimate.AmountMinor = int64Pointer(fact.AmountMinor)
+			estimate.KnownAmountMinor = fact.AmountMinor
+			estimate.Currency = currency
+			estimate.Status = ComponentAvailable
+			estimate.Source = "carrier_freight_ledger"
+			estimate.SourceAt = timeFactPointer(fact.SourceAt)
+			estimate.ReasonCode, estimate.Reason = "", ""
+			return estimate, nil
+		}
+	}
+	switch fact.Status {
+	case "pending":
+		estimate.Status = ComponentPending
+	case "mismatch":
+		estimate.Status = ComponentMismatch
+	case "blocked":
+		estimate.Status = ComponentBlocked
+	default:
+		estimate.Status = ComponentBlocked
+		fact.ReasonCode, fact.Reason = "freight_fact_status_invalid", "承运商运费实账状态无效"
+	}
+	estimate.ReasonCode = nonEmpty(fact.ReasonCode, "freight_billing_unresolved")
+	estimate.Reason = nonEmpty(fact.Reason, "承运商运费账单尚未完整对账；利润继续使用本地运费估价")
+	return estimate, []Issue{{Code: estimate.ReasonCode, Component: "freight", Message: estimate.Reason}}
+}
+
+func freightFeeChargeIDs(fact *FreightFeeFact) []uuid.UUID {
+	if fact == nil || len(fact.ChargeIDs) == 0 {
+		return []uuid.UUID{}
+	}
+	return append([]uuid.UUID(nil), fact.ChargeIDs...)
+}
+
+func freightFeeImportIDs(fact *FreightFeeFact) []uuid.UUID {
+	if fact == nil || len(fact.ImportIDs) == 0 {
+		return []uuid.UUID{}
+	}
+	return append([]uuid.UUID(nil), fact.ImportIDs...)
+}
+
+func freightFeeAdjustmentIDs(fact *FreightFeeFact) []uuid.UUID {
+	if fact == nil || len(fact.AdjustmentIDs) == 0 {
+		return []uuid.UUID{}
+	}
+	return append([]uuid.UUID(nil), fact.AdjustmentIDs...)
+}
+
+func freightFeeShipmentCount(fact *FreightFeeFact) int {
+	if fact == nil {
+		return 0
+	}
+	return fact.ShipmentCount
+}
+
+func freightFeeBilledShipmentCount(fact *FreightFeeFact) int {
+	if fact == nil {
+		return 0
+	}
+	return fact.BilledShipmentCount
 }
 
 func calculateAdvertisingFee(currency string, fact *AdvertisingFeeFact) (MoneyComponent, []Issue) {

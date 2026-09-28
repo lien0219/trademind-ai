@@ -50,6 +50,9 @@ const (
 	PermAdvertisingFeeView   = "advertising_fee.view"
 	PermAdvertisingFeeImport = "advertising_fee.import"
 	PermAdvertisingFeeManage = "advertising_fee.manage"
+	PermFreightFeeView       = "freight_fee.view"
+	PermFreightFeeImport     = "freight_fee.import"
+	PermFreightFeeManage     = "freight_fee.manage"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -133,6 +136,9 @@ var allPermissions = []string{
 	PermAdvertisingFeeView,
 	PermAdvertisingFeeImport,
 	PermAdvertisingFeeManage,
+	PermFreightFeeView,
+	PermFreightFeeImport,
+	PermFreightFeeManage,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -193,6 +199,7 @@ var reviewerPermissions = []string{
 	PermSettlementExport,
 	PermWarehouseFeeView,
 	PermAdvertisingFeeView,
+	PermFreightFeeView,
 }
 
 var operatorPermissions = []string{
@@ -251,6 +258,9 @@ var operatorPermissions = []string{
 	PermAdvertisingFeeView,
 	PermAdvertisingFeeImport,
 	PermAdvertisingFeeManage,
+	PermFreightFeeView,
+	PermFreightFeeImport,
+	PermFreightFeeManage,
 }
 
 var readonlyPermissions = []string{
@@ -279,6 +289,7 @@ var readonlyPermissions = []string{
 	PermSettlementView,
 	PermWarehouseFeeView,
 	PermAdvertisingFeeView,
+	PermFreightFeeView,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

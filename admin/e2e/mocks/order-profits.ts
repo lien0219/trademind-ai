@@ -1,6 +1,7 @@
 import { ok } from './envelope';
 
 export const E2E_ORDER_PROFIT_ORDER_ID = 'e2e-order-profit-1';
+export const E2E_ORDER_PROFIT_FORMULA_VERSION = 'order_profit_estimate_v6';
 
 const available = (amountMinor: number, source: string, sourceAt: string) => ({
   amountMinor,
@@ -31,7 +32,7 @@ export const e2eOrderProfit = {
   components: {
     revenue: available(10000, 'order_total', '2026-09-05T02:00:00Z'),
     productCost: available(4000, 'fulfillment_cost_snapshot', '2026-09-05T03:05:00Z'),
-    freight: available(1000, 'confirmed_local_freight_quote', '2026-09-05T03:00:00Z'),
+    freight: available(1000, 'carrier_freight_ledger', '2026-09-05T03:00:00Z'),
     refund: available(500, 'refund_execution_ledger', '2026-09-05T04:00:00Z'),
     platformFee: available(1000, 'platform_settlement_ledger', '2026-09-05T05:00:00Z'),
     advertisingFee: available(300, 'advertising_fee_ledger', '2026-09-08T02:00:00Z'),
@@ -51,10 +52,15 @@ export const e2eOrderProfit = {
     advertisingFeeAdjustmentIds: ['e2e-advertising-fee-adjustment-1'],
     warehouseFeeSnapshotId: 'e2e-warehouse-fee-snapshot-1',
     warehouseFeeAdjustmentIds: ['e2e-warehouse-fee-adjustment-1'],
+    freightFeeChargeIds: ['e2e-freight-fee-charge-1'],
+    freightFeeImportIds: ['e2e-freight-fee-import-1'],
+    freightFeeAdjustmentIds: [],
+    freightShipmentCount: 1,
+    freightBilledShipmentCount: 1,
   },
   orderedAt: '2026-09-05T01:00:00Z',
   calculatedAt: '2026-09-06T01:00:00Z',
-  formulaVersion: 'order_profit_estimate_v5',
+  formulaVersion: E2E_ORDER_PROFIT_FORMULA_VERSION,
 };
 
 export const e2eOrderProfitDetail = {
@@ -95,15 +101,16 @@ export function orderProfitResponse(path: string) {
       totalPages: 1,
       calculatedAt: e2eOrderProfit.calculatedAt,
       formula: {
-        version: 'order_profit_estimate_v5',
-        revenueSource: 'orders.total_amount',
-        productCostSource: 'fulfilled snapshot or unfulfilled catalog estimate',
-        freightSource: 'confirmed local quote',
-        refundSource: 'succeeded refund execution',
+        version: E2E_ORDER_PROFIT_FORMULA_VERSION,
+        revenueSource: 'orders.total_amount converted exactly to the currency minor unit',
+        productCostSource: 'immutable fulfillment cost snapshots for fulfilled orders; current active supplier catalog estimates for unfulfilled orders only',
+        freightSource: 'latest confirmed local freight quote unless a complete, currency-consistent carrier bill covers every current shipment',
+        freightActualSource: 'confirmed carrier invoice facts with full shipment coverage; partial, mismatched, or invalid facts do not replace the local estimate',
+        refundSource: 'succeeded local refund execution facts',
         platformFeeSource: 'matched immutable platform settlement transactions',
         advertisingFeeSource: 'confirmed shop-local-day equal paid-order allocations plus append-only adjustments',
         warehouseFeeSource: 'confirmed immutable warehouse operation fee snapshots plus append-only adjustments',
-        missingFeeBehavior: 'missing fees remain null',
+        missingFeeBehavior: 'unmatched platform fees and missing, settlement-covered, or invalid advertising and warehouse fees remain null; incomplete carrier bills leave the local freight estimate marked pending',
       },
     });
   }

@@ -61,6 +61,11 @@ export type OrderProfit = {
     advertisingFeeAdjustmentIds: string[];
     warehouseFeeSnapshotId?: string;
     warehouseFeeAdjustmentIds: string[];
+    freightFeeChargeIds: string[];
+    freightFeeImportIds: string[];
+    freightFeeAdjustmentIds: string[];
+    freightShipmentCount: number;
+    freightBilledShipmentCount: number;
   };
   orderedAt?: string;
   calculatedAt: string;
@@ -101,6 +106,7 @@ export type OrderProfitFormula = {
   revenueSource: string;
   productCostSource: string;
   freightSource: string;
+  freightActualSource: string;
   refundSource: string;
   platformFeeSource: string;
   advertisingFeeSource: string;
