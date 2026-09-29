@@ -1,5 +1,5 @@
 # Collector — Playwright base image + pnpm workspace build (needs admin package.json for lockfile).
-FROM mcr.microsoft.com/playwright:v1.62.0-jammy
+FROM mcr.microsoft.com/playwright:v1.63.0-jammy
 
 USER root
 
