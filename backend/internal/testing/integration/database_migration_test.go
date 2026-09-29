@@ -7,11 +7,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/database"
+	"github.com/trademind-ai/trademind/backend/internal/modules/advertisingfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
+	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settlement"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehousefee"
 	"github.com/trademind-ai/trademind/backend/internal/testing/postgrestest"
 	"github.com/trademind-ai/trademind/backend/internal/testing/safeenv"
 )
@@ -121,6 +127,7 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 		"products",
 		"product_skus",
 		"product_publish_tasks",
+		"order_shipments",
 		"inventory_sync_tasks",
 		"image_task_items",
 		"inventory_sync_runs",
@@ -139,6 +146,26 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 		"production_scope_allowlists",
 		"production_rollout_policies",
 		"production_control_audit_events",
+		"purchase_returns",
+		"purchase_return_items",
+		"purchase_return_actions",
+		"sales_returns",
+		"refund_executions",
+		"refund_execution_events",
+		"sales_return_items",
+		"sales_return_actions",
+		"sales_return_inventory_effects",
+		"settlement_imports",
+		"settlement_transactions",
+		"order_item_cost_snapshots",
+		"warehouse_fee_rate_cards",
+		"warehouse_fee_rate_card_revisions",
+		"warehouse_fee_snapshots",
+		"warehouse_fee_adjustments",
+		"advertising_fee_imports",
+		"advertising_fee_spends",
+		"advertising_fee_allocations",
+		"advertising_fee_adjustments",
 	} {
 		require.Truef(t, db.Migrator().HasTable(table), "expected migrated table %s", table)
 	}
@@ -165,6 +192,32 @@ func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
 	}
 	require.True(t, db.Migrator().HasColumn(&inventory.InventorySyncTask{}, "publication_sku_id"))
 	require.False(t, db.Migrator().HasColumn(&inventory.InventorySyncTask{}, "publication_sk_uid"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturn{}, "ux_purchase_return_idempotency"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturnItem{}, "ux_purchase_return_receipt_item"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturnAction{}, "ux_purchase_return_action_event"))
+	require.True(t, db.Migrator().HasIndex(&procurement.PurchaseReturnAction{}, "ux_purchase_return_action_key"))
+	require.True(t, db.Migrator().HasIndex(&salesreturn.SalesReturn{}, "ux_sales_return_idempotency"))
+	require.True(t, db.Migrator().HasIndex(&salesreturn.SalesReturnItem{}, "ux_sales_return_order_item"))
+	require.True(t, db.Migrator().HasIndex(&salesreturn.SalesReturnAction{}, "ux_sales_return_action_event"))
+	require.True(t, db.Migrator().HasIndex(&salesreturn.SalesReturnAction{}, "ux_sales_return_action_key"))
+	require.True(t, db.Migrator().HasIndex(&settlement.Import{}, "ux_settlement_import_idempotency"))
+	require.True(t, db.Migrator().HasIndex(&settlement.Import{}, "ux_settlement_import_file"))
+	require.True(t, db.Migrator().HasIndex(&settlement.Transaction{}, "ux_settlement_external_transaction"))
+	require.True(t, db.Migrator().HasIndex(&order.OrderItemCostSnapshot{}, "ux_order_item_cost_snapshot"))
+	require.True(t, db.Migrator().HasIndex(&warehousefee.RateCard{}, "ux_warehouse_fee_rate_card_code"))
+	require.True(t, db.Migrator().HasIndex(&warehousefee.RateCardRevision{}, "ux_warehouse_fee_rate_revision"))
+	require.True(t, db.Migrator().HasIndex(&warehousefee.Snapshot{}, "ux_warehouse_fee_snapshot_order"))
+	require.True(t, db.Migrator().HasIndex(&warehousefee.Snapshot{}, "ux_warehouse_fee_snapshot_key"))
+	require.True(t, db.Migrator().HasIndex(&warehousefee.Adjustment{}, "ux_warehouse_fee_adjustment_key"))
+	require.True(t, db.Migrator().HasIndex(&warehousefee.Adjustment{}, "ux_warehouse_fee_adjustment_reversal"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Import{}, "ux_ad_fee_import_key"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Import{}, "ux_ad_fee_import_file"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Spend{}, "ux_ad_fee_spend_day"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Allocation{}, "ux_ad_fee_allocation_order"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Adjustment{}, "ux_ad_fee_adjustment_key"))
+	require.True(t, db.Migrator().HasIndex(&advertisingfee.Adjustment{}, "ux_ad_fee_adjustment_reversal"))
+	require.True(t, db.Migrator().HasColumn(&inventory.InventoryMovement{}, "before_damaged"))
+	require.True(t, db.Migrator().HasColumn(&inventory.InventoryMovement{}, "after_damaged"))
 }
 
 func TestAutoMigrateRenamesLegacyInventoryPublicationSKUColumnWithoutDataLoss(t *testing.T) {

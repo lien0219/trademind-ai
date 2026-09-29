@@ -14,6 +14,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   'priority',
   'platform',
   'shopId',
+  'warehouseId',
   'productId',
   'create',
   'tab',

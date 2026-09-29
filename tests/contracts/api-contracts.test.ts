@@ -1,161 +1,889 @@
-import { describe, expect, it } from 'vitest';
-import contracts from './api-contracts.json';
+import { describe, expect, it } from "vitest";
+import contracts from "./api-contracts.json";
 
-const routeKey = (endpoint: { method: string; path: string }) => `${endpoint.method} ${endpoint.path}`;
+const routeKey = (endpoint: { method: string; path: string }) =>
+  `${endpoint.method} ${endpoint.path}`;
 
-describe('TradeMind API contract registry', () => {
-  it('keeps the backend envelope explicit for frontend and E2E mocks', () => {
-    expect(contracts.envelope.success).toEqual(['code', 'message', 'data']);
-    expect(contracts.envelope.optional).toContain('traceId');
-    expect(contracts.envelope.errorCodeRule).toContain('non-zero');
+describe("TradeMind API contract registry", () => {
+  it("keeps the backend envelope explicit for frontend and E2E mocks", () => {
+    expect(contracts.envelope.success).toEqual(["code", "message", "data"]);
+    expect(contracts.envelope.optional).toContain("traceId");
+    expect(contracts.envelope.errorCodeRule).toContain("non-zero");
   });
 
-  it('covers core Admin production endpoints', () => {
+  it("covers core Admin production endpoints", () => {
     const routes = new Set(contracts.endpoints.map(routeKey));
 
     expect(routes).toEqual(
       new Set([
-        'GET /api/v1/auth/profile',
-        'GET /api/v1/image/providers',
-        'GET /api/v1/p10/status',
-        'POST /api/v1/operation-tasks',
-        'GET /api/v1/operation-tasks/:id',
-        'POST /api/v1/operation-tasks/:id/approve',
-        'POST /api/v1/operation-tasks/:id/execute',
-        'GET /api/v1/observability/overview',
-        'GET /api/v1/observability/alerts',
-        'POST /api/v1/observability/alerts/:id/ack',
-        'POST /api/v1/observability/alerts/:id/silence',
-        'GET /api/v1/products/:id',
-        'GET /api/v1/products/:id/readiness',
-        'GET /api/v1/products/:id/publications',
-        'GET /api/v1/product-publications/:id/douyin/sku-bindings',
-        'GET /api/v1/products/:id/publish-targets',
-        'POST /api/v1/products/:id/publish-targets/create-drafts',
-        'POST /api/v1/product-publish/batch-targets/create-drafts',
-        'POST /api/v1/product-publish/tasks/:id/retry',
-        'POST /api/v1/product-publish/tasks/:id/recover-douyin-draft',
-        'POST /api/v1/product-publish/batches/:id/retry-failed',
-        'POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft',
-        'POST /api/v1/products/:id/publish',
-        'GET /api/v1/customer/dashboard',
-        'GET /api/v1/customer/auto-reply-setting',
-        'PUT /api/v1/customer/auto-reply-setting',
-        'GET /api/v1/customer/shops/:shopId/auto-reply-policy',
-        'PUT /api/v1/customer/shops/:shopId/auto-reply-policy',
-        'GET /api/v1/customer/shops/:shopId/auto-reply-runs',
-        'POST /api/v1/customer/conversations/:id/send-platform-message',
+        "GET /api/v1/auth/profile",
+        "GET /api/v1/image/providers",
+        "GET /api/v1/warehouses",
+        "GET /api/v1/logistics/channels",
+        "POST /api/v1/logistics/channels",
+        "PUT /api/v1/logistics/channels/:id",
+        "GET /api/v1/logistics/rate-templates",
+        "POST /api/v1/logistics/rate-templates",
+        "PUT /api/v1/logistics/rate-templates/:id",
+        "POST /api/v1/warehouses",
+        "PUT /api/v1/warehouses/:id",
+        "POST /api/v1/products/:id/skus",
+        "PUT /api/v1/products/:id/skus/:skuId",
+        "PUT /api/v1/products/:id/skus/:skuId/stock-settings",
+        "DELETE /api/v1/products/:id/skus/:skuId",
+        "GET /api/v1/products/:id/skus/:skuId/warehouse-balances",
+        "POST /api/v1/products/:id/skus/:skuId/adjust-stock",
+        "GET /api/v1/inventory",
+        "GET /api/v1/inventory/warehouse-ledger/reconciliation",
+        "POST /api/v1/inventory/warehouse-ledger/migrate-legacy",
+        "GET /api/v1/inventory/warehouse-transfers",
+        "GET /api/v1/inventory/warehouse-transfers/:id",
+        "POST /api/v1/inventory/warehouse-transfers",
+        "POST /api/v1/inventory/warehouse-transfers/:id/submit",
+        "POST /api/v1/inventory/warehouse-transfers/:id/approve",
+        "POST /api/v1/inventory/warehouse-transfers/:id/dispatch",
+        "POST /api/v1/inventory/warehouse-transfers/:id/receive",
+        "POST /api/v1/inventory/warehouse-transfers/:id/cancel",
+        "GET /api/v1/inventory/stocktakes",
+        "GET /api/v1/inventory/stocktakes/:id",
+        "POST /api/v1/inventory/stocktakes",
+        "PATCH /api/v1/inventory/stocktakes/:id/items/:itemId",
+        "POST /api/v1/inventory/stocktakes/:id/submit",
+        "POST /api/v1/inventory/stocktakes/:id/approve",
+        "POST /api/v1/inventory/stocktakes/:id/post",
+        "POST /api/v1/inventory/stocktakes/:id/cancel",
+        "GET /api/v1/orders",
+        "GET /api/v1/order-profits",
+        "GET /api/v1/order-profits/:orderId",
+        "GET /api/v1/warehouse-fee-rate-cards",
+        "GET /api/v1/warehouse-fee-rate-cards/:id",
+        "POST /api/v1/warehouse-fee-rate-cards",
+        "PUT /api/v1/warehouse-fee-rate-cards/:id",
+        "GET /api/v1/warehouse-operation-fees/candidates",
+        "POST /api/v1/warehouse-operation-fees/preview",
+        "POST /api/v1/warehouse-operation-fees",
+        "GET /api/v1/warehouse-operation-fees",
+        "GET /api/v1/warehouse-operation-fees/:id",
+        "POST /api/v1/warehouse-operation-fees/:id/adjustments",
+        "POST /api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse",
+        "POST /api/v1/advertising-fee-imports/preview",
+        "POST /api/v1/advertising-fee-imports",
+        "GET /api/v1/advertising-fee-imports",
+        "GET /api/v1/advertising-fees",
+        "GET /api/v1/advertising-fees/:id",
+        "POST /api/v1/advertising-fees/:id/adjustments",
+        "POST /api/v1/advertising-fees/:id/adjustments/:adjustmentId/reverse",
+        "POST /api/v1/settlement-imports/preview",
+        "POST /api/v1/settlement-imports",
+        "GET /api/v1/settlement-reconciliation",
+        "GET /api/v1/settlement-reconciliation/:id",
+        "GET /api/v1/orders/warehouse-allocations",
+        "GET /api/v1/orders/:id/warehouse-allocation",
+        "POST /api/v1/orders/:id/warehouse-allocation",
+        "GET /api/v1/fulfillment-waves",
+        "GET /api/v1/fulfillment-waves/:id",
+        "GET /api/v1/fulfillment-waves/:id/documents",
+        "GET /api/v1/fulfillment-waves/:id/documents/:documentId",
+        "POST /api/v1/fulfillment-waves",
+        "POST /api/v1/fulfillment-waves/:id/documents",
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+        "POST /api/v1/fulfillment-waves/:id/start",
+        "GET /api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes",
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes/confirm",
+        "POST /api/v1/fulfillment-waves/:id/picks",
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
+        "POST /api/v1/fulfillment-waves/:id/complete",
+        "POST /api/v1/fulfillment-waves/:id/cancel",
+        "GET /api/v1/orders/fulfillment-reconciliation",
+        "POST /api/v1/orders",
+        "GET /api/v1/orders/:id",
+        "GET /api/v1/orders/:id/fulfillment-reconciliation",
+        "PUT /api/v1/orders/:id",
+        "POST /api/v1/orders/:id/deduct-inventory",
+        "POST /api/v1/orders/:id/restore-inventory",
+        "POST /api/v1/orders/:id/shipments",
+        "GET /api/v1/orders/:id/shipments",
+        "GET /api/v1/orders/:id/shipments/:shipmentId/events",
+        "POST /api/v1/orders/:id/shipments/:shipmentId/events",
+        "POST /api/v1/orders/:id/fulfill",
+        "POST /api/v1/orders/fulfillment-batch",
+        "GET /api/v1/orders/:id/inventory-effects",
+        "GET /api/v1/suppliers",
+        "POST /api/v1/suppliers",
+        "PUT /api/v1/suppliers/:id",
+        "GET /api/v1/suppliers/:id/skus",
+        "POST /api/v1/suppliers/:id/skus",
+        "GET /api/v1/purchase-orders",
+        "GET /api/v1/procurement/replenishment-suggestions",
+        "POST /api/v1/purchase-orders",
+        "POST /api/v1/purchase-orders/from-replenishment",
+        "GET /api/v1/purchase-orders/:id",
+        "POST /api/v1/purchase-orders/:id/submit",
+        "POST /api/v1/purchase-orders/:id/approve",
+        "POST /api/v1/purchase-orders/:id/cancel",
+        "POST /api/v1/purchase-orders/:id/close",
+        "POST /api/v1/purchase-orders/:id/receipts",
+        "GET /api/v1/purchase-orders/:id/returnable-receipt-items",
+        "GET /api/v1/purchase-returns",
+        "POST /api/v1/purchase-returns",
+        "GET /api/v1/purchase-returns/:id",
+        "POST /api/v1/purchase-returns/:id/submit",
+        "POST /api/v1/purchase-returns/:id/approve",
+        "POST /api/v1/purchase-returns/:id/complete",
+        "POST /api/v1/purchase-returns/:id/cancel",
+        "GET /api/v1/refund-executions",
+        "GET /api/v1/refund-executions/:id",
+        "POST /api/v1/sales-returns/:id/refund-execution",
+        "POST /api/v1/refund-executions/:id/result",
+        "POST /api/v1/refund-executions/:id/confirm-from-platform",
+        "POST /api/v1/refund-executions/:id/cancel",
+        "GET /api/v1/p10/status",
+        "POST /api/v1/operation-tasks",
+        "GET /api/v1/operation-tasks/:id",
+        "POST /api/v1/operation-tasks/:id/approve",
+        "POST /api/v1/operation-tasks/:id/execute",
+        "GET /api/v1/observability/overview",
+        "GET /api/v1/observability/alerts",
+        "POST /api/v1/observability/alerts/:id/ack",
+        "POST /api/v1/observability/alerts/:id/silence",
+        "GET /api/v1/products/:id",
+        "GET /api/v1/products/:id/readiness",
+        "GET /api/v1/products/:id/publications",
+        "GET /api/v1/product-publications/:id/douyin/sku-bindings",
+        "GET /api/v1/products/:id/publish-targets",
+        "POST /api/v1/products/:id/publish-targets/create-drafts",
+        "POST /api/v1/product-publish/batch-targets/create-drafts",
+        "POST /api/v1/product-publish/tasks/:id/retry",
+        "POST /api/v1/product-publish/tasks/:id/recover-douyin-draft",
+        "POST /api/v1/product-publish/batches/:id/retry-failed",
+        "POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft",
+        "POST /api/v1/products/:id/publish",
+        "GET /api/v1/customer/dashboard",
+        "GET /api/v1/customer/auto-reply-setting",
+        "PUT /api/v1/customer/auto-reply-setting",
+        "GET /api/v1/customer/shops/:shopId/auto-reply-policy",
+        "PUT /api/v1/customer/shops/:shopId/auto-reply-policy",
+        "GET /api/v1/customer/shops/:shopId/auto-reply-runs",
+        "POST /api/v1/customer/conversations/:id/send-platform-message",
       ]),
     );
   });
 
-  it('defines payload/query contracts for state-changing publish APIs', () => {
-    const createDraft = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft');
-    const publish = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/products/:id/publish');
-    const readiness = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/products/:id/readiness');
+  it("defines ERP master data, state transition, and idempotent receipt contracts", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
 
-    expect(createDraft?.requestBody).toEqual(['shopId', 'publishMode', 'force']);
-    expect(publish?.requestBody).toEqual(['shopId', 'options', 'force']);
-    expect(readiness?.query).toEqual(['platform', 'shopId', 'mode']);
-  });
-
-  it('keeps Douyin writes exclusive to approved operation tasks', () => {
-    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key) as {
-      fixedError?: { httpStatus: number; dataErrorCode: string };
-      douyinPolicy?: string;
-    } | undefined;
-    expect(endpoint('POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft')?.fixedError).toEqual({
-      httpStatus: 409,
-      dataErrorCode: 'DOUYIN_OPERATION_TASK_REQUIRED',
-    });
-    expect(endpoint('POST /api/v1/products/:id/publish')?.douyinPolicy).toBe('reject_before_task_write');
-    expect(endpoint('POST /api/v1/products/:id/publish-targets/create-drafts')?.douyinPolicy).toBe('reject_entire_request_before_write');
-    expect(endpoint('POST /api/v1/product-publish/batch-targets/create-drafts')?.douyinPolicy).toBe('reject_entire_request_before_idempotency_or_batch_write');
-    expect(endpoint('POST /api/v1/product-publish/tasks/:id/retry')?.douyinPolicy).toBe('reject_without_task_state_change');
-    expect(endpoint('POST /api/v1/product-publish/batches/:id/retry-failed')?.douyinPolicy).toBe('reject_entire_batch_without_task_state_change');
-  });
-
-  it('requires fail-closed customer auto-reply and idempotent send fields', () => {
-    const setting = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/customer/auto-reply-setting');
-    const policy = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/customer/shops/:shopId/auto-reply-policy');
-    const send = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/customer/conversations/:id/send-platform-message');
-
-    expect(setting?.requestBody).toEqual(['messageSyncEnabled', 'autoReplyEnabled', 'pollIntervalSeconds']);
-    expect(policy?.requestBody).toEqual([
-      'enabled',
-      'tone',
-      'shopPolicy',
-      'maxReplyRunes',
-      'maxRepliesPerHour',
-      'requireOrderContext',
-      'lowRiskOnly',
+    expect(endpoint("POST /api/v1/warehouses")?.requestBody).toEqual([
+      "code",
+      "name",
+      "isDefault",
     ]);
-    expect(send?.requestBody).toEqual(['reply', 'clientMessageId', 'suggestionId']);
+    expect(endpoint("PUT /api/v1/warehouses/:id")?.requestBody).toEqual([
+      "name",
+      "status",
+      "isDefault",
+    ]);
+    expect(endpoint("GET /api/v1/suppliers/:id/skus")?.requiredPermission).toBe(
+      "supplier.view",
+    );
+    expect(endpoint("POST /api/v1/suppliers/:id/skus")?.requestBody).toEqual([
+      "productSkuId",
+      "supplierSkuCode",
+      "unitCostMinor",
+      "currency",
+      "minOrderQty",
+      "leadTimeDays",
+    ]);
+    expect(endpoint("POST /api/v1/purchase-orders")?.requestBody).toEqual([
+      "idempotencyKey",
+      "supplierId",
+      "warehouseId",
+      "currency",
+      "remark",
+      "items",
+    ]);
+    expect(
+      endpoint("POST /api/v1/purchase-orders/:id/approve")?.requiredPermission,
+    ).toBe("procurement.approve");
+    expect(
+      endpoint("POST /api/v1/purchase-orders/:id/receipts")?.requestBody,
+    ).toEqual(["expectedRevision", "idempotencyKey", "items"]);
+    expect(
+      endpoint("POST /api/v1/purchase-orders/:id/receipts")?.requiredPermission,
+    ).toBe("procurement.receive");
   });
 
-  it('defines the reviewed production draft operation task contract', () => {
-    const runtimeStatus = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/p10/status');
-    const create = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/operation-tasks');
-    const approve = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/operation-tasks/:id/approve');
-    const execute = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/operation-tasks/:id/execute');
-
-    expect(runtimeStatus?.requiredResponseFields).toEqual(['providerWriteReady', 'productionReady']);
-    expect(create?.requestBody).toEqual(['sourceType', 'sourceReference', 'taskType', 'platform', 'title', 'summary', 'payload', 'priority']);
-    expect(approve?.requestBody).toEqual(['draftVersion', 'draftPayloadHash', 'reason', 'comment', 'expectedTaskRevision']);
-    expect(execute?.requestBody).toEqual(['expectedTaskRevision', 'adapterMode']);
+  it("defines receipt-bound purchase return lifecycle contracts", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/purchase-returns")?.query).toEqual(["page", "pageSize", "status", "purchaseOrderId"]);
+    expect(endpoint("POST /api/v1/purchase-returns")?.requestBody).toEqual(["idempotencyKey", "purchaseOrderId", "reason", "remark", "items"]);
+    expect(endpoint("POST /api/v1/purchase-returns/:id/approve")?.requiredPermission).toBe("procurement.approve");
+    expect(endpoint("POST /api/v1/purchase-returns/:id/complete")?.requiredPermission).toBe("procurement.return");
+    expect(endpoint("POST /api/v1/purchase-returns/:id/complete")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "reason"]);
   });
 
-  it('limits manual Douyin reconciliation to unknown results', () => {
+  it("defines the warehouse-bound replenishment and confirmed-draft contracts", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/procurement/replenishment-suggestions")?.query).toEqual([
+      "warehouseId",
+      "keyword",
+      "status",
+      "page",
+      "pageSize",
+      "format",
+    ]);
+    expect(endpoint("GET /api/v1/procurement/replenishment-suggestions")?.requiredPermission).toBe("procurement.view");
+    expect(endpoint("POST /api/v1/purchase-orders/from-replenishment")?.requestBody).toEqual([
+      "idempotencyKey",
+      "warehouseId",
+      "supplierId",
+      "remark",
+      "items",
+    ]);
+    expect(endpoint("POST /api/v1/purchase-orders/from-replenishment")?.requiredPermission).toBe("procurement.manage");
+  });
+
+  it("defines warehouse-ledger adjustment, migration, and reconciliation contracts", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+
+    expect(
+      endpoint("GET /api/v1/inventory")?.query,
+    ).toEqual([
+      "keyword", "productId", "productSkuId", "platform", "shopId", "warehouseId",
+      "stockStatus", "alertStatus", "skuBindStatus", "syncStatus", "hasException",
+      "page", "pageSize", "cursor", "limit",
+    ]);
+    expect(endpoint("GET /api/v1/inventory")?.requiredPermission).toBe("inventory.view");
+    expect(
+      endpoint("POST /api/v1/products/:id/skus/:skuId/adjust-stock")
+        ?.requestBody,
+    ).toEqual(["warehouseId", "stock", "idempotencyKey", "reason", "remark"]);
+    expect(
+      endpoint("POST /api/v1/products/:id/skus/:skuId/adjust-stock")
+        ?.requiredPermission,
+    ).toBe("inventory.operate");
+    expect(
+      endpoint("GET /api/v1/inventory/warehouse-ledger/reconciliation")?.query,
+    ).toEqual(["page", "pageSize", "status"]);
+    expect(
+      endpoint("POST /api/v1/inventory/warehouse-ledger/migrate-legacy")
+        ?.requiredPermission,
+    ).toBe("inventory.operate");
+  });
+
+  it("defines idempotent warehouse transfer lifecycle contracts", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/inventory/warehouse-transfers")?.query).toEqual(["page", "pageSize", "status"]);
+    expect(endpoint("POST /api/v1/inventory/warehouse-transfers")?.requestBody).toEqual(["idempotencyKey", "sourceWarehouseId", "targetWarehouseId", "reason", "remark", "items"]);
+    expect(endpoint("POST /api/v1/inventory/warehouse-transfers/:id/dispatch")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "reason"]);
+    expect(endpoint("POST /api/v1/inventory/warehouse-transfers/:id/approve")?.requiredPermission).toBe("inventory.approve");
+  });
+
+  it("defines stocktake snapshot, review, and posting contracts", () => {
+    const endpoint = (key: string) => contracts.endpoints.find((item) => routeKey(item) === key);
+    expect(endpoint("GET /api/v1/inventory/stocktakes")?.query).toEqual(["page", "pageSize", "status"]);
+    expect(endpoint("POST /api/v1/inventory/stocktakes")?.requestBody).toEqual(["idempotencyKey", "warehouseId", "reason", "remark", "items"]);
+    expect(endpoint("POST /api/v1/inventory/stocktakes")?.requiredPermission).toBe("inventory.operate");
+    expect(endpoint("PATCH /api/v1/inventory/stocktakes/:id/items/:itemId")?.requestBody).toEqual(["expectedRevision", "idempotencyKey", "countedOnHand", "remark"]);
+    expect(endpoint("POST /api/v1/inventory/stocktakes/:id/approve")?.requiredPermission).toBe("inventory.approve");
+    expect(endpoint("POST /api/v1/inventory/stocktakes/:id/post")?.requiredPermission).toBe("inventory.operate");
+  });
+
+  it("defines warehouse-bound order inventory lifecycle contracts", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+
+    expect(endpoint("POST /api/v1/orders")?.requestBody).toContain(
+      "warehouseId",
+    );
+    expect(endpoint("POST /api/v1/orders")?.requiredPermission).toBe(
+      "order.operate",
+    );
+    expect(endpoint("POST /api/v1/orders")?.errorResponseData).toBe(
+      "OrderInventoryConflict",
+    );
+    expect(endpoint("PUT /api/v1/orders/:id")?.requiredPermission).toBe(
+      "order.operate",
+    );
+    expect(
+      endpoint("POST /api/v1/orders/:id/deduct-inventory")?.requestBody,
+    ).toEqual(["warehouseId", "syncInventory"]);
+    expect(
+      endpoint("POST /api/v1/orders/:id/deduct-inventory")?.requiredPermission,
+    ).toBe("order.operate");
+    expect(
+      endpoint("POST /api/v1/orders/:id/restore-inventory")?.requestBody,
+    ).toEqual(["warehouseId", "syncInventory", "reason"]);
+    expect(
+      endpoint("POST /api/v1/orders/:id/restore-inventory")?.requiredPermission,
+    ).toBe("order.operate");
+    expect(endpoint("POST /api/v1/orders/:id/shipments")?.requiredPermission).toBe(
+      "order.operate",
+    );
+    expect(endpoint("GET /api/v1/orders/:id/shipments")?.requiredPermission).toBe(
+      "order.view",
+    );
+    expect(endpoint("GET /api/v1/orders/:id/shipments")?.readonly).toBe(true);
+    expect(
+      endpoint("GET /api/v1/orders/:id/shipments/:shipmentId/events")?.readonly,
+    ).toBe(true);
+    expect(
+      endpoint("POST /api/v1/orders/:id/shipments/:shipmentId/events")?.requestBody,
+    ).toEqual([
+      "eventKey",
+      "status",
+      "occurredAt",
+      "location",
+      "description",
+      "source",
+      "rawData",
+    ]);
+    expect(
+      endpoint("POST /api/v1/orders/:id/shipments/:shipmentId/events")?.requiredPermission,
+    ).toBe("order.operate");
+    expect(endpoint("POST /api/v1/orders/:id/fulfill")?.requestBody).toEqual([
+      "idempotencyKey",
+      "warehouseId",
+      "carrier",
+      "trackingNo",
+      "trackingUrl",
+    ]);
+    expect(endpoint("POST /api/v1/orders/:id/fulfill")?.requiredPermission).toBe(
+      "order.operate",
+    );
+    expect(
+      endpoint("POST /api/v1/orders/fulfillment-batch")?.requestBody,
+    ).toEqual(["batchIdempotencyKey", "items"]);
+    expect(
+      endpoint("POST /api/v1/orders/fulfillment-batch")?.requiredPermission,
+    ).toBe("order.operate");
+    expect(
+      endpoint("POST /api/v1/orders/fulfillment-batch")?.externalWrite,
+    ).toBe(false);
+    expect(endpoint("GET /api/v1/orders/:id/inventory-effects")?.query).toEqual(
+      ["page", "pageSize"],
+    );
+    expect(
+      endpoint("GET /api/v1/orders/:id/inventory-effects")?.requiredPermission,
+    ).toBe("order.view");
+    expect(endpoint("GET /api/v1/orders/warehouse-allocations")?.query).toEqual(
+      ["page", "pageSize", "keyword", "assignment"],
+    );
+    expect(endpoint("GET /api/v1/orders/warehouse-allocations")?.readonly).toBe(
+      true,
+    );
+    expect(
+      endpoint("GET /api/v1/orders/:id/warehouse-allocation")
+        ?.requiredPermission,
+    ).toBe("order.view");
+    expect(
+      endpoint("POST /api/v1/orders/:id/warehouse-allocation")?.requestBody,
+    ).toEqual(["warehouseId", "expectedRevision", "idempotencyKey"]);
+    expect(
+      endpoint("POST /api/v1/orders/:id/warehouse-allocation")
+        ?.requiredPermission,
+    ).toBe("order.operate");
+    expect(
+      endpoint("POST /api/v1/orders/:id/warehouse-allocation")?.externalWrite,
+    ).toBe(false);
+  });
+
+  it("defines read-only order fulfillment reconciliation contracts", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const list = endpoint("GET /api/v1/orders/fulfillment-reconciliation");
+    const detail = endpoint("GET /api/v1/orders/:id/fulfillment-reconciliation");
+    expect(list?.query).toEqual([
+      "page",
+      "pageSize",
+      "orderNo",
+      "warehouseId",
+      "status",
+      "fulfillmentStatus",
+      "reconciliationStatus",
+    ]);
+    expect(list?.requiredPermission).toBe("order.view");
+    expect(detail?.requiredPermission).toBe("order.view");
+    expect(list?.readonly).toBe(true);
+    expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
+  });
+
+  it("defines revision-bound local fulfillment wave contracts", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key) as
+        | {
+            query?: string[];
+            requestBody?: string[];
+            requiredPermission?: string;
+            readonly?: boolean;
+            externalWrite?: boolean;
+            reservationRelease?: boolean;
+            printerControl?: boolean;
+            printFact?: string;
+          }
+        | undefined;
+    expect(endpoint("GET /api/v1/fulfillment-waves")?.query).toEqual([
+      "page",
+      "pageSize",
+      "keyword",
+      "status",
+      "warehouseId",
+    ]);
+    expect(endpoint("GET /api/v1/fulfillment-waves")?.readonly).toBe(true);
+    expect(endpoint("POST /api/v1/fulfillment-waves")?.requestBody).toEqual([
+      "idempotencyKey",
+      "warehouseId",
+      "orderIds",
+      "remark",
+    ]);
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/picks")?.requestBody,
+    ).toEqual(["expectedRevision", "idempotencyKey", "lines"]);
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack")
+        ?.requestBody,
+    ).toEqual([
+      "expectedRevision",
+      "idempotencyKey",
+      "carrier",
+      "trackingNo",
+      "trackingUrl",
+    ]);
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
+      )?.requestBody,
+    ).toEqual([
+      "expectedRevision",
+      "idempotencyKey",
+      "scannedOrderNo",
+      "carrier",
+      "trackingNo",
+      "trackingUrl",
+      "packageCode",
+      "actualWeightGrams",
+      "lines",
+    ]);
+    for (const key of [
+      "POST /api/v1/fulfillment-waves",
+      "POST /api/v1/fulfillment-waves/:id/start",
+      "POST /api/v1/fulfillment-waves/:id/picks",
+      "POST /api/v1/fulfillment-waves/:id/orders/:orderId/pack",
+      "POST /api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack",
+      "POST /api/v1/fulfillment-waves/:id/complete",
+      "POST /api/v1/fulfillment-waves/:id/cancel",
+    ]) {
+      expect(endpoint(key)?.requiredPermission).toBe("order.operate");
+      expect(endpoint(key)?.externalWrite).toBe(false);
+    }
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/cancel")?.reservationRelease,
+    ).toBe(false);
+    expect(
+      endpoint("GET /api/v1/fulfillment-waves/:id/documents")?.query,
+    ).toEqual(["page", "pageSize"]);
+    expect(
+      endpoint("GET /api/v1/fulfillment-waves/:id/documents")?.readonly,
+    ).toBe(true);
+    expect(
+      endpoint("POST /api/v1/fulfillment-waves/:id/documents")?.requestBody,
+    ).toEqual(["expectedRevision", "idempotencyKey"]);
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+      )?.requestBody,
+    ).toEqual(["documentType", "copies", "reason", "idempotencyKey"]);
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+      )?.printFact,
+    ).toBe("browser_print_initiated");
+    expect(
+      endpoint(
+        "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+      )?.printerControl,
+    ).toBe(false);
+    for (const key of [
+      "POST /api/v1/fulfillment-waves/:id/documents",
+      "POST /api/v1/fulfillment-waves/:id/documents/:documentId/print-events",
+    ]) {
+      expect(endpoint(key)?.requiredPermission).toBe("order.operate");
+      expect(endpoint(key)?.externalWrite).toBe(false);
+    }
+  });
+
+  it("defines local-only refund execution contracts with dedicated permission", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key) as
+        | {
+            query?: string[];
+            requestBody?: string[];
+            requiredPermission?: string;
+            readonly?: boolean;
+            externalWrite?: boolean;
+            statusEnum?: string[];
+            resultEnum?: string[];
+            platformFactPolicy?: string;
+          }
+        | undefined;
+    const list = endpoint("GET /api/v1/refund-executions");
+    expect(list?.query).toEqual([
+      "page",
+      "pageSize",
+      "status",
+      "salesReturnId",
+      "orderId",
+    ]);
+    expect(list?.requiredPermission).toBe("sales_return.view");
+    expect(list?.readonly).toBe(true);
+    expect(list?.statusEnum).toEqual([
+      "pending",
+      "succeeded",
+      "failed",
+      "unknown",
+      "cancelled",
+    ]);
+
+    const create = endpoint(
+      "POST /api/v1/sales-returns/:id/refund-execution",
+    );
+    expect(create?.requiredPermission).toBe("sales_return.refund");
+    expect(create?.externalWrite).toBe(false);
+    expect(create?.requestBody).toEqual([
+      "idempotencyKey",
+      "platformAfterSaleId",
+    ]);
+
+    const result = endpoint("POST /api/v1/refund-executions/:id/result");
+    expect(result?.requiredPermission).toBe("sales_return.refund");
+    expect(result?.externalWrite).toBe(false);
+    expect(result?.resultEnum).toEqual(["succeeded", "failed", "unknown"]);
+
+    const confirm = endpoint(
+      "POST /api/v1/refund-executions/:id/confirm-from-platform",
+    );
+    expect(confirm?.externalWrite).toBe(false);
+    expect(confirm?.platformFactPolicy).toBe("matched_final_readonly_fact_only");
+  });
+
+  it("keeps SKU metadata writes tenant-scoped and separate from warehouse inventory", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key) as
+        | {
+            requestBody?: string[];
+            forbiddenRequestBody?: string[];
+            requiredPermission?: string;
+            tenantScope?: string;
+          }
+        | undefined;
+    const create = endpoint("POST /api/v1/products/:id/skus");
+    const update = endpoint("PUT /api/v1/products/:id/skus/:skuId");
+    const stockSettings = endpoint(
+      "PUT /api/v1/products/:id/skus/:skuId/stock-settings",
+    );
+    const remove = endpoint("DELETE /api/v1/products/:id/skus/:skuId");
+
+    expect(create?.requestBody).not.toContain("stock");
+    expect(update?.requestBody).not.toContain("stock");
+    expect(create?.forbiddenRequestBody).toEqual(["stock"]);
+    expect(update?.forbiddenRequestBody).toEqual(["stock"]);
+    expect(stockSettings?.requestBody).toEqual(["warningStock", "safetyStock"]);
+    for (const item of [create, update, stockSettings, remove]) {
+      expect(item?.requiredPermission).toBe("product.write");
+      expect(item?.tenantScope).toBe("current_tenant_product_or_not_found");
+    }
+  });
+
+  it("defines payload/query contracts for state-changing publish APIs", () => {
+    const createDraft = contracts.endpoints.find(
+      (item) =>
+        routeKey(item) ===
+        "POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft",
+    );
+    const publish = contracts.endpoints.find(
+      (item) => routeKey(item) === "POST /api/v1/products/:id/publish",
+    );
+    const readiness = contracts.endpoints.find(
+      (item) => routeKey(item) === "GET /api/v1/products/:id/readiness",
+    );
+
+    expect(createDraft?.requestBody).toEqual([
+      "shopId",
+      "publishMode",
+      "force",
+    ]);
+    expect(publish?.requestBody).toEqual(["shopId", "options", "force"]);
+    expect(readiness?.query).toEqual(["platform", "shopId", "mode"]);
+  });
+
+  it("keeps Douyin writes exclusive to approved operation tasks", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key) as
+        | {
+            fixedError?: { httpStatus: number; dataErrorCode: string };
+            douyinPolicy?: string;
+          }
+        | undefined;
+    expect(
+      endpoint(
+        "POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft",
+      )?.fixedError,
+    ).toEqual({
+      httpStatus: 409,
+      dataErrorCode: "DOUYIN_OPERATION_TASK_REQUIRED",
+    });
+    expect(endpoint("POST /api/v1/products/:id/publish")?.douyinPolicy).toBe(
+      "reject_before_task_write",
+    );
+    expect(
+      endpoint("POST /api/v1/products/:id/publish-targets/create-drafts")
+        ?.douyinPolicy,
+    ).toBe("reject_entire_request_before_write");
+    expect(
+      endpoint("POST /api/v1/product-publish/batch-targets/create-drafts")
+        ?.douyinPolicy,
+    ).toBe("reject_entire_request_before_idempotency_or_batch_write");
+    expect(
+      endpoint("POST /api/v1/product-publish/tasks/:id/retry")?.douyinPolicy,
+    ).toBe("reject_without_task_state_change");
+    expect(
+      endpoint("POST /api/v1/product-publish/batches/:id/retry-failed")
+        ?.douyinPolicy,
+    ).toBe("reject_entire_batch_without_task_state_change");
+  });
+
+  it("requires fail-closed customer auto-reply and idempotent send fields", () => {
+    const setting = contracts.endpoints.find(
+      (item) => routeKey(item) === "PUT /api/v1/customer/auto-reply-setting",
+    );
+    const policy = contracts.endpoints.find(
+      (item) =>
+        routeKey(item) ===
+        "PUT /api/v1/customer/shops/:shopId/auto-reply-policy",
+    );
+    const send = contracts.endpoints.find(
+      (item) =>
+        routeKey(item) ===
+        "POST /api/v1/customer/conversations/:id/send-platform-message",
+    );
+
+    expect(setting?.requestBody).toEqual([
+      "messageSyncEnabled",
+      "autoReplyEnabled",
+      "pollIntervalSeconds",
+    ]);
+    expect(policy?.requestBody).toEqual([
+      "enabled",
+      "tone",
+      "shopPolicy",
+      "maxReplyRunes",
+      "maxRepliesPerHour",
+      "requireOrderContext",
+      "lowRiskOnly",
+    ]);
+    expect(send?.requestBody).toEqual([
+      "reply",
+      "clientMessageId",
+      "suggestionId",
+    ]);
+  });
+
+  it("defines the reviewed production draft operation task contract", () => {
+    const runtimeStatus = contracts.endpoints.find(
+      (item) => routeKey(item) === "GET /api/v1/p10/status",
+    );
+    const create = contracts.endpoints.find(
+      (item) => routeKey(item) === "POST /api/v1/operation-tasks",
+    );
+    const approve = contracts.endpoints.find(
+      (item) => routeKey(item) === "POST /api/v1/operation-tasks/:id/approve",
+    );
+    const execute = contracts.endpoints.find(
+      (item) => routeKey(item) === "POST /api/v1/operation-tasks/:id/execute",
+    );
+
+    expect(runtimeStatus?.requiredResponseFields).toEqual([
+      "providerWriteReady",
+      "productionReady",
+    ]);
+    expect(create?.requestBody).toEqual([
+      "sourceType",
+      "sourceReference",
+      "taskType",
+      "platform",
+      "title",
+      "summary",
+      "payload",
+      "priority",
+    ]);
+    expect(approve?.requestBody).toEqual([
+      "draftVersion",
+      "draftPayloadHash",
+      "reason",
+      "comment",
+      "expectedTaskRevision",
+    ]);
+    expect(execute?.requestBody).toEqual([
+      "expectedTaskRevision",
+      "adapterMode",
+    ]);
+  });
+
+  it("limits manual Douyin reconciliation to unknown results", () => {
     const recover = contracts.endpoints.find(
-      (item) => routeKey(item) === 'POST /api/v1/product-publish/tasks/:id/recover-douyin-draft',
-    ) as {
-      requestBody?: string[];
-      requiredPermission?: string;
-      douyinPolicy?: string;
-      fixedStateError?: { httpStatus: number; dataErrorCode: string };
-    } | undefined;
+      (item) =>
+        routeKey(item) ===
+        "POST /api/v1/product-publish/tasks/:id/recover-douyin-draft",
+    ) as
+      | {
+          requestBody?: string[];
+          requiredPermission?: string;
+          douyinPolicy?: string;
+          fixedStateError?: { httpStatus: number; dataErrorCode: string };
+        }
+      | undefined;
 
     expect(recover?.requestBody).toEqual([]);
-    expect(recover?.requiredPermission).toBe('operationtask.execute');
-    expect(recover?.douyinPolicy).toBe('read_only_reconcile_result_unknown_only');
+    expect(recover?.requiredPermission).toBe("operationtask.execute");
+    expect(recover?.douyinPolicy).toBe(
+      "read_only_reconcile_result_unknown_only",
+    );
     expect(recover?.fixedStateError).toEqual({
       httpStatus: 409,
-      dataErrorCode: 'DOUYIN_RECOVERY_NOT_ALLOWED',
+      dataErrorCode: "DOUYIN_RECOVERY_NOT_ALLOWED",
     });
   });
 
-  it('defines filtered system alert queries and audited silence fields', () => {
+  it("defines filtered system alert queries and audited silence fields", () => {
     const overview = contracts.endpoints.find(
-      (item) => routeKey(item) === 'GET /api/v1/observability/overview',
+      (item) => routeKey(item) === "GET /api/v1/observability/overview",
     );
     const list = contracts.endpoints.find(
-      (item) => routeKey(item) === 'GET /api/v1/observability/alerts',
+      (item) => routeKey(item) === "GET /api/v1/observability/alerts",
     );
     const acknowledge = contracts.endpoints.find(
-      (item) => routeKey(item) === 'POST /api/v1/observability/alerts/:id/ack',
+      (item) => routeKey(item) === "POST /api/v1/observability/alerts/:id/ack",
     );
     const silence = contracts.endpoints.find(
-      (item) => routeKey(item) === 'POST /api/v1/observability/alerts/:id/silence',
+      (item) =>
+        routeKey(item) === "POST /api/v1/observability/alerts/:id/silence",
     );
 
     expect(overview?.requiredResponseFields).toEqual([
-      'overallStatus',
-      'metrics',
-      'alerts',
-      'evaluation',
-      'slo',
-      'telemetry',
-      'environment',
-      'timestamp',
+      "overallStatus",
+      "metrics",
+      "alerts",
+      "evaluation",
+      "slo",
+      "telemetry",
+      "environment",
+      "timestamp",
     ]);
 
-    expect(list?.query).toEqual(['page', 'pageSize', 'status', 'severity', 'module']);
+    expect(list?.query).toEqual([
+      "page",
+      "pageSize",
+      "status",
+      "severity",
+      "module",
+    ]);
     expect(acknowledge?.requestBody).toEqual([]);
-    expect(silence?.requestBody).toEqual(['reason', 'durationHours']);
+    expect(silence?.requestBody).toEqual(["reason", "durationHours"]);
   });
 
-  it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(30);
-    expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
+  it("marks every protected Admin endpoint as authenticated", () => {
+    expect(contracts.endpoints).toHaveLength(150);
+    expect(
+      contracts.endpoints.every((endpoint) => endpoint.auth === true),
+    ).toBe(true);
+  });
+
+  it("keeps order profit estimates read-only and fails closed for missing money", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const list = endpoint("GET /api/v1/order-profits");
+    const detail = endpoint("GET /api/v1/order-profits/:orderId");
+
+    expect(list?.requiredPermission).toBe("order_profit.view");
+    expect(list?.exportPermission).toBe("order_profit.export");
+    expect(list?.exportLimit).toBe(5000);
+    expect(list?.readonly).toBe(true);
+    expect(list?.externalWrite).toBe(false);
+    expect(list?.nullableMoneyFields).toContain("estimatedProfitMinor");
+    expect(detail?.formulaVersion).toBe("order_profit_estimate_v5");
+    expect(detail?.advertisingFeePolicy).toBe("confirmed_excluded_shop_day_allocation_plus_append_only_adjustments");
+    expect(detail?.warehouseFeePolicy).toBe("confirmed_snapshot_plus_append_only_adjustments");
+    expect(detail?.statusEnum).toEqual(["complete", "pending", "mismatch", "blocked"]);
+    expect(detail?.productCostPolicy).toBe("fulfilled_snapshot_unfulfilled_catalog_estimate");
+    expect(detail?.costSnapshotResolutionEnum).toEqual([
+      "resolved",
+      "missing",
+      "ambiguous",
+      "currency_mismatch",
+      "invalid",
+    ]);
+  });
+
+  it("keeps settlement preview read-only and confirmation append-only", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const preview = endpoint("POST /api/v1/settlement-imports/preview");
+    const confirm = endpoint("POST /api/v1/settlement-imports");
+    const list = endpoint("GET /api/v1/settlement-reconciliation");
+
+    expect(preview?.requestBody).toEqual(["file", "shopId"]);
+    expect(preview?.databaseWrite).toBe(false);
+    expect(preview?.maxRows).toBe(1000);
+    expect(confirm?.requestBody).toEqual(["file", "shopId", "expectedFileHash", "idempotencyKey"]);
+    expect(confirm?.appendOnly).toBe(true);
+    expect(confirm?.externalWrite).toBe(false);
+    expect(list?.statusEnum).toEqual(["matched", "pending", "mismatch", "blocked"]);
+    expect(list?.exportPermission).toBe("settlement.export");
+    expect(list?.exportLimit).toBe(5000);
+  });
+
+  it("keeps advertising fee attribution local, preview-only before confirmation, and append-only", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const preview = endpoint("POST /api/v1/advertising-fee-imports/preview");
+    const confirm = endpoint("POST /api/v1/advertising-fee-imports");
+    const list = endpoint("GET /api/v1/advertising-fees");
+    const adjustment = endpoint("POST /api/v1/advertising-fees/:id/adjustments");
+    const reversal = endpoint("POST /api/v1/advertising-fees/:id/adjustments/:adjustmentId/reverse");
+
+    expect(preview?.requestBody).toEqual(["file", "shopId"]);
+    expect(preview?.databaseWrite).toBe(false);
+    expect(preview?.maxFileBytes).toBe(2097152);
+    expect(preview?.maxRows).toBe(1000);
+    expect(preview?.policyVersion).toBe("shop_day_equal_paid_order_v1");
+    expect(confirm?.requestBody).toEqual(["file", "shopId", "expectedFileHash", "expectedCalculationHash", "idempotencyKey"]);
+    expect(confirm?.appendOnly).toBe(true);
+    expect(confirm?.externalWrite).toBe(false);
+    expect(list?.settlementCoverageEnum).toEqual(["excluded", "included", "unknown"]);
+    expect(list?.profitStatusEnum).toEqual(["confirmed", "mismatch", "blocked"]);
+    expect(adjustment?.appendOnly).toBe(true);
+    expect(reversal?.appendOnly).toBe(true);
+  });
+
+  it("keeps warehouse fee previews zero-write and ledger corrections append-only", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+    const rateUpdate = endpoint("PUT /api/v1/warehouse-fee-rate-cards/:id");
+    const preview = endpoint("POST /api/v1/warehouse-operation-fees/preview");
+    const confirm = endpoint("POST /api/v1/warehouse-operation-fees");
+    const adjustment = endpoint("POST /api/v1/warehouse-operation-fees/:id/adjustments");
+    const reversal = endpoint("POST /api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse");
+
+    expect(rateUpdate?.requestBody).toContain("expectedRevision");
+    expect(rateUpdate?.versioned).toBe(true);
+    expect(preview?.databaseWrite).toBe(false);
+    expect(preview?.storeOperationScope).toBe(true);
+    expect(confirm?.requestBody).toEqual(["orderId", "rateCardId", "rateCardRevision", "waveRevision", "calculationHash", "idempotencyKey"]);
+    expect(confirm?.appendOnly).toBe(true);
+    expect(adjustment?.appendOnly).toBe(true);
+    expect(reversal?.appendOnly).toBe(true);
+    expect(reversal?.externalWrite).toBe(false);
   });
 });

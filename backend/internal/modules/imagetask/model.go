@@ -39,6 +39,7 @@ const (
 // ImageTask records one AI image processing job in image_tasks.
 type ImageTask struct {
 	model.HardDeleteBase
+	TenantID        int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	TaskType        string         `gorm:"size:64;index;not null" json:"taskType"`
 	Provider        string         `gorm:"size:64;index;not null" json:"provider"`
 	Status          string         `gorm:"size:32;index;not null" json:"status"`

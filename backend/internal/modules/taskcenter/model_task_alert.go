@@ -25,11 +25,11 @@ const (
 // TaskAlert is an in-site alert record (deduped per task+category).
 type TaskAlert struct {
 	ID              uuid.UUID  `gorm:"type:char(36);primaryKey" json:"id"`
-	TenantID        int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	TaskType        string     `gorm:"size:48;uniqueIndex:uq_task_alert_type_src_cat;not null" json:"taskType"`
-	SourceID        string     `gorm:"size:64;uniqueIndex:uq_task_alert_type_src_cat;not null" json:"sourceId"`
+	TenantID        int64      `gorm:"not null;default:0;index;uniqueIndex:uq_task_alert_tenant_type_src_cat" json:"tenantId"`
+	TaskType        string     `gorm:"size:48;uniqueIndex:uq_task_alert_tenant_type_src_cat;not null" json:"taskType"`
+	SourceID        string     `gorm:"size:64;uniqueIndex:uq_task_alert_tenant_type_src_cat;not null" json:"sourceId"`
 	SourceTable     string     `gorm:"size:64" json:"sourceTable,omitempty"`
-	FailureCategory string     `gorm:"size:48;uniqueIndex:uq_task_alert_type_src_cat;not null" json:"failureCategory"`
+	FailureCategory string     `gorm:"size:48;uniqueIndex:uq_task_alert_tenant_type_src_cat;not null" json:"failureCategory"`
 	Severity        string     `gorm:"size:16;index" json:"severity"`
 	Platform        string     `gorm:"size:48;index" json:"platform,omitempty"`
 	Title           string     `gorm:"size:255" json:"title"`

@@ -133,14 +133,15 @@ export function confirmInventorySync(targetLabel: string, externalCall: boolean,
 }
 
 /** 库存人工修正 */
-export function confirmInventoryManualAdjust(onOk: OkFn) {
+export function confirmInventoryManualAdjust(onOk: OkFn, onCancel?: () => void) {
   confirmSensitiveAction({
     title: '人工修正库存',
-    content: '将直接修改本地 SKU 库存数量，不会自动同步到平台。',
-    impacts: ['本地 SKU 库存', '库存预警状态'],
+    content: '将修改所选仓库的在手库存，并同步更新本地规格库存汇总；不会自动同步到平台。',
+    impacts: ['仓库库存余额与流水', '本地规格库存汇总', '库存预警状态'],
     externalCall: false,
     reversible: false,
     onOk,
+    onCancel: onCancel ? () => onCancel() : undefined,
   });
 }
 

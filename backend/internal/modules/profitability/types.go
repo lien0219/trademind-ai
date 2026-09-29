@@ -1,0 +1,256 @@
+package profitability
+
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+const (
+	FormulaVersion = "order_profit_estimate_v6"
+
+	StatusComplete = "complete"
+	StatusPending  = "pending"
+	StatusMismatch = "mismatch"
+	StatusBlocked  = "blocked"
+
+	ComponentAvailable = "available"
+	ComponentMissing   = "missing"
+	ComponentPending   = "pending"
+	ComponentMismatch  = "mismatch"
+	ComponentBlocked   = "blocked"
+
+	maxPageSize   = 100
+	maxExportRows = 5000
+)
+
+// Scope is the tenant-local store visibility applied to every order query.
+// A nil AllowedShopIDs slice means an administrator can view all stores.
+type Scope struct {
+	RestrictStoreScope bool
+	AllowedShopIDs     []uuid.UUID
+}
+
+type ListQuery struct {
+	Page        int
+	PageSize    int
+	OrderNo     string
+	Platform    string
+	ShopID      *uuid.UUID
+	WarehouseID *uuid.UUID
+	Currency    string
+	Status      string
+	Start       *time.Time
+	End         *time.Time
+	Export      bool
+}
+
+type FormulaDescriptor struct {
+	Version              string `json:"version"`
+	RevenueSource        string `json:"revenueSource"`
+	ProductCostSource    string `json:"productCostSource"`
+	FreightSource        string `json:"freightSource"`
+	FreightActualSource  string `json:"freightActualSource"`
+	RefundSource         string `json:"refundSource"`
+	PlatformFeeSource    string `json:"platformFeeSource"`
+	AdvertisingFeeSource string `json:"advertisingFeeSource"`
+	WarehouseFeeSource   string `json:"warehouseFeeSource"`
+	MissingFeeBehavior   string `json:"missingFeeBehavior"`
+}
+
+type PlatformFeeFact struct {
+	OrderID                  uuid.UUID
+	ReconciliationID         uuid.UUID
+	SettlementTransactionIDs []uuid.UUID
+	AmountMinor              int64
+	Currency                 string
+	Status                   string
+	SourceAt                 time.Time
+	ReasonCode               string
+	Reason                   string
+}
+
+type PlatformFeeReader interface {
+	ListPlatformFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]PlatformFeeFact, error)
+}
+
+type WarehouseFeeFact struct {
+	OrderID       uuid.UUID
+	SnapshotID    uuid.UUID
+	AdjustmentIDs []uuid.UUID
+	AmountMinor   int64
+	Currency      string
+	Status        string
+	SourceAt      time.Time
+	ReasonCode    string
+	Reason        string
+}
+
+type WarehouseFeeReader interface {
+	ListWarehouseFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]WarehouseFeeFact, error)
+}
+
+type FreightFeeFact struct {
+	OrderID             uuid.UUID
+	ChargeIDs           []uuid.UUID
+	ImportIDs           []uuid.UUID
+	AdjustmentIDs       []uuid.UUID
+	AmountMinor         int64
+	Currency            string
+	Status              string
+	ShipmentCount       int
+	BilledShipmentCount int
+	SourceAt            time.Time
+	ReasonCode          string
+	Reason              string
+}
+
+type FreightFeeReader interface {
+	ListFreightFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]FreightFeeFact, error)
+}
+
+type AdvertisingFeeFact struct {
+	OrderID       uuid.UUID
+	ImportID      uuid.UUID
+	SpendID       uuid.UUID
+	AllocationID  uuid.UUID
+	AdjustmentIDs []uuid.UUID
+	AmountMinor   int64
+	Currency      string
+	Status        string
+	SourceAt      time.Time
+	ReasonCode    string
+	Reason        string
+}
+
+type AdvertisingFeeReader interface {
+	ListAdvertisingFees(context.Context, int64, []uuid.UUID) (map[uuid.UUID]AdvertisingFeeFact, error)
+}
+
+type MoneyComponent struct {
+	AmountMinor      *int64     `json:"amountMinor"`
+	KnownAmountMinor int64      `json:"knownAmountMinor"`
+	Currency         string     `json:"currency"`
+	Status           string     `json:"status"`
+	Source           string     `json:"source"`
+	SourceAt         *time.Time `json:"sourceAt,omitempty"`
+	ReasonCode       string     `json:"reasonCode,omitempty"`
+	Reason           string     `json:"reason,omitempty"`
+}
+
+type ProfitComponents struct {
+	Revenue      MoneyComponent `json:"revenue"`
+	ProductCost  MoneyComponent `json:"productCost"`
+	Freight      MoneyComponent `json:"freight"`
+	Refund       MoneyComponent `json:"refund"`
+	PlatformFee  MoneyComponent `json:"platformFee"`
+	Advertising  MoneyComponent `json:"advertisingFee"`
+	WarehouseFee MoneyComponent `json:"warehouseFee"`
+}
+
+type Issue struct {
+	Code      string `json:"code"`
+	Component string `json:"component"`
+	Message   string `json:"message"`
+}
+
+type RelatedFacts struct {
+	FulfillmentWaveID           *uuid.UUID  `json:"fulfillmentWaveId,omitempty"`
+	SupplierIDs                 []uuid.UUID `json:"supplierIds"`
+	ProductCostSnapshotIDs      []uuid.UUID `json:"productCostSnapshotIds"`
+	RefundExecutionIDs          []uuid.UUID `json:"refundExecutionIds"`
+	SettlementReconciliationID  *uuid.UUID  `json:"settlementReconciliationId,omitempty"`
+	SettlementTransactionIDs    []uuid.UUID `json:"settlementTransactionIds"`
+	AdvertisingFeeImportID      *uuid.UUID  `json:"advertisingFeeImportId,omitempty"`
+	AdvertisingFeeSpendID       *uuid.UUID  `json:"advertisingFeeSpendId,omitempty"`
+	AdvertisingFeeAllocationID  *uuid.UUID  `json:"advertisingFeeAllocationId,omitempty"`
+	AdvertisingFeeAdjustmentIDs []uuid.UUID `json:"advertisingFeeAdjustmentIds"`
+	WarehouseFeeSnapshotID      *uuid.UUID  `json:"warehouseFeeSnapshotId,omitempty"`
+	WarehouseFeeAdjustmentIDs   []uuid.UUID `json:"warehouseFeeAdjustmentIds"`
+	FreightFeeChargeIDs         []uuid.UUID `json:"freightFeeChargeIds"`
+	FreightFeeImportIDs         []uuid.UUID `json:"freightFeeImportIds"`
+	FreightFeeAdjustmentIDs     []uuid.UUID `json:"freightFeeAdjustmentIds"`
+	FreightShipmentCount        int         `json:"freightShipmentCount"`
+	FreightBilledShipmentCount  int         `json:"freightBilledShipmentCount"`
+}
+
+type OrderProfit struct {
+	OrderID                uuid.UUID        `json:"orderId"`
+	OrderNo                string           `json:"orderNo"`
+	Platform               string           `json:"platform"`
+	ShopID                 *uuid.UUID       `json:"shopId,omitempty"`
+	ShopName               string           `json:"shopName,omitempty"`
+	WarehouseID            *uuid.UUID       `json:"warehouseId,omitempty"`
+	WarehouseCode          string           `json:"warehouseCode,omitempty"`
+	WarehouseName          string           `json:"warehouseName,omitempty"`
+	Currency               string           `json:"currency"`
+	Status                 string           `json:"status"`
+	OrderStatus            string           `json:"orderStatus"`
+	PaymentStatus          string           `json:"paymentStatus"`
+	FulfillmentStatus      string           `json:"fulfillmentStatus"`
+	KnownContributionMinor *int64           `json:"knownContributionMinor"`
+	EstimatedProfitMinor   *int64           `json:"estimatedProfitMinor"`
+	EstimatedMarginBps     *int64           `json:"estimatedMarginBps"`
+	Components             ProfitComponents `json:"components"`
+	Issues                 []Issue          `json:"issues"`
+	Related                RelatedFacts     `json:"related"`
+	OrderedAt              *time.Time       `json:"orderedAt,omitempty"`
+	CalculatedAt           time.Time        `json:"calculatedAt"`
+	FormulaVersion         string           `json:"formulaVersion"`
+}
+
+type ProductCostLine struct {
+	OrderItemID      uuid.UUID  `json:"orderItemId"`
+	ProductSKUID     *uuid.UUID `json:"productSkuId,omitempty"`
+	ProductTitle     string     `json:"productTitle"`
+	SKUCode          string     `json:"skuCode,omitempty"`
+	Quantity         int        `json:"quantity"`
+	UnitCostMinor    *int64     `json:"unitCostMinor"`
+	LineCostMinor    *int64     `json:"lineCostMinor"`
+	Currency         string     `json:"currency"`
+	Status           string     `json:"status"`
+	Source           string     `json:"source"`
+	CostBasis        string     `json:"costBasis"`
+	SourceAt         *time.Time `json:"sourceAt,omitempty"`
+	SnapshotID       *uuid.UUID `json:"snapshotId,omitempty"`
+	ResolutionStatus string     `json:"resolutionStatus,omitempty"`
+	CapturedAt       *time.Time `json:"capturedAt,omitempty"`
+	SupplierID       *uuid.UUID `json:"supplierId,omitempty"`
+	SupplierSKUID    *uuid.UUID `json:"supplierSkuId,omitempty"`
+	SupplierName     string     `json:"supplierName,omitempty"`
+	SupplierSKUCode  string     `json:"supplierSkuCode,omitempty"`
+	CandidateCount   int        `json:"candidateCount"`
+	ReasonCode       string     `json:"reasonCode,omitempty"`
+	Reason           string     `json:"reason,omitempty"`
+}
+
+type Detail struct {
+	OrderProfit
+	ProductCostLines []ProductCostLine `json:"productCostLines"`
+}
+
+type ListResult struct {
+	List         []OrderProfit     `json:"list"`
+	Page         int               `json:"page"`
+	PageSize     int               `json:"pageSize"`
+	Total        int64             `json:"total"`
+	TotalPages   int               `json:"totalPages"`
+	CalculatedAt time.Time         `json:"calculatedAt"`
+	Formula      FormulaDescriptor `json:"formula"`
+}
+
+func formulaDescriptor() FormulaDescriptor {
+	return FormulaDescriptor{
+		Version:              FormulaVersion,
+		RevenueSource:        "orders.total_amount converted exactly to the currency minor unit",
+		ProductCostSource:    "immutable fulfillment cost snapshots for fulfilled orders; current active supplier catalog estimates for unfulfilled orders only",
+		FreightSource:        "latest confirmed local freight quote unless a complete, currency-consistent carrier bill covers every current shipment",
+		FreightActualSource:  "confirmed carrier invoice facts with full shipment coverage; partial, mismatched, or invalid facts do not replace the local estimate",
+		RefundSource:         "succeeded local refund execution facts",
+		PlatformFeeSource:    "matched immutable platform settlement transactions",
+		AdvertisingFeeSource: "confirmed shop-local-day equal paid-order allocations plus append-only adjustments",
+		WarehouseFeeSource:   "confirmed immutable warehouse operation fee snapshots plus append-only adjustments",
+		MissingFeeBehavior:   "unmatched platform fees and missing, settlement-covered, or invalid advertising and warehouse fees remain null; incomplete carrier bills leave the local freight estimate marked pending",
+	}
+}

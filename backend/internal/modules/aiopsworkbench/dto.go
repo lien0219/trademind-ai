@@ -4,16 +4,20 @@ import "time"
 
 // Query binds list/summary filters.
 type Query struct {
-	Type     string
-	Priority string
-	Platform string
-	ShopID   string
-	Keyword  string
-	Status   string // open | resolved (open default)
-	Start    *time.Time
-	End      *time.Time
-	Page     int
-	PageSize int
+	TenantID int64
+	// TenantScoped is set by the HTTP handler after resolving the trusted tenant context.
+	// Direct internal callers may leave it false for legacy, single-tenant jobs.
+	TenantScoped bool
+	Type         string
+	Priority     string
+	Platform     string
+	ShopID       string
+	Keyword      string
+	Status       string // open | resolved (open default)
+	Start        *time.Time
+	End          *time.Time
+	Page         int
+	PageSize     int
 }
 
 // SummaryDTO is the workbench headline counts.

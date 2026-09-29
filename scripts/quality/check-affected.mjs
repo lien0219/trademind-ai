@@ -21,7 +21,7 @@ const checks = new Map([
   ['backend', { command: ['pnpm', ['quality:backend']], reason: 'Go backend、数据库、Redis、队列、worker、adapter 或 Go 配置变更' }],
   ['naming', { command: ['pnpm', ['quality:naming']], reason: 'Go 标识符、数据库模型、迁移或原始 SQL 命名变更' }],
   ['contracts', { command: ['pnpm', ['quality:contracts']], reason: 'API route、DTO、service、contract、Admin mock 或 envelope 变更' }],
-  ['affected-tests', { command: ['pnpm', ['test:affected']], reason: '与 project-testing 联动运行受影响测试选择' }],
+  ['affected-tests', { command: ['pnpm', ['test:affected', '--', '--skip=e2e-smoke']], reason: '与 project-testing 联动运行受影响测试选择，排除本门禁已执行的 E2E smoke' }],
   ['ui-copy', { command: ['pnpm', ['check:ui-copy', '--strict']], reason: 'Admin 文案、TSX、页面或 UI 规则变更' }],
   ['e2e-smoke', { command: ['pnpm', ['test:e2e:smoke']], reason: 'Admin 页面/样式/路由/交互变更需要轻量浏览器 smoke' }],
   ['db', { command: ['pnpm', ['test:db']], reason: 'migration/repository/database 变更需要测试数据库集成' }],

@@ -90,6 +90,10 @@ The screenshots below show TradeMind's core workflow: **collection → draft →
 - Store authorization with Douyin Shop OAuth, encrypted secrets, and connection tests.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
+- ERP procurement and returns with warehouse and supplier master data, manually confirmed replenishment-to-draft creation, purchase-order approval, partial receipts, receipt-bound supplier returns, warehouse movements, idempotent processing, and an Admin workspace with separated approval/execution duties and revision conflict protection.
+- Manual fulfillment allocation with whole-order, single-warehouse candidates and atomic reservation, followed by persistent same-warehouse picking waves, shortage recording, packing review, explicit local rate quoting with manual confirmation, and local completion with durable partial results and no automatic retry.
+- Sales after-sales V1 with item-level refund-only and return-and-refund cases, cumulative quantity protection, approval/receipt duty separation, and sellable or damaged receipt into the original order warehouse. After local completion, a separate refund execution record captures externally completed money results or confirms read-only platform facts; it still does not call payment or marketplace write APIs.
+- Store-scoped local settlement and advertising-fee CSV validation uses zero-write previews, explicit confirmation, and immutable facts. Versioned warehouse rate cards cover outbound, per-item picking, and per-package packing fees; advertising spend is deterministically attributed by shop-local day to paid, non-cancelled orders, with corrections recorded only as append-only adjustments or one-time reversals. Order profit estimate V5 consumes matched platform fees, valid confirmed warehouse-operation fees, and confirmed advertising allocations explicitly declared outside settlement coverage. Missing or coverage-unknown fees remain unset; these are operational estimates, not accounting COGS or booked costs.
 - Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction.
 - AI customer-service reply suggestions with manual confirmation before sending.
 
@@ -157,14 +161,14 @@ GitHub Actions publishes multi-architecture GHCR images for backend, admin, and 
 
 ```bash
 # Set COLLECTOR_SERVICE_TOKEN in .env, then override the image references below
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind-backend:dev-v0.2.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind-admin:dev-v0.2.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind-collector:dev-v0.2.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.3.0
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.3.0
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.3.0
 docker compose -f docker-compose.full.yml pull backend admin collector
 docker compose -f docker-compose.full.yml up -d --no-build
 ```
 
-Branch builds update branch, branch-version, and `sha-<commit>` tags without moving `latest`. After the release change is merged into `main`, push a `v<version>` Git tag matching `deploy/IMAGE_VERSION`; only that validated release publishes `v<version>`, `version`, and `latest`. Pin the workflow's `image@sha256:<manifest-digest>` reference for controlled deployments. See [Docker deployment](docs/docker-deployment.md) for the release procedure and package URLs.
+Only image-related changes on `main` automatically publish validation images. The shared GHCR package uses `backend-*`, `admin-*`, and `collector-*` tags to keep the service images separate, and ordinary builds do not move the service `latest` tags. After the release change is merged into `main`, push a `v<version>` Git tag matching `deploy/IMAGE_VERSION`; only that validated release publishes service version and service `latest` tags. Pin the workflow's `image@sha256:<manifest-digest>` reference for controlled deployments. See [Docker deployment](docs/docker-deployment.md) for the release procedure and package URL.
 
 Default URLs:
 

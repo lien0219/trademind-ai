@@ -346,6 +346,71 @@ export default [
         component: './Orders/index',
       },
       {
+        path: '/orders/warehouse-allocations',
+        name: '履约分仓',
+        component: './Orders/WarehouseAllocations',
+      },
+      {
+        path: '/orders/fulfillment-waves',
+        name: '拣货波次',
+        component: './Orders/FulfillmentWaves',
+      },
+      {
+        path: '/orders/logistics-channels',
+        name: '物流渠道',
+        component: './Orders/LogisticsChannels',
+      },
+      {
+        path: '/orders/fulfillment-waves/:id/verify-pack',
+        name: '出库扫描复核',
+        hideInMenu: true,
+        component: './Orders/FulfillmentPackVerification',
+      },
+      {
+        path: '/orders/fulfillment-waves/:id/documents',
+        name: '履约出库单据中心',
+        hideInMenu: true,
+        component: './Orders/FulfillmentDocuments',
+      },
+      {
+        path: '/orders/fulfillment-reconciliation',
+        name: '履约库存对账',
+        component: './Orders/FulfillmentReconciliation',
+      },
+      {
+        path: '/orders/sales-returns/:id',
+        name: '售后详情',
+        hideInMenu: true,
+        component: './SalesReturns/Detail',
+      },
+      {
+        path: '/orders/sales-return-reconciliation/:id',
+        name: '平台售后对账详情',
+        hideInMenu: true,
+        component: './SalesReturns/ReconciliationDetail',
+      },
+      {
+        path: '/orders/sales-return-reconciliation',
+        name: '平台售后对账',
+        component: './SalesReturns/Reconciliation',
+      },
+      {
+        path: '/orders/refund-executions/:id',
+        name: '退款执行详情',
+        hideInMenu: true,
+        component: './SalesReturns/RefundExecutionDetail',
+      },
+      {
+        path: '/orders/refund-executions',
+        name: '退款执行',
+        component: './SalesReturns/RefundExecutions',
+      },
+      {
+        path: '/orders/sales-returns',
+        name: '退货退款',
+        component: './SalesReturns',
+      },
+      {
         path: '/orders/:id',
         name: '订单详情',
         hideInMenu: true,
@@ -369,6 +434,43 @@ export default [
     ],
   },
   {
+    path: '/finance',
+    name: '财务',
+    icon: 'FundOutlined',
+    component: '@/layouts/FinanceGroupLayout',
+    routes: [
+      {
+        path: '/finance',
+        redirect: '/finance/order-profits',
+      },
+      {
+        path: '/finance/order-profits',
+        name: '订单预估利润',
+        component: './Finance/OrderProfits',
+      },
+      {
+        path: '/finance/settlement-reconciliation',
+        name: '平台结算对账',
+        component: './Finance/SettlementReconciliation',
+      },
+      {
+        path: '/finance/warehouse-fees',
+        name: '仓库操作费',
+        component: './Finance/WarehouseFees',
+      },
+      {
+        path: '/finance/advertising-fees',
+        name: '广告费用归属',
+        component: './Finance/AdvertisingFees',
+      },
+      {
+        path: '/finance/freight-fees',
+        name: '承运商运费账单',
+        component: './Finance/FreightFees',
+      },
+    ],
+  },
+  {
     path: '/inventory',
     name: '库存',
     icon: 'InboxOutlined',
@@ -387,6 +489,26 @@ export default [
         path: '/inventory/alerts',
         name: '库存预警',
         component: './Inventory/Alerts',
+      },
+      {
+        path: '/inventory/warehouse-ledger',
+        name: '仓库库存账',
+        component: './Inventory/WarehouseLedger',
+      },
+      {
+        path: '/inventory/warehouse-transfers',
+        name: '仓库调拨',
+        component: './Inventory/WarehouseTransfers',
+      },
+      {
+        path: '/inventory/stocktakes',
+        name: '库存盘点',
+        component: './Inventory/Stocktakes',
+      },
+      {
+        path: '/inventory/warehouse-placements',
+        name: '库位与条码',
+        component: './Inventory/WarehousePlacements',
       },
       {
         path: '/inventory/deductions',
@@ -412,6 +534,55 @@ export default [
         path: '/inventory/logs',
         name: '库存流水',
         component: './Inventory/Logs',
+      },
+    ],
+  },
+  {
+    path: '/procurement',
+    name: '采购',
+    icon: 'ShoppingCartOutlined',
+    component: '@/layouts/ProcurementGroupLayout',
+    routes: [
+      {
+        path: '/procurement',
+        redirect: '/procurement/purchase-orders',
+      },
+      {
+        path: '/procurement/purchase-orders/:id',
+        name: '采购单详情',
+        component: './Procurement/PurchaseOrders/Detail',
+        hideInMenu: true,
+      },
+      {
+        path: '/procurement/purchase-orders',
+        name: '采购单',
+        component: './Procurement/PurchaseOrders',
+      },
+      {
+        path: '/procurement/purchase-returns/:id',
+        name: '采购退货详情',
+        component: './Procurement/PurchaseReturns/Detail',
+        hideInMenu: true,
+      },
+      {
+        path: '/procurement/purchase-returns',
+        name: '采购退货',
+        component: './Procurement/PurchaseReturns',
+      },
+      {
+        path: '/procurement/replenishment-suggestions',
+        name: '补货建议',
+        component: './Procurement/ReplenishmentSuggestions',
+      },
+      {
+        path: '/procurement/warehouses',
+        name: '仓库管理',
+        component: './Procurement/Warehouses',
+      },
+      {
+        path: '/procurement/suppliers',
+        name: '供应商管理',
+        component: './Procurement/Suppliers',
       },
     ],
   },

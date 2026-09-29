@@ -80,9 +80,9 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 			}
 			if resolved > 0 {
 				tenantID = resolved
-				if src != "" {
-					authSource = src
-				}
+			}
+			if src != "" {
+				authSource = src
 			}
 		}
 		c.Set(ctxkey.TenantID, tenantID)

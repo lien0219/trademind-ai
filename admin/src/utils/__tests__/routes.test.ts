@@ -76,6 +76,11 @@ describe('Admin route menu configuration', () => {
           name: '库存中心',
           component: './Inventory',
         }),
+        expect.objectContaining({
+          path: '/inventory/warehouse-placements',
+          name: '库位与条码',
+          component: './Inventory/WarehousePlacements',
+        }),
       ]),
     );
     expect(legacyInventoryRoute).not.toHaveProperty('name');
@@ -87,6 +92,78 @@ describe('Admin route menu configuration', () => {
 
     expect(paths.filter((path) => path.startsWith('/ops/inventory-sync'))).toEqual([]);
     expect(names.filter((name) => /P\d+|Batch|Gate|Fixture|夹具|人工验收/i.test(name))).toEqual([]);
+  });
+
+  it('exposes the controlled procurement workspace and keeps detail as a deep link', () => {
+    const procurement = routes.find((route) => route.path === '/procurement');
+
+    expect(procurement?.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '/procurement/purchase-orders', name: '采购单' }),
+        expect.objectContaining({ path: '/procurement/replenishment-suggestions', name: '补货建议' }),
+        expect.objectContaining({ path: '/procurement/warehouses', name: '仓库管理' }),
+        expect.objectContaining({ path: '/procurement/suppliers', name: '供应商管理' }),
+        expect.objectContaining({ path: '/procurement/purchase-orders/:id', hideInMenu: true }),
+      ]),
+    );
+  });
+
+  it('exposes fulfillment allocation and sales returns under orders', () => {
+    const orderRoutes = routes.find((route) => route.path === '/orders')?.routes;
+
+    expect(orderRoutes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '/orders/warehouse-allocations',
+          name: '履约分仓',
+        }),
+        expect.objectContaining({ path: '/orders/fulfillment-waves', name: '拣货波次' }),
+        expect.objectContaining({ path: '/orders/logistics-channels', name: '物流渠道' }),
+        expect.objectContaining({
+          path: '/orders/fulfillment-waves/:id/documents',
+          name: '履约出库单据中心',
+          hideInMenu: true,
+        }),
+        expect.objectContaining({
+          path: '/orders/fulfillment-reconciliation',
+          name: '履约库存对账',
+          component: './Orders/FulfillmentReconciliation',
+        }),
+        expect.objectContaining({ path: '/orders/sales-returns', name: '退货退款' }),
+        expect.objectContaining({ path: '/orders/sales-returns/:id', hideInMenu: true }),
+        expect.objectContaining({ path: '/orders/sales-return-reconciliation', name: '平台售后对账' }),
+        expect.objectContaining({ path: '/orders/sales-return-reconciliation/:id', hideInMenu: true }),
+      ]),
+    );
+  });
+
+  it('exposes order profit estimates under a dedicated finance workspace', () => {
+    const finance = routes.find((route) => route.path === '/finance');
+
+    expect(finance?.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '/finance/order-profits',
+          name: '订单预估利润',
+          component: './Finance/OrderProfits',
+        }),
+        expect.objectContaining({
+          path: '/finance/settlement-reconciliation',
+          name: '平台结算对账',
+          component: './Finance/SettlementReconciliation',
+        }),
+        expect.objectContaining({
+          path: '/finance/warehouse-fees',
+          name: '仓库操作费',
+          component: './Finance/WarehouseFees',
+        }),
+        expect.objectContaining({
+          path: '/finance/advertising-fees',
+          name: '广告费用归属',
+          component: './Finance/AdvertisingFees',
+        }),
+      ]),
+    );
   });
 
   it('excludes internal inventory fixture routes from production builds', () => {

@@ -11,15 +11,23 @@ import (
 type Scope struct {
 	AllowedShopIDs []uuid.UUID // nil = admin (all stores)
 	IsAdmin        bool
+	TenantID       *int64
 }
 
 func scopeFromContext(c *gin.Context, db *gorm.DB) Scope {
 	if c == nil {
 		return Scope{IsAdmin: true}
 	}
+	tenantID, tenantErr := adminperm.TenantIDFromGin(c)
 	p, _ := adminperm.LoadPrincipal(c, db)
 	if p == nil || p.IsAdmin() {
+		if tenantErr == nil {
+			return Scope{IsAdmin: true, TenantID: &tenantID}
+		}
 		return Scope{IsAdmin: true}
+	}
+	if tenantErr == nil {
+		return Scope{AllowedShopIDs: p.AllowedStoreIDs(), TenantID: &tenantID}
 	}
 	return Scope{AllowedShopIDs: p.AllowedStoreIDs()}
 }

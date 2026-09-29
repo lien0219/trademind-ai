@@ -107,14 +107,14 @@ func (s *Service) applyTenantListFilter(q *gorm.DB, p ListFailureParams) *gorm.D
 	return q
 }
 
-func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {
+func (s *Service) summarizeGlobalMarks(ctx context.Context, tenantID int64) (ignored int64, handled int64, err error) {
 	if s == nil || s.DB == nil {
 		return 0, 0, fmt.Errorf("taskcenter: no db")
 	}
-	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("mark_type = ?", MarkIgnored).Count(&ignored).Error; err != nil {
+	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("tenant_id = ? AND mark_type = ?", tenantID, MarkIgnored).Count(&ignored).Error; err != nil {
 		return 0, 0, err
 	}
-	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("mark_type = ?", MarkHandled).Count(&handled).Error; err != nil {
+	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("tenant_id = ? AND mark_type = ?", tenantID, MarkHandled).Count(&handled).Error; err != nil {
 		return 0, 0, err
 	}
 	return ignored, handled, nil
@@ -130,7 +130,7 @@ func (s *Service) Summary(ctx context.Context, p ListFailureParams) (FailuresSum
 		ByPlatform: map[string]int64{},
 	}
 	su.fillFromMerged(merged)
-	ig, hd, err := s.summarizeGlobalMarks(ctx)
+	ig, hd, err := s.summarizeGlobalMarks(ctx, p.TenantID)
 	if err != nil {
 		return FailuresSummary{}, err
 	}
@@ -218,9 +218,10 @@ func (s *Service) collectMerged(ctx context.Context, p ListFailureParams, perTyp
 	return merged, nil
 }
 
-func (s *Service) marksSubquery(tx *gorm.DB, taskType string, idSQL string) *gorm.DB {
+func (s *Service) marksSubquery(tx *gorm.DB, taskType string, idSQL string, tenantID int64) *gorm.DB {
 	return tx.Session(&gorm.Session{NewDB: true}).Table("task_failure_marks AS m").Select("1").
 		Where("m.task_type = ?", taskType).
+		Where("m.tenant_id = ?", tenantID).
 		Where("m.source_id = "+idSQL).
 		Where("m.mark_type IN ?", []string{MarkIgnored, MarkHandled})
 }
@@ -230,18 +231,20 @@ func (s *Service) applyMarkFilters(db *gorm.DB, taskType string, idSQL string, p
 	case p.RequireIgnored:
 		sub := db.Session(&gorm.Session{NewDB: true}).Table("task_failure_marks AS m").Select("1").
 			Where("m.task_type = ?", taskType).
+			Where("m.tenant_id = ?", p.TenantID).
 			Where("m.source_id = "+idSQL).
 			Where("m.mark_type = ?", MarkIgnored)
 		db = db.Where("EXISTS (?)", sub)
 	case p.RequireHandled:
 		sub := db.Session(&gorm.Session{NewDB: true}).Table("task_failure_marks AS m").Select("1").
 			Where("m.task_type = ?", taskType).
+			Where("m.tenant_id = ?", p.TenantID).
 			Where("m.source_id = "+idSQL).
 			Where("m.mark_type = ?", MarkHandled)
 		db = db.Where("EXISTS (?)", sub)
 	default:
 		if !p.IncludeMarked {
-			db = db.Where("NOT EXISTS (?)", s.marksSubquery(s.DB, taskType, idSQL))
+			db = db.Where("NOT EXISTS (?)", s.marksSubquery(s.DB, taskType, idSQL, p.TenantID))
 		}
 	}
 	return db
@@ -284,14 +287,14 @@ func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool, trackRet
 	return db.Where("("+strings.TrimSpace(q)+")", args...)
 }
 
-func (s *Service) fetchMarks(ctx context.Context, taskType string, ids []string) (markSet, error) {
+func (s *Service) fetchMarks(ctx context.Context, tenantID int64, taskType string, ids []string) (markSet, error) {
 	out := markSet{}
 	if len(ids) == 0 {
 		return out, nil
 	}
 	var rows []TaskFailureMark
 	if err := s.DB.WithContext(ctx).
-		Where("task_type = ? AND source_id IN ? AND mark_type IN ?", taskType, ids, []string{MarkIgnored, MarkHandled}).
+		Where("tenant_id = ? AND task_type = ? AND source_id IN ? AND mark_type IN ?", tenantID, taskType, ids, []string{MarkIgnored, MarkHandled}).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}

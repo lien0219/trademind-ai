@@ -46,6 +46,22 @@ func (h *Handler) denyWrite(c *gin.Context) bool {
 	return false
 }
 
+func (h *Handler) denyRead(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "exceptions unavailable")
+		return true
+	}
+	return !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermOrderView)
+}
+
+func (h *Handler) denyInventoryWrite(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "exceptions unavailable")
+		return true
+	}
+	return !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermInventoryOperate)
+}
+
 func parseRFC3339(s string) (*time.Time, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -85,6 +101,14 @@ func (h *Handler) List(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
+	if h.denyRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	startPtr, err := parseRFC3339(c.Query("start"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid start time (RFC3339)")
@@ -96,6 +120,7 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	req := ListOrderExceptionsRequest{
+		TenantID:      &tenantID,
 		ExceptionType: strings.TrimSpace(c.Query("exceptionType")),
 		Severity:      strings.TrimSpace(c.Query("severity")),
 		Platform:      strings.TrimSpace(c.Query("platform")),
@@ -123,9 +148,17 @@ func (h *Handler) Detail(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
+	if h.denyRead(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	d, err := h.Svc.GetOrderExceptionDetail(c.Request.Context(), st, sid)
+	d, err := h.Svc.GetOrderExceptionDetail(c.Request.Context(), &tenantID, st, sid)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -143,6 +176,14 @@ func (h *Handler) Handle(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body HandleBody
 	_ = c.ShouldBindJSON(&body)
 	if strings.TrimSpace(body.ExceptionType) == "" {
@@ -151,7 +192,7 @@ func (h *Handler) Handle(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
+	if err := h.Svc.UpsertMark(c.Request.Context(), &tenantID, body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -174,6 +215,14 @@ func (h *Handler) Ignore(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body HandleBody
 	_ = c.ShouldBindJSON(&body)
 	if strings.TrimSpace(body.ExceptionType) == "" {
@@ -182,7 +231,7 @@ func (h *Handler) Ignore(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
+	if err := h.Svc.UpsertMark(c.Request.Context(), &tenantID, body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -205,9 +254,17 @@ func (h *Handler) Unmark(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	if err := h.Svc.DeleteMarks(c.Request.Context(), st, sid); err != nil {
+	if err := h.Svc.DeleteMarks(c.Request.Context(), &tenantID, st, sid); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -240,7 +297,12 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	out, err := h.Cmds.BindSKU(c.Request.Context(), st, sid, body, adminUUID(c))
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	out, err := h.Cmds.BindSKU(c.Request.Context(), tenantID, st, sid, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
@@ -275,11 +337,19 @@ func (h *Handler) RetryDeduct(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	var body retryDeductBody
 	_ = c.ShouldBindJSON(&body)
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	sum, err := h.Cmds.RetryDeduct(c.Request.Context(), st, sid, body.SyncPlatforms, adminUUID(c))
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	sum, err := h.Cmds.RetryDeduct(c.Request.Context(), tenantID, st, sid, body.SyncPlatforms, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
@@ -301,6 +371,9 @@ func (h *Handler) RetryDeduct(c *gin.Context) {
 func (h *Handler) RetryInventorySync(c *gin.Context) {
 	if h == nil || h.Cmds == nil {
 		response.Fail(c, 500, response.CodeInternalError, "exceptions unavailable")
+		return
+	}
+	if h.denyInventoryWrite(c) {
 		return
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))

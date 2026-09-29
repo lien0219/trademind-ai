@@ -10,4 +10,39 @@ describe('operation log alert labels', () => {
     expect(operationLogActionLabel('alert.acknowledge')).toBe('确认系统告警');
     expect(operationLogActionLabel('alert.silence')).toBe('静默系统告警');
   });
+
+  it('keeps purchase return audit records user-facing', () => {
+    expect(operationLogResourceLabel('purchase_return')).toBe('采购退货单');
+    expect(operationLogActionLabel('procurement.purchase_return.create')).toBe('创建采购退货单');
+    expect(operationLogActionLabel('procurement.purchase_return.complete')).toBe('执行采购退货');
+  });
+
+  it('keeps sales return audit records user-facing', () => {
+    expect(operationLogResourceLabel('sales_return')).toBe('销售售后单');
+    expect(operationLogActionLabel('sales_return.create')).toBe(
+      '创建销售售后单',
+    );
+    expect(operationLogActionLabel('sales_return.complete')).toBe(
+      '完成销售售后单',
+    );
+    expect(
+      operationLogActionLabel('sales_return.refund_execution.record_result'),
+    ).toBe('登记退款执行结果');
+  });
+
+  it('keeps fulfillment wave audit records user-facing', () => {
+    expect(operationLogResourceLabel('fulfillment_wave')).toBe('拣货波次');
+    expect(operationLogActionLabel('order.fulfillment_wave.create')).toBe(
+      '创建拣货波次',
+    );
+    expect(operationLogActionLabel('order.fulfillment_wave.complete')).toBe(
+      '完成波次已打包订单',
+    );
+    expect(operationLogActionLabel('order.fulfillment_wave.verify_pack')).toBe(
+      '完成波次出库扫描复核',
+    );
+    expect(operationLogActionLabel('order.fulfillment_wave.cancel')).toBe(
+      '取消拣货波次',
+    );
+  });
 });

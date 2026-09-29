@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -35,6 +36,7 @@ func newWorkbenchTestDB(t *testing.T) *gorm.DB {
 		&aiproductimage.AIProductImageBatch{},
 		&aiproductimage.AIProductImageItem{},
 		&productpublish.ProductPublishBatch{},
+		&taskcenter.TaskFailureMark{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -178,6 +180,60 @@ func TestCollectAIImageReview(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected ai image review todo")
+	}
+}
+
+func TestTenantScopedWorkbenchDoesNotMixProducts(t *testing.T) {
+	db := newWorkbenchTestDB(t)
+	batch := aiproducttext.AIProductTextBatch{BatchNo: "TENANT-SCOPE", Status: aiproducttext.BatchSuccess}
+	if err := db.Create(&batch).Error; err != nil {
+		t.Fatal(err)
+	}
+	products := []product.Product{
+		{TenantID: 1, Title: "租户一商品", Status: product.StatusDraft, Currency: "CNY"},
+		{TenantID: 2, Title: "租户二商品", Status: product.StatusDraft, Currency: "CNY"},
+	}
+	if err := db.Create(&products).Error; err != nil {
+		t.Fatal(err)
+	}
+	for i := range products {
+		if err := db.Create(&aiproducttext.AIProductTextItem{
+			BatchID: batch.ID, ProductID: products[i].ID, OperationType: aiproducttext.OpTitle,
+			Status: aiproducttext.ItemPendingReview,
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := &Service{DB: db}
+	out, err := svc.ListTodos(context.Background(), Query{
+		TenantID: 1, TenantScoped: true, Type: TodoTypeAITextReview, Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Items) != 1 || out.Items[0].ProductID != products[0].ID.String() {
+		t.Fatalf("tenant scope returned unexpected todos: %#v", out.Items)
+	}
+}
+
+func TestTenantScopedResolvedCount(t *testing.T) {
+	db := newWorkbenchTestDB(t)
+	for i, tenantID := range []int64{1, 2} {
+		if err := db.Create(&taskcenter.TaskFailureMark{
+			TenantID: tenantID, TaskType: taskcenter.TaskTypeAIText,
+			SourceID: fmt.Sprintf("resolved-%d", i), SourceTable: "ai_product_text_items",
+			MarkType: taskcenter.MarkHandled,
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := &Service{DB: db}
+	count, err := svc.countTodayResolved(context.Background(), Query{TenantID: 1, TenantScoped: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one resolved item for tenant 1, got %d", count)
 	}
 }
 

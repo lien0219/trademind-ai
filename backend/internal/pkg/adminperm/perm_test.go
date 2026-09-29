@@ -55,6 +55,54 @@ func TestPermissionsForRole(t *testing.T) {
 	if !StrictHasPermission(RoleReadonly, PermInventorySyncRead) || !StrictHasPermission(RoleReadonly, PermInventorySnapshotRead) || !StrictHasPermission(RoleReadonly, PermSKUBindingRead) {
 		t.Fatal("readonly should read inventory sync, snapshots, and SKU bindings")
 	}
+	if !StrictHasPermission(RoleOperator, PermProcurementManage) || !StrictHasPermission(RoleOperator, PermProcurementReceive) || !StrictHasPermission(RoleOperator, PermProcurementReturn) || StrictHasPermission(RoleOperator, PermProcurementApprove) {
+		t.Fatal("operator should manage, receive, and return purchase orders but must not approve them")
+	}
+	if !StrictHasPermission(RoleReviewer, PermProcurementApprove) || StrictHasPermission(RoleReviewer, PermProcurementManage) || StrictHasPermission(RoleReviewer, PermProcurementReceive) || StrictHasPermission(RoleReviewer, PermProcurementReturn) {
+		t.Fatal("reviewer should approve purchase orders without editing, receiving, or returning them")
+	}
+	if !StrictHasPermission(RoleReadonly, PermWarehouseView) || !StrictHasPermission(RoleReadonly, PermSupplierView) || !StrictHasPermission(RoleReadonly, PermProcurementView) {
+		t.Fatal("readonly should view ERP master data and purchase orders")
+	}
+	if StrictHasPermission(RoleReadonly, PermWarehouseManage) || StrictHasPermission(RoleReadonly, PermSupplierManage) || StrictHasPermission(RoleReadonly, PermProcurementManage) {
+		t.Fatal("readonly must not mutate ERP resources")
+	}
+	if !StrictHasPermission(RoleOperator, PermLogisticsManage) || !StrictHasPermission(RoleReviewer, PermLogisticsView) || !StrictHasPermission(RoleReadonly, PermLogisticsView) {
+		t.Fatal("ERP roles should receive the intended logistics permissions")
+	}
+	if StrictHasPermission(RoleReviewer, PermLogisticsManage) || StrictHasPermission(RoleReadonly, PermLogisticsManage) {
+		t.Fatal("reviewer and readonly must not mutate logistics configuration")
+	}
+	if !StrictHasPermission(RoleOperator, PermSalesReturnRefund) || StrictHasPermission(RoleReviewer, PermSalesReturnRefund) || StrictHasPermission(RoleReadonly, PermSalesReturnRefund) {
+		t.Fatal("only operator and admin roles should execute sales refunds")
+	}
+	if !StrictHasPermission(RoleOperator, PermSettlementImport) || !StrictHasPermission(RoleOperator, PermSettlementExport) {
+		t.Fatal("operator should import and export settlement facts")
+	}
+	if !StrictHasPermission(RoleReviewer, PermSettlementView) || !StrictHasPermission(RoleReviewer, PermSettlementExport) || StrictHasPermission(RoleReviewer, PermSettlementImport) {
+		t.Fatal("reviewer should inspect and export settlements without importing")
+	}
+	if !StrictHasPermission(RoleReadonly, PermSettlementView) || StrictHasPermission(RoleReadonly, PermSettlementImport) || StrictHasPermission(RoleReadonly, PermSettlementExport) {
+		t.Fatal("readonly should inspect settlements without importing or exporting")
+	}
+	if !StrictHasPermission(RoleOperator, PermWarehouseFeeView) || !StrictHasPermission(RoleOperator, PermWarehouseFeeManage) {
+		t.Fatal("operator should inspect and manage warehouse fees")
+	}
+	if !StrictHasPermission(RoleReviewer, PermWarehouseFeeView) || StrictHasPermission(RoleReviewer, PermWarehouseFeeManage) {
+		t.Fatal("reviewer should inspect warehouse fees without managing them")
+	}
+	if !StrictHasPermission(RoleReadonly, PermWarehouseFeeView) || StrictHasPermission(RoleReadonly, PermWarehouseFeeManage) {
+		t.Fatal("readonly should inspect warehouse fees without managing them")
+	}
+	if !StrictHasPermission(RoleOperator, PermAdvertisingFeeView) || !StrictHasPermission(RoleOperator, PermAdvertisingFeeImport) || !StrictHasPermission(RoleOperator, PermAdvertisingFeeManage) {
+		t.Fatal("operator should inspect, import, and correct advertising fees")
+	}
+	if !StrictHasPermission(RoleReviewer, PermAdvertisingFeeView) || StrictHasPermission(RoleReviewer, PermAdvertisingFeeImport) || StrictHasPermission(RoleReviewer, PermAdvertisingFeeManage) {
+		t.Fatal("reviewer should inspect advertising fees without mutating them")
+	}
+	if !StrictHasPermission(RoleReadonly, PermAdvertisingFeeView) || StrictHasPermission(RoleReadonly, PermAdvertisingFeeImport) || StrictHasPermission(RoleReadonly, PermAdvertisingFeeManage) {
+		t.Fatal("readonly should inspect advertising fees without mutating them")
+	}
 	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) || StrictHasPermission("surprise", PermInventorySyncRun) || StrictHasPermission(RoleAdmin, "inventory.run") {
 		t.Fatal("unknown roles and synonymous permissions must not inherit permissions on strict path")
 	}

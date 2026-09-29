@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, postJSON } from '@/services/request';
+import { getJSON, getWithParams, patchJSON, postJSON, putJSON } from "@/services/request";
 
 export type PaginatedInventory<T> = {
   list: T[];
@@ -47,6 +47,7 @@ export type OrderInventoryEffectRow = {
   createdAt: string;
   updatedAt: string;
   orderId: string;
+  warehouseId?: string;
   orderNo?: string;
   orderItemId: string;
   productId?: string;
@@ -65,7 +66,19 @@ export type OrderInventoryEffectRow = {
 };
 
 export type InventoryCenterRow = InventoryAlertRow & {
+  projectionStock: number;
+  inventoryScope: 'global' | 'warehouse' | string;
+  warehouseId?: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  onHandStock: number;
+  reservedStock: number;
+  inTransitStock: number;
+  damagedStock: number;
+  sellableStock: number;
   availableStock: number;
+  warehouseBalanceCount: number;
+  reconciliationStatus: 'matched' | 'unmigrated' | 'mismatch' | string;
   skuBindStatus: string;
   platformSyncStatus: string;
   lastDeductAt?: string;
@@ -101,14 +114,351 @@ export type InventorySyncTaskDTO = {
 };
 
 export type AdjustStockPayload = {
+  warehouseId: string;
   stock: number;
+  idempotencyKey: string;
   reason?: string;
   remark?: string;
   sync?: boolean;
 };
 
-export async function adjustSkuStock(productId: string, skuId: string, payload: AdjustStockPayload) {
-  return postJSON<Record<string, unknown>>(`/api/v1/products/${productId}/skus/${skuId}/adjust-stock`, payload);
+export async function adjustSkuStock(
+  productId: string,
+  skuId: string,
+  payload: AdjustStockPayload,
+) {
+  return postJSON<Record<string, unknown>>(
+    `/api/v1/products/${productId}/skus/${skuId}/adjust-stock`,
+    payload,
+  );
+}
+
+export type WarehouseBalance = {
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
+  isDefault: boolean;
+  onHand: number;
+  reserved: number;
+  inTransit: number;
+  damaged: number;
+  available: number;
+  version: number;
+};
+
+export type InventoryWarehouse = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  isDefault: boolean;
+};
+
+export type WarehouseLocation = {
+  id: string;
+  tenantId: number;
+  warehouseId: string;
+  code: string;
+  name: string;
+  zone?: string;
+  status: 'active' | 'inactive' | string;
+};
+
+export type WarehouseSKUPlacement = {
+  id: string;
+  warehouseId: string;
+  productSkuId: string;
+  locationId?: string;
+  barcode?: string;
+  status: 'active' | 'inactive' | string;
+  skuCode?: string;
+  skuName?: string;
+  productTitle?: string;
+  locationCode?: string;
+  locationName?: string;
+  locationZone?: string;
+};
+
+export async function listInventoryWarehouses() {
+  return getJSON<{ list: InventoryWarehouse[] }>("/api/v1/warehouses");
+}
+
+export async function listWarehouseLocations(warehouseId: string, includeInactive = false) {
+  return getJSON<{ list: WarehouseLocation[] }>(
+    `/api/v1/warehouses/${encodeURIComponent(warehouseId)}/locations?includeInactive=${includeInactive ? 'true' : 'false'}`,
+  );
+}
+
+export async function createWarehouseLocation(
+  warehouseId: string,
+  body: { code: string; name: string; zone?: string },
+) {
+  return postJSON<WarehouseLocation>(
+    `/api/v1/warehouses/${encodeURIComponent(warehouseId)}/locations`,
+    body,
+  );
+}
+
+export async function updateWarehouseLocation(
+  warehouseId: string,
+  id: string,
+  body: { name: string; zone?: string; status: string },
+) {
+  return putJSON<WarehouseLocation, typeof body>(
+    `/api/v1/warehouses/${encodeURIComponent(warehouseId)}/locations/${encodeURIComponent(id)}`,
+    body,
+  );
+}
+
+export async function listWarehouseSKUPlacements(params: {
+  warehouseId: string;
+  productSkuId?: string;
+  includeInactive?: boolean;
+}) {
+  return getWithParams<{ list: WarehouseSKUPlacement[] }>(
+    '/api/v1/inventory/warehouse-placements',
+    {
+      warehouseId: params.warehouseId,
+      productSkuId: params.productSkuId,
+      includeInactive: params.includeInactive ? 'true' : undefined,
+    },
+  );
+}
+
+export async function createWarehouseSKUPlacement(body: {
+  warehouseId: string;
+  productSkuId: string;
+  locationId?: string;
+  barcode?: string;
+  status: string;
+}) {
+  return postJSON<WarehouseSKUPlacement>('/api/v1/inventory/warehouse-placements', body);
+}
+
+export async function updateWarehouseSKUPlacement(id: string, body: {
+  locationId?: string;
+  barcode?: string;
+  status: string;
+}) {
+  return putJSON<WarehouseSKUPlacement, typeof body>(
+    `/api/v1/inventory/warehouse-placements/${encodeURIComponent(id)}`,
+    body,
+  );
+}
+
+export type WarehouseTransferStatus = 'draft' | 'pending_approval' | 'approved' | 'in_transit' | 'received' | 'cancelled' | string;
+export type WarehouseTransferItem = {
+  id: string;
+  productId: string;
+  productSkuId: string;
+  quantity: number;
+  receivedQuantity: number;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+};
+export type WarehouseTransfer = {
+  id: string;
+  transferNo: string;
+  sourceWarehouseId: string;
+  targetWarehouseId: string;
+  sourceWarehouseCode?: string;
+  sourceWarehouseName?: string;
+  targetWarehouseCode?: string;
+  targetWarehouseName?: string;
+  status: WarehouseTransferStatus;
+  revision: number;
+  idempotencyKey: string;
+  reason?: string;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+  items?: WarehouseTransferItem[];
+  itemCount?: number;
+};
+export type WarehouseTransferList = {
+  list: WarehouseTransfer[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+export type CreateWarehouseTransferPayload = {
+  idempotencyKey: string;
+  sourceWarehouseId: string;
+  targetWarehouseId: string;
+  reason?: string;
+  remark?: string;
+  items: Array<{ productSkuId: string; quantity: number }>;
+};
+export type WarehouseTransferActionPayload = {
+  expectedRevision: number;
+  idempotencyKey: string;
+  reason?: string;
+};
+
+export async function queryWarehouseTransfers(params?: { page?: number; pageSize?: number; status?: string }) {
+  return getWithParams<WarehouseTransferList>('/api/v1/inventory/warehouse-transfers', params);
+}
+
+export async function getWarehouseTransfer(id: string) {
+  return getJSON<WarehouseTransfer>(`/api/v1/inventory/warehouse-transfers/${encodeURIComponent(id)}`);
+}
+
+export async function createWarehouseTransfer(payload: CreateWarehouseTransferPayload) {
+  return postJSON<WarehouseTransfer>('/api/v1/inventory/warehouse-transfers', payload);
+}
+
+export async function actOnWarehouseTransfer(id: string, action: 'submit' | 'approve' | 'dispatch' | 'receive' | 'cancel', payload: WarehouseTransferActionPayload) {
+  return postJSON<WarehouseTransfer>(`/api/v1/inventory/warehouse-transfers/${encodeURIComponent(id)}/${action}`, payload);
+}
+
+export type InventoryStocktakeStatus = 'counting' | 'pending_review' | 'approved' | 'posted' | 'cancelled' | string;
+export type InventoryStocktakeItem = {
+  id: string;
+  productId: string;
+  productSkuId: string;
+  snapshotOnHand: number;
+  snapshotReserved: number;
+  snapshotInTransit: number;
+  snapshotDamaged: number;
+  snapshotVersion: number;
+  countedOnHand?: number;
+  remark?: string;
+  productTitle?: string;
+  skuCode?: string;
+  skuName?: string;
+};
+export type InventoryStocktake = {
+  id: string;
+  stocktakeNo: string;
+  warehouseId: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  status: InventoryStocktakeStatus;
+  revision: number;
+  idempotencyKey: string;
+  reason?: string;
+  remark?: string;
+  itemCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  items?: InventoryStocktakeItem[];
+};
+export type InventoryStocktakeList = {
+  list: InventoryStocktake[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+export type CreateInventoryStocktakePayload = {
+  idempotencyKey: string;
+  warehouseId: string;
+  reason?: string;
+  remark?: string;
+  items: Array<{ productSkuId: string }>;
+};
+export type InventoryStocktakeItemPayload = {
+  expectedRevision: number;
+  idempotencyKey: string;
+  countedOnHand: number;
+  remark?: string;
+};
+export type InventoryStocktakeActionPayload = {
+  expectedRevision: number;
+  idempotencyKey: string;
+  reason?: string;
+};
+
+export async function queryInventoryStocktakes(params?: { page?: number; pageSize?: number; status?: string }) {
+  return getWithParams<InventoryStocktakeList>('/api/v1/inventory/stocktakes', params);
+}
+
+export async function getInventoryStocktake(id: string) {
+  return getJSON<InventoryStocktake>(`/api/v1/inventory/stocktakes/${encodeURIComponent(id)}`);
+}
+
+export async function createInventoryStocktake(payload: CreateInventoryStocktakePayload) {
+  return postJSON<InventoryStocktake>('/api/v1/inventory/stocktakes', payload);
+}
+
+export async function updateInventoryStocktakeItem(stocktakeId: string, itemId: string, payload: InventoryStocktakeItemPayload) {
+  return patchJSON<InventoryStocktake, InventoryStocktakeItemPayload>(
+    `/api/v1/inventory/stocktakes/${encodeURIComponent(stocktakeId)}/items/${encodeURIComponent(itemId)}`,
+    payload,
+  );
+}
+
+export async function actOnInventoryStocktake(id: string, action: 'submit' | 'approve' | 'post' | 'cancel', payload: InventoryStocktakeActionPayload) {
+  return postJSON<InventoryStocktake>(`/api/v1/inventory/stocktakes/${encodeURIComponent(id)}/${action}`, payload);
+}
+
+export async function listSkuWarehouseBalances(
+  productId: string,
+  skuId: string,
+) {
+  return getJSON<{ list: WarehouseBalance[] }>(
+    `/api/v1/products/${encodeURIComponent(productId)}/skus/${encodeURIComponent(skuId)}/warehouse-balances`,
+  );
+}
+
+export type WarehouseLedgerReconciliationRow = {
+  productId: string;
+  productTitle: string;
+  productSkuId: string;
+  skuCode: string;
+  skuName: string;
+  aggregateStock: number;
+  warehouseOnHand: number;
+  warehouseDamaged: number;
+  warehouseSellable: number;
+  difference: number;
+  balanceCount: number;
+  status: "matched" | "unmigrated" | "mismatch" | string;
+};
+
+export type WarehouseLedgerReconciliation = {
+  list: WarehouseLedgerReconciliationRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  matched: number;
+  unmigrated: number;
+  mismatch: number;
+};
+
+export async function queryWarehouseLedgerReconciliation(params?: {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+}) {
+  return getWithParams<WarehouseLedgerReconciliation>(
+    "/api/v1/inventory/warehouse-ledger/reconciliation",
+    params,
+  );
+}
+
+export type LegacyStockMigrationResult = {
+  warehouseId: string;
+  warehouseCode: string;
+  migratedCount: number;
+  remainingCount: number;
+};
+
+export async function migrateLegacyStock(limit = 100) {
+  return postJSON<LegacyStockMigrationResult>(
+    "/api/v1/inventory/warehouse-ledger/migrate-legacy",
+    { limit },
+  );
+}
+
+export function createInventoryIdempotencyKey(action: string) {
+  const random =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `admin-${action}-${random}`.slice(0, 128);
 }
 
 export async function querySkuInventoryLogs(
@@ -125,24 +475,45 @@ export async function querySkuInventoryLogs(
   );
 }
 
-export async function listProductPublicationSkus(productId: string, params?: { productSkuId?: string }) {
-  return getWithParams<{ list: PublicationSkuListingRow[] }>(`/api/v1/products/${productId}/publication-skus`, {
-    ...(params?.productSkuId ? { productSkuId: params.productSkuId } : {}),
-  });
+export async function listProductPublicationSkus(
+  productId: string,
+  params?: { productSkuId?: string },
+) {
+  return getWithParams<{ list: PublicationSkuListingRow[] }>(
+    `/api/v1/products/${productId}/publication-skus`,
+    {
+      ...(params?.productSkuId ? { productSkuId: params.productSkuId } : {}),
+    },
+  );
 }
 
 export async function syncPublicationSkuInventory(
   publicationSkuId: string,
-  payload: { stock: number; options?: Record<string, unknown>; fromInventoryAlert?: boolean },
+  payload: {
+    stock: number;
+    options?: Record<string, unknown>;
+    fromInventoryAlert?: boolean;
+  },
 ) {
-  return postJSON<InventorySyncTaskDTO>(`/api/v1/product-publication-skus/${publicationSkuId}/sync-inventory`, payload);
+  return postJSON<InventorySyncTaskDTO>(
+    `/api/v1/product-publication-skus/${publicationSkuId}/sync-inventory`,
+    payload,
+  );
 }
 
 export async function syncProductInventory(
   productId: string,
-  payload: { shopId: string; skuIds: string[]; options?: Record<string, unknown>; useLocal?: boolean },
+  payload: {
+    shopId: string;
+    skuIds: string[];
+    options?: Record<string, unknown>;
+    useLocal?: boolean;
+  },
 ) {
-  return postJSON<{ list: InventorySyncTaskDTO[] }>(`/api/v1/products/${productId}/sync-inventory`, payload);
+  return postJSON<{ list: InventorySyncTaskDTO[] }>(
+    `/api/v1/products/${productId}/sync-inventory`,
+    payload,
+  );
 }
 
 export async function queryInventorySyncTasks(params?: {
@@ -151,13 +522,17 @@ export async function queryInventorySyncTasks(params?: {
   productId?: string;
   productSkuId?: string;
   shopId?: string;
+  warehouseId?: string;
   batchId?: string;
   platform?: string;
   status?: string;
   start?: string;
   end?: string;
 }) {
-  return getWithParams<PaginatedInventory<InventorySyncTaskDTO>>('/api/v1/inventory-sync/tasks', params);
+  return getWithParams<PaginatedInventory<InventorySyncTaskDTO>>(
+    "/api/v1/inventory-sync/tasks",
+    params,
+  );
 }
 
 export async function getInventorySyncTask(id: string) {
@@ -165,7 +540,10 @@ export async function getInventorySyncTask(id: string) {
 }
 
 export async function retryInventorySyncTask(id: string) {
-  return postJSON<InventorySyncTaskDTO>(`/api/v1/inventory-sync/tasks/${id}/retry`, {});
+  return postJSON<InventorySyncTaskDTO>(
+    `/api/v1/inventory-sync/tasks/${id}/retry`,
+    {},
+  );
 }
 
 export type PlatformStockAlertEntry = {
@@ -210,6 +588,7 @@ export async function queryInventoryCenter(params?: {
   productSkuId?: string;
   platform?: string;
   shopId?: string;
+  warehouseId?: string;
   stockStatus?: string;
   alertStatus?: string;
   skuBindStatus?: string;
@@ -224,6 +603,7 @@ export async function queryInventoryCenter(params?: {
     productSkuId: params?.productSkuId,
     platform: params?.platform?.trim() || undefined,
     shopId: params?.shopId,
+    warehouseId: params?.warehouseId,
     stockStatus: params?.stockStatus?.trim() || undefined,
     alertStatus: params?.alertStatus?.trim() || undefined,
     skuBindStatus: params?.skuBindStatus?.trim() || undefined,
@@ -232,12 +612,12 @@ export async function queryInventoryCenter(params?: {
     pageSize: params?.pageSize,
   };
   if (params?.hasException) {
-    q.hasException = 'true';
+    q.hasException = "true";
   }
-  return getWithParams<{ list: InventoryCenterRow[]; pagination: PaginatedInventory<InventoryCenterRow>['pagination'] }>(
-    '/api/v1/inventory',
-    q,
-  );
+  return getWithParams<{
+    list: InventoryCenterRow[];
+    pagination: PaginatedInventory<InventoryCenterRow>["pagination"];
+  }>("/api/v1/inventory", q);
 }
 
 export async function queryInventoryAlerts(params?: {
@@ -265,15 +645,15 @@ export async function queryInventoryAlerts(params?: {
     pageSize: params?.pageSize,
   };
   if (params?.onlyPublished) {
-    q.onlyPublished = 'true';
+    q.onlyPublished = "true";
   }
   if (params?.includeNormal) {
-    q.includeNormal = 'true';
+    q.includeNormal = "true";
   }
-  return getWithParams<{ list: InventoryAlertRow[]; pagination: PaginatedInventory<InventoryAlertRow>['pagination'] }>(
-    '/api/v1/inventory/alerts',
-    q,
-  );
+  return getWithParams<{
+    list: InventoryAlertRow[];
+    pagination: PaginatedInventory<InventoryAlertRow>["pagination"];
+  }>("/api/v1/inventory/alerts", q);
 }
 
 export async function queryGlobalInventoryLogs(params?: {
@@ -286,7 +666,10 @@ export async function queryGlobalInventoryLogs(params?: {
   start?: string;
   end?: string;
 }) {
-  return getWithParams<PaginatedInventory<InventoryChangeLogRow>>('/api/v1/inventory/logs', params);
+  return getWithParams<PaginatedInventory<InventoryChangeLogRow>>(
+    "/api/v1/inventory/logs",
+    params,
+  );
 }
 
 export async function queryGlobalInventoryEffects(params?: {
@@ -299,7 +682,10 @@ export async function queryGlobalInventoryEffects(params?: {
   start?: string;
   end?: string;
 }) {
-  return getWithParams<PaginatedInventory<OrderInventoryEffectRow>>('/api/v1/inventory/effects', params);
+  return getWithParams<PaginatedInventory<OrderInventoryEffectRow>>(
+    "/api/v1/inventory/effects",
+    params,
+  );
 }
 
 export type InventorySyncBatchDTO = {
@@ -343,8 +729,13 @@ export type CreateInventorySyncBatchPayload = {
   options?: Record<string, unknown>;
 };
 
-export async function createInventorySyncBatch(payload: CreateInventorySyncBatchPayload) {
-  return postJSON<InventorySyncBatchDTO>('/api/v1/inventory-sync/batches', payload);
+export async function createInventorySyncBatch(
+  payload: CreateInventorySyncBatchPayload,
+) {
+  return postJSON<InventorySyncBatchDTO>(
+    "/api/v1/inventory-sync/batches",
+    payload,
+  );
 }
 
 export async function queryInventorySyncBatches(params?: {
@@ -358,16 +749,22 @@ export async function queryInventorySyncBatches(params?: {
   start?: string;
   end?: string;
 }) {
-  return getWithParams<{ items: InventorySyncBatchDTO[]; pagination: PaginatedInventory<InventorySyncBatchDTO>['pagination'] }>(
-    '/api/v1/inventory-sync/batches',
-    params,
-  );
+  return getWithParams<{
+    items: InventorySyncBatchDTO[];
+    pagination: PaginatedInventory<InventorySyncBatchDTO>["pagination"];
+  }>("/api/v1/inventory-sync/batches", params);
 }
 
-export async function getInventorySyncBatch(id: string, params?: { recentTasks?: number }) {
-  return getWithParams<InventorySyncBatchDTO>(`/api/v1/inventory-sync/batches/${encodeURIComponent(id)}`, {
-    recentTasks: params?.recentTasks,
-  });
+export async function getInventorySyncBatch(
+  id: string,
+  params?: { recentTasks?: number },
+) {
+  return getWithParams<InventorySyncBatchDTO>(
+    `/api/v1/inventory-sync/batches/${encodeURIComponent(id)}`,
+    {
+      recentTasks: params?.recentTasks,
+    },
+  );
 }
 
 export async function queryInventorySyncBatchTasks(
@@ -391,11 +788,17 @@ export async function queryInventorySyncBatchTasks(
 }
 
 export async function retryInventorySyncBatchFailed(batchId: string) {
-  return postJSON<InventorySyncBatchDTO>(`/api/v1/inventory-sync/batches/${encodeURIComponent(batchId)}/retry-failed`, {});
+  return postJSON<InventorySyncBatchDTO>(
+    `/api/v1/inventory-sync/batches/${encodeURIComponent(batchId)}/retry-failed`,
+    {},
+  );
 }
 
 export async function retryInventorySyncTasksBatch(taskIds: string[]) {
-  return postJSON<InventorySyncBatchDTO>('/api/v1/inventory-sync/batches/retry-failed-tasks', { taskIds });
+  return postJSON<InventorySyncBatchDTO>(
+    "/api/v1/inventory-sync/batches/retry-failed-tasks",
+    { taskIds },
+  );
 }
 
 export type BatchStockSettingsPreviewPayload = {
@@ -427,17 +830,23 @@ export type BatchStockSettingsPreviewResult = {
   totalPages: number;
 };
 
-export async function previewBatchStockSettings(payload: BatchStockSettingsPreviewPayload) {
-  return postJSON<BatchStockSettingsPreviewResult>('/api/v1/inventory/stock-settings/batch-preview', payload);
+export async function previewBatchStockSettings(
+  payload: BatchStockSettingsPreviewPayload,
+) {
+  return postJSON<BatchStockSettingsPreviewResult>(
+    "/api/v1/inventory/stock-settings/batch-preview",
+    payload,
+  );
 }
 
-export type BatchStockSettingsUpdatePayload = BatchStockSettingsPreviewPayload & {
-  warningStock: number;
-  safetyStock: number;
-  confirm: boolean;
-  confirmLarge?: boolean;
-  confirmAll?: boolean;
-};
+export type BatchStockSettingsUpdatePayload =
+  BatchStockSettingsPreviewPayload & {
+    warningStock: number;
+    safetyStock: number;
+    confirm: boolean;
+    confirmLarge?: boolean;
+    confirmAll?: boolean;
+  };
 
 export type BatchStockSettingsUpdateResult = {
   matchedCount: number;
@@ -445,6 +854,11 @@ export type BatchStockSettingsUpdateResult = {
   summary: string;
 };
 
-export async function batchUpdateStockSettings(payload: BatchStockSettingsUpdatePayload) {
-  return postJSON<BatchStockSettingsUpdateResult>('/api/v1/inventory/stock-settings/batch-update', payload);
+export async function batchUpdateStockSettings(
+  payload: BatchStockSettingsUpdatePayload,
+) {
+  return postJSON<BatchStockSettingsUpdateResult>(
+    "/api/v1/inventory/stock-settings/batch-update",
+    payload,
+  );
 }

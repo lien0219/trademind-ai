@@ -16,11 +16,11 @@ type OrderItemSKUMatch struct {
 	Platform        string         `gorm:"size:64;index;not null" json:"platform"`
 	ExternalOrderID *string        `gorm:"size:255;index" json:"externalOrderId,omitempty"`
 	ExternalItemID  *string        `gorm:"size:255" json:"externalItemId,omitempty"`
-	ExternalSKUID   *string        `gorm:"size:256" json:"externalSkuId,omitempty"`
+	ExternalSKUID   *string        `gorm:"column:external_sku_id;size:256" json:"externalSkuId,omitempty"`
 	SellerSKU       string         `gorm:"size:128" json:"sellerSku,omitempty"`
 	SKUCode         string         `gorm:"size:128" json:"skuCode,omitempty"`
 	ProductID       *uuid.UUID     `gorm:"type:char(36);index" json:"productId,omitempty"`
-	ProductSKUID    *uuid.UUID     `gorm:"type:char(36);index" json:"productSkuId,omitempty"`
+	ProductSKUID    *uuid.UUID     `gorm:"column:product_sku_id;type:char(36);index" json:"productSkuId,omitempty"`
 	MatchType       string         `gorm:"size:64;index;not null" json:"matchType"`
 	MatchStatus     string         `gorm:"size:32;index;not null" json:"matchStatus"`
 	Confidence      int            `gorm:"default:0;not null" json:"confidence"`

@@ -848,6 +848,7 @@ func (s *Service) importDraftCore(ctx context.Context, tenantID int64, adminID *
 		}
 
 		for _, line := range p.SKUs {
+			initialStock := 0
 			var attrs datatypes.JSON
 			if len(line.Attrs) > 0 {
 				attrs = datatypes.JSON(line.Attrs)
@@ -871,7 +872,7 @@ func (s *Service) importDraftCore(ctx context.Context, tenantID int64, adminID *
 				Attrs:        attrs,
 				Price:        line.Price,
 				CostPrice:    line.CostPrice,
-				Stock:        line.Stock,
+				Stock:        &initialStock,
 				ImageURL:     strings.TrimSpace(line.ImageURL),
 				RawData:      rawSKU,
 				WarningStock: warn,

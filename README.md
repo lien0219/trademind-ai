@@ -90,6 +90,10 @@ TradeMind 是面向跨境卖家、品牌团队与开发者的开源 AI 运营平
 - 店铺授权：支持 Douyin Shop OAuth、敏感配置加密与连接测试。
 - 订单协同：支持订单同步、SKU 匹配、异常工作台等基础能力。
 - 库存协同：支持库存镜像、预警与平台同步任务。
+- ERP 采购与退货：提供仓库、供应商采购信息、补货建议人工确认创建采购草稿、采购单审批、分批收货、原收货关联退货、仓库库存流水与幂等保护，并提供审批/执行分权和版本冲突保护的管理端工作台。
+- 履约分仓与仓内作业：按整单 SKU 可用库存提供单仓候选，人工确认时原子绑定订单仓库并预占库存；同仓订单可进入持久化拣货波次，依次完成拣货/缺货登记、订单与商品条码及面单扫描复核、本地运费模板试算与人工确认、称重和明确出库，部分失败留待人工处理且不自动重试。
+- 销售售后：支持订单明细级仅退款与退货退款草稿、审批、原订单仓收货、良品/残次品处置、累计超退保护和职责分离；售后完成后通过独立退款执行单人工登记外部资金结果或按平台只读事实确认，仍不调用支付或真实平台写接口。
+- 平台结算、仓库操作费、广告费用归属与订单预估利润：支持租户/店铺范围内的本地结算和广告费用 CSV 零写入预览、明确确认及不可变事实导入；按仓库维护版本化出库、拣货和打包费率，对已完成且通过打包扫描复核的订单人工确认费用快照；广告费用按店铺当地日确定性归属到已支付且未取消的订单，更正只追加调整或一次性冲正。订单预估利润 V5 只消费对账一致的平台费、结构有效的仓库操作费，以及明确声明未被结算覆盖的已确认广告归属，历史缺口和覆盖未知费用不补零，所有费用均是运营估算事实而非会计实际成本。
 - 商品刊登：支持多平台刊登中心、单商品与批量草稿创建、批量发布流程、AI 标题/描述复核、AI 图片处理、草稿映射、发布任务、失败恢复与人工校正。
 - AI 客服：支持建议回复与人工确认外发；可按店铺显式开启低风险自动回复，默认关闭并保留频率、订单上下文、敏感承诺、审计与人工接管保护。
 
@@ -157,14 +161,14 @@ GitHub Actions 会为 backend、admin 和 collector 自动发布 GHCR 多架构�
 
 ```bash
 # 在 .env 中设置 COLLECTOR_SERVICE_TOKEN，并覆盖以下镜像引用
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind-backend:dev-v0.2.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind-admin:dev-v0.2.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind-collector:dev-v0.2.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.3.0
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.3.0
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.3.0
 docker compose -f docker-compose.full.yml pull backend admin collector
 docker compose -f docker-compose.full.yml up -d --no-build
 ```
 
-分支构建会更新分支、分支版本和 `sha-<commit>` 标签，但不会更新 `latest`。正式版本合并到 `main` 后，推送与 `deploy/IMAGE_VERSION` 一致的 `v<version>` Git Tag，工作流才会发布 `v<version>`、`version` 和 `latest`。正式部署应使用工作流输出的 `image@sha256:<manifest-digest>` 不可变引用。完整发布步骤与包地址见 [Docker 部署](docs/docker-deployment.md)。
+只有 `main` 分支的镜像相关变更会自动发布验证镜像，标签使用 `backend-*`、`admin-*` 和 `collector-*` 区分同一 GHCR Package 中的服务，普通构建不会更新服务的 `latest`。正式版本合并到 `main` 后，推送与 `deploy/IMAGE_VERSION` 一致的 `v<version>` Git Tag，工作流才会发布服务版本标签和服务 `latest`。正式部署应使用工作流输出的 `image@sha256:<manifest-digest>` 不可变引用。完整发布步骤与包地址见 [Docker 部署](docs/docker-deployment.md)。
 
 默认访问地址：
 

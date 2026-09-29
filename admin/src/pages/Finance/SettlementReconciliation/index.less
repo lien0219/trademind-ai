@@ -1,0 +1,65 @@
+.tm-settlement-page {
+  min-width: 0;
+
+  .ant-pro-page-container-children-container {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+.tm-settlement-toolbar {
+  width: 100%;
+}
+
+.tm-settlement-filter {
+  width: 154px;
+}
+
+.tm-settlement-filter--search {
+  width: 220px;
+}
+
+.tm-settlement-filter--range {
+  width: 250px;
+}
+
+.tm-settlement-import-source {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.tm-settlement-import-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.tm-settlement-import-actions {
+  justify-content: flex-end;
+}
+
+.tm-settlement-detail {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .tm-settlement-filter,
+  .tm-settlement-filter--search,
+  .tm-settlement-filter--range {
+    width: 100%;
+  }
+
+  .tm-settlement-import-source {
+    grid-template-columns: 1fr;
+  }
+
+  .tm-settlement-import-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

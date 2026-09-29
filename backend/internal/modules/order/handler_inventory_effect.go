@@ -7,17 +7,20 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
 
 type orderInvSyncBody struct {
-	SyncInventory bool `json:"syncInventory"`
+	SyncInventory bool       `json:"syncInventory"`
+	WarehouseID   *uuid.UUID `json:"warehouseId,omitempty"`
 }
 
 type orderRestoreBody struct {
-	SyncInventory bool   `json:"syncInventory"`
-	Reason        string `json:"reason"`
+	SyncInventory bool       `json:"syncInventory"`
+	Reason        string     `json:"reason"`
+	WarehouseID   *uuid.UUID `json:"warehouseId,omitempty"`
 }
 
 // POST /orders/:id/deduct-inventory
@@ -34,6 +37,11 @@ func (h *Handler) PostDeductInventory(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body orderInvSyncBody
 	_ = c.ShouldBindJSON(&body)
 
@@ -41,8 +49,14 @@ func (h *Handler) PostDeductInventory(c *gin.Context) {
 		Reason:        "manual_api",
 		SyncPlatforms: body.SyncInventory,
 		CreatedBy:     adminUUID(c),
+		WarehouseID:   body.WarehouseID,
+		TenantID:      &tenantID,
 	})
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -72,6 +86,11 @@ func (h *Handler) PostRestoreInventory(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body orderRestoreBody
 	_ = c.ShouldBindJSON(&body)
 	rs := strings.TrimSpace(body.Reason)
@@ -86,8 +105,14 @@ func (h *Handler) PostRestoreInventory(c *gin.Context) {
 		Reason:        rs,
 		SyncPlatforms: body.SyncInventory,
 		CreatedBy:     adminUUID(c),
+		WarehouseID:   body.WarehouseID,
+		TenantID:      &tenantID,
 	})
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -109,6 +134,9 @@ func (h *Handler) GetOrderInventoryEffects(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyRead(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -122,9 +150,14 @@ func (h *Handler) GetOrderInventoryEffects(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	page := atoiQ(c, "page", 1)
 	ps := atoiQ(c, "pageSize", 50)
-	list, ierr := h.Inv.ListOrderEffectsByOrder(c.Request.Context(), id, page, ps)
+	list, ierr := h.Inv.ListOrderEffectsByOrder(c.Request.Context(), tenantID, id, page, ps)
 	if ierr != nil {
 		response.HandleError(c, ierr)
 		return

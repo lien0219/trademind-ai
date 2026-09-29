@@ -11,28 +11,32 @@ import (
 // Order is manually managed internal draft order (no marketplace sync).
 type Order struct {
 	model.Base
-	TenantID          int64          `gorm:"default:0;index" json:"tenantId"`
-	Platform          string         `gorm:"size:64;index;not null" json:"platform"`
-	ShopID            *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
-	ExternalOrderID   *string        `gorm:"size:255;index" json:"externalOrderId,omitempty"`
-	OrderNo           string         `gorm:"size:128;uniqueIndex;not null" json:"orderNo"`
-	CustomerName      string         `gorm:"size:255;index;not null" json:"customerName"`
-	CustomerEmail     string         `gorm:"size:255" json:"customerEmail,omitempty"`
-	CustomerPhone     string         `gorm:"size:64" json:"customerPhone,omitempty"`
-	Status            string         `gorm:"size:32;index;not null" json:"status"`
-	PaymentStatus     string         `gorm:"size:32;index;not null" json:"paymentStatus"`
-	FulfillmentStatus string         `gorm:"size:32;index;not null" json:"fulfillmentStatus"`
-	Currency          string         `gorm:"size:16;not null" json:"currency"`
-	TotalAmount       float64        `gorm:"type:decimal(18,4);default:0" json:"totalAmount"`
-	PaidAt            *time.Time     `json:"paidAt,omitempty"`
-	OrderedAt         *time.Time     `json:"orderedAt,omitempty"`
-	ShippedAt         *time.Time     `json:"shippedAt,omitempty"`
-	DeliveredAt       *time.Time     `json:"deliveredAt,omitempty"`
-	PlatformUpdatedAt *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
-	PlatformRevision  string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
-	Remark            string         `gorm:"type:text" json:"remark,omitempty"`
-	RawData           datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
-	CreatedBy         *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	TenantID               int64          `gorm:"default:0;index" json:"tenantId"`
+	Platform               string         `gorm:"size:64;index;not null" json:"platform"`
+	ShopID                 *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	WarehouseID            *uuid.UUID     `gorm:"type:char(36);index" json:"warehouseId,omitempty"`
+	ExternalOrderID        *string        `gorm:"size:255;index" json:"externalOrderId,omitempty"`
+	OrderNo                string         `gorm:"size:128;uniqueIndex;not null" json:"orderNo"`
+	CustomerName           string         `gorm:"size:255;index;not null" json:"customerName"`
+	CustomerEmail          string         `gorm:"size:255" json:"customerEmail,omitempty"`
+	CustomerPhone          string         `gorm:"size:64" json:"customerPhone,omitempty"`
+	DestinationCountryCode string         `gorm:"size:2;index" json:"destinationCountryCode,omitempty"`
+	DestinationRegion      string         `gorm:"size:120;index" json:"destinationRegion,omitempty"`
+	DestinationPostalCode  string         `gorm:"size:32" json:"destinationPostalCode,omitempty"`
+	Status                 string         `gorm:"size:32;index;not null" json:"status"`
+	PaymentStatus          string         `gorm:"size:32;index;not null" json:"paymentStatus"`
+	FulfillmentStatus      string         `gorm:"size:32;index;not null" json:"fulfillmentStatus"`
+	Currency               string         `gorm:"size:16;not null" json:"currency"`
+	TotalAmount            float64        `gorm:"type:decimal(18,4);default:0" json:"totalAmount"`
+	PaidAt                 *time.Time     `json:"paidAt,omitempty"`
+	OrderedAt              *time.Time     `json:"orderedAt,omitempty"`
+	ShippedAt              *time.Time     `json:"shippedAt,omitempty"`
+	DeliveredAt            *time.Time     `json:"deliveredAt,omitempty"`
+	PlatformUpdatedAt      *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
+	PlatformRevision       string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
+	Remark                 string         `gorm:"type:text" json:"remark,omitempty"`
+	RawData                datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	CreatedBy              *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 
 	Items     []OrderItem     `gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"items,omitempty"`
 	Shipments []OrderShipment `gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"shipments,omitempty"`
@@ -76,3 +80,21 @@ type OrderShipment struct {
 }
 
 func (OrderShipment) TableName() string { return "order_shipments" }
+
+// OrderShipmentEvent is an immutable, provider-neutral tracking fact.
+// EventKey is supplied by the source and makes ingestion idempotent.
+type OrderShipmentEvent struct {
+	model.HardDeleteBase
+	TenantID    int64          `gorm:"not null;default:0;index" json:"tenantId"`
+	OrderID     uuid.UUID      `gorm:"type:char(36);index;not null" json:"orderId"`
+	ShipmentID  uuid.UUID      `gorm:"type:char(36);index;not null;uniqueIndex:ux_order_shipment_event_key,priority:1" json:"shipmentId"`
+	EventKey    string         `gorm:"size:128;not null;uniqueIndex:ux_order_shipment_event_key,priority:2" json:"eventKey"`
+	Status      string         `gorm:"size:32;index;not null" json:"status"`
+	OccurredAt  time.Time      `gorm:"index;not null" json:"occurredAt"`
+	Location    string         `gorm:"size:255" json:"location,omitempty"`
+	Description string         `gorm:"type:text" json:"description,omitempty"`
+	Source      string         `gorm:"size:64;not null" json:"source"`
+	RawData     datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+}
+
+func (OrderShipmentEvent) TableName() string { return "order_shipment_events" }

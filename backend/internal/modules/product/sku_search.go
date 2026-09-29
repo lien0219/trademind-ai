@@ -63,12 +63,13 @@ func (s *Service) RequireSKUSearchTenant(c *gin.Context) (int64, error) {
 	default:
 		return 0, errSKUSearchAuthenticationRequired
 	}
-	if tenantID <= 0 {
+	if tenantID < 0 {
 		return 0, errSKUSearchAuthenticationRequired
 	}
 
 	tenantContext := security.FromGin(c)
-	if tenantContext == nil || tenantContext.TenantID <= 0 || tenantContext.UserID == uuid.Nil {
+	if tenantContext == nil || tenantContext.TenantID < 0 || tenantContext.UserID == uuid.Nil ||
+		(tenantContext.TenantID == 0 && tenantContext.AuthSource != security.AuthSourceLegacyDevZero) {
 		return 0, errSKUSearchAuthenticationRequired
 	}
 	if tenantContext.TenantID != tenantID {
@@ -112,7 +113,7 @@ func (s *Service) RequireSKUSearchTenant(c *gin.Context) (int64, error) {
 
 // SearchSKUs runs tenant-scoped keyword search across sku_code, sku_name, and product.title.
 func (s *Service) SearchSKUs(ctx context.Context, tenantID int64, q SearchSKUsQuery) ([]ProductSKUSearchHit, error) {
-	if tenantID <= 0 {
+	if tenantID < 0 {
 		return nil, errSKUSearchAuthenticationRequired
 	}
 	if s == nil {
@@ -129,7 +130,7 @@ func (s *Service) SearchSKUs(ctx context.Context, tenantID int64, q SearchSKUsQu
 }
 
 func (r *gormSKUSearchRepository) SearchSKUs(ctx context.Context, tenantID int64, q SearchSKUsQuery) ([]ProductSKUSearchHit, error) {
-	if tenantID <= 0 {
+	if tenantID < 0 {
 		return nil, errSKUSearchAuthenticationRequired
 	}
 	if r == nil || r.db == nil {

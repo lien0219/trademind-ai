@@ -1,0 +1,68 @@
+.tm-warehouse-fee-page {
+  min-width: 0;
+
+  .ant-pro-page-container-children-container {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .ant-tabs-content-holder,
+  .ant-tabs-content,
+  .ant-tabs-tabpane {
+    min-width: 0;
+  }
+}
+
+.tm-warehouse-fee-toolbar {
+  width: 100%;
+
+  .ant-input-search,
+  .ant-select {
+    width: 220px;
+  }
+}
+
+.tm-warehouse-fee-modal-body,
+.tm-warehouse-fee-detail {
+  width: 100%;
+  min-width: 0;
+}
+
+.tm-warehouse-fee-modal-body > .ant-select {
+  width: 100%;
+}
+
+.tm-warehouse-fee-modal-actions {
+  justify-content: flex-end;
+}
+
+.tm-warehouse-fee-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+
+  .ant-input-number {
+    width: 100%;
+  }
+}
+
+.tm-warehouse-fee-adjustment-form {
+  margin-top: 16px;
+
+  .ant-input-number {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .tm-warehouse-fee-toolbar .ant-input-search,
+  .tm-warehouse-fee-toolbar .ant-select {
+    width: 100%;
+  }
+
+  .tm-warehouse-fee-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

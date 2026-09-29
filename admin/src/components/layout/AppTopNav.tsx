@@ -1,10 +1,19 @@
 import { useState } from "react";
 import type { CSSProperties } from "react";
-import { DownOutlined, LogoutOutlined } from "@ant-design/icons";
+import {
+  DownOutlined,
+  GithubOutlined,
+  LogoutOutlined,
+  TeamOutlined,
+} from "@ant-design/icons";
+import { history } from "@umijs/max";
 import { Avatar, Dropdown } from "antd";
 import { themeTokens, tmSemanticTokens } from "@/constants/layoutTokens";
+import { canAccessPath } from "@/utils/menuAccess";
 import ThemeToggleButton from "./ThemeToggleButton";
 import "./AppTopNav.less";
+
+const TRADEMIND_GITHUB_URL = "https://github.com/lien0219/trademind-ai";
 
 const avatarStyle: CSSProperties = {
   color: "#fff",
@@ -36,9 +45,14 @@ export function resolveUserLabels(user?: API.CurrentUser) {
 type AppTopNavProps = {
   user?: API.CurrentUser;
   onLogout: () => void | Promise<void>;
+  showThemeToggle?: boolean;
 };
 
-export default function AppTopNav({ user, onLogout }: AppTopNavProps) {
+export default function AppTopNav({
+  user,
+  onLogout,
+  showThemeToggle = true,
+}: AppTopNavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   if (!user) {
@@ -46,17 +60,58 @@ export default function AppTopNav({ user, onLogout }: AppTopNavProps) {
   }
 
   const { primary, secondary, initial } = resolveUserLabels(user);
+  const account = secondary || user.username || "管理员";
+  const canManageUsers = canAccessPath(
+    "/settings/users",
+    user.role,
+    user.permissions,
+  );
+
+  const closeAndNavigate = (path: string) => {
+    setIsMenuOpen(false);
+    history.push(path);
+  };
 
   return (
     <nav className="tm-app-top-nav" aria-label="内容导航栏">
-      <ThemeToggleButton className="tm-app-top-nav__theme-toggle" />
+      {showThemeToggle ? (
+        <ThemeToggleButton className="tm-app-top-nav__theme-toggle" />
+      ) : null}
       <Dropdown
         menu={{
           items: [
+            ...(canManageUsers
+              ? [
+                  {
+                    key: "users",
+                    icon: <TeamOutlined aria-hidden="true" />,
+                    label: "用户与权限",
+                    onClick: () => closeAndNavigate("/settings/users"),
+                  },
+                ]
+              : []),
+            {
+              key: "github",
+              icon: <GithubOutlined aria-hidden="true" />,
+              label: "GitHub",
+              onClick: () => {
+                setIsMenuOpen(false);
+                window.open(
+                  TRADEMIND_GITHUB_URL,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              },
+            },
+            { type: "divider" },
             {
               key: "logout",
+              danger: true,
               icon: (
-                <LogoutOutlined className="tm-app-account-dropdown__logout-icon" />
+                <LogoutOutlined
+                  className="tm-app-account-dropdown__logout-icon"
+                  aria-hidden="true"
+                />
               ),
               label: (
                 <span className="tm-app-account-dropdown__label">
@@ -75,12 +130,37 @@ export default function AppTopNav({ user, onLogout }: AppTopNavProps) {
             },
           ],
         }}
+        popupRender={(menu) => (
+          <div className="tm-app-account-dropdown__panel">
+            <div className="tm-app-account-dropdown__profile">
+              <Avatar
+                size={40}
+                className="tm-app-account-dropdown__profile-avatar"
+                style={avatarStyle}
+              >
+                {initial}
+              </Avatar>
+              <span className="tm-app-account-dropdown__profile-meta">
+                <span className="tm-app-account-dropdown__profile-name">
+                  {primary}
+                </span>
+                <span
+                  className="tm-app-account-dropdown__profile-account"
+                  title={account}
+                >
+                  {account}
+                </span>
+              </span>
+            </div>
+            {menu}
+          </div>
+        )}
         open={isMenuOpen}
         onOpenChange={setIsMenuOpen}
         overlayClassName="tm-app-account-dropdown"
         placement="bottomRight"
         trigger={["click"]}
-        overlayStyle={{ minWidth: 196 }}
+        overlayStyle={{ width: 252, maxWidth: "calc(100vw - 16px)" }}
       >
         <button
           type="button"
@@ -100,11 +180,8 @@ export default function AppTopNav({ user, onLogout }: AppTopNavProps) {
             <span className="tm-app-top-nav__user-name" title={primary}>
               {primary}
             </span>
-            <span
-              className="tm-app-top-nav__user-account"
-              title={secondary || "管理员"}
-            >
-              {secondary || "管理员"}
+            <span className="tm-app-top-nav__user-account" title={account}>
+              {account}
             </span>
           </span>
           <DownOutlined

@@ -10,6 +10,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -27,6 +28,7 @@ func migrateTenantSecurity(db *gorm.DB) error {
 		&inventory.InventorySyncTask{},
 		&inventory.InventorySyncBatch{},
 		&inventory.InventoryChangeLog{},
+		&imagetask.ImageTask{},
 		&ordersync.OrderSyncTask{},
 		&customersync.CustomerMessageSyncTask{},
 		&productpublish.ProductPublishTask{},
@@ -54,6 +56,7 @@ func backfillTenantIDs(db *gorm.DB) error {
 		`UPDATE inventory_sync_tasks t SET tenant_id = s.tenant_id FROM shops s WHERE t.shop_id = s.id AND (t.tenant_id IS NULL OR t.tenant_id = 0)`,
 		`UPDATE inventory_sync_batches t SET tenant_id = s.tenant_id FROM shops s WHERE t.shop_id = s.id AND (t.tenant_id IS NULL OR t.tenant_id = 0)`,
 		`UPDATE inventory_change_logs t SET tenant_id = p.tenant_id FROM products p WHERE t.product_id = p.id AND (t.tenant_id IS NULL OR t.tenant_id = 0)`,
+		`UPDATE image_tasks t SET tenant_id = p.tenant_id FROM products p WHERE t.product_id = p.id AND (t.tenant_id IS NULL OR t.tenant_id = 0)`,
 		`UPDATE order_sync_tasks t SET tenant_id = s.tenant_id FROM shops s WHERE t.shop_id = s.id AND (t.tenant_id IS NULL OR t.tenant_id = 0)`,
 		`UPDATE customer_message_sync_tasks t SET tenant_id = s.tenant_id FROM shops s WHERE t.shop_id = s.id AND (t.tenant_id IS NULL OR t.tenant_id = 0)`,
 		`UPDATE product_publish_tasks t SET tenant_id = s.tenant_id FROM shops s WHERE t.shop_id = s.id AND (t.tenant_id IS NULL OR t.tenant_id = 0)`,
@@ -89,12 +92,23 @@ func backfillCollectTenantIDs(db *gorm.DB) error {
 }
 
 func migrateTenantSecurityIndexes(db *gorm.DB) error {
+	for _, legacy := range []string{
+		"uq_task_alert_type_src_cat", "uq_task_alert_tenant_type_src_cat",
+		"uniq_task_failure_mark", "uniq_task_failure_mark_tenant",
+	} {
+		if err := db.Exec("DROP INDEX IF EXISTS " + legacy).Error; err != nil {
+			return fmt.Errorf("drop legacy tenant index %s: %w", legacy, err)
+		}
+	}
 	type idx struct {
 		table string
 		name  string
 		sql   string
 	}
 	indexes := []idx{
+		{"task_alerts", "uq_task_alert_tenant_type_src_cat", "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_alert_tenant_type_src_cat ON task_alerts (tenant_id, task_type, source_id, failure_category)"},
+		{"task_failure_marks", "uniq_task_failure_mark_tenant", "CREATE UNIQUE INDEX IF NOT EXISTS uniq_task_failure_mark_tenant ON task_failure_marks (tenant_id, task_type, source_id, mark_type)"},
+		{"image_tasks", "idx_image_tasks_tenant", "CREATE INDEX IF NOT EXISTS idx_image_tasks_tenant ON image_tasks (tenant_id, updated_at)"},
 		{"inventory_sync_tasks", "idx_inv_sync_tenant_shop", "CREATE INDEX IF NOT EXISTS idx_inv_sync_tenant_shop ON inventory_sync_tasks (tenant_id, shop_id)"},
 		{"order_sync_tasks", "idx_order_sync_tenant_shop", "CREATE INDEX IF NOT EXISTS idx_order_sync_tenant_shop ON order_sync_tasks (tenant_id, shop_id)"},
 		{"product_publish_tasks", "idx_publish_tenant_shop", "CREATE INDEX IF NOT EXISTS idx_publish_tenant_shop ON product_publish_tasks (tenant_id, shop_id)"},

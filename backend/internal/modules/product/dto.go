@@ -250,9 +250,10 @@ type ImportSKUParams struct {
 	Attrs     json.RawMessage
 	Price     *float64
 	CostPrice *float64
-	Stock     *int
-	ImageURL  string
-	RawSKU    json.RawMessage
+	// Stock is source-listing inventory metadata. It must not initialize ERP stock.
+	Stock    *int
+	ImageURL string
+	RawSKU   json.RawMessage
 }
 
 // OptimizeTitleBody binds POST /products/:id/ai/optimize-title.

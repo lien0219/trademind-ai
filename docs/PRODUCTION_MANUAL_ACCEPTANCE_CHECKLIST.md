@@ -1,10 +1,10 @@
 # P10 Manual Acceptance Checklist
 
-Status: **Prepared / Pending Manual Acceptance**
+Status: **Feature Manual Acceptance Confirmed / Deployment Acceptance Pending**
 
 Sections A-G validate repository-side P10 development without contacting Douyin or promoting runtime beyond L0. Section H is a separate, externally authorized L3 acceptance for the only supported real mutation: saving one reviewed product as a Douyin platform draft. Record the operator, date, environment, source HEAD, tenant, allowlisted shop, observed result and redacted evidence in the PR or release work order. Do not commit a completed checklist, report, screenshot or log artifact to the repository. Do not record credential values, OAuth state values, Authorization/Cookie headers, database/Redis URLs or raw Provider responses.
 
-Automated regression is owned by GitHub Actions and does not complete this manual checklist, real PostgreSQL/runtime acceptance, performance acceptance or real-platform verification. No item below is pre-marked as passed.
+Automated regression is owned by GitHub Actions and does not complete this manual checklist, real PostgreSQL/runtime acceptance, performance acceptance or real-platform verification. The maintainer confirmed feature-level manual acceptance on 2026-08-21; the repository checklist below still tracks deployment, external infrastructure, credential and real-platform evidence, which must not be inferred from that feature sign-off.
 
 ## A. Credential
 

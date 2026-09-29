@@ -37,8 +37,14 @@ const (
 	AlertRateLimitSpike         = "douyin_rate_limit_spike"
 )
 
-// UpsertDouyinAlert upserts a platform-level alert with dedup on taskType+sourceId+failureCategory.
+// UpsertDouyinAlert upserts a legacy system-scoped alert (tenant 0).
+// Tenant-aware callers should use UpsertDouyinAlertForTenant.
 func (s *Service) UpsertDouyinAlert(ctx context.Context, sourceID, alertType, severity, title, message, suggested string, now time.Time) error {
+	return s.UpsertDouyinAlertForTenant(ctx, 0, sourceID, alertType, severity, title, message, suggested, now)
+}
+
+// UpsertDouyinAlertForTenant upserts a platform-level alert with tenant-scoped dedup.
+func (s *Service) UpsertDouyinAlertForTenant(ctx context.Context, tenantID int64, sourceID, alertType, severity, title, message, suggested string, now time.Time) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("douyinruntime: no db")
 	}
@@ -59,11 +65,12 @@ func (s *Service) UpsertDouyinAlert(ctx context.Context, sourceID, alertType, se
 
 	var cur taskcenter.TaskAlert
 	err := s.DB.WithContext(ctx).
-		Where("task_type = ? AND source_id = ? AND failure_category = ?", taskTypeDouyinPlatform, sourceID, alertType).
+		Where("tenant_id = ? AND task_type = ? AND source_id = ? AND failure_category = ?", tenantID, taskTypeDouyinPlatform, sourceID, alertType).
 		First(&cur).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		row := taskcenter.TaskAlert{
 			ID:              uuid.New(),
+			TenantID:        tenantID,
 			TaskType:        taskTypeDouyinPlatform,
 			SourceID:        sourceID,
 			SourceTable:     "douyin_platform",
@@ -88,7 +95,7 @@ func (s *Service) UpsertDouyinAlert(ctx context.Context, sourceID, alertType, se
 	if strings.EqualFold(cur.Status, taskcenter.TaskAlertStatusIgnored) || strings.EqualFold(cur.Status, taskcenter.TaskAlertStatusHandled) {
 		return nil
 	}
-	return s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).Where("id = ?", cur.ID).
+	return s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).Where("id = ? AND tenant_id = ?", cur.ID, tenantID).
 		Updates(map[string]any{
 			"last_seen_at":     now,
 			"updated_at":       now,
@@ -101,8 +108,14 @@ func (s *Service) UpsertDouyinAlert(ctx context.Context, sourceID, alertType, se
 		}).Error
 }
 
-// ResolveDouyinAlert marks an open alert as resolved when condition clears.
+// ResolveDouyinAlert marks a legacy system-scoped alert as resolved (tenant 0).
+// Tenant-aware callers should use ResolveDouyinAlertForTenant.
 func (s *Service) ResolveDouyinAlert(ctx context.Context, sourceID, alertType string, now time.Time) error {
+	return s.ResolveDouyinAlertForTenant(ctx, 0, sourceID, alertType, now)
+}
+
+// ResolveDouyinAlertForTenant resolves an open alert within one tenant only.
+func (s *Service) ResolveDouyinAlertForTenant(ctx context.Context, tenantID int64, sourceID, alertType string, now time.Time) error {
 	if s == nil || s.DB == nil {
 		return nil
 	}
@@ -114,8 +127,8 @@ func (s *Service) ResolveDouyinAlert(ctx context.Context, sourceID, alertType st
 		now = time.Now().UTC()
 	}
 	return s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
-		Where("task_type = ? AND source_id = ? AND failure_category = ? AND status = ?",
-			taskTypeDouyinPlatform, sourceID, strings.TrimSpace(alertType), taskcenter.TaskAlertStatusOpen).
+		Where("tenant_id = ? AND task_type = ? AND source_id = ? AND failure_category = ? AND status = ?",
+			tenantID, taskTypeDouyinPlatform, sourceID, strings.TrimSpace(alertType), taskcenter.TaskAlertStatusOpen).
 		Updates(map[string]any{
 			"status":     taskcenter.TaskAlertStatusResolved,
 			"updated_at": now,
@@ -131,15 +144,31 @@ func truncateAlertText(s string, max int) string {
 	return string(r[:max])
 }
 
-func douyinAlertSettings(ctx context.Context, settingsSvc *settings.Service) map[string]string {
+func douyinAlertSettings(ctx context.Context, settingsSvc *settings.Service, tenantID int64) map[string]string {
 	if settingsSvc == nil {
 		return map[string]string{}
 	}
-	m, err := settingsSvc.PlainByGroup(ctx, 0, "platform_douyin_shop")
-	if err != nil || m == nil {
+	base, baseErr := settingsSvc.PlainByGroup(ctx, 0, "platform_douyin_shop")
+	if tenantID == 0 {
+		if baseErr != nil || base == nil {
+			return map[string]string{}
+		}
+		return base
+	}
+	overrides, overrideErr := settingsSvc.PlainByGroup(ctx, tenantID, "platform_douyin_shop")
+	if baseErr != nil && overrideErr != nil {
 		return map[string]string{}
 	}
-	return m
+	out := make(map[string]string, len(base)+len(overrides))
+	for k, v := range base {
+		out[k] = v
+	}
+	if overrideErr == nil {
+		for k, v := range overrides {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 func alertThresholdInt(m map[string]string, key string, def int) int {

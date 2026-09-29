@@ -15,24 +15,27 @@ import (
 
 // SyncedOrderPayload is provider-neutral input produced by ordersync (maps from platform.PlatformOrder).
 type SyncedOrderPayload struct {
-	TenantID          int64
-	ExternalOrderID   string
-	OrderNo           string
-	CustomerName      string
-	Status            string
-	PaymentStatus     string
-	FulfillmentStatus string
-	Currency          string
-	TotalAmount       float64
-	OrderedAt         *time.Time
-	PaidAt            *time.Time
-	ShippedAt         *time.Time
-	DeliveredAt       *time.Time
-	PlatformUpdatedAt *time.Time
-	PlatformRevision  string
-	Items             []SyncedOrderItemPayload
-	Shipments         []SyncedShipmentPayload
-	RawSummary        map[string]any
+	TenantID               int64
+	ExternalOrderID        string
+	OrderNo                string
+	CustomerName           string
+	DestinationCountryCode string
+	DestinationRegion      string
+	DestinationPostalCode  string
+	Status                 string
+	PaymentStatus          string
+	FulfillmentStatus      string
+	Currency               string
+	TotalAmount            float64
+	OrderedAt              *time.Time
+	PaidAt                 *time.Time
+	ShippedAt              *time.Time
+	DeliveredAt            *time.Time
+	PlatformUpdatedAt      *time.Time
+	PlatformRevision       string
+	Items                  []SyncedOrderItemPayload
+	Shipments              []SyncedShipmentPayload
+	RawSummary             map[string]any
 }
 
 // SyncedOrderItemPayload is one synced line item.
@@ -248,24 +251,27 @@ func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID,
 		if errors.Is(findErr, gorm.ErrRecordNotFound) {
 			isCreate = true
 			o := &Order{
-				TenantID:          p.TenantID,
-				Platform:          platformKey,
-				ShopID:            &sid,
-				ExternalOrderID:   &extCopy,
-				OrderNo:           on,
-				CustomerName:      name,
-				Status:            st,
-				PaymentStatus:     ps,
-				FulfillmentStatus: fs,
-				Currency:          cur,
-				TotalAmount:       p.TotalAmount,
-				PaidAt:            p.PaidAt,
-				OrderedAt:         p.OrderedAt,
-				ShippedAt:         p.ShippedAt,
-				DeliveredAt:       p.DeliveredAt,
-				PlatformUpdatedAt: p.PlatformUpdatedAt,
-				PlatformRevision:  strings.TrimSpace(p.PlatformRevision),
-				RawData:           raw,
+				TenantID:               p.TenantID,
+				Platform:               platformKey,
+				ShopID:                 &sid,
+				ExternalOrderID:        &extCopy,
+				OrderNo:                on,
+				CustomerName:           name,
+				DestinationCountryCode: strings.ToUpper(strings.TrimSpace(p.DestinationCountryCode)),
+				DestinationRegion:      strings.TrimSpace(p.DestinationRegion),
+				DestinationPostalCode:  strings.ToUpper(strings.TrimSpace(p.DestinationPostalCode)),
+				Status:                 st,
+				PaymentStatus:          ps,
+				FulfillmentStatus:      fs,
+				Currency:               cur,
+				TotalAmount:            p.TotalAmount,
+				PaidAt:                 p.PaidAt,
+				OrderedAt:              p.OrderedAt,
+				ShippedAt:              p.ShippedAt,
+				DeliveredAt:            p.DeliveredAt,
+				PlatformUpdatedAt:      p.PlatformUpdatedAt,
+				PlatformRevision:       strings.TrimSpace(p.PlatformRevision),
+				RawData:                raw,
 			}
 			if err := tx.Create(o).Error; err != nil {
 				return err
@@ -280,6 +286,9 @@ func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID,
 		existing.ExternalOrderID = &extCopy
 		existing.OrderNo = on
 		existing.CustomerName = name
+		existing.DestinationCountryCode = strings.ToUpper(strings.TrimSpace(p.DestinationCountryCode))
+		existing.DestinationRegion = strings.TrimSpace(p.DestinationRegion)
+		existing.DestinationPostalCode = strings.ToUpper(strings.TrimSpace(p.DestinationPostalCode))
 		existing.Status = st
 		existing.PaymentStatus = ps
 		existing.FulfillmentStatus = fs
@@ -318,6 +327,21 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 	var existingItems []OrderItem
 	if err := tx.Where("order_id = ?", orderID).Find(&existingItems).Error; err != nil {
 		return err
+	}
+	lockedItemIDs := map[uuid.UUID]struct{}{}
+	if tx.Migrator().HasTable("order_inventory_effects") {
+		type lockedItem struct {
+			OrderItemID uuid.UUID `gorm:"column:order_item_id"`
+		}
+		var locked []lockedItem
+		if err := tx.Table("order_inventory_effects").Distinct("order_item_id").
+			Where("order_id = ? AND effect_type IN ? AND status = ?", orderID, []string{"reserve", "deduct"}, "success").
+			Scan(&locked).Error; err != nil {
+			return err
+		}
+		for _, item := range locked {
+			lockedItemIDs[item.OrderItemID] = struct{}{}
+		}
 	}
 
 	byExt := make(map[string]*OrderItem)
@@ -358,20 +382,23 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		prev := byExt[extRaw]
 		if prev != nil {
 			now := time.Now().UTC()
-			if err := tx.Model(prev).Updates(map[string]any{
+			updates := map[string]any{
 				"product_title":   title,
 				"sku_name":        strings.TrimSpace(it.SKUName),
 				"sku_code":        strings.TrimSpace(it.SKUCode),
 				"seller_sku":      strings.TrimSpace(it.SellerSKU),
 				"external_sku_id": extSKUPtrFromPayload(it),
-				"quantity":        qty,
 				"unit_price":      it.UnitPrice,
 				"total_price":     it.TotalPrice,
 				"image_url":       strings.TrimSpace(it.ImageURL),
 				"attrs":           attrs,
 				"raw_data":        lineRaw,
 				"updated_at":      now,
-			}).Error; err != nil {
+			}
+			if _, locked := lockedItemIDs[prev.ID]; !locked {
+				updates["quantity"] = qty
+			}
+			if err := tx.Model(prev).Updates(updates).Error; err != nil {
 				return err
 			}
 			continue
@@ -402,16 +429,30 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 		if _, ok := withExtSeen[ext]; ok {
 			continue
 		}
+		if _, locked := lockedItemIDs[row.ID]; locked {
+			continue
+		}
 		if err := tx.Delete(row).Error; err != nil {
 			return err
 		}
 	}
 
-	if err := tx.Where("order_id = ? AND (external_item_id IS NULL OR external_item_id = '')", orderID).
-		Delete(&OrderItem{}).Error; err != nil {
-		return err
+	lockedNoExternal := make([]*OrderItem, 0)
+	for i := range existingItems {
+		row := &existingItems[i]
+		if row.ExternalItemID != nil && strings.TrimSpace(*row.ExternalItemID) != "" {
+			continue
+		}
+		if _, locked := lockedItemIDs[row.ID]; locked {
+			lockedNoExternal = append(lockedNoExternal, row)
+			continue
+		}
+		if err := tx.Delete(row).Error; err != nil {
+			return err
+		}
 	}
 
+	lockedNoExternalIndex := 0
 	for _, it := range p.Items {
 		if strings.TrimSpace(it.ExternalItemID) != "" {
 			continue
@@ -432,6 +473,19 @@ func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload)
 			attrs = mapAttrs(it.Attrs)
 		}
 		lineRaw := compactSyncedItemRaw(it)
+		if lockedNoExternalIndex < len(lockedNoExternal) {
+			row := lockedNoExternal[lockedNoExternalIndex]
+			lockedNoExternalIndex++
+			if err := tx.Model(row).Updates(map[string]any{
+				"product_title": title, "sku_name": strings.TrimSpace(it.SKUName), "sku_code": strings.TrimSpace(it.SKUCode),
+				"seller_sku": strings.TrimSpace(it.SellerSKU), "external_sku_id": extSKUPtrFromPayload(it),
+				"unit_price": it.UnitPrice, "total_price": it.TotalPrice, "image_url": strings.TrimSpace(it.ImageURL),
+				"attrs": attrs, "raw_data": lineRaw, "updated_at": time.Now().UTC(),
+			}).Error; err != nil {
+				return err
+			}
+			continue
+		}
 		row := OrderItem{
 			OrderID:       orderID,
 			ExternalSKUID: extSKUPtrFromPayload(it),

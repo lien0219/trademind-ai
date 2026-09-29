@@ -4,6 +4,123 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+## v0.3.0 - 2026-09-29
+
+### Carrier freight invoice ledger and profit estimate V6 (2026-09-28)
+
+- Added a strict, store-scoped carrier invoice CSV flow with a zero-write preview, exact carrier/tracking-number matching, explicit hash-bound confirmation, and immutable per-package actual freight facts.
+- Added duplicate and conflicting invoice protection, append-only adjustments and one-time reversals, non-negative net enforcement, and profit coverage rules that keep incomplete or currency-mismatched freight from replacing estimates.
+- Added the Finance workbench, permissions, operation logging, API contracts, and regression coverage without carrier API calls, waybill creation, FX conversion, workers, or automatic retries.
+
+### Inventory and refund reconciliation hardening (2026-09-29)
+
+- Prevented SKU metadata updates from overwriting a newer concurrent inventory projection; new controlled Demo SKUs now start with zero compatibility stock.
+- Kept partial refunds from being classified as full inventory restoration during order reconciliation.
+- Fixed a missing database migration and stabilized the carrier-freight regression workflow.
+
+### Advertising fee attribution ledger and profit estimate V5 (2026-09-08)
+
+- Added a strict, store-scoped local advertising-spend CSV flow with a zero-write preview, 2 MiB/1000-row limits, file and calculation hashes, shop IANA timezone boundaries, and deterministic equal allocation across paid, non-cancelled orders.
+- Added immutable import, spend, and order-allocation facts, payload-bound idempotent confirmation, append-only signed adjustments, one-time reversals, non-negative net enforcement, dedicated permissions, operation logging, and tenant/store fail-closed reads and writes.
+- Added a responsive Finance workbench, order-profit deep links, API contracts, backend/Admin regression tests, isolated PostgreSQL concurrency coverage, and five-viewport guarded Playwright scenarios.
+- Upgraded order profit estimates to `order_profit_estimate_v5`; only confirmed advertising allocations explicitly declared outside settlement coverage enter known contribution. No advertising-platform API, authorization, automatic pull, scheduler, FX conversion, accounting posting, voucher, marketplace write, worker, or retry capability was enabled.
+
+### Warehouse operation fee ledger and profit estimate V4 (2026-09-08)
+
+- Added tenant- and warehouse-scoped versioned rate cards for outbound, per-item picking, and per-package packing fees, with zero-write preview and currency-consistent confirmation against completed, packing-verified fulfillment facts.
+- Added immutable one-per-order fee snapshots, payload-bound idempotency, optimistic rate and wave revisions, append-only signed adjustments, one-time reversals, non-negative net enforcement, operation logging, and store-scoped read/write permissions.
+- Added a responsive Finance workbench with guarded preview-before-confirm flows, stable retry keys, readonly and request-state coverage, direct links to orders and profit details, plus contract, Go, Admin unit, Playwright, migration, and isolated PostgreSQL concurrency regression coverage.
+- Upgraded order profit estimates to `order_profit_estimate_v4`; only structurally valid, confirmed, currency-consistent warehouse-operation fees enter known contribution. No historical backfill, daily storage rent, WMS/provider integration, automatic posting, FX conversion, AP/AR, voucher, payment, marketplace write, worker, or retry capability was enabled.
+
+### Fulfillment cost snapshots and profit estimate V3 (2026-09-08)
+
+- Added one immutable, tenant-scoped cost fact per fulfilled order item, freezing quantity, currency, supplier identifiers, source timestamps, candidate evidence, and explicit resolution status in the same transaction as inventory deduction, shipment, order lifecycle, and fulfillment idempotency.
+- Made missing, ambiguous, currency-mismatched, or invalid catalog costs non-blocking for shipment while keeping profitability incomplete; snapshot persistence failures roll back fulfillment, and idempotent replay cannot duplicate facts.
+- Upgraded order profit estimates to `order_profit_estimate_v3`: fulfilled orders read only immutable snapshots, historical fulfilled orders without snapshots never fall back to current prices, and unfulfilled orders keep clearly labeled catalog estimates. No FIFO, weighted-average valuation, historical backfill, FX conversion, accounting COGS, marketplace/carrier/payment write, worker, or retry was enabled.
+
+### Platform settlement reconciliation and profit estimate V2 (2026-09-07)
+
+- Added store-scoped local CSV validation preview and explicit, hash-bound confirmation that atomically appends immutable settlement import and transaction facts with idempotent replay, duplicate suppression, and conflicting external-transaction rejection.
+- Added `matched`, `pending`, `mismatch`, and `blocked` order reconciliation list/detail APIs, bounded CSV export, dedicated permissions, audit logging, and a responsive Finance workbench with preview-before-confirm and readonly write safety.
+- Upgraded order profit estimates to `order_profit_estimate_v2`; only matched platform fees enter known contribution through an injected read contract, while unmatched, advertising, and warehouse fees remain unset. No marketplace, payment, banking, automatic repair, payout, accounting voucher, worker, or retry capability was enabled.
+
+### Order profit estimate and fee-gap workbench (2026-09-06)
+
+- Added tenant- and store-scoped read-only order profit list/detail APIs and bounded CSV export using exact currency minor-unit conversion, JavaScript-safe integers, and spreadsheet-formula neutralization.
+- Added a responsive, permission-aware Finance workbench that separates known contribution from complete estimated profit and links operators to the supporting order, fulfillment wave, supplier, and refund facts.
+- Uses current supplier catalog prices only as estimates and leaves missing platform, advertising, and warehouse fees unset; no historical COGS ledger, accounting settlement, automatic allocation, platform write, worker, or retry was enabled.
+
+### Local shipping rates and manual freight confirmation (2026-08-28)
+
+- Added tenant-scoped local shipping channels and deterministic rate templates matched by warehouse, destination and weight, using integer minor-unit fees and optimistic revisions.
+- Added explicit wave-order freight quoting and an idempotent transaction that revalidates the wave, order destination and selected rate revision before preserving an immutable quote snapshot; changed weight or carrier requires re-quotation before packing.
+- Added the permission-aware Admin configuration and packing-workbench flow, contracts and regression coverage without enabling carrier quotes, waybill or official-label creation, automatic channel selection, marketplace writes, workers or retries.
+
+### Outbound packing scan verification (2026-08-27)
+
+- Required newly created fulfillment waves to scan the frozen order number, every expected SKU/barcode quantity and the carrier label before an order can become packed, with optional positive integer gram weight capture.
+- Added revision- and idempotency-protected transactional validation plus immutable verification and line-scan facts, while surfacing successful verification in the read-only fulfillment reconciliation timeline.
+- Added a responsive, permission-aware Admin scanning workbench and preserved the legacy manual packing path only for pre-existing waves, without enabling carrier, printer, scale, marketplace, worker or automatic retry integrations.
+
+### Fulfillment picking waves and packing review (2026-08-24)
+
+- Replaced the Admin batch-fulfillment shortcut with persistent, tenant- and store-scoped waves for same-warehouse paid orders that already hold complete reservations, including immutable order/line snapshots and exclusive active assignments.
+- Added revision- and idempotency-protected start, pick/shortage, per-order packing, explicit completion and cancellation transitions; shortages block packing, completion persists partial results without automatic retry, and interrupted completion can be resumed under one server-owned lease.
+- Reused the existing local fulfillment transaction only after packing, blocked direct and legacy batch bypass for assigned orders, and retained reservations on wave cancellation while keeping automatic allocation, cross-warehouse splitting, logistics/marketplace writes and new workers disabled.
+
+### Replenishment to purchase draft (2026-08-24)
+
+- Added an explicitly confirmed Admin flow that turns selected warehouse replenishment suggestions into one local purchase-order draft for a common supplier, with quantity and supplier-SKU review before the write.
+- Revalidates tenant-scoped inventory, compatibility projection, supplier bindings, currency, minimum order quantities, and a deterministic suggestion snapshot before atomically reusing the existing purchase-order create transaction; stale or conflicting batches create nothing.
+- Added manage-permission and idempotency protection, audit labels, API/service contracts, backend and Admin regression coverage, while keeping submission, approval, receipt, supplier calls, marketplace writes, workers, and automatic purchasing disabled.
+
+### Order warehouse allocation workbench (2026-08-24)
+
+- Added tenant- and store-scoped whole-order warehouse candidates for paid, unfulfilled orders, with deterministic default-warehouse preference and explicit blocks for missing SKU bindings, partial inventory facts, insufficient single-warehouse availability, and compatibility-projection mismatches.
+- Added payload-bound idempotency and candidate revisions that are revalidated inside the order inventory transaction before atomically binding one warehouse and reserving every order line; stale balance versions or any line failure roll back the full confirmation.
+- Added the responsive Admin workbench, read-only mode, API and service contracts, backend transaction coverage, and five-viewport/write-safety E2E coverage without enabling automatic allocation rules, split fulfillment, workers, logistics integrations, or marketplace inventory writes.
+
+### Warehouse-aware inventory center (2026-08-24)
+
+- Made warehouse balances the physical-stock read authority for the inventory center, including warehouse-scoped on-hand, reserved, in-transit, damaged, sellable, and available quantities with explicit compatibility-projection reconciliation.
+- Reconciled `product_skus.stock` and replenishment fail-closed checks against global sellable stock instead of raw on-hand, so damaged returns remain non-sellable without producing false ledger mismatches.
+- Kept collected source stock only in raw SKU metadata while initializing new ERP SKU projections at zero, and added Admin warehouse filtering, responsive regression coverage, contracts, and documentation without enabling automatic repair, replenishment, workers, or platform inventory writes.
+
+### ERP sales returns and refunds (2026-08-23)
+
+- Added tenant-scoped, item-level refund-only and return-and-refund cases with cumulative over-return protection, revision checks, payload-bound action idempotency, cancellation allocation release, and immutable action facts.
+- Added atomic original-warehouse receipt for sellable and damaged dispositions. Sellable stock updates warehouse availability and the compatibility projection; damaged stock increases on-hand and damaged together without increasing available stock. Every receipt writes a dedicated sales-return effect, movement, and compatibility log exactly once.
+- Added separated manage/approve/receive permissions, Admin list/detail/order-entry workflows, operation-log labels, API contracts, migration coverage, five-viewport regression, and write-safety checks without enabling payment refunds, marketplace after-sales APIs, exchanges, retries, workers, purchasing, or platform inventory writes.
+
+### ERP purchase returns (2026-08-22)
+
+- Added tenant-scoped, receipt-bound purchase returns with cumulative over-return protection, revision-checked state transitions, action idempotency, separated approval/execution duties, and cancellation that releases receipt allocation.
+- Completed returns atomically deduct warehouse available stock and update immutable movements, compatibility logs, and the `product_skus.stock` projection; insufficient stock rolls back the entire return.
+- Added Admin list/detail/create workflows, permission-aware and readonly controls, audit labels, API contracts, PostgreSQL allocation-concurrency coverage, and five-viewport/write-safety regression coverage without enabling supplier settlement, real-platform inventory writes, automatic replenishment, or new workers.
+
+### Order and inventory production hardening (2026-08-21)
+
+- Enforced order-operation permission checks on every Admin order write endpoint, including order, line-item and shipment mutations.
+- Prevented replacing order lines after a successful inventory reservation or deduction, and locked the line row during inventory application to serialize concurrent lifecycle updates.
+- Stabilized warehouse-ledger regression assertions so movement verification does not depend on timestamp or UUID ordering.
+
+### Container package consolidation (2026-08-21)
+
+- Restricted automatic container image publication to image-related pushes on `main`, while retaining validated `v<version>` releases and manual runs that fail closed outside `main` or a version tag.
+- Consolidated backend, Admin and Collector images under one `trademind` GHCR package with service-prefixed validation, version, SHA and latest tags, preserving separate multi-platform manifests and immutable deployment digests.
+
+### ERP procurement foundation (2026-08-20)
+
+- Added tenant-scoped warehouse and supplier master data, supplier-to-product SKU bindings, and separated view/manage permissions.
+- Added revision-protected purchase-order submission, approval, cancellation and closure, plus transactional partial receipts with over-receipt rejection and payload-bound idempotency.
+- Added warehouse stock balances and immutable purchase-receipt movements while preserving `product_skus.stock` as the compatibility authority until all legacy stock writers are migrated.
+- Added API contracts, role-matrix regressions, procurement transaction tests, and the staged ERP architecture boundary without enabling real-platform inventory writes.
+- Added the production-oriented Admin procurement workspace for warehouse and supplier maintenance, purchase-order creation and review, revision-checked state transitions, and idempotent partial receipt confirmation, with responsive and write-safety regression coverage.
+- Migrated manual inventory adjustments to warehouse-selected, idempotent transactions that atomically update warehouse balances, immutable movements, compatibility logs, and the `product_skus.stock` aggregate projection.
+- Added bounded historical-stock migration to the default or pending-allocation warehouse, reconciliation APIs and Admin workspace, and PostgreSQL concurrency coverage without enabling platform inventory writes, automatic replenishment, or new workers.
+- Separated SKU metadata from inventory writes: create and update reject direct stock values, newly created SKUs start at zero, and all SKU mutation routes enforce product-write permission and tenant visibility.
+- Migrated order inventory lifecycle to the warehouse ledger: payment/processing reserves `reserved`, shipment/fulfillment deducts `on_hand`, pre-shipment cancellation releases reservations, and post-deduction refund/cancel restores on-hand stock. Added tenant/warehouse effect binding, reserved movement snapshots, legacy-effect backfill, locked-order-line protection, platform-sync preservation, and responsive/write-safety regression coverage without enabling real platform inventory writes, automatic replenishment, or new workers.
+
 ### Database migration reliability (2026-08-15)
 
 - Reconciled legacy and canonical PostgreSQL index names only when their definitions are otherwise identical, while keeping different definitions fail closed, so repeated `AutoMigrate` startup no longer fails on an equivalent duplicate inventory index.

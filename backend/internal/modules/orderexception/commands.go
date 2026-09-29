@@ -21,11 +21,11 @@ type Commands struct {
 }
 
 // BindSKU binds a local SKU via order.Service then optionally deducts / syncs like POST /order-items/:id/bind-sku.
-func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, body BindSKURequest, admin *uuid.UUID) (map[string]any, error) {
+func (c *Commands) BindSKU(ctx context.Context, tenantID int64, sourceType, sourceID string, body BindSKURequest, admin *uuid.UUID) (map[string]any, error) {
 	if c == nil || c.Svc == nil || c.Orders == nil || c.Inv == nil || c.Orders.DB == nil {
 		return nil, fmt.Errorf("orderexception bind unavailable")
 	}
-	itemID, err := c.Svc.ResolveOrderItemForBind(ctx, sourceType, sourceID)
+	itemID, err := c.Svc.ResolveOrderItemForBind(ctx, &tenantID, sourceType, sourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,9 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 		return nil, err
 	}
 	var line order.OrderItem
-	if err := c.Orders.DB.WithContext(ctx).First(&line, "id = ?", itemID).Error; err != nil {
+	if err := c.Orders.DB.WithContext(ctx).
+		Joins("JOIN orders ON orders.id = order_items.order_id AND orders.tenant_id = ? AND orders.deleted_at IS NULL", tenantID).
+		First(&line, "order_items.id = ?", itemID).Error; err != nil {
 		return nil, fmt.Errorf("order item not found")
 	}
 	has, err := c.Inv.HasSuccessfulOrderDeduction(ctx, line.OrderID)
@@ -52,6 +54,7 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 	if _, err := c.Orders.BindOrderItemSKU(ctx, order.BindOrderItemSKUInput{
 		OrderItemID:         itemID,
 		ProductSKUID:        skuID,
+		TenantID:            &tenantID,
 		CandidateConfidence: body.CandidateConfidence,
 		CandidateSource:     strings.TrimSpace(body.CandidateSource),
 	}, admin); err != nil {
@@ -69,6 +72,7 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 			Reason:        "exception_workbench_bind",
 			SyncPlatforms: syncPlat,
 			CreatedBy:     admin,
+			TenantID:      &tenantID,
 		})
 		out["inventoryDeduction"] = sum
 		if derr != nil {
@@ -79,14 +83,15 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 			return nil, derr
 		}
 		if autoMark && strings.TrimSpace(body.ExceptionType) != "" {
-			_ = c.Svc.UpsertMark(ctx, strings.TrimSpace(body.ExceptionType), sourceType, sourceID, MarkHandled, "bind-sku + deduct ok", admin)
+			_ = c.Svc.UpsertMark(ctx, &tenantID, strings.TrimSpace(body.ExceptionType), sourceType, sourceID, MarkHandled, "bind-sku + deduct ok", admin)
 		}
 		return out, nil
 	}
 
 	if syncPlat {
 		var sku product.ProductSKU
-		if err := c.Inv.DB.WithContext(ctx).First(&sku, "id = ? AND deleted_at IS NULL", skuID).Error; err != nil {
+		skuTx := c.Inv.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").Where("product_skus.id = ?", skuID).Where("products.tenant_id = ?", tenantID)
+		if err := skuTx.First(&sku).Error; err != nil {
 			return nil, err
 		}
 		st := 0
@@ -100,17 +105,17 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 	}
 
 	if autoMark && strings.TrimSpace(body.ExceptionType) != "" {
-		_ = c.Svc.UpsertMark(ctx, strings.TrimSpace(body.ExceptionType), sourceType, sourceID, MarkHandled, "bind-sku ok", admin)
+		_ = c.Svc.UpsertMark(ctx, &tenantID, strings.TrimSpace(body.ExceptionType), sourceType, sourceID, MarkHandled, "bind-sku ok", admin)
 	}
 	return out, nil
 }
 
 // RetryDeduct calls DeductInventoryForOrder for an exception-bearing order line / effect source.
-func (c *Commands) RetryDeduct(ctx context.Context, sourceType, sourceID string, syncPlatforms bool, admin *uuid.UUID) (*inventory.DeductionSummary, error) {
+func (c *Commands) RetryDeduct(ctx context.Context, tenantID int64, sourceType, sourceID string, syncPlatforms bool, admin *uuid.UUID) (*inventory.DeductionSummary, error) {
 	if c == nil || c.Svc == nil || c.Inv == nil {
 		return nil, fmt.Errorf("orderexception retry unavailable")
 	}
-	orderID, err := c.resolveOrderID(ctx, sourceType, sourceID)
+	orderID, err := c.resolveOrderID(ctx, tenantID, sourceType, sourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,14 +123,15 @@ func (c *Commands) RetryDeduct(ctx context.Context, sourceType, sourceID string,
 		Reason:        "exception_workbench_retry",
 		SyncPlatforms: syncPlatforms,
 		CreatedBy:     admin,
+		TenantID:      &tenantID,
 	})
 }
 
-func (c *Commands) resolveOrderID(ctx context.Context, sourceType, sourceID string) (uuid.UUID, error) {
+func (c *Commands) resolveOrderID(ctx context.Context, tenantID int64, sourceType, sourceID string) (uuid.UUID, error) {
 	st := strings.TrimSpace(sourceType)
 	switch st {
 	case SourceOrderItemSKUMatch, SourceOrderItem, SourceOrderInventoryEffect:
-		oid, _, err := c.Svc.resolveOrderPointers(ctx, st, sourceID)
+		oid, _, err := c.Svc.resolveOrderPointers(ctx, &tenantID, st, sourceID)
 		if err != nil || oid == nil {
 			return uuid.Nil, err
 		}

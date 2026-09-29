@@ -82,7 +82,7 @@ func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeCollect, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeCollect, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.T
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeImage, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeImage, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now ti
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeOrderSync, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeOrderSync, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeCustomerMessageSync, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeCustomerMessageSync, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, n
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeProductPublish, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeProductPublish, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +327,7 @@ func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, no
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeInventorySync, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeInventorySync, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +340,7 @@ func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, no
 
 func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{})
-	q = s.applyTenantListFilter(q, p)
+	q = q.Where("product_id IN (SELECT id FROM products WHERE tenant_id = ? AND deleted_at IS NULL)", p.TenantID)
 	q = aiTextFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
 	q = s.applyMarkFilters(q, TaskTypeAIText, "ai_product_text_items.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
@@ -385,13 +385,14 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeAIText, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeAIText, ids)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]UnifiedTaskDTO, 0, len(rows))
 	for i := range rows {
 		dto := mapAIProductTextItem(&rows[i], titles, ms, now)
+		dto.TenantID = p.TenantID
 		if fc := strings.TrimSpace(p.FailureCategory); fc != "" && !strings.EqualFold(fc, dto.FailureCategory) {
 			continue
 		}
@@ -402,7 +403,7 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 
 func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{})
-	q = s.applyTenantListFilter(q, p)
+	q = q.Where("product_id IN (SELECT id FROM products WHERE tenant_id = ? AND deleted_at IS NULL)", p.TenantID)
 	q = aiImageFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
 	q = s.applyMarkFilters(q, TaskTypeAIImage, "ai_product_image_items.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
@@ -447,13 +448,14 @@ func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, n
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeAIImage, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeAIImage, ids)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]UnifiedTaskDTO, 0, len(rows))
 	for i := range rows {
 		dto := mapAIProductImageItem(&rows[i], titles, ms, now)
+		dto.TenantID = p.TenantID
 		if fc := strings.TrimSpace(p.FailureCategory); fc != "" && !strings.EqualFold(fc, dto.FailureCategory) {
 			continue
 		}

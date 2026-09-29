@@ -1,0 +1,323 @@
+.tm-procurement-page {
+  .tm-page-container__content {
+    gap: 24px;
+  }
+
+  .tm-procurement-search {
+    width: min(380px, 100%);
+  }
+
+  .tm-replenishment-filters {
+    align-items: center;
+
+    .ant-space-item {
+      min-width: 0;
+    }
+  }
+
+  .tm-procurement-overview {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: var(--tm-radius-card);
+    background: var(--ant-color-bg-container);
+    box-shadow: var(--tm-shadow-card);
+
+    &__item,
+    &__note {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      gap: 8px;
+      padding: 13px 16px;
+    }
+
+    &__item {
+      flex: 0 0 auto;
+      border-inline-end: 1px solid var(--ant-color-border-secondary);
+    }
+
+    &__item--success {
+      color: var(--ant-color-success);
+    }
+
+    &__label {
+      color: var(--ant-color-text-secondary);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    &__value {
+      color: var(--ant-color-text);
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    &__note {
+      flex: 1 1 auto;
+      overflow: hidden;
+      color: var(--ant-color-primary);
+
+      .ant-typography {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .tm-procurement-table {
+    min-width: 0;
+
+    .ant-pro-card {
+      overflow: hidden;
+      border-color: var(--ant-color-border-secondary);
+      box-shadow: var(--tm-shadow-card);
+    }
+
+    .ant-pro-table-list-toolbar-container {
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+    }
+
+    .ant-pro-table-list-toolbar-left,
+    .ant-pro-table-list-toolbar-right {
+      min-width: 0;
+    }
+
+    .ant-table-tbody > tr > td {
+      vertical-align: middle;
+    }
+
+    .ant-btn-link {
+      padding-inline: 4px;
+    }
+  }
+}
+
+.tm-procurement-form-row {
+  width: 100%;
+
+  .ant-form-item {
+    min-width: 132px;
+    flex: 1 1 160px;
+  }
+
+  .ant-input-number,
+  .ant-select {
+    width: 100%;
+  }
+}
+
+.tm-procurement-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.5fr) minmax(120px, 0.6fr);
+  gap: 0 16px;
+}
+
+.tm-procurement-lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tm-procurement-line {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 120px 180px auto;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+
+  .ant-form-item,
+  .ant-input-number {
+    width: 100%;
+  }
+
+  > .ant-btn {
+    margin-bottom: 24px;
+  }
+}
+
+.tm-procurement-receipt-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tm-replenishment-draft-lines {
+  display: grid;
+  gap: 12px;
+  max-height: min(46vh, 460px);
+  margin: 16px 0;
+  overflow-y: auto;
+}
+
+.tm-replenishment-draft-line {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1fr) 150px;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+
+  &__identity,
+  &__binding {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding-bottom: 24px;
+  }
+
+  .ant-form-item,
+  .ant-input-number,
+  .ant-select {
+    width: 100%;
+  }
+}
+
+.tm-procurement-receipt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+
+  > div:first-child {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .ant-form-item {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 575px) {
+  .tm-procurement-page {
+    .tm-page-container__content {
+      gap: 16px;
+    }
+
+    .tm-procurement-search {
+      width: 100%;
+    }
+
+    .tm-replenishment-filters {
+      align-items: stretch;
+      width: 100%;
+    }
+
+    .tm-procurement-overview {
+      align-items: stretch;
+      flex-wrap: wrap;
+
+      &__item {
+        flex: 1 1 50%;
+        min-width: 0;
+        border-bottom: 1px solid var(--ant-color-border-secondary);
+
+        &:nth-child(2) {
+          border-inline-end: 0;
+        }
+      }
+
+      &__note {
+        flex-basis: 100%;
+        padding-top: 11px;
+        padding-bottom: 11px;
+      }
+    }
+
+    .tm-procurement-table {
+      .ant-pro-table-list-toolbar-container,
+      .ant-pro-table-list-toolbar-left,
+      .ant-pro-table-list-toolbar-right {
+        width: 100%;
+      }
+
+      .ant-pro-table-list-toolbar-container .ant-input-search {
+        width: 100%;
+      }
+
+      .ant-pro-table-list-toolbar-left,
+      .ant-pro-table-list-toolbar-right {
+        justify-content: flex-start;
+      }
+
+      .ant-pro-table-list-toolbar-right > div {
+        flex-wrap: wrap;
+      }
+    }
+  }
+
+  .tm-procurement-form-row {
+    display: block;
+
+    .ant-form-item {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  .tm-procurement-form-grid,
+  .tm-procurement-line,
+  .tm-procurement-receipt-row,
+  .tm-replenishment-draft-line {
+    display: block;
+  }
+
+  .tm-replenishment-draft-lines {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .tm-replenishment-draft-line__identity,
+  .tm-replenishment-draft-line__binding {
+    padding-bottom: 12px;
+  }
+
+  .tm-procurement-line > .ant-btn {
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .tm-procurement-receipt-row .ant-form-item {
+    margin-top: 12px;
+  }
+}
+
+@media (min-width: 576px) and (max-width: 900px) {
+  .tm-procurement-line {
+    grid-template-columns: minmax(220px, 1fr) 110px 160px;
+
+    > .ant-btn {
+      grid-column: 1 / -1;
+      justify-self: end;
+      margin-bottom: 0;
+    }
+  }
+
+  .tm-replenishment-draft-line {
+    grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr);
+
+    .ant-form-item:last-child {
+      grid-column: 1 / -1;
+      max-width: 220px;
+    }
+  }
+}

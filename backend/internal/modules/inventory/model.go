@@ -28,6 +28,184 @@ type InventoryChangeLog struct {
 
 func (InventoryChangeLog) TableName() string { return "inventory_change_logs" }
 
+// WarehouseStockBalance is the tenant-scoped warehouse ledger introduced for
+// ERP flows. Warehouse balances are the physical-stock authority;
+// product_skus.stock remains a compatibility sellable projection while legacy
+// writers and historical rows are reconciled.
+type WarehouseStockBalance struct {
+	model.HardDeleteBase
+	TenantID     int64     `gorm:"not null;uniqueIndex:ux_warehouse_stock_balance;index" json:"tenantId"`
+	WarehouseID  uuid.UUID `gorm:"type:char(36);not null;uniqueIndex:ux_warehouse_stock_balance;index" json:"warehouseId"`
+	ProductSKUID uuid.UUID `gorm:"column:product_sku_id;type:char(36);not null;uniqueIndex:ux_warehouse_stock_balance;index" json:"productSkuId"`
+	OnHand       int       `gorm:"not null;default:0" json:"onHand"`
+	Reserved     int       `gorm:"not null;default:0" json:"reserved"`
+	InTransit    int       `gorm:"not null;default:0" json:"inTransit"`
+	Damaged      int       `gorm:"not null;default:0" json:"damaged"`
+	Version      int       `gorm:"not null;default:1" json:"version"`
+}
+
+func (WarehouseStockBalance) TableName() string { return "warehouse_stock_balances" }
+
+// WarehouseSKUPlacement binds one SKU in one warehouse to its operator-facing
+// barcode and optional physical location. It is mutable master data; wave
+// lines copy it into an immutable snapshot at wave creation time.
+type WarehouseSKUPlacement struct {
+	model.Base
+	TenantID     int64      `gorm:"not null;uniqueIndex:ux_warehouse_sku_placement,priority:1;index" json:"tenantId"`
+	WarehouseID  uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_warehouse_sku_placement,priority:2;index" json:"warehouseId"`
+	ProductSKUID uuid.UUID  `gorm:"column:product_sku_id;type:char(36);not null;uniqueIndex:ux_warehouse_sku_placement,priority:3;index" json:"productSkuId"`
+	LocationID   *uuid.UUID `gorm:"type:char(36);index" json:"locationId,omitempty"`
+	Barcode      string     `gorm:"size:128;index" json:"barcode,omitempty"`
+	Status       string     `gorm:"size:24;not null;default:active;index" json:"status"`
+	CreatedBy    *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	UpdatedBy    *uuid.UUID `gorm:"type:char(36);index" json:"updatedBy,omitempty"`
+}
+
+func (WarehouseSKUPlacement) TableName() string { return "warehouse_sku_placements" }
+
+// Available returns stock that may be promised to an order or marketplace.
+func (b WarehouseStockBalance) Available() int {
+	available := b.OnHand - b.Reserved - b.Damaged
+	if available < 0 {
+		return 0
+	}
+	return available
+}
+
+// InventoryMovement is an append-only warehouse stock fact.
+type InventoryMovement struct {
+	model.HardDeleteBase
+	TenantID         int64      `gorm:"not null;index" json:"tenantId"`
+	WarehouseID      uuid.UUID  `gorm:"type:char(36);not null;index" json:"warehouseId"`
+	ProductID        uuid.UUID  `gorm:"type:char(36);not null;index" json:"productId"`
+	ProductSKUID     uuid.UUID  `gorm:"column:product_sku_id;type:char(36);not null;index" json:"productSkuId"`
+	MovementType     string     `gorm:"size:48;not null;index" json:"movementType"`
+	Quantity         int        `gorm:"not null" json:"quantity"`
+	BeforeOnHand     int        `gorm:"not null" json:"beforeOnHand"`
+	AfterOnHand      int        `gorm:"not null" json:"afterOnHand"`
+	BeforeReserved   int        `gorm:"not null;default:0" json:"beforeReserved"`
+	AfterReserved    int        `gorm:"not null;default:0" json:"afterReserved"`
+	BeforeDamaged    int        `gorm:"not null;default:0" json:"beforeDamaged"`
+	AfterDamaged     int        `gorm:"not null;default:0" json:"afterDamaged"`
+	SourceType       string     `gorm:"size:48;not null;index" json:"sourceType"`
+	SourceID         uuid.UUID  `gorm:"type:char(36);not null;index" json:"sourceId"`
+	BusinessEventKey string     `gorm:"size:255;not null;uniqueIndex" json:"businessEventKey"`
+	RequestHash      string     `gorm:"size:64" json:"-"`
+	Reason           string     `gorm:"size:128" json:"reason,omitempty"`
+	Remark           string     `gorm:"size:520" json:"remark,omitempty"`
+	CreatedBy        *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+}
+
+func (InventoryMovement) TableName() string { return "inventory_movements" }
+
+// WarehouseTransfer is the tenant-scoped warehouse relocation aggregate.
+type WarehouseTransfer struct {
+	model.Base
+	TenantID          int64                   `gorm:"not null;uniqueIndex:ux_transfer_tenant_no;uniqueIndex:ux_transfer_tenant_idempotency;index" json:"tenantId"`
+	TransferNo        string                  `gorm:"size:64;not null;uniqueIndex:ux_transfer_tenant_no" json:"transferNo"`
+	SourceWarehouseID uuid.UUID               `gorm:"type:char(36);not null;index" json:"sourceWarehouseId"`
+	TargetWarehouseID uuid.UUID               `gorm:"type:char(36);not null;index" json:"targetWarehouseId"`
+	Status            string                  `gorm:"size:32;not null;index" json:"status"`
+	Revision          int                     `gorm:"not null;default:1" json:"revision"`
+	IdempotencyKey    string                  `gorm:"size:128;not null;uniqueIndex:ux_transfer_tenant_idempotency" json:"idempotencyKey"`
+	PayloadHash       string                  `gorm:"size:64;not null" json:"-"`
+	Reason            string                  `gorm:"size:128" json:"reason,omitempty"`
+	Remark            string                  `gorm:"size:520" json:"remark,omitempty"`
+	CreatedBy         *uuid.UUID              `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	ApprovedBy        *uuid.UUID              `gorm:"type:char(36);index" json:"approvedBy,omitempty"`
+	ApprovedAt        *time.Time              `json:"approvedAt,omitempty"`
+	DispatchedAt      *time.Time              `json:"dispatchedAt,omitempty"`
+	ReceivedAt        *time.Time              `json:"receivedAt,omitempty"`
+	CancelledAt       *time.Time              `json:"cancelledAt,omitempty"`
+	Items             []WarehouseTransferItem `gorm:"foreignKey:TransferID" json:"items,omitempty"`
+}
+
+func (WarehouseTransfer) TableName() string { return "warehouse_transfers" }
+
+type WarehouseTransferItem struct {
+	model.HardDeleteBase
+	TenantID         int64     `gorm:"not null;index" json:"tenantId"`
+	TransferID       uuid.UUID `gorm:"type:char(36);not null;index;uniqueIndex:ux_transfer_item_sku" json:"transferId"`
+	ProductID        uuid.UUID `gorm:"type:char(36);not null;index" json:"productId"`
+	ProductSKUID     uuid.UUID `gorm:"column:product_sku_id;type:char(36);not null;index;uniqueIndex:ux_transfer_item_sku" json:"productSkuId"`
+	Quantity         int       `gorm:"not null" json:"quantity"`
+	ReceivedQuantity int       `gorm:"not null;default:0" json:"receivedQuantity"`
+	ProductTitle     string    `gorm:"-" json:"productTitle,omitempty"`
+	SKUCode          string    `gorm:"-" json:"skuCode,omitempty"`
+	SKUName          string    `gorm:"-" json:"skuName,omitempty"`
+}
+
+func (WarehouseTransferItem) TableName() string { return "warehouse_transfer_items" }
+
+type WarehouseTransferAction struct {
+	model.HardDeleteBase
+	TenantID       int64     `gorm:"not null;uniqueIndex:ux_transfer_action_event;index" json:"tenantId"`
+	TransferID     uuid.UUID `gorm:"type:char(36);not null;uniqueIndex:ux_transfer_action_event;index" json:"transferId"`
+	Action         string    `gorm:"size:32;not null;uniqueIndex:ux_transfer_action_event" json:"action"`
+	IdempotencyKey string    `gorm:"size:128;not null" json:"idempotencyKey"`
+	RequestHash    string    `gorm:"size:64;not null" json:"-"`
+}
+
+func (WarehouseTransferAction) TableName() string { return "warehouse_transfer_actions" }
+
+// InventoryStocktake records one warehouse physical count. The counted
+// quantity is intentionally limited to on-hand stock in the first increment;
+// reserved, damaged, and in-transit quantities remain ledger-controlled facts.
+type InventoryStocktake struct {
+	model.Base
+	TenantID       int64                    `gorm:"not null;uniqueIndex:ux_stocktake_tenant_no;uniqueIndex:ux_stocktake_tenant_idempotency;index" json:"tenantId"`
+	StocktakeNo    string                   `gorm:"size:64;not null;uniqueIndex:ux_stocktake_tenant_no" json:"stocktakeNo"`
+	WarehouseID    uuid.UUID                `gorm:"type:char(36);not null;index" json:"warehouseId"`
+	Status         string                   `gorm:"size:32;not null;index" json:"status"`
+	Revision       int                      `gorm:"not null;default:1" json:"revision"`
+	IdempotencyKey string                   `gorm:"size:128;not null;uniqueIndex:ux_stocktake_tenant_idempotency" json:"idempotencyKey"`
+	PayloadHash    string                   `gorm:"size:64;not null" json:"-"`
+	Reason         string                   `gorm:"size:128" json:"reason,omitempty"`
+	Remark         string                   `gorm:"size:520" json:"remark,omitempty"`
+	CreatedBy      *uuid.UUID               `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	SubmittedBy    *uuid.UUID               `gorm:"type:char(36);index" json:"submittedBy,omitempty"`
+	SubmittedAt    *time.Time               `json:"submittedAt,omitempty"`
+	ApprovedBy     *uuid.UUID               `gorm:"type:char(36);index" json:"approvedBy,omitempty"`
+	ApprovedAt     *time.Time               `json:"approvedAt,omitempty"`
+	PostedBy       *uuid.UUID               `gorm:"type:char(36);index" json:"postedBy,omitempty"`
+	PostedAt       *time.Time               `json:"postedAt,omitempty"`
+	CancelledAt    *time.Time               `json:"cancelledAt,omitempty"`
+	Items          []InventoryStocktakeItem `gorm:"foreignKey:StocktakeID" json:"items,omitempty"`
+}
+
+func (InventoryStocktake) TableName() string { return "inventory_stocktakes" }
+
+type InventoryStocktakeItem struct {
+	model.HardDeleteBase
+	TenantID          int64     `gorm:"not null;index" json:"tenantId"`
+	StocktakeID       uuid.UUID `gorm:"type:char(36);not null;index;uniqueIndex:ux_stocktake_item_sku" json:"stocktakeId"`
+	ProductID         uuid.UUID `gorm:"type:char(36);not null;index" json:"productId"`
+	ProductSKUID      uuid.UUID `gorm:"column:product_sku_id;type:char(36);not null;index;uniqueIndex:ux_stocktake_item_sku" json:"productSkuId"`
+	SnapshotOnHand    int       `gorm:"not null" json:"snapshotOnHand"`
+	SnapshotReserved  int       `gorm:"not null;default:0" json:"snapshotReserved"`
+	SnapshotInTransit int       `gorm:"not null;default:0" json:"snapshotInTransit"`
+	SnapshotDamaged   int       `gorm:"not null;default:0" json:"snapshotDamaged"`
+	SnapshotVersion   int       `gorm:"not null" json:"snapshotVersion"`
+	CountedOnHand     *int      `json:"countedOnHand,omitempty"`
+	Remark            string    `gorm:"size:520" json:"remark,omitempty"`
+	ProductTitle      string    `gorm:"-" json:"productTitle,omitempty"`
+	SKUCode           string    `gorm:"-" json:"skuCode,omitempty"`
+	SKUName           string    `gorm:"-" json:"skuName,omitempty"`
+}
+
+func (InventoryStocktakeItem) TableName() string { return "inventory_stocktake_items" }
+
+type InventoryStocktakeAction struct {
+	model.HardDeleteBase
+	TenantID       int64     `gorm:"not null;uniqueIndex:ux_stocktake_action_event;index" json:"tenantId"`
+	StocktakeID    uuid.UUID `gorm:"type:char(36);not null;uniqueIndex:ux_stocktake_action_event;index" json:"stocktakeId"`
+	Action         string    `gorm:"size:64;not null;uniqueIndex:ux_stocktake_action_event" json:"action"`
+	IdempotencyKey string    `gorm:"size:128;not null;uniqueIndex:ux_stocktake_action_event" json:"idempotencyKey"`
+	RequestHash    string    `gorm:"size:64;not null" json:"-"`
+}
+
+func (InventoryStocktakeAction) TableName() string { return "inventory_stocktake_actions" }
+
 // InventorySyncBatch groups many outbound inventory_sync_tasks created in one bulk submission.
 type InventorySyncBatch struct {
 	model.HardDeleteBase

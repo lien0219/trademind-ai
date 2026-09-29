@@ -41,12 +41,56 @@ const (
 )
 
 const (
-	ChangeManualAdjust = "manual_adjust"
-	ChangeSyncSuccess  = "sync_success"
-	ChangeSyncFailed   = "sync_failed"
-	ChangeOrderDeduct  = "order_deduct"
-	ChangeOrderCancel  = "order_cancel_restore"
-	ChangeImport       = "import"
+	ChangeManualAdjust    = "manual_adjust"
+	ChangeSyncSuccess     = "sync_success"
+	ChangeSyncFailed      = "sync_failed"
+	ChangeOrderDeduct     = "order_deduct"
+	ChangeOrderReserve    = "order_reserve"
+	ChangeOrderRelease    = "order_release"
+	ChangeOrderRestore    = "order_refund_restore"
+	ChangeOrderCancel     = "order_cancel_restore"
+	ChangeImport          = "import"
+	ChangePurchaseReceipt = "purchase_receipt"
+	ChangePurchaseReturn  = "purchase_return"
+	ChangeSalesReturn     = "sales_return_receipt"
+	ChangeStocktakeAdjust = "stocktake_adjust"
+)
+
+const (
+	MovementPurchaseReceipt  = "purchase_receipt"
+	MovementPurchaseReturn   = "purchase_return"
+	MovementSalesReturn      = "sales_return_receipt"
+	MovementManualAdjust     = "manual_adjust"
+	MovementLegacyImport     = "legacy_import"
+	MovementOrderReserve     = "order_reserve"
+	MovementOrderDeduct      = "order_deduct"
+	MovementOrderRelease     = "order_release"
+	MovementOrderRestore     = "order_refund_restore"
+	MovementTransferDispatch = "transfer_dispatch"
+	MovementTransferReceive  = "transfer_receive"
+	MovementStocktakeAdjust  = "stocktake_adjust"
+)
+
+const (
+	ReturnDispositionSellable = "sellable"
+	ReturnDispositionDamaged  = "damaged"
+)
+
+const (
+	TransferDraft           = "draft"
+	TransferPendingApproval = "pending_approval"
+	TransferApproved        = "approved"
+	TransferInTransit       = "in_transit"
+	TransferReceived        = "received"
+	TransferCancelled       = "cancelled"
+)
+
+const (
+	StocktakeCounting      = "counting"
+	StocktakePendingReview = "pending_review"
+	StocktakeApproved      = "approved"
+	StocktakePosted        = "posted"
+	StocktakeCancelled     = "cancelled"
 )
 
 // Platform-side snapshot status vs local SKU stock (alerts only).

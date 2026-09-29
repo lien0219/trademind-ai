@@ -12,17 +12,19 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 )
 
-func (s *Service) appendChange(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, typ string,
+func (s *Service) appendChange(ctx context.Context, tenantID int64, productID uuid.UUID, skuID uuid.UUID, typ string,
 	before int, after int, delta int, reason string, remark string, admin *uuid.UUID,
 ) {
 	if s == nil || s.DB == nil {
 		return
 	}
 	row := InventoryChangeLog{
+		TenantID:     tenantID,
 		ProductID:    productID,
 		ProductSKUID: skuID,
 		ChangeType:   typ,
@@ -93,7 +95,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		if taskRow.ProductSKUID != nil && *taskRow.ProductSKUID != uuid.Nil {
 			pskuSnap := snapshotPublicationSKUStock(ctx, s, taskRow)
 			beforePL := derefStock(pskuSnap.stockPtr)
-			s.appendChange(ctx, taskRow.ProductID, *taskRow.ProductSKUID, ChangeSyncFailed, beforePL, beforePL, 0, "inventory_sync_failed", clampStr(msg, 520), taskRow.CreatedBy)
+			s.appendChange(ctx, taskRow.TenantID, taskRow.ProductID, *taskRow.ProductSKUID, ChangeSyncFailed, beforePL, beforePL, 0, "inventory_sync_failed", clampStr(msg, 520), taskRow.CreatedBy)
 		}
 		if s.OpLog != nil {
 			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -138,7 +140,8 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 	skuUUID := *taskRow.ProductSKUID
 	var sku product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND product_id = ?", skuUUID, taskRow.ProductID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+		First(&sku, "product_skus.id = ? AND product_skus.product_id = ? AND products.tenant_id = ?", skuUUID, taskRow.ProductID, taskRow.TenantID).Error; err != nil {
 		return fail("product sku not found")
 	}
 
@@ -146,11 +149,13 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return fail("missing publication sku id")
 	}
 	var psku productpublish.ProductPublicationSKU
-	if err := s.DB.WithContext(ctx).First(&psku, "id = ?", *taskRow.PublicationSKUID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN product_publications pp ON pp.id = product_publication_skus.publication_id AND pp.deleted_at IS NULL").
+		Joins("JOIN products p ON p.id = pp.product_id AND p.deleted_at IS NULL").
+		First(&psku, "product_publication_skus.id = ? AND pp.product_id = ? AND p.tenant_id = ?", *taskRow.PublicationSKUID, taskRow.ProductID, taskRow.TenantID).Error; err != nil {
 		return fail("listing sku row not found")
 	}
 	var pub productpublish.ProductPublication
-	if err := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", psku.PublicationID).First(&pub).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id = ? AND product_id = ? AND deleted_at IS NULL", psku.PublicationID, taskRow.ProductID).First(&pub).Error; err != nil {
 		return fail("publication snapshot not found")
 	}
 	pl := strings.TrimSpace(strings.ToLower(taskRow.Platform))
@@ -163,7 +168,11 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return fail("external product id missing")
 	}
 
-	shopRow, auth, err := s.Shops.PlainAuthForProviderCtx(ctx, taskRow.ShopID)
+	var scopedShop shop.Shop
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ? AND deleted_at IS NULL", taskRow.ShopID, taskRow.TenantID).First(&scopedShop).Error; err != nil {
+		return fail("shop not found")
+	}
+	shopRow, auth, err := s.Shops.PlainAuthForProviderCtx(ctx, scopedShop.ID)
 	if err != nil {
 		return fail(err.Error())
 	}
@@ -252,7 +261,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	})
 
 	delta := stockOut - beforeMirror
-	s.appendChange(ctx, taskRow.ProductID, skuUUID, ChangeSyncSuccess, beforeMirror, stockOut, delta, "inventory_sync_success", fmt.Sprintf("task=%s platform=%s", taskID.String(), pl), taskRow.CreatedBy)
+	s.appendChange(ctx, taskRow.TenantID, taskRow.ProductID, skuUUID, ChangeSyncSuccess, beforeMirror, stockOut, delta, "inventory_sync_success", fmt.Sprintf("task=%s platform=%s", taskID.String(), pl), taskRow.CreatedBy)
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -292,7 +301,9 @@ func snapshotPublicationSKUStock(ctx context.Context, s *Service, task *Inventor
 		return out
 	}
 	var psku productpublish.ProductPublicationSKU
-	if err := s.DB.WithContext(ctx).First(&psku, "id = ?", *task.PublicationSKUID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN product_publications pp ON pp.id = product_publication_skus.publication_id AND pp.deleted_at IS NULL").
+		Joins("JOIN products p ON p.id = pp.product_id AND p.deleted_at IS NULL").
+		First(&psku, "product_publication_skus.id = ? AND p.tenant_id = ?", *task.PublicationSKUID, task.TenantID).Error; err != nil {
 		return out
 	}
 	out.stockPtr = psku.Stock

@@ -54,4 +54,23 @@ describe('TmProTable', () => {
     await user.click(screen.getByRole('button', { name: '列设置' }));
     expect(await screen.findByText('列展示')).toBeInTheDocument();
   });
+
+  it('keeps filters in the left filter bar and commands in the action area', () => {
+    const { container } = render(
+      <TmProTable<TableRow>
+        rowKey="id"
+        search={false}
+        pagination={false}
+        columns={columns}
+        dataSource={[{ id: 'row-1', name: '测试记录' }]}
+        filterBar={<input aria-label="搜索名称" />}
+        toolBarRender={() => [<button key="create">新建记录</button>]}
+      />,
+    );
+
+    const filterBar = container.querySelector('.tm-table-filter-bar');
+    expect(container.querySelector('.tm-pro-table')).toHaveClass('tm-pro-table--has-filter-bar');
+    expect(filterBar).toContainElement(screen.getByRole('textbox', { name: '搜索名称' }));
+    expect(filterBar).not.toContainElement(screen.getByRole('button', { name: '新建记录' }));
+  });
 });

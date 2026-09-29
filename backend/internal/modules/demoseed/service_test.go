@@ -17,7 +17,7 @@ import (
 
 func TestSeedFullProjectEdgeCases_blocksProduction(t *testing.T) {
 	s := &Service{AppEnv: "production"}
-	_, err := s.SeedFullProjectEdgeCases(context.Background(), nil)
+	_, err := s.SeedFullProjectEdgeCases(context.Background(), nil, 0)
 	if !errors.Is(err, ErrProductionForbidden) {
 		t.Fatalf("expected ErrProductionForbidden, got %v", err)
 	}
@@ -30,7 +30,8 @@ func TestSeedFullProjectEdgeCases_createsSamples(t *testing.T) {
 	}
 	s := &Service{DB: db, AppEnv: "development"}
 	adminID := uuid.New()
-	out, err := s.SeedFullProjectEdgeCases(context.Background(), &adminID)
+	const tenantID int64 = 42
+	out, err := s.SeedFullProjectEdgeCases(context.Background(), &adminID, tenantID)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -48,6 +49,23 @@ func TestSeedFullProjectEdgeCases_createsSamples(t *testing.T) {
 	db.Model(&shop.Shop{}).Count(&shops)
 	if shops < 1 {
 		t.Fatal("expected demo shop")
+	}
+	var tenantShopCount, defaultTenantInventoryCount int64
+	db.Model(&shop.Shop{}).Where("tenant_id = ?", tenantID).Count(&tenantShopCount)
+	db.Model(&inventory.InventorySyncTask{}).Where("tenant_id = ?", 0).Count(&defaultTenantInventoryCount)
+	if tenantShopCount < 1 || defaultTenantInventoryCount != 0 {
+		t.Fatalf("expected tenant-scoped demo rows, tenant shops=%d default inventory tasks=%d", tenantShopCount, defaultTenantInventoryCount)
+	}
+	var demoProduct product.Product
+	if err := db.Where("tenant_id = ? AND title = ?", tenantID, "F8 demo edge-case product").First(&demoProduct).Error; err != nil {
+		t.Fatalf("load demo product: %v", err)
+	}
+	var demoSKU product.ProductSKU
+	if err := db.Where("product_id = ?", demoProduct.ID).First(&demoSKU).Error; err != nil {
+		t.Fatalf("load demo SKU: %v", err)
+	}
+	if demoSKU.Stock == nil || *demoSKU.Stock != 0 {
+		t.Fatalf("new demo SKU must start with zero compatibility stock, got %#v", demoSKU.Stock)
 	}
 }
 

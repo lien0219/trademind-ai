@@ -2,10 +2,16 @@ import { ColumnHeightOutlined, ReloadOutlined, SettingOutlined } from '@ant-desi
 import { ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProTableProps } from '@ant-design/pro-components';
 import { Button, Tooltip } from 'antd';
+import type { ReactNode } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-export type TmProTableProps<T extends Record<string, unknown>, U extends Record<string, unknown> = Record<string, unknown>> =
-  ProTableProps<T, U>;
+export type TmProTableProps<
+  T extends Record<string, unknown>,
+  U extends Record<string, unknown> = Record<string, unknown>,
+> = ProTableProps<T, U> & {
+  /** Search and filter controls rendered on the left side of the table toolbar. */
+  filterBar?: ReactNode;
+};
 
 type TmToolBarRender<T extends Record<string, unknown>, U extends Record<string, unknown>> = Exclude<
   ProTableProps<T, U>['toolBarRender'],
@@ -20,6 +26,8 @@ export default function TmProTable<
   U extends Record<string, unknown> = Record<string, unknown>,
 >({
   actionRef: userActionRef,
+  filterBar,
+  headerTitle,
   options,
   toolBarRender,
   onLoadingChange,
@@ -82,8 +90,24 @@ export default function TmProTable<
   return (
     <ProTable<T, U>
       {...rest}
-      className={['tm-pro-table', className].filter(Boolean).join(' ')}
+      className={[
+        'tm-pro-table',
+        filterBar ? 'tm-pro-table--has-filter-bar' : undefined,
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       actionRef={actionRef}
+      headerTitle={
+        filterBar ? (
+          <div className="tm-table-filter-bar">
+            {headerTitle === false ? null : headerTitle}
+            {filterBar}
+          </div>
+        ) : (
+          headerTitle
+        )
+      }
       options={mergedOptions}
       toolBarRender={mergedToolBarRender}
       onLoadingChange={(isLoading) => {

@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/gorm"
 )
@@ -34,16 +35,16 @@ func adminFromGin(c *gin.Context) *uuid.UUID {
 	return nil
 }
 
-func (s *Service) unifiedOne(ctx context.Context, taskType string, id uuid.UUID, now time.Time) (UnifiedTaskDTO, error) {
+func (s *Service) unifiedOne(ctx context.Context, tenantID int64, taskType string, id uuid.UUID, now time.Time) (UnifiedTaskDTO, error) {
 	var zero UnifiedTaskDTO
-	ms, err := s.fetchMarks(ctx, taskType, []string{id.String()})
+	ms, err := s.fetchMarks(ctx, tenantID, taskType, []string{id.String()})
 	if err != nil {
 		return zero, err
 	}
 	switch taskType {
 	case TaskTypeCollect:
 		var row collect.CollectTask
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error; err != nil {
 			return zero, err
 		}
 		pids := productIDsFromCollect(&row)
@@ -51,7 +52,7 @@ func (s *Service) unifiedOne(ctx context.Context, taskType string, id uuid.UUID,
 		return mapCollectTask(&row, titles, ms, now), nil
 	case TaskTypeImage:
 		var row imagetask.ImageTask
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error; err != nil {
 			return zero, err
 		}
 		var pids []uuid.UUID
@@ -62,21 +63,21 @@ func (s *Service) unifiedOne(ctx context.Context, taskType string, id uuid.UUID,
 		return mapImageTask(&row, titles, ms, now), nil
 	case TaskTypeOrderSync:
 		var row ordersync.OrderSyncTask
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error; err != nil {
 			return zero, err
 		}
 		names := s.batchShopNames(ctx, []uuid.UUID{row.ShopID})
 		return mapOrderSyncTask(&row, names, ms, now), nil
 	case TaskTypeCustomerMessageSync:
 		var row customersync.CustomerMessageSyncTask
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error; err != nil {
 			return zero, err
 		}
 		names := s.batchShopNames(ctx, []uuid.UUID{row.ShopID})
 		return mapCustomerMessageSyncTask(&row, names, ms, now), nil
 	case TaskTypeProductPublish:
 		var row productpublish.ProductPublishTask
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error; err != nil {
 			return zero, err
 		}
 		names := s.batchShopNames(ctx, []uuid.UUID{row.ShopID})
@@ -84,7 +85,7 @@ func (s *Service) unifiedOne(ctx context.Context, taskType string, id uuid.UUID,
 		return mapProductPublishTask(&row, names, titles, ms, now), nil
 	case TaskTypeInventorySync:
 		var row inventory.InventorySyncTask
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&row).Error; err != nil {
 			return zero, err
 		}
 		names := s.batchShopNames(ctx, []uuid.UUID{row.ShopID})
@@ -92,11 +93,13 @@ func (s *Service) unifiedOne(ctx context.Context, taskType string, id uuid.UUID,
 		return mapInventorySyncTask(&row, names, titles, ms, now), nil
 	case TaskTypeAIText:
 		var row aiproducttext.AIProductTextItem
-		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND product_id IN (SELECT id FROM products WHERE tenant_id = ? AND deleted_at IS NULL)", id, tenantID).First(&row).Error; err != nil {
 			return zero, err
 		}
 		titles := s.batchProductTitles(ctx, []uuid.UUID{row.ProductID})
-		return mapAIProductTextItem(&row, titles, ms, now), nil
+		dto := mapAIProductTextItem(&row, titles, ms, now)
+		dto.TenantID = tenantID
+		return dto, nil
 	default:
 		return zero, fmt.Errorf("unknown task type")
 	}
@@ -118,8 +121,12 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now().UTC()
-	base, err := s.unifiedOne(c.Request.Context(), taskType, id, now)
+	base, err := s.unifiedOne(c.Request.Context(), tenantID, taskType, id, now)
 	if err != nil {
 		return nil, err
 	}
@@ -226,16 +233,16 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 	return out, nil
 }
 
-func (s *Service) deleteFailureMarks(ctx context.Context, taskType, sourceID string) error {
+func (s *Service) deleteFailureMarks(ctx context.Context, tenantID int64, taskType, sourceID string) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("taskcenter: no db")
 	}
 	return s.DB.WithContext(ctx).
-		Where("task_type = ? AND source_id = ?", taskType, sourceID).
+		Where("tenant_id = ? AND task_type = ? AND source_id = ?", tenantID, taskType, sourceID).
 		Delete(&TaskFailureMark{}).Error
 }
 
-func (s *Service) upsertFailureMark(ctx context.Context, taskType, sourceID, sourceTable, markType, remark string, admin *uuid.UUID) error {
+func (s *Service) upsertFailureMark(ctx context.Context, tenantID int64, taskType, sourceID, sourceTable, markType, remark string, admin *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("taskcenter: no db")
 	}
@@ -243,10 +250,11 @@ func (s *Service) upsertFailureMark(ctx context.Context, taskType, sourceID, sou
 	now := time.Now().UTC()
 	var cur TaskFailureMark
 	err := s.DB.WithContext(ctx).
-		Where("task_type = ? AND source_id = ? AND mark_type = ?", taskType, sourceID, markType).
+		Where("tenant_id = ? AND task_type = ? AND source_id = ? AND mark_type = ?", tenantID, taskType, sourceID, markType).
 		First(&cur).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		m := TaskFailureMark{
+			TenantID:    tenantID,
 			TaskType:    taskType,
 			SourceID:    sourceID,
 			SourceTable: sourceTable,
@@ -275,8 +283,12 @@ func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID)
 	if err != nil {
 		return err
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
 	admin := adminFromGin(c)
-	base, err := s.unifiedOne(c.Request.Context(), taskType, id, time.Now().UTC())
+	base, err := s.unifiedOne(c.Request.Context(), tenantID, taskType, id, time.Now().UTC())
 	if err != nil {
 		return err
 	}
@@ -332,7 +344,7 @@ func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID)
 	if execErr != nil {
 		return execErr
 	}
-	if err := s.deleteFailureMarks(c.Request.Context(), taskType, id.String()); err != nil {
+	if err := s.deleteFailureMarks(c.Request.Context(), tenantID, taskType, id.String()); err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -419,11 +431,15 @@ func (s *Service) IgnoreFailure(c *gin.Context, taskType string, id uuid.UUID, r
 	if err != nil {
 		return err
 	}
-	if _, err := s.unifiedOne(c.Request.Context(), tt, id, time.Now().UTC()); err != nil {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if _, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC()); err != nil {
 		return err
 	}
 	src := sourceTableForType(tt)
-	if err := s.upsertFailureMark(c.Request.Context(), tt, id.String(), src, MarkIgnored, remark, adminFromGin(c)); err != nil {
+	if err := s.upsertFailureMark(c.Request.Context(), tenantID, tt, id.String(), src, MarkIgnored, remark, adminFromGin(c)); err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -447,11 +463,15 @@ func (s *Service) HandleFailure(c *gin.Context, taskType string, id uuid.UUID, r
 	if err != nil {
 		return err
 	}
-	if _, err := s.unifiedOne(c.Request.Context(), tt, id, time.Now().UTC()); err != nil {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if _, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC()); err != nil {
 		return err
 	}
 	src := sourceTableForType(tt)
-	if err := s.upsertFailureMark(c.Request.Context(), tt, id.String(), src, MarkHandled, remark, adminFromGin(c)); err != nil {
+	if err := s.upsertFailureMark(c.Request.Context(), tenantID, tt, id.String(), src, MarkHandled, remark, adminFromGin(c)); err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -475,10 +495,14 @@ func (s *Service) UnmarkFailure(c *gin.Context, taskType string, id uuid.UUID) e
 	if err != nil {
 		return err
 	}
-	if _, err := s.unifiedOne(c.Request.Context(), tt, id, time.Now().UTC()); err != nil {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return err
 	}
-	if err := s.deleteFailureMarks(c.Request.Context(), tt, id.String()); err != nil {
+	if _, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC()); err != nil {
+		return err
+	}
+	if err := s.deleteFailureMarks(c.Request.Context(), tenantID, tt, id.String()); err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -514,6 +538,14 @@ func (s *Service) batchApplyMark(c *gin.Context, req BatchMarkRequest, markType,
 	}
 	admin := adminFromGin(c)
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		for _, it := range req.Items {
+			out.Results = append(out.Results, BatchRetryOneResult{TaskType: it.TaskType, ID: it.ID, OK: false, Error: "tenant context missing"})
+			out.FailedCount++
+		}
+		return out
+	}
 	now := time.Now().UTC()
 	for _, it := range req.Items {
 		id, err := uuid.Parse(strings.TrimSpace(it.ID))
@@ -528,13 +560,13 @@ func (s *Service) batchApplyMark(c *gin.Context, req BatchMarkRequest, markType,
 			out.FailedCount++
 			continue
 		}
-		if _, err := s.unifiedOne(ctx, tt, id, now); err != nil {
+		if _, err := s.unifiedOne(ctx, tenantID, tt, id, now); err != nil {
 			out.Results = append(out.Results, BatchRetryOneResult{TaskType: tt, ID: id.String(), OK: false, Error: "not found"})
 			out.FailedCount++
 			continue
 		}
 		src := sourceTableForType(tt)
-		if err := s.upsertFailureMark(ctx, tt, id.String(), src, markType, req.Remark, admin); err != nil {
+		if err := s.upsertFailureMark(ctx, tenantID, tt, id.String(), src, markType, req.Remark, admin); err != nil {
 			out.Results = append(out.Results, BatchRetryOneResult{TaskType: tt, ID: id.String(), OK: false, Error: err.Error()})
 			out.FailedCount++
 			continue

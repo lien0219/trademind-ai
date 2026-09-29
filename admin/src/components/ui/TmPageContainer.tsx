@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { PageContainer, type PageContainerProps } from '@ant-design/pro-components';
+import { Space } from 'antd';
 import { layoutTokens } from '@/constants/layoutTokens';
 
 export type TmPageContainerProps = PageContainerProps & {
@@ -58,5 +59,9 @@ export default function TmPageContainer({
 }
 
 export function TmPageHeaderExtra({ children }: { children: ReactNode }) {
-  return <div className="tm-page-header-extra">{children}</div>;
+  return (
+    <Space className="tm-page-header-extra" size={8} wrap>
+      {children}
+    </Space>
+  );
 }

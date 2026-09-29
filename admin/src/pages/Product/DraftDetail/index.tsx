@@ -171,13 +171,18 @@ import {
 import {
   adjustSkuStock,
   batchUpdateStockSettings,
+  createInventoryIdempotencyKey,
   createInventorySyncBatch,
+  listInventoryWarehouses,
   listProductPublicationSkus,
+  listSkuWarehouseBalances,
   previewBatchStockSettings,
   querySkuInventoryLogs,
   syncPublicationSkuInventory,
   type InventoryChangeLogRow,
+  type InventoryWarehouse,
   type PublicationSkuListingRow,
+  type WarehouseBalance,
 } from '@/services/inventory';
 import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
 import { usePermission } from '@/hooks/usePermission';
@@ -1093,8 +1098,13 @@ export default function ProductDraftDetailPage() {
   const [pubSkuSelectedKeys, setPubSkuSelectedKeys] = useState<string[]>([]);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<ProductSKURow | null>(null);
-  const [adjustForm] = Form.useForm();
+  const [adjustForm] = Form.useForm<{ warehouseId: string; stock: number; reason?: string; remark?: string }>();
   const [invAdjustSubmitting, setInvAdjustSubmitting] = useState(false);
+  const [invAdjustLoading, setInvAdjustLoading] = useState(false);
+  const [invAdjustWarehouses, setInvAdjustWarehouses] = useState<InventoryWarehouse[]>([]);
+  const [invAdjustBalances, setInvAdjustBalances] = useState<WarehouseBalance[]>([]);
+  const [invAdjustIdempotencyKey, setInvAdjustIdempotencyKey] = useState('');
+  const invAdjustLoadSequence = useRef(0);
   const [logsOpen, setLogsOpen] = useState(false);
   const [logsSku, setLogsSku] = useState<ProductSKURow | null>(null);
   const [logsRows, setLogsRows] = useState<InventoryChangeLogRow[]>([]);
@@ -2397,8 +2407,7 @@ export default function ProductDraftDetailPage() {
         width: 96,
         align: 'right' as const,
         className: 'product-draft-skus__number-col',
-        valueType: 'digit' as const,
-        fieldProps: { min: 0, className: 'product-draft-skus__number-input' },
+        editable: false,
         render: (_, record) => (typeof record.stock === 'number' ? record.stock : <Typography.Text type="secondary">—</Typography.Text>),
       },
       {
@@ -3575,7 +3584,6 @@ export default function ProductDraftDetailPage() {
                               skuName: row.skuName,
                               attrs,
                               price: row.price,
-                              stock: row.stock,
                               imageUrl: row.imageUrl,
                             });
                             message.success('商品规格已创建');
@@ -3585,7 +3593,6 @@ export default function ProductDraftDetailPage() {
                               skuName: row.skuName,
                               attrs,
                               price: row.price,
-                              stock: row.stock,
                               imageUrl: row.imageUrl,
                             });
                             message.success('商品规格已更新');
@@ -3783,12 +3790,35 @@ export default function ProductDraftDetailPage() {
                               className="product-draft-stock__action product-draft-stock__action--primary"
                               onClick={() => {
                                 setAdjustTarget(r);
-                                adjustForm.setFieldsValue({
-                                  stock: typeof r.stock === 'number' ? r.stock : 0,
-                                  reason: 'manual_adjust',
-                                  remark: '',
-                                });
                                 setAdjustOpen(true);
+                                setInvAdjustIdempotencyKey(createInventoryIdempotencyKey('manual-adjust'));
+                                setInvAdjustLoading(true);
+                                const sequence = ++invAdjustLoadSequence.current;
+                                void Promise.all([listInventoryWarehouses(), listSkuWarehouseBalances(id, r.id)])
+                                  .then(([warehouseResult, balanceResult]) => {
+                                    if (sequence !== invAdjustLoadSequence.current) return;
+                                    const warehouses = (warehouseResult.list ?? []).filter((item) => item.status === 'active');
+                                    const balances = balanceResult.list ?? [];
+                                    setInvAdjustWarehouses(warehouses);
+                                    setInvAdjustBalances(balances);
+                                    const selected = warehouses.find((item) => item.isDefault) ?? warehouses[0];
+                                    const current = balances.find((item) => item.warehouseId === selected?.id);
+                                    adjustForm.setFieldsValue({
+                                      warehouseId: selected?.id,
+                                      stock: current?.onHand ?? (balances.length === 0 && selected?.isDefault ? Number(r.stock ?? 0) : 0),
+                                      reason: 'manual_adjust',
+                                      remark: '',
+                                    });
+                                  })
+                                  .catch((error: unknown) => {
+                                    if (sequence !== invAdjustLoadSequence.current) return;
+                                    message.error((error as Error)?.message || '仓库库存加载失败');
+                                    setInvAdjustWarehouses([]);
+                                    setInvAdjustBalances([]);
+                                  })
+                                  .finally(() => {
+                                    if (sequence === invAdjustLoadSequence.current) setInvAdjustLoading(false);
+                                  });
                               }}
                             >
                               调整库存
@@ -6192,8 +6222,13 @@ export default function ProductDraftDetailPage() {
         okText="保存"
         confirmLoading={invAdjustSubmitting}
         onCancel={() => {
+          invAdjustLoadSequence.current += 1;
           setAdjustOpen(false);
+          setInvAdjustLoading(false);
           setAdjustTarget(null);
+          setInvAdjustWarehouses([]);
+          setInvAdjustBalances([]);
+          setInvAdjustIdempotencyKey('');
           adjustForm.resetFields();
         }}
         onOk={() => {
@@ -6201,29 +6236,38 @@ export default function ProductDraftDetailPage() {
           return adjustForm.validateFields().then((v) => {
             const stock = Number(v.stock);
             return new Promise<void>((resolve, reject) => {
-              confirmInventoryManualAdjust(async () => {
-                setInvAdjustSubmitting(true);
-                try {
-                  await adjustSkuStock(id, adjustTarget.id, {
-                    stock,
-                    reason: String(v.reason ?? 'manual_adjust').trim(),
-                    remark: String(v.remark ?? ''),
-                    sync: false,
-                  });
-                  message.success('库存已更新');
-                  setAdjustOpen(false);
-                  setAdjustTarget(null);
-                  adjustForm.resetFields();
-                  await reloadDetail();
-                  await reloadPublicationSkus();
-                  resolve();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '调整失败');
-                  reject(e);
-                } finally {
-                  setInvAdjustSubmitting(false);
-                }
-              });
+              confirmInventoryManualAdjust(
+                async () => {
+                  setInvAdjustSubmitting(true);
+                  try {
+                    await adjustSkuStock(id, adjustTarget.id, {
+                      warehouseId: v.warehouseId,
+                      stock,
+                      idempotencyKey: invAdjustIdempotencyKey,
+                      reason: String(v.reason ?? 'manual_adjust').trim(),
+                      remark: String(v.remark ?? ''),
+                      sync: false,
+                    });
+                    message.success('库存已更新');
+                    invAdjustLoadSequence.current += 1;
+                    setAdjustOpen(false);
+                    setAdjustTarget(null);
+                    setInvAdjustWarehouses([]);
+                    setInvAdjustBalances([]);
+                    setInvAdjustIdempotencyKey('');
+                    adjustForm.resetFields();
+                    await reloadDetail();
+                    await reloadPublicationSkus();
+                    resolve();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '调整失败');
+                    reject(e);
+                  } finally {
+                    setInvAdjustSubmitting(false);
+                  }
+                },
+                resolve,
+              );
             });
           });
         }}
@@ -6232,10 +6276,28 @@ export default function ProductDraftDetailPage() {
           type="warning"
           showIcon
           className="product-draft-inventory__modal-alert"
-          message="库存调整会覆盖当前本地库存值"
-          description="提交后写入本地 SKU 库存，当前表单不会自动同步到平台。"
+          message="库存调整会覆盖所选仓库的在手库存"
+          description="提交后更新所选仓库余额，并在同一事务写入库存流水和商品规格兼容聚合库存；未迁移历史量先进入默认仓或待分配仓，当前表单不会自动同步到平台。"
         />
         <Form form={adjustForm} layout="vertical">
+          <Form.Item name="warehouseId" label="仓库" rules={[{ required: true, message: '请选择仓库' }]}>
+            <Select
+              loading={invAdjustLoading}
+              placeholder="请选择启用的仓库"
+              options={invAdjustWarehouses.map((item) => ({
+                value: item.id,
+                label: `${item.name}（${item.code}）${item.isDefault ? ' · 默认' : ''}`,
+              }))}
+              onChange={(warehouseId) => {
+                const balance = invAdjustBalances.find((item) => item.warehouseId === warehouseId);
+                const warehouse = invAdjustWarehouses.find((item) => item.id === warehouseId);
+                adjustForm.setFieldValue(
+                  'stock',
+                  balance?.onHand ?? (invAdjustBalances.length === 0 && warehouse?.isDefault ? Number(adjustTarget?.stock ?? 0) : 0),
+                );
+              }}
+            />
+          </Form.Item>
           <Form.Item name="stock" label="库存（≥0）" rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
           </Form.Item>

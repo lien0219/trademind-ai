@@ -14,7 +14,10 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -72,7 +75,11 @@ func newSKUSearchHandlerContext(method, target string, tenantID int64, actorID u
 	ctx.Set(ctxkey.TraceID, "trace-sku-search-test")
 	ctx.Set(ctxkey.TenantID, tenantID)
 	ctx.Set(ctxkey.AdminID, actorID.String())
-	security.SetGin(ctx, &security.TenantContext{TenantID: tenantID, UserID: actorID, RequestID: "trace-sku-search-test", AuthSource: security.AuthSourceAccessToken})
+	authSource := security.AuthSourceAccessToken
+	if tenantID == 0 {
+		authSource = security.AuthSourceLegacyDevZero
+	}
+	security.SetGin(ctx, &security.TenantContext{TenantID: tenantID, UserID: actorID, RequestID: "trace-sku-search-test", AuthSource: authSource})
 	return ctx, recorder
 }
 
@@ -118,6 +125,51 @@ func TestSearchSKUsHandlerUsesTrustedTenantAndPreservesContract(t *testing.T) {
 	require.Equal(t, "Blue", row["skuName"])
 }
 
+func TestSearchSKUsHandlerAllowsLegacyTenantZero(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newSKUSearchTestDB(t)
+	actorID := seedSKUSearchAdmin(t, db, 0, admin.StatusActive)
+	spy := &skuSearchRepositorySpy{result: []ProductSKUSearchHit{{ProductID: "legacy-product"}}}
+	handler := &Handler{Svc: &Service{DB: db, skuSearchRepo: spy}}
+	ctx, recorder := newSKUSearchHandlerContext(http.MethodGet, "/api/v1/product-skus/search", 0, actorID)
+
+	handler.SearchSKUs(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, 1, spy.calls)
+	require.Equal(t, int64(0), spy.tenantID)
+}
+
+func TestSearchSKUsRouteAllowsLegacyTenantZeroJWT(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := newSKUSearchTestDB(t)
+	actorID := seedSKUSearchAdmin(t, db, 0, admin.StatusActive)
+	spy := &skuSearchRepositorySpy{result: []ProductSKUSearchHit{{ProductID: "legacy-product"}}}
+	handler := &Handler{Svc: &Service{DB: db, skuSearchRepo: spy}}
+	cfg := &config.Config{AppEnv: config.EnvDevelopment, JWTSecret: "test-jwt-secret-with-enough-length-32"}
+	keys, err := auth.BuildKeySet(cfg)
+	require.NoError(t, err)
+	token, _, err := auth.MintAccessToken(cfg, keys, auth.MintAccessInput{
+		UserID:       actorID,
+		Username:     "legacy-admin",
+		TenantID:     0,
+		TokenVersion: 1,
+	})
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(middleware.BearerAuthWithDB(cfg, db, nil))
+	router.GET("/api/v1/product-skus/search", handler.SearchSKUs)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/product-skus/search", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, 1, spy.calls)
+	require.Equal(t, int64(0), spy.tenantID)
+}
+
 func TestSearchSKUsHandlerFailsClosedBeforeSearch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
@@ -129,7 +181,10 @@ func TestSearchSKUsHandlerFailsClosedBeforeSearch(t *testing.T) {
 			c.Keys[ctxkey.TenantID] = nil
 			delete(c.Keys, ctxkey.TenantID)
 		}},
-		{name: "zero tenant", wantStatus: http.StatusUnauthorized, configure: func(c *gin.Context, _ *gorm.DB, _ uuid.UUID) { c.Set(ctxkey.TenantID, int64(0)) }},
+		{name: "zero tenant without legacy source", wantStatus: http.StatusUnauthorized, configure: func(c *gin.Context, _ *gorm.DB, actorID uuid.UUID) {
+			c.Set(ctxkey.TenantID, int64(0))
+			security.SetGin(c, &security.TenantContext{TenantID: 0, UserID: actorID, AuthSource: security.AuthSourceAccessToken})
+		}},
 		{name: "negative tenant", wantStatus: http.StatusUnauthorized, configure: func(c *gin.Context, _ *gorm.DB, _ uuid.UUID) { c.Set(ctxkey.TenantID, int64(-1)) }},
 		{name: "missing security context", wantStatus: http.StatusUnauthorized, configure: func(c *gin.Context, _ *gorm.DB, _ uuid.UUID) { delete(c.Keys, "security.tenant_context") }},
 		{name: "tenant context mismatch", wantStatus: http.StatusForbidden, configure: func(c *gin.Context, _ *gorm.DB, actorID uuid.UUID) {
@@ -177,16 +232,20 @@ func TestSearchSKUsHandlerFailsClosedBeforeSearch(t *testing.T) {
 func TestSearchSKUsServiceRequiresTenantBeforeRepository(t *testing.T) {
 	spy := &skuSearchRepositorySpy{}
 	svc := &Service{skuSearchRepo: spy}
-	for _, tenantID := range []int64{0, -1} {
+	for _, tenantID := range []int64{-1} {
 		_, err := svc.SearchSKUs(context.Background(), tenantID, SearchSKUsQuery{})
 		require.ErrorIs(t, err, errSKUSearchAuthenticationRequired)
 	}
 	require.Zero(t, spy.calls)
-
-	query := SearchSKUsQuery{Keyword: "shared", Limit: 7}
-	_, err := svc.SearchSKUs(context.Background(), 101, query)
+	_, err := svc.SearchSKUs(context.Background(), 0, SearchSKUsQuery{})
 	require.NoError(t, err)
 	require.Equal(t, 1, spy.calls)
+	require.Equal(t, int64(0), spy.tenantID)
+
+	query := SearchSKUsQuery{Keyword: "shared", Limit: 7}
+	_, err = svc.SearchSKUs(context.Background(), 101, query)
+	require.NoError(t, err)
+	require.Equal(t, 2, spy.calls)
 	require.Equal(t, int64(101), spy.tenantID)
 	require.Equal(t, query, spy.query)
 }

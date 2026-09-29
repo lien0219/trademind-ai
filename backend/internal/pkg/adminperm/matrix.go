@@ -14,6 +14,7 @@ const (
 	PermSKUBind            = "sku.bind"
 	PermInventoryView      = "inventory.view"
 	PermInventoryOperate   = "inventory.operate"
+	PermInventoryApprove   = "inventory.approve"
 	PermCustomerView       = "customer.view"
 	PermCustomerOperate    = "customer.operate"
 	PermTaskRetry          = "task.retry"
@@ -22,6 +23,36 @@ const (
 	PermOperationLogView   = "operationlog.view"
 	PermStoreView          = "store.view"
 	PermStoreOperate       = "store.operate"
+	// ERP foundation permissions
+	PermWarehouseView        = "warehouse.view"
+	PermWarehouseManage      = "warehouse.manage"
+	PermLogisticsView        = "logistics.view"
+	PermLogisticsManage      = "logistics.manage"
+	PermSupplierView         = "supplier.view"
+	PermSupplierManage       = "supplier.manage"
+	PermProcurementView      = "procurement.view"
+	PermProcurementManage    = "procurement.manage"
+	PermProcurementApprove   = "procurement.approve"
+	PermProcurementReceive   = "procurement.receive"
+	PermProcurementReturn    = "procurement.return"
+	PermSalesReturnView      = "sales_return.view"
+	PermSalesReturnManage    = "sales_return.manage"
+	PermSalesReturnApprove   = "sales_return.approve"
+	PermSalesReturnReceive   = "sales_return.receive"
+	PermSalesReturnRefund    = "sales_return.refund"
+	PermOrderProfitView      = "order_profit.view"
+	PermOrderProfitExport    = "order_profit.export"
+	PermSettlementView       = "settlement.view"
+	PermSettlementImport     = "settlement.import"
+	PermSettlementExport     = "settlement.export"
+	PermWarehouseFeeView     = "warehouse_fee.view"
+	PermWarehouseFeeManage   = "warehouse_fee.manage"
+	PermAdvertisingFeeView   = "advertising_fee.view"
+	PermAdvertisingFeeImport = "advertising_fee.import"
+	PermAdvertisingFeeManage = "advertising_fee.manage"
+	PermFreightFeeView       = "freight_fee.view"
+	PermFreightFeeImport     = "freight_fee.import"
+	PermFreightFeeManage     = "freight_fee.manage"
 	// Security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -70,6 +101,7 @@ var allPermissions = []string{
 	PermSKUBind,
 	PermInventoryView,
 	PermInventoryOperate,
+	PermInventoryApprove,
 	PermCustomerView,
 	PermCustomerOperate,
 	PermTaskRetry,
@@ -78,6 +110,35 @@ var allPermissions = []string{
 	PermOperationLogView,
 	PermStoreView,
 	PermStoreOperate,
+	PermWarehouseView,
+	PermWarehouseManage,
+	PermLogisticsView,
+	PermLogisticsManage,
+	PermSupplierView,
+	PermSupplierManage,
+	PermProcurementView,
+	PermProcurementManage,
+	PermProcurementApprove,
+	PermProcurementReceive,
+	PermProcurementReturn,
+	PermSalesReturnView,
+	PermSalesReturnManage,
+	PermSalesReturnApprove,
+	PermSalesReturnReceive,
+	PermSalesReturnRefund,
+	PermOrderProfitView,
+	PermOrderProfitExport,
+	PermSettlementView,
+	PermSettlementImport,
+	PermSettlementExport,
+	PermWarehouseFeeView,
+	PermWarehouseFeeManage,
+	PermAdvertisingFeeView,
+	PermAdvertisingFeeImport,
+	PermAdvertisingFeeManage,
+	PermFreightFeeView,
+	PermFreightFeeImport,
+	PermFreightFeeManage,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -121,10 +182,24 @@ var reviewerPermissions = []string{
 	PermOperationTaskRetry,
 	PermOperationTaskAuditRead,
 	PermInventorySyncRead,
+	PermInventoryView,
+	PermInventoryApprove,
 	PermInventorySnapshotRead,
 	PermSKUBindingRead,
 	PermSKUBindingResolveManual,
 	PermInventorySyncAuditRead,
+	PermWarehouseView,
+	PermLogisticsView,
+	PermSupplierView,
+	PermProcurementView,
+	PermProcurementApprove,
+	PermSalesReturnView,
+	PermSalesReturnApprove,
+	PermSettlementView,
+	PermSettlementExport,
+	PermWarehouseFeeView,
+	PermAdvertisingFeeView,
+	PermFreightFeeView,
 }
 
 var operatorPermissions = []string{
@@ -159,6 +234,33 @@ var operatorPermissions = []string{
 	PermInventorySnapshotRead,
 	PermSKUBindingRead,
 	PermSKUBindingManage,
+	PermWarehouseView,
+	PermWarehouseManage,
+	PermLogisticsView,
+	PermLogisticsManage,
+	PermSupplierView,
+	PermSupplierManage,
+	PermProcurementView,
+	PermProcurementManage,
+	PermProcurementReceive,
+	PermProcurementReturn,
+	PermSalesReturnView,
+	PermSalesReturnManage,
+	PermSalesReturnReceive,
+	PermSalesReturnRefund,
+	PermOrderProfitView,
+	PermOrderProfitExport,
+	PermSettlementView,
+	PermSettlementImport,
+	PermSettlementExport,
+	PermWarehouseFeeView,
+	PermWarehouseFeeManage,
+	PermAdvertisingFeeView,
+	PermAdvertisingFeeImport,
+	PermAdvertisingFeeManage,
+	PermFreightFeeView,
+	PermFreightFeeImport,
+	PermFreightFeeManage,
 }
 
 var readonlyPermissions = []string{
@@ -178,6 +280,16 @@ var readonlyPermissions = []string{
 	PermInventorySyncRead,
 	PermInventorySnapshotRead,
 	PermSKUBindingRead,
+	PermWarehouseView,
+	PermLogisticsView,
+	PermSupplierView,
+	PermProcurementView,
+	PermSalesReturnView,
+	PermOrderProfitView,
+	PermSettlementView,
+	PermWarehouseFeeView,
+	PermAdvertisingFeeView,
+	PermFreightFeeView,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

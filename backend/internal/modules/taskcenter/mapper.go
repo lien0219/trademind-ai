@@ -93,6 +93,7 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		UpdatedAt:   row.UpdatedAt,
 	})
 	dto := UnifiedTaskDTO{
+		TenantID:         row.TenantID,
 		ID:               row.ID.String(),
 		TaskType:         TaskTypeCollect,
 		SourceTable:      SourceTableCollectTasks,
@@ -204,6 +205,7 @@ func mapOrderSyncTask(row *ordersync.OrderSyncTask, shopNames map[uuid.UUID]stri
 		UpdatedAt:   row.UpdatedAt,
 	})
 	dto := UnifiedTaskDTO{
+		TenantID:             row.TenantID,
 		ID:                   row.ID.String(),
 		TaskType:             TaskTypeOrderSync,
 		SourceTable:          SourceTableOrderSyncTasks,
@@ -251,6 +253,7 @@ func mapCustomerMessageSyncTask(row *customersync.CustomerMessageSyncTask, shopN
 		UpdatedAt:   row.UpdatedAt,
 	})
 	dto := UnifiedTaskDTO{
+		TenantID:             row.TenantID,
 		ID:                   row.ID.String(),
 		TaskType:             TaskTypeCustomerMessageSync,
 		SourceTable:          SourceTableCustomerMessageSyncTasks,
@@ -304,6 +307,7 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 		detailPath = "/product/publish-batches/" + row.BatchID.String()
 	}
 	dto := UnifiedTaskDTO{
+		TenantID:             row.TenantID,
 		ID:                   row.ID.String(),
 		TaskType:             TaskTypeProductPublish,
 		SourceTable:          SourceTableProductPublishTasks,
@@ -383,6 +387,7 @@ func mapInventorySyncTask(row *inventory.InventorySyncTask, shopNames map[uuid.U
 	})
 	ptitle := productTitles[row.ProductID]
 	dto := UnifiedTaskDTO{
+		TenantID:         row.TenantID,
 		ID:               row.ID.String(),
 		TaskType:         TaskTypeInventorySync,
 		SourceTable:      SourceTableInventorySyncTasks,

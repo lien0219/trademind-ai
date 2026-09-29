@@ -3,6 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import {
   expectAccountInTopNavbar,
   expectNoRootOverflow,
+  expectTableFilterBarAlignedLeft,
 } from "../utils/assertions";
 import { AUTH_TOKEN_KEY } from "../../src/constants/auth";
 import { THEME_MODE_STORAGE_KEY } from "../../src/theme/themeMode";
@@ -70,11 +71,22 @@ async function expectMobileDrawerOpaque(
       ),
       topElementClassName:
         topElement instanceof HTMLElement ? String(topElement.className) : null,
+      viewportWidth: window.innerWidth,
       drawerRect: {
         left: rect.left,
         right: rect.right,
         width: rect.width,
       },
+      siderRect: sider
+        ? (() => {
+            const siderRect = sider.getBoundingClientRect();
+            return {
+              left: siderRect.left,
+              right: siderRect.right,
+              width: siderRect.width,
+            };
+          })()
+        : null,
     };
   });
 
@@ -94,6 +106,22 @@ async function expectMobileDrawerOpaque(
     state.topElementWithinDrawer,
     `drawer stacking ${JSON.stringify(state)}`,
   ).toBe(true);
+  expect(
+    state.drawerRect.width,
+    `mobile drawer width ${JSON.stringify(state)}`,
+  ).toBeGreaterThanOrEqual(state.viewportWidth * 0.45);
+  expect(
+    state.drawerRect.width,
+    `mobile drawer width ${JSON.stringify(state)}`,
+  ).toBeLessThanOrEqual(state.viewportWidth * 0.55);
+  expect(
+    state.siderRect?.width ?? 0,
+    `mobile sider width ${JSON.stringify(state)}`,
+  ).toBeGreaterThanOrEqual(state.viewportWidth * 0.45);
+  expect(
+    state.siderRect?.width ?? 0,
+    `mobile sider width ${JSON.stringify(state)}`,
+  ).toBeLessThanOrEqual(state.viewportWidth * 0.55);
 }
 
 async function expectAccountMenuSurface(
@@ -219,6 +247,13 @@ const smokeRoutes = [
   { path: "/ai/operation-workbench", name: /商品运营工作台/ },
   { path: "/product/drafts", name: /商品草稿|E2E 商品草稿/ },
   { path: "/inventory/overview", name: /库存中心/ },
+  { path: "/procurement/purchase-orders", name: /采购单/ },
+  { path: "/procurement/replenishment-suggestions", name: /补货建议/ },
+  { path: "/orders/sales-returns", name: /退货退款/ },
+  { path: "/orders/fulfillment-reconciliation", name: /履约库存对账/ },
+  { path: "/orders/logistics-channels", name: /物流渠道与运费模板/ },
+  { path: "/orders/sales-return-reconciliation", name: /平台售后对账/ },
+  { path: "/orders/refund-executions", name: /退款执行/ },
   { path: "/ops/task-center/alerts", name: /告警中心/ },
   { path: "/ops/task-center/operation-tasks", name: /运营任务中心/ },
   { path: "/ops/observability", name: /可观测性中心/ },
@@ -238,6 +273,9 @@ test.describe("@smoke Admin route smoke", () => {
       await expect(page).not.toHaveURL(/\/user\/login/);
       await expectAccountInTopNavbar(page);
       await expectNoRootOverflow(page);
+      if (await page.locator(".tm-table-filter-bar:visible").count()) {
+        await expectTableFilterBarAlignedLeft(page);
+      }
       await admin.writeGuard.expectRequestCount("unexpected", 0);
     });
   }
@@ -359,6 +397,11 @@ test.describe("@smoke Admin route smoke", () => {
 
     await accountTrigger.click();
     await expect(accountTrigger).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByText("用户与权限")).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /API 密钥/ })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("联系客服")).toHaveCount(0);
     await expect(
       page.getByRole("menuitem", { name: /退出登录/ }),
     ).toBeVisible();
@@ -369,7 +412,7 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
-  test("uses one desktop header brand, an icon tooltip, and switches theme without mixed frames", async ({
+  test("keeps the brand in the sider and switches theme without mixed frames", async ({
     admin,
     page,
   }) => {
@@ -377,32 +420,35 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.goto("/dashboard/product-operations");
 
     await expect(
-      page.locator(".ant-pro-global-header .tm-app-brand-header"),
+      page.locator(".ant-pro-sider .tm-app-brand-header"),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "返回工作台" }),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: "收起侧栏" })).toBeVisible();
+      page.locator(".ant-pro-global-header .tm-app-brand-header"),
+    ).toHaveCount(0);
+    const collapseControl = page.getByRole("button", { name: "收起侧栏" });
+    await expect(collapseControl).toBeVisible();
+    await expect(page.locator(".tm-app-sider-footer")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "搜索功能或页面" }),
     ).toBeVisible();
-    const brandBox = await page
-      .getByRole("button", { name: "返回工作台" })
-      .boundingBox();
-    const collapseBox = await page
-      .getByRole("button", { name: "收起侧栏" })
-      .boundingBox();
     const searchBox = await page
       .getByRole("button", { name: "搜索功能或页面" })
       .boundingBox();
-    expect(brandBox).not.toBeNull();
-    expect(collapseBox).not.toBeNull();
     expect(searchBox).not.toBeNull();
-    if (!brandBox || !collapseBox || !searchBox) {
-      throw new Error("desktop header controls must have layout boxes");
+    if (!searchBox) {
+      throw new Error("desktop search control must have a layout box");
     }
-    expect(brandBox.x + brandBox.width).toBeLessThanOrEqual(collapseBox.x);
-    expect(collapseBox.x + collapseBox.width).toBeLessThanOrEqual(searchBox.x);
+    expect(searchBox.x).toBeGreaterThanOrEqual(0);
+    const footerBox = await page.locator(".tm-app-sider-footer").boundingBox();
+    const siderBox = await page.locator(".ant-pro-sider").boundingBox();
+    expect(footerBox).not.toBeNull();
+    expect(siderBox).not.toBeNull();
+    if (!footerBox || !siderBox) {
+      throw new Error("sider footer and sider must have layout boxes");
+    }
+    expect(footerBox.y + footerBox.height).toBeGreaterThanOrEqual(
+      siderBox.y + siderBox.height - 24,
+    );
     const brandLogoBox = await page.locator(".tm-app-brand-logo").boundingBox();
     const firstNavigationIconBox = await page
       .getByRole("menuitem", { name: /工作台/ })
@@ -420,9 +466,6 @@ test.describe("@smoke Admin route smoke", () => {
       `brand left ${brandLogoBox.x} vs navigation icon left ${firstNavigationIconBox.x}`,
     ).toBeLessThanOrEqual(4);
     await expect(page.locator(".tm-app-brand-logo")).toHaveCount(1);
-    await expect(page.locator(".ant-pro-sider .tm-app-brand-logo")).toHaveCount(
-      0,
-    );
 
     const darkThemeAction = page.getByRole("button", {
       name: "切换到深色模式",
@@ -462,7 +505,9 @@ test.describe("@smoke Admin route smoke", () => {
       .fill("告警中心");
     await dialog.getByRole("button", { name: /告警中心/ }).click();
 
-    await expect(page).toHaveURL(/\/ops\/task-center\/alerts\?source=business$/);
+    await expect(page).toHaveURL(
+      /\/ops\/task-center\/alerts\?source=business$/,
+    );
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
@@ -474,6 +519,10 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.goto("/ops/task-center/alerts");
 
     await page.getByRole("button", { name: "收起侧栏" }).click();
+    await expect(page.locator(".ant-pro-sider-collapsed")).toBeVisible();
+    await expect(
+      page.locator(".ant-pro-sider-collapsed .tm-app-brand-header--collapsed"),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "展开侧栏" })).toBeVisible();
 
     const sider = page.locator(".ant-pro-sider-collapsed");
@@ -505,7 +554,9 @@ test.describe("@smoke Admin route smoke", () => {
     ).toBeLessThanOrEqual(1);
 
     await page.getByRole("button", { name: "展开侧栏" }).click();
-    await expect(page.getByRole("button", { name: "收起侧栏" })).toBeVisible();
+    await expect(
+      page.locator(".ant-pro-sider .tm-app-brand-header"),
+    ).toBeVisible();
     await expect(page.locator(".ant-pro-sider-collapsed")).toHaveCount(0);
 
     await expectNoRootOverflow(page);

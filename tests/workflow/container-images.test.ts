@@ -43,10 +43,25 @@ describe('container image release workflow', () => {
     }
   });
 
-  it('supports branch builds and v-prefixed release tags', () => {
-    expect(workflow).toContain('      - main');
-    expect(workflow).toContain('      - dev');
+  it('automatically publishes only main branch builds and v-prefixed release tags', () => {
+    expect(workflow).toContain('    branches:\n      - main\n    tags:');
+    expect(workflow).not.toContain('      - dev');
+    expect(workflow).not.toContain('      - "feat/**"');
+    expect(workflow).not.toContain('      - "fix/**"');
+    expect(workflow).not.toContain('      - "release/**"');
     expect(workflow).toContain('    tags:\n      - "v*"');
+    expect(workflow).toContain('"$REF_TYPE" == "branch" && "$GITHUB_REF_NAME" != "main"');
+  });
+
+  it('publishes all service images under one GHCR package with isolated tag prefixes', () => {
+    expect(workflow).toContain('IMAGE_NAME: trademind');
+    expect(workflow).toContain(
+      'images: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}',
+    );
+    expect(workflow).not.toContain('image: trademind-backend');
+    expect(workflow).not.toContain('image: trademind-admin');
+    expect(workflow).not.toContain('image: trademind-collector');
+    expect(workflow).toContain('type=raw,value=${{ matrix.service }}-sha-${{ github.sha }}');
   });
 
   it('requires the release tag to match IMAGE_VERSION', () => {
@@ -63,23 +78,23 @@ describe('container image release workflow', () => {
 
   it('publishes stable version tags and latest only for releases', () => {
     expect(workflow).toContain(
-      "type=raw,value=v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
+      "type=raw,value=${{ matrix.service }}-v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
     );
     expect(workflow).toContain(
-      "type=raw,value=${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
+      "type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
     );
     expect(workflow).toContain(
-      "type=raw,value=latest,enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
+      "type=raw,value=${{ matrix.service }}-latest,enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
     );
     expect(workflow).not.toContain("needs.image_metadata.outputs.ref_slug == 'main'");
   });
 
   it('keeps branch and branch-version tags on non-release builds', () => {
     expect(workflow).toContain(
-      "type=raw,value=${{ needs.image_metadata.outputs.ref_slug }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}",
+      "type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}",
     );
     expect(workflow).toContain(
-      "type=raw,value=${{ needs.image_metadata.outputs.ref_slug }}-v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}",
+      "type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }}-v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}",
     );
   });
 });

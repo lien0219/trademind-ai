@@ -24,16 +24,17 @@ import (
 
 // Service handles webhook idempotency, ingest, and async processing.
 type Service struct {
-	DB              *gorm.DB
-	Idempotency     *idempotency.Service
-	Verifiers       *Registry
-	ShopResolver    WebhookShopResolver
-	OrderHandler    OrderEventHandler
-	Metrics         *metrics.Catalog
-	MaxPayloadBytes int64
-	MaxClockSkew    time.Duration
-	AppEnv          string
-	Now             func() time.Time
+	DB               *gorm.DB
+	Idempotency      *idempotency.Service
+	Verifiers        *Registry
+	ShopResolver     WebhookShopResolver
+	OrderHandler     OrderEventHandler
+	AfterSaleHandler AfterSaleEventHandler
+	Metrics          *metrics.Catalog
+	MaxPayloadBytes  int64
+	MaxClockSkew     time.Duration
+	AppEnv           string
+	Now              func() time.Time
 }
 
 // IngestRequest is normalized webhook input.

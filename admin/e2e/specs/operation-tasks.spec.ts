@@ -220,7 +220,9 @@ test.describe('@smoke @operation-task operation task center', () => {
     await dialog.getByRole('button', { name: '创建任务' }).dblclick();
     await admin.writeGuard.expectRequestCount('create-operation-task', 1);
     releaseFirstResponse?.();
-    await expect(page.getByText('创建响应丢失，请重试')).toBeVisible();
+    await expect(
+      page.locator('#root .ant-alert-message').filter({ hasText: '创建响应丢失，请重试' }),
+    ).toBeVisible();
     await expect(dialog).toBeVisible();
 
     await dialog.getByRole('button', { name: '创建任务' }).click();

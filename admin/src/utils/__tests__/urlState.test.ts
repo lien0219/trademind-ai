@@ -24,13 +24,13 @@ describe('urlState helpers', () => {
     expect(appendSourceToUrl('/products/p1?source=taskcenter', 'manual')).toBe('/products/p1?source=taskcenter');
   });
 
-  it('writes only allowlisted query keys', () => {
+  it('writes allowlisted inventory filters and drops unknown query keys', () => {
     historyMock.location.pathname = '/products';
     historyMock.location.search = '?page=1&keyword=old';
 
-    writeQueryState({ page: 2, keyword: '', dangerous: 'x' }, { replace: true });
+    writeQueryState({ page: 2, keyword: '', warehouseId: 'warehouse-main', dangerous: 'x' }, { replace: true });
 
-    expect(historyMock.replace).toHaveBeenCalledWith('/products?page=2');
+    expect(historyMock.replace).toHaveBeenCalledWith('/products?page=2&warehouseId=warehouse-main');
     expect(historyMock.push).not.toHaveBeenCalled();
   });
 

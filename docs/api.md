@@ -59,6 +59,246 @@
 | `POST` | `/api/v1/settings/test-image` | 测试 `settings.image` 图片 Provider 配置。可选 JSON：`provider`、`testMode`（`config_only` \| `live`，默认 `config_only`）、`settings`（表单覆盖项，支持未保存先测；脱敏 `****` 占位符会忽略并沿用已保存密钥）。成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`supportedTasks`、`configStatus`。不返回 API Key。 |
 | `POST` | `/api/v1/settings/test-ocr` | 测试 `settings.image` 中的 OCR 配置。可选 JSON：`provider`（`ai_vision` / `paddleocr` / `baidu` / `aliyun` / `tencent`）、`settings`（表单覆盖项，支持未保存先测；脱敏密钥占位符会忽略）。`paddleocr` 会用后端生成的测试图调用 OCR 服务，检查连通性、文字 `blocks` 与 `bbox`；成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`blocks`、`bboxOk`。 |
 
+## ERP 采购基础
+
+所有接口均需 JWT、租户上下文和对应权限。采购状态写使用 `expectedRevision` 防止并发覆盖；收货使用调用方生成的稳定 `idempotencyKey`，同一采购单下同键同 payload 返回原结果，同键不同 payload 返回 `409`。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/warehouses` | `warehouse.view` | 当前租户仓库列表。 |
+| `POST` | `/api/v1/warehouses` | `warehouse.manage` | 创建仓库；JSON：`code`、`name`、`isDefault`。 |
+| `PUT` | `/api/v1/warehouses/:id` | `warehouse.manage` | 更新仓库名称、启停状态和默认仓；JSON：`name`、`status`、`isDefault`。默认仓必须启用，同租户默认仓在事务内唯一切换。 |
+| `GET` | `/api/v1/logistics/channels` | `logistics.view` | 当前租户物流渠道列表。渠道只含本地主数据，不含承运商凭据。 |
+| `POST` | `/api/v1/logistics/channels` | `logistics.manage` | 创建本地物流渠道；JSON：`code`、`name`、`carrier`。编码在租户内唯一且创建后不可变。 |
+| `PUT` | `/api/v1/logistics/channels/:id` | `logistics.manage` | 按 `expectedRevision` 更新名称、承运商和启停状态；并发版本不一致返回 `409`。 |
+| `GET` | `/api/v1/logistics/rate-templates` | `logistics.view` | 当前租户本地运费模板列表，包含渠道与可选仓库标签。 |
+| `POST` | `/api/v1/logistics/rate-templates` | `logistics.manage` | 创建运费模板；按渠道、可选仓库、2 位国家/地区代码、可选区域/邮编前缀、闭合重量区间匹配，金额字段为整数最小货币单位。基础费覆盖起始重量，超出部分按每个起始千克计费。 |
+| `PUT` | `/api/v1/logistics/rate-templates/:id` | `logistics.manage` | 按 `expectedRevision` 更新模板资料与状态；模板编码不可变，并发版本不一致返回 `409`。 |
+| `GET` | `/api/v1/warehouses/:id/locations` | `warehouse.view` | 查询指定仓库库位；默认仅返回启用库位，传 `includeInactive=true` 可包含停用库位。 |
+| `POST` | `/api/v1/warehouses/:id/locations` | `warehouse.manage` | 创建库位；JSON：`code`、`name`、可选 `zone`。编码在租户仓库内唯一且创建后不可变。 |
+| `PUT` | `/api/v1/warehouses/:id/locations/:locationId` | `warehouse.manage` | 更新库位资料和状态；JSON：`name`、可选 `zone`、`status=active|inactive`。 |
+| `GET` | `/api/v1/products/:id/skus/:skuId/warehouse-balances` | `inventory.view` | 读取当前租户下该规格的分仓余额；返回仓库名称、在手、预占、在途、残损、可用量和版本。 |
+| `POST` | `/api/v1/products/:id/skus/:skuId/adjust-stock` | `inventory.operate` | 人工调整所选仓库的在手库存；JSON：`warehouseId`、`stock`、`idempotencyKey`、可选 `reason` / `remark`。同键同 payload 幂等返回，同键不同 payload 返回 `409`；仓库余额、不可变流水、兼容变更日志与 `product_skus.stock` 兼容聚合字段在同一事务提交，并保留尚未迁移订单路径形成的差额，不创建平台同步任务。 |
+| `GET` | `/api/v1/inventory/warehouse-ledger/reconciliation` | `inventory.view` | 分页对账仓库可售合计（各仓在手减残次）与 `product_skus.stock` 兼容投影；返回仓库在手、残次、可售、差异和余额数，支持 `page`、`pageSize`、`status=matched|unmigrated|mismatch`。 |
+| `POST` | `/api/v1/inventory/warehouse-ledger/migrate-legacy` | `inventory.operate` | 重复安全地迁移一批尚无仓库余额的历史规格；JSON：`limit`（默认 100，最大 500）。优先进入启用的默认仓，没有默认仓时创建/复用租户级 `PENDING_ALLOCATION` 待分配仓。 |
+| `GET` | `/api/v1/inventory/warehouse-placements` | `inventory.view` | 查询指定仓库的 SKU 条码/库位绑定；必须提供 `warehouseId`，可选 `productSkuId`、`includeInactive=true`。 |
+| `POST` | `/api/v1/inventory/warehouse-placements` | `inventory.operate` | 创建单仓 SKU 绑定；JSON：`warehouseId`、`productSkuId`、可选 `locationId`、`barcode`、`status`。同仓同 SKU 只能有一条绑定，启用条码在仓内不可重复。 |
+| `PUT` | `/api/v1/inventory/warehouse-placements/:id` | `inventory.operate` | 更新绑定的库位、条码和状态；不会改写历史波次快照。 |
+| `GET` | `/api/v1/inventory/warehouse-transfers` | `inventory.view` | 分页查看当前租户调拨单；支持 `page`、`pageSize`、`status`。 |
+| `GET` | `/api/v1/inventory/warehouse-transfers/:id` | `inventory.view` | 查看调拨单明细和当前 revision。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers` | `inventory.operate` | 创建单仓到单仓调拨草稿；JSON：`idempotencyKey`、`sourceWarehouseId`、`targetWarehouseId`、`reason`、`remark`、`items[]`，第一版每个 SKU 仅允许一条明细。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/submit` | `inventory.operate` | 草稿提交审批；JSON：`expectedRevision`、`idempotencyKey`、可选 `reason`。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/approve` | `inventory.approve` | 审批调拨单；与调拨创建、发出和收货分离，支持 reviewer 职责分离。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/dispatch` | `inventory.operate` | 发出调拨，校验可用库存并把源仓在手转入在途；事务内写不可变流水。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/receive` | `inventory.operate` | 目标仓收货，把源仓在途转为目标仓在手；同一 action 幂等。 |
+| `POST` | `/api/v1/inventory/warehouse-transfers/:id/cancel` | `inventory.operate` | 取消草稿、待审批或已审批调拨；发出后不可取消。 |
+| `GET` | `/api/v1/inventory/stocktakes` | `inventory.view` | 分页查看当前租户盘点单；支持 `page`、`pageSize`、`status`。 |
+| `GET` | `/api/v1/inventory/stocktakes/:id` | `inventory.view` | 查看盘点快照、实盘数量和当前 revision。 |
+| `POST` | `/api/v1/inventory/stocktakes` | `inventory.operate` | 创建盘点中草稿；JSON：`idempotencyKey`、`warehouseId`、`reason`、`remark`、`items[]`。创建时记录仓库余额快照并确保历史 SKU 已进入仓库账。 |
+| `PATCH` | `/api/v1/inventory/stocktakes/:id/items/:itemId` | `inventory.operate` | 录入或更正一条实盘数量；JSON：`expectedRevision`、`idempotencyKey`、`countedOnHand`、`remark`。同键同 payload 幂等返回，同键不同 payload 返回 `409`。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/submit` | `inventory.operate` | 提交盘点审核；所有明细必须已有实盘数量。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/approve` | `inventory.approve` | 审核盘点结果；与盘点创建、录入和过账职责分离。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/post` | `inventory.operate` | 过账盘点差异；校验快照版本，事务内更新仓库在手、不可变流水、兼容聚合和变更日志；快照过期返回 `409` 且不产生部分写入。 |
+| `POST` | `/api/v1/inventory/stocktakes/:id/cancel` | `inventory.operate` | 取消盘点中、待审核或已审核盘点；过账后不可取消。 |
+| `GET` | `/api/v1/suppliers` | `supplier.view` | 当前租户供应商列表；无 `pii.read_full` 时电话和邮箱脱敏。 |
+| `POST` | `/api/v1/suppliers` | `supplier.manage` | 创建供应商；JSON：`code`、`name`、`contactName`、`phone`、`email`。 |
+| `PUT` | `/api/v1/suppliers/:id` | `supplier.manage` | 更新供应商名称、启停状态和联系方式；JSON：`name`、`status`、`contactName`，可选 `phone`、`email`，敏感字段省略时保留原值，响应继续按权限脱敏。 |
+| `GET` | `/api/v1/suppliers/:id/skus` | `supplier.view` | 查询供应商关联的本地商品规格及供应商货号、采购价、起订量和交期。 |
+| `POST` | `/api/v1/suppliers/:id/skus` | `supplier.manage` | 绑定本地 SKU；JSON：`productSkuId`、`supplierSkuCode`、`unitCostMinor`、`currency`、`minOrderQty`、`leadTimeDays`。 |
+| `GET` | `/api/v1/purchase-orders` | `procurement.view` | 采购单分页列表，支持 `page`、`pageSize`。 |
+| `GET` | `/api/v1/procurement/replenishment-suggestions` | `procurement.view` | 安全库存/补货建议工作台；必须提供 `warehouseId`，支持 `keyword`、`status=actionable|not_needed|blocked_inventory_mismatch|blocked_inventory_unmigrated|blocked_supplier_missing|blocked_supplier_selection`、`page`、`pageSize`；`format=csv` 导出当前筛选结果（最多 5000 行）。计算口径为 `warningStock - (available + inTransitTransfer + pendingPurchase)`；唯一有效供应商时按起订量向上取整，多个供应商时返回候选供人工选择。兼容投影按全局仓库可售合计对账；库存账不一致/未迁移或无供应商时返回阻断状态。GET 不产生写入。 |
+| `POST` | `/api/v1/purchase-orders` | `procurement.manage` | 幂等创建采购单；JSON：`idempotencyKey`、`supplierId`、`warehouseId`、`currency`、`remark`、`items[]`。明细含 `productSkuId`、可选 `supplierSkuId`、`quantity`、`unitCostMinor`。 |
+| `POST` | `/api/v1/purchase-orders/from-replenishment` | `procurement.manage` | 人工确认补货建议后创建一张本地采购草稿；JSON：`idempotencyKey`、`warehouseId`、`supplierId`、`remark`、`items[]`，明细含 `productSkuId`、`supplierSkuId`、`quantity`、`suggestionHash`。服务端重新计算目标仓缺口、库存投影、供应商资料、币种和起订量；建议过期、被阻断、供应商或数量不匹配时返回 `409`，整笔不创建。成功仅为 `draft`，不自动提交、审批、收货，不调用供应商或真实平台，不启动任务。 |
+| `GET` | `/api/v1/purchase-orders/:id` | `procurement.view` | 采购单及明细；明细附带租户内商品标题、规格编码和规格名称作为只读展示字段。 |
+| `POST` | `/api/v1/purchase-orders/:id/submit` | `procurement.manage` | 草稿提交审批；JSON：`expectedRevision`、可选 `reason`。 |
+| `POST` | `/api/v1/purchase-orders/:id/approve` | `procurement.approve` | 审批采购单；JSON 同上。 |
+| `POST` | `/api/v1/purchase-orders/:id/cancel` | `procurement.manage` | 取消尚未收货的采购单；JSON 同上。 |
+| `POST` | `/api/v1/purchase-orders/:id/close` | `procurement.manage` | 关闭已审批或部分收货采购单；JSON 同上。 |
+| `POST` | `/api/v1/purchase-orders/:id/receipts` | `procurement.receive` | 分批收货；JSON：`expectedRevision`、`idempotencyKey`、`items[]`，明细含 `purchaseOrderItemId`、`quantity`。采购明细、收货记录、库存余额、库存流水和兼容聚合库存在同一事务提交。 |
+| `GET` | `/api/v1/purchase-orders/:id/returnable-receipt-items` | `procurement.view` | 查询原收货明细的已收、有效退货占用和剩余可退数量；已取消退货不占用额度。 |
+| `GET` | `/api/v1/purchase-returns` | `procurement.view` | 采购退货分页列表；支持 `page`、`pageSize`、`status`、`purchaseOrderId`。 |
+| `POST` | `/api/v1/purchase-returns` | `procurement.manage` | 幂等创建采购退货草稿；JSON：`idempotencyKey`、`purchaseOrderId`、必填 `reason`、`remark`、`items[]`，明细含 `goodsReceiptItemId`、`quantity`。所有未取消退货单共同占用原收货可退额度。 |
+| `GET` | `/api/v1/purchase-returns/:id` | `procurement.view` | 采购退货详情及原收货关联明细。 |
+| `POST` | `/api/v1/purchase-returns/:id/submit` | `procurement.manage` | 提交退货审批；JSON：`expectedRevision`、`idempotencyKey`、可选 `reason`。 |
+| `POST` | `/api/v1/purchase-returns/:id/approve` | `procurement.approve` | 审批采购退货；审批人与最终执行人必须为不同账号。 |
+| `POST` | `/api/v1/purchase-returns/:id/complete` | `procurement.return` | 执行退货；校验仓库可用量，单事务扣减仓库在手、写不可变流水、兼容库存投影和变更日志。库存不足整笔回滚。 |
+| `POST` | `/api/v1/purchase-returns/:id/cancel` | `procurement.manage` | 取消草稿、待审批或已审批退货并释放原收货可退额度；完成后不可取消。 |
+
+金额字段均为整数最小货币单位。`400` 表示字段或租户资源无效，`404` 表示资源在当前租户不可见，`409` 表示 revision、状态、超收/超退、库存不足、库存账差异、职责分离或幂等冲突。采购工作台位于采购菜单下，库存账迁移与对账位于库存菜单下；这些 API 不触发真实平台库存同步，也不包含供应商退款或财务结算。
+
+## 订单库存生命周期
+
+订单、订单明细和库存 effect 均按当前租户隔离。订单库存只支持单订单单仓：手工订单首次应用库存时必须提供启用的 `warehouseId`；平台订单首次处理时绑定当前租户启用的默认仓。已有成功库存 effect 后不能修改订单仓库、订单明细数量或删除明细；订单删除前必须先完成释放或回补。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/orders` | 订单列表（需要 `order.view`）；支持订单、支付、履约、库存 effect 和同步状态筛选。 |
+| `GET` | `/api/v1/orders/warehouse-allocations` | 履约分仓工作台列表（需要 `order.view`）；只返回已付款、未履约订单，支持 `page`、`pageSize`、`keyword` 和 `assignment=all|allocated|unallocated`。候选状态为 `allocated`、`allocatable` 或 `blocked`；未分仓订单同时返回版本化推荐规则、推荐仓依据和候选排名。 |
+| `GET` | `/api/v1/orders/:id/warehouse-allocation` | 只读计算单订单的单仓候选（需要 `order.view`）；返回版本化推荐规则、候选排名、理由，以及按 SKU 聚合的需求、可用量、缺口和 64 位 revision。查询不会创建仓库余额或修改库存；阻断订单可从 Admin 详情跳转现有异常工作台处置。 |
+| `POST` | `/api/v1/orders/:id/warehouse-allocation` | 人工确认分仓（需要 `order.operate`）；JSON：`warehouseId`、`expectedRevision`、`idempotencyKey`。事务内重新校验候选、绑定订单仓库并整单预占；任一 SKU、库存投影、仓库状态、revision 或可用量异常均返回 `409` 且整笔回滚。同键同 payload 重放成功结果，不调用真实平台或物流接口。 |
+| `POST` | `/api/v1/orders` | 创建订单（需要 `order.operate`）；可含 `warehouseId`、`items[]`、`deductInventory`、`syncInventory`。当创建后应用库存且为手工订单时仓库必填。若订单已持久化但库存处理失败，返回 `409`，`data` 包含 `orderId`、`order` 和 `inventoryDeduction`，可在详情中重试。 |
+| `GET` | `/api/v1/orders/:id` | 订单详情（需要 `order.view`）；返回订单级 `warehouseId` 与库存生命周期摘要。 |
+| `PUT` | `/api/v1/orders/:id` | 更新订单基础字段（需要 `order.operate`）；可提交 `warehouseId` / `setWarehouseIdNil`，有库存 effect 后不得改变仓库。 |
+| `POST` | `/api/v1/orders/:id/deduct-inventory` | 按订单状态应用库存（需要 `order.operate`）：已支付/处理中增加 `reserved`，已发货/已履约扣减 `on_hand` 并消费预占。JSON：`warehouseId`、`syncInventory`。 |
+| `POST` | `/api/v1/orders/:id/restore-inventory` | 取消/退款补偿（需要 `order.operate`）：发货前释放 `reserved`，已出库订单回补 `on_hand`。JSON：`warehouseId`、`syncInventory`、`reason`。 |
+| `POST` | `/api/v1/orders/:id/shipments` | 新增人工物流记录（需要 `order.operate`）；JSON：`carrier`、`trackingNo`、可选 `trackingUrl`、`status`。 |
+| `GET` | `/api/v1/orders/:id/shipments` | 只读查询当前租户订单的物流包裹（需要 `order.view`）；按创建时间返回包裹列表。 |
+| `GET` | `/api/v1/orders/:id/shipments/:shipmentId/events` | 只读查询包裹物流事件时间线（需要 `order.view`）；返回 `shipment`、按发生时间倒序的 `events` 和当前 `provider`。L0 默认仅为 `local`，不轮询真实承运商。 |
+| `POST` | `/api/v1/orders/:id/shipments/:shipmentId/events` | 人工追加本地物流事件（需要 `order.operate`）；JSON：`eventKey`、`status`、可选 `occurredAt`、`location`、`description`、`source`、`rawData`。同一包裹同一事件键同 payload 幂等重放，不同 payload 返回 `409`；已送达/已退回包裹不可倒退。敏感 raw 字段会在存储前脱敏，不调用真实平台写接口。 |
+| `POST` | `/api/v1/orders/:id/fulfill` | 单订单单仓履约 V1（需要 `order.operate`）。仅允许已支付订单，所有明细必须绑定本地 SKU；JSON：调用方生成的 `idempotencyKey`（最长 128，需保持稳定）、可选 `warehouseId`、`carrier`（最长 128）、`trackingNo`（最长 255）和可选 `trackingUrl`（最长 2048，仅 `http` / `https`）。库存实际扣减、发货单创建、订单状态 `shipped` / `fulfilled` 和幂等成功记录在同一事务提交；同键同 payload 重放原发货结果，同键不同 payload 返回 `409`。不调用真实物流平台，不启动 Worker/自动重试，不支持跨仓拆单。 |
+| `POST` | `/api/v1/orders/fulfillment-batch` | 旧批量履约兼容接口（需要 `order.operate`）。仍按顺序复用单订单履约事务，但不再作为 Admin 主流程；订单存在活动拣货波次时返回 `409`，防止绕过拣货和打包复核。 |
+| `GET` | `/api/v1/fulfillment-waves` | 拣货波次分页列表（需要 `order.view`）；支持 `page`、`pageSize`、`keyword`、`status`、`warehouseId`，按当前租户及账号可见店铺过滤。 |
+| `GET` | `/api/v1/fulfillment-waves/:id` | 波次详情（需要 `order.view`）；返回不可变订单/规格快照及当前拣货、缺货、打包、履约结果。仓库停用后仍保留历史标签。 |
+| `GET` | `/api/v1/fulfillment-waves/:id/documents` | 波次出库单据快照分页列表（需要 `order.view`）；支持 `page`、`pageSize`，按版本倒序返回当前租户及账号可见店铺范围内的本地快照摘要。 |
+| `GET` | `/api/v1/fulfillment-waves/:id/documents/:documentId` | 读取一个不可变单据版本（需要 `order.view`）；返回生成时冻结的波次、仓库、订单、SKU、库位、拣货/缺货及本地包裹字段，并附带浏览器打印发起记录。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/documents` | 基于指定波次 revision 生成新的本地单据快照版本（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。事务锁定波次、校验租户/店铺操作范围并保存快照 hash；已取消波次不可新建版本，同键同 payload 返回原版本。接口不申请运单号、不生成承运商官方面单、不调用真实物流或平台。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/documents/:documentId/print-events` | 登记操作员已发起一个版本的浏览器打印（需要 `order.operate`）；JSON：`documentType=pick_list|packing_list|sku_labels|package_labels`、`copies`（1–100）、可选 `reason`、`idempotencyKey`。同版本同类型再次登记视为重打并强制至少 2 字原因。该事实不声明物理打印成功，也不控制打印机。 |
+| `POST` | `/api/v1/fulfillment-waves` | 从同一仓库的已付款、未履约且整单预占完成的订单创建波次（需要 `order.operate`）；JSON：`idempotencyKey`、`warehouseId`、`orderIds`（1–50 个，不重复）、可选 `remark`。创建事务冻结订单/规格快照并写活动归属，同一订单不能进入两个活动波次。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/start` | 开始拣货（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。仅 `draft` 可进入 `picking`。 |
+| `GET` | `/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes` | 本地只读运费试算（需要 `order.view`）；查询参数 `weightGrams`。按订单目的国家/区域/邮编、波次仓库和启用模板返回候选、模板 revision、整数最小单位金额及计算说明；目的国家不完整或无匹配模板时失败关闭。不会调用承运商。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes/confirm` | 人工确认一个本地报价（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`rateTemplateId`、`rateTemplateRevision`、`weightGrams`。事务内锁定波次和订单，重算并验证模板版本后保存不可变目的地/渠道/费率快照并递增波次 revision。同键同 payload 安全重放；模板或波次已变化返回 `409`。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/picks` | 记录拣货结果（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`lines[]`，每项含 `lineId`、`pickedQuantity`、`shortageQuantity`，可带 `scannedBarcode`、`scannedLocationCode`。波次行创建时冻结绑定；若行配置了条码/库位，提交值必须匹配，否则返回 `409`。成功动作写入 revision 幂等事实和不可变扫描审计记录。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/pack` | 历史波次兼容打包入口（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`carrier`、`trackingNo`、可选 `trackingUrl`。扫描复核功能上线后创建的新波次会返回 `409`，必须改用 `verify-pack`；历史波次仍可继续完成，不做危险回填。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/verify-pack` | 对新波次中的一个已完全拣货订单执行出库扫描复核（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`scannedOrderNo`、`carrier`、`trackingNo`、可选 `trackingUrl`、`packageCode`、可选正整数 `actualWeightGrams`、`lines[]`（`lineId`、`scannedCode`、`verifiedQuantity`）。订单号、冻结条码（未配置时用冻结 SKU 编码）、整行数量及面单条码与运单号必须全部匹配；成功后在同一事务标记订单已打包、递增 revision，并追加不可变复核/逐行扫描事实。接口不扣库存，也不调用真实物流、打印机、电子秤或平台。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/complete` | 明确完成已打包订单（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。逐单调用既有本地履约事务，成功后扣减预占、创建发货单并释放该订单的波次归属；失败保留为 `partial`，不自动重试。完成运行以服务端 revision 固定幂等身份，浏览器刷新后可安全恢复，且并发请求只能有一个租约持有者。 |
+| `POST` | `/api/v1/fulfillment-waves/:id/cancel` | 取消未履约完成的波次（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。取消只释放波次归属，明确保留订单库存预占，后续释放仍由既有订单取消/库存补偿流程处理。 |
+| `GET` | `/api/v1/orders/:id/inventory-effects` | 查询订单库存 effect（需要 `order.view`），支持 `page`、`pageSize`；每条记录含 effect 类型、仓库、数量和兼容库存前后值。 |
+| `GET` | `/api/v1/orders/fulfillment-reconciliation` | 只读订单履约库存对账工作台（需要 `order.view`）；支持 `page`、`pageSize`、`orderNo`、`warehouseId`、`status`、`fulfillmentStatus`、`reconciliationStatus=matched|pending|mismatch|blocked`，返回预占/出库/释放/回补的 expected 与 actual、发货单和 effect 数量及最后库存动作时间；部分退款不推导整单释放/回补预期，实物退货由销售售后库存事实记录；详情时间线同时展示已完成的出库扫描复核事实。 |
+| `GET` | `/api/v1/orders/:id/fulfillment-reconciliation` | 只读订单履约库存对账详情（需要 `order.view`）；返回订单状态、履约仓库、各库存动作数量、发货单/effect 数量、最后库存动作时间和按时间排序的 effect、库存流水、发货单时间线；`mismatch` / `blocked` 可跳转订单异常工作台。 |
+
+分仓候选要求全部明细已绑定本地 SKU、单一启用仓可满足整单可用量，并要求各 SKU 的仓库可售合计与 `product_skus.stock` 兼容投影一致。只读推荐规则 `single_warehouse_default_first_v1` 按“整单可满足、默认仓优先、仓库编码稳定排序”生成候选排名和理由；它不自动绑定仓库或拆单。revision 绑定订单、SKU 数量、仓库状态、余额版本和投影快照；确认事务还会按余额版本复核并发变化。波次只消费已完成的整单单仓分配，不做自动分仓、跨仓拆单或库存重算。预占不会提前修改 `product_skus.stock`；波次完成时的实际出库和后续回补会在同一事务更新仓库余额、不可变 `inventory_movements`、兼容变更日志、`order_inventory_effects` 与兼容聚合字段。重复处理按订单行和 effect 类型幂等，旧成功扣减 effect 会在首次补偿时绑定租户与仓库。`syncInventory` 只沿现有库存同步任务与 fail-closed 平台边界处理，不代表已经向真实平台写入库存。
+
+## 销售售后 / 退货退款 V1
+
+销售售后按当前租户隔离，只允许使用具有成功订单扣减 fact 的明细。所有未取消售后单共同占用累计可退数量，整单库存已回补的数量不可再次发起售后。退款金额使用整数最小货币单位，仅作业务事实记录。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/orders/:id/sales-returnable-items` | `sales_return.view` | 查询订单明细的成功扣减、整单回补、有效售后占用和剩余可退数量；已取消售后不占用额度。 |
+| `GET` | `/api/v1/sales-returns` | `sales_return.view` | 售后分页列表；支持 `page`、`pageSize`、`status`、`type=refund_only|return_refund`、`orderId`。 |
+| `POST` | `/api/v1/sales-returns` | `sales_return.manage` | 幂等创建售后草稿；JSON：`idempotencyKey`、`orderId`、`type`、必填 `reason`、`remark`、`items[]`。明细含 `orderItemId`、`quantity`、`refundAmountMinor`；退货退款还必须提供 `disposition=sellable|damaged`，仅退款的处置为空。 |
+| `GET` | `/api/v1/sales-returns/:id` | `sales_return.view` | 售后详情、订单/仓库标签和原扣减数量。跨租户读取返回 `404`。 |
+| `POST` | `/api/v1/sales-returns/:id/submit` | `sales_return.manage` | 提交售后审批；JSON：`expectedRevision`、`idempotencyKey`、可选 `reason`。 |
+| `POST` | `/api/v1/sales-returns/:id/approve` | `sales_return.approve` | 审批售后单；审批人与最终完成/收货人必须为不同账号。 |
+| `POST` | `/api/v1/sales-returns/:id/complete` | `sales_return.receive` | 完成本地售后流程，但不代表资金已退款。仅退款不写库存；退货退款按明细收货到原订单仓，良品增加可售投影，残次品同时增加在手与残次库存、可售量不变。状态、action、余额、独立 effect、movement 和兼容日志在同一事务提交。 |
+| `POST` | `/api/v1/sales-returns/:id/cancel` | `sales_return.manage` | 取消草稿、待审批或已审批售后并释放累计可退占用；完成后不可取消。 |
+
+上述接口不执行支付退款，不调用真实平台售后或库存接口，不支持换货、自动重试、Worker 或自动采购。`400` 表示字段无效，`404` 表示当前租户不可见，`409` 表示 revision、状态、累计超退、仓库、职责分离或幂等冲突。
+
+## 平台售后同步 / 退款对账 V1
+
+平台 Webhook 的售后/退款事件只保存为当前平台事实快照和不可变事件账本，供人工核对；不会自动创建本地售后单，也不会调用支付或平台写接口。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/sales-return-reconciliation` | `sales_return.view` | 平台售后事实分页列表；支持 `page`、`pageSize`、`platform`、`platformShopId`、`shopId`、`orderNo`、`platformStatus`、`reconciliationStatus`、`start`、`end`。仅返回脱敏事实和本地订单/售后关联，不返回原始 payload。 |
+| `GET` | `/api/v1/sales-return-reconciliation/:id` | `sales_return.view` | 平台售后事实详情、最近事件和对账说明；跨租户或越权店铺返回 `404`。 |
+
+平台售后事件要求外部售后单号、平台订单号、状态、退款金额、币种和事件号；字段不完整会保留 Webhook 处理错误，不会被当作成功。相同事件号 payload 改变返回幂等冲突，较旧 `platformUpdatedAt` 事件只记账不回退当前快照。对账状态为 `matched`、`pending`、`mismatch` 或 `blocked`；本地售后关联只按同订单、类型、币种和金额核对，不产生任何写请求。
+
+## 退款执行 / 资金事实闭环 V1
+
+退款执行单把“售后流程已完成”与“资金退款结果”拆开。V1 只允许登记已在外部完成的退款结果，或根据已同步的只读平台终态确认本地结果；所有 POST 都只写本地数据库，不调用支付 Provider、真实平台售后写接口，不启动 Worker，也不自动重试。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/refund-executions` | `sales_return.view` | 分页查询当前租户、授权店铺内的退款执行单；支持 `page`、`pageSize`、`status=pending|succeeded|failed|unknown|cancelled`、`salesReturnId`、`orderId`。列表返回当前平台复核结果。 |
+| `GET` | `/api/v1/refund-executions/:id` | `sales_return.view` | 查询退款执行详情、不可变操作事件和按当前平台快照派生的复核结果；跨租户或越权店铺返回 `404`。 |
+| `POST` | `/api/v1/sales-returns/:id/refund-execution` | `sales_return.refund` | 为已完成售后创建唯一退款执行单；JSON：`idempotencyKey`、可选 `platformAfterSaleId`。金额、币种、订单和店铺只从售后/订单事实复制，调用方不能覆盖。 |
+| `POST` | `/api/v1/refund-executions/:id/result` | `sales_return.refund` | 人工登记外部执行结果；JSON：`expectedRevision`、`idempotencyKey`、`result=succeeded|failed|unknown`、`externalRefundId`、`executedAt`、`reason`。成功必须填写外部退款编号；失败或未知必须填写说明。 |
+| `POST` | `/api/v1/refund-executions/:id/confirm-from-platform` | `sales_return.refund` | 用只读平台事实确认 `pending` 或 `unknown` 执行单；JSON：`expectedRevision`、`idempotencyKey`、`platformAfterSaleId`、`reason`。平台事实必须已安全关联同一售后单，类型、金额、币种一致且状态为可识别终态。 |
+| `POST` | `/api/v1/refund-executions/:id/cancel` | `sales_return.refund` | 取消尚未登记结果的执行单；JSON：`expectedRevision`、`idempotencyKey`、必填 `reason`。外部退款已发生时不得使用。 |
+
+每个售后单最多一个退款执行单；租户内非空 `externalRefundId` 唯一。状态动作使用 revision、稳定幂等键、请求 hash、行锁和条件更新保护，成功动作写入不可变 `refund_execution_events`。售后审批人不得登记或按平台事实确认自己审批的退款结果；非管理员还必须具有对应店铺的 operate/manage 授权。`400` 表示字段无效，`404` 表示租户或店铺范围不可见，`409` 表示状态、revision、职责分离、平台事实、外部退款编号或幂等冲突。
+
+## 平台结算账单导入与订单费用对账 V1
+
+V1 只接收操作员明确选择店铺后上传的本地 CSV，不调用平台、支付或银行接口。预览接口只解析、校验并查询重复交易，不写数据库；确认接口要求提交预览返回的文件 SHA-256 和稳定幂等键，在一个事务中写入不可变导入批次与交易事实。单文件最多 2 MiB、1000 条数据，表头必须严格为：
+
+```text
+external_transaction_id,order_no,currency,order_gross_minor,platform_fee_minor,settlement_amount_minor,settled_at
+```
+
+金额均为 JavaScript 安全整数范围内的最小货币单位；`order_gross_minor` 不得为负，`settlement_amount_minor` 必须等于 `order_gross_minor - platform_fee_minor`。同一订单可有多笔交易；调整或冲正必须使用新的 `external_transaction_id`，并以 `order_gross_minor=0` 和有符号平台费用表达。租户、店铺、平台和外部交易号共同防止重复计费；完全相同的既有交易会跳过，内容不同的同号交易会使整批失败。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/settlement-imports/preview` | `settlement.import` + 店铺 operate/manage | multipart：`file`、`shopId`。返回文件 hash、有效性、新增/重复数、逐行预览和校验问题；数据库零写入。 |
+| `POST` | `/api/v1/settlement-imports` | `settlement.import` + 店铺 operate/manage | multipart：`file`、`shopId`、`expectedFileHash`、`idempotencyKey`。服务端重新解析并核对预览 hash，原子追加导入批次与交易；相同请求安全重放。 |
+| `GET` | `/api/v1/settlement-reconciliation` | `settlement.view`；CSV 需 `settlement.export` | 按订单聚合不可变结算交易；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`currency`、`status=matched\|pending\|mismatch\|blocked`、`start`、`end`，`format=csv` 导出最多 5000 组。 |
+| `GET` | `/api/v1/settlement-reconciliation/:id` | `settlement.view` | 返回聚合金额、差异说明和全部原始交易；跨租户或越权店铺返回 `404`。 |
+
+`matched` 表示店铺、平台、币种、聚合交易总额和本地订单金额一致；未找到本地订单为 `pending`；订单金额、币种或平台不同为 `mismatch`；店铺/交易事实缺失、多币种或金额不安全为 `blocked`。Operator 可查看、导入和导出，Reviewer 可查看和导出，Readonly 只能查看。该能力不更新或删除已导入交易，不自动修复差异，不生成付款、收款、应收应付或会计凭证，不启动 Worker 或重试。
+
+## 仓库操作费台账 V1
+
+V1 只根据本地已完成履约和打包扫描复核事实登记每单出库基础费、按件拣货费和按包裹打包费。费率卡按租户、仓库和编码唯一，修改时提交 `expectedRevision` 并追加不可变修订；预览只读取费率修订和最新已履约波次，要求订单币种与费率币种一致，数据库零写入。确认必须原样提交费率修订、波次 revision、计算 hash 和稳定幂等键，服务端在事务内重新锁定并计算后，按订单保存唯一不可变费用快照。
+
+金额均为 JavaScript 安全整数范围内的最小货币单位。调整只能追加有符号、非零事实，调整后净额不能为负；冲正只能引用一条原始调整并追加其相反数，同一调整只能冲正一次。快照、调整和冲正没有更新或删除接口。Operator 和 Admin 可管理，Reviewer 与 Readonly 只能查看；非管理员读取按店铺 view 范围限制，预览、确认、调整和冲正按店铺 operate/manage 范围限制，幂等重放也重新校验该范围。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/warehouse-fee-rate-cards` | `warehouse_fee.view` | 查询当前租户费率卡；支持 `warehouseId` 和 `includeInactive=true`。 |
+| `GET` | `/api/v1/warehouse-fee-rate-cards/:id` | `warehouse_fee.view` | 查询费率卡当前投影及全部不可变修订。 |
+| `POST` | `/api/v1/warehouse-fee-rate-cards` | `warehouse_fee.manage` | 创建费率卡；JSON：`warehouseId`、`code`、`name`、`currency`、`outboundBaseFeeMinor`、`pickingFeePerItemMinor`、`packingFeePerPackageMinor`。 |
+| `PUT` | `/api/v1/warehouse-fee-rate-cards/:id` | `warehouse_fee.manage` | 追加新修订并移动当前投影；JSON：`expectedRevision`、`name`、`currency`、三项费率和 `status=active\|inactive`。仓库和编码不可修改。 |
+| `GET` | `/api/v1/warehouse-operation-fees/candidates` | `warehouse_fee.view` + 店铺 view | 查询最新已履约、已形成打包扫描复核事实的订单；支持 `page`、`pageSize`、`orderNo`、`warehouseId`。 |
+| `POST` | `/api/v1/warehouse-operation-fees/preview` | `warehouse_fee.manage` + 店铺 operate/manage | JSON：`orderId`、`rateCardId`、`rateCardRevision`。返回费率分解、履约来源和 `calculationHash`；数据库零写入。 |
+| `POST` | `/api/v1/warehouse-operation-fees` | `warehouse_fee.manage` + 店铺 operate/manage | JSON：预览三字段、`waveRevision`、`calculationHash`、`idempotencyKey`。服务端重算后原子保存不可变快照；同请求安全重放。 |
+| `GET` | `/api/v1/warehouse-operation-fees` | `warehouse_fee.view` + 店铺 view | 分页查询已确认快照和调整后净额；支持 `page`、`pageSize`、`orderNo`、`warehouseId`、`currency`。 |
+| `GET` | `/api/v1/warehouse-operation-fees/:id` | `warehouse_fee.view` + 店铺 view | 查询不可变快照、费用分解及全部调整/冲正事实；越权范围返回 `404`。 |
+| `POST` | `/api/v1/warehouse-operation-fees/:id/adjustments` | `warehouse_fee.manage` + 店铺 operate/manage | 追加费用调整；JSON：非零 `amountMinor`、`reason`、`idempotencyKey`。 |
+| `POST` | `/api/v1/warehouse-operation-fees/:id/adjustments/:adjustmentId/reverse` | `warehouse_fee.manage` + 店铺 operate/manage | 一次性冲正原调整；JSON：`reason`、`idempotencyKey`。 |
+
+该能力不计算每日仓储租金，不回填历史履约订单，不接 WMS 或仓储服务商，不自动登记、分摊、换汇、重试、付款、生成应付/凭证，也不执行真实平台、物流或支付写请求。
+
+## 订单广告费用归属账 V1
+
+V1 只导入本地广告费用 CSV，不连接广告平台。CSV 必须严格使用 `spend_date,currency,spend_minor,settlement_coverage` 表头，最多 2 MiB/1000 行；`settlement_coverage` 只能为 `excluded|included|unknown`。预览以店铺配置的 IANA 时区计算当地日，读取当日订单但数据库零写入；仅已支付或部分退款、未取消、支付日和币种一致且尚未归属的订单纳入。订单按支付时间、订单号和 ID 稳定排序，整数余数从排序首项开始分配，保证订单归属总额与费用行总额严格相等。
+
+确认必须原样提交文件 hash、计算 hash 和稳定幂等键。服务端在事务中锁定店铺与订单并重新解析、复算后，追加不可变导入、日费用和订单归属事实；同店铺日期/币种和同订单均有唯一约束。后续更正只能追加非零有符号调整，净额不得为负；冲正只能追加原调整的相反数且每条调整只能冲正一次。Operator 和 Admin 可导入、调整，Reviewer 与 Readonly 只能查看；所有读写均按租户和店铺 view/operate 范围失败关闭。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/advertising-fee-imports/preview` | `advertising_fee.import` + 店铺 operate/manage | multipart：`file`、`shopId`。返回文件/计算 hash、逐费用行和纳入/排除订单明细；数据库零写入。 |
+| `POST` | `/api/v1/advertising-fee-imports` | `advertising_fee.import` + 店铺 operate/manage | multipart：`file`、`shopId`、`expectedFileHash`、`expectedCalculationHash`、`idempotencyKey`。服务端锁定并复算后原子追加事实。 |
+| `GET` | `/api/v1/advertising-fee-imports` | `advertising_fee.view` + 店铺 view | 分页查询授权店铺内的导入记录；支持 `page`、`pageSize`。 |
+| `GET` | `/api/v1/advertising-fees` | `advertising_fee.view` + 店铺 view | 分页查询订单归属及调整后净额；支持 `page`、`pageSize`、`orderNo`、`shopId`、`currency`、`settlementCoverage`。 |
+| `GET` | `/api/v1/advertising-fees/:id` | `advertising_fee.view` + 店铺 view | 查询不可变归属来源及全部调整/冲正事实；越权范围返回 `404`。 |
+| `POST` | `/api/v1/advertising-fees/:id/adjustments` | `advertising_fee.manage` + 店铺 operate/manage | 追加调整；JSON：非零 `amountMinor`、`reason`、`idempotencyKey`。 |
+| `POST` | `/api/v1/advertising-fees/:id/adjustments/:adjustmentId/reverse` | `advertising_fee.manage` + 店铺 operate/manage | 一次性冲正原调整；JSON：`reason`、`idempotencyKey`。 |
+
+广告归属是运营估算，不是订单级会计实际成本。只有明确声明平台结算未包含广告费的 `excluded` 事实可进入预估利润；`included` 防止重复计费并返回口径不一致，`unknown` 保持阻断。该能力不提供真实广告 API、授权、自动拉取、计划任务、换汇、凭证、自动过账、Worker 或重试。
+
+## 承运商运费账单 V1
+
+操作员在店铺 operate/manage 范围内上传本地 CSV，严格表头为 `external_line_id,carrier,tracking_no,amount_minor,currency,billed_at`，最多 2 MiB/1000 行。金额是 JavaScript 安全整数范围内的非负最小货币单位；`billed_at` 必须是带时区的 RFC3339。预览不写数据库，按所选店铺、承运商和运单号唯一匹配已履约包裹；缺失或多重匹配会阻断整批，重复运单行不能导入。确认时服务端重算文件与匹配 hash，并在事务中复核后追加不可变批次和每包裹唯一账单。相同来源安全重放，同一包裹不能导入第二笔最终账单；更正只能追加有符号调整或一次性冲正，净额不得为负。订单币种不同的实账可留档，但不参与利润。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/freight-fee-imports/preview` | `freight_fee.import` + 店铺 operate/manage | multipart：`file`、`shopId`；返回逐行匹配、重复、问题和币种提示，数据库零写入。 |
+| `POST` | `/api/v1/freight-fee-imports` | `freight_fee.import` + 店铺 operate/manage | multipart：`file`、`shopId`、`expectedFileHash`、`expectedCalculationHash`、`idempotencyKey`；服务端复算并原子追加批次与账单。 |
+| `GET` | `/api/v1/freight-fee-imports` | `freight_fee.view` + 店铺 view | 分页查询不可变导入批次。 |
+| `GET` | `/api/v1/freight-fees` | `freight_fee.view` + 店铺 view | 分页查账；支持 `orderNo`、`trackingNo`、`shopId`、`currency`、`status=confirmed\|mismatch`。 |
+| `GET` | `/api/v1/freight-fees/:id` | `freight_fee.view` + 店铺 view | 返回账单与追加调整/冲正事实；越租户或越店铺范围返回 `404`。 |
+| `POST` | `/api/v1/freight-fees/:id/adjustments` | `freight_fee.manage` + 店铺 operate/manage | JSON：非零有符号 `amountMinor`、`reason`、`idempotencyKey`。 |
+| `POST` | `/api/v1/freight-fees/:id/adjustments/:adjustmentId/reverse` | `freight_fee.manage` + 店铺 operate/manage | JSON：`reason`、`idempotencyKey`；同一调整只允许冲正一次。 |
+
+只有已履约订单当前全部包裹都存在币种一致且结构有效的运费实账时，订单预估利润 V6 才以承运商实账净额替代本地运费估价。覆盖不完整时仍以本地估价计算已知贡献额，并将利润标记为 `pending`；币种冲突标记为 `mismatch`，异常账本事实标记为 `blocked`。系统不自动换汇，不调用承运商 API、不申请运单、不新增 Worker 或重试。
+
+## 订单预估利润与费用缺口 V6
+
+V6 按订单动态汇总现有只读事实，不落库利润，不生成会计凭证，也不执行自动费用分摊。订单收入从 `orders.total_amount` 的 decimal 文本按币种精度转换为整数最小单位；新完成的本地履约会在库存扣减、发货单、订单状态和幂等完成的同一事务中，为每个订单明细冻结一条不可变成本快照。快照记录数量、订单/成本币种、供应商及供应商 SKU 标识、目录来源时间、采集时间和 `resolved|missing|ambiguous|currency_mismatch|invalid` 状态。成本缺失、多绑定或币种不一致会随快照落库但不阻断发货；快照基础设施写入失败则整笔履约回滚。
+
+已履约订单只读取履约成本快照，缺失快照的历史订单返回 `historical_cost_snapshot_missing`，不使用当前采购价静默回填；未履约订单仍使用当前唯一有效供应商采购价并标记为目录估算。两者都不是 FIFO、移动加权平均或会计实际成本，系统不自动换汇。运费默认使用同一订单唯一未取消波次的最新已确认本地报价；仅当承运商账单完整覆盖全部当前包裹且实账币种与订单一致时，V6 才以承运商实账净额替代该估价。部分覆盖仍使用本地估价并标记 `pending`，币种冲突为 `mismatch`，异常账本为 `blocked`。退款只计入已成功且与本地售后金额、币种一致的退款执行事实；平台费用只读取 `matched` 的不可变结算交易聚合。仓库操作费只读取通过结构校验、调整/冲正关系有效且币种与订单一致的已确认快照净额。广告费用只读取事实完整、币种一致且 `settlement_coverage=excluded` 的确认归属净额；`included` 为 `mismatch`，`unknown` 或损坏事实为 `blocked`。缺失或不可消费费用不作为零值冒充实账。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
+| `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账、广告费用导入/来源/归属/调整、仓库操作费快照与调整关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
+
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v6`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
+
 ## 图片 AI
 
 | 方法 | 路径 | 说明 |
@@ -102,11 +342,17 @@
 | `GET` | `/api/v1/products/:id/operation-progress` | 商品运营进度摘要；只读聚合商品、图片、SKU 与既有发布前检查，不调用平台 API、不创建任务、不修改商品。 |
 | `PUT` | `/api/v1/products/:id` | 更新商品草稿。 |
 | `DELETE` | `/api/v1/products/:id` | 删除或归档商品。 |
+| `POST` | `/api/v1/products/:id/skus` | 创建 SKU 元数据；需 `product.write`。JSON 可含 `skuCode`、`skuName`、`attrs`、价格字段与 `imageUrl`，不得含 `stock`；新 SKU 的兼容聚合库存固定从 `0` 开始。 |
+| `PUT` | `/api/v1/products/:id/skus/:skuId` | 更新 SKU 元数据；需 `product.write`，不得通过 `stock` 修改库存。 |
+| `PUT` | `/api/v1/products/:id/skus/:skuId/stock-settings` | 更新 `warningStock` 与 `safetyStock`；需 `product.write`，不修改在手库存。 |
+| `DELETE` | `/api/v1/products/:id/skus/:skuId` | 删除 SKU；需 `product.write`。 |
 | `GET` | `/api/v1/product-skus/search` | 已认证的本地 SKU 搜索；仅返回可信认证上下文所属 Tenant 的 SKU。Query 保持 `keyword`、`productId`、`limit`（默认 20、最大 50），响应保持 `data.list`。 |
 | `POST` | `/api/v1/products/:id/apply-ai-title` | 应用 AI 标题；body 支持 `aiTitle`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`，不会静默覆盖人工修改。 |
 | `POST` | `/api/v1/products/:id/undo-ai-title` | 安全撤销最近一次 AI 标题应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/apply-ai-description` | 应用 AI 描述；body 支持 `aiDescription`、`taskId`、`expectedUpdatedAt`、`sourceSnapshotHash`，冲突时返回 `AI_CONTENT_APPLY_CONFLICT`。 |
 | `POST` | `/api/v1/products/:id/undo-ai-description` | 安全撤销最近一次 AI 描述应用；若应用后字段又被人工修改，返回 `AI_CONTENT_UNDO_CONFLICT`。 |
+
+SKU 元数据写接口只允许访问当前租户可见商品；跨租户商品统一按 `404` 处理。`POST` / `PUT .../skus` 一旦收到 `stock` 即返回 `400`，库存调整必须改用需 `inventory.operate` 的分仓接口 `POST /api/v1/products/:id/skus/:skuId/adjust-stock`。手工新建与采集导入 SKU 的 ERP 兼容投影从 `0` 开始；采集来源库存只保留在原始 SKU 元数据中。历史导入数据继续通过有界库存账迁移接口处理。
 
 ### 本地 SKU 搜索安全合同
 
@@ -377,7 +623,7 @@ L3 只代表上述 `save_as_platform_draft` 能力；不包含正式发布、上
 | `GET` | `/api/v1/products/:id/publication-skus` | 商品详情库存 Tab 读取刊登 SKU 映射与 `inventorySyncCapability`（`douyin_shop` 为 `beta`）。 |
 | `POST` | `/api/v1/product-publication-skus/:id/sync-inventory` | 单 SKU 库存同步；body：`stock`、`options`、`fromInventoryAlert`。要求 `product_publications.external_product_id` 与 `product_publication_skus.external_sku_id` 已绑定。 |
 | `POST` | `/api/v1/products/:id/sync-inventory` | 单商品多 SKU 库存同步；body：`shopId`、`skuIds[]`、`options`。 |
-| `GET` | `/api/v1/inventory` | 库存中心 SKU 列表（F3）；筛选 stockStatus / skuBindStatus / syncStatus / hasException 等。 |
+| `GET` | `/api/v1/inventory` | 分仓可用库存中心；支持 `warehouseId`、`stockStatus`、`skuBindStatus`、`syncStatus`、`hasException`、分页和 cursor 等筛选。返回当前范围的在手、预占、在途、残次、可售、可用库存，以及全局兼容投影、仓库余额数和 `matched|unmigrated|mismatch` 对账状态。`stockStatus` 按当前仓库范围的可用库存计算；平台同步状态仍沿用兼容投影，不会因本查询自动写平台。 |
 | `GET` | `/api/v1/inventory/alerts` | 库存预警列表。 |
 | `GET` | `/api/v1/inventory/effects` | 订单库存扣减/回滚影响（扣减记录页数据源）。 |
 | `GET` | `/api/v1/inventory/logs` | 本地库存变更流水。 |

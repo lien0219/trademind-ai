@@ -55,6 +55,18 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   background: var(--ant-color-bg-container);
 }
 
+/* Keep ProLayout's mobile Drawer wrapper aligned with the responsive sider
+   width when Ant Drawer also receives an inline width value. */
+@media (max-width: 767.98px) {
+  .ant-drawer.ant-drawer-inline {
+    --tm-app-drawer-width: 50vw;
+  }
+
+  .ant-drawer.ant-drawer-inline .ant-drawer-content-wrapper {
+    min-width: var(--tm-app-drawer-width);
+  }
+}
+
 .tm-app-layout .ant-pro-sider-logo {
   height: var(--tm-app-header-height);
   min-height: var(--tm-app-header-height);
@@ -62,20 +74,32 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
 }
 
 .tm-app-brand-header {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   min-width: 0;
-  height: 40px;
+  height: 100%;
   margin: 0;
-  padding: 4px 8px;
+  padding: 4px 24px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   color: var(--ant-color-text);
   background: transparent;
   font: inherit;
   text-align: left;
   cursor: pointer;
+
+  &--collapsed {
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+
+    .tm-app-brand-header__name {
+      display: none;
+    }
+  }
+
   box-sizing: border-box;
 
   &:hover {
@@ -111,33 +135,28 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   }
 }
 
-.tm-app-header-identity {
+.tm-app-sider-footer {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 4px;
-  min-width: 0;
-  height: 100%;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--ant-color-border-secondary);
 
-  .tm-app-brand-header {
-    padding-inline-start: 16px;
-  }
-
-  &__sider-toggle {
-    display: inline-flex;
+  &__action {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 32px;
-    height: 32px;
+    gap: 10px;
+    width: 100%;
+    min-height: 36px;
     margin: 0;
-    padding: 0;
+    padding: 0 10px;
     border: 0;
-    border-radius: 50%;
+    border-radius: 6px;
     color: var(--ant-color-text-secondary);
     background: transparent;
     font: inherit;
-    font-size: 16px;
-    line-height: 1;
+    font-size: 13px;
+    text-align: left;
     cursor: pointer;
 
     &:hover {
@@ -148,6 +167,29 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
     &:focus-visible {
       outline: 2px solid var(--ant-color-primary-border);
       outline-offset: 1px;
+    }
+  }
+
+  &__theme {
+    justify-content: flex-start;
+  }
+
+  &__collapse {
+    justify-content: flex-start;
+  }
+
+  &.is-collapsed {
+    align-items: center;
+    padding-inline: 8px;
+
+    .tm-app-sider-footer__action {
+      justify-content: center;
+      width: 40px;
+      padding-inline: 0;
+    }
+
+    .tm-app-sider-footer__theme {
+      font-size: 16px;
     }
   }
 }
@@ -163,6 +205,28 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   &--mobile {
     justify-content: flex-end;
     gap: 0;
+  }
+}
+
+/* Keep the mobile mark beside the menu trigger instead of letting the
+   full-width desktop brand button consume the header's flexible space. */
+.tm-app-layout .ant-pro-global-header {
+  .tm-app-brand-header--collapsed {
+    flex: 0 0 32px;
+    width: 32px;
+    padding-inline: 0;
+  }
+}
+
+.tm-app-layout .ant-pro-sider {
+  .ant-layout-sider-children {
+    display: flex;
+    flex-direction: column;
+    padding-block-end: 0;
+  }
+
+  .ant-pro-base-menu-menu {
+    flex: 1;
   }
 }
 
@@ -297,11 +361,21 @@ html.tm-theme-switching body #root *::after {
 
   &__content {
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: @tm-section-gap;
     width: 100%;
     max-width: var(--tm-page-content-max-width);
     min-width: 0;
     margin-inline: auto;
     padding: @tm-page-py var(--tm-page-inline-padding) @tm-page-pb;
+
+    /* The page stack owns spacing between top-level modules. Section cards
+       keep their own margin when nested elsewhere, but must not double it
+       inside the standard page content rail. */
+    > .tm-section-card.ant-pro-card {
+      margin-block-end: 0;
+    }
   }
 
   &--fluid {
@@ -338,6 +412,7 @@ html.tm-theme-switching body #root *::after {
     }
 
     &__content {
+      gap: 16px;
       padding: 16px var(--tm-page-inline-padding) 28px;
     }
 
@@ -655,6 +730,32 @@ html.tm-theme-switching body #root *::after {
 }
 
 /* ProTable：表格区域内部横向滚动，不撑破页面 */
+.tm-table-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .ant-pro-table.tm-pro-table.tm-pro-table--has-filter-bar {
+    .ant-pro-table-list-toolbar-container {
+      align-items: stretch;
+    }
+
+    .ant-pro-table-list-toolbar-left,
+    .ant-pro-table-list-toolbar-title {
+      width: 100%;
+      min-width: 0;
+      justify-content: flex-start;
+    }
+  }
+}
+
 .ant-pro-table {
   min-width: 0;
   max-width: 100%;

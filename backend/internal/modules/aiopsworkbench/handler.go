@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -42,6 +43,10 @@ func atoiQP(raw string, def int) int {
 }
 
 func parseQuery(c *gin.Context) (Query, error) {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return Query{}, err
+	}
 	startPtr, err := parseRFC3339Ptr(c.Query("start"))
 	if err != nil {
 		return Query{}, err
@@ -51,6 +56,7 @@ func parseQuery(c *gin.Context) (Query, error) {
 		return Query{}, err
 	}
 	return Query{
+		TenantID: tenantID, TenantScoped: true,
 		Type:     strings.TrimSpace(c.Query("type")),
 		Priority: strings.TrimSpace(c.Query("priority")),
 		Platform: strings.TrimSpace(c.Query("platform")),

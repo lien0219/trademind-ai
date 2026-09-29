@@ -50,6 +50,45 @@ export async function expectHeaderContentAligned(page: Page) {
   expect(value.rightDelta, `header/content right delta ${JSON.stringify(value)}`).toBeLessThanOrEqual(4);
 }
 
+export async function expectTableFilterBarAlignedLeft(page: Page) {
+  const filterBars = page.locator('.tm-table-filter-bar:visible');
+  await expect(filterBars.first(), 'visible table filter bar').toBeVisible();
+  const count = await filterBars.count();
+
+  for (let index = 0; index < count; index += 1) {
+    const metrics = await filterBars.nth(index).evaluate((filterBar) => {
+      const table = filterBar.closest<HTMLElement>('.tm-pro-table');
+      if (!table) return null;
+      const filterRect = filterBar.getBoundingClientRect();
+      const tableRect = table.getBoundingClientRect();
+      return {
+        filterLeft: filterRect.left,
+        tableLeft: tableRect.left,
+        leftDelta: filterRect.left - tableRect.left,
+      };
+    });
+
+    expect(metrics, `table filter bar ${index + 1} metrics`).not.toBeNull();
+    if (!metrics) continue;
+    expect(metrics.leftDelta, `table filter bar ${index + 1} ${JSON.stringify(metrics)}`).toBeGreaterThanOrEqual(-1);
+    expect(metrics.leftDelta, `table filter bar ${index + 1} ${JSON.stringify(metrics)}`).toBeLessThanOrEqual(32);
+  }
+}
+
+export async function expectHeaderActionsSpaced(page: Page) {
+  const value = await page.locator('.tm-page-header-extra').first().evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      display: style.display,
+      columnGap: Number.parseFloat(style.columnGap || '0'),
+      rowGap: Number.parseFloat(style.rowGap || '0'),
+    };
+  });
+  expect(value.display, `header action layout ${JSON.stringify(value)}`).toMatch(/flex$/);
+  expect(value.columnGap, `header action column gap ${JSON.stringify(value)}`).toBeGreaterThanOrEqual(8);
+  expect(value.rowGap, `header action row gap ${JSON.stringify(value)}`).toBeGreaterThanOrEqual(8);
+}
+
 export async function expectPageContentGuttersWithin(page: Page, maxGutter: number) {
   const value = await page.evaluate(() => {
     const shell = document.querySelector('.ant-pro-layout-content')?.getBoundingClientRect();
@@ -273,6 +312,7 @@ export async function expectNoFatalConsoleErrors(consoleGuard: ConsoleGuard) {
 
 async function expectOverlayWithinViewport(locator: Locator, page: Page, label: string) {
   await expect(locator, `${label} visible`).toBeVisible();
+  await expect(locator, `${label} fully within viewport`).toBeInViewport({ ratio: 1 });
   const box = await locator.boundingBox();
   const viewport = page.viewportSize();
   expect(box, `${label} bounding box`).not.toBeNull();

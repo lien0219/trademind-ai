@@ -9,9 +9,13 @@ import (
 // avoiding a cycle (order.Handler already depends on inventory.Service).
 type orderMirror struct {
 	model.Base
-	OrderNo       string `gorm:"size:128;not null"`
-	Status        string `gorm:"size:32;not null"`
-	PaymentStatus string `gorm:"size:32;not null"`
+	TenantID          int64      `gorm:"not null;default:0;index"`
+	Platform          string     `gorm:"size:64;index;not null"`
+	WarehouseID       *uuid.UUID `gorm:"type:char(36);index"`
+	OrderNo           string     `gorm:"size:128;not null"`
+	Status            string     `gorm:"size:32;not null"`
+	PaymentStatus     string     `gorm:"size:32;not null"`
+	FulfillmentStatus string     `gorm:"size:32;not null"`
 }
 
 func (orderMirror) TableName() string { return "orders" }
@@ -20,7 +24,7 @@ type orderLineMirror struct {
 	model.HardDeleteBase
 	OrderID        uuid.UUID  `gorm:"type:char(36);index;not null"`
 	ProductID      *uuid.UUID `gorm:"type:char(36);index"`
-	ProductSKUID   *uuid.UUID `gorm:"type:char(36);index"`
+	ProductSKUID   *uuid.UUID `gorm:"column:product_sku_id;type:char(36);index"`
 	ExternalItemID *string    `gorm:"size:255"`
 	Quantity       int        `gorm:"not null"`
 }

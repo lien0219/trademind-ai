@@ -6,7 +6,7 @@ TradeMind uses the existing `staging` profile as P10 pre-production. No separate
 
 - `deploy/preproduction/compose.yml` defines isolated PostgreSQL, Redis, backend, Admin, network, and named data volumes under the fixed `trademind-preproduction` project.
 - `.env.example` is the only non-secret configuration contract. The target host copies it to `.env`, sets `APP_ENV=staging`, and injects secret values and immutable image references at runtime.
-- `.github/workflows/container-images.yml` publishes backend and Admin GHCR validation images from supported branches and stable version images only from a matching `v<version>` tag contained in `main`, then reports each multi-platform manifest digest. Pre-production `P10_API_IMAGE` and `P10_ADMIN_IMAGE` must use `image@sha256:<manifest-digest>`, never mutable tags.
+- `.github/workflows/container-images.yml` publishes backend and Admin validation images from `main` into one GHCR package with service-prefixed tags, and publishes stable service tags only from a matching `v<version>` tag contained in `main`, then reports each multi-platform manifest digest. Pre-production `P10_API_IMAGE` and `P10_ADMIN_IMAGE` must use `image@sha256:<manifest-digest>`, never mutable tags.
 - `scripts/preproduction-preflight.mjs` rejects missing, unknown, production, or non-isolated targets before startup, migration, backup, restore, rollback, or teardown.
 - `/health/live` remains the process probe. `/health/ready` verifies database, Redis, and completed startup migrations; deployment scripts use bounded probes rather than fixed sleep acceptance.
 - Startup migration uses the existing PostgreSQL advisory lock and AutoMigrate path. The preflight requires an explicit pre-production target before the backend is started.

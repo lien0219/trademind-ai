@@ -1,0 +1,61 @@
+.tm-advertising-fee-page {
+  min-width: 0;
+
+  .ant-pro-page-container-children-container {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+.tm-advertising-fee-toolbar,
+.tm-advertising-fee-preview,
+.tm-advertising-fee-detail {
+  width: 100%;
+  min-width: 0;
+}
+
+.tm-advertising-fee-filter {
+  width: 164px;
+}
+
+.tm-advertising-fee-filter--search {
+  width: 220px;
+}
+
+.tm-advertising-fee-import-source {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.tm-advertising-fee-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.tm-advertising-fee-actions {
+  justify-content: flex-end;
+}
+
+.tm-advertising-fee-adjustment-form .ant-input-number {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .tm-advertising-fee-filter,
+  .tm-advertising-fee-filter--search {
+    width: 100%;
+  }
+
+  .tm-advertising-fee-import-source {
+    grid-template-columns: 1fr;
+  }
+
+  .tm-advertising-fee-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

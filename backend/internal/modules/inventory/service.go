@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -30,6 +31,7 @@ type Service struct {
 	OpLog        *operationlog.Service
 	Idempotency  *idempotency.Service
 	Metrics      *metrics.Catalog
+	Warehouses   *warehouse.Service
 	QueueEnabled bool
 	QueueName    string
 	TaskTimeout  time.Duration
@@ -144,13 +146,13 @@ func (s *Service) persistTaskAndMaybeRun(ctx context.Context, t *InventorySyncTa
 	return s.enqueueOrRunInventoryTask(ctx, t.ID)
 }
 
-func (s *Service) hasDuplicateInventorySync(ctx context.Context, pubSKUID uuid.UUID, target int) (bool, error) {
+func (s *Service) hasDuplicateInventorySync(ctx context.Context, tenantID int64, pubSKUID uuid.UUID, target int) (bool, error) {
 	if s == nil || s.DB == nil || pubSKUID == uuid.Nil {
 		return false, nil
 	}
 	var n int64
 	err := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).
-		Where("publication_sku_id = ? AND target_stock = ? AND status IN ?", pubSKUID, target, []string{StatusPending, StatusRunning}).
+		Where("tenant_id = ? AND publication_sku_id = ? AND target_stock = ? AND status IN ?", tenantID, pubSKUID, target, []string{StatusPending, StatusRunning}).
 		Count(&n).Error
 	return n > 0, err
 }

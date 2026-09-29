@@ -191,6 +191,31 @@ export const ORDER_INVENTORY_DEDUCT_SUMMARY = {
   blocked: { text: 'SKU 未就绪', color: 'warning' as const },
 };
 
+/** 订单库存履约对账状态（只读工作台） */
+export const ORDER_FULFILLMENT_RECONCILIATION_STATUS = {
+  matched: { text: "已匹配", color: "success" as const },
+  pending: { text: "待确认", color: "processing" as const },
+  mismatch: { text: "账实不一致", color: "error" as const },
+  blocked: { text: "人工阻断", color: "warning" as const },
+};
+
+export const ORDER_FULFILLMENT_RECONCILIATION_ISSUES: Record<string, string> = {
+  inventory_effect_pending: "库存 effect 待处理",
+  inventory_effect_failed: "库存 effect 失败",
+  duplicate_effect: "重复库存 effect",
+  inventory_history_not_migrated: "历史库存未迁移",
+  sku_not_bound: "SKU 未绑定",
+  warehouse_missing: "履约仓库缺失",
+  inventory_balance_missing: "库存余额缺失",
+  reserve_quantity_mismatch: "预占数量不一致",
+  deduct_quantity_mismatch: "出库数量不一致",
+  release_quantity_mismatch: "释放数量不一致",
+  restore_quantity_mismatch: "回补数量不一致",
+  inventory_movement_quantity_mismatch: "库存流水数量不一致",
+  shipment_missing: "发货单缺失",
+  shipment_state_conflict: "发货状态冲突",
+};
+
 /** 订单来源/同步状态 */
 export const ORDER_SYNC_SUMMARY = {
   manual: { text: '手工订单', color: 'default' as const },

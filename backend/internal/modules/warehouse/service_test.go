@@ -1,0 +1,133 @@
+package warehouse
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+
+	"github.com/glebarez/sqlite"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+func newWarehouseTestService(t *testing.T) *Service {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:warehouse_%s?mode=memory&cache=shared", uuid.NewString())), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&Warehouse{}, &WarehouseLocation{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		sqlDB, _ := db.DB()
+		_ = sqlDB.Close()
+	})
+	return &Service{DB: db}
+}
+
+func TestWarehouseLocationsAreTenantScopedAndStable(t *testing.T) {
+	service := newWarehouseTestService(t)
+	ctx := context.Background()
+	main, err := service.Create(ctx, 1, nil, CreateInput{Code: "MAIN", Name: "Main", IsDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := service.Create(ctx, 2, nil, CreateInput{Code: "MAIN", Name: "Other", IsDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := service.CreateLocation(ctx, 1, main.ID, nil, CreateLocationInput{Code: "A-01", Name: "Rack A01", Zone: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateLocation(ctx, 1, main.ID, nil, CreateLocationInput{Code: "A-01", Name: "Duplicate"}); !errors.Is(err, ErrLocationConflict) {
+		t.Fatalf("duplicate location should conflict, got %v", err)
+	}
+	rows, err := service.ListLocations(ctx, 1, main.ID, false)
+	if err != nil || len(rows) != 1 || rows[0].ID != row.ID {
+		t.Fatalf("unexpected tenant locations: %#v %v", rows, err)
+	}
+	if _, err := service.ListLocations(ctx, 1, other.ID, false); !errors.Is(err, ErrWarehouseAbsent) {
+		t.Fatalf("cross-tenant warehouse must be absent, got %v", err)
+	}
+	updated, err := service.UpdateLocation(ctx, 1, main.ID, row.ID, UpdateLocationInput{Name: "Rack A01 updated", Zone: "B", Status: StatusInactive})
+	if err != nil || updated.Status != StatusInactive || updated.Code != "A-01" {
+		t.Fatalf("location code must stay immutable: %#v %v", updated, err)
+	}
+}
+
+func TestUpdateWarehouseKeepsDefaultTenantScoped(t *testing.T) {
+	service := newWarehouseTestService(t)
+	ctx := context.Background()
+	first, err := service.Create(ctx, 1, nil, CreateInput{Code: "MAIN", Name: "Main", IsDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.Create(ctx, 1, nil, CreateInput{Code: "BACKUP", Name: "Backup"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherTenant, err := service.Create(ctx, 2, nil, CreateInput{Code: "MAIN", Name: "Tenant 2", IsDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := service.Update(ctx, 1, second.ID, UpdateInput{Name: "East warehouse", Status: StatusActive, IsDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.IsDefault || updated.Name != "East warehouse" {
+		t.Fatalf("unexpected updated warehouse: %#v", updated)
+	}
+	rows, err := service.List(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 || rows[0].ID != second.ID || rows[1].ID != first.ID || rows[1].IsDefault {
+		t.Fatalf("tenant default was not switched safely: %#v", rows)
+	}
+	otherRows, err := service.List(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(otherRows) != 1 || otherRows[0].ID != otherTenant.ID || !otherRows[0].IsDefault {
+		t.Fatalf("other tenant default changed: %#v", otherRows)
+	}
+	if _, err := service.Update(ctx, 1, otherTenant.ID, UpdateInput{Name: "No access", Status: StatusActive}); !errors.Is(err, ErrWarehouseAbsent) {
+		t.Fatalf("cross-tenant update must look absent, got %v", err)
+	}
+}
+
+func TestUpdateWarehouseRejectsInactiveDefault(t *testing.T) {
+	service := newWarehouseTestService(t)
+	row, err := service.Create(context.Background(), 1, nil, CreateInput{Code: "MAIN", Name: "Main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Update(context.Background(), 1, row.ID, UpdateInput{Name: "Main", Status: StatusInactive, IsDefault: true}); !errors.Is(err, ErrInvalidWarehouse) {
+		t.Fatalf("expected invalid warehouse, got %v", err)
+	}
+}
+
+func TestWarehouseAllowsLegacyTenantZero(t *testing.T) {
+	service := newWarehouseTestService(t)
+	ctx := context.Background()
+
+	row, err := service.Create(ctx, 0, nil, CreateInput{Code: "MAIN", Name: "Legacy main", IsDefault: true})
+	if err != nil {
+		t.Fatalf("create legacy tenant warehouse: %v", err)
+	}
+	if row.TenantID != 0 || row.Code != "MAIN" || !row.IsDefault {
+		t.Fatalf("unexpected legacy tenant warehouse: %#v", row)
+	}
+
+	updated, err := service.Update(ctx, 0, row.ID, UpdateInput{Name: "Legacy renamed", Status: StatusActive, IsDefault: true})
+	if err != nil {
+		t.Fatalf("update legacy tenant warehouse: %v", err)
+	}
+	if updated.Name != "Legacy renamed" || updated.TenantID != 0 {
+		t.Fatalf("unexpected updated legacy tenant warehouse: %#v", updated)
+	}
+}

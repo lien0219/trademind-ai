@@ -49,23 +49,26 @@ type SyncOrdersResult struct {
 
 // PlatformOrder is provider-neutral order snapshot for persistence (no TikTok/Shopee-specific fields).
 type PlatformOrder struct {
-	ExternalOrderID   string
-	OrderNo           string
-	CustomerName      string
-	Status            string
-	PaymentStatus     string
-	FulfillmentStatus string
-	Currency          string
-	TotalAmount       float64
-	OrderedAt         *time.Time
-	PaidAt            *time.Time
-	ShippedAt         *time.Time
-	DeliveredAt       *time.Time
-	PlatformUpdatedAt *time.Time
-	PlatformRevision  string
-	Items             []PlatformOrderItem
-	Shipments         []PlatformShipment
-	RawData           map[string]any
+	ExternalOrderID        string
+	OrderNo                string
+	CustomerName           string
+	DestinationCountryCode string
+	DestinationRegion      string
+	DestinationPostalCode  string
+	Status                 string
+	PaymentStatus          string
+	FulfillmentStatus      string
+	Currency               string
+	TotalAmount            float64
+	OrderedAt              *time.Time
+	PaidAt                 *time.Time
+	ShippedAt              *time.Time
+	DeliveredAt            *time.Time
+	PlatformUpdatedAt      *time.Time
+	PlatformRevision       string
+	Items                  []PlatformOrderItem
+	Shipments              []PlatformShipment
+	RawData                map[string]any
 }
 
 // PlatformOrderItem is a line item snapshot.

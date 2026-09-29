@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/adminuser"
+	"github.com/trademind-ai/trademind/backend/internal/modules/advertisingfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiopsworkbench"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
@@ -35,10 +36,12 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/freightfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -47,16 +50,23 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/pricing"
+	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/profitability"
+	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settlement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
+	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
+	"github.com/trademind-ai/trademind/backend/internal/modules/warehousefee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
@@ -76,6 +86,102 @@ import (
 
 type collectRunnerAdapter struct {
 	c *collect.CollectorClient
+}
+
+type settlementProfitabilityAdapter struct {
+	svc *settlement.Service
+}
+
+type warehouseFeeProfitabilityAdapter struct {
+	svc *warehousefee.Service
+}
+
+type advertisingFeeProfitabilityAdapter struct {
+	svc *advertisingfee.Service
+}
+
+type freightFeeProfitabilityAdapter struct {
+	svc *freightfee.Service
+}
+
+func (a settlementProfitabilityAdapter) ListPlatformFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.PlatformFeeFact, error) {
+	result := make(map[uuid.UUID]profitability.PlatformFeeFact)
+	if a.svc == nil {
+		return result, nil
+	}
+	facts, err := a.svc.PlatformFeesForOrders(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	for orderID, fact := range facts {
+		result[orderID] = profitability.PlatformFeeFact{
+			OrderID: fact.OrderID, ReconciliationID: fact.ReconciliationID,
+			SettlementTransactionIDs: append([]uuid.UUID(nil), fact.TransactionIDs...),
+			AmountMinor:              fact.AmountMinor, Currency: fact.Currency, Status: fact.Status,
+			SourceAt: fact.SourceAt, ReasonCode: fact.ReasonCode, Reason: fact.Reason,
+		}
+	}
+	return result, nil
+}
+
+func (a warehouseFeeProfitabilityAdapter) ListWarehouseFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.WarehouseFeeFact, error) {
+	result := make(map[uuid.UUID]profitability.WarehouseFeeFact)
+	if a.svc == nil {
+		return result, nil
+	}
+	facts, err := a.svc.ProfitabilityFeesForOrders(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	for orderID, fact := range facts {
+		result[orderID] = profitability.WarehouseFeeFact{
+			OrderID: fact.OrderID, SnapshotID: fact.SnapshotID, AdjustmentIDs: append([]uuid.UUID(nil), fact.AdjustmentIDs...),
+			AmountMinor: fact.AmountMinor, Currency: fact.Currency, Status: fact.Status, SourceAt: fact.SourceAt,
+			ReasonCode: fact.ReasonCode, Reason: fact.Reason,
+		}
+	}
+	return result, nil
+}
+
+func (a advertisingFeeProfitabilityAdapter) ListAdvertisingFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.AdvertisingFeeFact, error) {
+	result := make(map[uuid.UUID]profitability.AdvertisingFeeFact)
+	if a.svc == nil {
+		return result, nil
+	}
+	facts, err := a.svc.ProfitabilityFeesForOrders(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	for orderID, fact := range facts {
+		result[orderID] = profitability.AdvertisingFeeFact{
+			OrderID: fact.OrderID, ImportID: fact.ImportID, SpendID: fact.SpendID, AllocationID: fact.AllocationID,
+			AdjustmentIDs: append([]uuid.UUID(nil), fact.AdjustmentIDs...), AmountMinor: fact.AmountMinor,
+			Currency: fact.Currency, Status: fact.Status, SourceAt: fact.SourceAt,
+			ReasonCode: fact.ReasonCode, Reason: fact.Reason,
+		}
+	}
+	return result, nil
+}
+
+func (a freightFeeProfitabilityAdapter) ListFreightFees(ctx context.Context, tenantID int64, orderIDs []uuid.UUID) (map[uuid.UUID]profitability.FreightFeeFact, error) {
+	result := make(map[uuid.UUID]profitability.FreightFeeFact)
+	if a.svc == nil {
+		return result, nil
+	}
+	facts, err := a.svc.ProfitabilityFeesForOrders(ctx, tenantID, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	for orderID, fact := range facts {
+		result[orderID] = profitability.FreightFeeFact{
+			OrderID: fact.OrderID, ChargeIDs: append([]uuid.UUID(nil), fact.ChargeIDs...),
+			ImportIDs: append([]uuid.UUID(nil), fact.ImportIDs...), AdjustmentIDs: append([]uuid.UUID(nil), fact.AdjustmentIDs...),
+			AmountMinor: fact.AmountMinor, Currency: fact.Currency, Status: fact.Status,
+			ShipmentCount: fact.ShipmentCount, BilledShipmentCount: fact.BilledShipmentCount,
+			SourceAt: fact.SourceAt, ReasonCode: fact.ReasonCode, Reason: fact.Reason,
+		}
+	}
+	return result, nil
 }
 
 func (a collectRunnerAdapter) RunCollect(ctx context.Context, source, rawURL string, options map[string]any) (json.RawMessage, error) {
@@ -408,6 +514,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
+	warehouseSvc := &warehouse.Service{DB: dep.DB}
+	logisticsSvc := &logistics.Service{DB: dep.DB}
+	logisticsH := &logistics.Handler{Svc: logisticsSvc, OpLog: opLogSvc}
 	inventorySvc := &inventory.Service{
 		DB:          dep.DB,
 		Redis:       dep.Redis,
@@ -416,6 +525,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		OpLog:       opLogSvc,
 		Idempotency: idempotencySvc,
 		Metrics:     metricCatalog,
+		Warehouses:  warehouseSvc,
 	}
 	if dep.Config != nil {
 		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
@@ -429,9 +539,28 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		}
 	}
 	inventoryH := &inventory.Handler{Svc: inventorySvc}
+	warehouseH := &warehouse.Handler{Svc: warehouseSvc, OpLog: opLogSvc}
+	supplierSvc := &supplier.Service{DB: dep.DB}
+	supplierH := &supplier.Handler{Svc: supplierSvc, OpLog: opLogSvc}
+	procurementSvc := &procurement.Service{
+		DB: dep.DB, Warehouses: warehouseSvc, Suppliers: supplierSvc, Stock: inventory.WarehouseStockService{},
+	}
+	procurementH := &procurement.Handler{Svc: procurementSvc, OpLog: opLogSvc}
+	salesReturnSvc := &salesreturn.Service{DB: dep.DB, Stock: inventory.WarehouseStockService{}, Warehouses: warehouseSvc}
+	salesReturnH := &salesreturn.Handler{Svc: salesReturnSvc, OpLog: opLogSvc}
+	settlementSvc := &settlement.Service{DB: dep.DB}
+	settlementH := &settlement.Handler{Svc: settlementSvc, OpLog: opLogSvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc}
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc, Warehouses: warehouseSvc, Logistics: logisticsSvc, Suppliers: supplierSvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
+	warehouseFeeSvc := &warehousefee.Service{DB: dep.DB, Fulfillment: orderSvc}
+	warehouseFeeH := &warehousefee.Handler{Svc: warehouseFeeSvc, OpLog: opLogSvc}
+	advertisingFeeSvc := &advertisingfee.Service{DB: dep.DB}
+	advertisingFeeH := &advertisingfee.Handler{Svc: advertisingFeeSvc, OpLog: opLogSvc}
+	freightFeeSvc := &freightfee.Service{DB: dep.DB}
+	freightFeeH := &freightfee.Handler{Svc: freightFeeSvc, OpLog: opLogSvc}
+	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}, AdvertisingFees: advertisingFeeProfitabilityAdapter{svc: advertisingFeeSvc}, WarehouseFees: warehouseFeeProfitabilityAdapter{svc: warehouseFeeSvc}, FreightFees: freightFeeProfitabilityAdapter{svc: freightFeeSvc}}
+	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}
 
 	orderSyncSvc := &ordersync.Service{
 		DB:          dep.DB,
@@ -667,6 +796,11 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
+	profitability.Register(authed, profitabilityH)
+	settlement.Register(authed, settlementH)
+	warehousefee.Register(authed, warehouseFeeH)
+	advertisingfee.Register(authed, advertisingFeeH)
+	freightfee.Register(authed, freightFeeH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
 	skucandidate.Register(authed, skuCandH)
 	orderexception.Register(authed, excH)
@@ -711,7 +845,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 			Shops:  shopSvc,
 			Orders: orderSvc,
 		},
-		AppEnv: "",
+		AfterSaleHandler: &salesreturn.DouyinAfterSaleWebhookHandler{Svc: salesReturnSvc},
+		AppEnv:           "",
 	}
 	if dep.Config != nil {
 		webhookSvc.MaxPayloadBytes = dep.Config.WebhookMaxBodyBytes()
@@ -727,6 +862,11 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	douyinruntime.Register(authed, douyinRuntimeH)
 	productpublish.Register(authed, productPublishH)
 	inventory.Register(authed, inventoryH)
+	warehouse.Register(authed, warehouseH)
+	logistics.Register(authed, logisticsH)
+	supplier.Register(authed, supplierH)
+	procurement.Register(authed, procurementH)
+	salesreturn.Register(authed, salesReturnH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
 

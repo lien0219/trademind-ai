@@ -13,10 +13,151 @@ type QueueMessage struct {
 
 // AdjustStockBody POST /products/:id/skus/:skuId/adjust-stock
 type AdjustStockBody struct {
-	Stock  int    `json:"stock"`
-	Reason string `json:"reason"`
-	Remark string `json:"remark"`
-	Sync   bool   `json:"sync"`
+	WarehouseID    uuid.UUID `json:"warehouseId" binding:"required"`
+	Stock          int       `json:"stock"`
+	Reason         string    `json:"reason"`
+	Remark         string    `json:"remark"`
+	IdempotencyKey string    `json:"idempotencyKey" binding:"required"`
+	Sync           bool      `json:"sync"`
+}
+
+// WarehouseBalanceDTO is one SKU balance at one warehouse.
+type WarehouseBalanceDTO struct {
+	WarehouseID   uuid.UUID `json:"warehouseId"`
+	WarehouseCode string    `json:"warehouseCode"`
+	WarehouseName string    `json:"warehouseName"`
+	IsDefault     bool      `json:"isDefault"`
+	OnHand        int       `json:"onHand"`
+	Reserved      int       `json:"reserved"`
+	InTransit     int       `json:"inTransit"`
+	Damaged       int       `json:"damaged"`
+	Available     int       `json:"available"`
+	Version       int       `json:"version"`
+}
+
+// ManualAdjustmentResult reports both the warehouse fact and aggregate projection.
+type ManualAdjustmentResult struct {
+	ProductSKUID     uuid.UUID `json:"productSkuId"`
+	WarehouseID      uuid.UUID `json:"warehouseId"`
+	WarehouseOnHand  int       `json:"warehouseOnHand"`
+	AggregateStock   int       `json:"aggregateStock"`
+	MovementID       uuid.UUID `json:"movementId"`
+	IdempotentReplay bool      `json:"idempotentReplay"`
+}
+
+// LegacyStockMigrationBody controls one bounded, repeatable migration batch.
+type LegacyStockMigrationBody struct {
+	Limit int `json:"limit"`
+}
+
+type CreateWarehouseTransferBody struct {
+	IdempotencyKey    string                        `json:"idempotencyKey" binding:"required"`
+	SourceWarehouseID uuid.UUID                     `json:"sourceWarehouseId" binding:"required"`
+	TargetWarehouseID uuid.UUID                     `json:"targetWarehouseId" binding:"required"`
+	Reason            string                        `json:"reason"`
+	Remark            string                        `json:"remark"`
+	Items             []CreateWarehouseTransferItem `json:"items" binding:"required,min=1"`
+}
+
+type CreateWarehouseTransferItem struct {
+	ProductSKUID uuid.UUID `json:"productSkuId" binding:"required"`
+	Quantity     int       `json:"quantity" binding:"required,min=1"`
+}
+
+type WarehouseTransferActionBody struct {
+	ExpectedRevision int    `json:"expectedRevision"`
+	IdempotencyKey   string `json:"idempotencyKey" binding:"required"`
+	Reason           string `json:"reason"`
+}
+
+type WarehouseTransferListRow struct {
+	WarehouseTransfer
+	SourceWarehouseCode string `json:"sourceWarehouseCode"`
+	SourceWarehouseName string `json:"sourceWarehouseName"`
+	TargetWarehouseCode string `json:"targetWarehouseCode"`
+	TargetWarehouseName string `json:"targetWarehouseName"`
+	ItemCount           int    `json:"itemCount"`
+}
+
+type WarehouseTransferListResult struct {
+	List       []WarehouseTransferListRow `json:"list"`
+	Total      int64                      `json:"total"`
+	Page       int                        `json:"page"`
+	PageSize   int                        `json:"pageSize"`
+	TotalPages int                        `json:"totalPages"`
+}
+
+type CreateInventoryStocktakeBody struct {
+	IdempotencyKey string                         `json:"idempotencyKey" binding:"required"`
+	WarehouseID    uuid.UUID                      `json:"warehouseId" binding:"required"`
+	Reason         string                         `json:"reason"`
+	Remark         string                         `json:"remark"`
+	Items          []CreateInventoryStocktakeItem `json:"items" binding:"required,min=1"`
+}
+
+type CreateInventoryStocktakeItem struct {
+	ProductSKUID uuid.UUID `json:"productSkuId" binding:"required"`
+}
+
+type InventoryStocktakeItemBody struct {
+	ExpectedRevision int    `json:"expectedRevision"`
+	IdempotencyKey   string `json:"idempotencyKey" binding:"required"`
+	CountedOnHand    *int   `json:"countedOnHand" binding:"required"`
+	Remark           string `json:"remark"`
+}
+
+type InventoryStocktakeActionBody struct {
+	ExpectedRevision int    `json:"expectedRevision"`
+	IdempotencyKey   string `json:"idempotencyKey" binding:"required"`
+	Reason           string `json:"reason"`
+}
+
+type InventoryStocktakeListRow struct {
+	InventoryStocktake
+	WarehouseCode string `json:"warehouseCode"`
+	WarehouseName string `json:"warehouseName"`
+	ItemCount     int    `json:"itemCount"`
+}
+
+type InventoryStocktakeListResult struct {
+	List       []InventoryStocktakeListRow `json:"list"`
+	Total      int64                       `json:"total"`
+	Page       int                         `json:"page"`
+	PageSize   int                         `json:"pageSize"`
+	TotalPages int                         `json:"totalPages"`
+}
+
+type LegacyStockMigrationResult struct {
+	WarehouseID    uuid.UUID `json:"warehouseId"`
+	WarehouseCode  string    `json:"warehouseCode"`
+	MigratedCount  int       `json:"migratedCount"`
+	RemainingCount int64     `json:"remainingCount"`
+}
+
+type WarehouseLedgerReconciliationRow struct {
+	ProductID         uuid.UUID `json:"productId"`
+	ProductTitle      string    `json:"productTitle"`
+	ProductSKUID      uuid.UUID `json:"productSkuId"`
+	SKUCode           string    `json:"skuCode"`
+	SKUName           string    `json:"skuName"`
+	AggregateStock    int       `json:"aggregateStock"`
+	WarehouseOnHand   int       `json:"warehouseOnHand"`
+	WarehouseDamaged  int       `json:"warehouseDamaged"`
+	WarehouseSellable int       `json:"warehouseSellable"`
+	Difference        int       `json:"difference"`
+	BalanceCount      int       `json:"balanceCount"`
+	Status            string    `json:"status"`
+}
+
+type WarehouseLedgerReconciliationResult struct {
+	Items      []WarehouseLedgerReconciliationRow `json:"list"`
+	Total      int64                              `json:"total"`
+	Page       int                                `json:"page"`
+	PageSize   int                                `json:"pageSize"`
+	TotalPages int                                `json:"totalPages"`
+	Matched    int64                              `json:"matched"`
+	Unmigrated int64                              `json:"unmigrated"`
+	Mismatch   int64                              `json:"mismatch"`
 }
 
 // PublicationSKUSyncBody POST /product-publication-skus/:id/sync-inventory
@@ -120,6 +261,7 @@ type PublicationSKUListingRow struct {
 
 // GlobalLogsQuery optional filters for audit feed.
 type GlobalLogsQuery struct {
+	TenantID     int64
 	Page         int
 	PageSize     int
 	ProductID    *uuid.UUID
@@ -179,6 +321,7 @@ type InventoryAlertEntry struct {
 
 // AlertsListQuery filters GET /inventory/alerts.
 type AlertsListQuery struct {
+	TenantID      int64
 	Keyword       string
 	ProductID     *uuid.UUID
 	ProductSKUID  *uuid.UUID
@@ -253,6 +396,7 @@ type InventorySyncBatchDTO struct {
 
 // InventorySyncBatchListQuery filters GET /inventory-sync/batches.
 type InventorySyncBatchListQuery struct {
+	TenantID  int64
 	Source    string
 	Status    string
 	Platform  string
