@@ -143,6 +143,33 @@ func TestBuildOneReconciliationIncludesPackingVerificationTimeline(t *testing.T)
 }
 
 func TestBuildOneReconciliationRequiresReleaseAndRestoreFacts(t *testing.T) {
+	t.Run("partially refunded shipped order does not require full restore", func(t *testing.T) {
+		o, item, d := reconciliationFixtureOrder(StatusShipped, PaymentPartiallyRefunded, FulfillmentFulfilled)
+		d.Shipments[o.ID] = []OrderShipment{{HardDeleteBase: model.HardDeleteBase{ID: uuid.New()}, OrderID: o.ID, Status: ShipmentShipped}}
+		d.Effects[o.ID] = []reconciliationEffectAgg{
+			reconciliationEffect(item, inventory.EffectTypeReserve, inventory.InventoryEffectSuccess, 3),
+			reconciliationEffect(item, inventory.EffectTypeDeduct, inventory.InventoryEffectSuccess, 3),
+		}
+		d.Movements[item.ID] = []reconciliationMovementAgg{
+			reconciliationMovement(item, inventory.MovementOrderReserve, 3),
+			reconciliationMovement(item, inventory.MovementOrderDeduct, -3),
+		}
+		row := buildOneReconciliation(o, d, false)
+		if row.ReconciliationStatus != ReconciliationMatched || row.Restore.Expected != 0 || row.Restore.Actual != 0 {
+			t.Fatalf("partial refund must not imply a full inventory restore: %#v", row)
+		}
+	})
+
+	t.Run("partially refunded paid order keeps its reservation", func(t *testing.T) {
+		o, item, d := reconciliationFixtureOrder(StatusPaid, PaymentPartiallyRefunded, FulfillmentUnfulfilled)
+		d.Effects[o.ID] = []reconciliationEffectAgg{reconciliationEffect(item, inventory.EffectTypeReserve, inventory.InventoryEffectSuccess, 3)}
+		d.Movements[item.ID] = []reconciliationMovementAgg{reconciliationMovement(item, inventory.MovementOrderReserve, 3)}
+		row := buildOneReconciliation(o, d, false)
+		if row.ReconciliationStatus != ReconciliationMatched || row.Release.Expected != 0 || row.Reserve.Expected != 3 {
+			t.Fatalf("partial refund must not imply release of the paid order reservation: %#v", row)
+		}
+	})
+
 	t.Run("cancelled reservation must release", func(t *testing.T) {
 		o, item, d := reconciliationFixtureOrder(StatusCancelled, PaymentPaid, FulfillmentUnfulfilled)
 		d.Effects[o.ID] = []reconciliationEffectAgg{reconciliationEffect(item, inventory.EffectTypeReserve, inventory.InventoryEffectSuccess, 3)}

@@ -278,7 +278,9 @@ func reconciliationExpected(o Order, items []reconciliationItemAgg, effects []re
 			release = reserve
 		}
 	}
-	if o.Status == StatusRefunded || o.PaymentStatus == PaymentRefunded || o.PaymentStatus == PaymentPartiallyRefunded {
+	// Partial payment refunds do not imply that the whole order's inventory
+	// should be released or restored. Physical returns use the sales-return ledger.
+	if o.Status == StatusRefunded || o.PaymentStatus == PaymentRefunded {
 		if deductActual > 0 {
 			// A refund after an actual deduction keeps the original outbound
 			// expectation and adds a restore expectation. Direct-deduct legacy
