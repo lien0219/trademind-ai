@@ -71,8 +71,10 @@ services:
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "curl -fsS http://127.0.0.1:3001/health >/dev/null || exit 1",
+          "CMD",
+          "node",
+          "-e",
+          "require('node:http').get('http://127.0.0.1:3001/health', (response) => { response.resume(); if (response.statusCode >= 400) process.exitCode = 1; }).on('error', () => process.exit(1))",
         ]
       interval: 15s
       timeout: 5s
