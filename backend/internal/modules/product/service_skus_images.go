@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -154,7 +155,7 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 	return row, nil
 }
 
-// UpdateSKU patches a SKU; raw_data is never updated from API.
+// UpdateSKU patches mutable SKU metadata; inventory fields are owned by inventory.
 func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKUUpdateBody, adminID *uuid.UUID) (*ProductSKU, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
@@ -169,9 +170,11 @@ func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKU
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND product_id = ?", skuID, productID).Error; err != nil {
 		return nil, err
 	}
+	updates := make(map[string]any, 8)
 
 	if body.SKUCode != nil {
 		row.SKUCode = strings.TrimSpace(*body.SKUCode)
+		updates["sku_code"] = row.SKUCode
 	}
 	if body.SKUName != nil {
 		n := strings.TrimSpace(*body.SKUName)
@@ -179,6 +182,7 @@ func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKU
 			return nil, fmt.Errorf("skuName cannot be empty")
 		}
 		row.SKUName = n
+		updates["sku_name"] = row.SKUName
 	}
 	if body.Attrs != nil {
 		attrsPtr, err := ptrAttrsJSON(body.Attrs)
@@ -187,25 +191,37 @@ func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKU
 		}
 		if attrsPtr != nil {
 			row.Attrs = *attrsPtr
+			updates["attrs"] = row.Attrs
 		}
 	}
 	if body.Price != nil {
 		row.Price = body.Price
+		updates["price"] = row.Price
 	}
 	if body.CostPrice != nil {
 		row.CostPrice = body.CostPrice
+		updates["cost_price"] = row.CostPrice
 	}
 	if body.CompareAtPrice != nil {
 		row.CompareAtPrice = body.CompareAtPrice
+		updates["compare_at_price"] = row.CompareAtPrice
 	}
 	if body.MinPublishPrice != nil {
 		row.MinPublishPrice = body.MinPublishPrice
+		updates["min_publish_price"] = row.MinPublishPrice
 	}
 	if body.ImageURL != nil {
 		row.ImageURL = strings.TrimSpace(*body.ImageURL)
+		updates["image_url"] = row.ImageURL
 	}
 
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+	updates["updated_at"] = time.Now().UTC()
+	if err := s.DB.WithContext(c.Request.Context()).Model(&ProductSKU{}).
+		Where("id = ? AND product_id = ?", skuID, productID).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	var updated ProductSKU
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND product_id = ?", skuID, productID).First(&updated).Error; err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -218,7 +234,7 @@ func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKU
 			Message:     fmt.Sprintf("skuId=%s", skuID.String()),
 		})
 	}
-	return &row, nil
+	return &updated, nil
 }
 
 // DeleteSKU removes a SKU row (hard delete; see ProductSKU model).

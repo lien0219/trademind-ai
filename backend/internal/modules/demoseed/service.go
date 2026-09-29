@@ -259,7 +259,7 @@ func (s *Service) ensureDemoProduct(ctx context.Context, adminID *uuid.UUID, ten
 		}
 	}
 
-	stock := 50
+	stock := 0
 	p := product.Product{
 		TenantID:    tenantID,
 		Source:      "manual",

@@ -160,3 +160,39 @@ func TestSKUWriteRoutesRejectStockAndCreateZeroProjection(t *testing.T) {
 	require.NoError(t, fixture.db.Model(&ProductSKU{}).Where("sku_code = ?", "REJECTED").Count(&rejectedCount).Error)
 	require.Zero(t, rejectedCount)
 }
+
+func TestSKUWriteRoutesPreserveConcurrentInventoryProjection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := newSKUWriteHTTPFixture(t)
+	router := fixture.router(t, 1, admin.RoleAdmin)
+
+	callbackName := "test:sku_metadata_concurrent_inventory_projection"
+	projectionUpdated := false
+	require.NoError(t, fixture.db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if projectionUpdated || tx.Statement.Table != "product_skus" {
+			return
+		}
+		projectionUpdated = true
+		if err := tx.Exec("UPDATE product_skus SET stock = ? WHERE id = ?", 11, fixture.sku.ID).Error; err != nil {
+			tx.AddError(err)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, fixture.db.Callback().Update().Remove(callbackName))
+	})
+
+	path := fmt.Sprintf("/api/v1/products/%s/skus/%s", fixture.product.ID, fixture.sku.ID)
+	recorder, envelope := performSKUWriteRequest(t, router, http.MethodPut, path, `{"skuName":"Updated"}`)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, response.CodeOK, envelope.Code)
+	require.True(t, projectionUpdated, "test must simulate an inventory projection update before the metadata write")
+
+	var updated ProductSKU
+	require.NoError(t, fixture.db.First(&updated, "id = ?", fixture.sku.ID).Error)
+	require.Equal(t, "Updated", updated.SKUName)
+	require.NotNil(t, updated.Stock)
+	require.Equal(t, 11, *updated.Stock, "metadata updates must not overwrite the current inventory projection")
+	data, ok := envelope.Data.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(11), data["stock"], "the response must return the refreshed inventory projection")
+}

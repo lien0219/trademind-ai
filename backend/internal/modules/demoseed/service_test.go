@@ -56,6 +56,17 @@ func TestSeedFullProjectEdgeCases_createsSamples(t *testing.T) {
 	if tenantShopCount < 1 || defaultTenantInventoryCount != 0 {
 		t.Fatalf("expected tenant-scoped demo rows, tenant shops=%d default inventory tasks=%d", tenantShopCount, defaultTenantInventoryCount)
 	}
+	var demoProduct product.Product
+	if err := db.Where("tenant_id = ? AND title = ?", tenantID, "F8 demo edge-case product").First(&demoProduct).Error; err != nil {
+		t.Fatalf("load demo product: %v", err)
+	}
+	var demoSKU product.ProductSKU
+	if err := db.Where("product_id = ?", demoProduct.ID).First(&demoSKU).Error; err != nil {
+		t.Fatalf("load demo SKU: %v", err)
+	}
+	if demoSKU.Stock == nil || *demoSKU.Stock != 0 {
+		t.Fatalf("new demo SKU must start with zero compatibility stock, got %#v", demoSKU.Stock)
+	}
 }
 
 func openDemoSeedTestDB(t *testing.T) *gorm.DB {
