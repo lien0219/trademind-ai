@@ -43,17 +43,17 @@ backend、admin、collector 仍是三个独立镜像，各自拥有多架构 man
 | 标签 | 更新规则 | 用途 |
 | --- | --- | --- |
 | `<service>-main` | main 每次构建更新 | 跟随 main，例如 `backend-main`。 |
-| `<service>-main-v<version>` | main 每次构建更新；版本文件变化后切换标签 | 标识 main 当前版本，例如 `admin-main-v0.2.0`。 |
+| `<service>-main-v<version>` | main 每次构建更新；版本文件变化后切换标签 | 标识 main 当前版本，例如 `admin-main-v0.3.0`。 |
 | `<service>-sha-<full-commit>` | main 与正式 Tag 构建均写入 | 按服务和提交定位镜像；它仍是可变 tag，不替代 manifest digest。 |
-| `<service>-v<version>`、`<service>-<version>` | 仅通过校验的同名 Git Tag 发布 | 正式版本标签，例如 `collector-v0.2.0` 与 `collector-0.2.0`。 |
+| `<service>-v<version>`、`<service>-<version>` | 仅通过校验的同名 Git Tag 发布 | 正式版本标签，例如 `collector-v0.3.0` 与 `collector-0.3.0`。 |
 | `<service>-latest` | 仅通过校验的正式 Git Tag 更新 | 各服务最新正式版本，不由普通 main 合并更新。 |
 
 `<service>` 为 `backend`、`admin` 或 `collector`。使用 Compose 从统一 Package 拉取同一版本的完整服务组：
 
 ```env
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.2.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.2.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.2.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.3.0
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.3.0
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.3.0
 ```
 
 ```bash
@@ -70,11 +70,11 @@ docker compose -f docker-compose.full.yml up -d --no-build
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag -a v0.2.0 -m "TradeMind v0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "TradeMind v0.3.0"
+git push origin v0.3.0
 ```
 
-Tag 必须严格为 `v<deploy/IMAGE_VERSION>`，并指向已包含在远程 `main` 中的提交；否则工作流直接失败。正式 Tag 为每个服务发布 `<service>-v0.2.0`、`<service>-0.2.0`、`<service>-sha-<full-commit>` 和 `<service>-latest`，不会自动部署、切流或创建 GitHub Release。应为 `v*` 配置 Tag 保护，禁止强制移动或删除已发布版本。
+Tag 必须严格为 `v<deploy/IMAGE_VERSION>`，并指向已包含在远程 `main` 中的提交；否则工作流直接失败。正式 Tag 为每个服务发布 `<service>-v0.3.0`、`<service>-0.3.0`、`<service>-sha-<full-commit>` 和 `<service>-latest`，不会自动部署、切流或创建 GitHub Release。应为 `v*` 配置 Tag 保护，禁止强制移动或删除已发布版本。
 
 Docker tag 均可移动。需要严格可复现的部署时，从工作流 Summary 或 GHCR Package 页面取得三个 manifest digest，并使用完整 `image@sha256:<digest>` 引用：
 

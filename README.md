@@ -161,9 +161,9 @@ GitHub Actions 会为 backend、admin 和 collector 自动发布 GHCR 多架构�
 
 ```bash
 # 在 .env 中设置 COLLECTOR_SERVICE_TOKEN，并覆盖以下镜像引用
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.2.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.2.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.2.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.3.0
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.3.0
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.3.0
 docker compose -f docker-compose.full.yml pull backend admin collector
 docker compose -f docker-compose.full.yml up -d --no-build
 ```

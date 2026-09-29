@@ -161,9 +161,9 @@ GitHub Actions publishes multi-architecture GHCR images for backend, admin, and 
 
 ```bash
 # Set COLLECTOR_SERVICE_TOKEN in .env, then override the image references below
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.2.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.2.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.2.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.3.0
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.3.0
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.3.0
 docker compose -f docker-compose.full.yml pull backend admin collector
 docker compose -f docker-compose.full.yml up -d --no-build
 ```

@@ -4,6 +4,20 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+## v0.3.0 - 2026-09-29
+
+### Carrier freight invoice ledger and profit estimate V6 (2026-09-28)
+
+- Added a strict, store-scoped carrier invoice CSV flow with a zero-write preview, exact carrier/tracking-number matching, explicit hash-bound confirmation, and immutable per-package actual freight facts.
+- Added duplicate and conflicting invoice protection, append-only adjustments and one-time reversals, non-negative net enforcement, and profit coverage rules that keep incomplete or currency-mismatched freight from replacing estimates.
+- Added the Finance workbench, permissions, operation logging, API contracts, and regression coverage without carrier API calls, waybill creation, FX conversion, workers, or automatic retries.
+
+### Inventory and refund reconciliation hardening (2026-09-29)
+
+- Prevented SKU metadata updates from overwriting a newer concurrent inventory projection; new controlled Demo SKUs now start with zero compatibility stock.
+- Kept partial refunds from being classified as full inventory restoration during order reconciliation.
+- Fixed a missing database migration and stabilized the carrier-freight regression workflow.
+
 ### Advertising fee attribution ledger and profit estimate V5 (2026-09-08)
 
 - Added a strict, store-scoped local advertising-spend CSV flow with a zero-write preview, 2 MiB/1000-row limits, file and calculation hashes, shop IANA timezone boundaries, and deterministic equal allocation across paid, non-cancelled orders.
