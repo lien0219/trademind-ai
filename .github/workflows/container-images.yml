@@ -196,7 +196,7 @@ jobs:
           fi
 
       - name: Scan candidate image
-        uses: aquasecurity/trivy-action@v0.31.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}:${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
           version: v0.76.0
