@@ -157,18 +157,27 @@ Copy-Item .env.example .env
 docker compose -f docker-compose.full.yml up -d --build
 ```
 
-GitHub Actions 会为 backend、admin 和 collector 自动发布 GHCR 多架构镜像。使用预构建镜像：
+GitHub Actions 将 backend、admin 和 collector 发布到统一的 GHCR Package `ghcr.io/lien0219/trademind`。完整 Compose 仍支持本地构建；使用预构建镜像时：
 
 ```bash
 # 在 .env 中设置 COLLECTOR_SERVICE_TOKEN，并覆盖以下镜像引用
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.3.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.3.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.3.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main
 docker compose -f docker-compose.full.yml pull backend admin collector
 docker compose -f docker-compose.full.yml up -d --no-build
 ```
 
-只有 `main` 分支的镜像相关变更会自动发布验证镜像，标签使用 `backend-*`、`admin-*` 和 `collector-*` 区分同一 GHCR Package 中的服务，普通构建不会更新服务的 `latest`。正式版本合并到 `main` 后，推送与 `deploy/IMAGE_VERSION` 一致的 `v<version>` Git Tag，工作流才会发布服务版本标签和服务 `latest`。正式部署应使用工作流输出的 `image@sha256:<manifest-digest>` 不可变引用。完整发布步骤与包地址见 [Docker 部署](docs/docker-deployment.md)。
+只有 `main` 分支会发布候选镜像；dev、PR 和其他分支不会写入 GHCR。候选镜像使用 `<service>-sha-<full-commit>`，三镜像都通过平台、OCI revision 和 Trivy 门禁后才会移动 `<service>-main`。当 `deploy/IMAGE_VERSION` 变更或手动选择正式发布时，工作流把同一提交的三个 digest 晋级为不可变的 `<service>-main-v<version>`，创建匹配的 `v<version>` Tag 与 GitHub Release。正式部署应使用 Release 清单中的 `image@sha256:<manifest-digest>` 不可变引用。完整发布步骤与迁移说明见 [Docker 部署](docs/docker-deployment.md)。
+
+生产环境使用只拉取预构建镜像的 Compose：
+
+```bash
+cp .env.example .env
+# 在 .env 中设置生产密钥和 Release 清单中的三个 image@sha256 引用
+docker compose -f deploy/production/compose.yml pull
+docker compose -f deploy/production/compose.yml up -d
+```
 
 默认访问地址：
 

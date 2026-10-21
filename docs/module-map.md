@@ -15,7 +15,7 @@
 | --- | --- |
 | 环境变量 | `.env.example`、`docker-compose.yml`、`docker-compose.full.yml`、`docs/env.md`、`docs/development.md`、`docs/docker-deployment.md` |
 | 启动命令 / pnpm 脚本 | `package.json`、`README.md`、`README.en.md`、`docs/development.md`、`.github/workflows/*.yml` |
-| Docker 部署 / 镜像发布 | `deploy/IMAGE_VERSION`、`docker-compose.full.yml`、服务 Dockerfile、`.env.example`、`docs/env.md`、`docs/docker-deployment.md`、`.github/workflows/docker.yml`、`.github/workflows/container-images.yml` |
+| Docker 部署 / 镜像发布 | `deploy/IMAGE_VERSION`、`docker-compose.full.yml`、`deploy/production/compose.yml`、服务 Dockerfile、`.env.example`、`docs/env.md`、`docs/docker-deployment.md`、`scripts/release/validate-image-version.sh`、`scripts/release/validate-release-version.mjs`、`.github/workflows/docker.yml`、`.github/workflows/container-images.yml`、`.github/workflows/release.yml` |
 | 后端 API | `backend/internal/api`、对应 handler/service/dto、`docs/api.md`、`admin/src/services`、`admin/src/types`、相关页面 |
 | 统一返回 / 错误码 | `backend/internal/pkg/response`、所有调用方、`docs/api.md`、前端错误处理 |
 | 管理端页面 | `admin/config/routes.ts`、`admin/src/pages`、`admin/src/services`、`admin/src/types`、README 能力描述、相关 docs |

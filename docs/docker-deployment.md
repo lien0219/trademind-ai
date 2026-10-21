@@ -30,7 +30,7 @@ docker compose -f docker-compose.full.yml up -d --build
 
 ## GHCR 预构建镜像
 
-`Container Images` GitHub Actions 工作流负责 main 验证构建与正式 Tag 发布。只有 `main` 在镜像相关源码变化时自动生成验证镜像；`dev`、`feat/*`、`fix/*` 和 `release/*` 的 push 不发布镜像。`v<version>` Git Tag 通过版本与 `main` 归属校验后生成正式镜像。三个服务镜像统一发布到一个容器包：
+`Container Images` GitHub Actions 工作流只允许从 `main` 发布。dev、PR、feature/fix/release 分支和非 main 的手动运行都会被拒绝；这些分支继续由既有 CI 做构建与测试。main 发布还必须通过工作流内的质量门禁（工作流策略、Admin/Collector 构建、Go 单元测试与构建），再通过三个镜像的平台、OCI revision 和 Trivy 门禁。数据库/Redis 集成和 Admin E2E 仍由既有 CI 工作流负责。三个服务镜像统一发布到一个容器包：
 
 ```text
 ghcr.io/lien0219/trademind
@@ -42,11 +42,9 @@ backend、admin、collector 仍是三个独立镜像，各自拥有多架构 man
 
 | 标签 | 更新规则 | 用途 |
 | --- | --- | --- |
-| `<service>-main` | main 每次构建更新 | 跟随 main，例如 `backend-main`。 |
-| `<service>-main-v<version>` | main 每次构建更新；版本文件变化后切换标签 | 标识 main 当前版本，例如 `admin-main-v0.3.0`。 |
-| `<service>-sha-<full-commit>` | main 与正式 Tag 构建均写入 | 按服务和提交定位镜像；它仍是可变 tag，不替代 manifest digest。 |
-| `<service>-v<version>`、`<service>-<version>` | 仅通过校验的同名 Git Tag 发布 | 正式版本标签，例如 `collector-v0.3.0` 与 `collector-0.3.0`。 |
-| `<service>-latest` | 仅通过校验的正式 Git Tag 更新 | 各服务最新正式版本，不由普通 main 合并更新。 |
+| `<service>-sha-<full-commit>` | 每个 main 候选构建先写入 | 三个服务分别按完整提交定位，必须通过平台、revision 和 Trivy 门禁。 |
+| `<service>-main` | 三个候选镜像都验证通过后移动 | 可移动的 main 验证标签，不用于不可变生产部署。 |
+| `<service>-main-v<version>` | 正式版本晋级时创建且不覆盖 | 版本与 main 提交绑定的不可变正式引用，例如 `admin-main-v0.3.0`。 |
 
 `<service>` 为 `backend`、`admin` 或 `collector`。使用 Compose 从统一 Package 拉取同一版本的完整服务组：
 
@@ -63,20 +61,12 @@ docker compose -f docker-compose.full.yml up -d --no-build
 
 ### 正式发布
 
-1. 在 `release/*` 更新 `deploy/IMAGE_VERSION`、Changelog 和部署说明，经 PR 合并到 `main`。
-2. 等待 `main` 的 CI 完成并完成人工验收。
-3. 从已更新的 `main` 提交创建与版本文件完全一致的 annotated Tag 并推送：
+1. 在 `dev` 更新 `deploy/IMAGE_VERSION`、Changelog 和部署说明，通过既有流程合并到 `main`；版本必须是唯一的 Docker tag-safe SemVer。
+2. 等待 main 的 CI、镜像构建、平台/revision 校验和 Trivy 门禁完成，并完成人工验收。
+3. 在 `main` 的 Container Images 工作流中选择 `workflow_dispatch` 的 `publish_release=true`，或让版本文件变更触发正式候选流程。工作流会比较已有版本 Tag，拒绝版本回退；它还使用同一提交的三个已验证 digest，拒绝已被其他提交使用的 Tag/版本镜像，并创建 `v<version>` annotated Tag 与 GitHub Release。
+4. Release 只在三个服务全部通过后生成；失败时保留候选 digest，可从同一提交安全重试，不会显示为成功 Release。正式标签只有 `<service>-main-v<version>`，不会生成 `*-latest` 或其他重复别名。
 
-```bash
-git switch main
-git pull --ff-only origin main
-git tag -a v0.3.0 -m "TradeMind v0.3.0"
-git push origin v0.3.0
-```
-
-Tag 必须严格为 `v<deploy/IMAGE_VERSION>`，并指向已包含在远程 `main` 中的提交；否则工作流直接失败。正式 Tag 为每个服务发布 `<service>-v0.3.0`、`<service>-0.3.0`、`<service>-sha-<full-commit>` 和 `<service>-latest`，不会自动部署、切流或创建 GitHub Release。应为 `v*` 配置 Tag 保护，禁止强制移动或删除已发布版本。
-
-Docker tag 均可移动。需要严格可复现的部署时，从工作流 Summary 或 GHCR Package 页面取得三个 manifest digest，并使用完整 `image@sha256:<digest>` 引用：
+需要严格可复现的部署时，使用 Release 清单中的完整 `image@sha256:<digest>` 引用：
 
 ```env
 TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind@sha256:<backend-manifest-digest>
@@ -92,6 +82,33 @@ P10_ADMIN_IMAGE=ghcr.io/lien0219/trademind@sha256:<admin-manifest-digest>
 ```
 
 公开仓库首次生成统一 Package 后，维护者需要在该 Package 的设置中确认可见性为 Public；工作流只使用仓库自带的 `GITHUB_TOKEN` 写入 GHCR，不保存 PAT 或镜像仓库密码。若 Package 仍为私有，拉取前使用具有 `read:packages` 权限的凭据登录 `ghcr.io`。迁移前的三个旧 Package 不会被工作流自动删除，确认不再被部署引用后再由维护者在 GitHub Package 设置中清理。
+
+### 生产 Compose
+
+`deploy/production/compose.yml` 只使用预构建镜像，不含 `build`、源码挂载或镜像默认值。把 Release 清单中的三个 digest 写入运行时 `.env`，再启动：
+
+```env
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind@sha256:<backend-manifest-digest>
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind@sha256:<admin-manifest-digest>
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind@sha256:<collector-manifest-digest>
+```
+
+```bash
+docker compose -f deploy/production/compose.yml config
+docker compose -f deploy/production/compose.yml pull
+docker compose -f deploy/production/compose.yml up -d
+```
+
+生产 Compose 的 PostgreSQL、Redis、上传目录和 Collector 浏览器 Profile 使用独立命名卷；健康检查和启动依赖继续生效。升级只替换三项镜像引用并执行 `pull`/`up -d`，不得使用 `down -v`。回滚时恢复上一份已验证的 digest 清单并重复相同命令，数据库和业务卷保持不变。
+
+### 旧 Package 迁移清单
+
+统一发布不会删除历史 `trademind-backend`、`trademind-admin` 或 `trademind-collector` Package，也不会移动其标签。维护者应按以下顺序迁移：
+
+1. 列出生产、预生产和备份脚本中的旧 Package 引用，替换为统一 Package 的 digest 引用。
+2. 通过 `deploy/production/compose.yml` 和预生产 Compose 完成一次隔离启动与健康检查。
+3. 在 GitHub Package 页面确认旧 Package 不再被部署、回滚或外部脚本引用，并保留必要的历史 Release 记录。
+4. 由维护者在 GitHub Package 设置中手动归档或删除旧 Package；工作流不执行删除操作。
 
 ## 默认访问地址
 

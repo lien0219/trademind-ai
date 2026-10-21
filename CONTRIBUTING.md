@@ -32,7 +32,7 @@ git switch -c feat/your-feature-name
 - 不提交 `.env`、密钥、Token、Cookie、真实平台凭据或生产数据。
 - 不新增一次性阶段 gate、长期运行证据或自动扩大的 baseline。
 
-只有镜像相关变更合并到 `main` 后，GitHub Actions 才会自动把 backend、admin、collector 验证镜像发布到统一的 `trademind` GHCR Package，并以服务前缀区分标签；开发分支 push 不发布容器镜像。版本 PR 合并到 `main` 且 CI 与人工验收完成后，维护者推送与 `deploy/IMAGE_VERSION` 一致的 `v<version>` Tag；工作流校验 Tag 位于 `main` 后发布各服务正式版本标签和服务 `latest`。预生产和正式部署必须使用工作流输出的 `image@sha256:<manifest-digest>` 引用。镜像发布不代表已经部署或启用真实平台能力。
+只有镜像相关变更合并到 `main` 后，GitHub Actions 才会把 backend、admin、collector 候选镜像发布到统一的 `trademind` GHCR Package；开发分支、PR 和非 main 手动运行不会写入 GHCR。三个候选都通过平台、OCI revision 和 Trivy 门禁后，普通 main 构建才移动服务 `main` 标签。版本文件变更或明确的 main 手动发布会使用同一提交的 digest 创建不可覆盖的 `<service>-main-v<version>` 正式标签、匹配的 `v<version>` Git Tag 和 GitHub Release。预生产和正式部署必须使用 Release 清单中的 `image@sha256:<manifest-digest>` 引用。镜像发布不代表已经部署或启用真实平台能力。
 
 ## Commit Message
 

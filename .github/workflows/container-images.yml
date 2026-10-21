@@ -2,11 +2,15 @@ name: Container Images
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish deploy/IMAGE_VERSION as a release (main only)"
+        required: false
+        default: false
+        type: boolean
   push:
     branches:
       - main
-    tags:
-      - "v*"
     paths:
       - "deploy/IMAGE_VERSION"
       - "backend/**"
@@ -17,20 +21,24 @@ on:
       - "pnpm-workspace.yaml"
       - ".npmrc"
       - "docker-compose.full.yml"
+      - "deploy/production/compose.yml"
       - ".dockerignore"
       - "**/Dockerfile"
       - "**/.dockerignore"
       - "scripts/patch-pro-field-antd-select.mjs"
       - "scripts/release/validate-image-version.sh"
+      - "scripts/release/validate-release-version.mjs"
       - ".github/workflows/container-images.yml"
+      - ".github/workflows/release.yml"
 
 permissions:
   contents: read
-  packages: write
 
+# Keep production publishing ordered. A completed older run must not move a
+# production tag after a newer run has been accepted.
 concurrency:
-  group: container-images-${{ github.ref }}
-  cancel-in-progress: true
+  group: trademind-container-publish-main
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -41,11 +49,10 @@ jobs:
     name: Resolve image metadata
     runs-on: ubuntu-latest
     outputs:
-      build_version: ${{ steps.image.outputs.build_version }}
-      is_release: ${{ steps.image.outputs.is_release }}
       namespace: ${{ steps.image.outputs.namespace }}
-      ref_slug: ${{ steps.image.outputs.ref_slug }}
       version: ${{ steps.image.outputs.version }}
+      commit: ${{ steps.image.outputs.commit }}
+      publish_release: ${{ steps.image.outputs.publish_release }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -56,73 +63,52 @@ jobs:
         id: image
         shell: bash
         env:
-          REF_TYPE: ${{ github.ref_type }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_RELEASE: ${{ inputs.publish_release || false }}
         run: |
           set -Eeuo pipefail
 
-          if [[ "$REF_TYPE" != "branch" && "$REF_TYPE" != "tag" ]]; then
-            echo "::error::Container images can only be published from branches or version tags"
-            exit 1
-          fi
-
-          if [[ "$REF_TYPE" == "branch" && "$GITHUB_REF_NAME" != "main" ]]; then
-            echo "::error::Container images can only be published from the main branch or a validated version tag"
+          if [[ "${GITHUB_REF_TYPE}" != "branch" || "$GITHUB_REF_NAME" != "main" ]]; then
+            echo "::error::Container image publishing is allowed only from main"
             exit 1
           fi
 
           version="$(bash scripts/release/validate-image-version.sh)"
-          ref_slug="$(printf '%s' "$GITHUB_REF_NAME" \
-            | tr '[:upper:]' '[:lower:]' \
-            | sed -E 's/[^a-z0-9_.-]+/-/g; s/^[.-]+//; s/[.-]+$//; s/-+/-/g' \
-            | cut -c1-72)"
           namespace="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
-
-          if [[ -z "$ref_slug" || -z "$namespace" ]]; then
-            echo "::error::Unable to resolve a valid image ref or namespace"
+          if [[ -z "$namespace" ]]; then
+            echo "::error::Unable to resolve the GHCR namespace"
             exit 1
           fi
 
-          short_sha="${GITHUB_SHA:0:12}"
-          is_release=false
-          build_version="${ref_slug}-v${version}-${short_sha}"
-
-          if [[ "$REF_TYPE" == "tag" ]]; then
-            expected_tag="v${version}"
-            if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
-              echo "::error::Release tag $GITHUB_REF_NAME must exactly match deploy/IMAGE_VERSION as $expected_tag"
-              exit 1
+          publish_release=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$MANUAL_RELEASE" == "true" ]]; then
+            publish_release=true
+          elif [[ "$EVENT_NAME" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+            if ! git diff --quiet "${{ github.event.before }}" "$GITHUB_SHA" -- deploy/IMAGE_VERSION; then
+              publish_release=true
             fi
-
-            git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-            release_commit="$(git rev-parse "${GITHUB_REF}^{commit}")"
-            if ! git merge-base --is-ancestor "$release_commit" refs/remotes/origin/main; then
-              echo "::error::Release tag $GITHUB_REF_NAME must point to a commit contained in main"
-              exit 1
-            fi
-
-            is_release=true
-            build_version="$expected_tag"
           fi
 
-          echo "build_version=$build_version" >> "$GITHUB_OUTPUT"
-          echo "is_release=$is_release" >> "$GITHUB_OUTPUT"
           echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
-          echo "ref_slug=$ref_slug" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "publish_release=$publish_release" >> "$GITHUB_OUTPUT"
 
           {
             echo "## Container image metadata"
-            echo "- Source ref: \`$GITHUB_REF_NAME\` (\`$REF_TYPE\`)"
-            echo "- Image version: \`v$version\`"
-            echo "- Build version: \`$build_version\`"
-            echo "- Stable release: \`$is_release\`"
-            echo "- Commit tag: \`sha-$GITHUB_SHA\`"
+            echo "- Source ref: \`$GITHUB_REF_NAME\`"
+            echo "- Source commit: \`$GITHUB_SHA\`"
+            echo "- Image version: \`$version\`"
+            echo "- Publish formal release: \`$publish_release\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
-    name: Publish ${{ matrix.service }} image
+    name: Build and verify ${{ matrix.service }} image
     needs: image_metadata
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -146,6 +132,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.image_metadata.outputs.commit }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -160,25 +148,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate image metadata
+      - name: Generate candidate image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}
-            type=raw,value=${{ matrix.service }}-sha-${{ github.sha }}
-            type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }}-v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}
-            type=raw,value=${{ matrix.service }}-v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}
-            type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}
-            type=raw,value=${{ matrix.service }}-latest,enable=${{ needs.image_metadata.outputs.is_release == 'true' }}
+            type=raw,value=${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
           labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.image_metadata.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.image_metadata.outputs.version }}
             org.opencontainers.image.title=${{ matrix.title }}
             org.opencontainers.image.description=${{ matrix.description }}
-            org.opencontainers.image.version=${{ needs.image_metadata.outputs.build_version }}
             org.opencontainers.image.licenses=Apache-2.0
 
-      - name: Build and push image
+      - name: Build and push candidate image
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -189,18 +174,240 @@ jobs:
           pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }}
+          cache-from: type=gha,scope=trademind-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=trademind-${{ matrix.service }}
           provenance: mode=max
           sbom: true
 
-      - name: Publish summary
+      - name: Verify candidate platforms and source revision
+        shell: bash
+        env:
+          CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}:${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
+          EXPECTED_REVISION: ${{ needs.image_metadata.outputs.commit }}
+        run: |
+          set -Eeuo pipefail
+          raw="$(docker buildx imagetools inspect --raw "$CANDIDATE_IMAGE")"
+          jq -e '[.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64"))] | length == 2' <<<"$raw" >/dev/null
+          docker pull --platform linux/amd64 "$CANDIDATE_IMAGE" >/dev/null
+          revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$CANDIDATE_IMAGE")"
+          if [[ "$revision" != "$EXPECTED_REVISION" ]]; then
+            echo "::error::OCI revision $revision does not match $EXPECTED_REVISION"
+            exit 1
+          fi
+
+      - name: Scan candidate image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}:${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Record image digest
+        id: digest
+        shell: bash
+        env:
+          CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}:${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
+        run: |
+          set -Eeuo pipefail
+          digest="${{ steps.build.outputs.digest }}"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          mkdir -p image-metadata
+          {
+            echo "service=${{ matrix.service }}"
+            echo "image=$CANDIDATE_IMAGE"
+            echo "digest=$digest"
+            echo "revision=${{ needs.image_metadata.outputs.commit }}"
+          } > "image-metadata/${{ matrix.service }}.env"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}-${{ needs.image_metadata.outputs.commit }}
+          path: image-metadata/${{ matrix.service }}.env
+          if-no-files-found: error
+          retention-days: 7
+
+  quality_gate:
+    name: Main quality gate
+    needs: image_metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.image_metadata.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify workflow policy
+        run: pnpm workflow:verify
+
+      - name: Build Admin
+        run: pnpm build:admin
+
+      - name: Build Collector
+        run: pnpm build:collector
+
+      - name: Test and build backend
+        working-directory: backend
+        run: |
+          go test ./...
+          go build ./...
+
+  verify:
+    name: Verify complete image set
+    needs: [image_metadata, publish, quality_gate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      backend_digest: ${{ steps.collect.outputs.backend_digest }}
+      admin_digest: ${{ steps.collect.outputs.admin_digest }}
+      collector_digest: ${{ steps.collect.outputs.collector_digest }}
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-*-${{ needs.image_metadata.outputs.commit }}
+          path: image-metadata
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate all image digests
+        id: collect
+        shell: bash
+        env:
+          NAMESPACE: ${{ needs.image_metadata.outputs.namespace }}
+          COMMIT: ${{ needs.image_metadata.outputs.commit }}
+        run: |
+          set -Eeuo pipefail
+          for service in backend admin collector; do
+            file="image-metadata/$service.env"
+            test -s "$file" || { echo "::error::Missing digest record for $service"; exit 1; }
+            grep -q "^service=$service$" "$file"
+            digest="$(sed -n 's/^digest=//p' "$file")"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Invalid $service digest"; exit 1; }
+            image="ghcr.io/$NAMESPACE/trademind:$service-sha-$COMMIT"
+            docker buildx imagetools inspect "$image@$digest" >/dev/null
+            echo "${service}_digest=$digest" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Publish verification summary
         shell: bash
         run: |
           {
-            echo "### ${{ matrix.title }}"
-            echo '```text'
-            echo '${{ steps.meta.outputs.tags }}'
-            echo '```'
-            echo "- Immutable reference: \`${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}\`"
+            echo "## Candidate image verification"
+            for service in backend admin collector; do
+              digest="$(sed -n 's/^digest=//p' "image-metadata/$service.env")"
+              echo "- $service: \`$digest\`"
+            done
+            echo "- All three images passed platform, revision, and vulnerability gates."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  promote_main:
+    name: Move main image tags
+    needs: [image_metadata, verify]
+    if: ${{ needs.image_metadata.outputs.publish_release != 'true' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: trademind-production-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout source commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.image_metadata.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote verified digests to main tags
+        shell: bash
+        env:
+          NAMESPACE: ${{ needs.image_metadata.outputs.namespace }}
+          COMMIT: ${{ needs.image_metadata.outputs.commit }}
+          BACKEND_DIGEST: ${{ needs.verify.outputs.backend_digest }}
+          ADMIN_DIGEST: ${{ needs.verify.outputs.admin_digest }}
+          COLLECTOR_DIGEST: ${{ needs.verify.outputs.collector_digest }}
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --no-tags
+          current_main="$(git rev-parse refs/remotes/origin/main)"
+          if [[ "$current_main" != "$COMMIT" ]]; then
+            echo "::error::Refusing to move main tags for stale commit $COMMIT; current origin/main is $current_main"
+            exit 1
+          fi
+          for service in backend admin collector; do
+            case "$service" in
+              backend) digest="$BACKEND_DIGEST" ;;
+              admin) digest="$ADMIN_DIGEST" ;;
+              collector) digest="$COLLECTOR_DIGEST" ;;
+            esac
+            source="ghcr.io/$NAMESPACE/trademind:$service-sha-$COMMIT@$digest"
+            target="ghcr.io/$NAMESPACE/trademind:$service-main"
+            docker buildx imagetools create "$source" --tag "$target"
+            echo "Promoted $source to $target"
+          done
+
+  release:
+    name: Create Git tag and GitHub Release
+    needs: [image_metadata, verify]
+    if: ${{ needs.image_metadata.outputs.publish_release == 'true' }}
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.image_metadata.outputs.version }}
+      commit_sha: ${{ needs.image_metadata.outputs.commit }}
+      backend_digest: ${{ needs.verify.outputs.backend_digest }}
+      admin_digest: ${{ needs.verify.outputs.admin_digest }}
+      collector_digest: ${{ needs.verify.outputs.collector_digest }}
+    secrets: inherit

@@ -157,18 +157,27 @@ Copy-Item .env.example .env
 docker compose -f docker-compose.full.yml up -d --build
 ```
 
-GitHub Actions publishes multi-architecture GHCR images for backend, admin, and collector. To use prebuilt images:
+GitHub Actions publishes backend, admin, and collector to the single GHCR package `ghcr.io/lien0219/trademind`. The full Compose file still supports local builds; to use prebuilt images:
 
 ```bash
 # Set COLLECTOR_SERVICE_TOKEN in .env, then override the image references below
-TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main-v0.3.0
-TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main-v0.3.0
-TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main-v0.3.0
+TRADEMIND_BACKEND_IMAGE=ghcr.io/lien0219/trademind:backend-main
+TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind:admin-main
+TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind:collector-main
 docker compose -f docker-compose.full.yml pull backend admin collector
 docker compose -f docker-compose.full.yml up -d --no-build
 ```
 
-Only image-related changes on `main` automatically publish validation images. The shared GHCR package uses `backend-*`, `admin-*`, and `collector-*` tags to keep the service images separate, and ordinary builds do not move the service `latest` tags. After the release change is merged into `main`, push a `v<version>` Git tag matching `deploy/IMAGE_VERSION`; only that validated release publishes service version and service `latest` tags. Pin the workflow's `image@sha256:<manifest-digest>` reference for controlled deployments. See [Docker deployment](docs/docker-deployment.md) for the release procedure and package URL.
+Only `main` publishes candidate images; dev, pull requests, and other branches do not write to GHCR. Candidates use `<service>-sha-<full-commit>`, and all three services must pass platform, OCI revision, and Trivy gates before `<service>-main` moves. When `deploy/IMAGE_VERSION` changes or a maintainer explicitly selects a formal release, the workflow promotes the three digests from that commit to the immutable `<service>-main-v<version>` tags, then creates the matching `v<version>` tag and GitHub Release. Use the Release manifest's immutable `image@sha256:<manifest-digest>` references for production. See [Docker deployment](docs/docker-deployment.md) for the release procedure and migration notes.
+
+Production uses a pull-only Compose file:
+
+```bash
+cp .env.example .env
+# Set production secrets and the three image@sha256 references from the Release manifest
+docker compose -f deploy/production/compose.yml pull
+docker compose -f deploy/production/compose.yml up -d
+```
 
 Default URLs:
 

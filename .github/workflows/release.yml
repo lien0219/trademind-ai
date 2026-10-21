@@ -1,0 +1,271 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "SemVer from deploy/IMAGE_VERSION"
+        required: true
+        type: string
+      commit_sha:
+        description: "Exact main commit whose candidate images passed validation"
+        required: true
+        type: string
+      backend_digest:
+        description: "Verified backend candidate manifest digest"
+        required: true
+        type: string
+      admin_digest:
+        description: "Verified admin candidate manifest digest"
+        required: true
+        type: string
+      collector_digest:
+        description: "Verified collector candidate manifest digest"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: trademind-production-publish
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: trademind
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_COMMIT: ${{ inputs.commit_sha }}
+  BACKEND_DIGEST: ${{ inputs.backend_digest }}
+  ADMIN_DIGEST: ${{ inputs.admin_digest }}
+  COLLECTOR_DIGEST: ${{ inputs.collector_digest }}
+
+jobs:
+  release:
+    name: Promote images and create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_COMMIT }}
+
+      - name: Validate release provenance
+        shell: bash
+        env:
+          GHCR_NAMESPACE: ${{ github.repository_owner }}
+          GHCR_IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          expected_version="$(bash scripts/release/validate-image-version.sh)"
+          if [[ "$RELEASE_VERSION" != "$expected_version" ]]; then
+            echo "::error::Requested version $RELEASE_VERSION does not match deploy/IMAGE_VERSION ($expected_version)"
+            exit 1
+          fi
+          release_commit="$(git rev-parse HEAD)"
+          if [[ "$release_commit" != "$RELEASE_COMMIT" ]]; then
+            echo "::error::Checked out commit $release_commit does not match $RELEASE_COMMIT"
+            exit 1
+          fi
+          git fetch --tags origin
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "$release_commit" origin/main; then
+            echo "::error::Release commit must be contained in origin/main"
+            exit 1
+          fi
+          node scripts/release/validate-release-version.mjs "$RELEASE_VERSION"
+          tag="v$RELEASE_VERSION"
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            existing="$(git rev-parse "$tag^{commit}")"
+            if [[ "$existing" != "$RELEASE_COMMIT" ]]; then
+              echo "::error::$tag already points to $existing, expected $RELEASE_COMMIT"
+              exit 1
+            fi
+          fi
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verify candidate image digests
+        env:
+          NAMESPACE: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for service in backend admin collector; do
+            case "$service" in
+              backend) digest="$BACKEND_DIGEST" ;;
+              admin) digest="$ADMIN_DIGEST" ;;
+              collector) digest="$COLLECTOR_DIGEST" ;;
+            esac
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Invalid $service digest"; exit 1; }
+            image="$REGISTRY/$NAMESPACE/$IMAGE_NAME:$service-sha-$RELEASE_COMMIT"
+            docker buildx imagetools inspect "$image@$digest" >/dev/null
+          done
+
+      - name: Protect immutable release coordinates
+        env:
+          NAMESPACE: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tag="v$RELEASE_VERSION"
+          image="$REGISTRY/$NAMESPACE/$IMAGE_NAME"
+
+          for service in backend admin collector; do
+            case "$service" in
+              backend) digest="$BACKEND_DIGEST" ;;
+              admin) digest="$ADMIN_DIGEST" ;;
+              collector) digest="$COLLECTOR_DIGEST" ;;
+            esac
+            formal="$image:$service-main-v$RELEASE_VERSION"
+            if inspect_output="$(docker buildx imagetools inspect "$formal" 2>&1)"; then
+              existing="$(awk '/^Digest:/{print $2; exit}' <<<"$inspect_output")"
+              if [[ "$existing" != "$digest" ]]; then
+                echo "::error::Immutable image $formal already points to $existing, expected $digest"
+                exit 1
+              fi
+              echo "Verified existing immutable image $formal at $digest"
+            elif grep -Eiq 'manifest unknown|no such manifest|not found' <<<"$inspect_output"; then
+              echo "Confirmed immutable image $formal is unused"
+            else
+              echo "::error::Could not verify whether immutable image $formal exists"
+              echo "$inspect_output"
+              exit 1
+            fi
+          done
+
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            echo "Reusing existing $tag at $RELEASE_COMMIT after an idempotent retry"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" "$RELEASE_COMMIT" -m "TradeMind $tag" -m "Automated release from main commit $RELEASE_COMMIT."
+            git push origin "refs/tags/$tag"
+          fi
+          for service in backend admin collector; do
+            case "$service" in
+              backend) digest="$BACKEND_DIGEST" ;;
+              admin) digest="$ADMIN_DIGEST" ;;
+              collector) digest="$COLLECTOR_DIGEST" ;;
+            esac
+            image="$REGISTRY/$NAMESPACE/$IMAGE_NAME"
+            formal="$image:$service-main-v$RELEASE_VERSION"
+            if ! docker buildx imagetools inspect "$formal" >/dev/null 2>&1; then
+              docker buildx imagetools create "$image:$service-sha-$RELEASE_COMMIT@$digest" --tag "$formal"
+            fi
+          done
+
+      - name: Promote verified release images
+        env:
+          NAMESPACE: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --no-tags
+          current_main="$(git rev-parse refs/remotes/origin/main)"
+          if [[ "$current_main" != "$RELEASE_COMMIT" ]]; then
+            echo "::warning::Current origin/main is $current_main; keeping movable main tags unchanged instead of regressing them to $RELEASE_COMMIT"
+            exit 0
+          fi
+          for service in backend admin collector; do
+            case "$service" in
+              backend) digest="$BACKEND_DIGEST" ;;
+              admin) digest="$ADMIN_DIGEST" ;;
+              collector) digest="$COLLECTOR_DIGEST" ;;
+            esac
+            image="$REGISTRY/$NAMESPACE/$IMAGE_NAME"
+            source="$image:$service-sha-$RELEASE_COMMIT@$digest"
+            docker buildx imagetools create "$source" --tag "$image:$service-main"
+          done
+
+      - name: Prepare release notes
+        env:
+          NAMESPACE: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          release_tag="v$RELEASE_VERSION"
+          {
+            echo "# TradeMind $release_tag"
+            echo
+            echo "Source Commit: \`$RELEASE_COMMIT\`"
+            echo
+            echo "## Container Images"
+            echo
+            echo "- Backend: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME:backend-main-v$RELEASE_VERSION@$BACKEND_DIGEST\`"
+            echo "- Admin: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME:admin-main-v$RELEASE_VERSION@$ADMIN_DIGEST\`"
+            echo "- Collector: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME:collector-main-v$RELEASE_VERSION@$COLLECTOR_DIGEST\`"
+            echo
+            echo "Supported Platforms: \`linux/amd64\`, \`linux/arm64\`"
+            echo
+            echo "## Changes"
+            awk -v version="$RELEASE_VERSION" 'BEGIN { heading = "## v" version } $0 == heading { found = 1; next } found && /^## / { exit } found { print }' CHANGELOG.md
+            echo
+            echo "## Deployment"
+            echo
+            echo 'Use `deploy/production/compose.yml` with the three immutable `image@sha256` references above and inject production secrets at runtime.'
+            echo
+            echo "## Rollback"
+            echo
+            echo 'Restore the previous verified release manifest and run `docker compose -f deploy/production/compose.yml up -d` without removing persistent volumes.'
+          } > release-body.md
+
+      - name: Create or update GitHub Release
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: v${{ env.RELEASE_VERSION }}
+          RELEASE_COMMIT: ${{ env.RELEASE_COMMIT }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs');
+            const tag = process.env.RELEASE_TAG;
+            const body = fs.readFileSync('release-body.md', 'utf8');
+            let release;
+            try {
+              release = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                target_commitish: process.env.RELEASE_COMMIT,
+                name: `TradeMind ${tag}`,
+                body,
+                draft: false,
+                prerelease: false,
+                generate_release_notes: false,
+              });
+              core.info(`Created release ${release.data.html_url}`);
+              return;
+            }
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.data.id,
+              name: `TradeMind ${tag}`,
+              body,
+              draft: false,
+              prerelease: false,
+            });
+            core.info(`Updated existing release ${release.data.html_url} after an idempotent retry`);
