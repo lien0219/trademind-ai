@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(__dirname, '..', '..');
-const workflow = readFileSync(path.join(root, '.github', 'workflows', 'container-images.yml'), 'utf8');
+const workflow = readFileSync(path.join(root, '.github', 'workflows', 'container-images.yml'), 'utf8').replace(/\r\n/gu, '\n');
 const releaseWorkflow = readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8');
 const productionCompose = readFileSync(path.join(root, 'deploy', 'production', 'compose.yml'), 'utf8');
 const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
@@ -65,7 +65,7 @@ describe('container image release workflow', () => {
     expect(workflow).toContain('org.opencontainers.image.revision=${{ needs.image_metadata.outputs.commit }}');
     expect(workflow).toContain('provenance: mode=max');
     expect(workflow).toContain('sbom: true');
-    expect(workflow).toContain('aquasecurity/trivy-action@0.28.0');
+    expect(workflow).toContain('aquasecurity/trivy-action@v0.28.0');
   });
 
   it('requires all three verified digests before moving main or starting a release', () => {
