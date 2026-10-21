@@ -172,6 +172,8 @@ docker compose -f docker-compose.full.yml up -d --build
 
 这三个变量只供 Docker Compose 解析镜像地址，不会作为业务配置传入容器。GHCR 标签、manifest digest 和版本来源见 [Docker 部署说明](docker-deployment.md#ghcr-预构建镜像)。
 
+生产部署使用 `deploy/production/compose.yml`，不提供本地镜像默认值，也不执行 Docker build。三个 `TRADEMIND_*_IMAGE` 变量必须是同一份 Release 清单中的 `ghcr.io/lien0219/trademind@sha256:<manifest-digest>`；生产校验脚本会拒绝旧 Package、`local/*` 和可移动标签。数据库、Redis、上传文件和 Collector 浏览器状态使用生产专用命名卷，密码、JWT、主密钥和 Collector Token 只在运行时注入。
+
 `.env.example` 支持以下宿主机端口覆盖：
 
 | 变量 | 默认 | 说明 |

@@ -1,0 +1,162 @@
+# TradeMind production runtime.
+# All three application images must come from the same validated release. Use
+# image@sha256:<manifest-digest> references for production; secrets are injected
+# through the host environment or the runtime-only .env file.
+name: trademind-production
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - trademind_production_pg_data:/var/lib/postgresql/data
+    networks: [trademind]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["sh", "-ec", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - trademind_production_redis_data:/data
+    networks: [trademind]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  collector:
+    image: ${TRADEMIND_COLLECTOR_IMAGE:?TRADEMIND_COLLECTOR_IMAGE must be an immutable release image}
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      COLLECTOR_HTTP_ADDR: ":3001"
+      COLLECTOR_SERVICE_TOKEN: ${COLLECTOR_SERVICE_TOKEN:?COLLECTOR_SERVICE_TOKEN is required}
+      COLLECTOR_MAX_REQUEST_BODY_BYTES: ${COLLECTOR_MAX_REQUEST_BODY_BYTES:-1048576}
+      COLLECTOR_REQUEST_TIMEOUT_MS: ${COLLECTOR_REQUEST_TIMEOUT_MS:-15000}
+      COLLECTOR_HEADERS_TIMEOUT_MS: ${COLLECTOR_HEADERS_TIMEOUT_MS:-10000}
+      COLLECTOR_BROWSER_PROFILE_DIR: /workspace/data/browser-profiles
+      COLLECTOR_STORAGE_STATE_DIR: /workspace/data/storage-states
+      NODE_ENV: production
+    expose:
+      - "3001"
+    volumes:
+      - trademind_production_collector_profiles:/workspace/data/browser-profiles
+      - trademind_production_collector_storage_states:/workspace/data/storage-states
+    networks: [trademind]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('node:http').get('http://127.0.0.1:3001/health', (response) => { response.resume(); if (response.statusCode >= 400) process.exitCode = 1; }).on('error', () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  backend:
+    image: ${TRADEMIND_BACKEND_IMAGE:?TRADEMIND_BACKEND_IMAGE must be an immutable release image}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - ../../.env
+    environment:
+      APP_ENV: production
+      APP_HTTP_ADDR: ":8080"
+      GIN_MODE: release
+      ENABLE_DEBUG_ENDPOINTS: "false"
+      ENABLE_DEV_ROUTES: "false"
+      ENABLE_DEMO_SEED: "false"
+      ENABLE_SWAGGER: "false"
+      OBSERVABILITY_ENVIRONMENT: production
+      HTTP_TRUSTED_PROXY_CIDRS: ${HTTP_TRUSTED_PROXY_CIDRS:?HTTP_TRUSTED_PROXY_CIDRS is required}
+      METRICS_ALLOWLIST_CIDRS: ${METRICS_ALLOWLIST_CIDRS:?METRICS_ALLOWLIST_CIDRS is required}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:?POSTGRES_DB is required}
+      DB_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      COLLECTOR_BASE_URL: http://collector:3001
+      COLLECTOR_SERVICE_TOKEN: ${COLLECTOR_SERVICE_TOKEN:?COLLECTOR_SERVICE_TOKEN is required}
+      APP_MASTER_KEY: ${APP_MASTER_KEY:?APP_MASTER_KEY is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      P10_CURRENT_ALLOWED_LEVEL: ${P10_CURRENT_ALLOWED_LEVEL:-L0}
+      P10_REAL_PROVIDER_ENABLED: ${P10_REAL_PROVIDER_ENABLED:-false}
+      P10_REAL_PLATFORM_NETWORK_ENABLED: ${P10_REAL_PLATFORM_NETWORK_ENABLED:-false}
+      P10_REAL_CREDENTIALS_ENABLED: ${P10_REAL_CREDENTIALS_ENABLED:-false}
+      P10_REAL_INVENTORY_READ_ENABLED: ${P10_REAL_INVENTORY_READ_ENABLED:-false}
+      P10_REAL_PRODUCT_DRAFT_WRITE_ENABLED: ${P10_REAL_PRODUCT_DRAFT_WRITE_ENABLED:-false}
+      P10_INVENTORY_MUTATION_ENABLED: ${P10_INVENTORY_MUTATION_ENABLED:-false}
+      P10_BACKGROUND_WORKER_ENABLED: ${P10_BACKGROUND_WORKER_ENABLED:-false}
+      P10_AUTOMATIC_RETRY_ENABLED: ${P10_AUTOMATIC_RETRY_ENABLED:-false}
+    ports:
+      - "${BACKEND_PUBLISH_PORT:-8080}:8080"
+    volumes:
+      - trademind_production_uploads:/app/data/uploads
+    networks: [trademind]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      collector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  admin:
+    image: ${TRADEMIND_ADMIN_IMAGE:?TRADEMIND_ADMIN_IMAGE must be an immutable release image}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${ADMIN_PUBLISH_PORT:-8000}:80"
+    networks: [trademind]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+networks:
+  trademind:
+    name: trademind-production
+
+volumes:
+  trademind_production_pg_data:
+    name: trademind-production-postgres
+  trademind_production_redis_data:
+    name: trademind-production-redis
+  trademind_production_uploads:
+    name: trademind-production-uploads
+  trademind_production_collector_profiles:
+    name: trademind-production-collector-profiles
+  trademind_production_collector_storage_states:
+    name: trademind-production-collector-storage-states

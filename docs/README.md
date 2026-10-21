@@ -6,6 +6,7 @@
 
 - [本地开发](development.md)
 - [Docker 部署](docker-deployment.md)
+- [生产镜像发布与迁移](docker-deployment.md#旧-package-迁移清单)
 - [环境变量](env.md)
 - [API 契约](api.md)
 - [ERP 扩展架构](ERP_ARCHITECTURE.md)

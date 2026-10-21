@@ -13,13 +13,17 @@ on:
       - dev
     paths:
       - "docker-compose*.yml"
+      - "deploy/production/compose.yml"
       - ".env.example"
       - "**/Dockerfile"
       - "**/.dockerignore"
       - "deploy/IMAGE_VERSION"
       - "scripts/release/validate-image-version.sh"
+      - "scripts/release/validate-release-version.mjs"
+      - "scripts/release/validate-production-image-references.sh"
       - ".github/workflows/docker.yml"
       - ".github/workflows/container-images.yml"
+      - ".github/workflows/release.yml"
   push:
     branches:
       - main
@@ -29,13 +33,17 @@ on:
       - "release/**"
     paths:
       - "docker-compose*.yml"
+      - "deploy/production/compose.yml"
       - ".env.example"
       - "**/Dockerfile"
       - "**/.dockerignore"
       - "deploy/IMAGE_VERSION"
       - "scripts/release/validate-image-version.sh"
+      - "scripts/release/validate-release-version.mjs"
+      - "scripts/release/validate-production-image-references.sh"
       - ".github/workflows/docker.yml"
       - ".github/workflows/container-images.yml"
+      - ".github/workflows/release.yml"
 
 jobs:
   compose-config:
@@ -56,3 +64,26 @@ jobs:
           # Compose interpolation only; this job validates configuration and starts no services.
           COLLECTOR_SERVICE_TOKEN: ci-compose-validation-token-0123456789abcdef0123456789abcdef
         run: docker compose -f docker-compose.full.yml config
+
+      - name: Validate production image reference policy
+        env:
+          TRADEMIND_BACKEND_IMAGE: ghcr.io/lien0219/trademind@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          TRADEMIND_ADMIN_IMAGE: ghcr.io/lien0219/trademind@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          TRADEMIND_COLLECTOR_IMAGE: ghcr.io/lien0219/trademind@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        run: bash scripts/release/validate-production-image-references.sh
+
+      - name: Validate production compose file
+        env:
+          POSTGRES_DB: trademind
+          POSTGRES_USER: trademind
+          POSTGRES_PASSWORD: ci-production-postgres-password
+          REDIS_PASSWORD: ci-production-redis-password
+          COLLECTOR_SERVICE_TOKEN: ci-production-collector-token-0123456789abcdef0123456789abcdef
+          APP_MASTER_KEY: ci-production-master-key-0123456789abcdef0123456789abcdef
+          JWT_SECRET: ci-production-jwt-secret-0123456789abcdef0123456789abcdef
+          HTTP_TRUSTED_PROXY_CIDRS: 127.0.0.1/32
+          METRICS_ALLOWLIST_CIDRS: 127.0.0.1/32
+          TRADEMIND_BACKEND_IMAGE: ghcr.io/lien0219/trademind@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          TRADEMIND_ADMIN_IMAGE: ghcr.io/lien0219/trademind@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          TRADEMIND_COLLECTOR_IMAGE: ghcr.io/lien0219/trademind@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        run: docker compose -f deploy/production/compose.yml config

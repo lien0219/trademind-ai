@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(__dirname, '..', '..');
 const workflow = readFileSync(path.join(root, '.github', 'workflows', 'container-images.yml'), 'utf8');
+const releaseWorkflow = readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+const productionCompose = readFileSync(path.join(root, 'deploy', 'production', 'compose.yml'), 'utf8');
 const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
   packageManager: string;
   scripts: Record<string, string>;
@@ -43,17 +45,15 @@ describe('container image release workflow', () => {
     }
   });
 
-  it('automatically publishes only main branch builds and v-prefixed release tags', () => {
-    expect(workflow).toContain('    branches:\n      - main\n    tags:');
+  it('publishes only from main and rejects branch/tag publishing outside that source', () => {
+    expect(workflow).toContain('    branches:\n      - main');
     expect(workflow).not.toContain('      - dev');
-    expect(workflow).not.toContain('      - "feat/**"');
-    expect(workflow).not.toContain('      - "fix/**"');
-    expect(workflow).not.toContain('      - "release/**"');
-    expect(workflow).toContain('    tags:\n      - "v*"');
-    expect(workflow).toContain('"$REF_TYPE" == "branch" && "$GITHUB_REF_NAME" != "main"');
+    expect(workflow).not.toContain('      - "v*"');
+    expect(workflow).toContain('"${GITHUB_REF_TYPE}" != "branch" || "$GITHUB_REF_NAME" != "main"');
+    expect(workflow).toContain('cancel-in-progress: false');
   });
 
-  it('publishes all service images under one GHCR package with isolated tag prefixes', () => {
+  it('uses one GHCR package and commit-scoped candidate tags', () => {
     expect(workflow).toContain('IMAGE_NAME: trademind');
     expect(workflow).toContain(
       'images: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}',
@@ -61,40 +61,51 @@ describe('container image release workflow', () => {
     expect(workflow).not.toContain('image: trademind-backend');
     expect(workflow).not.toContain('image: trademind-admin');
     expect(workflow).not.toContain('image: trademind-collector');
-    expect(workflow).toContain('type=raw,value=${{ matrix.service }}-sha-${{ github.sha }}');
+    expect(workflow).toContain('type=raw,value=${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}');
+    expect(workflow).toContain('org.opencontainers.image.revision=${{ needs.image_metadata.outputs.commit }}');
+    expect(workflow).toContain('provenance: mode=max');
+    expect(workflow).toContain('sbom: true');
+    expect(workflow).toContain('aquasecurity/trivy-action@0.28.0');
   });
 
-  it('requires the release tag to match IMAGE_VERSION', () => {
-    expect(workflow).toContain('expected_tag="v${version}"');
-    expect(workflow).toContain(
-      'Release tag $GITHUB_REF_NAME must exactly match deploy/IMAGE_VERSION as $expected_tag',
-    );
+  it('requires all three verified digests before moving main or starting a release', () => {
+    expect(workflow).toContain('  quality_gate:');
+    expect(workflow).toContain('run: pnpm workflow:verify');
+    expect(workflow).toContain('go test ./...');
+    expect(workflow).toContain('needs: [image_metadata, publish, quality_gate]');
+    expect(workflow).toContain('      - name: Set up Docker Buildx\n        uses: docker/setup-buildx-action@v3\n\n      - name: Login to GHCR');
+    expect(workflow).toContain('group: trademind-production-publish');
+    expect(workflow).toContain('Refusing to move main tags for stale commit');
+    expect(workflow).toContain('docker buildx imagetools inspect "$image@$digest"');
+    expect(workflow).toContain('needs: [image_metadata, verify]');
+    expect(workflow).toContain('if: ${{ needs.image_metadata.outputs.publish_release != \'true\' }}');
+    expect(workflow).toContain('if: ${{ needs.image_metadata.outputs.publish_release == \'true\' }}');
   });
 
-  it('requires the tagged commit to be contained in main', () => {
-    expect(workflow).toContain('git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main');
-    expect(workflow).toContain('git merge-base --is-ancestor "$release_commit" refs/remotes/origin/main');
+  it('keeps formal tags immutable and creates Release only from validated inputs', () => {
+    expect(releaseWorkflow).toContain('workflow_call:');
+    expect(releaseWorkflow).not.toContain('workflow_dispatch:');
+    expect(releaseWorkflow).toContain('contents: write');
+    expect(releaseWorkflow).toContain('group: trademind-production-publish');
+    expect(releaseWorkflow).toContain('git merge-base --is-ancestor "$release_commit" origin/main');
+    expect(releaseWorkflow).toContain('node scripts/release/validate-release-version.mjs "$RELEASE_VERSION"');
+    expect(releaseWorkflow).toContain('tag="v$RELEASE_VERSION"');
+    expect(releaseWorkflow).toContain('formal="$image:$service-main-v$RELEASE_VERSION"');
+    expect(releaseWorkflow).toContain('already points to $existing, expected $digest');
+    expect(releaseWorkflow).toContain('Could not verify whether immutable image $formal exists');
+    expect(releaseWorkflow).toContain('keeping movable main tags unchanged instead of regressing them');
+    expect(releaseWorkflow).toContain('Create or update GitHub Release');
+    expect(releaseWorkflow).not.toContain('service-latest');
+    expect(releaseWorkflow).not.toContain('service-v$RELEASE_VERSION');
   });
 
-  it('publishes stable version tags and latest only for releases', () => {
-    expect(workflow).toContain(
-      "type=raw,value=${{ matrix.service }}-v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
-    );
-    expect(workflow).toContain(
-      "type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
-    );
-    expect(workflow).toContain(
-      "type=raw,value=${{ matrix.service }}-latest,enable=${{ needs.image_metadata.outputs.is_release == 'true' }}",
-    );
-    expect(workflow).not.toContain("needs.image_metadata.outputs.ref_slug == 'main'");
-  });
-
-  it('keeps branch and branch-version tags on non-release builds', () => {
-    expect(workflow).toContain(
-      "type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}",
-    );
-    expect(workflow).toContain(
-      "type=raw,value=${{ matrix.service }}-${{ needs.image_metadata.outputs.ref_slug }}-v${{ needs.image_metadata.outputs.version }},enable=${{ needs.image_metadata.outputs.is_release != 'true' }}",
-    );
+  it('keeps production Compose pull-only and digest-pinned', () => {
+    expect(productionCompose).not.toContain('build:');
+    expect(productionCompose).toContain('TRADEMIND_BACKEND_IMAGE:?');
+    expect(productionCompose).toContain('TRADEMIND_ADMIN_IMAGE:?');
+    expect(productionCompose).toContain('TRADEMIND_COLLECTOR_IMAGE:?');
+    expect(productionCompose).toContain('condition: service_healthy');
+    expect(productionCompose).toContain('trademind_production_pg_data');
+    expect(productionCompose).toContain('trademind_production_collector_profiles');
   });
 });

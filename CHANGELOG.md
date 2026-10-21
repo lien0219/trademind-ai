@@ -4,6 +4,13 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Container publishing and release pipeline
+
+- Unified backend, admin, and collector candidates under `ghcr.io/lien0219/trademind` with commit-scoped tags, OCI source labels, SBOM, provenance, platform checks, and Trivy gates.
+- Added ordered promotion and an idempotent GitHub Release workflow that binds `deploy/IMAGE_VERSION`, the source commit, Git Tag, release notes, and three immutable service digests.
+- Added a pull-only production Compose file with runtime-only secrets and persistent PostgreSQL, Redis, upload, and Collector browser data volumes.
+- Kept historical GHCR Packages untouched and documented the manual migration and rollback procedure.
+
 ## v0.3.0 - 2026-09-29
 
 ### Carrier freight invoice ledger and profit estimate V6 (2026-09-28)

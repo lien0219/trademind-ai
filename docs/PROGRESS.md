@@ -1,10 +1,12 @@
 # TradeMind 当前维护状态
 
-更新时间：2026-09-29
+更新时间：2026-10-21
 
 ## 生命周期
 
 TradeMind 已由项目所有者确认进入生产维护阶段。当前工作重点是稳定性、安全修复、必要功能维护和简洁的生产文档，不再在工作树中累积阶段性开发报告、一次性验收门禁或本地运行证据。
+
+2026-10-21 完成 Docker 与 GitHub Release 发布链路收敛：三个服务统一发布到 `ghcr.io/lien0219/trademind`，main 只先写入完整提交 SHA 候选标签，发布还必须通过工作流策略、Admin/Collector 构建、Go 单元构建测试、linux/amd64、linux/arm64、OCI revision 和 Trivy 门禁后才移动服务 `main` 标签。版本文件变更或明确的 main 手动发布会把同一提交的三个 manifest digest 晋级为不可变 `<service>-main-v<version>`，并创建匹配的 `v<version>` Git Tag 与 GitHub Release；失败可以复用候选 digest 安全重试，不会显示为成功发布。新增 `deploy/production/compose.yml` 只拉取统一 Package 的 digest 镜像，生产密钥运行时注入，PostgreSQL、Redis、上传文件和 Collector 浏览器数据保持独立持久卷。历史三个旧 Package 不由工作流删除，迁移和清理由维护者人工确认。当前提交仅代表本地代码与配置改造，远程 GitHub Actions、GHCR、生产部署、真实凭据和人工上线验收仍需外部执行。
 
 “生产维护阶段”描述项目生命周期，不代表仓库可以自动启用真实平台能力。仓库默认仍为 `L0`，真实凭据、真实平台网络、抖店草稿写、后台 Worker 和灰度均关闭，库存写入与自动业务重试继续禁止。代码具备候选能力不等于部署或上线；CI、独立预生产、真实平台验收、备份恢复/回滚和发布审批仍是外部前置。
 
