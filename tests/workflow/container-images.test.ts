@@ -65,7 +65,7 @@ describe('container image release workflow', () => {
     expect(workflow).toContain('org.opencontainers.image.revision=${{ needs.image_metadata.outputs.commit }}');
     expect(workflow).toContain('provenance: mode=max');
     expect(workflow).toContain('sbom: true');
-    expect(workflow).toContain('aquasecurity/trivy-action@v0.28.0');
+    expect(workflow).toContain('aquasecurity/trivy-action@v0.31.0');
   });
 
   it('requires all three verified digests before moving main or starting a release', () => {
