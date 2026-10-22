@@ -10,6 +10,7 @@ const user: API.CurrentUser = {
   username: "operator@example.test",
   email: "operator@example.test",
   displayName: "运营账号",
+  role: "admin",
 };
 
 beforeEach(() => {
@@ -95,6 +96,14 @@ describe("AppTopNav", () => {
       "_blank",
       "noopener,noreferrer",
     );
+  });
+
+  it("does not expose user administration to accounts without role grants", async () => {
+    const interaction = userEvent.setup();
+    render(<AppTopNav user={{ ...user, role: "unexpected" }} onLogout={vi.fn()} />);
+    await interaction.click(screen.getByRole("button", { name: "当前用户 运营账号" }));
+    expect(screen.queryByRole("menuitem", { name: "用户与权限" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "GitHub" })).toBeInTheDocument();
   });
 
   it("shows the theme action as an icon with an accessible tooltip", async () => {
