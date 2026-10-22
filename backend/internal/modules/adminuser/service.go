@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -338,57 +339,83 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 }
 
 // Update patches role/status/displayName.
+// Update patches role/status/displayName and revokes credentials atomically.
 func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, actorID *uuid.UUID) (*UserRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
 	}
-	tenantID, err := adminperm.TenantIDFromGin(c)
+	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return nil, err
 	}
 	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {
+	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&u, "id = ? AND tenant_id = ?", userID, tid).Error; err != nil {
+			return err
+		}
+		originalRole := normalizeRole(u.Role)
+		if body.Role != nil {
+			newRole, err := s.requireAssignableRole(c, tid, *body.Role)
+			if err != nil {
+				return err
+			}
+			if actorID != nil && *actorID == userID && originalRole == adminperm.RoleAdmin && newRole != adminperm.RoleAdmin {
+				return ErrSelfRoleDowngrade
+			}
+			u.Role = newRole
+		}
+		if body.Status != nil {
+			status := strings.ToLower(strings.TrimSpace(*body.Status))
+			if status != "active" && status != "disabled" {
+				return fmt.Errorf("无效的用户状态")
+			}
+			if actorID != nil && *actorID == userID && status == "disabled" {
+				return ErrSelfDisable
+			}
+			u.Status = status
+		}
+		if body.DisplayName != nil {
+			if len([]rune(*body.DisplayName)) > 128 {
+				return fmt.Errorf("显示名超出长度限制")
+			}
+			u.DisplayName = strings.TrimSpace(*body.DisplayName)
+		}
+		if originalRole == adminperm.RoleAdmin && (u.Role != adminperm.RoleAdmin || u.Status != admin.StatusActive) {
+			var count int64
+			if err := tx.Model(&admin.AdminUser{}).
+				Where("tenant_id = ? AND role = ? AND status = ? AND id <> ?", tid, adminperm.RoleAdmin, admin.StatusActive, userID).
+				Count(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				return fmt.Errorf("必须保留至少一名启用的管理员")
+			}
+		}
+		changedSecurity := u.Role != originalRole || body.Status != nil
+		updates := map[string]any{
+			"role": u.Role, "status": u.Status, "display_name": u.DisplayName,
+		}
+		if changedSecurity {
+			updates["token_version"] = gorm.Expr("token_version + 1")
+		}
+		return tx.Model(&admin.AdminUser{}).
+			Where("id = ? AND tenant_id = ?", userID, tid).Updates(updates).Error
+	})
+	if err != nil {
 		return nil, err
 	}
-	oldRole := normalizeRole(u.Role)
-	if body.Role != nil {
-		newRole, err := s.requireAssignableRole(c, tenantID, *body.Role)
-		if err != nil {
-			return nil, err
-		}
-		if actorID != nil && *actorID == userID && newRole != adminperm.RoleAdmin && oldRole == adminperm.RoleAdmin {
-			return nil, ErrSelfRoleDowngrade
-		}
-		u.Role = newRole
-	}
-	if body.Status != nil {
-		st := normalizeStatus(*body.Status)
-		if actorID != nil && *actorID == userID && st == "disabled" {
-			return nil, ErrSelfDisable
-		}
-		u.Status = st
-	}
-	if body.DisplayName != nil {
-		u.DisplayName = strings.TrimSpace(*body.DisplayName)
-	}
-	if err := s.DB.WithContext(c.Request.Context()).Save(&u).Error; err != nil {
-		return nil, err
-	}
-	s.invalidateUserPermissions(c.Request.Context(), userID, body.Role != nil || body.Status != nil)
+	adminperm.InvalidateUserPermissionCache(userID)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: actorID,
-			Action:      "user.update",
-			Resource:    "admin_user",
-			ResourceID:  userID.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("userId=%s role=%s status=%s", userID.String(), u.Role, u.Status),
+			AdminUserID: actorID, Action: "user.update", Resource: "admin_user",
+			ResourceID: userID.String(), Status: "success",
+			Message: fmt.Sprintf("userId=%s role=%s status=%s", userID.String(), u.Role, u.Status),
 		})
 	}
-	return s.toUserRow(c.Request.Context(), &u, true)
+	return s.Get(c, userID)
 }
 
-// SetStorePermissions replaces store grants for a user.
 func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body SetStorePermissionsBody, actorID *uuid.UUID) (*UserRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
@@ -405,6 +432,13 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 		return nil, fmt.Errorf("管理员无需分配店铺权限")
 	}
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {
+			return err
+		}
+		if normalizeRole(u.Role) == adminperm.RoleAdmin {
+			return fmt.Errorf("管理员无需分配店铺权限")
+		}
 		if err := tx.Where("user_id = ?", userID).Delete(&admin.UserStorePermission{}).Error; err != nil {
 			return err
 		}
@@ -440,12 +474,14 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 				return err
 			}
 		}
-		return nil
+		return tx.Model(&admin.AdminUser{}).
+			Where("id = ? AND tenant_id = ?", userID, tenantID).
+			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
 	})
 	if err != nil {
 		return nil, err
 	}
-	s.invalidateUserPermissions(c.Request.Context(), userID, true)
+	adminperm.InvalidateUserPermissionCache(userID)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: actorID,

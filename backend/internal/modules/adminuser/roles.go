@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // RoleRow is an authoritative server-side role record with member counts.
@@ -176,7 +177,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 	}
 	var changed admin.RoleDefinition
 	err = h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("tenant_id = ? AND code = ?", tid, code).First(&changed).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND code = ?", tid, code).First(&changed).Error; err != nil {
 			return err
 		}
 		if body.Name != nil {
