@@ -262,8 +262,8 @@ export async function queryConversations(params: {
   });
 }
 
-export async function getCustomerDashboard(): Promise<CustomerDashboardSummary> {
-  return getJSON('/api/v1/customer/dashboard');
+export async function getCustomerDashboard(filters: { platform?: string; shopId?: string } = {}): Promise<CustomerDashboardSummary> {
+  return getWithParams('/api/v1/customer/dashboard', filters);
 }
 
 export async function getCustomerAutoReplyPolicy(shopId: string): Promise<CustomerAutoReplyPolicy> {
