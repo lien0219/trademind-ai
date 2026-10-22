@@ -318,6 +318,7 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		Email:        em,
 		Phone:        ph,
 		PasswordHash: hash,
+		MustChangePassword: true,
 		DisplayName:  strings.TrimSpace(body.DisplayName),
 		Role:         role,
 		Status:       "active",

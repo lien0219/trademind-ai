@@ -115,6 +115,9 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		return nil, errors.New(ErrUserDisabled)
 	}
+	if u.MustChangePassword {
+		return nil, errors.New(ErrPasswordChangeRequired)
+	}
 	label := u.LoginLabel()
 	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label)
 	if err != nil {

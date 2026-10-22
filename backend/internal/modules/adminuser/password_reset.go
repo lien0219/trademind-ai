@@ -48,7 +48,7 @@ func (s *Service) ResetPassword(c *gin.Context, userID uuid.UUID, actorID *uuid.
 			return fmt.Errorf("管理员账号已禁用")
 		}
 		return tx.Model(&user).Updates(map[string]any{
-			"password_hash": hashed, "password_changed_at": now, "must_change_password": false,
+			"password_hash": hashed, "password_changed_at": now, "must_change_password": true,
 			"token_version": gorm.Expr("token_version + 1"),
 		}).Error
 	})
