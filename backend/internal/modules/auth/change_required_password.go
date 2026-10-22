@@ -101,11 +101,11 @@ func (h *Handler) ChangeRequiredPassword(c *gin.Context) {
 	if h.OpLog != nil {
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: &user.ID,
-			Action: "user.password.change_required",
-			Resource: "auth",
-			ResourceID: user.ID.String(),
-			Status: "success",
-			Message: "required password change completed",
+			Action:      "user.password.change_required",
+			Resource:    "auth",
+			ResourceID:  user.ID.String(),
+			Status:      "success",
+			Message:     "required password change completed",
 		})
 	}
 	response.OK(c, gin.H{"ok": true})

@@ -20,13 +20,13 @@ func TestCustomRoleRevocationReevaluatesAcrossRequests(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.RoleDefinition{}, &admin.UserStorePermission{}))
 	uid := uuid.New()
 	u := admin.AdminUser{
-		Username:      admin.NewInternalUsername(),
-		TenantID:      17,
-		Email:         "user@example.net",
-		PasswordHash:  "test-only",
-		Role:          "r_0123456789abcdef01234567",
-		Status:        admin.StatusActive,
-		TokenVersion:  1,
+		Username:     admin.NewInternalUsername(),
+		TenantID:     17,
+		Email:        "user@example.net",
+		PasswordHash: "test-only",
+		Role:         "r_0123456789abcdef01234567",
+		Status:       admin.StatusActive,
+		TokenVersion: 1,
 	}
 	u.ID = uid
 	require.NoError(t, db.Create(&u).Error)

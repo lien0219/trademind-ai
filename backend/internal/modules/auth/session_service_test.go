@@ -298,13 +298,13 @@ func TestRefreshTokenDeniedAfterSecurityVersionChange(t *testing.T) {
 	uid := uuid.New()
 	email := "security-" + uuid.NewString() + "@example.net"
 	if err := db.Create(&admin.AdminUser{
-		Base:          model.Base{ID: uid},
-		Username:      "security-test-" + uuid.NewString(),
-		Email:         email,
-		PasswordHash:  string(hash),
-		Role:          "operator",
-		Status:        admin.StatusActive,
-		TokenVersion:  1,
+		Base:         model.Base{ID: uid},
+		Username:     "security-test-" + uuid.NewString(),
+		Email:        email,
+		PasswordHash: string(hash),
+		Role:         "operator",
+		Status:       admin.StatusActive,
+		TokenVersion: 1,
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
