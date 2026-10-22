@@ -705,7 +705,7 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 		CreatedBy:      adminID,
 	}
 	now := time.Now().UTC()
-	err := s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
+	err = s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
 		return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 			if err := tx.Create(msg).Error; err != nil {
 				return err
@@ -765,7 +765,7 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 		Source:         SourceManual,
 		CreatedBy:      adminID,
 	}
-	err := s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
+	err = s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
 		return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 			if err := tx.Create(msg).Error; err != nil {
 				return err
