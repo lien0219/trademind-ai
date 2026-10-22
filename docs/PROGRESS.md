@@ -1,8 +1,10 @@
 # TradeMind 当前维护状态
 
-更新时间：2026-10-21
+更新时间：2026-10-22
 
 ## 生命周期
+
+2026-10-21 完成容器安全修复与发布门禁收敛：更新 Admin、Backend、Collector 镜像依赖，Collector 运行镜像仅保留生产依赖、构建产物和运行所需 Chromium；候选构建使用固定提交 Git 上下文，显式生成 OCI SBOM/Provenance。发布前逐平台校验 attestation manifest 与 in-toto statement 的镜像 digest、GHCR layer 大小/摘要、Git 仓库/提交/Dockerfile 路径；漏洞和 Secret 扫描继续对双架构阻断，报告经过敏感字段剔除。真实修复后镜像构建、Trivy 扫描和人工运行验收仍需 CI/外部环境完成；本地没有执行正式发布或远程标签写入。2026-10-22 修正发布矩阵上下文与 attestation 引用校验，并按 Trivy v0.76 行为把省略 Results 的成功容器镜像报告视为完整空结果，失败扫描与无效报告仍 fail closed。
 
 TradeMind 已由项目所有者确认进入生产维护阶段。当前工作重点是稳定性、安全修复、必要功能维护和简洁的生产文档，不再在工作树中累积阶段性开发报告、一次性验收门禁或本地运行证据。
 

@@ -26,8 +26,12 @@ on:
       - "**/Dockerfile"
       - "**/.dockerignore"
       - "scripts/patch-pro-field-antd-select.mjs"
+      - "scripts/release/sanitize-trivy-report.mjs"
+      - "scripts/release/enforce-image-scan-outcomes.mjs"
+      - "scripts/release/verify-image-attestations.mjs"
       - "scripts/release/validate-image-version.sh"
       - "scripts/release/validate-release-version.mjs"
+      - "scripts/release/release-version.mjs"
       - ".github/workflows/container-images.yml"
       - ".github/workflows/release.yml"
 
@@ -103,7 +107,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
-    name: Build and verify ${{ matrix.service }} image
+    name: Build ${{ matrix.service }} candidate image
     needs: image_metadata
     runs-on: ubuntu-latest
     permissions:
@@ -116,18 +120,18 @@ jobs:
           - service: backend
             title: TradeMind Backend
             description: TradeMind Go API and background workers
-            context: ./backend
-            dockerfile: ./backend/Dockerfile
+            git_context_suffix: ":backend"
+            dockerfile: Dockerfile
           - service: admin
             title: TradeMind Admin
             description: TradeMind React operations workspace
-            context: .
-            dockerfile: ./admin/Dockerfile
+            git_context_suffix: ""
+            dockerfile: admin/Dockerfile
           - service: collector
             title: TradeMind Collector
             description: TradeMind Playwright collection service
-            context: .
-            dockerfile: ./collector/Dockerfile
+            git_context_suffix: ""
+            dockerfile: collector/Dockerfile
 
     steps:
       - name: Checkout
@@ -167,8 +171,9 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
+          context: https://github.com/${{ github.repository }}.git#${{ needs.image_metadata.outputs.commit }}${{ matrix.git_context_suffix }}
           file: ${{ matrix.dockerfile }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true
@@ -176,38 +181,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=trademind-${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=trademind-${{ matrix.service }}
-          provenance: mode=max
+          provenance: mode=max,version=v1
           sbom: true
+          outputs: type=image,oci-mediatypes=true,oci-artifact=true
 
-      - name: Verify candidate platforms and source revision
-        shell: bash
-        env:
-          CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}:${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
-          EXPECTED_REVISION: ${{ needs.image_metadata.outputs.commit }}
-        run: |
-          set -Eeuo pipefail
-          raw="$(docker buildx imagetools inspect --raw "$CANDIDATE_IMAGE")"
-          jq -e '[.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64"))] | length == 2' <<<"$raw" >/dev/null
-          docker pull --platform linux/amd64 "$CANDIDATE_IMAGE" >/dev/null
-          revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$CANDIDATE_IMAGE")"
-          if [[ "$revision" != "$EXPECTED_REVISION" ]]; then
-            echo "::error::OCI revision $revision does not match $EXPECTED_REVISION"
-            exit 1
-          fi
-
-      - name: Scan candidate image
-        uses: aquasecurity/trivy-action@v0.31.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}:${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
-          version: v0.76.0
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: "1"
-          format: table
-
-      - name: Record image digest
-        id: digest
+      - name: Record candidate image digest
         shell: bash
         env:
           CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ needs.image_metadata.outputs.namespace }}/${{ env.IMAGE_NAME }}:${{ matrix.service }}-sha-${{ needs.image_metadata.outputs.commit }}
@@ -223,13 +201,207 @@ jobs:
             echo "revision=${{ needs.image_metadata.outputs.commit }}"
           } > "image-metadata/${{ matrix.service }}.env"
 
-      - name: Upload image digest
+      - name: Upload candidate image digest
         uses: actions/upload-artifact@v4
         with:
           name: image-${{ matrix.service }}-${{ needs.image_metadata.outputs.commit }}
           path: image-metadata/${{ matrix.service }}.env
           if-no-files-found: error
           retention-days: 7
+
+  scan:
+    name: Verify and scan ${{ matrix.service }} image
+    needs: [image_metadata, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            source_subdir: backend
+            source_path: Dockerfile
+          - service: admin
+            source_subdir: .
+            source_path: admin/Dockerfile
+          - service: collector
+            source_subdir: .
+            source_path: collector/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.image_metadata.outputs.commit }}
+
+      - name: Download candidate image digest
+        uses: actions/download-artifact@v4
+        with:
+          name: image-${{ matrix.service }}-${{ needs.image_metadata.outputs.commit }}
+          path: image-metadata
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify candidate platforms and source revision
+        id: platforms
+        shell: bash
+        env:
+          EXPECTED_SERVICE: ${{ matrix.service }}
+          EXPECTED_REVISION: ${{ needs.image_metadata.outputs.commit }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          EXPECTED_SOURCE_SUBDIR: ${{ matrix.source_subdir }}
+          EXPECTED_SOURCE_PATH: ${{ matrix.source_path }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          file="image-metadata/${EXPECTED_SERVICE}.env"
+          test -s "$file"
+          grep -qx "service=$EXPECTED_SERVICE" "$file"
+          image="$(sed -n 's/^image=//p' "$file")"
+          index_digest="$(sed -n 's/^digest=//p' "$file")"
+          revision="$(sed -n 's/^revision=//p' "$file")"
+          [[ "$image" == "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/trademind:${EXPECTED_SERVICE}-sha-${EXPECTED_REVISION}" ]]
+          [[ "$index_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$revision" == "$EXPECTED_REVISION" ]]
+          image="$image@$index_digest"
+          raw="$(docker buildx imagetools inspect --raw "$image")"
+          amd64_digest="$(jq -er '[.manifests[] | select(.platform.os == "linux" and .platform.architecture == "amd64")] | if length == 1 then .[0].digest else error("expected exactly one linux/amd64 manifest") end' <<<"$raw")"
+          arm64_digest="$(jq -er '[.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64")] | if length == 1 then .[0].digest else error("expected exactly one linux/arm64 manifest") end' <<<"$raw")"
+          [[ "$amd64_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$arm64_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          for platform in amd64 arm64; do
+            if [[ "$platform" == amd64 ]]; then digest="$amd64_digest"; else digest="$arm64_digest"; fi
+            platform_image="${image%@*}@$digest"
+            docker pull --platform "linux/$platform" "$platform_image" >/dev/null
+            actual_revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$platform_image")"
+            if [[ "$actual_revision" != "$EXPECTED_REVISION" ]]; then
+              echo "::error::OCI revision for linux/$platform does not match the source commit"
+              exit 1
+            fi
+          done
+
+          node scripts/release/verify-image-attestations.mjs "$image" "$EXPECTED_REVISION" "$amd64_digest" "$arm64_digest" "$EXPECTED_REPOSITORY" "$EXPECTED_SOURCE_SUBDIR" "$EXPECTED_SOURCE_PATH"
+
+          echo "image=${image%@*}" >> "$GITHUB_OUTPUT"
+          echo "amd64_digest=$amd64_digest" >> "$GITHUB_OUTPUT"
+          echo "arm64_digest=$arm64_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Scan vulnerabilities on linux/amd64
+        id: scan_amd64
+        if: ${{ !cancelled() && steps.platforms.outcome == 'success' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.platforms.outputs.image }}@${{ steps.platforms.outputs.amd64_digest }}
+          version: v0.76.1
+          vuln-type: os,library
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: json
+          output: ${{ runner.temp }}/trivy-amd64-vuln.json
+
+      - name: Scan secrets on linux/amd64
+        id: secret_amd64
+        if: ${{ !cancelled() && steps.platforms.outcome == 'success' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.platforms.outputs.image }}@${{ steps.platforms.outputs.amd64_digest }}
+          version: v0.76.1
+          scanners: secret
+          exit-code: "1"
+          format: json
+          output: ${{ runner.temp }}/trivy-amd64-secret.json
+
+      - name: Scan vulnerabilities on linux/arm64
+        id: scan_arm64
+        if: ${{ !cancelled() && steps.platforms.outcome == 'success' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.platforms.outputs.image }}@${{ steps.platforms.outputs.arm64_digest }}
+          version: v0.76.1
+          vuln-type: os,library
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: json
+          output: ${{ runner.temp }}/trivy-arm64-vuln.json
+
+      - name: Scan secrets on linux/arm64
+        id: secret_arm64
+        if: ${{ !cancelled() && steps.platforms.outcome == 'success' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.platforms.outputs.image }}@${{ steps.platforms.outputs.arm64_digest }}
+          version: v0.76.1
+          scanners: secret
+          exit-code: "1"
+          format: json
+          output: ${{ runner.temp }}/trivy-arm64-secret.json
+
+      - name: Sanitize per-platform security reports
+        id: sanitize
+        if: ${{ always() && steps.platforms.outcome == 'success' }}
+        shell: bash
+        env:
+          AMD64_VULN_REPORT: ${{ runner.temp }}/trivy-amd64-vuln.json
+          AMD64_SECRET_REPORT: ${{ runner.temp }}/trivy-amd64-secret.json
+          ARM64_VULN_REPORT: ${{ runner.temp }}/trivy-arm64-vuln.json
+          ARM64_SECRET_REPORT: ${{ runner.temp }}/trivy-arm64-secret.json
+          AMD64_VULN_OUTCOME: ${{ steps.scan_amd64.outcome }}
+          AMD64_SECRET_OUTCOME: ${{ steps.secret_amd64.outcome }}
+          ARM64_VULN_OUTCOME: ${{ steps.scan_arm64.outcome }}
+          ARM64_SECRET_OUTCOME: ${{ steps.secret_arm64.outcome }}
+        run: |
+          set -Eeuo pipefail
+          trap 'rm -f "$AMD64_VULN_REPORT" "$AMD64_SECRET_REPORT" "$ARM64_VULN_REPORT" "$ARM64_SECRET_REPORT"' EXIT
+          mkdir -p image-metadata
+          failed=0
+          node scripts/release/sanitize-trivy-report.mjs "$AMD64_VULN_REPORT" image-metadata/trivy-amd64-vuln.json "$AMD64_VULN_OUTCOME" || failed=1
+          node scripts/release/sanitize-trivy-report.mjs "$AMD64_SECRET_REPORT" image-metadata/trivy-amd64-secret.json "$AMD64_SECRET_OUTCOME" || failed=1
+          node scripts/release/sanitize-trivy-report.mjs "$ARM64_VULN_REPORT" image-metadata/trivy-arm64-vuln.json "$ARM64_VULN_OUTCOME" || failed=1
+          node scripts/release/sanitize-trivy-report.mjs "$ARM64_SECRET_REPORT" image-metadata/trivy-arm64-secret.json "$ARM64_SECRET_OUTCOME" || failed=1
+          if (( failed != 0 )); then
+            echo "::error::One or more Trivy reports were unavailable or invalid"
+            exit 1
+          fi
+
+      - name: Upload sanitized security diagnostics
+        if: ${{ always() && steps.platforms.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service }}-${{ needs.image_metadata.outputs.commit }}
+          path: |
+            image-metadata/trivy-amd64-vuln.json
+            image-metadata/trivy-amd64-secret.json
+            image-metadata/trivy-arm64-vuln.json
+            image-metadata/trivy-arm64-secret.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce all platform security scans
+        if: always()
+        env:
+          PLATFORM_OUTCOME: ${{ steps.platforms.outcome }}
+          AMD64_OUTCOME: ${{ steps.scan_amd64.outcome }}
+          ARM64_OUTCOME: ${{ steps.scan_arm64.outcome }}
+          SECRET_AMD64_OUTCOME: ${{ steps.secret_amd64.outcome }}
+          SECRET_ARM64_OUTCOME: ${{ steps.secret_arm64.outcome }}
+          SANITIZE_OUTCOME: ${{ steps.sanitize.outcome }}
+        run: node scripts/release/enforce-image-scan-outcomes.mjs
 
   quality_gate:
     name: Main quality gate
@@ -247,7 +419,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 9.15.4
+          version: 10.34.6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -283,7 +455,7 @@ jobs:
 
   verify:
     name: Verify complete image set
-    needs: [image_metadata, publish, quality_gate]
+    needs: [image_metadata, publish, scan, quality_gate]
     runs-on: ubuntu-latest
     permissions:
       contents: read

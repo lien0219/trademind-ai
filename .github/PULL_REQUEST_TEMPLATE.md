@@ -29,6 +29,7 @@
 - [ ] PostgreSQL / Redis 测试使用 CI service container
 - [ ] 未删除工作流依赖的测试、fixture、Mock 或配置
 - [ ] 没有用 skip、弱化断言或扩大 baseline 掩盖失败
+- [ ] Docker 变更已记录 AMD64/ARM64 构建、revision/digest、Trivy 漏洞/secret、SBOM/provenance 和发布门禁结果；未附原始扫描 JSON
 
 ## 人工验收
 

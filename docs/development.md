@@ -5,8 +5,8 @@ TradeMind 由 Go backend、React Admin、Node collector、PostgreSQL 与 Redis �
 ## 环境要求
 
 - Node.js 20+
-- pnpm 9.15+
-- Go 1.25+
+- pnpm 10.34+
+- Go 1.26+
 - Docker / Docker Compose，或与 `.env` 匹配的本机 PostgreSQL 和 Redis
 
 ## 安装与启动

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareVersions, findHighestReleaseVersion } from '../../scripts/release/validate-release-version.mjs';
+import { compareVersions, findHighestReleaseVersion } from '../../scripts/release/release-version.mjs';
 
 describe('release version ordering', () => {
   it('orders stable releases above prereleases', () => {

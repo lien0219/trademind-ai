@@ -2,8 +2,11 @@
   "name": "trademind-monorepo",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@10.34.6",
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
     "overrides": {
       "rc-resize-observer": "1.4.3",
       "react": "18.2.0",
