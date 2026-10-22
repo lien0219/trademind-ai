@@ -980,6 +980,12 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		result.ErrorMessage = "该结果已应用，不能重复应用"
 		return result
 	}
+	if item.Status == ItemConflict {
+		result.Status = ItemConflict
+		result.StatusLabel = itemStatusLabel(ItemConflict)
+		result.ErrorMessage = "该结果存在冲突，不能继续应用"
+		return result
+	}
 	if !allowReplay && item.Status != ItemPendingReview && item.Status != ItemSuccess {
 		result.Status = "failed"
 		result.StatusLabel = "失败"
@@ -1018,7 +1024,10 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 	if item.ProductUpdatedAt != nil {
 		targetVersion = item.ProductUpdatedAt.UTC().Format(time.RFC3339Nano)
 		if !allowReplay && !textVersionMatches(*item.ProductUpdatedAt, prod.UpdatedAt) {
-			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			// A concurrent loser must not downgrade an item already applied by a winner.
+			_ = s.DB.WithContext(ctx).Model(&AIProductTextItem{}).
+				Where("id = ? AND status IN ?", item.ID, []string{ItemPendingReview, ItemSuccess}).
+				Update("status", ItemConflict).Error
 			s.ObserveAIText("internal", item.OperationType, "apply_conflict", "failure", ErrCodeTargetVersionConflict, 0)
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
@@ -1107,7 +1116,10 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		msg := err.Error()
 		if strings.Contains(msg, "content conflict") {
 			s.failTextApply(ctx, idemJob, ErrCodeTargetVersionConflict, false)
-			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			// A concurrent loser must not downgrade an item already applied by a winner.
+			_ = s.DB.WithContext(ctx).Model(&AIProductTextItem{}).
+				Where("id = ? AND status IN ?", item.ID, []string{ItemPendingReview, ItemSuccess}).
+				Update("status", ItemConflict).Error
 			s.ObserveAIText("internal", item.OperationType, "apply_conflict", "failure", ErrCodeTargetVersionConflict, 0)
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)

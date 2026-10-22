@@ -46,8 +46,10 @@ func openTextApplyTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+var setGinTestMode sync.Once
+
 func testGinContext() *gin.Context {
-	gin.SetMode(gin.TestMode)
+	setGinTestMode.Do(func() { gin.SetMode(gin.TestMode) })
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -151,6 +153,13 @@ func TestConcurrentApplySameItemOnce(t *testing.T) {
 	if refreshed.AITitle != "AI Optimized Bluetooth Earbuds" {
 		t.Fatalf("unexpected ai title: %q", refreshed.AITitle)
 	}
+	var finalItem AIProductTextItem
+	if err := db.First(&finalItem, "id = ?", item.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if finalItem.Status != ItemApplied {
+		t.Fatalf("concurrent conflict overwrote applied item status: %s", finalItem.Status)
+	}
 }
 
 func TestApplyTargetVersionConflict(t *testing.T) {
@@ -186,5 +195,50 @@ func TestApplyTargetVersionConflict(t *testing.T) {
 	r := svc.applyOneItem(testGinContext(), &item, "", nil)
 	if r.Status != ItemConflict || r.ErrorCode != ErrCodeTargetVersionConflict {
 		t.Fatalf("expected version conflict, got status=%s code=%s msg=%s", r.Status, r.ErrorCode, r.ErrorMessage)
+	}
+}
+
+func TestApplyAlreadyConflictedItemReturnsConflict(t *testing.T) {
+	svc := &Service{}
+	item := &AIProductTextItem{Status: ItemConflict}
+	result := svc.applyOneItem(testGinContext(), item, "", nil)
+	if result.Status != ItemConflict {
+		t.Fatalf("expected conflict status, got %s: %s", result.Status, result.ErrorMessage)
+	}
+}
+
+func TestStaleApplyCannotOverwriteAppliedStatus(t *testing.T) {
+	db := openTextApplyTestDB(t)
+	p := product.Product{TenantID: 1, Source: "manual", Title: "Original", Currency: "USD", Status: product.StatusDraft}
+	if err := db.Create(&p).Error; err != nil {
+		t.Fatal(err)
+	}
+	batch := AIProductTextBatch{BatchNo: "ATTEST_STALE", BatchType: BatchTypeAIText, Status: BatchSuccess}
+	if err := db.Create(&batch).Error; err != nil {
+		t.Fatal(err)
+	}
+	taskID := uuid.New()
+	staleVersion := p.UpdatedAt.Add(-2 * time.Second)
+	item := AIProductTextItem{
+		BatchID: batch.ID, ProductID: p.ID, OperationType: OpTitle,
+		Status: ItemApplied, AITaskID: &taskID,
+		GeneratedText: "Proposed title", ProductUpdatedAt: &staleVersion,
+	}
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+	staleSnapshot := item
+	staleSnapshot.Status = ItemPendingReview
+	svc := &Service{DB: db}
+	result := svc.applyOneItem(testGinContext(), &staleSnapshot, "", nil)
+	if result.Status != ItemConflict {
+		t.Fatalf("expected stale apply conflict, got %s: %s", result.Status, result.ErrorMessage)
+	}
+	var persisted AIProductTextItem
+	if err := db.First(&persisted, "id = ?", item.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Status != ItemApplied {
+		t.Fatalf("stale attempt overwrote applied item with %s", persisted.Status)
 	}
 }
