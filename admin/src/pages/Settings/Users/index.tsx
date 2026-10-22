@@ -84,6 +84,7 @@ export default function SettingsUsersPage() {
   useEffect(() => {
     if (canManageUsers) void loadRoles();
   }, [canManageUsers, loadRoles]);
+  const [compareRole, setCompareRole] = useState<string>();
   const roleOptions = useMemo(() => roles
     .filter((r) => r.enabled)
     .map((r) => ({ label: r.name, value: r.code })), [roles]);
@@ -115,7 +116,7 @@ export default function SettingsUsersPage() {
       dataIndex: 'role',
       width: 100,
       valueType: 'select',
-      fieldProps: { options: ROLE_OPTIONS },
+      fieldProps: { options: roleOptions.length ? roleOptions : ROLE_OPTIONS },
       render: (_, row) => <Tag>{roles.find((r) => r.code === row.role)?.name || roleTag(row.role)}</Tag>,
     },
     {
@@ -259,6 +260,14 @@ export default function SettingsUsersPage() {
                 setRoleOpen(true);
               }}>新建角色</Button>
               <Button loading={rolesLoading} onClick={() => void loadRoles()}>刷新角色</Button>
+              <Select
+                allowClear
+                placeholder="选择对比角色"
+                style={{ minWidth: 210 }}
+                value={compareRole}
+                options={roles.map((r) => ({ label: r.name, value: r.code }))}
+                onChange={setCompareRole}
+              />
             </Space>
             <div role="table" aria-label="角色权限管理">
               {roles.map((r) => (
@@ -293,6 +302,23 @@ export default function SettingsUsersPage() {
                   </Space>
                   {r.description && <div style={{ marginTop: 6 }}>{r.description}</div>}
                   <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>{r.permissions.join('、') || '无授权权限'}</div>
+                  {compareRole && compareRole !== r.code && (() => {
+                    const other = roles.find((role) => role.code === compareRole);
+                    if (!other) return null;
+                    const additions = r.permissions.filter((key) => !other.permissions.includes(key));
+                    const removals = other.permissions.filter((key) => !r.permissions.includes(key));
+                    return (
+                      <div style={{ marginTop: 8 }}>
+                        <div>相对于「{other.name}」的权限差异</div>
+                        <Space wrap>
+                          {additions.map((key) => <Tag key={key} color="green">+ {key}</Tag>)}
+                          {removals.map((key) => <Tag key={key} color="red">− {key}</Tag>)}
+                          {!additions.length && !removals.length && <Tag>权限一致</Tag>}
+                        </Space>
+                      </div>
+                    );
+                  })()}
+
                 </div>
               ))}
             </div>
@@ -355,6 +381,7 @@ export default function SettingsUsersPage() {
             <Form.Item label="角色名称" name="name" rules={[{ required: true, max: 80 }]}>
               <Input maxLength={80} />
             </Form.Item>
+            {roleEdit && <div style={{ marginBottom: 12 }}>当前关联用户：{roleEdit.memberCount} 人。保存权限或停用角色会触发重新鉴权。</div>}
             <Form.Item label="角色描述" name="description">
               <Input.TextArea maxLength={400} />
             </Form.Item>
@@ -394,7 +421,7 @@ export default function SettingsUsersPage() {
             <Form.Item name="email" label="邮箱" rules={[{ required: true }]}>
               <Input placeholder="operator@example.com" />
             </Form.Item>
-            <Form.Item name="password" label="初始密码" rules={[{ required: true, min: 6 }]}>
+            <Form.Item name="password" label="初始密码" rules={[{ required: true, min: 12, message: '密码至少 12 位' }]}>
               <Input.Password />
             </Form.Item>
             <Form.Item name="displayName" label="显示名">
