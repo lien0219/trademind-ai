@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/gorm"
 )
 
@@ -270,6 +271,7 @@ func (s *Service) processOneAutoReply(ctx context.Context, shopRow *shop.Shop, p
 		return AutoReplyRunHumanRequired, nil
 	}
 	c := backgroundGinContext(ctx, "customer-auto-reply:"+messageID.String())
+	c.Set(ctxkey.TenantID, shopRow.TenantID)
 	generated, err := s.GenerateReply(c, conv.ID, GenerateReplyBody{
 		MessageID:  msg.ID.String(),
 		Language:   msg.Language,

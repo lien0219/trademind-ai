@@ -51,6 +51,10 @@ func (h *Handler) ListConversations(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
 		return
 	}
+	if !adminperm.CanViewCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "客服查看权限不足")
+		return
+	}
 	q := ListQuery{
 		Page:         atoiQ(c, "page", 1),
 		PageSize:     atoiQ(c, "pageSize", 20),
@@ -108,6 +112,10 @@ func (h *Handler) ListConversations(c *gin.Context) {
 func (h *Handler) CreateConversation(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
+		return
+	}
+	if !adminperm.CanWriteCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "客服写入权限不足")
 		return
 	}
 	var body CreateConversationBody
@@ -433,7 +441,20 @@ func (h *Handler) GetDashboard(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "customer chat unavailable")
 		return
 	}
-	out, err := h.Svc.GetDashboard(c)
+	if !adminperm.CanViewCustomer(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "客服查看权限不足")
+		return
+	}
+	filter := DashboardFilter{Platform: strings.TrimSpace(c.Query("platform"))}
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		id, parseErr := uuid.Parse(raw)
+		if parseErr != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		filter.ShopID = &id
+	}
+	out, err := h.Svc.GetDashboard(c, filter)
 	if err != nil {
 		response.HandleError(c, err)
 		return

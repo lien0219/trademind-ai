@@ -53,10 +53,11 @@ func (s *Service) ListSuggestions(c *gin.Context, conversationID uuid.UUID) ([]S
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	loaded, err := s.authorizedConversation(c, conversationID, false)
+	if err != nil {
 		return nil, err
 	}
+	conv := *loaded
 	var rows []CustomerReplySuggestion
 	if err := s.DB.WithContext(c.Request.Context()).
 		Where("conversation_id = ?", conversationID).
@@ -85,6 +86,9 @@ type RejectSuggestionBody struct {
 func (s *Service) RejectSuggestion(c *gin.Context, id uuid.UUID, body RejectSuggestionBody, adminID *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
+	}
+	if err := s.authorizeSuggestion(c, id, true); err != nil {
+		return err
 	}
 	var row CustomerReplySuggestion
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {

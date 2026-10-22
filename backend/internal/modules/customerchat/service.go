@@ -19,7 +19,6 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
-	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -258,15 +257,24 @@ func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
 	if id == nil || *id == uuid.Nil {
 		return nil
 	}
-	if s.Shops == nil {
-		return nil
-	}
-	ok, err := s.Shops.Exists(c, *id)
+	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return err
 	}
-	if !ok {
-		return fmt.Errorf("shop not found")
+	var shopRow shop.Shop
+	if err := s.DB.WithContext(c.Request.Context()).Select("id").
+		Where("id = ? AND tenant_id = ?", *id, tenantID).First(&shopRow).Error; err != nil {
+		return gorm.ErrRecordNotFound
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, id); err != nil {
+		return err
+	}
+	p, err := adminperm.LoadPrincipal(c, s.DB)
+	if err != nil {
+		return err
+	}
+	if p == nil || !p.CanOperateStore(*id) {
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
@@ -286,6 +294,13 @@ func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
+	if !adminperm.CanWriteCustomer(c, s.DB) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	platform := strings.TrimSpace(body.Platform)
 	if platform == "" {
 		platform = "manual"
@@ -299,6 +314,7 @@ func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody
 		lang = "en"
 	}
 	row := &CustomerConversation{
+		TenantID:         tenantID,
 		Platform:         platform,
 		CustomerName:     name,
 		CustomerLanguage: lang,
@@ -389,17 +405,11 @@ func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDe
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	tid, err := adminperm.TenantIDFromGin(c)
+	loaded, err := s.authorizedConversation(c, id, false)
 	if err != nil {
 		return nil, err
 	}
-	var row CustomerConversation
-	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
-		return nil, err
-	}
-	if err := adminperm.EnsureStoreVisible(c, s.DB, row.ShopID); err != nil {
-		return nil, err
-	}
+	row := *loaded
 	var sum *order.ConversationOrderSummary
 	if row.OrderID != nil && s.Orders != nil {
 		got, err := s.Orders.ConversationSummary(c, *row.OrderID)
@@ -447,10 +457,11 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	loaded, err := s.authorizedConversation(c, id, true)
+	if err != nil {
 		return nil, err
 	}
+	row := *loaded
 	prevStatus := row.Status
 	prevOrderIDStr := uuidToStrPtr(row.OrderID)
 	if body.CustomerName != nil {
@@ -505,7 +516,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 				return nil, fmt.Errorf("order service unavailable")
 			}
 			var exists int64
-			if err := s.Orders.DB.WithContext(c.Request.Context()).Model(&order.Order{}).Where("id = ?", u).Count(&exists).Error; err != nil {
+			if err := s.Orders.DB.WithContext(c.Request.Context()).Model(&order.Order{}).Where("id = ? AND tenant_id = ?", u, row.TenantID).Count(&exists).Error; err != nil {
 				return nil, err
 			}
 			if exists == 0 {
@@ -598,10 +609,11 @@ func (s *Service) DeleteConversation(c *gin.Context, id uuid.UUID, adminID *uuid
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	loaded, err := s.authorizedConversation(c, id, true)
+	if err != nil {
 		return err
 	}
+	row := *loaded
 	if err := s.DB.WithContext(c.Request.Context()).Delete(&CustomerConversation{}, "id = ?", id).Error; err != nil {
 		return err
 	}
@@ -641,7 +653,7 @@ func (s *Service) ListMessages(c *gin.Context, conversationID uuid.UUID) ([]Cust
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	if err := s.DB.WithContext(c.Request.Context()).First(&CustomerConversation{}, "id = ?", conversationID).Error; err != nil {
+	if _, err := s.authorizedConversation(c, conversationID, false); err != nil {
 		return nil, err
 	}
 	var rows []CustomerMessage
@@ -658,10 +670,11 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	loaded, err := s.authorizedConversation(c, conversationID, true)
+	if err != nil {
 		return nil, err
 	}
+	conv := *loaded
 	if !validRole(body.Role) {
 		return nil, fmt.Errorf("invalid role")
 	}
@@ -677,9 +690,10 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 		}
 	}
 	src := strings.TrimSpace(body.Source)
-	if src == "" {
-		src = SourceManual
+	if src != "" && src != SourceManual {
+		return nil, fmt.Errorf("manual message source required")
 	}
+	src = SourceManual
 
 	msg := &CustomerMessage{
 		ConversationID: conversationID,
@@ -691,7 +705,7 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 		CreatedBy:      adminID,
 	}
 	now := time.Now().UTC()
-	err := s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
+	err = s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
 		return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 			if err := tx.Create(msg).Error; err != nil {
 				return err
@@ -736,10 +750,11 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 	if reply == "" {
 		return nil, fmt.Errorf("reply is required")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	loaded, err := s.authorizedConversation(c, conversationID, true)
+	if err != nil {
 		return nil, err
 	}
+	conv := *loaded
 	now := time.Now().UTC()
 	msg := &CustomerMessage{
 		ConversationID: conversationID,
@@ -750,7 +765,7 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 		Source:         SourceManual,
 		CreatedBy:      adminID,
 	}
-	err := s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
+	err = s.withConversationMutationLock(c.Request.Context(), conversationID, func() error {
 		return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 			if err := tx.Create(msg).Error; err != nil {
 				return err
@@ -790,6 +805,9 @@ func (s *Service) UpdateSuggestion(c *gin.Context, id uuid.UUID, body UpdateSugg
 	if text == "" {
 		return fmt.Errorf("editedReply is required")
 	}
+	if err := s.authorizeSuggestion(c, id, true); err != nil {
+		return err
+	}
 	var row CustomerReplySuggestion
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
 		return err
@@ -824,6 +842,9 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 	final := strings.TrimSpace(body.FinalReply)
 	if final == "" {
 		return fmt.Errorf("finalReply is required")
+	}
+	if err := s.authorizeSuggestion(c, id, true); err != nil {
+		return err
 	}
 	var su CustomerReplySuggestion
 	if err := s.DB.WithContext(c.Request.Context()).First(&su, "id = ?", id).Error; err != nil {
@@ -875,6 +896,9 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 func (s *Service) DiscardSuggestion(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
+	}
+	if err := s.authorizeSuggestion(c, id, true); err != nil {
+		return err
 	}
 	var row CustomerReplySuggestion
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {

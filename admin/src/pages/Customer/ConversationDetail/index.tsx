@@ -19,7 +19,7 @@ import {
   Typography,
   Alert,
 } from 'antd';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CUSTOMER_CONVERSATION_STATUS,
   ORDER_FULFILLMENT_STATUS,
@@ -280,6 +280,8 @@ export default function CustomerConversationDetailPage() {
     loadAll();
   };
 
+  // Retain one idempotency key for the same pending send after uncertain outcomes.
+  const pendingSendRef = useRef<{ reply: string; conversationId: string; clientMessageId: string } | null>(null);
   const onSendToPlatform = () => {
     if (!id) return;
     const finalReply = editedReply.trim();
@@ -287,13 +289,19 @@ export default function CustomerConversationDetailPage() {
       message.warning('请填写要发送到平台的回复内容');
       return;
     }
+    const existing = pendingSendRef.current;
+    const clientMessageId = existing?.conversationId === id && existing.reply === finalReply
+      ? existing.clientMessageId
+      : crypto.randomUUID();
+    pendingSendRef.current = { conversationId: id, reply: finalReply, clientMessageId };
     confirmCustomerReplySend(canSendToPlatform, async () => {
       try {
         await sendPlatformMessage(id, {
           reply: finalReply,
-          clientMessageId: crypto.randomUUID(),
+          clientMessageId,
           suggestionId: suggestionId || undefined,
         });
+        pendingSendRef.current = null;
         message.success('已发送到平台');
         loadAll();
       } catch (e: unknown) {

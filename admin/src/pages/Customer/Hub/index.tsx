@@ -24,12 +24,14 @@ export default function CustomerHubPage() {
     void (async () => {
       setLoading(true);
       try {
-        setData(await getCustomerDashboard());
+        setData(await getCustomerDashboard({ platform: urlState.platform, shopId: urlState.shopId }));
+      } catch {
+        setData(null);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [urlState.platform, urlState.shopId]);
 
   useEffect(() => {
     void (async () => {
