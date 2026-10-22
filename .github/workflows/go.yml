@@ -65,6 +65,7 @@ jobs:
         run: |
           UNFORMATTED="$(gofmt -l .)"
           if [ -n "$UNFORMATTED" ]; then
+            gofmt -d internal/modules/adminuser/service.go
             echo "::error::Go files are not formatted. Run go fmt ./... locally and commit the changes."
             echo "$UNFORMATTED"
             exit 1
