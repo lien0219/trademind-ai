@@ -19,7 +19,7 @@ import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
-import { login, register, sendEmailCode } from '@/services/auth';
+import { changeRequiredPassword, login, register, sendEmailCode } from '@/services/auth';
 import './index.less';
 
 const FEATURE_TAGS = [
@@ -54,6 +54,8 @@ export default function LoginPage() {
   const { setInitialState, initialState } = useInitialStateModel();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
+  const [passwordChangeAccount, setPasswordChangeAccount] = useState<string | null>(null);
+  const [passwordChangeForm] = Form.useForm();
   const activeTab = authTabFromPathname(location.pathname);
 
   const [loginForm] = Form.useForm();
@@ -93,7 +95,14 @@ export default function LoginPage() {
       await setInitialState((s) => ({ ...s, currentUser: data.user }));
       message.success('登录成功');
     } catch (e: unknown) {
-      message.error(getAuthErrorMessage(e, '登录失败'));
+      const err = e as { message?: string };
+      if (err?.message?.includes('AUTH_PASSWORD_CHANGE_REQUIRED')) {
+        setPasswordChangeAccount(values.account as string);
+        passwordChangeForm.setFieldsValue({ currentPassword: values.password });
+        message.warning('临时密码需要先修改后才能登录');
+      } else {
+        message.error(getAuthErrorMessage(e, '登录失败'));
+      }
     } finally {
       setLoading(false);
     }
@@ -251,7 +260,51 @@ export default function LoginPage() {
                 </p>
               </div>
 
-            {activeTab === 'login' ? (
+            {activeTab === 'login' && passwordChangeAccount ? (
+              <Form
+                form={passwordChangeForm}
+                layout="vertical"
+                requiredMark={false}
+                onFinish={async (values) => {
+                  setLoading(true);
+                  try {
+                    await changeRequiredPassword({
+                      account: passwordChangeAccount,
+                      currentPassword: values.currentPassword,
+                      newPassword: values.newPassword,
+                    });
+                    passwordChangeForm.resetFields();
+                    setPasswordChangeAccount(null);
+                    loginForm.setFieldValue('password', undefined);
+                    message.success('密码修改成功，请使用新密码登录');
+                  } catch (error) {
+                    message.error(getAuthErrorMessage(error, '密码修改失败'));
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                <p>你的账号使用初始或重置后的临时密码，请先设置新的密码。</p>
+                <Form.Item name="currentPassword" label="临时密码" rules={[{ required: true }]}>
+                  <Input.Password autoComplete="current-password" />
+                </Form.Item>
+                <Form.Item name="newPassword" label="新密码" rules={[{ required: true }, { min: 12, max: 72 }]}>
+                  <Input.Password autoComplete="new-password" />
+                </Form.Item>
+                <Form.Item name="confirmPassword" label="确认新密码" dependencies={['newPassword']} rules={[
+                  { required: true },
+                  ({ getFieldValue }) => ({ validator(_, value) {
+                    return value === getFieldValue('newPassword')
+                      ? Promise.resolve()
+                      : Promise.reject(new Error('两次输入的密码不一致'));
+                  } }),
+                ]}>
+                  <Input.Password autoComplete="new-password" />
+                </Form.Item>
+                <Button type="primary" htmlType="submit" loading={loading}>修改密码</Button>
+                <Button onClick={() => { setPasswordChangeAccount(null); passwordChangeForm.resetFields(); }}>返回登录</Button>
+              </Form>
+            ) : activeTab === 'login' ? (
               <Form
                 form={loginForm}
                 layout="vertical"

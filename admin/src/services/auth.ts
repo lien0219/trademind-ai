@@ -50,3 +50,11 @@ export type ProfileUser = LoginUser & {
   createdAt?: string;
   updatedAt?: string;
 };
+
+export async function changeRequiredPassword(body: {
+  account: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ ok: boolean }> {
+  return postJSON('/api/v1/auth/change-required-password', body);
+}

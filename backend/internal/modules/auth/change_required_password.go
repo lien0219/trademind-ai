@@ -89,7 +89,7 @@ func (h *Handler) ChangeRequiredPassword(c *gin.Context) {
 			"token_version": gorm.Expr("token_version + 1"),
 		}).Error
 	})
-	if errors.Is(err, errors.New(ErrInvalidCredentials)) || (err != nil && err.Error() == ErrInvalidCredentials) {
+	if err != nil && err.Error() == ErrInvalidCredentials {
 		invalid()
 		return
 	}
