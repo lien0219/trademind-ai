@@ -100,10 +100,10 @@ func hashPassword(raw string) (string, error) {
 func normalizeRole(role string) string {
 	r := strings.TrimSpace(strings.ToLower(role))
 	switch r {
-	case adminperm.RoleAdmin, adminperm.RoleOperator, adminperm.RoleReadonly:
+	case adminperm.RoleAdmin, adminperm.RoleOperator, adminperm.RoleReadonly, adminperm.RoleReviewer:
 		return r
 	default:
-		return adminperm.RoleOperator
+		return ""
 	}
 }
 
@@ -288,6 +288,10 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 			return nil, ErrDuplicateAccount
 		}
 	}
+	role := normalizeRole(body.Role)
+	if role == "" {
+		return nil, fmt.Errorf("无效的角色")
+	}
 	hash, err := hashPassword(pw)
 	if err != nil {
 		return nil, err
@@ -298,7 +302,7 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		Phone:        ph,
 		PasswordHash: hash,
 		DisplayName:  strings.TrimSpace(body.DisplayName),
-		Role:         normalizeRole(body.Role),
+		Role:         role,
 		Status:       "active",
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(u).Error; err != nil {
@@ -329,6 +333,9 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	oldRole := normalizeRole(u.Role)
 	if body.Role != nil {
 		newRole := normalizeRole(*body.Role)
+		if newRole == "" {
+			return nil, fmt.Errorf("无效的角色")
+		}
 		if actorID != nil && *actorID == userID && newRole != adminperm.RoleAdmin && oldRole == adminperm.RoleAdmin {
 			return nil, ErrSelfRoleDowngrade
 		}

@@ -302,7 +302,7 @@ func PermissionsForRole(role string) []string {
 	case RoleReviewer:
 		return copyPermissions(reviewerPermissions)
 	default:
-		return copyPermissions(adminPermissions)
+		return []string{}
 	}
 }
 

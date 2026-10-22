@@ -26,6 +26,7 @@ const ROLE_OPTIONS = [
   { label: '管理员', value: 'admin' },
   { label: '运营', value: 'operator' },
   { label: '只读', value: 'readonly' },
+  { label: '审核', value: 'reviewer' },
 ];
 
 const STATUS_OPTIONS = [
@@ -44,6 +45,7 @@ function roleTag(role: string) {
   if (r === 'admin') return <Tag color="blue">管理员</Tag>;
   if (r === 'operator') return <Tag color="cyan">运营</Tag>;
   if (r === 'readonly') return <Tag>只读</Tag>;
+  if (r === 'reviewer') return <Tag color="purple">审核</Tag>;
   return <Tag>{role}</Tag>;
 }
 
@@ -162,6 +164,7 @@ export default function SettingsUsersPage() {
         row.role !== 'admin' ? (
           <Button
             key="perm"
+            disabled={!canManageUsers}
             type="link"
             size="small"
             onClick={async () => {
@@ -182,6 +185,7 @@ export default function SettingsUsersPage() {
         row.id !== currentUser?.id ? (
           <Button
             key="disable"
+            disabled={!canManageUsers}
             type="link"
             size="small"
             danger={row.status !== 'disabled'}
@@ -218,7 +222,7 @@ export default function SettingsUsersPage() {
           search={{ labelWidth: 80 }}
           locale={emptyLocale}
           toolBarRender={() => [
-            <Button key="create" type="primary" onClick={() => setCreateOpen(true)}>
+            <Button key="create" type="primary" disabled={!canManageUsers} onClick={() => setCreateOpen(true)}>
               新建用户
             </Button>,
           ]}

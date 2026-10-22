@@ -173,15 +173,17 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
 
 export function normalizeRole(role?: string | null): AdminRole {
   const r = (role || '').trim().toLowerCase();
-  if (r === ROLES.OPERATOR || r === ROLES.READONLY || r === ROLES.REVIEWER) return r;
-  return ROLES.ADMIN;
+  if (r === ROLES.ADMIN || r === ROLES.OPERATOR || r === ROLES.READONLY || r === ROLES.REVIEWER) return r;
+  return '' as AdminRole;
 }
 
 export function permissionsForRole(role?: string | null, fromProfile?: string[]): PermissionKey[] {
-  if (fromProfile && fromProfile.length > 0) {
-    return fromProfile as PermissionKey[];
+  if (fromProfile !== undefined) {
+    return fromProfile.filter((key): key is PermissionKey =>
+      (Object.values(PERMISSIONS) as string[]).includes(key),
+    );
   }
-  return ROLE_PERMISSIONS[normalizeRole(role)] || ROLE_PERMISSIONS.admin;
+  return ROLE_PERMISSIONS[normalizeRole(role)] || [];
 }
 
 export function hasPermission(
@@ -193,7 +195,7 @@ export function hasPermission(
 }
 
 export function isReadonly(role?: string | null): boolean {
-  return normalizeRole(role) === ROLES.READONLY;
+  return normalizeRole(role) === ROLES.READONLY || !normalizeRole(role);
 }
 
 export function canWriteOrders(role?: string | null, perms?: string[]): boolean {
