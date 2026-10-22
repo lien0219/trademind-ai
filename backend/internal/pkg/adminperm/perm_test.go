@@ -130,3 +130,21 @@ func TestPrincipalStoreAccess(t *testing.T) {
 		t.Fatal("must not operate other store")
 	}
 }
+
+func TestRoleMatrixRejectsUnknownWithoutRemovingAdministrator(t *testing.T) {
+	if !HasPermission(RoleAdmin, PermUserManage) || !StrictHasPermission(RoleAdmin, PermUserManage) {
+		t.Fatal("recognized administrators must retain user management")
+	}
+	for _, role := range []string{"", "unexpected", "administrator", "custom-not-configured"} {
+		if got := PermissionsForRole(role); len(got) != 0 {
+			t.Fatalf("unknown role %q granted permissions: %v", role, got)
+		}
+		if HasPermission(role, PermUserManage) || StrictHasPermission(role, PermUserManage) {
+			t.Fatalf("unknown role %q granted user management", role)
+		}
+		p := &Principal{Role: role}
+		if p.IsAdmin() || p.Can(PermUserManage) || p.CanOperateStore(uuid.New()) {
+			t.Fatalf("unknown role %q escalated privileges", role)
+		}
+	}
+}
