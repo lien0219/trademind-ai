@@ -17,7 +17,7 @@ git switch -c feat/your-feature-name
 
 ## 验证与验收
 
-- GitHub Actions 执行持续自动化回归；不得删除工作流依赖的核心测试或通过 skip 掩盖失败。
+- GitHub Actions 执行持续自动化回归；不得删除工作流依赖的核心测试或通过 skip 掩盖失败。容器镜像变更还必须分别通过 AMD64/ARM64 manifest 的漏洞和 secret 阻断扫描，诊断产物不得包含原始 secret 内容。
 - 本地默认完成相关静态检查、配置检查、格式化和必要构建，完整自动化回归可交由 CI。
 - 产品、页面和业务流程最终由人工验收；PR 中写明人工步骤和结果。
 - 本地不要求创建 `trademind_test`。数据库/Redis 测试必须使用隔离资源或 CI service container。

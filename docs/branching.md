@@ -47,7 +47,7 @@ PostgreSQL 和 Redis 集成测试由 GitHub Actions service container 提供。C
 - main 构建先按服务生成 `<service>-sha-<full-commit>` 候选标签；三个候选都通过平台、OCI revision 和 Trivy 门禁后才移动 `<service>-main`。
 - 版本变更或明确的 main 手动发布会把候选 digest 晋级为不可覆盖的 `<service>-main-v<version>`。
 - 工作流校验版本文件、已有版本顺序、Tag、main 祖先关系和三个候选 digest；正式版本回退、同名 Tag 指向其他提交或正式镜像已存在且 digest 不同会立即失败。
-- 每个镜像包含 `linux/amd64` 与 `linux/arm64`，并发布 OCI 元数据、SBOM 和 provenance；main 晋级前还必须通过工作流内的 Admin/Collector 构建与 Go 单元构建测试门禁。
+- 每个镜像包含 `linux/amd64` 与 `linux/arm64`，并发布 OCI 元数据、SBOM 和 provenance；每个平台的不可变 manifest 都必须通过源 revision、CRITICAL/HIGH 漏洞和 secret 扫描，失败诊断只上传脱敏白名单字段；main 晋级前还必须通过工作流内的 Admin/Collector 构建与 Go 单元构建测试门禁。
 - 正式镜像发布不会自动部署、切流、修改数据库或启用真实平台能力；它只创建可验证的镜像、Tag 和 Release 部署输入。
 
 版本变更 PR 应同时检查 `deploy/IMAGE_VERSION`、`CHANGELOG.md`、`docs/docker-deployment.md` 和回滚引用。Tag 只能由通过整体门禁的 main 工作流创建；完整命令见 [Docker 部署说明](docker-deployment.md#正式发布)。

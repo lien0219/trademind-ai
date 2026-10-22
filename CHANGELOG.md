@@ -11,6 +11,13 @@ All notable changes to TradeMind are documented here.
 - Added a pull-only production Compose file with runtime-only secrets and persistent PostgreSQL, Redis, upload, and Collector browser data volumes.
 - Kept historical GHCR Packages untouched and documented the manual migration and rollback procedure.
 
+### Container security hardening (2026-10-21)
+
+- Updated Admin, Backend, and Collector image dependencies and removed Collector build tooling, caches, and fixtures from the production runtime image.
+- Kept blocking `CRITICAL,HIGH` vulnerability and secret scans for both `linux/amd64` and `linux/arm64`; sanitized diagnostics no longer retain secret matches or source content.
+- Bound SBOM and SLSA provenance statements to each platform digest and the exact Git repository, commit, and Dockerfile context before promotion.
+- Treated valid successful Trivy container image reports with omitted Results as complete clean scans while failing closed on failed scans or missing artifact identity. (2026-10-22)
+
 ## v0.3.0 - 2026-09-29
 
 ### Carrier freight invoice ledger and profit estimate V6 (2026-09-28)

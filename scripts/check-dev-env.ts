@@ -94,7 +94,7 @@ export async function runDevEnvChecks(
 
   const pnpmV = await commandPrintableVersion('pnpm', ['--version']);
   if (!pnpmV) {
-    fail('未检测到 pnpm。请先安装 Node.js，再执行：`npm install -g pnpm@9`，然后重新打开终端。');
+    fail('未检测到 pnpm。请先安装 Node.js，再执行：`npm install -g pnpm@10`，然后重新打开终端。');
   } else {
     checkOk(`pnpm OK (${pnpmV})`);
   }
