@@ -302,7 +302,9 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		}
 	}
 	role, err := s.requireAssignableRole(c, tenantID, body.Role)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	hash, err := hashPassword(pw)
 	if err != nil {
 		return nil, err
@@ -349,7 +351,9 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	oldRole := normalizeRole(u.Role)
 	if body.Role != nil {
 		newRole, err := s.requireAssignableRole(c, tenantID, *body.Role)
-		if err != nil { return nil, err }
+		if err != nil {
+		return nil, err
+	}
 		if actorID != nil && *actorID == userID && newRole != adminperm.RoleAdmin && oldRole == adminperm.RoleAdmin {
 			return nil, ErrSelfRoleDowngrade
 		}
@@ -466,13 +470,17 @@ func (s *Service) invalidateUserPermissions(ctx context.Context, userID uuid.UUI
 }
 
 // requireAssignableRole prohibits revoked or cross-tenant role assignments.
-func (s *Service) requireAssignableRole(c *gin.Context, tenantID int64, raw string) (string,error) {
+func (s *Service) requireAssignableRole(c *gin.Context, tenantID int64, raw string) (string, error) {
 	role := normalizeRole(raw)
-	if role == "" { return "", fmt.Errorf("无效的角色") }
-	if !adminperm.IsCustomRole(role) { return role,nil }
-	var found admin.RoleDefinition
-	if err := s.DB.WithContext(c.Request.Context()).Where("tenant_id = ? AND code = ? AND enabled = ?", tenantID,role,true).First(&found).Error; err != nil {
-		return "",fmt.Errorf("自定义角色不存在或已停用: %w",err)
+	if role == "" {
+		return "", fmt.Errorf("无效的角色")
 	}
-	return role,nil
+	if !adminperm.IsCustomRole(role) {
+		return role, nil
+	}
+	var found admin.RoleDefinition
+	if err := s.DB.WithContext(c.Request.Context()).Where("tenant_id = ? AND code = ? AND enabled = ?", tenantID, role, true).First(&found).Error; err != nil {
+		return "", fmt.Errorf("自定义角色不存在或已停用: %w", err)
+	}
+	return role, nil
 }

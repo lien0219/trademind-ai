@@ -37,7 +37,9 @@ func (p *Principal) Can(perm string) bool {
 	if p == nil || p.Disabled {
 		return false
 	}
-	if IsCustomRole(p.Role) { return permissionIn(p.Permissions, perm) }
+	if IsCustomRole(p.Role) {
+		return permissionIn(p.Permissions, perm)
+	}
 	return HasPermission(p.Role, perm)
 }
 
@@ -106,7 +108,9 @@ func normalizeRole(role string) string {
 		return r
 	}
 	r := strings.TrimSpace(strings.ToLower(role))
-	if IsCustomRole(r) { return r }
+	if IsCustomRole(r) {
+		return r
+	}
 	return ""
 }
 
