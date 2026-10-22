@@ -46,7 +46,7 @@ Admin 运行镜像固定 Nginx Alpine 版本，并在运行阶段升级受影响
 | --- | --- | --- |
 | `<service>-sha-<full-commit>` | 每个 main 候选构建先写入 | 三个服务分别按完整提交定位，必须通过平台、revision 和 Trivy 门禁。 |
 | `<service>-main` | 三个候选镜像都验证通过后移动 | 可移动的 main 验证标签，不用于不可变生产部署。 |
-| `<service>-main-v<version>` | 正式版本晋级时创建且不覆盖 | 版本与 main 提交绑定的不可变正式引用，例如 `admin-main-v0.3.0`。 |
+| `<service>-main-v<version>` | 当前 VERSION 首次通过完整门禁且未正式发布时自动创建，不覆盖已有版本 | 版本与 main 提交绑定的不可变正式引用，例如 `admin-main-v0.3.0`。 |
 
 `<service>` 为 `backend`、`admin` 或 `collector`。使用 Compose 从统一 Package 拉取同一版本的完整服务组：
 
@@ -65,7 +65,7 @@ docker compose -f docker-compose.full.yml up -d --no-build
 
 1. 在 `dev` 更新 `deploy/IMAGE_VERSION`、Changelog 和部署说明，通过既有流程合并到 `main`；版本必须是唯一的 Docker tag-safe SemVer。
 2. 等待 main 的 CI、镜像构建、平台/revision 校验和 Trivy 门禁完成，并完成人工验收。
-3. 在 `main` 的 Container Images 工作流中选择 `workflow_dispatch` 的 `publish_release=true`，或让版本文件变更触发正式候选流程。工作流会比较已有版本 Tag，拒绝版本回退；它还使用同一提交的三个已验证 digest，拒绝已被其他提交使用的 Tag/版本镜像，并创建 `v<version>` annotated Tag 与 GitHub Release。
+3. `main` 上首次通过全部镜像质量、安全与来源校验时，如果 `deploy/IMAGE_VERSION` 尚未生成对应正式 Git Tag 和 GitHub Release，即使版本号在此前失败的构建中已修改、此次合并未再修改版本号，也会自动晋级三个 `<service>-main-v<version>` 不可变标签并创建 `v<version>` annotated Git Tag 与 GitHub Release；无需手动勾选开关。已经发布的版本保持不可变，普通 main 提交只更新 `<service>-main` 和 `<service>-sha-*`。中断后的同一提交可使用 main 的 `workflow_dispatch` 重新运行；版本回退、Tag 冲突或 GitHub API 查询失败均会阻断发布。
 4. Release 只在三个服务全部通过后生成；失败时保留候选 digest，可从同一提交安全重试，不会显示为成功 Release。正式标签只有 `<service>-main-v<version>`，不会生成 `*-latest` 或其他重复别名。
 
 需要严格可复现的部署时，使用 Release 清单中的完整 `image@sha256:<digest>` 引用：

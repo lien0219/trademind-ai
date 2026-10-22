@@ -82,6 +82,10 @@ jobs:
           fi
           node scripts/release/validate-release-version.mjs "$RELEASE_VERSION"
           tag="v$RELEASE_VERSION"
+          if [[ "$(git rev-parse refs/remotes/origin/main)" != "$RELEASE_COMMIT" ]] && ! git show-ref --verify --quiet "refs/tags/$tag"; then
+            echo "::error::Refusing to create new version tag $tag from stale main commit $RELEASE_COMMIT"
+            exit 1
+          fi
           if git show-ref --verify --quiet "refs/tags/$tag"; then
             existing="$(git rev-parse "$tag^{commit}")"
             if [[ "$existing" != "$RELEASE_COMMIT" ]]; then
