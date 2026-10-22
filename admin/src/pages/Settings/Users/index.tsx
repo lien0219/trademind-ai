@@ -87,6 +87,16 @@ export default function SettingsUsersPage() {
     if (canManageUsers) void loadRoles();
   }, [canManageUsers, loadRoles]);
   const [compareRole, setCompareRole] = useState<string>();
+  const permissionGroups = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    for (const key of permissionCatalog) {
+      const prefix = key.split('.')[0] || 'other';
+      const existing = groups.get(prefix) || [];
+      existing.push(key);
+      groups.set(prefix, existing);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [permissionCatalog]);
   const roleOptions = useMemo(() => roles
     .filter((r) => r.enabled)
     .map((r) => ({ label: r.name, value: r.code })), [roles]);
@@ -405,14 +415,21 @@ export default function SettingsUsersPage() {
               <Input.TextArea maxLength={400} />
             </Form.Item>
             <Divider>模块 / 页面 / 按钮 / API 权限</Divider>
-            <Form.Item name="permissions" label="权限配置">
-              <Checkbox.Group style={{ width: '100%' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, maxHeight: 340, overflow: 'auto' }}>
-                  {permissionCatalog.map((key) => (
-                    <Checkbox key={key} value={key}>{key}</Checkbox>
-                  ))}
-                </div>
-              </Checkbox.Group>
+            <Form.Item label="模块 / 页面 / 操作 / API 权限" required>
+              <Form.Item name="permissions" noStyle>
+                <Checkbox.Group style={{ width: '100%' }}>
+                  <div style={{ maxHeight: 350, overflowY: 'auto' }}>
+                    {permissionGroups.map(([module, keys]) => (
+                      <section key={module} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
+                        <strong>{module} ({keys.length})</strong>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8, marginTop: 8 }}>
+                          {keys.map((key) => <Checkbox key={key} value={key}>{key}</Checkbox>)}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </Checkbox.Group>
+              </Form.Item>
             </Form.Item>
             <Form.Item name="enabled" label="启用状态" valuePropName="checked">
               <Checkbox>启用此角色</Checkbox>
