@@ -111,6 +111,7 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 	session := &AuthSession{
 		TenantID:         u.TenantID,
 		UserID:           u.ID,
+		TokenVersion:     u.TokenVersion,
 		Status:           SessionStatusActive,
 		BrowserSummary:   authutil.SummarizeUserAgent(userAgent),
 		DeviceSummary:    "web",
@@ -239,13 +240,20 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		}
 
 		var u admin.AdminUser
-		if err := tx.Select("id", "tenant_id", "role", "status", "token_version", "email", "phone", "display_name").
+		if err := tx.Select("id", "tenant_id", "role", "status", "token_version", "must_change_password", "email", "phone", "display_name").
 			First(&u, "id = ?", row.UserID).Error; err != nil {
 			return errors.New(ErrSessionRevoked)
 		}
 		if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
-			_ = s.revokeSessionTx(tx, sess.ID, "user_disabled")
 			return errors.New(ErrUserDisabled)
+		}
+		if u.MustChangePassword {
+			return errors.New(ErrPasswordChangeRequired)
+		}
+		// A session minted before a role/password change cannot refresh itself
+		// into the newer token version; historical unversioned sessions must re-login.
+		if sess.TokenVersion == 0 || u.TokenVersion == 0 || sess.TokenVersion != u.TokenVersion {
+			return errors.New(ErrSessionRevoked)
 		}
 
 		newRaw, err := authutil.NewOpaqueToken(32)
@@ -436,20 +444,26 @@ func (s *SessionService) ValidateSessionAccess(ctx context.Context, sessionID uu
 		return fmt.Errorf("auth: misconfigured")
 	}
 	var sess AuthSession
-	if err := s.DB.WithContext(ctx).Select("id", "status", "user_id").First(&sess, "id = ?", sessionID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Select("id", "status", "user_id", "token_version").First(&sess, "id = ?", sessionID).Error; err != nil {
 		return errors.New(ErrSessionRevoked)
 	}
 	if sess.Status != SessionStatusActive || sess.UserID != userID {
 		return errors.New(ErrSessionRevoked)
 	}
 	var u admin.AdminUser
-	if err := s.DB.WithContext(ctx).Select("token_version", "status").First(&u, "id = ?", userID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Select("token_version", "status", "must_change_password").First(&u, "id = ?", userID).Error; err != nil {
 		return errors.New(ErrSessionRevoked)
 	}
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		return errors.New(ErrUserDisabled)
 	}
-	if tokenVersion > 0 && u.TokenVersion > 0 && tokenVersion != u.TokenVersion {
+	if u.MustChangePassword {
+		return errors.New(ErrPasswordChangeRequired)
+	}
+	if sess.TokenVersion == 0 || u.TokenVersion == 0 || sess.TokenVersion != u.TokenVersion {
+		return errors.New(ErrSessionRevoked)
+	}
+	if tokenVersion > 0 && tokenVersion != u.TokenVersion {
 		return errors.New(ErrSessionRevoked)
 	}
 	return nil

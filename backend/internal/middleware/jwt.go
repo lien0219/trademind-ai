@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authcookie"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -63,6 +64,20 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		if sessions != nil && sessID != uuid.Nil {
 			if err := sessions.ValidateSessionAccess(c.Request.Context(), sessID, uid, claims.TokenVersion); err != nil {
 				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+				c.Abort()
+				return
+			}
+		} else if db != nil && sessID == uuid.Nil {
+			// Legacy bearer tokens have no session record. Validate the persisted
+			// security version so old tokens cannot bypass a role/password reset.
+			var actor admin.AdminUser
+			if err := db.WithContext(c.Request.Context()).
+				Select("token_version", "status", "must_change_password").
+				First(&actor, "id = ?", uid).Error; err != nil ||
+				!strings.EqualFold(strings.TrimSpace(actor.Status), admin.StatusActive) ||
+				actor.MustChangePassword || actor.TokenVersion == 0 ||
+				actor.TokenVersion != claims.TokenVersion {
+				response.Fail(c, 401, response.CodeUnauthorized, auth.ErrSessionRevoked)
 				c.Abort()
 				return
 			}

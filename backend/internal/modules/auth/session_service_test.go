@@ -282,3 +282,48 @@ func BenchmarkInvalidLoginWithAudit(b *testing.B) {
 		performLogin(h, "audit@example.com", "wrong-password")
 	}
 }
+
+func TestRefreshTokenDeniedAfterSecurityVersionChange(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:refresh_revoke_%s?mode=memory&cache=shared", uuid.NewString())), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte("valid-password-123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uid := uuid.New()
+	email := "security-" + uuid.NewString() + "@example.net"
+	if err := db.Create(&admin.AdminUser{
+		Base: model.Base{ID: uid}, Username: "security-test-" + uuid.NewString(),
+		Email: email, PasswordHash: string(hash), Role: "operator",
+		Status: admin.StatusActive, TokenVersion: 1,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{
+		JWTSecret: "security-test-secret-at-least-thirty-two-bytes",
+		Auth: config.AuthConfig{
+			SessionMode: config.AuthSessionModeSecure,
+			AccessTokenTTLMinutes: 15, RefreshTokenTTLDays: 7,
+		},
+	}
+	sessions := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}}
+	first, err := sessions.CreateSession(context.Background(), email, "valid-password-123", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&admin.AdminUser{}).Where("id = ?", uid).
+		UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := sessions.ValidateSessionAccess(context.Background(), first.SessionID, uid, 1); err == nil {
+		t.Fatal("old access session accepted after revocation")
+	}
+	if _, err := sessions.RotateRefresh(context.Background(), first.RefreshToken, "127.0.0.1", "test"); err == nil || err.Error() != ErrSessionRevoked {
+		t.Fatalf("old refresh token must not mint a new access token: %v", err)
+	}
+}
