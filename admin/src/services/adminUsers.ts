@@ -93,3 +93,7 @@ export async function createAdminRole(values: RoleEditorValues): Promise<AdminRo
 export async function updateAdminRole(code: string, values: RoleEditorValues): Promise<AdminRoleRow> {
   return patchJSON(`/api/v1/admin/roles/${encodeURIComponent(code)}`, values);
 }
+
+export async function resetAdminUserPassword(id: string): Promise<{ temporaryPassword: string }> {
+  return postJSON(`/api/v1/admin/users/${encodeURIComponent(id)}/reset-password`, {});
+}

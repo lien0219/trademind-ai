@@ -18,6 +18,7 @@ import {
   fetchAdminUsers,
   setAdminUserStorePermissions,
   updateAdminUser,
+  resetAdminUserPassword,
   type AdminUserRow,
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
@@ -62,6 +63,7 @@ export default function SettingsUsersPage() {
   const actionRef = useRef<ActionType>();
   const { canManageUsers, user: currentUser } = usePermission();
   const [createOpen, setCreateOpen] = useState(false);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [roles, setRoles] = useState<AdminRoleRow[]>([]);
   const [permissionCatalog, setPermissionCatalog] = useState<string[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
@@ -212,6 +214,23 @@ export default function SettingsUsersPage() {
           >
             店铺权限
           </Button>
+        ) : null,
+        row.id !== currentUser?.id ? (
+          <Button
+            key="resetPassword"
+            type="link"
+            disabled={!canManageUsers}
+            size="small"
+            onClick={() => Modal.confirm({
+              title: '重置用户密码',
+              content: `将重置「${adminUserLabel(row)}」的登录密码并使旧登录令牌失效。请通过安全渠道交付临时密码。`,
+              onOk: async () => {
+                const result = await resetAdminUserPassword(row.id);
+                setTemporaryPassword(result.temporaryPassword);
+                message.success('密码已重置，请妥善保存临时密码');
+              },
+            })}
+          >重置密码</Button>
         ) : null,
         row.id !== currentUser?.id ? (
           <Button
@@ -399,6 +418,18 @@ export default function SettingsUsersPage() {
               <Checkbox>启用此角色</Checkbox>
             </Form.Item>
           </Form>
+        </Modal>
+        <Modal
+          title="一次性临时密码"
+          open={temporaryPassword !== null}
+          onCancel={() => setTemporaryPassword(null)}
+          onOk={() => setTemporaryPassword(null)}
+          okText="已安全保存"
+          cancelText="关闭"
+          destroyOnHidden
+        >
+          <p>此临时密码仅在此处显示一次。关闭后无法重新查看，切勿发送到公开聊天或日志。</p>
+          <Input.Password value={temporaryPassword || ''} readOnly visibilityToggle />
         </Modal>
         <Modal
           title="新建用户"
