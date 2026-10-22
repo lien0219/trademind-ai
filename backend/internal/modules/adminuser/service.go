@@ -350,6 +350,15 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	}
 	var u admin.AdminUser
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		// Serialize role/status transitions of tenant administrators. Without a
+		// shared lock two concurrent demotions can both observe one other admin.
+		if body.Role != nil || body.Status != nil {
+			if s.DB.Dialector.Name() == "postgres" {
+				if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", int64(0x5242414300000000)+tid).Error; err != nil {
+					return err
+				}
+			}
+		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			First(&u, "id = ? AND tenant_id = ?", userID, tid).Error; err != nil {
 			return err
