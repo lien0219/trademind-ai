@@ -19,13 +19,13 @@ import (
 
 // RoleRow is an authoritative server-side role record with member counts.
 type RoleRow struct {
-	Code         string   `json:"code"`
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	Permissions  []string `json:"permissions"`
-	Enabled      bool     `json:"enabled"`
-	System       bool     `json:"system"`
-	MemberCount  int64    `json:"memberCount"`
+	Code        string   `json:"code"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+	Enabled     bool     `json:"enabled"`
+	System      bool     `json:"system"`
+	MemberCount int64    `json:"memberCount"`
 }
 
 type roleInput struct {

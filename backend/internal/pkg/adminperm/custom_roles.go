@@ -16,11 +16,11 @@ func IsCustomRole(role string) bool {
 // These privileges require a system administrator and cannot be delegated to
 // self-defined roles; otherwise user-managers could mint new administrators.
 var reservedCustomPermissions = map[string]bool{
-	PermUserManage:             true,
-	PermSettingsManage:         true,
-	PermSecuritySessionManage:  true,
-	PermPIIReadFull:            true,
-	PermConfigManage:           true,
+	PermUserManage:            true,
+	PermSettingsManage:        true,
+	PermSecuritySessionManage: true,
+	PermPIIReadFull:           true,
+	PermConfigManage:          true,
 }
 
 // ValidateCustomPermissions applies an explicit allowlist and never accepts
@@ -49,7 +49,7 @@ func ValidateCustomPermissions(perms []string) ([]string, error) {
 // DelegablePermissions is returned to the role editor; system-only keys are
 // never offered to custom role creators.
 func DelegablePermissions() []string {
-	out := make([]string, 0,len(allPermissions))
+	out := make([]string, 0, len(allPermissions))
 	for _, k := range allPermissions {
 		if !reservedCustomPermissions[k] {
 			out = append(out, k)

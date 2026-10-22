@@ -103,7 +103,9 @@ func normalizeRole(role string) string {
 	case adminperm.RoleAdmin, adminperm.RoleOperator, adminperm.RoleReadonly, adminperm.RoleReviewer:
 		return r
 	default:
-		if adminperm.IsCustomRole(r) { return r }
+		if adminperm.IsCustomRole(r) {
+			return r
+		}
 		return ""
 	}
 }
