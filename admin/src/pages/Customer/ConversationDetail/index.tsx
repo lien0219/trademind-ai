@@ -19,7 +19,7 @@ import {
   Typography,
   Alert,
 } from 'antd';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CUSTOMER_CONVERSATION_STATUS,
   ORDER_FULFILLMENT_STATUS,
