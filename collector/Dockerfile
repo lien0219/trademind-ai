@@ -25,11 +25,18 @@ COPY --from=builder /out/collector/ ./
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
+# The Node base image ships npm with vulnerable bundled CLI dependencies.
+# Collector starts with node, so remove npm only after provisioning Chromium.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends fonts-noto-cjk \
   && ./node_modules/.bin/playwright install --with-deps chromium \
   && mkdir -p /workspace/data/browser-profiles /workspace/data/storage-states \
   && chown -R node:node /workspace/data /workspace/collector /ms-playwright \
+  && rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx \
+  && test ! -e /usr/local/lib/node_modules/npm \
+  && test ! -e /usr/local/bin/npm \
+  && node -e "require('playwright')" \
   && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3001

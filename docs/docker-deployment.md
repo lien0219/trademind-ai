@@ -40,7 +40,7 @@ backend、admin、collector 仍是三个独立镜像，各自拥有多架构 man
 
 所有镜像均构建 `linux/amd64` 与 `linux/arm64`，并附带 OCI 元数据、SBOM 和 provenance。工作流会按子 manifest digest 分别拉取两个平台，校验源提交并执行 OS、library 与 secret 扫描；可修复的 CRITICAL/HIGH 漏洞、secret 命中或扫描器错误都会阻断候选。失败诊断只保留白名单中的 CVE、包名、版本、严重级别和 secret 数量，不保留 secret 匹配内容、源码行、镜像环境或扫描器自由文本。镜像版本的唯一来源是 [`deploy/IMAGE_VERSION`](../deploy/IMAGE_VERSION)，格式为不含 `+build` 元数据、最长 48 字符的 Docker tag 安全 SemVer。
 
-Admin 运行镜像固定 Nginx Alpine 版本，并在运行阶段升级受影响的 `libexpat` 与 `libx11`。Backend 使用 Go 1.26.10 编译，运行于保留 CA、时区、curl 和字体依赖的 Debian bookworm-slim。Collector 在独立构建阶段编译并仅部署生产依赖与 `dist`，运行阶段使用 Node 24 Bookworm slim 和 Playwright 1.64.1 匹配安装 Chromium 及系统依赖，以非 root 的 `node` 用户直接启动；浏览器 Profile 与 Storage State 目录仍作为可写持久化挂载点。
+Admin 运行镜像固定 Nginx Alpine 版本，并在运行阶段升级受影响的 `libexpat` 与 `libx11`。Backend 使用 Go 1.26.10 编译，运行于保留 CA、时区、curl 和字体依赖的 Debian bookworm-slim。Collector 在独立构建阶段编译并仅部署生产依赖与 `dist`，运行阶段使用 Node 24 Bookworm slim 和 Playwright 1.64.1 匹配安装 Chromium 及系统依赖，以非 root 的 `node` 用户直接启动；浏览器 Profile 与 Storage State 目录仍作为可写持久化挂载点。Chromium 安装完成后，最终镜像会移除无需在生产环境使用的 npm CLI 及其捆绑依赖；Collector 仍使用 Node.js 直接启动。
 
 | 标签 | 更新规则 | 用途 |
 | --- | --- | --- |

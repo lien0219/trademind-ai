@@ -67,7 +67,16 @@ describe('container image release workflow', () => {
     expect(collectorDockerfile).toContain('./node_modules/.bin/playwright install --with-deps chromium');
     expect(collectorDockerfile).toContain('USER node');
     expect(collectorDockerfile).toContain('["node", "dist/index.js"]');
-    expect(collectorDockerfile.slice(collectorDockerfile.indexOf('AS runtime'))).not.toContain('pnpm install --frozen-lockfile');
+    const runtime = collectorDockerfile.slice(collectorDockerfile.indexOf('AS runtime'));
+    expect(runtime).not.toContain('pnpm install --frozen-lockfile');
+    expect(runtime).toContain('rm -rf /usr/local/lib/node_modules/npm');
+    expect(runtime).toContain('rm -f /usr/local/bin/npm /usr/local/bin/npx');
+    expect(runtime.indexOf('playwright install --with-deps chromium')).toBeLessThan(
+      runtime.indexOf('rm -rf /usr/local/lib/node_modules/npm'),
+    );
+    expect(runtime).toContain('test ! -e /usr/local/lib/node_modules/npm');
+    expect(runtime).toContain('test ! -e /usr/local/bin/npm');
+    expect(runtime).toContain('node -e "require(\'playwright\')"');
   });
 
   it('deploys Collector with pnpm 10 support for the existing non-injected workspace', () => {
