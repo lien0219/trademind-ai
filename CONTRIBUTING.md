@@ -28,11 +28,15 @@ git switch -c feat/your-feature-name
 - 说明变更、影响范围、风险、本地实际检查、交由 CI 的测试和人工验收。
 - Go 改动执行 `gofmt`；前端/Collector 改动完成相关构建或说明未执行原因。
 - API、部署、环境变量、配置或 Provider 变更同步相关文档。
-- 容器版本由 `deploy/IMAGE_VERSION` 管理；版本变更使用不含 `+build` 元数据、最长 48 字符的 Docker tag 安全 SemVer，并同步 Changelog、部署说明和回滚引用。
+- 正式版本由 `deploy/IMAGE_VERSION` 管理；发布新版本仍需主动更新该文件，使用不含 `+build` 元数据、最长 48 字符的 Docker tag 安全 SemVer，并同步 Changelog、部署说明和回滚引用。
 - 不提交 `.env`、密钥、Token、Cookie、真实平台凭据或生产数据。
 - 不新增一次性阶段 gate、长期运行证据或自动扩大的 baseline。
 
-只有镜像相关变更合并到 `main` 后，GitHub Actions 才会把 backend、admin、collector 候选镜像发布到统一的 `trademind` GHCR Package；开发分支、PR 和非 main 手动运行不会写入 GHCR。三个候选都通过平台、OCI revision 和 Trivy 门禁后，普通 main 构建才移动服务 `main` 标签。版本文件变更或明确的 main 手动发布会使用同一提交的 digest 创建不可覆盖的 `<service>-main-v<version>` 正式标签、匹配的 `v<version>` Git Tag 和 GitHub Release。预生产和正式部署必须使用 Release 清单中的 `image@sha256:<manifest-digest>` 引用。镜像发布不代表已经部署或启用真实平台能力。
+日常开发先通过 PR 集成到 `dev`，再通过 PR 合并到 `main`。`main` 的提交命中 `Container Images` 工作流路径规则时，GitHub Actions 会分别构建 backend、admin、collector 候选镜像并发布到统一的 `trademind` GHCR Package；未命中路径规则的提交不会自动构建镜像，开发分支、PR 和非 `main` 手动运行不会写入 GHCR。三个候选都通过质量、双架构、OCI revision、Trivy、SBOM、Provenance 和 Digest 校验后，才会更新 `<service>-main` 标签。
+
+当前版本首次通过完整镜像发布门禁且尚未正式发布时，将自动生成不可变正式镜像标签、匹配的 Git Tag 与 GitHub Release。即使此前版本构建失败，后续修复成功也会自动补发。已发布版本不会被后续提交覆盖。正式镜像标签为 `<service>-main-v<version>`，Git Tag 为 `v<version>`；自动发布不要求版本文件在本次 push 中发生变化。发布或补发仍会校验已有 Tag 的提交和正式镜像 digest，冲突时阻断，禁止覆盖。当前版本已发布后的普通 `main` 提交仅更新 SHA / main 镜像标签。
+
+预生产和正式部署必须使用 Release 清单中的 `image@sha256:<manifest-digest>` 不可变引用。CI 通过或镜像发布不代表生产部署已完成，也不会自动切流、修改数据库或启用真实平台能力；产品和业务流程仍须人工验收。
 
 ## Commit Message
 
