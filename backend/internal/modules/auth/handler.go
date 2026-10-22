@@ -166,7 +166,11 @@ func (h *Handler) Profile(c *gin.Context) {
 	if dn == "" {
 		dn = u.LoginLabel()
 	}
-	p, _ := adminperm.LoadPrincipal(c, h.DB)
+	p, principalErr := adminperm.LoadPrincipal(c, h.DB)
+	if principalErr != nil {
+		response.HandleError(c, principalErr)
+		return
+	}
 	perms := adminperm.PermissionsForRole(strings.TrimSpace(u.Role))
 	storePerms := make([]gin.H, 0)
 	if p != nil && !p.IsAdmin() {

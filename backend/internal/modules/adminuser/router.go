@@ -13,4 +13,9 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	rg.GET("/:id", h.Get)
 	rg.PATCH("/:id", h.Update)
 	rg.PUT("/:id/store-permissions", h.SetStorePermissions)
+	roles := g.Group("/admin/roles")
+	roles.GET("", h.ListRoles)
+	roles.POST("", h.CreateRole)
+	roles.PATCH("/:code", h.UpdateRole)
+	g.GET("/admin/permissions", h.PermissionCatalog)
 }
