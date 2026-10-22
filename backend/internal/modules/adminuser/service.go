@@ -197,7 +197,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if ps > 100 {
 		ps = 100
 	}
-	tx := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{})
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	tx := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.Role); v != "" {
 		tx = tx.Where("LOWER(role) = ?", strings.ToLower(v))
 	}
@@ -239,8 +243,12 @@ func (s *Service) Get(c *gin.Context, userID uuid.UUID) (*UserRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	return s.toUserRow(c.Request.Context(), &u, true)
@@ -263,6 +271,10 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 	}
 	if !ok {
 		return nil, fmt.Errorf("邮箱或手机号必填")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
 	}
 	pw := strings.TrimSpace(body.Password)
 	if len(pw) < 6 {
@@ -297,6 +309,7 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		return nil, err
 	}
 	u := &admin.AdminUser{
+		TenantID:     tenantID,
 		Username:     admin.NewInternalUsername(),
 		Email:        em,
 		Phone:        ph,
@@ -326,8 +339,12 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	oldRole := normalizeRole(u.Role)
@@ -373,35 +390,48 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var u admin.AdminUser
-	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ?", userID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	if normalizeRole(u.Role) == adminperm.RoleAdmin {
 		return nil, fmt.Errorf("管理员无需分配店铺权限")
 	}
-	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_id = ?", userID).Delete(&admin.UserStorePermission{}).Error; err != nil {
 			return err
 		}
+		seen := make(map[uuid.UUID]struct{}, len(body.Items))
 		for _, it := range body.Items {
 			sid, err := uuid.Parse(strings.TrimSpace(it.StoreID))
 			if err != nil || sid == uuid.Nil {
 				return fmt.Errorf("无效的店铺 ID")
 			}
+			if _, exists := seen[sid]; exists {
+				return fmt.Errorf("店铺权限不能重复")
+			}
+			seen[sid] = struct{}{}
+			scope := strings.ToLower(strings.TrimSpace(it.PermissionScope))
+			if scope != admin.StorePermScopeView && scope != admin.StorePermScopeOperate && scope != admin.StorePermScopeManage {
+				return fmt.Errorf("店铺权限范围无效")
+			}
 			var sh shop.Shop
-			if err := tx.First(&sh, "id = ?", sid).Error; err != nil {
+			if err := tx.First(&sh, "id = ? AND tenant_id = ?", sid, tenantID).Error; err != nil {
 				return fmt.Errorf("店铺不存在")
 			}
 			row := admin.UserStorePermission{
 				UserID:          userID,
 				StoreID:         sid,
 				Platform:        strings.TrimSpace(sh.Platform),
-				PermissionScope: admin.NormalizeStorePermScope(it.PermissionScope),
+				PermissionScope: scope,
 				CreatedBy:       actorID,
 			}
-			if it.Platform != "" {
-				row.Platform = strings.TrimSpace(it.Platform)
+			if it.Platform != "" && !strings.EqualFold(strings.TrimSpace(it.Platform), sh.Platform) {
+				return fmt.Errorf("店铺平台不匹配")
 			}
 			if err := tx.Create(&row).Error; err != nil {
 				return err
