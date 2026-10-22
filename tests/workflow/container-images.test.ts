@@ -5,6 +5,7 @@ import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { sanitizeTrivyReport } from '../../scripts/release/sanitize-trivy-report.mjs';
 import { failedImageScanChecks } from '../../scripts/release/enforce-image-scan-outcomes.mjs';
+import { shouldPublishVersion } from '../../scripts/release/resolve-release-intent.mjs';
 import {
   fetchVerifiedStatementBlobs,
   verifyPlatformAttestations,
@@ -458,12 +459,31 @@ describe('container image release workflow', () => {
     expect(workflow).toContain('if: ${{ needs.image_metadata.outputs.publish_release == \'true\' }}');
   });
 
+  it('automatically publishes an unpublished version and preserves existing release coordinates', () => {
+    const currentCommit = 'a'.repeat(40);
+    const olderCommit = 'b'.repeat(40);
+    expect(shouldPublishVersion({ currentCommit })).toBe(true);
+    expect(shouldPublishVersion({ currentCommit, versionChanged: true })).toBe(true);
+    expect(shouldPublishVersion({ currentCommit, tagCommit: currentCommit })).toBe(true);
+    expect(shouldPublishVersion({ currentCommit, tagCommit: currentCommit, releaseExists: true })).toBe(false);
+    expect(shouldPublishVersion({ currentCommit, tagCommit: olderCommit, releaseExists: true })).toBe(false);
+    expect(() => shouldPublishVersion({ currentCommit, releaseExists: true })).toThrow(/tag is missing/u);
+    expect(() => shouldPublishVersion({ currentCommit, tagCommit: olderCommit })).toThrow(/rebind/u);
+    expect(() => shouldPublishVersion({ currentCommit, tagCommit: olderCommit, releaseExists: true, versionChanged: true })).toThrow(/rebind/u);
+    expect(() => shouldPublishVersion({ currentCommit, tagCommit: olderCommit, releaseExists: true, manualRequested: true })).toThrow(/rebind/u);
+    expect(workflow).toContain('gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag"');
+    expect(workflow).toContain('node scripts/release/resolve-release-intent.mjs');
+    expect(workflow).toContain('version_changed=false');
+    expect(workflow).toContain('Could not verify whether GitHub Release $tag exists');
+  });
+
   it('keeps formal tags immutable and creates Release only from validated inputs', () => {
     expect(releaseWorkflow).toContain('workflow_call:');
     expect(releaseWorkflow).not.toContain('workflow_dispatch:');
     expect(releaseWorkflow).toContain('contents: write');
     expect(releaseWorkflow).toContain('group: trademind-production-publish');
     expect(releaseWorkflow).toContain('git merge-base --is-ancestor "$release_commit" origin/main');
+    expect(releaseWorkflow).toContain('Refusing to create new version tag $tag from stale main commit');
     expect(releaseWorkflow).toContain('node scripts/release/validate-release-version.mjs "$RELEASE_VERSION"');
     expect(releaseWorkflow).toContain('tag="v$RELEASE_VERSION"');
     expect(releaseWorkflow).toContain('formal="$image:$service-main-v$RELEASE_VERSION"');

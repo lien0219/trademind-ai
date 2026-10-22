@@ -32,6 +32,7 @@ on:
       - "scripts/release/validate-image-version.sh"
       - "scripts/release/validate-release-version.mjs"
       - "scripts/release/release-version.mjs"
+      - "scripts/release/resolve-release-intent.mjs"
       - ".github/workflows/container-images.yml"
       - ".github/workflows/release.yml"
 
@@ -69,6 +70,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           MANUAL_RELEASE: ${{ inputs.publish_release || false }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
 
@@ -84,14 +86,43 @@ jobs:
             exit 1
           fi
 
-          publish_release=false
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$MANUAL_RELEASE" == "true" ]]; then
-            publish_release=true
-          elif [[ "$EVENT_NAME" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+          # A failed version-change build must not leave its version unpublished.
+          # Reconcile version tag and Release independently from VERSION changes.
+          version_changed=false
+          if [[ "$EVENT_NAME" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
             if ! git diff --quiet "${{ github.event.before }}" "$GITHUB_SHA" -- deploy/IMAGE_VERSION; then
-              publish_release=true
+              version_changed=true
             fi
           fi
+
+          manual_requested=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$MANUAL_RELEASE" == "true" ]]; then
+            manual_requested=true
+          fi
+
+          tag="v$version"
+          git fetch --tags origin --force
+          tag_commit=""
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            tag_commit="$(git rev-parse "$tag^{commit}")"
+          fi
+
+          release_exists=false
+          release_error="$(mktemp)"
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" >/dev/null 2>"$release_error"; then
+            release_exists=true
+          elif grep -q 'HTTP 404' "$release_error"; then
+            release_exists=false
+          else
+            echo "::error::Could not verify whether GitHub Release $tag exists"
+            rm -f "$release_error"
+            exit 1
+          fi
+          rm -f "$release_error"
+
+          publish_release="$(node scripts/release/resolve-release-intent.mjs "$GITHUB_SHA" "$tag_commit" "$release_exists" "$version_changed" "$manual_requested")"
+          echo "Existing version tag commit: ${tag_commit:-none}; existing Release: $release_exists"
+          echo "Publish formal version: $publish_release"
 
           echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -104,6 +135,7 @@ jobs:
             echo "- Source commit: \`$GITHUB_SHA\`"
             echo "- Image version: \`$version\`"
             echo "- Publish formal release: \`$publish_release\`"
+            echo "- Existing GitHub Release: \`$release_exists\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
