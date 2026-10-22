@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/gorm"
 )
@@ -85,6 +86,7 @@ func TestSendPlatformMessageDoesNotRetryAfterLocalMessagePersistedWhenIdempotenc
 		require.NoError(t, err)
 		c := &gin.Context{Request: req}
 		c.Set("requestId", uuid.NewString())
+		c.Set(ctxkey.TenantID, int64(7))
 		return c
 	}
 	body := SendPlatformMessageBody{Reply: "Your order is on the way.", ClientMessageID: "auto:source-message"}

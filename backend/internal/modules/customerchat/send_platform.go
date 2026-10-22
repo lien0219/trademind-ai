@@ -170,10 +170,11 @@ func (s *Service) sendPlatformMessageUnlocked(c *gin.Context, conversationID uui
 	if s.Idempotency == nil {
 		return nil, fmt.Errorf("customer message idempotency unavailable")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	loaded, err := s.authorizedConversation(c, conversationID, true)
+	if err != nil {
 		return nil, err
 	}
+	conv := *loaded
 	if conv.ShopID == nil {
 		return nil, fmt.Errorf("conversation has no shop")
 	}
