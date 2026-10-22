@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"errors"
 	"sort"
 	"strings"
@@ -57,6 +58,8 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 		return nil, err
 	}
+	// Every authenticated request reads the user security version from SQL.
+	// Role changes atomically bump it for all affected users.
 	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, "")
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
@@ -68,6 +71,28 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		Role:        role,
 		Permissions: PermissionsForRole(role),
 	}
+	if IsCustomRole(role) {
+		var definition admin.RoleDefinition
+		roleErr := db.WithContext(c.Request.Context()).Where("tenant_id = ? AND code = ? AND enabled = ?", row.TenantID, role, true).First(&definition).Error
+		if errors.Is(roleErr, gorm.ErrRecordNotFound) {
+			p.Disabled = true
+			p.Permissions = nil
+		} else if roleErr != nil {
+			return nil, fmt.Errorf("resolve custom role: %w", roleErr)
+		} else {
+			var decoded []string
+			if err := json.Unmarshal([]byte(definition.PermissionsJSON), &decoded); err != nil {
+				return nil, fmt.Errorf("invalid role permissions: %w", err)
+			}
+			grants, err := ValidateCustomPermissions(decoded)
+			if err != nil {
+				p.Disabled = true
+				p.Permissions = nil
+			} else {
+				p.Permissions = grants
+			}
+		}
+	}
 	if !strings.EqualFold(strings.TrimSpace(row.Status), admin.StatusActive) {
 		p.Disabled = true
 		p.Permissions = nil
@@ -75,7 +100,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		putCachedPrincipal(cacheKey, p)
 		return p, nil
 	}
-	if !p.IsAdmin() {
+	if !p.Disabled && !p.IsAdmin() {
 		var grants []admin.UserStorePermission
 		_ = db.WithContext(c.Request.Context()).
 			Where("user_id = ?", uid).

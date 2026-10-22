@@ -29,7 +29,7 @@ func (p *Principal) IsAdmin() bool {
 
 // IsReadonly returns true for readonly role.
 func (p *Principal) IsReadonly() bool {
-	return p == nil || p.Disabled || strictRole(p.Role) == "" || normalizeRole(p.Role) == RoleReadonly
+	return p == nil || p.Disabled || normalizeRole(p.Role) == RoleReadonly || (strictRole(p.Role) == "" && !IsCustomRole(p.Role))
 }
 
 // Can returns true when principal has a permission key.
@@ -37,6 +37,7 @@ func (p *Principal) Can(perm string) bool {
 	if p == nil || p.Disabled {
 		return false
 	}
+	if IsCustomRole(p.Role) { return permissionIn(p.Permissions, perm) }
 	return HasPermission(p.Role, perm)
 }
 
@@ -104,6 +105,8 @@ func normalizeRole(role string) string {
 	if r := strictRole(role); r != "" {
 		return r
 	}
+	r := strings.TrimSpace(strings.ToLower(role))
+	if IsCustomRole(r) { return r }
 	return ""
 }
 
