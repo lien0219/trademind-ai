@@ -354,8 +354,8 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	if body.Role != nil {
 		newRole, err := s.requireAssignableRole(c, tenantID, *body.Role)
 		if err != nil {
-		return nil, err
-	}
+			return nil, err
+		}
 		if actorID != nil && *actorID == userID && newRole != adminperm.RoleAdmin && oldRole == adminperm.RoleAdmin {
 			return nil, ErrSelfRoleDowngrade
 		}
