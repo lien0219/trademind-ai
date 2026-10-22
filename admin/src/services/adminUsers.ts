@@ -60,3 +60,36 @@ export async function setAdminUserStorePermissions(id: string, items: SetStorePe
     body,
   );
 }
+
+export type AdminRoleRow = {
+  code: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  enabled: boolean;
+  system: boolean;
+  memberCount: number;
+};
+
+export async function fetchAdminRoles(): Promise<{ list: AdminRoleRow[] }> {
+  return getJSON('/api/v1/admin/roles');
+}
+
+export async function fetchRolePermissionCatalog(): Promise<{ permissions: string[] }> {
+  return getJSON('/api/v1/admin/permissions');
+}
+
+export type RoleEditorValues = {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+  enabled?: boolean;
+};
+
+export async function createAdminRole(values: RoleEditorValues): Promise<AdminRoleRow> {
+  return postJSON('/api/v1/admin/roles', values);
+}
+
+export async function updateAdminRole(code: string, values: RoleEditorValues): Promise<AdminRoleRow> {
+  return patchJSON(`/api/v1/admin/roles/${encodeURIComponent(code)}`, values);
+}

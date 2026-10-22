@@ -10,14 +10,19 @@ import {
 import { formatDateTime } from '@/utils/formatTime';
 import {
   createAdminUser,
+  createAdminRole,
+  fetchAdminRoles,
+  fetchRolePermissionCatalog,
+  updateAdminRole,
+  type AdminRoleRow,
   fetchAdminUsers,
   setAdminUserStorePermissions,
   updateAdminUser,
   type AdminUserRow,
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
-import { Button, Form, Input, Modal, Select, Space, Tag, message } from 'antd';
-import { useCallback, useRef, useState } from 'react';
+import { Button, Checkbox, Divider, Form, Input, Modal, Select, Space, Tag, Tabs, message } from 'antd';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { PERMISSIONS } from '@/utils/permission';
@@ -57,6 +62,31 @@ export default function SettingsUsersPage() {
   const actionRef = useRef<ActionType>();
   const { canManageUsers, user: currentUser } = usePermission();
   const [createOpen, setCreateOpen] = useState(false);
+  const [roles, setRoles] = useState<AdminRoleRow[]>([]);
+  const [permissionCatalog, setPermissionCatalog] = useState<string[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [roleEdit, setRoleEdit] = useState<AdminRoleRow | null>(null);
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [roleForm] = Form.useForm();
+  const [activeTab, setActiveTab] = useState('users');
+  const loadRoles = useCallback(async () => {
+    setRolesLoading(true);
+    try {
+      const [result, permissions] = await Promise.all([fetchAdminRoles(), fetchRolePermissionCatalog()]);
+      setRoles(result.list || []);
+      setPermissionCatalog(permissions.permissions || []);
+    } catch (error) {
+      message.error((error as Error)?.message || '角色权限加载失败');
+    } finally {
+      setRolesLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (canManageUsers) void loadRoles();
+  }, [canManageUsers, loadRoles]);
+  const roleOptions = useMemo(() => roles
+    .filter((r) => r.enabled)
+    .map((r) => ({ label: r.name, value: r.code })), [roles]);
   const emptyLocale = useListEmptyLocale('usersSettings', {
     onAction: () => setCreateOpen(true),
     actionLabel: '创建用户',
@@ -86,7 +116,7 @@ export default function SettingsUsersPage() {
       width: 100,
       valueType: 'select',
       fieldProps: { options: ROLE_OPTIONS },
-      render: (_, row) => roleTag(row.role),
+      render: (_, row) => <Tag>{roles.find((r) => r.code === row.role)?.name || roleTag(row.role)}</Tag>,
     },
     {
       title: '状态',
@@ -132,7 +162,7 @@ export default function SettingsUsersPage() {
                 <Select
                   defaultValue={row.role}
                   style={{ width: '100%', marginTop: 8 }}
-                  options={ROLE_OPTIONS}
+                  options={roleOptions}
                   onChange={(v) => {
                     selectedRole = v;
                   }}
@@ -141,7 +171,7 @@ export default function SettingsUsersPage() {
               okText: '确认修改',
               onOk: async () => {
                 if (selectedRole === row.role) return;
-                const roleLabel = ROLE_OPTIONS.find((o) => o.value === selectedRole)?.label || selectedRole;
+                const roleLabel = roleOptions.find((o) => o.value === selectedRole)?.label || selectedRole;
                 return new Promise<void>((resolve, reject) => {
                   confirmChangeUserRole(adminUserLabel(row), roleLabel, async () => {
                     try {
@@ -215,6 +245,59 @@ export default function SettingsUsersPage() {
   return (
     <PermissionGuard require={PERMISSIONS.USER_MANAGE} showForbiddenPage>
       <TmPageContainer title={PAGE_COPY.usersSettings.title} subTitle={PAGE_COPY.usersSettings.description}>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
+          { key: 'users', label: '用户管理' },
+          { key: 'roles', label: '角色与权限矩阵' },
+        ]} />
+        {activeTab === 'roles' ? (
+          <>
+            <Space style={{ marginBottom: 16 }}>
+              <Button type="primary" disabled={!canManageUsers} onClick={() => {
+                setRoleEdit(null);
+                roleForm.resetFields();
+                roleForm.setFieldsValue({ permissions: [], enabled: true });
+                setRoleOpen(true);
+              }}>新建角色</Button>
+              <Button loading={rolesLoading} onClick={() => void loadRoles()}>刷新角色</Button>
+            </Space>
+            <div role="table" aria-label="角色权限管理">
+              {roles.map((r) => (
+                <div key={r.code} style={{ padding: 12, borderBottom: '1px solid var(--ant-color-border-secondary, #eee)' }}>
+                  <Space wrap>
+                    <strong>{r.name}</strong>
+                    <Tag>{r.system ? '系统角色' : '自定义角色'}</Tag>
+                    <Tag color={r.enabled ? 'success' : 'default'}>{r.enabled ? '启用' : '已停用'}</Tag>
+                    <span>成员：{r.memberCount}</span>
+                    <span>权限：{r.permissions.length}</span>
+                    <Button size="small" disabled={r.system || !canManageUsers} onClick={() => {
+                      setRoleEdit(r);
+                      roleForm.setFieldsValue({
+                        name: r.name, description: r.description,
+                        permissions: r.permissions, enabled: r.enabled,
+                      });
+                      setRoleOpen(true);
+                    }}>编辑权限</Button>
+                    {!r.system && (
+                      <Button size="small" danger={r.enabled} disabled={!canManageUsers} onClick={() => {
+                        Modal.confirm({
+                          title: r.enabled ? '停用角色并立即撤权？' : '重新启用角色？',
+                          content: `角色「${r.name}」现有 ${r.memberCount} 位成员，变更将影响其访问权限。`,
+                          onOk: async () => {
+                            await updateAdminRole(r.code, { enabled: !r.enabled });
+                            message.success('角色状态已更新');
+                            await loadRoles();
+                          },
+                        });
+                      }}>{r.enabled ? '停用' : '启用'}</Button>
+                    )}
+                  </Space>
+                  {r.description && <div style={{ marginTop: 6 }}>{r.description}</div>}
+                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>{r.permissions.join('、') || '无授权权限'}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
         <ProTable<AdminUserRow>
           actionRef={actionRef}
           rowKey="id"
@@ -242,6 +325,54 @@ export default function SettingsUsersPage() {
           }}
         />
 
+        )}
+        <Modal
+          title={roleEdit ? '编辑角色与权限' : '新增自定义角色'}
+          open={roleOpen}
+          onCancel={() => setRoleOpen(false)}
+          onOk={() => roleForm.submit()}
+          destroyOnHidden
+          width={780}
+        >
+          <Form form={roleForm} layout="vertical" onFinish={async (values) => {
+            try {
+              const input = {
+                name: values.name as string,
+                description: values.description as string,
+                permissions: (values.permissions || []) as string[],
+                enabled: values.enabled as boolean,
+              };
+              if (roleEdit) await updateAdminRole(roleEdit.code, input);
+              else await createAdminRole(input);
+              setRoleOpen(false);
+              message.success('角色及权限已保存');
+              await loadRoles();
+              actionRef.current?.reload();
+            } catch (error) {
+              message.error((error as Error)?.message || '角色保存失败');
+            }
+          }}>
+            <Form.Item label="角色名称" name="name" rules={[{ required: true, max: 80 }]}>
+              <Input maxLength={80} />
+            </Form.Item>
+            <Form.Item label="角色描述" name="description">
+              <Input.TextArea maxLength={400} />
+            </Form.Item>
+            <Divider>模块 / 页面 / 按钮 / API 权限</Divider>
+            <Form.Item name="permissions" label="权限配置">
+              <Checkbox.Group style={{ width: '100%' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, maxHeight: 340, overflow: 'auto' }}>
+                  {permissionCatalog.map((key) => (
+                    <Checkbox key={key} value={key}>{key}</Checkbox>
+                  ))}
+                </div>
+              </Checkbox.Group>
+            </Form.Item>
+            <Form.Item name="enabled" label="启用状态" valuePropName="checked">
+              <Checkbox>启用此角色</Checkbox>
+            </Form.Item>
+          </Form>
+        </Modal>
         <Modal
           title="新建用户"
           open={createOpen}
@@ -270,7 +401,7 @@ export default function SettingsUsersPage() {
               <Input />
             </Form.Item>
             <Form.Item name="role" label="角色" initialValue="operator">
-              <Select options={ROLE_OPTIONS} />
+              <Select options={roleOptions} />
             </Form.Item>
           </Form>
         </Modal>
