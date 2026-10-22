@@ -16,11 +16,11 @@ func IsCustomRole(role string) bool {
 // These privileges require a system administrator and cannot be delegated to
 // self-defined roles; otherwise user-managers could mint new administrators.
 var reservedCustomPermissions = map[string]bool{
-	PermUserManage            true,
-	PermSettingsManage        true,
-	PermSecuritySessionManage true,
-	PermPIIReadFull           true,
-	PermConfigManage          true,
+	PermUserManage:             true,
+	PermSettingsManage:         true,
+	PermSecuritySessionManage:  true,
+	PermPIIReadFull:            true,
+	PermConfigManage:           true,
 }
 
 // ValidateCustomPermissions applies an explicit allowlist and never accepts
