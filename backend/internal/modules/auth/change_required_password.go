@@ -83,10 +83,10 @@ func (h *Handler) ChangeRequiredPassword(c *gin.Context) {
 			return errors.New(ErrInvalidCredentials)
 		}
 		return tx.Model(&locked).Updates(map[string]any{
-			"password_hash": string(hash),
-			"password_changed_at": now,
+			"password_hash":        string(hash),
+			"password_changed_at":  now,
 			"must_change_password": false,
-			"token_version": gorm.Expr("token_version + 1"),
+			"token_version":        gorm.Expr("token_version + 1"),
 		}).Error
 	})
 	if err != nil && err.Error() == ErrInvalidCredentials {

@@ -298,17 +298,22 @@ func TestRefreshTokenDeniedAfterSecurityVersionChange(t *testing.T) {
 	uid := uuid.New()
 	email := "security-" + uuid.NewString() + "@example.net"
 	if err := db.Create(&admin.AdminUser{
-		Base: model.Base{ID: uid}, Username: "security-test-" + uuid.NewString(),
-		Email: email, PasswordHash: string(hash), Role: "operator",
-		Status: admin.StatusActive, TokenVersion: 1,
+		Base:          model.Base{ID: uid},
+		Username:      "security-test-" + uuid.NewString(),
+		Email:         email,
+		PasswordHash:  string(hash),
+		Role:          "operator",
+		Status:        admin.StatusActive,
+		TokenVersion:  1,
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{
 		JWTSecret: "security-test-secret-at-least-thirty-two-bytes",
 		Auth: config.AuthConfig{
-			SessionMode: config.AuthSessionModeSecure,
-			AccessTokenTTLMinutes: 15, RefreshTokenTTLDays: 7,
+			SessionMode:           config.AuthSessionModeSecure,
+			AccessTokenTTLMinutes: 15,
+			RefreshTokenTTLDays:   7,
 		},
 	}
 	sessions := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}}

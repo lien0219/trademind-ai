@@ -31,11 +31,11 @@ func TestCustomRoleRevocationReevaluatesAcrossRequests(t *testing.T) {
 	u.ID = uid
 	require.NoError(t, db.Create(&u).Error)
 	role := admin.RoleDefinition{
-		TenantID: 17,
-		Code: u.Role,
-		Name: "客服",
+		TenantID:        17,
+		Code:            u.Role,
+		Name:            "客服",
 		PermissionsJSON: "[\"customer.view\",\"customer.operate\"]",
-		Enabled: true,
+		Enabled:         true,
 	}
 	require.NoError(t, db.Create(&role).Error)
 	newCtx := func() *gin.Context {

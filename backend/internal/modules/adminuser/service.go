@@ -313,15 +313,15 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		return nil, err
 	}
 	u := &admin.AdminUser{
-		TenantID:     tenantID,
-		Username:     admin.NewInternalUsername(),
-		Email:        em,
-		Phone:        ph,
-		PasswordHash: hash,
+		TenantID:           tenantID,
+		Username:           admin.NewInternalUsername(),
+		Email:              em,
+		Phone:              ph,
+		PasswordHash:       hash,
 		MustChangePassword: true,
-		DisplayName:  strings.TrimSpace(body.DisplayName),
-		Role:         role,
-		Status:       "active",
+		DisplayName:        strings.TrimSpace(body.DisplayName),
+		Role:               role,
+		Status:             "active",
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(u).Error; err != nil {
 		return nil, err

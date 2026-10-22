@@ -67,7 +67,6 @@ jobs:
           if [ -n "$UNFORMATTED" ]; then
             echo "::error::Go files are not formatted. Run go fmt ./... locally and commit the changes."
             echo "$UNFORMATTED"
-            for file in $UNFORMATTED; do gofmt -d "$file"; done
             exit 1
           fi
 
