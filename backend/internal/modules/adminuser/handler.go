@@ -102,11 +102,7 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	row, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, ErrDuplicateAccount) {
-			response.Fail(c, 400, response.CodeBadRequest, err.Error())
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		handleMutationError(c, err)
 		return
 	}
 	response.OK(c, row)
@@ -129,14 +125,7 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 	row, err := h.Svc.Update(c, id, body, adminUUID(c))
 	if err != nil {
-		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound):
-			response.Fail(c, 404, response.CodeNotFound, "用户不存在")
-		case errors.Is(err, ErrSelfDisable), errors.Is(err, ErrSelfRoleDowngrade):
-			response.Fail(c, 400, response.CodeBadRequest, err.Error())
-		default:
-			response.HandleError(c, err)
-		}
+		handleMutationError(c, err)
 		return
 	}
 	response.OK(c, row)
@@ -159,14 +148,26 @@ func (h *Handler) SetStorePermissions(c *gin.Context) {
 	}
 	row, err := h.Svc.SetStorePermissions(c, id, body, adminUUID(c))
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "用户不存在")
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		handleMutationError(c, err)
 		return
 	}
 	response.OK(c, row)
+}
+
+func handleMutationError(c *gin.Context, err error) {
+	var invalid inputError
+	switch {
+	case errors.Is(err, ErrAuditFailure):
+		response.HandleError(c, err)
+	case errors.As(err, &invalid):
+		response.Fail(c, 400, response.CodeBadRequest, invalid.Error())
+	case errors.Is(err, ErrDuplicateAccount), errors.Is(err, ErrSelfDisable), errors.Is(err, ErrSelfRoleDowngrade):
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		response.Fail(c, 404, response.CodeNotFound, "用户不存在")
+	default:
+		response.HandleError(c, err)
+	}
 }
 
 func atoiQP(c *gin.Context, key string, def int) int {

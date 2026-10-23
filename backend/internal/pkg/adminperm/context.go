@@ -58,6 +58,26 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 		return nil, err
 	}
+	// The tenant in the authenticated request is trusted only after JWT
+	// validation, but it must still match the persisted user. A signed token
+	// carrying a different tenant (or a stale development fallback) must never
+	// receive the user's role or store grants.
+	if rawTenant, ok := c.Get(ctxkey.TenantID); ok {
+		var requestTenant int64
+		switch v := rawTenant.(type) {
+		case int64:
+			requestTenant = v
+		case int:
+			requestTenant = int64(v)
+		default:
+			requestTenant = -1
+		}
+		if requestTenant < 0 || row.TenantID != requestTenant {
+			p := &Principal{UserID: uid, Role: RoleReadonly, Disabled: true}
+			c.Set(ctxPrincipalKey, p)
+			return p, nil
+		}
+	}
 	// Every authenticated request reads the user security version from SQL.
 	// Role changes atomically bump it for all affected users.
 	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, "")
@@ -102,10 +122,12 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 	}
 	if !p.Disabled && !p.IsAdmin() {
 		var grants []admin.UserStorePermission
-		_ = db.WithContext(c.Request.Context()).
-			Where("user_id = ?", uid).
+		if err := db.WithContext(c.Request.Context()).
+			Where("user_id = ? AND store_id IN (SELECT id FROM shops WHERE tenant_id = ?)", uid, row.TenantID).
 			Order("created_at ASC").
-			Find(&grants).Error
+			Find(&grants).Error; err != nil {
+			return nil, fmt.Errorf("load store grants: %w", err)
+		}
 		p.StoreGrants = make([]StoreGrant, 0, len(grants))
 		for _, g := range grants {
 			p.StoreGrants = append(p.StoreGrants, StoreGrant{
@@ -193,7 +215,7 @@ func RequireStoreView(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 		response.HandleError(c, err)
 		return false
 	}
-	if p.CanViewStore(storeID) {
+	if p.CanViewStore(storeID) && storeBelongsToRequestTenant(c, db, storeID) {
 		return true
 	}
 	response.Fail(c, 404, response.CodeNotFound, "资源不存在")
@@ -209,7 +231,7 @@ func EnsureStoreVisible(c *gin.Context, db *gorm.DB, shopID *uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	if p.CanViewStore(*shopID) {
+	if p.CanViewStore(*shopID) && storeBelongsToRequestTenant(c, db, *shopID) {
 		return nil
 	}
 	return gorm.ErrRecordNotFound
@@ -222,7 +244,7 @@ func RequireStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 		response.HandleError(c, err)
 		return false
 	}
-	if p.CanOperateStore(storeID) {
+	if p.CanOperateStore(storeID) && storeBelongsToRequestTenant(c, db, storeID) {
 		return true
 	}
 	if storeID != uuid.Nil && !p.CanViewStore(storeID) {
@@ -231,4 +253,21 @@ func RequireStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 	}
 	DenyStorePermission(c)
 	return false
+}
+
+// storeBelongsToRequestTenant is a defense-in-depth check for grant rows. The
+// grant table predates tenant_id and therefore cannot be trusted by itself.
+func storeBelongsToRequestTenant(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
+	if db == nil || storeID == uuid.Nil {
+		return false
+	}
+	tid, err := TenantIDFromGin(c)
+	if err != nil {
+		return false
+	}
+	var tenant struct{ TenantID int64 }
+	if err := db.WithContext(c.Request.Context()).Table("shops").Select("tenant_id").Where("id = ?", storeID).Take(&tenant).Error; err != nil {
+		return false
+	}
+	return tenant.TenantID == tid
 }

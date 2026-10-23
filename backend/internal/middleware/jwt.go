@@ -59,9 +59,20 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		}
 		sessID := uuid.Nil
 		if s := strings.TrimSpace(claims.SessionID); s != "" {
-			sessID, _ = uuid.Parse(s)
+			parsed, parseErr := uuid.Parse(s)
+			if parseErr != nil {
+				response.Fail(c, 401, response.CodeUnauthorized, "invalid session claim")
+				c.Abort()
+				return
+			}
+			sessID = parsed
 		}
-		if sessions != nil && sessID != uuid.Nil {
+		if sessID != uuid.Nil && sessions == nil {
+			response.Fail(c, 401, response.CodeUnauthorized, auth.ErrSessionRevoked)
+			c.Abort()
+			return
+		}
+		if sessID != uuid.Nil {
 			if err := sessions.ValidateSessionAccess(c.Request.Context(), sessID, uid, claims.TokenVersion); err != nil {
 				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
 				c.Abort()

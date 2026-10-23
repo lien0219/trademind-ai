@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
-	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -34,6 +33,18 @@ type roleInput struct {
 	Description *string  `json:"description"`
 	Permissions []string `json:"permissions"`
 	Enabled     *bool    `json:"enabled"`
+}
+
+type roleAuditDetails struct {
+	Before *roleAuditState `json:"before,omitempty"`
+	After  roleAuditState  `json:"after"`
+}
+
+type roleAuditState struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+	Enabled     bool     `json:"enabled"`
 }
 
 // PermissionCatalog is server-authoritative; client-side buttons are UX only.
@@ -132,23 +143,32 @@ func (h *Handler) CreateRole(c *gin.Context) {
 	code := "r_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:24]
 	row := admin.RoleDefinition{
 		TenantID: tid, Code: code, Name: name, Description: description,
-		PermissionsJSON: string(encoded), Enabled: true, CreatedBy: adminUUID(c),
+		PermissionsJSON: string(encoded), Enabled: body.Enabled == nil || *body.Enabled, CreatedBy: adminUUID(c),
 	}
-	if err := h.Svc.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
+	after := roleAuditState{Name: row.Name, Description: row.Description, Permissions: permissions, Enabled: row.Enabled}
+	if err := h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Select("ID", "TenantID", "Code", "Name", "Description", "PermissionsJSON", "Enabled", "CreatedBy").Create(&row).Error; err != nil {
+			return err
+		}
+		encodedAudit, err := json.Marshal(roleAuditDetails{After: after})
+		if err != nil {
+			return err
+		}
+		return h.recordRoleAudit(tx, c, "role.create", row.Code, string(encodedAudit))
+	}); err != nil {
 		response.HandleError(c, err)
 		return
 	}
-	h.recordRoleAudit(c, "role.create", row.Code, fmt.Sprintf("name=%s granted=%d", row.Name, len(permissions)))
 	response.OK(c, RoleRow{
 		Code: row.Code, Name: row.Name, Description: row.Description,
-		Permissions: permissions, Enabled: true, MemberCount: 0,
+		Permissions: permissions, Enabled: row.Enabled, MemberCount: 0,
 	})
 }
 
 func validateRoleName(raw string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" || len([]rune(name)) > 80 {
-		return "", fmt.Errorf("角色名称为必填项且不能超过80字")
+		return "", inputError("角色名称为必填项且不能超过80字")
 	}
 	return name, nil
 }
@@ -176,10 +196,20 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		return
 	}
 	var changed admin.RoleDefinition
+	var before roleAuditState
+	var ids []uuid.UUID
 	err = h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := lockTenantAdminMutations(tx, tid); err != nil {
+			return err
+		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND code = ?", tid, code).First(&changed).Error; err != nil {
 			return err
 		}
+		var previous []string
+		if err := json.Unmarshal([]byte(changed.PermissionsJSON), &previous); err != nil {
+			return err
+		}
+		before = roleAuditState{Name: changed.Name, Description: changed.Description, Permissions: previous, Enabled: changed.Enabled}
 		if body.Name != nil {
 			name, err := validateRoleName(*body.Name)
 			if err != nil {
@@ -190,14 +220,14 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		if body.Description != nil {
 			changed.Description = strings.TrimSpace(*body.Description)
 			if len([]rune(changed.Description)) > 400 {
-				return fmt.Errorf("角色描述长度超过限制")
+				return inputError("角色描述长度超过限制")
 			}
 		}
 		// nil means no change; explicitly empty slices clear all grants.
 		if body.Permissions != nil {
 			grants, err := adminperm.ValidateCustomPermissions(body.Permissions)
 			if err != nil {
-				return err
+				return inputError(err.Error())
 			}
 			encoded, err := json.Marshal(grants)
 			if err != nil {
@@ -208,30 +238,50 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		if body.Enabled != nil {
 			changed.Enabled = *body.Enabled
 		}
+		var existingGrants []string
+		if err := json.Unmarshal([]byte(changed.PermissionsJSON), &existingGrants); err != nil {
+			return fmt.Errorf("角色权限数据无效: %w", err)
+		}
+		validatedGrants, err := adminperm.ValidateCustomPermissions(existingGrants)
+		if err != nil {
+			return fmt.Errorf("角色权限数据无效: %w", err)
+		}
+		existingGrants = validatedGrants
 		if err := tx.Save(&changed).Error; err != nil {
 			return err
 		}
-		return tx.Model(&admin.AdminUser{}).
+		if err := tx.Model(&admin.AdminUser{}).
 			Where("tenant_id = ? AND role = ?", tid, code).
-			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
+			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&admin.AdminUser{}).Where("tenant_id = ? AND role = ?", tid, code).Pluck("id", &ids).Error; err != nil {
+			return err
+		}
+		var afterPermissions []string
+		if err := json.Unmarshal([]byte(changed.PermissionsJSON), &afterPermissions); err != nil {
+			return err
+		}
+		encodedAudit, err := json.Marshal(roleAuditDetails{Before: &before, After: roleAuditState{Name: changed.Name, Description: changed.Description, Permissions: afterPermissions, Enabled: changed.Enabled}})
+		if err != nil {
+			return err
+		}
+		return h.recordRoleAudit(tx, c, "role.update", code, string(encodedAudit))
 	})
 	if err != nil {
+		var invalid inputError
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "角色不存在")
-		} else if strings.Contains(err.Error(), "角色") || strings.Contains(err.Error(), "权限") {
-			response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		} else if errors.As(err, &invalid) {
+			response.Fail(c, 400, response.CodeBadRequest, invalid.Error())
 		} else {
 			response.HandleError(c, err)
 		}
 		return
 	}
 	// Invalidate local entries too; other nodes observe the SQL version bump.
-	var ids []uuid.UUID
-	if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).
-		Where("tenant_id = ? AND role = ?", tid, code).Pluck("id", &ids).Error; err == nil {
-		for _, id := range ids {
-			adminperm.InvalidateUserPermissionCache(id)
-		}
+	for _, id := range ids {
+		adminperm.InvalidateUserPermissionCache(id)
 	}
 	var grants []string
 	if err := json.Unmarshal([]byte(changed.PermissionsJSON), &grants); err != nil {
@@ -239,19 +289,15 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		return
 	}
 	sort.Strings(grants)
-	h.recordRoleAudit(c, "role.update", code, fmt.Sprintf("name=%s enabled=%t granted=%d members=%d", changed.Name, changed.Enabled, len(grants), len(ids)))
 	response.OK(c, RoleRow{
 		Code: changed.Code, Name: changed.Name, Description: changed.Description,
 		Enabled: changed.Enabled, Permissions: grants, MemberCount: int64(len(ids)),
 	})
 }
 
-func (h *Handler) recordRoleAudit(c *gin.Context, action, code, detail string) {
-	if h == nil || h.Svc == nil || h.Svc.OpLog == nil {
-		return
+func (h *Handler) recordRoleAudit(tx *gorm.DB, c *gin.Context, action, code, detail string) error {
+	if h == nil || h.Svc == nil {
+		return ErrAuditFailure
 	}
-	_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
-		AdminUserID: adminUUID(c), Action: action, Resource: "admin_role",
-		ResourceID: code, Status: "success", Message: detail,
-	})
+	return writeSensitiveAudit(tx, h.Svc.OpLog, c, adminUUID(c), action, "admin_role", code, detail)
 }

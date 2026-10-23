@@ -17,7 +17,7 @@ import (
 func TestCustomRoleRevocationReevaluatesAcrossRequests(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:admin_role_runtime_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.RoleDefinition{}, &admin.UserStorePermission{}))
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.RoleDefinition{}, &admin.UserStorePermission{}, &tenantScopedShopFixture{}))
 	uid := uuid.New()
 	u := admin.AdminUser{
 		Username:     admin.NewInternalUsername(),

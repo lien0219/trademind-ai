@@ -31,6 +31,14 @@ func (AdminUser) TableName() string {
 	return "admin_users"
 }
 
+// AdminMutationLock provides a stable row that serializes security-sensitive
+// admin mutations across application instances and supported SQL dialects.
+type AdminMutationLock struct {
+	KeyHash string `gorm:"size:64;primaryKey"`
+}
+
+func (AdminMutationLock) TableName() string { return "admin_mutation_locks" }
+
 // NewInternalUsername returns a DB-unique opaque id (never used as a login credential).
 func NewInternalUsername() string {
 	return strings.ReplaceAll(uuid.New().String(), "-", "")

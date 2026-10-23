@@ -119,7 +119,16 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 		return nil, errors.New(ErrPasswordChangeRequired)
 	}
 	label := u.LoginLabel()
-	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label)
+	ks, err := BuildKeySet(s.Cfg)
+	if err != nil {
+		return nil, err
+	}
+	token, exp, err := MintAccessToken(s.Cfg, ks, MintAccessInput{
+		UserID:       u.ID,
+		Username:     label,
+		TenantID:     u.TenantID,
+		TokenVersion: u.TokenVersion,
+	})
 	if err != nil {
 		return nil, err
 	}

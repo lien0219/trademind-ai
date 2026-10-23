@@ -18,7 +18,7 @@ func perfBootstrapDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
-	if err := db.AutoMigrate(&AdminUser{}, &UserStorePermission{}); err != nil {
+	if err := db.AutoMigrate(&AdminUser{}, &AdminMutationLock{}, &UserStorePermission{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Exec(`CREATE TABLE IF NOT EXISTS shops (
@@ -65,22 +65,27 @@ func TestEnsurePerformanceBootstrap_idempotent(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := EnsureBootstrapAdmin(ctx, db, cfg, slog.Default()); err != nil {
+	audit := &recordingBootstrapAuditWriter{}
+	if err := EnsureBootstrapAdmin(ctx, db, cfg, slog.Default(), audit); err != nil {
 		t.Fatalf("bootstrap admin: %v", err)
 	}
-	s1, err := EnsurePerformanceBootstrap(ctx, db, cfg, slog.Default())
+	s1, err := EnsurePerformanceBootstrap(ctx, db, cfg, slog.Default(), audit)
 	if err != nil {
 		t.Fatalf("perf bootstrap run1: %v", err)
 	}
 	if s1.UsersCreated < 4 {
 		t.Fatalf("expected at least 4 users created, got %+v", s1)
 	}
-	s2, err := EnsurePerformanceBootstrap(ctx, db, cfg, slog.Default())
+	callsBeforeRerun := len(audit.calls)
+	s2, err := EnsurePerformanceBootstrap(ctx, db, cfg, slog.Default(), audit)
 	if err != nil {
 		t.Fatalf("perf bootstrap run2: %v", err)
 	}
 	if s2.UsersCreated != 0 {
 		t.Fatalf("expected no new users on rerun, got %+v", s2)
+	}
+	if len(audit.calls) != callsBeforeRerun {
+		t.Fatalf("idempotent rerun wrote %d additional audits", len(audit.calls)-callsBeforeRerun)
 	}
 
 	var disabled AdminUser
@@ -103,7 +108,7 @@ func TestEnsurePerformanceBootstrap_idempotent(t *testing.T) {
 func TestEnsurePerformanceBootstrap_rejectsProduction(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{AppEnv: config.EnvProduction, RuntimeLimits: config.RuntimeLimitsConfig{PerformanceTestMode: true}}
-	_, err := EnsurePerformanceBootstrap(context.Background(), perfBootstrapDB(t), cfg, nil)
+	_, err := EnsurePerformanceBootstrap(context.Background(), perfBootstrapDB(t), cfg, nil, &recordingBootstrapAuditWriter{})
 	if err == nil {
 		t.Fatal("expected production rejection")
 	}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -12,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/gorm"
 )
 
@@ -217,7 +219,7 @@ func TestShopScope_OperatorMultiShopCanAccessBoth(t *testing.T) {
 	shopA := seedShop(t, db, "A")
 	shopB := seedShop(t, db, "B")
 	c := ginCtx(tenantID, uuid.New(), adminperm.RoleOperator, []uuid.UUID{shopA, shopB})
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	if _, err := svc.GetDetail(c, shopA); err != nil {
 		t.Fatalf("operator should access shop A: %v", err)
 	}
@@ -230,7 +232,7 @@ func TestShopScope_OperatorNoGrantsCannotGetShop(t *testing.T) {
 	db := openDB(t)
 	shopA := seedShop(t, db, "A")
 	c := ginCtx(tenantID, uuid.New(), adminperm.RoleOperator, nil)
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	_, err := svc.GetDetail(c, shopA)
 	if err == nil {
 		t.Fatal("operator without grants must not read shop")
@@ -241,7 +243,7 @@ func TestShopScope_ReadonlyCanGetCannotUpdate(t *testing.T) {
 	db := openDB(t)
 	shopA := seedShop(t, db, "A")
 	c := ginCtx(tenantID, uuid.New(), adminperm.RoleReadonly, []uuid.UUID{shopA})
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	if _, err := svc.GetDetail(c, shopA); err != nil {
 		t.Fatalf("readonly should read shop A: %v", err)
 	}
@@ -296,8 +298,20 @@ func TestShopScope_OpLogListStoreScoped(t *testing.T) {
 func TestShopScope_AdminCanUpdateAnyShopInTenant(t *testing.T) {
 	db := openDB(t)
 	shopB := seedShop(t, db, "B")
-	c := ginCtx(tenantID, uuid.New(), adminperm.RoleAdmin, nil)
-	svc := &shop.Service{DB: db}
+	actorID := uuid.New()
+	actor := admin.AdminUser{
+		Base:         model.Base{ID: actorID},
+		TenantID:     tenantID,
+		Username:     admin.NewInternalUsername(),
+		PasswordHash: "test-only",
+		Role:         adminperm.RoleAdmin,
+		Status:       admin.StatusActive,
+	}
+	if err := db.Create(&actor).Error; err != nil {
+		t.Fatal(err)
+	}
+	c := ginCtx(tenantID, actorID, adminperm.RoleAdmin, nil)
+	svc := newShopService(db)
 	name := "admin-updated"
 	_, err := svc.Update(c, shopB, shop.UpdateBody{ShopName: name}, nil)
 	if err != nil {

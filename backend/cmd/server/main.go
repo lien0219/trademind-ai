@@ -242,13 +242,14 @@ func main() {
 	}
 	pricingSeedCancel()
 
+	opLogSvc := &operationlog.Service{DB: db}
 	bootCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log); err != nil {
+	if err := admin.EnsureBootstrapAdmin(bootCtx, db, cfg, log, opLogSvc); err != nil {
 		cancel()
 		log.Error("admin_bootstrap_failed", "error", err)
 		os.Exit(1)
 	}
-	if _, err := admin.EnsurePerformanceBootstrap(bootCtx, db, cfg, log); err != nil {
+	if _, err := admin.EnsurePerformanceBootstrap(bootCtx, db, cfg, log, opLogSvc); err != nil {
 		cancel()
 		log.Error("performance_bootstrap_failed", "error", err)
 		os.Exit(1)
@@ -288,7 +289,6 @@ func main() {
 		securitypkg.CSRFProtection(cfg),
 	)
 
-	opLogSvc := &operationlog.Service{DB: db}
 	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc := api.Register(engine, &api.Deps{
 		Config:          cfg,
 		DB:              db,

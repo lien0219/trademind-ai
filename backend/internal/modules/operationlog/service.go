@@ -46,6 +46,62 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 	if s == nil || s.DB == nil || c == nil {
 		return nil
 	}
+	row := s.newRow(c, opts)
+	return s.writeWithDiagnostics(c.Request.Context(), row, opts)
+}
+
+// WriteTx persists an audit record as part of the caller's business
+// transaction. Sensitive mutations can therefore commit only with their
+// corresponding immutable audit evidence.
+func (s *Service) WriteTx(c *gin.Context, tx *gorm.DB, opts WriteOpts) error {
+	if s == nil || s.DB == nil || c == nil || tx == nil {
+		return fmt.Errorf("operationlog: audit transaction unavailable")
+	}
+	row := s.newRowBase(c, opts)
+	// Transactional permission evidence contains structured before/after
+	// snapshots. The TEXT column must retain it in full; truncating JSON here
+	// would silently discard evidence while committing the sensitive mutation.
+	row.Message = opts.Message
+	if row.AdminRole == "" && row.AdminUserID != nil {
+		var actor struct{ Role string }
+		if err := tx.Table("admin_users").Select("role").Where("id = ?", *row.AdminUserID).Take(&actor).Error; err != nil {
+			return fmt.Errorf("operationlog: resolve audit actor: %w", err)
+		}
+		row.AdminRole = strings.TrimSpace(actor.Role)
+	}
+	var releaseChainLocks func()
+	if err := func() error {
+		var err error
+		releaseChainLocks, err = s.appendHashChain(tx, row)
+		return err
+	}(); err != nil {
+		return fmt.Errorf("operationlog: append audit chain: %w", err)
+	}
+	defer func() {
+		if releaseChainLocks != nil {
+			releaseChainLocks()
+		}
+	}()
+	if err := tx.Create(row).Error; err != nil {
+		return fmt.Errorf("operationlog: insert audit record: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) newRow(c *gin.Context, opts WriteOpts) *OperationLog {
+	row := s.newRowBase(c, opts)
+	if row.AdminRole == "" && row.AdminUserID != nil && s.DB != nil {
+		if p, err := adminperm.LoadPrincipal(c, s.DB); err == nil && p != nil {
+			row.AdminRole = p.Role
+		}
+	}
+	return row
+}
+
+// newRowBase builds request evidence without opening another DB connection.
+// Callers inside a business transaction must resolve DB-backed fields through
+// that transaction to avoid observing stale data or deadlocking SQLite tests.
+func (s *Service) newRowBase(c *gin.Context, opts WriteOpts) *OperationLog {
 	reqID, _ := c.Get(ctxkey.TraceID)
 	rid, _ := reqID.(string)
 
@@ -109,12 +165,9 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 			}
 		}
 	}
-	if row.AdminRole == "" && s.DB != nil {
-		if p, err := adminperm.LoadPrincipal(c, s.DB); err == nil && p != nil {
-			row.AdminRole = p.Role
-		}
-	}
-	return s.writeWithDiagnostics(c.Request.Context(), row, opts)
+	row.CreatedAt = row.CreatedAt.UTC().Truncate(time.Microsecond)
+	row.ChainPartition = chainPartition(row.TenantID, row.CreatedAt)
+	return row
 }
 
 // WriteBackground inserts one log row without an HTTP request (workers, cron).
@@ -159,21 +212,21 @@ func (s *Service) writeWithDiagnostics(ctx context.Context, row *OperationLog, o
 		row.CreatedAt = row.CreatedAt.UTC().Truncate(time.Microsecond)
 		row.ChainPartition = chainPartition(row.TenantID, row.CreatedAt)
 	}
-	partition := ""
 	if row != nil {
-		partition = row.ChainPartition
+		row.ChainPartition = chainPartition(row.TenantID, row.CreatedAt)
 	}
-	unlock := lockLocalHashChainScope(partition)
-	defer unlock()
 	txStart := time.Now()
 	if authDiag {
 		runtimediag.ObserveStage(runtimediag.RouteAuthInvalidLogin, "transaction_begin", runtimediag.OutcomeSuccess, txStart)
 	}
 	var commitStart time.Time
+	var releaseChainLocks func()
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		chainStart := time.Now()
 		chainTiming, chainErr := runtimediag.TimedGorm(tx, func() error {
-			return s.appendHashChain(tx, row)
+			var err error
+			releaseChainLocks, err = s.appendHashChain(tx, row)
+			return err
 		})
 		chainTiming.TransactionState = "open"
 		if authDiag {
@@ -205,6 +258,9 @@ func (s *Service) writeWithDiagnostics(ctx context.Context, row *OperationLog, o
 		commitStart = time.Now()
 		return insertErr
 	})
+	if releaseChainLocks != nil {
+		releaseChainLocks()
+	}
 	if !authDiag {
 		return err
 	}

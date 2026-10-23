@@ -183,6 +183,15 @@ func (h *Handler) Profile(c *gin.Context) {
 			})
 		}
 	}
+	if u.TenantID != 0 {
+		filtered := make([]string, 0, len(perms))
+		for _, permission := range perms {
+			if permission != adminperm.PermSecurityKeyRotate {
+				filtered = append(filtered, permission)
+			}
+		}
+		perms = filtered
+	}
 	response.OK(c, gin.H{
 		"id":               u.ID.String(),
 		"username":         u.LoginLabel(),

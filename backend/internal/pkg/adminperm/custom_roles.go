@@ -19,6 +19,7 @@ var reservedCustomPermissions = map[string]bool{
 	PermUserManage:            true,
 	PermSettingsManage:        true,
 	PermSecuritySessionManage: true,
+	PermSecurityKeyRotate:     true,
 	PermPIIReadFull:           true,
 	PermConfigManage:          true,
 }

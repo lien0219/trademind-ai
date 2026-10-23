@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,6 +29,12 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	defer sqlDB.Close()
 	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}); err != nil {
 		t.Fatal(err)
 	}
@@ -60,26 +65,77 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := res.RefreshToken
-	var okCount int32
+	type rotationOutcome struct {
+		result *RefreshResult
+		err    error
+	}
+	outcomes := make(chan rotationOutcome, 20)
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := svc.RotateRefresh(context.Background(), raw, "127.0.0.1", "test")
-			if err == nil {
-				atomic.AddInt32(&okCount, 1)
-			}
+			result, err := svc.RotateRefresh(context.Background(), raw, "127.0.0.1", "test")
+			outcomes <- rotationOutcome{result: result, err: err}
 		}()
 	}
 	wg.Wait()
-	if okCount != 1 {
-		t.Fatalf("expected exactly 1 successful rotation, got %d", okCount)
+	close(outcomes)
+
+	var successCount, reuseDenialCount, revokedDenialCount int
+	var latest *RefreshResult
+	for outcome := range outcomes {
+		switch {
+		case outcome.err == nil:
+			successCount++
+			latest = outcome.result
+		case outcome.err.Error() == ErrRefreshTokenReused:
+			reuseDenialCount++
+		case outcome.err.Error() == ErrRefreshTokenRevoked:
+			revokedDenialCount++
+		default:
+			t.Errorf("concurrent rotation returned unexpected error: %v", outcome.err)
+		}
+	}
+	if successCount != 1 {
+		t.Fatalf("expected exactly 1 successful rotation, got %d", successCount)
+	}
+	if reuseDenialCount != 1 {
+		t.Fatalf("expected exactly 1 replay denial, got %d", reuseDenialCount)
+	}
+	if revokedDenialCount != 18 {
+		t.Fatalf("expected 18 denials after family compromise, got %d", revokedDenialCount)
+	}
+	if latest == nil {
+		t.Fatal("successful rotation did not return a token pair")
 	}
 	var active int64
-	db.Model(&AuthRefreshToken{}).Where("status = ?", RefreshStatusActive).Count(&active)
-	if active != 1 {
-		t.Fatalf("expected 1 active refresh token, got %d", active)
+	if err := db.Model(&AuthRefreshToken{}).Where("status = ?", RefreshStatusActive).Count(&active).Error; err != nil {
+		t.Fatal(err)
+	}
+	if active != 0 {
+		t.Fatalf("expected replay detection to revoke every active refresh token, got %d", active)
+	}
+	var session AuthSession
+	if err := db.First(&session, "id = ?", res.SessionID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if session.Status != SessionStatusRevoked {
+		t.Fatalf("session status = %q, want %q after refresh replay", session.Status, SessionStatusRevoked)
+	}
+	for name, refreshToken := range map[string]string{"original": raw, "latest": latest.RefreshToken} {
+		if _, err := svc.RotateRefresh(context.Background(), refreshToken, "127.0.0.1", name); err == nil || err.Error() != ErrRefreshTokenRevoked {
+			t.Fatalf("%s refresh token after replay error = %v, want %s", name, err, ErrRefreshTokenRevoked)
+		}
+	}
+	for name, accessToken := range map[string]string{"original": res.AccessToken, "latest": latest.AccessToken} {
+		claims, err := ParseAccessToken(cfg, nil, accessToken)
+		if err != nil {
+			t.Fatalf("parse %s access token: %v", name, err)
+		}
+		if err := svc.ValidateSessionAccess(context.Background(), res.SessionID, uid, claims.TokenVersion); err == nil {
+			t.Fatalf("%s access token remained valid after refresh replay", name)
+		}
 	}
 }
 

@@ -11,7 +11,9 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	adminmodel "github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/gorm"
 )
 
@@ -21,10 +23,13 @@ func TestProfitabilityHTTPAppliesStoreScopeAndRestrictsExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&adminmodel.AdminUser{}, &adminmodel.UserStorePermission{}); err != nil {
+	if err := db.AutoMigrate(&adminmodel.AdminUser{}, &adminmodel.UserStorePermission{}, &shop.Shop{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	operatorID, readonlyID, storeID := uuid.New(), uuid.New(), uuid.New()
+	if err := db.Create(&shop.Shop{Base: model.Base{ID: storeID}, TenantID: 41, Platform: "manual", ShopName: "Test profit shop", Status: "active", AuthStatus: "authorized"}).Error; err != nil {
+		t.Fatalf("create shop: %v", err)
+	}
 	for _, row := range []adminmodel.AdminUser{
 		{TenantID: 41, Username: "profit-operator", PasswordHash: "x", Role: "operator", Status: adminmodel.StatusActive},
 		{TenantID: 41, Username: "profit-readonly", PasswordHash: "x", Role: "readonly", Status: adminmodel.StatusActive},

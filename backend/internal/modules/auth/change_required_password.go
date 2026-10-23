@@ -82,12 +82,26 @@ func (h *Handler) ChangeRequiredPassword(c *gin.Context) {
 			admin.CheckPassword(locked.PasswordHash, body.CurrentPassword) != nil {
 			return errors.New(ErrInvalidCredentials)
 		}
-		return tx.Model(&locked).Updates(map[string]any{
+		if err := tx.Model(&locked).Updates(map[string]any{
 			"password_hash":        string(hash),
 			"password_changed_at":  now,
 			"must_change_password": false,
 			"token_version":        gorm.Expr("token_version + 1"),
-		}).Error
+		}).Error; err != nil {
+			return err
+		}
+		if h.OpLog == nil {
+			return errors.New("security audit unavailable")
+		}
+		return h.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
+			AdminUserID: &locked.ID,
+			TenantID:    locked.TenantID,
+			Action:      "user.password.change_required",
+			Resource:    "auth",
+			ResourceID:  locked.ID.String(),
+			Status:      "success",
+			Message:     "required password change completed",
+		})
 	})
 	if err != nil && err.Error() == ErrInvalidCredentials {
 		invalid()
@@ -98,15 +112,5 @@ func (h *Handler) ChangeRequiredPassword(c *gin.Context) {
 		return
 	}
 	_ = guard.ClearFailures(c.Request.Context(), account, c.ClientIP())
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: &user.ID,
-			Action:      "user.password.change_required",
-			Resource:    "auth",
-			ResourceID:  user.ID.String(),
-			Status:      "success",
-			Message:     "required password change completed",
-		})
-	}
 	response.OK(c, gin.H{"ok": true})
 }

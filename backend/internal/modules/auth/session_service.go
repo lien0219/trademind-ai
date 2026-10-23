@@ -109,6 +109,7 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 
 	now := time.Now().UTC()
 	session := &AuthSession{
+		ID:               uuid.New(),
 		TenantID:         u.TenantID,
 		UserID:           u.ID,
 		TokenVersion:     u.TokenVersion,
@@ -204,6 +205,7 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 	now := time.Now().UTC()
 
 	var result *RefreshResult
+	var terminalErr error
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row AuthRefreshToken
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -218,8 +220,21 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		case RefreshStatusActive:
 			// proceed
 		case RefreshStatusRotated:
-			_ = s.revokeTokenFamilyTx(tx, row.TokenFamilyID, RefreshStatusCompromised, "reuse_detected")
-			return errors.New(ErrRefreshTokenReused)
+			// Reuse detection must commit the family and session revocation before
+			// returning the denial. Returning an error here would roll back the
+			// security response itself.
+			if err := s.revokeTokenFamilyTx(tx, row.TokenFamilyID, RefreshStatusCompromised, "reuse_detected"); err != nil {
+				return err
+			}
+			if err := tx.Model(&AuthSession{}).Where("id = ?", row.SessionID).Updates(map[string]any{
+				"status":        SessionStatusRevoked,
+				"revoked_at":    &now,
+				"revoke_reason": "reuse_detected",
+			}).Error; err != nil {
+				return err
+			}
+			terminalErr = errors.New(ErrRefreshTokenReused)
+			return nil
 		case RefreshStatusRevoked, RefreshStatusCompromised, RefreshStatusReuseDetected:
 			return errors.New(ErrRefreshTokenRevoked)
 		default:
@@ -317,10 +332,12 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 	if err != nil {
 		reason := classifyAuthReason(err)
 		s.ObserveAuth("refresh", "failure", reason, "refresh_token")
-		if err.Error() == ErrRefreshTokenReused {
-			s.ObserveAuth("refresh_reuse", "failure", "reuse_detected", "refresh_token")
-		}
 		return nil, err
+	}
+	if terminalErr != nil {
+		s.ObserveAuth("refresh", "failure", classifyAuthReason(terminalErr), "refresh_token")
+		s.ObserveAuth("refresh_reuse", "failure", "reuse_detected", "refresh_token")
+		return nil, terminalErr
 	}
 	s.ObserveAuth("refresh", "success", "success", "refresh_token")
 	return result, nil
