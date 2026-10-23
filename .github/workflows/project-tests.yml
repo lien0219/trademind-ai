@@ -307,3 +307,10 @@ jobs:
         env:
           TEST_REDIS_URL: redis://127.0.0.1:6379/15
         run: pnpm test:redis
+
+      - name: OAuth callback persistence and state security
+        working-directory: backend
+        env:
+          APP_ENV: test
+          TEST_REDIS_URL: redis://127.0.0.1:6379/15
+        run: go test -race ./internal/modules/shop -run 'OAuth' -count=1

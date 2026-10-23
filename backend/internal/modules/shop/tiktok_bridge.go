@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TikTokShopsBridge satisfies platform/tiktok persistence hooks.
@@ -95,11 +98,72 @@ func (s *Service) setAuthStatusCtx(ctx context.Context, shopID uuid.UUID, status
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("shop: no db")
 	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
 	st := strings.TrimSpace(status)
 	if st == "" {
 		return nil
 	}
-	return s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ?", shopID).Update("auth_status", st).Error
+	result := oauthPersistenceDB(ctx, s.DB).Model(&Shop{}).
+		Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).
+		Update("auth_status", st)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (s *Service) updateShopOAuthFields(ctx context.Context, shopID uuid.UUID, updates map[string]any) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("shop: no db")
+	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
+	result := oauthPersistenceDB(ctx, s.DB).Model(&Shop{}).
+		Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (s *Service) updateShopAuthTokenOAuthFields(ctx context.Context, shopID uuid.UUID, updates map[string]any) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("shop: no db")
+	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
+	persist := func(tx *gorm.DB) error {
+		var shopRow Shop
+		if err := tx.Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).First(&shopRow).Error; err != nil {
+			return err
+		}
+		result := tx.Model(&ShopAuthToken{}).Where("shop_id = ?", shopRow.ID).Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	}
+	if tx, ok := oauthPersistenceTx(ctx); ok {
+		return persist(tx.WithContext(ctx))
+	}
+	return s.DB.WithContext(ctx).Transaction(persist)
 }
 
 func (s *Service) persistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error {
@@ -109,26 +173,36 @@ func (s *Service) persistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID
 	if s.Encrypter == nil {
 		return fmt.Errorf("shop: encryption not configured")
 	}
-	var tok ShopAuthToken
-	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(access) != "" {
-		ct, err := s.Encrypter.Encrypt([]byte(strings.TrimSpace(access)))
-		if err != nil {
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var shopRow Shop
+		if err := tx.Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).First(&shopRow).Error; err != nil {
 			return err
 		}
-		tok.AccessTokenEnc = ct
-	}
-	if strings.TrimSpace(refresh) != "" {
-		ct, err := s.Encrypter.Encrypt([]byte(strings.TrimSpace(refresh)))
-		if err != nil {
+		var tok ShopAuthToken
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("shop_id = ?", shopRow.ID).First(&tok).Error; err != nil {
 			return err
 		}
-		tok.RefreshTokenEnc = ct
-	}
-	tok.ExpiresAt = accessExp
-	tok.RefreshExpiresAt = refreshExp
-	tok.TokenVersion = tok.TokenVersion + 1
-	return s.DB.WithContext(ctx).Save(&tok).Error
+		if strings.TrimSpace(access) != "" {
+			ct, err := s.Encrypter.Encrypt([]byte(strings.TrimSpace(access)))
+			if err != nil {
+				return err
+			}
+			tok.AccessTokenEnc = ct
+		}
+		if strings.TrimSpace(refresh) != "" {
+			ct, err := s.Encrypter.Encrypt([]byte(strings.TrimSpace(refresh)))
+			if err != nil {
+				return err
+			}
+			tok.RefreshTokenEnc = ct
+		}
+		tok.ExpiresAt = accessExp
+		tok.RefreshExpiresAt = refreshExp
+		tok.TokenVersion++
+		return tx.Save(&tok).Error
+	})
 }

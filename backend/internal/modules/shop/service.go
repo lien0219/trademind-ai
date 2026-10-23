@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SummaryDTO is a compact shop projection for orders / conversations.
@@ -314,18 +315,13 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 		Remark:          strings.TrimSpace(body.Remark),
 		CreatedBy:       adminID,
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(row).Error; err != nil {
+			return err
+		}
+		return s.writeShopAuditTx(tx, c, adminID, "shop.create", row.ID.String(), fmt.Sprintf("shopId=%s platform=%s name=%s", row.ID.String(), row.Platform, row.ShopName))
+	}); err != nil {
 		return nil, err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "shop.create",
-			Resource:    "shop",
-			ResourceID:  row.ID.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("shopId=%s platform=%s name=%s", row.ID.String(), row.Platform, row.ShopName),
-		})
 	}
 	return row, nil
 }
@@ -353,51 +349,43 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 		return nil, gorm.ErrRecordNotFound
 	}
 	var row Shop
-	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
-		return nil, err
-	}
-	if err := adminperm.EnsureStoreVisible(c, s.DB, &id); err != nil {
-		return nil, err
-	}
-	if v := strings.TrimSpace(body.ShopName); v != "" {
-		row.ShopName = v
-	}
-	if v := strings.TrimSpace(body.ShopCode); v != "" {
-		row.ShopCode = v
-	}
-	if v := strings.TrimSpace(body.Region); v != "" {
-		row.Region = v
-	}
-	if v := strings.TrimSpace(body.Currency); v != "" {
-		row.Currency = strings.ToUpper(v)
-	}
-	if v := strings.TrimSpace(body.Timezone); v != "" {
-		row.Timezone = v
-	}
-	if v := strings.TrimSpace(body.DefaultLanguage); v != "" {
-		row.DefaultLanguage = v
-	}
-	if v := strings.TrimSpace(body.Remark); v != "" {
-		row.Remark = v
-	}
-	if st := strings.TrimSpace(body.Status); st != "" {
-		if st != StatusActive && st != StatusDisabled {
-			return nil, fmt.Errorf("invalid status")
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND tenant_id = ?", id, tid).First(&row).Error; err != nil {
+			return err
 		}
-		row.Status = st
-	}
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+		if v := strings.TrimSpace(body.ShopName); v != "" {
+			row.ShopName = v
+		}
+		if v := strings.TrimSpace(body.ShopCode); v != "" {
+			row.ShopCode = v
+		}
+		if v := strings.TrimSpace(body.Region); v != "" {
+			row.Region = v
+		}
+		if v := strings.TrimSpace(body.Currency); v != "" {
+			row.Currency = strings.ToUpper(v)
+		}
+		if v := strings.TrimSpace(body.Timezone); v != "" {
+			row.Timezone = v
+		}
+		if v := strings.TrimSpace(body.DefaultLanguage); v != "" {
+			row.DefaultLanguage = v
+		}
+		if v := strings.TrimSpace(body.Remark); v != "" {
+			row.Remark = v
+		}
+		if st := strings.TrimSpace(body.Status); st != "" {
+			if st != StatusActive && st != StatusDisabled {
+				return fmt.Errorf("invalid status")
+			}
+			row.Status = st
+		}
+		if err := tx.Save(&row).Error; err != nil {
+			return err
+		}
+		return s.writeShopAuditTx(tx, c, adminID, "shop.update", row.ID.String(), fmt.Sprintf("shopId=%s", row.ID.String()))
+	}); err != nil {
 		return nil, err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "shop.update",
-			Resource:    "shop",
-			ResourceID:  row.ID.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("shopId=%s", row.ID.String()),
-		})
 	}
 	return &row, nil
 }
@@ -410,24 +398,35 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if err != nil {
 		return err
 	}
-	rows, err := repository.DeleteByID(c.Request.Context(), s.DB, &Shop{}, tid, id)
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ? AND tenant_id = ?", id, tid).Delete(&Shop{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return s.writeShopAuditTx(tx, c, adminID, "shop.delete", id.String(), fmt.Sprintf("shopId=%s", id.String()))
+	})
+}
+
+func (s *Service) writeShopAuditTx(tx *gorm.DB, c *gin.Context, adminID *uuid.UUID, action, resourceID, message string) error {
+	if s == nil || s.OpLog == nil {
+		return fmt.Errorf("shop: security audit unavailable")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return err
 	}
-	if rows == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "shop.delete",
-			Resource:    "shop",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("shopId=%s", id.String()),
-		})
-	}
-	return nil
+	return s.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
+		TenantID:    tenantID,
+		AdminUserID: adminID,
+		Action:      action,
+		Resource:    "shop",
+		ResourceID:  resourceID,
+		Status:      "success",
+		Message:     message,
+	})
 }
 
 // AuthPublicDTO masks secrets for API responses.
@@ -612,143 +611,155 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop: no db")
 	}
-	var shopRow Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&shopRow, "id = ?", shopID).Error; err != nil {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return nil, err
 	}
-	prov := platformp.Get(shopRow.Platform)
-	if prov == nil {
-		return nil, fmt.Errorf("unknown platform")
-	}
-	if err := s.requireProviderAvailable(prov); err != nil {
-		return nil, err
-	}
-	if shopRow.Platform == "manual" {
-		return nil, fmt.Errorf("manual platform does not require authorization storage")
-	}
-	schema := prov.AuthSchema()
-	authTypeIn := strings.TrimSpace(body.AuthType)
-	if authTypeIn == "" {
-		authTypeIn = schema.AuthType
-	}
-	// Basic required-field validation from schema
-	for _, f := range schema.Fields {
-		if !f.Required {
-			continue
+	if _, inOAuthTransaction := oauthPersistenceTx(c.Request.Context()); !inOAuthTransaction {
+		if !adminperm.RequireStoreOperate(c, s.DB, shopID) {
+			return nil, gorm.ErrRecordNotFound
 		}
-		switch f.Name {
-		case "appKey":
-			if strings.TrimSpace(body.AppKey) == "" {
-				return nil, fmt.Errorf("field required: %s", f.Name)
+	}
+	var shopRow Shop
+	var tok ShopAuthToken
+	persist := func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&shopRow).Error; err != nil {
+			return err
+		}
+		if err := s.revalidateOAuthActorTx(tx, c, tenantID, shopID, adminID); err != nil {
+			return err
+		}
+		prov := platformp.Get(shopRow.Platform)
+		if prov == nil {
+			return fmt.Errorf("unknown platform")
+		}
+		if err := s.requireProviderAvailable(prov); err != nil {
+			return err
+		}
+		if shopRow.Platform == "manual" {
+			return fmt.Errorf("manual platform does not require authorization storage")
+		}
+		schema := prov.AuthSchema()
+		authTypeIn := strings.TrimSpace(body.AuthType)
+		if authTypeIn == "" {
+			authTypeIn = schema.AuthType
+		}
+		for _, f := range schema.Fields {
+			if !f.Required {
+				continue
 			}
-		case "appSecret":
-			if strings.TrimSpace(body.AppSecret) == "" && !encrypt.LooksMasked(body.AppSecret) {
-				return nil, fmt.Errorf("field required: %s", f.Name)
-			}
-		case "accessToken":
-			if strings.TrimSpace(body.AccessToken) == "" && !encrypt.LooksMasked(body.AccessToken) {
-				return nil, fmt.Errorf("field required: %s", f.Name)
-			}
-		default:
-			if body.AuthConfig != nil {
-				if v, ok := body.AuthConfig[f.Name]; ok {
-					if fmt.Sprint(v) == "" {
-						return nil, fmt.Errorf("field required: %s", f.Name)
+			switch f.Name {
+			case "appKey":
+				if strings.TrimSpace(body.AppKey) == "" {
+					return fmt.Errorf("field required: %s", f.Name)
+				}
+			case "appSecret":
+				if strings.TrimSpace(body.AppSecret) == "" && !encrypt.LooksMasked(body.AppSecret) {
+					return fmt.Errorf("field required: %s", f.Name)
+				}
+			case "accessToken":
+				if strings.TrimSpace(body.AccessToken) == "" && !encrypt.LooksMasked(body.AccessToken) {
+					return fmt.Errorf("field required: %s", f.Name)
+				}
+			default:
+				if body.AuthConfig != nil {
+					if v, ok := body.AuthConfig[f.Name]; ok {
+						if fmt.Sprint(v) == "" {
+							return fmt.Errorf("field required: %s", f.Name)
+						}
+					} else {
+						return fmt.Errorf("field required: %s", f.Name)
 					}
 				} else {
-					return nil, fmt.Errorf("field required: %s", f.Name)
+					return fmt.Errorf("field required: %s", f.Name)
 				}
-			} else {
-				return nil, fmt.Errorf("field required: %s", f.Name)
 			}
 		}
-	}
 
-	var tok ShopAuthToken
-	err := s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", shopID).First(&tok).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		tok = ShopAuthToken{ShopID: shopID, Platform: shopRow.Platform, AuthType: authTypeIn}
-		err = nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	tok.AuthType = authTypeIn
-	tok.Platform = shopRow.Platform
-
-	if strings.EqualFold(strings.TrimSpace(shopRow.Platform), "tiktok") && strings.TrimSpace(body.RedirectURI) != "" {
-		var mc map[string]any
-		_ = json.Unmarshal(tok.AuthConfig, &mc)
-		if mc == nil {
-			mc = map[string]any{}
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("shop_id = ?", shopID).First(&tok).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			tok = ShopAuthToken{ShopID: shopID, Platform: shopRow.Platform, AuthType: authTypeIn}
+		} else if err != nil {
+			return err
 		}
-		mc["redirectUri"] = strings.TrimSpace(body.RedirectURI)
-		b, _ := json.Marshal(mc)
-		tok.AuthConfig = datatypes.JSON(b)
-	}
+		tok.AuthType = authTypeIn
+		tok.Platform = shopRow.Platform
 
-	if v := strings.TrimSpace(body.AppKey); v != "" {
-		tok.AppKey = v
-	}
-	if ct, err := applySecret(s.Encrypter, body.AppSecret, tok.AppSecretEnc); err != nil {
-		return nil, err
-	} else {
-		tok.AppSecretEnc = ct
-	}
-	if ct, err := applySecret(s.Encrypter, body.AccessToken, tok.AccessTokenEnc); err != nil {
-		return nil, err
-	} else {
-		tok.AccessTokenEnc = ct
-	}
-	if ct, err := applySecret(s.Encrypter, body.RefreshToken, tok.RefreshTokenEnc); err != nil {
-		return nil, err
-	} else {
-		tok.RefreshTokenEnc = ct
-	}
-	if body.SellerID != "" {
-		tok.SellerID = strings.TrimSpace(body.SellerID)
-	}
-	if body.MerchantID != "" {
-		tok.MerchantID = strings.TrimSpace(body.MerchantID)
-	}
-	if body.MarketplaceID != "" {
-		tok.MarketplaceID = strings.TrimSpace(body.MarketplaceID)
-	}
-	tok.ExpiresAt = body.ExpiresAt
-	tok.RefreshExpiresAt = body.RefreshExpiresAt
-	if body.Scopes != nil {
-		b, _ := json.Marshal(body.Scopes)
-		tok.Scopes = datatypes.JSON(b)
-	}
-	if body.AuthConfig != nil {
-		b, _ := json.Marshal(body.AuthConfig)
-		tok.AuthConfig = datatypes.JSON(b)
-	}
-	// raw_data: only non-sensitive snapshot (no secrets)
-	tok.RawData = nil
-
-	if tok.ID == uuid.Nil {
-		if err := s.DB.WithContext(c.Request.Context()).Create(&tok).Error; err != nil {
-			return nil, err
+		if strings.EqualFold(strings.TrimSpace(shopRow.Platform), "tiktok") && strings.TrimSpace(body.RedirectURI) != "" {
+			var mc map[string]any
+			_ = json.Unmarshal(tok.AuthConfig, &mc)
+			if mc == nil {
+				mc = map[string]any{}
+			}
+			mc["redirectUri"] = strings.TrimSpace(body.RedirectURI)
+			b, _ := json.Marshal(mc)
+			tok.AuthConfig = datatypes.JSON(b)
 		}
-	} else {
-		if err := s.DB.WithContext(c.Request.Context()).Save(&tok).Error; err != nil {
-			return nil, err
+		if v := strings.TrimSpace(body.AppKey); v != "" {
+			tok.AppKey = v
 		}
+		if ct, err := applySecret(s.Encrypter, body.AppSecret, tok.AppSecretEnc); err != nil {
+			return err
+		} else {
+			tok.AppSecretEnc = ct
+		}
+		if ct, err := applySecret(s.Encrypter, body.AccessToken, tok.AccessTokenEnc); err != nil {
+			return err
+		} else {
+			tok.AccessTokenEnc = ct
+		}
+		if ct, err := applySecret(s.Encrypter, body.RefreshToken, tok.RefreshTokenEnc); err != nil {
+			return err
+		} else {
+			tok.RefreshTokenEnc = ct
+		}
+		if body.SellerID != "" {
+			tok.SellerID = strings.TrimSpace(body.SellerID)
+		}
+		if body.MerchantID != "" {
+			tok.MerchantID = strings.TrimSpace(body.MerchantID)
+		}
+		if body.MarketplaceID != "" {
+			tok.MarketplaceID = strings.TrimSpace(body.MarketplaceID)
+		}
+		tok.ExpiresAt = body.ExpiresAt
+		tok.RefreshExpiresAt = body.RefreshExpiresAt
+		if body.Scopes != nil {
+			b, _ := json.Marshal(body.Scopes)
+			tok.Scopes = datatypes.JSON(b)
+		}
+		if body.AuthConfig != nil {
+			b, _ := json.Marshal(body.AuthConfig)
+			tok.AuthConfig = datatypes.JSON(b)
+		}
+		tok.RawData = nil
+
+		if tok.ID == uuid.Nil {
+			if err := tx.Create(&tok).Error; err != nil {
+				return err
+			}
+		} else if err := tx.Save(&tok).Error; err != nil {
+			return err
+		}
+
+		result := tx.Model(&Shop{}).Where("id = ? AND tenant_id = ?", shopID, tenantID).Update("auth_status", AuthAuthorized)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		shopRow.AuthStatus = AuthAuthorized
+		return s.writeShopAuditTx(tx, c, adminID, "shop.auth.update", shopID.String(), fmt.Sprintf("shopId=%s platform=%s", shopID.String(), shopRow.Platform))
 	}
-
-	shopRow.AuthStatus = AuthAuthorized
-	_ = s.DB.WithContext(c.Request.Context()).Model(&shopRow).Update("auth_status", AuthAuthorized).Error
-
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "shop.auth.update",
-			Resource:    "shop",
-			ResourceID:  shopID.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("shopId=%s platform=%s", shopID.String(), shopRow.Platform),
-		})
+	var persistErr error
+	if tx, ok := oauthPersistenceTx(c.Request.Context()); ok {
+		persistErr = persist(tx)
+	} else {
+		persistErr = s.DB.WithContext(c.Request.Context()).Transaction(persist)
+	}
+	if persistErr != nil {
+		return nil, persistErr
 	}
 	return s.buildAuthPublic(&tok), nil
 }
@@ -775,7 +786,11 @@ func (s *Service) decryptedAuth(c *gin.Context, shopID uuid.UUID) (*Shop, *ShopA
 	if c == nil {
 		return s.decryptedAuthCtx(context.Background(), shopID)
 	}
-	return s.decryptedAuthCtx(c.Request.Context(), shopID)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, nil, platformp.TestConnectionRequest{}, err
+	}
+	return s.decryptedAuthTenantCtx(c.Request.Context(), shopID, tenantID)
 }
 
 func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
@@ -789,6 +804,13 @@ func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop
 			return &shopRow, nil, platformp.TestConnectionRequest{}, nil
 		}
 		return nil, nil, platformp.TestConnectionRequest{}, err
+	}
+	return s.buildDecryptedAuth(&shopRow, &tok)
+}
+
+func (s *Service) buildDecryptedAuth(shopRow *Shop, tok *ShopAuthToken) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
+	if shopRow == nil || tok == nil {
+		return shopRow, tok, platformp.TestConnectionRequest{}, nil
 	}
 	dec := func(blob string) string {
 		if s.Encrypter == nil || strings.TrimSpace(blob) == "" {
@@ -822,7 +844,22 @@ func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop
 			}
 		}
 	}
-	return &shopRow, &tok, req, nil
+	return shopRow, tok, req, nil
+}
+
+func (s *Service) decryptedAuthTenantCtx(ctx context.Context, shopID uuid.UUID, tenantID int64) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
+	var shopRow Shop
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&shopRow).Error; err != nil {
+		return nil, nil, platformp.TestConnectionRequest{}, err
+	}
+	var tok ShopAuthToken
+	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &shopRow, nil, platformp.TestConnectionRequest{}, nil
+		}
+		return nil, nil, platformp.TestConnectionRequest{}, err
+	}
+	return s.buildDecryptedAuth(&shopRow, &tok)
 }
 
 func (s *Service) TestConnection(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformp.TestConnectionResult, error) {

@@ -216,6 +216,7 @@ func testGinContext() *gin.Context {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	c.Request = c.Request.WithContext(oauthBridgeTenantContext(0))
 	return c
 }
 

@@ -137,30 +137,11 @@ func (s *Service) PutPlatformPublishSettings(c *gin.Context, platformSlug string
 			IsEncrypted: f.Sensitive,
 		})
 	}
-	if err := s.Settings.PutBulk(ctx, items); err != nil {
-		if s.OpLog != nil {
-			_ = s.OpLog.Write(c, operationlog.WriteOpts{
-				Action:     "platform.publish_settings.update",
-				Resource:   "platform_publish_settings",
-				ResourceID: plat,
-				Status:     "failed",
-				Message:    err.Error(),
-			})
-		}
+	if err := s.putPlatformSettingsWithAudit(c, items, operationlog.WriteOpts{
+		Action: "platform.publish_settings.update", Resource: "platform_publish_settings", ResourceID: plat,
+		Status: "success", Message: fmt.Sprintf("group %s saved", gk),
+	}); err != nil {
 		return nil, err
 	}
-	out, err := s.GetPlatformPublishSettings(ctx, plat)
-	if err != nil {
-		return nil, err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "platform.publish_settings.update",
-			Resource:   "platform_publish_settings",
-			ResourceID: plat,
-			Status:     "success",
-			Message:    fmt.Sprintf("group %s saved", gk),
-		})
-	}
-	return out, nil
+	return s.GetPlatformPublishSettings(ctx, plat)
 }

@@ -382,32 +382,11 @@ func (s *Service) PutPlatformAppSettings(c *gin.Context, platformSlug string, va
 		})
 	}
 
-	if err := s.Settings.PutBulk(ctx, items); err != nil {
-		if s.OpLog != nil {
-			_ = s.OpLog.Write(c, operationlog.WriteOpts{
-				Action:     "platform.settings.update",
-				Resource:   "platform_app_settings",
-				ResourceID: plat,
-				Status:     "failed",
-				Message:    err.Error(),
-			})
-		}
+	if err := s.putPlatformSettingsWithAudit(c, items, operationlog.WriteOpts{
+		Action: "platform.settings.update", Resource: "platform_app_settings", ResourceID: plat,
+		Status: "success", Message: fmt.Sprintf("group %s saved", gk),
+	}); err != nil {
 		return nil, err
 	}
-
-	out, err := s.GetPlatformAppSettings(ctx, plat)
-	if err != nil {
-		return nil, err
-	}
-
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "platform.settings.update",
-			Resource:   "platform_app_settings",
-			ResourceID: plat,
-			Status:     "success",
-			Message:    fmt.Sprintf("group %s saved", gk),
-		})
-	}
-	return out, nil
+	return s.GetPlatformAppSettings(ctx, plat)
 }
