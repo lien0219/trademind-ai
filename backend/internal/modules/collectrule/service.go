@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func clampRulePage(page, ps int) (int, int) {
@@ -65,7 +66,7 @@ type CollectorRunner interface {
 
 // ProfileOptionsEnricher adds browser profile fields to Collector options (implemented by collectbrowserprofile.Service).
 type ProfileOptionsEnricher interface {
-	EnrichCollectorOptions(ctx context.Context, opts map[string]any, profileID *uuid.UUID, useBrowserProfile bool, rawURL string) error
+	EnrichCollectorOptions(ctx context.Context, tenantID int64, opts map[string]any, profileID *uuid.UUID, useBrowserProfile bool, rawURL string) error
 }
 
 // TaskRulePayload is persisted on collect_tasks.request_options and sent to Collector as options.* .
@@ -84,6 +85,32 @@ type Service struct {
 	Runner      CollectorRunner
 	Profiles    ProfileOptionsEnricher
 	TestTimeout time.Duration
+}
+
+var errCollectRuleAuditUnavailable = errors.New("collectrule: audit unavailable")
+
+func (s *Service) withAudit(c *gin.Context, opts *operationlog.WriteOpts, mutate func(*gorm.DB) error) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("collectrule: no db")
+	}
+	if s.OpLog == nil {
+		return errCollectRuleAuditUnavailable
+	}
+	var auditErr error
+	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := mutate(tx); err != nil {
+			return err
+		}
+		if err := s.OpLog.WriteTx(c, tx, *opts); err != nil {
+			auditErr = err
+			return err
+		}
+		return nil
+	})
+	if auditErr != nil {
+		return fmt.Errorf("%w: %v", errCollectRuleAuditUnavailable, auditErr)
+	}
+	return err
 }
 
 func (s *Service) hostnameFromURL(raw string) (string, error) {
@@ -304,17 +331,21 @@ func (s *Service) Create(c *gin.Context, body CreateRuleBody, adminID *uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Create(row).Error; err != nil {
-		return nil, err
+	opts := operationlog.WriteOpts{
+		AdminUserID: adminID,
+		Action:      "collect.rule.create",
+		Resource:    "collect_rule",
+		Status:      "success",
+		Message:     truncateRunes(fmt.Sprintf("name=%s domain=%s", row.Name, row.Domain), 2000),
 	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "collect.rule.create",
-			Resource:   "collect_rule",
-			ResourceID: row.ID.String(),
-			Status:     "success",
-			Message:    truncateRunes(fmt.Sprintf("name=%s domain=%s", row.Name, row.Domain), 2000),
-		})
+	if err := s.withAudit(c, &opts, func(tx *gorm.DB) error {
+		if err := tx.Create(row).Error; err != nil {
+			return err
+		}
+		opts.ResourceID = row.ID.String()
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	d := ruleToDetailDTO(row)
 	return &d, nil
@@ -394,23 +425,28 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateRuleBody, admi
 		d := ruleToDetailDTO(&row)
 		return &d, nil
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Model(&CollectRule{}).
-		Where("id = ?", id).
-		Updates(updates).Error; err != nil {
+	opts := operationlog.WriteOpts{
+		AdminUserID: adminID,
+		Action:      "collect.rule.update",
+		Resource:    "collect_rule",
+		ResourceID:  id.String(),
+		Status:      "success",
+		Message:     truncateRunes(fmt.Sprintf("updated keys=%v", keysOf(updates)), 2000),
+	}
+	if err := s.withAudit(c, &opts, func(tx *gorm.DB) error {
+		res := tx.Model(&CollectRule{}).Where("id = ?", id).Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.rule.update",
-			Resource:    "collect_rule",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     truncateRunes(fmt.Sprintf("updated keys=%v", keysOf(updates)), 2000),
-		})
 	}
 	d := ruleToDetailDTO(&row)
 	return &d, nil
@@ -428,24 +464,24 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectrule: no db")
 	}
-	res := s.DB.WithContext(c.Request.Context()).Delete(&CollectRule{}, "id = ?", id)
-	if res.Error != nil {
-		return res.Error
+	opts := operationlog.WriteOpts{
+		AdminUserID: adminID,
+		Action:      "collect.rule.delete",
+		Resource:    "collect_rule",
+		ResourceID:  id.String(),
+		Status:      "success",
+		Message:     "soft deleted",
 	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.rule.delete",
-			Resource:    "collect_rule",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     "soft deleted",
-		})
-	}
-	return nil
+	return s.withAudit(c, &opts, func(tx *gorm.DB) error {
+		res := tx.Delete(&CollectRule{}, "id = ?", id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 func (s *Service) SetStatus(c *gin.Context, id uuid.UUID, status string, adminID *uuid.UUID) (*RuleDetailDTO, error) {
@@ -469,27 +505,32 @@ func (s *Service) SetStatus(c *gin.Context, id uuid.UUID, status string, adminID
 			return nil, err
 		}
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Model(&CollectRule{}).
-		Where("id = ?", id).
-		Update("status", st).Error; err != nil {
-		return nil, err
-	}
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
-		return nil, err
-	}
 	action := "collect.rule.enable"
 	if st == StatusDisabled {
 		action = "collect.rule.disable"
 	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      action,
-			Resource:    "collect_rule",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("status=%s", st),
-		})
+	opts := operationlog.WriteOpts{
+		AdminUserID: adminID,
+		Action:      action,
+		Resource:    "collect_rule",
+		ResourceID:  id.String(),
+		Status:      "success",
+		Message:     fmt.Sprintf("status=%s", st),
+	}
+	if err := s.withAudit(c, &opts, func(tx *gorm.DB) error {
+		res := tx.Model(&CollectRule{}).Where("id = ?", id).Update("status", st)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+		return nil, err
 	}
 	d := ruleToDetailDTO(&row)
 	return &d, nil
@@ -534,11 +575,15 @@ func (s *Service) TestPreview(c *gin.Context, id uuid.UUID, body TestRuleBody, a
 		"rule":         json.RawMessage(rule.Rule),
 	}
 	if s.Profiles != nil && body.UseBrowserProfile && body.ProfileID != nil {
+		tenantID, err := adminperm.TenantIDFromGin(c)
+		if err != nil {
+			return nil, err
+		}
 		pid, err := uuid.Parse(strings.TrimSpace(*body.ProfileID))
 		if err != nil {
 			return nil, fmt.Errorf("invalid profileId")
 		}
-		if err := s.Profiles.EnrichCollectorOptions(ctx, opts, &pid, true, rawURL); err != nil {
+		if err := s.Profiles.EnrichCollectorOptions(ctx, tenantID, opts, &pid, true, rawURL); err != nil {
 			return nil, err
 		}
 	}

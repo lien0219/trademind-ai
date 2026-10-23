@@ -44,6 +44,11 @@ func (h *Handler) List(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "browser profiles unavailable")
 		return
 	}
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 403, response.CodePermissionDenied, err.Error())
+		return
+	}
 	q := ListQuery{
 		Page:     atoiQP(c, "page", 1),
 		PageSize: atoiQP(c, "pageSize", 20),
@@ -51,7 +56,7 @@ func (h *Handler) List(c *gin.Context) {
 		Provider: c.Query("provider"),
 		Status:   c.Query("status"),
 	}
-	list, total, err := h.Svc.List(c.Request.Context(), q)
+	list, total, err := h.Svc.List(c.Request.Context(), tenantID, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -87,6 +92,10 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, ErrAuditFailure) {
+			response.HandleError(c, err)
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -168,6 +177,10 @@ func (h *Handler) profileAction(
 		msg := err.Error()
 		if errors.Is(err, ErrProfileNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, msg)
+			return
+		}
+		if errors.Is(err, ErrAuditFailure) {
+			response.HandleError(c, err)
 			return
 		}
 		if errors.Is(err, ErrProfileDomainMismatch) {

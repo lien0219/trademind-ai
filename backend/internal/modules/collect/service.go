@@ -444,10 +444,18 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			"rule":         ruleObj,
 		}
 		if snap.UseBrowserProfile && strings.TrimSpace(snap.ProfileKey) != "" {
-			collectorOpts["useBrowserProfile"] = true
-			collectorOpts["profileKey"] = strings.TrimSpace(snap.ProfileKey)
-			if strings.TrimSpace(snap.ProfileID) != "" {
-				collectorOpts["profileId"] = strings.TrimSpace(snap.ProfileID)
+			if s.Profiles == nil || strings.TrimSpace(snap.ProfileID) == "" {
+				s.failTask(ctx, task, prevStatus, "browser profile reference unavailable", nil, workerID, claim)
+				return true, nil
+			}
+			profileID, err := uuid.Parse(strings.TrimSpace(snap.ProfileID))
+			if err != nil {
+				s.failTask(ctx, task, prevStatus, "invalid browser profile reference", nil, workerID, claim)
+				return true, nil
+			}
+			if err := s.Profiles.EnrichCollectorOptions(ctx, task.TenantID, collectorOpts, &profileID, true, task.SourceURL); err != nil {
+				s.failTask(ctx, task, prevStatus, "browser profile unavailable", nil, workerID, claim)
+				return true, nil
 			}
 		}
 	}
@@ -684,7 +692,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 			if err != nil {
 				return zero, fmt.Errorf("invalid profileId")
 			}
-			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), blob, &pid, true, url)
+			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), tenantID, blob, &pid, true, url)
 			if err != nil {
 				return zero, err
 			}

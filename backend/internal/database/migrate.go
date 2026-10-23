@@ -128,6 +128,34 @@ func backfillOrderInventoryEffectTenants(db *gorm.DB) error {
 	`).Error
 }
 
+// backfillCollectBrowserProfileTenants assigns legacy profiles to a tenant
+// only when their persisted creator identifies that tenant unambiguously.
+// Unowned legacy rows remain in tenant zero and are not exposed to tenant users.
+func backfillCollectBrowserProfileTenants(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&collectbrowserprofile.CollectBrowserProfile{}) ||
+		!db.Migrator().HasTable(&admin.AdminUser{}) ||
+		!db.Migrator().HasColumn(&collectbrowserprofile.CollectBrowserProfile{}, "tenant_id") ||
+		!db.Migrator().HasColumn(&collectbrowserprofile.CollectBrowserProfile{}, "created_by") {
+		return nil
+	}
+	return db.Exec(`
+		UPDATE collect_browser_profiles
+		SET tenant_id = (
+			SELECT admin_users.tenant_id
+			FROM admin_users
+			WHERE admin_users.id = collect_browser_profiles.created_by
+		)
+		WHERE tenant_id = 0
+		  AND created_by IS NOT NULL
+		  AND EXISTS (
+			SELECT 1
+			FROM admin_users
+			WHERE admin_users.id = collect_browser_profiles.created_by
+			  AND admin_users.tenant_id <> 0
+		  )
+	`).Error
+}
+
 // backfillOrderExceptionMarkTenants preserves existing workbench marks when
 // tenant_id is added to the overlay table. Unknown legacy sources remain at
 // tenant zero and are therefore invisible to authenticated non-zero tenants.
@@ -212,6 +240,7 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
+		&admin.AdminMutationLock{},
 		&admin.RoleDefinition{},
 		&admin.UserStorePermission{},
 		&settings.Setting{},
@@ -329,6 +358,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.QuotaPolicy{},
 	); err != nil {
 		return err
+	}
+	if err := backfillCollectBrowserProfileTenants(db); err != nil {
+		return fmt.Errorf("backfill collect browser profile tenants: %w", err)
 	}
 	if err := migrateWarehousePlacementIndexes(db); err != nil {
 		return err

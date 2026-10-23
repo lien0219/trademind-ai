@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -20,6 +21,9 @@ type Handler struct {
 func (h *Handler) Upload(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "files unavailable")
+		return
+	}
+	if !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermProductWrite) {
 		return
 	}
 	fh, err := c.FormFile("file")
@@ -48,6 +52,9 @@ func (h *Handler) List(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "files unavailable")
 		return
 	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
 	q := ListQuery{
 		Page:        atoiFileQP(c, "page", 1),
 		PageSize:    atoiFileQP(c, "pageSize", 20),
@@ -73,6 +80,9 @@ func (h *Handler) List(c *gin.Context) {
 func (h *Handler) Delete(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "files unavailable")
+		return
+	}
+	if !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermProductWrite) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

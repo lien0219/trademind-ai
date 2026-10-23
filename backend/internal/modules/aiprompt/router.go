@@ -8,6 +8,13 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	rg := g.Group("/ai/prompts")
+	rg.Use(func(c *gin.Context) {
+		if !h.requirePlatformAdmin(c) {
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
 	rg.GET("", h.List)
 	rg.POST("", h.Create)
 	rg.GET("/:id", h.Get)

@@ -12,14 +12,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/collectdomain"
 )
 
 var (
 	ErrProfileNotFound       = errors.New("PROFILE_NOT_FOUND: collect browser profile not found or disabled")
 	ErrProfileDomainMismatch = errors.New("PROFILE_DOMAIN_MISMATCH: profile domain does not match url host")
+	ErrAuditFailure          = errors.New("browser profile audit persistence failed")
 )
 
 // Service manages collect_browser_profiles metadata (login cookies stay on Collector disk).
@@ -88,9 +91,51 @@ func accessToLastCheck(access string) string {
 	}
 }
 
-func (s *Service) byID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
+func tenantIDFromGin(c *gin.Context) (int64, error) {
+	return adminperm.TenantIDFromGin(c)
+}
+
+func (s *Service) writeAuditTx(tx *gorm.DB, c *gin.Context, adminID *uuid.UUID, action, resourceID, status, message string) error {
+	if s == nil || s.OpLog == nil {
+		return ErrAuditFailure
+	}
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return fmt.Errorf("%w: resolve tenant: %v", ErrAuditFailure, err)
+	}
+	if err := s.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
+		TenantID: tenantID, AdminUserID: adminID, Action: action,
+		Resource: "collect_browser_profile", ResourceID: resourceID,
+		Status: status, Message: message,
+	}); err != nil {
+		return fmt.Errorf("%w: %w", ErrAuditFailure, err)
+	}
+	return nil
+}
+
+func (s *Service) writeActionAudit(c *gin.Context, adminID *uuid.UUID, action, resourceID, status, message string) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("collectbrowserprofile: no db")
+	}
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		return s.writeAuditTx(tx, c, adminID, action, resourceID, status, message)
+	})
+}
+
+func safeCheckURL(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	u.User = nil
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
+}
+
+func (s *Service) byID(ctx context.Context, tenantID int64, id uuid.UUID) (*CollectBrowserProfile, error) {
 	var row CollectBrowserProfile
-	err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error
+	err := s.DB.WithContext(ctx).First(&row, "id = ? AND tenant_id = ?", id, tenantID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProfileNotFound
@@ -100,8 +145,8 @@ func (s *Service) byID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfil
 	return &row, nil
 }
 
-func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
-	row, err := s.byID(ctx, id)
+func (s *Service) activeByID(ctx context.Context, tenantID int64, id uuid.UUID) (*CollectBrowserProfile, error) {
+	row, err := s.byID(ctx, tenantID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +156,13 @@ func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowser
 	return row, nil
 }
 
-func (s *Service) List(ctx context.Context, q ListQuery) ([]RowDTO, int64, error) {
+func (s *Service) List(ctx context.Context, tenantID int64, q ListQuery) ([]RowDTO, int64, error) {
 	if s == nil || s.DB == nil {
 		return nil, 0, fmt.Errorf("collectbrowserprofile: no db")
 	}
 	page, ps := s.clampPage(q.Page, q.PageSize)
 	tx := s.DB.WithContext(ctx).Model(&CollectBrowserProfile{})
+	tx = tx.Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.Domain); v != "" {
 		tx = tx.Where("LOWER(domain) LIKE ?", "%"+strings.ToLower(v)+"%")
 	}
@@ -145,6 +191,9 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectbrowserprofile: no db")
 	}
+	if _, err := tenantIDFromGin(c); err != nil {
+		return nil, err
+	}
 	name := strings.TrimSpace(body.Name)
 	domain := collectdomain.NormalizeRuleDomain(body.Domain)
 	if name == "" || domain == "" {
@@ -154,7 +203,12 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if provider == "" {
 		provider = "custom"
 	}
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	row := CollectBrowserProfile{
+		TenantID:   tenantID,
 		Name:       name,
 		Domain:     domain,
 		Provider:   provider,
@@ -166,18 +220,13 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	row.ID = uuid.New()
 	row.ProfileKey = "custom_" + strings.ReplaceAll(row.ID.String(), "-", "")
 
-	if err := s.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&row).Error; err != nil {
+			return err
+		}
+		return s.writeAuditTx(tx, c, adminID, "collect.browser_profile.create", row.ID.String(), "success", "browser profile metadata created")
+	}); err != nil {
 		return nil, err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.browser_profile.create",
-			Resource:    "collect_browser_profile",
-			ResourceID:  row.ID.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("domain=%s profileKey=%s", domain, row.ProfileKey),
-		})
 	}
 	dto := rowToDTO(&row)
 	return &CreateResultDTO{ProfileID: row.ID, ProfileKey: row.ProfileKey, Row: dto}, nil
@@ -187,82 +236,75 @@ func (s *Service) Disable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) erro
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectbrowserprofile: no db")
 	}
-	row, err := s.byID(c.Request.Context(), id)
+	tenantID, err := tenantIDFromGin(c)
 	if err != nil {
 		return err
 	}
-	if row.Status == StatusDisabled {
-		return nil
-	}
-	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
-		Where("id = ?", id).
-		Update("status", StatusDisabled)
-	if res.Error != nil {
-		return res.Error
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.browser_profile.disable",
-			Resource:    "collect_browser_profile",
-			ResourceID:  id.String(),
-			Status:      "success",
-		})
-	}
-	return nil
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var row CollectBrowserProfile
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrProfileNotFound
+			}
+			return err
+		}
+		if row.Status == StatusDisabled {
+			return nil
+		}
+		if err := tx.Model(&row).Update("status", StatusDisabled).Error; err != nil {
+			return err
+		}
+		return s.writeAuditTx(tx, c, adminID, "collect.browser_profile.disable", id.String(), "success", "browser profile disabled")
+	})
 }
 
 func (s *Service) Enable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectbrowserprofile: no db")
 	}
-	row, err := s.byID(c.Request.Context(), id)
+	tenantID, err := tenantIDFromGin(c)
 	if err != nil {
 		return err
 	}
-	if row.Status == StatusActive {
-		return nil
-	}
-	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
-		Where("id = ?", id).
-		Update("status", StatusActive)
-	if res.Error != nil {
-		return res.Error
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.browser_profile.enable",
-			Resource:    "collect_browser_profile",
-			ResourceID:  id.String(),
-			Status:      "success",
-		})
-	}
-	return nil
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var row CollectBrowserProfile
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrProfileNotFound
+			}
+			return err
+		}
+		if row.Status == StatusActive {
+			return nil
+		}
+		if err := tx.Model(&row).Update("status", StatusActive).Error; err != nil {
+			return err
+		}
+		return s.writeAuditTx(tx, c, adminID, "collect.browser_profile.enable", id.String(), "success", "browser profile enabled")
+	})
 }
 
 func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("collectbrowserprofile: no db")
 	}
-	row, err := s.byID(c.Request.Context(), id)
+	tenantID, err := tenantIDFromGin(c)
 	if err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Delete(row).Error; err != nil {
-		return err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.browser_profile.delete",
-			Resource:    "collect_browser_profile",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("profileKey=%s", row.ProfileKey),
-		})
-	}
-	return nil
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var row CollectBrowserProfile
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrProfileNotFound
+			}
+			return err
+		}
+		if err := tx.Delete(&row).Error; err != nil {
+			return err
+		}
+		return s.writeAuditTx(tx, c, adminID, "collect.browser_profile.delete", id.String(), "success", "browser profile deleted")
+	})
 }
 
 func (s *Service) collectorCtx(parent context.Context) (context.Context, context.CancelFunc) {
@@ -277,7 +319,11 @@ func (s *Service) OpenLogin(c *gin.Context, id uuid.UUID, body URLBody, adminID 
 	if s.Collector == nil {
 		return nil, fmt.Errorf("collector unavailable")
 	}
-	row, err := s.activeByID(c.Request.Context(), id)
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.activeByID(c.Request.Context(), tenantID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -289,21 +335,18 @@ func (s *Service) OpenLogin(c *gin.Context, id uuid.UUID, body URLBody, adminID 
 	if err != nil || !collectdomain.DomainMatches(host, row.Domain) {
 		return nil, ErrProfileDomainMismatch
 	}
+	if err := s.writeActionAudit(c, adminID, "collect.browser_profile.open_login", id.String(), "started", "manual login window requested"); err != nil {
+		return nil, err
+	}
 	ctx, cancel := s.collectorCtx(c.Request.Context())
 	defer cancel()
 	msg, err := s.Collector.OpenProfileLogin(ctx, row.ProfileKey, rawURL)
 	if err != nil {
-		return nil, err
+		auditErr := s.writeActionAudit(c, adminID, "collect.browser_profile.open_login", id.String(), "failed", "collector request failed")
+		return nil, errors.Join(err, auditErr)
 	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.browser_profile.open_login",
-			Resource:    "collect_browser_profile",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     "opened headed browser for manual login",
-		})
+	if err := s.writeActionAudit(c, adminID, "collect.browser_profile.open_login", id.String(), "success", "opened headed browser for manual login"); err != nil {
+		return nil, err
 	}
 	return &OpenLoginResultDTO{Message: msg, ProfileKey: row.ProfileKey}, nil
 }
@@ -312,7 +355,11 @@ func (s *Service) Check(c *gin.Context, id uuid.UUID, body URLBody, adminID *uui
 	if s.Collector == nil {
 		return nil, fmt.Errorf("collector unavailable")
 	}
-	row, err := s.activeByID(c.Request.Context(), id)
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.activeByID(c.Request.Context(), tenantID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -324,29 +371,32 @@ func (s *Service) Check(c *gin.Context, id uuid.UUID, body URLBody, adminID *uui
 	if err != nil || !collectdomain.DomainMatches(host, row.Domain) {
 		return nil, ErrProfileDomainMismatch
 	}
+	if err := s.writeActionAudit(c, adminID, "collect.browser_profile.check", id.String(), "started", "browser profile access check requested"); err != nil {
+		return nil, err
+	}
 	ctx, cancel := s.collectorCtx(c.Request.Context())
 	defer cancel()
 	out, err := s.Collector.CheckProfileAccess(ctx, row.ProfileKey, rawURL)
 	if err != nil {
-		return nil, err
+		auditErr := s.writeActionAudit(c, adminID, "collect.browser_profile.check", id.String(), "failed", "collector request failed")
+		return nil, errors.Join(err, auditErr)
 	}
 	now := time.Now()
 	updates := map[string]any{
 		"last_check_status": accessToLastCheck(out.AccessStatus),
-		"last_check_url":    rawURL,
+		"last_check_url":    safeCheckURL(rawURL),
 		"last_check_at":     &now,
 		"last_error_code":   strings.TrimSpace(out.ErrorCode),
 	}
-	_ = s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).Where("id = ?", id).Updates(updates).Error
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			AdminUserID: adminID,
-			Action:      "collect.browser_profile.check",
-			Resource:    "collect_browser_profile",
-			ResourceID:  id.String(),
-			Status:      "success",
-			Message:     fmt.Sprintf("access=%s", out.AccessStatus),
-		})
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&CollectBrowserProfile{}).
+			Where("id = ? AND tenant_id = ?", id, tenantID).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+		return s.writeAuditTx(tx, c, adminID, "collect.browser_profile.check", id.String(), "success", fmt.Sprintf("access=%s", out.AccessStatus))
+	}); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -354,6 +404,7 @@ func (s *Service) Check(c *gin.Context, id uuid.UUID, body URLBody, adminID *uui
 // MergeIntoRequestOptions adds profile snapshot fields to collect_tasks.request_options JSON.
 func (s *Service) MergeIntoRequestOptions(
 	ctx context.Context,
+	tenantID int64,
 	requestOptionsJSON []byte,
 	profileID *uuid.UUID,
 	useBrowserProfile bool,
@@ -362,7 +413,7 @@ func (s *Service) MergeIntoRequestOptions(
 	if !useBrowserProfile || profileID == nil || *profileID == uuid.Nil {
 		return requestOptionsJSON, nil
 	}
-	row, err := s.activeByID(ctx, *profileID)
+	row, err := s.activeByID(ctx, tenantID, *profileID)
 	if err != nil {
 		return nil, err
 	}
@@ -387,6 +438,7 @@ func (s *Service) MergeIntoRequestOptions(
 // EnrichCollectorOptions adds profileKey for Collector HTTP options map.
 func (s *Service) EnrichCollectorOptions(
 	ctx context.Context,
+	tenantID int64,
 	opts map[string]any,
 	profileID *uuid.UUID,
 	useBrowserProfile bool,
@@ -395,7 +447,7 @@ func (s *Service) EnrichCollectorOptions(
 	if !useBrowserProfile || profileID == nil || *profileID == uuid.Nil {
 		return nil
 	}
-	row, err := s.activeByID(ctx, *profileID)
+	row, err := s.activeByID(ctx, tenantID, *profileID)
 	if err != nil {
 		return err
 	}

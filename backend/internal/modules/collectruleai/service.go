@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/collectdomain"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
@@ -71,7 +72,7 @@ type ProviderResolver interface {
 }
 
 type ProfileEnricher interface {
-	EnrichCollectorOptions(ctx context.Context, opts map[string]any, profileID *uuid.UUID, useBrowserProfile bool, rawURL string) error
+	EnrichCollectorOptions(ctx context.Context, tenantID int64, opts map[string]any, profileID *uuid.UUID, useBrowserProfile bool, rawURL string) error
 }
 
 type RuleCreator interface {
@@ -329,11 +330,15 @@ func (s *Service) GenerateCollectRuleWithAI(c *gin.Context, body GenerateBody, a
 
 	analyzeOpts := map[string]any{"maxCandidates": maxCand}
 	if s.Profiles != nil && body.UseBrowserProfile && body.ProfileID != nil {
+		tenantID, err := adminperm.TenantIDFromGin(c)
+		if err != nil {
+			return nil, err
+		}
 		pid, err := uuid.Parse(strings.TrimSpace(*body.ProfileID))
 		if err != nil {
 			return nil, fmt.Errorf("invalid profileId")
 		}
-		if err := s.Profiles.EnrichCollectorOptions(ctx, analyzeOpts, &pid, true, rawURL); err != nil {
+		if err := s.Profiles.EnrichCollectorOptions(ctx, tenantID, analyzeOpts, &pid, true, rawURL); err != nil {
 			return nil, err
 		}
 	}
@@ -484,9 +489,16 @@ func (s *Service) runRuleTest(
 		"rule":         json.RawMessage(rule),
 	}
 	if s.Profiles != nil && body.UseBrowserProfile && body.ProfileID != nil {
+		tenantID, err := adminperm.TenantIDFromGin(c)
+		if err != nil {
+			return nil, err
+		}
 		pid, err := uuid.Parse(strings.TrimSpace(*body.ProfileID))
-		if err == nil {
-			_ = s.Profiles.EnrichCollectorOptions(ctx, opts, &pid, true, rawURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid browser profile ID: %w", err)
+		}
+		if err := s.Profiles.EnrichCollectorOptions(ctx, tenantID, opts, &pid, true, rawURL); err != nil {
+			return nil, fmt.Errorf("resolve browser profile: %w", err)
 		}
 	}
 	out, err := s.Runner.CustomRuleTest(ctx, rawURL, opts)

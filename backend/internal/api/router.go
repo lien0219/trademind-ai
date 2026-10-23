@@ -432,7 +432,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	aiProductImageH := &aiproductimage.Handler{Svc: aiProductImageSvc}
 
-	promptH := &aiprompt.Handler{Svc: promptSvc}
+	promptH := &aiprompt.Handler{Svc: promptSvc, OpLog: opLogSvc}
 	aiTaskH := &aitask.Handler{Svc: aiTaskSvc}
 
 	collectSvc := &collect.Service{
@@ -729,8 +729,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	v1 := r.Group("/api/v1")
 	v1.POST("/auth/login", authH.Login)
 	v1.POST("/auth/change-required-password", authH.ChangeRequiredPassword)
-	v1.POST("/auth/register", authH.Register)
-	v1.POST("/auth/send-email-code", authH.SendEmailCode)
+	v1.POST("/auth/register", opLogSvc.AuditFailures("register", "auth", ""), authH.Register)
+	v1.POST("/auth/send-email-code", opLogSvc.AuditFailures("email_code.send", "auth", ""), authH.SendEmailCode)
 	v1.POST("/auth/refresh", sessionH.Refresh)
 
 	authed := v1.Group("")
@@ -738,9 +738,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.GET("/auth/profile", authH.Profile)
 	authed.POST("/auth/logout", authH.Logout)
 	authed.GET("/auth/sessions", sessionH.ListSessions)
-	authed.DELETE("/auth/sessions/:id", sessionH.DeleteSession)
-	authed.POST("/auth/sessions/revoke-others", sessionH.RevokeOthers)
-	authed.POST("/auth/logout-all", sessionH.LogoutAll)
+	authed.DELETE("/auth/sessions/:id", opLogSvc.AuditFailures("session_revoke", "auth_session", "id"), sessionH.DeleteSession)
+	authed.POST("/auth/sessions/revoke-others", opLogSvc.AuditFailures("session_revoke_others", "auth_session", ""), sessionH.RevokeOthers)
+	authed.POST("/auth/logout-all", opLogSvc.AuditFailures("logout_all", "auth", ""), sessionH.LogoutAll)
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
@@ -786,15 +786,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectbrowserprofile.Register(authed, profileH)
 
 	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
-	collectorAlias := r.Group("/api/collector")
-	collectorAlias.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
-	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
-	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
-	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)
-	collectorAlias.POST("/providers/pinduoduo/check-login", collectH.CheckPinduoduoLogin)
-	collectorAlias.POST("/providers/pinduoduo/open-login-browser", collectH.OpenPinduoduoLoginBrowser)
-	collectorAlias.POST("/providers/taobao_tmall/check-login", collectH.CheckTaobaoTmallLogin)
-	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
+	registerCollectorAliases(r, collectH, dep.DB, middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	profitability.Register(authed, profitabilityH)

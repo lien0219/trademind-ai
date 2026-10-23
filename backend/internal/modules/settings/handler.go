@@ -24,6 +24,17 @@ func (h *Handler) requireSettingsManage(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
 		return false
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	// Settings are platform configuration stored in the root tenant. A
+	// tenant administrator must not read or mutate another tenant's settings.
+	if tid != 0 {
+		adminperm.DenySettings(c)
+		return false
+	}
 	return adminperm.RequireWrite(c, h.DB, adminperm.PermSettingsManage)
 }
 
@@ -46,7 +57,12 @@ func (h *Handler) List(c *gin.Context) {
 	if !h.requireSettingsManage(c) {
 		return
 	}
-	rows, err := h.Svc.List(c.Request.Context())
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	rows, err := h.Svc.ListForTenant(c.Request.Context(), tid)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -64,14 +80,23 @@ func (h *Handler) Put(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	items := make([]PutItem, 0, len(body.Items))
 	for _, it := range body.Items {
-		tid := int64(0)
+		itemTenantID := tid
 		if it.TenantID != nil {
-			tid = *it.TenantID
+			itemTenantID = *it.TenantID
+		}
+		if itemTenantID != tid {
+			adminperm.DenySettings(c)
+			return
 		}
 		items = append(items, PutItem{
-			TenantID:    tid,
+			TenantID:    itemTenantID,
 			GroupKey:    it.GroupKey,
 			ItemKey:     it.ItemKey,
 			ItemValue:   it.ItemValue,
@@ -80,16 +105,8 @@ func (h *Handler) Put(c *gin.Context) {
 			Remark:      it.Remark,
 		})
 	}
-	if err := h.Svc.PutBulk(c.Request.Context(), items); err != nil {
-		if h.OpLog != nil {
-			_ = h.OpLog.Write(c, operationlog.WriteOpts{
-				Action:   "settings_update",
-				Resource: "settings",
-				Status:   "failed",
-				Message:  err.Error(),
-			})
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+	if h.OpLog == nil || h.Svc.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings audit unavailable")
 		return
 	}
 	alertNotifyTouch := false
@@ -103,31 +120,42 @@ func (h *Handler) Put(c *gin.Context) {
 			pricingTouch = true
 		}
 	}
-	if alertNotifyTouch && h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "settings.alert_notify.update",
-			Resource: "settings",
-			Status:   "success",
-			Message:  "alert_notify bulk upsert",
+	var auditErr error
+	err = h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := h.Svc.PutBulkTx(tx, items); err != nil {
+			return err
+		}
+		audits := make([]operationlog.WriteOpts, 0, 3)
+		if alertNotifyTouch {
+			audits = append(audits, operationlog.WriteOpts{
+				Action: "settings.alert_notify.update", Resource: "settings", Status: "success", Message: "alert_notify bulk upsert",
+			})
+		}
+		if pricingTouch {
+			audits = append(audits, operationlog.WriteOpts{
+				Action: "settings.pricing.update", Resource: "settings", Status: "success", Message: "pricing bulk upsert",
+			})
+		}
+		audits = append(audits, operationlog.WriteOpts{
+			Action: "settings_update", Resource: "settings", Status: "success", Message: "bulk upsert",
 		})
+		for _, audit := range audits {
+			if err := h.OpLog.WriteTx(c, tx, audit); err != nil {
+				auditErr = err
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if auditErr != nil {
+			response.Fail(c, 500, response.CodeInternalError, "settings audit unavailable")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
 	}
-	if pricingTouch && h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "settings.pricing.update",
-			Resource: "settings",
-			Status:   "success",
-			Message:  "pricing bulk upsert",
-		})
-	}
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "settings_update",
-			Resource: "settings",
-			Status:   "success",
-			Message:  "bulk upsert",
-		})
-	}
-	rows, err := h.Svc.List(c.Request.Context())
+	rows, err := h.Svc.ListForTenant(c.Request.Context(), tid)
 	if err != nil {
 		response.HandleError(c, err)
 		return

@@ -3,13 +3,13 @@ package douyinruntime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
@@ -80,10 +80,17 @@ func (s *Service) EmergencyDisable(c *gin.Context, adminID *uuid.UUID, body Chan
 func (s *Service) setStatus(c *gin.Context, adminID *uuid.UUID, status, action, reason string) (*RuntimeStatusDTO, error) {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		return nil, fmt.Errorf("reason is required")
+		return nil, errRuntimeReasonRequired
 	}
-	if s == nil || s.Settings == nil {
-		return nil, fmt.Errorf("douyinruntime: misconfigured")
+	if s == nil || s.DB == nil || s.Settings == nil || s.OpLog == nil {
+		return nil, fmt.Errorf("douyinruntime: mutation unavailable")
+	}
+	_, resolvedAdminID, authErr := authorizeRuntimeMutation(c, s.DB)
+	if authErr != nil {
+		return nil, fmt.Errorf("douyinruntime: mutation authorization failed")
+	}
+	if adminID == nil || resolvedAdminID == nil || *adminID != *resolvedAdminID {
+		return nil, fmt.Errorf("douyinruntime: mutation authorization failed")
 	}
 	ctx := c.Request.Context()
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -92,26 +99,39 @@ func (s *Service) setStatus(c *gin.Context, adminID *uuid.UUID, status, action, 
 		{TenantID: 0, GroupKey: groupKey, ItemKey: "platform_runtime_status_reason", ItemValue: reason, ValueType: "string"},
 		{TenantID: 0, GroupKey: groupKey, ItemKey: "platform_runtime_status_changed_at", ItemValue: now, ValueType: "string"},
 	}
-	if err := s.Settings.PutBulk(ctx, items); err != nil {
-		return nil, err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txSettings := *s.Settings
+		txSettings.DB = tx
+		if err := txSettings.PutBulk(ctx, items); err != nil {
+			return fmt.Errorf("persist runtime settings: %w", err)
+		}
+		if err := s.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
 			AdminUserID: adminID,
+			TenantID:    0,
 			Action:      action,
 			Resource:    groupKey,
 			ResourceID:  "runtime_status",
+			Permission:  "settings.manage",
 			Status:      "success",
-			Message:     fmt.Sprintf("status=%s reason=%s changedAt=%s", status, reason, now),
-		})
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			Message:     fmt.Sprintf("status=%s changedAt=%s", status, now),
+		}); err != nil {
+			return err
+		}
+		if err := s.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
 			AdminUserID: adminID,
+			TenantID:    0,
 			Action:      "douyin.platform.runtime_status.changed",
 			Resource:    groupKey,
 			ResourceID:  status,
+			Permission:  "settings.manage",
 			Status:      "success",
-			Message:     fmt.Sprintf("from_change action=%s reason=%s", action, reason),
-		})
+			Message:     fmt.Sprintf("from_action=%s", action),
+		}); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("douyinruntime: runtime status update failed")
 	}
 	return s.GetRuntimeStatus(ctx)
 }
@@ -159,7 +179,6 @@ func (h *Handler) GetHealth(c *gin.Context) {
 		c.JSON(500, gin.H{"code": 50000, "message": err.Error(), "data": nil})
 		return
 	}
-	h.Svc.saveHealthSnapshot(c.Request.Context(), out)
 	c.JSON(200, gin.H{"code": 0, "message": "ok", "data": out})
 }
 
@@ -212,24 +231,14 @@ func (h *Handler) change(c *gin.Context, action string) {
 		return
 	}
 	if err != nil {
-		c.JSON(400, gin.H{"code": 40001, "message": err.Error(), "data": nil})
+		if errors.Is(err, errRuntimeReasonRequired) {
+			c.JSON(400, gin.H{"code": 40001, "message": "reason is required", "data": nil})
+			return
+		}
+		c.JSON(500, gin.H{"code": 50000, "message": "runtime status update failed", "data": nil})
 		return
 	}
 	c.JSON(200, gin.H{"code": 0, "message": "ok", "data": out})
-}
-
-func parseAdminID(c *gin.Context) *uuid.UUID {
-	if c == nil {
-		return nil
-	}
-	if v, ok := c.Get("adminUserId"); ok {
-		if s, ok := v.(string); ok {
-			if u, err := uuid.Parse(strings.TrimSpace(s)); err == nil {
-				return &u
-			}
-		}
-	}
-	return nil
 }
 
 // MarshalForAudit returns sanitized JSON for logs.

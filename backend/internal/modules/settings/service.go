@@ -51,6 +51,31 @@ func (s *Service) List(ctx context.Context) ([]Setting, error) {
 	return out, nil
 }
 
+// ListForTenant returns only settings owned by the supplied trusted tenant.
+func (s *Service) ListForTenant(ctx context.Context, tenantID int64) ([]Setting, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("settings: no db")
+	}
+	var rows []Setting
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ?", tenantID).Order("group_key, item_key").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]Setting, len(rows))
+	for i := range rows {
+		out[i] = rows[i]
+		if !out[i].IsEncrypted || strings.TrimSpace(out[i].ItemValue) == "" {
+			continue
+		}
+		plain, err := s.decryptStored(out[i].ItemValue)
+		if err != nil {
+			out[i].ItemValue = encrypt.MaskSecret(out[i].ItemValue)
+			continue
+		}
+		out[i].ItemValue = encrypt.MaskSecret(string(plain))
+	}
+	return out, nil
+}
+
 func (s *Service) decryptStored(stored string) ([]byte, error) {
 	if s.Encrypter == nil {
 		return nil, errors.New("no encrypter")
@@ -64,13 +89,22 @@ func (s *Service) PutBulk(ctx context.Context, items []PutItem) error {
 		return fmt.Errorf("settings: no db")
 	}
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, it := range items {
-			if err := s.putOne(tx, it); err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.PutBulkTx(tx, items)
 	})
+}
+
+// PutBulkTx upserts settings using the caller's transaction. Callers that
+// persist audit evidence can commit both the settings and audit rows together.
+func (s *Service) PutBulkTx(tx *gorm.DB, items []PutItem) error {
+	if s == nil || tx == nil {
+		return fmt.Errorf("settings: transaction unavailable")
+	}
+	for _, it := range items {
+		if err := s.putOne(tx, it); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PutItem is the API payload for create/update.
