@@ -21,6 +21,7 @@ git switch -c feat/your-feature-name
 - 本地默认完成相关静态检查、配置检查、格式化和必要构建，完整自动化回归可交由 CI。
 - 产品、页面和业务流程最终由人工验收；PR 中写明人工步骤和结果。
 - 本地不要求创建 `trademind_test`。数据库/Redis 测试必须使用隔离资源或 CI service container。
+- RBAC/OAuth 修改需覆盖审计回滚、撤权、租户隔离与单次 state；`project-tests.yml` 使用 Redis service 执行 OAuth callback/state Race，不能以未注入 URL 后的 skip 作为通过证据。
 - 不提交 `.playwright-mcp/`、`playwright-report/`、`test-results/`、截图报告、临时日志或阶段证据。
 
 ## PR 要求

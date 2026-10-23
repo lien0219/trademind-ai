@@ -33,6 +33,8 @@
 - [任务检查清单](task-checklist.md)
 - [分支与 PR](branching.md)
 - [当前维护状态](PROGRESS.md)
+- [用户与权限设计及覆盖矩阵](RBAC_PERMISSION_DESIGN.md)
+- [权限安全检查及人工验收](SECURITY_PERMISSION_CHECKLIST.md)
 
 ## 验收约定
 

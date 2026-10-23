@@ -26,6 +26,7 @@ PR 必须说明变更范围、风险、本地实际检查、交由 CI 的自动�
 
 - `main` 不接受直接 push；`dev` 也优先通过 PR。
 - GitHub Actions 是自动化门禁的权威执行入口，失败不得通过 skip、降低断言或扩大 baseline 掩盖。
+- RBAC、OAuth 与会话变更须保留 `project-tests.yml` 的隔离 PostgreSQL/Redis 及 OAuth callback/state Race 回归；没有目标提交对应的远程运行时，CI 标为 BLOCKED。
 - 功能和业务流程由维护者人工签收。
 - Go 改动执行 `gofmt`；前端/Collector 改动至少完成相关静态检查或构建，完整回归可交由 CI。
 - 环境变量、Docker、Provider、API、部署或 CI 变更必须同步相关文档。

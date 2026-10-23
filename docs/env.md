@@ -1,5 +1,7 @@
 # 环境变量说明
 
+Bootstrap 管理账号：`ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PHONE` 指定恢复身份，后端启动时保持管理员与启用状态，并对恢复变更作事务审计及安全版本更新。普通运行环境不会用 `.env` 新密码覆盖已有数据库密码；修改密码使用用户管理的重置与首次改密流程。公开自助注册已关闭，新控制台账号由管理员创建。仅在授权的隔离测试中配置 `TEST_DATABASE_URL` / `TEST_REDIS_URL`，测试不可回退开发或生产资源。
+
 本文件是唯一配置模板 `.env.example` 的说明索引。`.env` 是唯一运行配置并保持 Git ignored；新增、删除或重命名环境变量时，必须同步更新本文件，并检查 `docs/module-map.md` 中的关联项。
 
 ## 使用方式

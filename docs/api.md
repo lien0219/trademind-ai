@@ -1,5 +1,29 @@
 # API 契约
 
+## 用户与权限
+
+完整权限矩阵、资源范围和迁移边界见 [RBAC 设计](RBAC_PERMISSION_DESIGN.md)，验证状态和人工步骤见 [权限检查](SECURITY_PERMISSION_CHECKLIST.md)。以下路径均以 `/api/v1` 为前缀。
+
+| 方法 | 路径 | 契约 |
+| --- | --- | --- |
+| GET / POST | `/admin/users` | `user.manage`，当前租户列表/建号；新账号必须先修改临时密码 |
+| GET / PATCH | `/admin/users/:id` | 同租户及用户管理权限；编辑显示名、角色、启停；没有 DELETE 用户接口 |
+| PUT | `/admin/users/:id/store-permissions` | 全量替换授予列表；空数组撤销全部；目标用户及每家店铺都校验租户 |
+| POST | `/admin/users/:id/reset-password` | 成功返回一次 `temporaryPassword`；旧凭据立即失效；日志不含密码 |
+| GET / POST | `/admin/roles` | 含成员数的角色列表/新建自定义角色；系统权限不可委派 |
+| PATCH | `/admin/roles/:code` | 修改名称、描述、权限和 enabled；系统角色拒绝，停启均使成员旧凭据失效 |
+| GET | `/admin/permissions` | 返回可委派权限目录，不能靠提交未展示键绕过后端白名单 |
+| POST | `/auth/change-required-password` | 验证临时密码、完成强制改密，成功后再登录 |
+| DELETE | `/auth/sessions/:id` | 仅撤销当前登录用户的指定会话及关联 Refresh Token |
+| POST | `/auth/sessions/revoke-others`、`/auth/logout-all` | 仅影响当前登录用户；事务审计失败整笔回滚并返回 500 |
+| POST | `/auth/register`、`/auth/send-email-code` | 403，提示联系管理员；不公开创建管理员或发送注册验证码 |
+| GET | `/auth/profile` | 权限来自服务端；非零租户管理员不返回 `security.key.rotate` |
+| GET | `/security/keys/rotation/status`、`/security/keys/references`、`/security/keys/rotation/:id`、`/security/keys/rotation/:id/progress` | 仅 tenant 0 的有效系统管理员及密钥轮换权限；普通租户管理员、自定义角色、缺少身份或租户声明均拒绝 |
+| POST | `/security/keys/rotation/prepare`、`/security/keys/rotation/start`、`/security/keys/rotation/:id/pause`、`resume`、`verify` | 同上；成功审计和控制状态同事务，审计失败返回 500 并回滚；预检/启动仍要求确认短语 |
+| GET / POST | `/security/audit/integrity/status`、`/security/audit/integrity/verify` | `audit.read`，只验证当前认证租户的审计链 |
+
+关键成功审计与业务写入同事务，拒绝/失败审计在回滚后单独写入；日志持久化失败明确返回 500。无模块权限为 403，不可见的跨租户/未授权资源通常为 404。角色、状态、授权及密码变更增加 SQL 安全版本，旧 Access、Refresh 和历史会话不可重用。
+
 本文件记录 TradeMind 后端 API 的公共约定。新增、删除或修改接口时，必须同步检查后端 handler / service / DTO、前端 services / types / 页面，以及本文档。
 
 ## 基础约定
