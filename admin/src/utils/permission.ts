@@ -48,6 +48,11 @@ export const PERMISSIONS = {
   SALES_RETURN_APPROVE: 'sales_return.approve',
   SALES_RETURN_RECEIVE: 'sales_return.receive',
   SALES_RETURN_REFUND: 'sales_return.refund',
+  AUDIT_READ: 'audit.read',
+  AUDIT_EXPORT: 'audit.export',
+  CONFIG_READ: 'config.read',
+  EXPORT_CREATE: 'export.create',
+  EXPORT_READ: 'export.read',
   ORDER_PROFIT_VIEW: 'order_profit.view',
   ORDER_PROFIT_EXPORT: 'order_profit.export',
   SETTLEMENT_VIEW: 'settlement.view',
@@ -62,13 +67,26 @@ export const PERMISSIONS = {
   FREIGHT_FEE_IMPORT: 'freight_fee.import',
   FREIGHT_FEE_MANAGE: 'freight_fee.manage',
   PII_READ_FULL: 'pii.read_full',
+  PII_READ_MASKED: 'pii.read_masked',
+  PII_EXPORT: 'pii.export',
+  SECURITY_SESSION_MANAGE: 'security.session.manage',
+  SECURITY_KEY_ROTATE: 'security.key.rotate',
   OBSERVABILITY_READ: 'observability.read',
+  OBSERVABILITY_MANAGE: 'observability.manage',
   ALERTS_READ: 'alerts.read',
   ALERTS_ACK: 'alerts.ack',
   ALERTS_SILENCE: 'alerts.silence',
+  SLO_READ: 'slo.read',
+  SLO_MANAGE: 'slo.manage',
   CONFIG_MANAGE: 'config.manage',
   INVENTORY_SYNC_READ: 'inventory_sync.read',
   INVENTORY_SYNC_RUN: 'inventory_sync.run',
+  INVENTORY_SYNC_RERUN: 'inventory_sync.rerun',
+  INVENTORY_SYNC_AUDIT_READ: 'inventory_sync.audit.read',
+  INVENTORY_SNAPSHOT_READ: 'inventory_snapshot.read',
+  SKU_BINDING_READ: 'sku_binding.read',
+  SKU_BINDING_MANAGE: 'sku_binding.manage',
+  SKU_BINDING_RESOLVE_MANUAL: 'sku_binding.resolve_manual',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -91,15 +109,22 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.TASK_RETRY,
     PERMISSIONS.OPERATION_TASK_AUDIT_READ,
     PERMISSIONS.OPERATION_TASK_EDIT,
+    PERMISSIONS.SECURITY_SESSION_MANAGE,
+    PERMISSIONS.PII_READ_MASKED,
+    PERMISSIONS.AUDIT_READ,
+    PERMISSIONS.CONFIG_READ,
+    PERMISSIONS.OBSERVABILITY_READ,
+    PERMISSIONS.ALERTS_READ,
+    PERMISSIONS.SLO_READ,
+    PERMISSIONS.INVENTORY_SYNC_READ,
+    PERMISSIONS.INVENTORY_SYNC_RUN,
+    PERMISSIONS.INVENTORY_SYNC_RERUN,
+    PERMISSIONS.INVENTORY_SNAPSHOT_READ,
+    PERMISSIONS.SKU_BINDING_READ,
+    PERMISSIONS.SKU_BINDING_MANAGE,
     PERMISSIONS.OPERATIONLOG_VIEW,
     PERMISSIONS.STORE_VIEW,
     PERMISSIONS.STORE_OPERATE,
-    PERMISSIONS.OBSERVABILITY_READ,
-    PERMISSIONS.ALERTS_READ,
-    PERMISSIONS.INVENTORY_SYNC_READ,
-    PERMISSIONS.INVENTORY_VIEW,
-    PERMISSIONS.INVENTORY_APPROVE,
-    PERMISSIONS.INVENTORY_SYNC_RUN,
     PERMISSIONS.WAREHOUSE_VIEW,
     PERMISSIONS.WAREHOUSE_MANAGE,
     PERMISSIONS.LOGISTICS_VIEW,
@@ -129,11 +154,19 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.FREIGHT_FEE_MANAGE,
   ],
   reviewer: [
+    PERMISSIONS.OPERATIONLOG_VIEW,
+    PERMISSIONS.AUDIT_READ,
     PERMISSIONS.OPERATION_TASK_AUDIT_READ,
     PERMISSIONS.OPERATION_TASK_REVIEW,
     PERMISSIONS.OPERATION_TASK_EXECUTE,
     PERMISSIONS.OPERATION_TASK_RETRY,
     PERMISSIONS.INVENTORY_SYNC_READ,
+    PERMISSIONS.INVENTORY_VIEW,
+    PERMISSIONS.INVENTORY_APPROVE,
+    PERMISSIONS.INVENTORY_SNAPSHOT_READ,
+    PERMISSIONS.SKU_BINDING_READ,
+    PERMISSIONS.SKU_BINDING_RESOLVE_MANUAL,
+    PERMISSIONS.INVENTORY_SYNC_AUDIT_READ,
     PERMISSIONS.WAREHOUSE_VIEW,
     PERMISSIONS.LOGISTICS_VIEW,
     PERMISSIONS.SUPPLIER_VIEW,
@@ -155,9 +188,15 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.OPERATION_TASK_AUDIT_READ,
     PERMISSIONS.OPERATIONLOG_VIEW,
     PERMISSIONS.STORE_VIEW,
+    PERMISSIONS.PII_READ_MASKED,
+    PERMISSIONS.AUDIT_READ,
+    PERMISSIONS.CONFIG_READ,
     PERMISSIONS.OBSERVABILITY_READ,
     PERMISSIONS.ALERTS_READ,
+    PERMISSIONS.SLO_READ,
     PERMISSIONS.INVENTORY_SYNC_READ,
+    PERMISSIONS.INVENTORY_SNAPSHOT_READ,
+    PERMISSIONS.SKU_BINDING_READ,
     PERMISSIONS.WAREHOUSE_VIEW,
     PERMISSIONS.LOGISTICS_VIEW,
     PERMISSIONS.SUPPLIER_VIEW,
@@ -177,8 +216,14 @@ export function normalizeRole(role?: string | null): AdminRole {
   return '' as AdminRole;
 }
 
+function isCustomRoleCode(role?: string | null): boolean {
+  return /^r_[a-f0-9]{24}$/.test((role || '').trim().toLowerCase());
+}
+
 export function permissionsForRole(role?: string | null, fromProfile?: string[]): PermissionKey[] {
   if (fromProfile !== undefined) {
+    const normalizedRole = normalizeRole(role);
+    if (!normalizedRole && !isCustomRoleCode(role)) return [];
     return fromProfile.filter((key): key is PermissionKey =>
       (Object.values(PERMISSIONS) as string[]).includes(key),
     );
@@ -195,7 +240,8 @@ export function hasPermission(
 }
 
 export function isReadonly(role?: string | null): boolean {
-  return normalizeRole(role) === ROLES.READONLY || !normalizeRole(role);
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === ROLES.READONLY || (!normalizedRole && !isCustomRoleCode(role));
 }
 
 export function canWriteOrders(role?: string | null, perms?: string[]): boolean {

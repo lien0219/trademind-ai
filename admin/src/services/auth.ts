@@ -1,4 +1,4 @@
-import { postJSON } from '@/services/request';
+import { getJSON, postJSON } from '@/services/request';
 
 export type LoginUser = {
   id: string;
@@ -31,6 +31,18 @@ export async function login(account: string, password: string) {
     account,
     password,
   });
+}
+
+/** GET /api/v1/auth/profile — authoritative roles and permissions for the session. */
+export function validateProfile(user: API.CurrentUser | null | undefined): API.CurrentUser {
+  if (!user?.id || !Array.isArray(user.permissions) || !user.permissions.every((permission) => typeof permission === 'string')) {
+    throw new Error('权限资料暂时无法加载，请重试');
+  }
+  return user;
+}
+
+export async function getProfile(): Promise<API.CurrentUser> {
+  return validateProfile(await getJSON<API.CurrentUser>('/api/v1/auth/profile'));
 }
 
 /** POST /api/v1/auth/send-email-code */

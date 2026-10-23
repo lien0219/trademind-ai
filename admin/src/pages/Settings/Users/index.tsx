@@ -22,7 +22,7 @@ import {
   type AdminUserRow,
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
-import { Button, Checkbox, Divider, Form, Input, Modal, Select, Space, Tag, Tabs, message } from 'antd';
+import { Alert, Button, Checkbox, Divider, Form, Input, Modal, Select, Space, Tag, Tabs, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -62,23 +62,58 @@ function adminUserLabel(row: Pick<AdminUserRow, 'displayName' | 'email' | 'usern
 export default function SettingsUsersPage() {
   const actionRef = useRef<ActionType>();
   const { canManageUsers, user: currentUser } = usePermission();
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [profileEdit, setProfileEdit] = useState<AdminUserRow | null>(null);
+  const [profileForm] = Form.useForm<{ displayName: string }>();
+  const runMutation = async (mutate: () => Promise<void>) => {
+    if (submittingRef.current || !canManageUsers) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await mutate();
+    } catch (error) {
+      message.error((error as Error)?.message || '操作失败，请重试');
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
   const [createOpen, setCreateOpen] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [roles, setRoles] = useState<AdminRoleRow[]>([]);
   const [permissionCatalog, setPermissionCatalog] = useState<string[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesReady, setRolesReady] = useState(false);
+  const [roleLoadError, setRoleLoadError] = useState<string | null>(null);
   const [roleEdit, setRoleEdit] = useState<AdminRoleRow | null>(null);
   const [roleOpen, setRoleOpen] = useState(false);
+  const [roleInitialValues, setRoleInitialValues] = useState<{
+    name?: string;
+    description?: string;
+    permissions: string[];
+    enabled: boolean;
+  }>({ permissions: [], enabled: true });
   const [roleForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('users');
+  useEffect(() => {
+    if (!roleOpen) return;
+    roleForm.resetFields();
+    roleForm.setFieldsValue(roleInitialValues);
+  }, [roleOpen, roleInitialValues, roleForm]);
   const loadRoles = useCallback(async () => {
     setRolesLoading(true);
+    setRoleLoadError(null);
     try {
       const [result, permissions] = await Promise.all([fetchAdminRoles(), fetchRolePermissionCatalog()]);
       setRoles(result.list || []);
       setPermissionCatalog(permissions.permissions || []);
+      setRolesReady(true);
     } catch (error) {
-      message.error((error as Error)?.message || '角色权限加载失败');
+      setRoles([]);
+      setPermissionCatalog([]);
+      setRolesReady(false);
+      setRoleLoadError((error as Error)?.message || '角色权限加载失败，请重试');
     } finally {
       setRolesLoading(false);
     }
@@ -86,6 +121,7 @@ export default function SettingsUsersPage() {
   useEffect(() => {
     if (canManageUsers) void loadRoles();
   }, [canManageUsers, loadRoles]);
+  const roleDirectoryReady = rolesReady && !rolesLoading && !roleLoadError;
   const [compareRole, setCompareRole] = useState<string>();
   const permissionGroups = useMemo(() => {
     const groups = new Map<string, string[]>();
@@ -107,15 +143,34 @@ export default function SettingsUsersPage() {
   const [permOpen, setPermOpen] = useState(false);
   const [editUser, setEditUser] = useState<AdminUserRow | null>(null);
   const [shops, setShops] = useState<ShopListRow[]>([]);
+	const shopsLoadingRef = useRef(false);
+	const [shopsLoading, setShopsLoading] = useState(false);
   const [createForm] = Form.useForm();
   const [permForm] = Form.useForm();
+  useEffect(() => {
+    if (!permOpen || !editUser) return;
+    permForm.resetFields();
+    permForm.setFieldsValue({
+      items: (editUser.storePermissions || []).map((p) => ({
+        storeId: p.storeId,
+        permissionScope: p.permissionScope || 'operate',
+      })),
+    });
+  }, [editUser, permForm, permOpen]);
+  useEffect(() => {
+    if (!profileEdit) return;
+    profileForm.resetFields();
+    profileForm.setFieldsValue({ displayName: profileEdit.displayName || '' });
+  }, [profileEdit, profileForm]);
 
   const loadShops = useCallback(async () => {
     try {
       const res = await queryShops({ page: 1, pageSize: 200 });
       setShops(res.list || []);
-    } catch {
-      setShops([]);
+      return true;
+    } catch (error) {
+      message.error((error as Error)?.message || '店铺加载失败，请重试');
+      return false;
     }
   }, []);
 
@@ -162,11 +217,13 @@ export default function SettingsUsersPage() {
       valueType: 'option',
       width: 220,
       render: (_, row) => [
+        <Button key="edit" type="link" size="small" disabled={!canManageUsers || submitting}
+          onClick={() => setProfileEdit(row)}>编辑用户</Button>,
         <Button
           key="role"
           type="link"
           size="small"
-          disabled={!canManageUsers}
+          disabled={!canManageUsers || submitting}
           onClick={() => {
             let selectedRole = row.role;
             Modal.confirm({
@@ -182,22 +239,14 @@ export default function SettingsUsersPage() {
                 />
               ),
               okText: '确认修改',
-              onOk: async () => {
+              onOk: () => {
                 if (selectedRole === row.role) return;
                 const roleLabel = roleOptions.find((o) => o.value === selectedRole)?.label || selectedRole;
-                return new Promise<void>((resolve, reject) => {
-                  confirmChangeUserRole(adminUserLabel(row), roleLabel, async () => {
-                    try {
-                      await updateAdminUser(row.id, { role: selectedRole });
-                      message.success('角色已更新');
-                      actionRef.current?.reload();
-                      resolve();
-                    } catch (e: unknown) {
-                      message.error((e as Error)?.message || '更新失败');
-                      reject(e);
-                    }
-                  });
-                });
+                confirmChangeUserRole(adminUserLabel(row), roleLabel, () => runMutation(async () => {
+                  await updateAdminUser(row.id, { role: selectedRole });
+                  message.success('角色已更新');
+                  actionRef.current?.reload();
+                }));
               },
             });
           }}
@@ -207,19 +256,21 @@ export default function SettingsUsersPage() {
         row.role !== 'admin' ? (
           <Button
             key="perm"
-            disabled={!canManageUsers}
+            disabled={!canManageUsers || submitting || shopsLoading}
             type="link"
             size="small"
             onClick={async () => {
-              setEditUser(row);
-              await loadShops();
-              permForm.setFieldsValue({
-                items: (row.storePermissions || []).map((p) => ({
-                  storeId: p.storeId,
-                  permissionScope: p.permissionScope || 'operate',
-                })),
-              });
-              setPermOpen(true);
+              if (shopsLoadingRef.current) return;
+              shopsLoadingRef.current = true;
+              setShopsLoading(true);
+              try {
+                if (!(await loadShops())) return;
+                setEditUser(row);
+                setPermOpen(true);
+              } finally {
+                shopsLoadingRef.current = false;
+                setShopsLoading(false);
+              }
             }}
           >
             店铺权限
@@ -229,36 +280,37 @@ export default function SettingsUsersPage() {
           <Button
             key="resetPassword"
             type="link"
-            disabled={!canManageUsers}
+            disabled={!canManageUsers || submitting}
             size="small"
             onClick={() => Modal.confirm({
               title: '重置用户密码',
               content: `将重置「${adminUserLabel(row)}」的登录密码并使旧登录令牌失效。请通过安全渠道交付临时密码。`,
-              onOk: async () => {
+              onOk: () => runMutation(async () => {
                 const result = await resetAdminUserPassword(row.id);
                 setTemporaryPassword(result.temporaryPassword);
                 message.success('密码已重置，请妥善保存临时密码');
-              },
+              }),
             })}
           >重置密码</Button>
         ) : null,
         row.id !== currentUser?.id ? (
           <Button
             key="disable"
-            disabled={!canManageUsers}
+            disabled={!canManageUsers || submitting}
             type="link"
             size="small"
             danger={row.status !== 'disabled'}
             onClick={() => {
               const next = row.status === 'disabled' ? 'active' : 'disabled';
               if (next === 'disabled') {
-                confirmDisableUser(adminUserLabel(row), async () => {
+                confirmDisableUser(adminUserLabel(row), () => runMutation(async () => {
                   await updateAdminUser(row.id, { status: next });
                   message.success('已更新');
                   actionRef.current?.reload();
-                });
+                }));
               } else {
-                void updateAdminUser(row.id, { status: next }).then(() => {
+                void runMutation(async () => {
+                  await updateAdminUser(row.id, { status: next });
                   message.success('已更新');
                   actionRef.current?.reload();
                 });
@@ -281,11 +333,20 @@ export default function SettingsUsersPage() {
         ]} />
         {activeTab === 'roles' ? (
           <>
-            <Space style={{ marginBottom: 16 }}>
-              <Button type="primary" disabled={!canManageUsers} onClick={() => {
+            {roleLoadError && (
+              <Alert
+                type="error"
+                showIcon
+                style={{ marginBottom: 16 }}
+                message="角色与权限目录加载失败"
+                description={roleLoadError}
+                action={<Button size="small" loading={rolesLoading} onClick={() => void loadRoles()}>重试角色目录</Button>}
+              />
+            )}
+            <Space wrap style={{ marginBottom: 16 }}>
+              <Button type="primary" disabled={!canManageUsers || !roleDirectoryReady} onClick={() => {
                 setRoleEdit(null);
-                roleForm.resetFields();
-                roleForm.setFieldsValue({ permissions: [], enabled: true });
+                setRoleInitialValues({ permissions: [], enabled: true });
                 setRoleOpen(true);
               }}>新建角色</Button>
               <Button loading={rolesLoading} onClick={() => void loadRoles()}>刷新角色</Button>
@@ -300,31 +361,33 @@ export default function SettingsUsersPage() {
             </Space>
             <div role="table" aria-label="角色权限管理">
               {roles.map((r) => (
-                <div key={r.code} style={{ padding: 12, borderBottom: '1px solid var(--ant-color-border-secondary, #eee)' }}>
+                <div key={r.code} role="row" style={{ padding: 12, overflowWrap: 'anywhere', borderBottom: '1px solid var(--ant-color-border-secondary)' }}>
                   <Space wrap>
                     <strong>{r.name}</strong>
                     <Tag>{r.system ? '系统角色' : '自定义角色'}</Tag>
                     <Tag color={r.enabled ? 'success' : 'default'}>{r.enabled ? '启用' : '已停用'}</Tag>
-                    <span>成员：{r.memberCount}</span>
+                    <span>成员：{r.memberCount} 人</span>
                     <span>权限：{r.permissions.length}</span>
-                    <Button size="small" disabled={r.system || !canManageUsers} onClick={() => {
+                    <Button size="small" disabled={r.system || !canManageUsers || submitting || !roleDirectoryReady} onClick={() => {
                       setRoleEdit(r);
-                      roleForm.setFieldsValue({
-                        name: r.name, description: r.description,
-                        permissions: r.permissions, enabled: r.enabled,
+                      setRoleInitialValues({
+                        name: r.name,
+                        description: r.description,
+                        permissions: r.permissions,
+                        enabled: r.enabled,
                       });
                       setRoleOpen(true);
                     }}>编辑权限</Button>
                     {!r.system && (
-                      <Button size="small" danger={r.enabled} disabled={!canManageUsers} onClick={() => {
+                      <Button size="small" danger={r.enabled} disabled={!canManageUsers || submitting || !roleDirectoryReady} onClick={() => {
                         Modal.confirm({
                           title: r.enabled ? '停用角色并立即撤权？' : '重新启用角色？',
                           content: `角色「${r.name}」现有 ${r.memberCount} 位成员，变更将影响其访问权限。`,
-                          onOk: async () => {
+                          onOk: () => runMutation(async () => {
                             await updateAdminRole(r.code, { enabled: !r.enabled });
                             message.success('角色状态已更新');
                             await loadRoles();
-                          },
+                          }),
                         });
                       }}>{r.enabled ? '停用' : '启用'}</Button>
                     )}
@@ -384,13 +447,15 @@ export default function SettingsUsersPage() {
         <Modal
           title={roleEdit ? '编辑角色与权限' : '新增自定义角色'}
           open={roleOpen}
-          onCancel={() => setRoleOpen(false)}
-          onOk={() => roleForm.submit()}
+          onCancel={() => { if (!submitting) setRoleOpen(false); }}
+          onOk={() => { if (roleDirectoryReady) roleForm.submit(); }}
+          confirmLoading={submitting}
+          okButtonProps={{ disabled: submitting || !roleDirectoryReady }}
           destroyOnHidden
           width={780}
         >
-          <Form form={roleForm} layout="vertical" onFinish={async (values) => {
-            try {
+          <Form key={roleEdit?.code || 'new-role'} name="admin-role" form={roleForm} preserve={false} initialValues={roleInitialValues} layout="vertical" onFinish={(values) => runMutation(async () => {
+              if (!roleDirectoryReady) return;
               const input = {
                 name: values.name as string,
                 description: values.description as string,
@@ -403,10 +468,7 @@ export default function SettingsUsersPage() {
               message.success('角色及权限已保存');
               await loadRoles();
               actionRef.current?.reload();
-            } catch (error) {
-              message.error((error as Error)?.message || '角色保存失败');
-            }
-          }}>
+          })}>
             <Form.Item label="角色名称" name="name" rules={[{ required: true, max: 80 }]}>
               <Input maxLength={80} />
             </Form.Item>
@@ -420,10 +482,10 @@ export default function SettingsUsersPage() {
                 <Checkbox.Group style={{ width: '100%' }}>
                   <div style={{ maxHeight: 350, overflowY: 'auto' }}>
                     {permissionGroups.map(([module, keys]) => (
-                      <section key={module} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
+                      <section key={module} style={{ padding: '8px 0', borderBottom: '1px solid var(--ant-color-border-secondary)' }}>
                         <strong>{module} ({keys.length})</strong>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8, marginTop: 8 }}>
-                          {keys.map((key) => <Checkbox key={key} value={key}>{key}</Checkbox>)}
+                          {keys.map((key) => <Checkbox key={key} value={key} style={{ overflowWrap: 'anywhere' }}>{key}</Checkbox>)}
                         </div>
                       </section>
                     ))}
@@ -449,22 +511,45 @@ export default function SettingsUsersPage() {
           <Input.Password value={temporaryPassword || ''} readOnly visibilityToggle />
         </Modal>
         <Modal
+          title="编辑用户"
+          open={profileEdit !== null}
+          onCancel={() => { if (!submitting) setProfileEdit(null); }}
+          onOk={() => profileForm.submit()}
+          okText="保存"
+          confirmLoading={submitting}
+          okButtonProps={{ disabled: submitting }}
+          destroyOnHidden
+        >
+          <Form name="admin-user-edit" form={profileForm} preserve={false} initialValues={{ displayName: profileEdit?.displayName || '' }} layout="vertical" onFinish={(values) => runMutation(async () => {
+            if (!profileEdit) return;
+            await updateAdminUser(profileEdit.id, { displayName: values.displayName });
+            message.success('用户已更新');
+            setProfileEdit(null);
+            actionRef.current?.reload();
+          })}>
+            <Form.Item name="displayName" label="显示名" rules={[{ max: 128 }]}><Input maxLength={128} /></Form.Item>
+          </Form>
+        </Modal>
+        <Modal
           title="新建用户"
           open={createOpen}
-          onCancel={() => setCreateOpen(false)}
+          onCancel={() => { if (!submitting) setCreateOpen(false); }}
           onOk={() => createForm.submit()}
+          confirmLoading={submitting}
+          okButtonProps={{ disabled: submitting }}
           destroyOnHidden
         >
           <Form
+            name="admin-user-create"
             form={createForm}
             layout="vertical"
-            onFinish={async (v) => {
+            onFinish={(v) => runMutation(async () => {
               await createAdminUser(v);
               message.success('用户已创建');
               setCreateOpen(false);
               createForm.resetFields();
               actionRef.current?.reload();
-            }}
+            })}
           >
             <Form.Item name="email" label="邮箱" rules={[{ required: true }]}>
               <Input placeholder="operator@example.com" />
@@ -485,7 +570,9 @@ export default function SettingsUsersPage() {
           title={`分配店铺权限 — ${editUser?.displayName || ''}`}
           open={permOpen}
           width={640}
-          onCancel={() => setPermOpen(false)}
+          onCancel={() => { if (!submitting) setPermOpen(false); }}
+          confirmLoading={submitting}
+          okButtonProps={{ disabled: submitting }}
           onOk={() => {
             if (!editUser) return;
             confirmAssignStorePermissions(adminUserLabel(editUser), () => permForm.submit());
@@ -493,36 +580,42 @@ export default function SettingsUsersPage() {
           destroyOnHidden
         >
           <Form
+            name="admin-user-stores"
             form={permForm}
+            preserve={false}
+            initialValues={{ items: (editUser?.storePermissions || []).map((p) => ({
+              storeId: p.storeId, permissionScope: p.permissionScope || 'operate',
+            })) }}
             layout="vertical"
-            onFinish={async (v) => {
+            onFinish={(v) => runMutation(async () => {
               if (!editUser) return;
               await setAdminUserStorePermissions(editUser.id, v.items || []);
               message.success('店铺权限已保存');
               setPermOpen(false);
               actionRef.current?.reload();
-            }}
+            })}
           >
             <Form.List name="items">
               {(fields, { add, remove }) => (
                 <>
                   {fields.map((field) => (
-                    <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                    <Space wrap key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
                       <Form.Item
                         {...field}
                         name={[field.name, 'storeId']}
                         rules={[{ required: true, message: '选择店铺' }]}
                       >
                         <Select
-                          style={{ width: 260 }}
+                          style={{ width: 240, maxWidth: '100%' }}
                           placeholder="选择店铺"
+                          aria-label={`店铺授权 ${Number(field.name) + 1}`}
                           options={shops.map((s) => ({
                             label: `${s.shopName || s.id} (${s.platform})`,
                             value: s.id,
                           }))}
                         />
                       </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'permissionScope']} initialValue="operate">
+                      <Form.Item name={[field.name, 'permissionScope']}>
                         <Select style={{ width: 120 }} options={SCOPE_OPTIONS} />
                       </Form.Item>
                       <Button type="link" onClick={() => remove(field.name)}>

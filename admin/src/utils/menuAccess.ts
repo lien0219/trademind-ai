@@ -1,7 +1,6 @@
 import type { MenuDataItem } from '@umijs/route-utils';
 import {
   hasPermission,
-  normalizeRole,
   PERMISSIONS,
   type PermissionKey,
 } from '@/utils/permission';
@@ -26,6 +25,11 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/ops/task-center/operation-tasks': PERMISSIONS.OPERATION_TASK_AUDIT_READ,
   '/ops/observability': PERMISSIONS.OBSERVABILITY_READ,
   '/ops/platform-runtime': PERMISSIONS.STORE_VIEW,
+  '/ops/inventory-sync': PERMISSIONS.INVENTORY_SYNC_READ,
+  '/ops/inventory-sync/runs': PERMISSIONS.INVENTORY_SYNC_READ,
+  '/ops/inventory-sync/calibration': PERMISSIONS.SKU_BINDING_READ,
+  '/ops/inventory-sync/manual-bindings': PERMISSIONS.SKU_BINDING_READ,
+  '/ops/inventory-sync/bindings': PERMISSIONS.SKU_BINDING_READ,
   '/files': PERMISSIONS.PRODUCT_VIEW,
   '/ai/prompts': PERMISSIONS.SETTINGS_MANAGE,
   '/ai/tasks': PERMISSIONS.PRODUCT_VIEW,
@@ -114,21 +118,20 @@ export function filterMenuByPermission(
   role?: string | null,
   profilePerms?: string[],
 ): MenuDataItem[] {
-  const r = normalizeRole(role);
-
   const walk = (items: MenuDataItem[]): MenuDataItem[] =>
     items
       .map((item) => {
         if (item.hideInMenu) return item;
         const path = item.path || item.redirect;
-        if (path && !canAccessRoute(path, r, profilePerms)) {
+        if (path && !canAccessRoute(path, role, profilePerms)) {
           return null;
         }
         const children = item.children ? walk(item.children) : undefined;
-        if (children && item.children?.length && children.length === 0 && !item.component) {
+        if (item.children?.some((child) => child.name && !child.hideInMenu)
+          && !children?.some((child) => child.name && !child.hideInMenu)) {
           return null;
         }
-        return { ...item, children: children?.length ? children : item.children };
+        return { ...item, children };
       })
       .filter(Boolean) as MenuDataItem[];
 

@@ -31,6 +31,8 @@ import {
   message,
 } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePermission } from '@/hooks/usePermission';
+import { PERMISSIONS } from '@/utils/permission';
 import {
   SECURITY_FIELD_HELP,
   SECURITY_FIELD_LABEL,
@@ -196,6 +198,8 @@ function SecurityToggleCard({
 }
 
 export default function SecuritySettingsPage() {
+  const { user, can } = usePermission();
+  const canRotateKeys = user?.role === 'admin' && can(PERMISSIONS.SECURITY_KEY_ROTATE);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [overview, setOverview] = useState<SecurityOverview | null>(null);
@@ -264,6 +268,12 @@ export default function SecuritySettingsPage() {
   }, []);
 
   const loadRotation = useCallback(async () => {
+    if (!canRotateKeys) {
+      setRotationStatus(null);
+      setRotationJob(null);
+      setKeyReferences([]);
+      return;
+    }
     setRotationLoading(true);
     try {
       const [status, refs] = await Promise.all([fetchKeyRotationStatus(), fetchKeyReferences()]);
@@ -274,7 +284,7 @@ export default function SecuritySettingsPage() {
     } finally {
       setRotationLoading(false);
     }
-  }, []);
+  }, [canRotateKeys]);
 
   const loadFileStats = useCallback(async () => {
     try {
@@ -600,16 +610,17 @@ export default function SecuritySettingsPage() {
           style={{ marginTop: 16 }}
           extra={
             <Space wrap>
-              <Button onClick={() => setPrepareOpen(true)}>预检（Dry Run）</Button>
-              <Button type="primary" onClick={() => setStartOpen(true)}>
+              <Button disabled={!canRotateKeys} onClick={() => setPrepareOpen(true)}>预检（Dry Run）</Button>
+              <Button disabled={!canRotateKeys} type="primary" onClick={() => setStartOpen(true)}>
                 启动轮换
               </Button>
-              <Button icon={<ReloadOutlined />} onClick={() => void loadRotation()} loading={rotationLoading}>
+              <Button disabled={!canRotateKeys} icon={<ReloadOutlined />} onClick={() => void loadRotation()} loading={rotationLoading}>
                 刷新
               </Button>
             </Space>
           }
         >
+          {!canRotateKeys ? <Alert type="info" showIcon message="仅全局系统管理员可管理密钥轮换" /> : null}
           {rotationStatus ? (
             <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="当前 Key ID">{rotationStatus.activeKeyId}</Descriptions.Item>
@@ -618,7 +629,7 @@ export default function SecuritySettingsPage() {
             </Descriptions>
           ) : null}
 
-          {rotationJob ? (
+          {canRotateKeys && rotationJob ? (
             <div style={{ marginBottom: 16 }}>
               <Space style={{ marginBottom: 8 }}>
                 <Text strong>当前任务</Text>
@@ -870,7 +881,7 @@ export default function SecuritySettingsPage() {
 
       <Modal
         title="密钥轮换预检"
-        open={prepareOpen}
+        open={canRotateKeys && prepareOpen}
         onCancel={() => {
           setPrepareOpen(false);
           setConfirmPhrase('');
@@ -891,7 +902,7 @@ export default function SecuritySettingsPage() {
 
       <Modal
         title="启动密钥轮换"
-        open={startOpen}
+        open={canRotateKeys && startOpen}
         onCancel={() => {
           setStartOpen(false);
           setConfirmPhrase('');

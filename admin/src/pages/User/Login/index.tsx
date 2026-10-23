@@ -11,7 +11,7 @@ import {
   RobotOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
-import { Form, Input, Checkbox, Button, Tabs, Row, Col } from 'antd';
+import { Alert, Form, Input, Checkbox, Button, Tabs, Row, Col } from 'antd';
 import { history, Link, useLocation } from '@umijs/max';
 import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import { message } from 'antd';
@@ -19,7 +19,7 @@ import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
-import { changeRequiredPassword, login, register, sendEmailCode } from '@/services/auth';
+import { changeRequiredPassword, getProfile, login, register, sendEmailCode, type LoginResult } from '@/services/auth';
 import './index.less';
 
 const FEATURE_TAGS = [
@@ -54,12 +54,20 @@ export default function LoginPage() {
   const { setInitialState, initialState } = useInitialStateModel();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
-  const [passwordChangeAccount, setPasswordChangeAccount] = useState<string | null>(null);
+  const [passwordChangeAccount, setPasswordChangeAccount] = useState<{ account: string; currentPassword: string } | null>(null);
   const [passwordChangeForm] = Form.useForm();
   const activeTab = authTabFromPathname(location.pathname);
 
   const [loginForm] = Form.useForm();
   const [registerForm] = Form.useForm();
+
+  useEffect(() => {
+    if (activeTab === 'login' && !passwordChangeAccount) loginForm.setFieldValue('password', undefined);
+  }, [activeTab, passwordChangeAccount, loginForm]);
+
+  useEffect(() => {
+    if (passwordChangeAccount) passwordChangeForm.setFieldsValue({ currentPassword: passwordChangeAccount.currentPassword });
+  }, [passwordChangeAccount, passwordChangeForm]);
 
   const [countdown, setCountdown] = useState(0);
   const countdownTimer = useRef<NodeJS.Timeout | null>(null);
@@ -84,21 +92,33 @@ export default function LoginPage() {
     );
   };
 
+  const completeLogin = async (data: LoginResult) => {
+    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+    if (data.sessionMode) {
+      localStorage.setItem(AUTH_SESSION_MODE_KEY, data.sessionMode);
+    } else {
+      localStorage.removeItem(AUTH_SESSION_MODE_KEY);
+    }
+    try {
+      const currentUser = await getProfile();
+      await setInitialState((s) => ({ ...s, currentUser }));
+    } catch (error) {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_SESSION_MODE_KEY);
+      throw error;
+    }
+  };
+
   const onLogin = async (values: any) => {
     setLoading(true);
     try {
       const data = await login(values.account as string, values.password as string);
-      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-      if (data.sessionMode) {
-        localStorage.setItem(AUTH_SESSION_MODE_KEY, data.sessionMode);
-      }
-      await setInitialState((s) => ({ ...s, currentUser: data.user }));
+      await completeLogin(data);
       message.success('登录成功');
     } catch (e: unknown) {
       const err = e as { message?: string };
       if (err?.message?.includes('AUTH_PASSWORD_CHANGE_REQUIRED')) {
-        setPasswordChangeAccount(values.account as string);
-        passwordChangeForm.setFieldsValue({ currentPassword: values.password });
+        setPasswordChangeAccount({ account: values.account as string, currentPassword: values.password as string });
         message.warning('临时密码需要先修改后才能登录');
       } else {
         message.error(getAuthErrorMessage(e, '登录失败'));
@@ -117,8 +137,7 @@ export default function LoginPage() {
         password: values.password,
         confirmPassword: values.confirmPassword,
       });
-      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-      await setInitialState((s) => ({ ...s, currentUser: data.user }));
+      await completeLogin(data);
       message.success('注册并登录成功');
     } catch (e: unknown) {
       message.error(getAuthErrorMessage(e, '注册失败'));
@@ -262,20 +281,22 @@ export default function LoginPage() {
 
             {activeTab === 'login' && passwordChangeAccount ? (
               <Form
+                key={passwordChangeAccount.account}
                 form={passwordChangeForm}
+                initialValues={{ currentPassword: passwordChangeAccount.currentPassword }}
+                preserve={false}
                 layout="vertical"
                 requiredMark={false}
                 onFinish={async (values) => {
                   setLoading(true);
                   try {
                     await changeRequiredPassword({
-                      account: passwordChangeAccount,
+                      account: passwordChangeAccount.account,
                       currentPassword: values.currentPassword,
                       newPassword: values.newPassword,
                     });
                     passwordChangeForm.resetFields();
                     setPasswordChangeAccount(null);
-                    loginForm.setFieldValue('password', undefined);
                     message.success('密码修改成功，请使用新密码登录');
                   } catch (error) {
                     message.error(getAuthErrorMessage(error, '密码修改失败'));
@@ -379,7 +400,9 @@ export default function LoginPage() {
                 layout="vertical"
                 onFinish={onRegister}
                 requiredMark={false}
+                disabled
               >
+                <Alert type="info" showIcon message="请联系管理员创建账号，当前不开放自助注册" />
                 <Form.Item
                   name="email"
                   label="邮箱"
@@ -407,7 +430,7 @@ export default function LoginPage() {
                       <Button
                         className="code-btn"
                         onClick={handleSendCode}
-                        disabled={countdown > 0}
+                        disabled
                       >
                         {countdown > 0 ? `${countdown}s 后重发` : '获取验证码'}
                       </Button>
@@ -461,7 +484,7 @@ export default function LoginPage() {
                     htmlType="submit"
                     className="submit-btn"
                     loading={loading}
-                    disabled={loading}
+                    disabled
                   >
                     注册
                     <ArrowRightOutlined />

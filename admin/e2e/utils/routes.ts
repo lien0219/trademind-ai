@@ -21,6 +21,7 @@ import { settlementResponse } from '../mocks/settlement';
 import { warehouseFeeResponse } from '../mocks/warehouse-fees';
 import { advertisingFeeResponse } from '../mocks/advertising-fees';
 import { freightFeeResponse } from '../mocks/freight-fees';
+import { workersResponse } from '../mocks/workers';
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(([key, token]) => {
@@ -49,6 +50,7 @@ export async function routeAdminApi(page: Page) {
       (path === '/api/v1/auth/profile' ? ok(e2eUser) : null) ??
       (path === '/api/v1/settings' ? ok({ items: [] }) : null) ??
       (path === '/api/v1/image/providers' ? ok(imageProviderCapabilities) : null) ??
+      workersResponse(path) ??
       observabilityResponse(path) ??
       platformRuntimeResponse(path) ??
       operationTaskResponse(path) ??

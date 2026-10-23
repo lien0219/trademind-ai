@@ -18,6 +18,7 @@ import BrandLogo from "@/components/BrandLogo";
 import { AUTH_TOKEN_KEY } from "@/constants/auth";
 import { layoutTokens } from "@/constants/layoutTokens";
 import { postJSON } from "@/services/request";
+import { validateProfile } from "@/services/auth";
 import {
   applyThemeMode,
   createAdminDrawerConfig,
@@ -63,12 +64,16 @@ function getSiderWidth(): number {
 async function loadProfileFromToken(
   token: string,
 ): Promise<API.CurrentUser | undefined> {
-  const res = await fetch("/api/v1/auth/profile", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json = (await res.json()) as { code: number; data?: API.CurrentUser };
-  if (!res.ok || json.code !== 0 || !json.data) return undefined;
-  return json.data;
+  try {
+    const res = await fetch("/api/v1/auth/profile", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = (await res.json()) as { code: number; data?: API.CurrentUser };
+    if (!res.ok || json.code !== 0) return undefined;
+    return validateProfile(json.data);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
