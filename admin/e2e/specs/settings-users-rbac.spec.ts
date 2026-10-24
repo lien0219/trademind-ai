@@ -294,6 +294,45 @@ test('@smoke handles server permission denial without retry or losing edits', as
   await admin.writeGuard.expectRequestCount('denied-edit', 1);
 });
 
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 800 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 900 },
+  { width: 375, height: 812 },
+]) {
+  test(`@smoke keeps forced password-change actions stacked without overflow at ${viewport.width}x${viewport.height}`, async ({ admin, page }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(([tokenKey, sessionModeKey]) => {
+      localStorage.removeItem(tokenKey);
+      localStorage.removeItem(sessionModeKey);
+    }, [AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY]);
+    admin.writeGuard.allow({ operation: 'login', method: 'POST', path: /^\/api\/v1\/auth\/login$/, response: fail('AUTH_PASSWORD_CHANGE_REQUIRED', 40101) });
+    await page.goto('/user/login');
+    await page.getByLabel('邮箱 / 手机号').fill('new@example.test');
+    await page.getByLabel('密码', { exact: true }).fill('e2e-temporary-password');
+    await page.getByRole('button', { name: '登录工作台' }).click();
+    await expect(page.getByText('你的账号使用初始或重置后的临时密码，请先设置新的密码。')).toBeVisible();
+
+    const changePasswordButton = page.getByRole('button', { name: /修改密码/ });
+    const returnToLoginButton = page.getByRole('button', { name: '返回登录' });
+    const changePasswordBounds = await changePasswordButton.boundingBox();
+    const returnToLoginBounds = await returnToLoginButton.boundingBox();
+    expect(changePasswordBounds).not.toBeNull();
+    expect(returnToLoginBounds).not.toBeNull();
+    expect(returnToLoginBounds!.y).toBeGreaterThan(changePasswordBounds!.y + changePasswordBounds!.height);
+    expect(changePasswordBounds!.width).toBeGreaterThan(returnToLoginBounds!.width * 2);
+    const overflow = await page.evaluate(() => ({
+      document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      body: document.body.scrollWidth - document.body.clientWidth,
+    }));
+    expect(overflow.document, `document horizontal overflow at ${viewport.width}px`).toBeLessThanOrEqual(0);
+    expect(overflow.body, `body horizontal overflow at ${viewport.width}px`).toBeLessThanOrEqual(0);
+    await admin.writeGuard.expectRequestCount('login', 1);
+    await admin.writeGuard.expectRequestCount('required-password', 0);
+  });
+}
+
 test('@smoke requires a new password before issuing a login session', async ({ admin, page }) => {
   await page.addInitScript(([tokenKey, sessionModeKey]) => {
     localStorage.removeItem(tokenKey);
@@ -314,6 +353,13 @@ test('@smoke requires a new password before issuing a login session', async ({ a
   await page.getByLabel('新密码', { exact: true }).fill('e2e-new-password-123');
   await page.getByLabel('确认新密码').fill('e2e-new-password-123');
   const requiredPasswordButton = page.getByRole('button', { name: /修改密码/ });
+  const returnToLoginButton = page.getByRole('button', { name: '返回登录' });
+  const changePasswordBounds = await requiredPasswordButton.boundingBox();
+  const returnToLoginBounds = await returnToLoginButton.boundingBox();
+  expect(changePasswordBounds).not.toBeNull();
+  expect(returnToLoginBounds).not.toBeNull();
+  expect(returnToLoginBounds!.y).toBeGreaterThan(changePasswordBounds!.y + changePasswordBounds!.height);
+  expect(changePasswordBounds!.width).toBeGreaterThan(returnToLoginBounds!.width * 2);
   await requiredPasswordButton.click();
   await expect(requiredPasswordButton).toBeEnabled();
   await expect(page.getByText('密码修改失败', { exact: true }).first()).toBeVisible();
@@ -332,15 +378,50 @@ test('@smoke requires a new password before issuing a login session', async ({ a
   expect(await page.evaluate((key) => localStorage.getItem(key), AUTH_SESSION_MODE_KEY)).toBeNull();
 });
 
+test('@smoke shows current-account password and status actions as disabled', async ({ admin, page }) => {
+  await mockUsers(page, [e2eUser]);
+  await admin.goto('/settings/users');
+
+  const currentAccountRow = page.getByRole('row', { name: /E2E 管理员/ });
+  const shopPermissionButton = currentAccountRow.getByRole('button', { name: '店铺权限' });
+  const resetPasswordButton = currentAccountRow.getByRole('button', { name: '重置密码' });
+  const disableButton = currentAccountRow.getByRole('button', { name: '禁用' });
+  await expect(shopPermissionButton).toBeVisible();
+  await expect(shopPermissionButton).toBeDisabled();
+  await expect(resetPasswordButton).toBeVisible();
+  await expect(resetPasswordButton).toBeDisabled();
+  await expect(disableButton).toBeVisible();
+  await expect(disableButton).toBeDisabled();
+  await admin.writeGuard.expectNoUnexpectedWrites();
+});
+
+const userRbacViewports = [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 800 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 900 },
+  { width: 375, height: 812 },
+] as const;
+
 for (const theme of ['light', 'dark']) {
-  for (const width of [1440, 1280, 1024, 768, 375]) {
-    test(`@smoke renders user and role dialogs without overflow at ${width} in ${theme}`, async ({ admin, page }) => {
-      await page.setViewportSize({ width, height: 900 });
+  for (const viewport of userRbacViewports) {
+    test(`@smoke renders user and role dialogs without overflow at ${viewport.width}x${viewport.height} in ${theme}`, async ({ admin, page }) => {
+      await page.setViewportSize(viewport);
       await page.addInitScript((mode) => localStorage.setItem('trademind_admin_theme_mode', mode), theme);
-      await mockUsers(page, [testUser()]);
+      await mockUsers(page, [e2eUser, testUser()]);
       await admin.goto('/settings/users');
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await expect(page.getByRole('row', { name: /E2E 运营/ })).toBeVisible();
+      const currentAccountRow = page.getByRole('row', { name: /E2E 管理员/ });
+      const shopPermissionButton = currentAccountRow.getByRole('button', { name: '店铺权限' });
+      const resetPasswordButton = currentAccountRow.getByRole('button', { name: '重置密码' });
+      const disableButton = currentAccountRow.getByRole('button', { name: '禁用' });
+      await expect(shopPermissionButton).toBeVisible();
+      await expect(shopPermissionButton).toBeDisabled();
+      await expect(resetPasswordButton).toBeVisible();
+      await expect(resetPasswordButton).toBeDisabled();
+      await expect(disableButton).toBeVisible();
+      await expect(disableButton).toBeDisabled();
       const expectNoOverflow = async () => {
         expect(await page.evaluate(() => Math.max(document.documentElement.scrollWidth - document.documentElement.clientWidth, document.body.scrollWidth - document.body.clientWidth))).toBeLessThanOrEqual(0);
       };

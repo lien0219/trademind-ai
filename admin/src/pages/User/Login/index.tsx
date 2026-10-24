@@ -322,8 +322,18 @@ export default function LoginPage() {
                 ]}>
                   <Input.Password autoComplete="new-password" />
                 </Form.Item>
-                <Button type="primary" htmlType="submit" loading={loading}>修改密码</Button>
-                <Button onClick={() => { setPasswordChangeAccount(null); passwordChangeForm.resetFields(); }}>返回登录</Button>
+                <div className="password-change-actions">
+                  <Button type="primary" htmlType="submit" className="submit-btn" loading={loading}>
+                    修改密码
+                  </Button>
+                  <Button
+                    type="text"
+                    className="password-change-back"
+                    onClick={() => { setPasswordChangeAccount(null); passwordChangeForm.resetFields(); }}
+                  >
+                    返回登录
+                  </Button>
+                </div>
               </Form>
             ) : activeTab === 'login' ? (
               <Form

@@ -22,7 +22,7 @@ import {
   type AdminUserRow,
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
-import { Alert, Button, Checkbox, Divider, Form, Input, Modal, Select, Space, Tag, Tabs, message } from 'antd';
+import { Alert, Button, Checkbox, Divider, Form, Input, Modal, Select, Space, Tag, Tabs, Tooltip, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -215,112 +215,123 @@ export default function SettingsUsersPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 220,
-      render: (_, row) => [
-        <Button key="edit" type="link" size="small" disabled={!canManageUsers || submitting}
-          onClick={() => setProfileEdit(row)}>编辑用户</Button>,
-        <Button
-          key="role"
-          type="link"
-          size="small"
-          disabled={!canManageUsers || submitting}
-          onClick={() => {
-            let selectedRole = row.role;
-            Modal.confirm({
-              title: '修改角色',
-              content: (
-                <Select
-                  defaultValue={row.role}
-                  style={{ width: '100%', marginTop: 8 }}
-                  options={roleOptions}
-                  onChange={(v) => {
-                    selectedRole = v;
-                  }}
-                />
-              ),
-              okText: '确认修改',
-              onOk: () => {
-                if (selectedRole === row.role) return;
-                const roleLabel = roleOptions.find((o) => o.value === selectedRole)?.label || selectedRole;
-                confirmChangeUserRole(adminUserLabel(row), roleLabel, () => runMutation(async () => {
-                  await updateAdminUser(row.id, { role: selectedRole });
-                  message.success('角色已更新');
-                  actionRef.current?.reload();
-                }));
-              },
-            });
-          }}
-        >
-          改角色
-        </Button>,
-        row.role !== 'admin' ? (
-          <Button
-            key="perm"
-            disabled={!canManageUsers || submitting || shopsLoading}
-            type="link"
-            size="small"
-            onClick={async () => {
-              if (shopsLoadingRef.current) return;
-              shopsLoadingRef.current = true;
-              setShopsLoading(true);
-              try {
-                if (!(await loadShops())) return;
-                setEditUser(row);
-                setPermOpen(true);
-              } finally {
-                shopsLoadingRef.current = false;
-                setShopsLoading(false);
-              }
-            }}
-          >
-            店铺权限
-          </Button>
-        ) : null,
-        row.id !== currentUser?.id ? (
-          <Button
-            key="resetPassword"
-            type="link"
-            disabled={!canManageUsers || submitting}
-            size="small"
-            onClick={() => Modal.confirm({
-              title: '重置用户密码',
-              content: `将重置「${adminUserLabel(row)}」的登录密码并使旧登录令牌失效。请通过安全渠道交付临时密码。`,
-              onOk: () => runMutation(async () => {
-                const result = await resetAdminUserPassword(row.id);
-                setTemporaryPassword(result.temporaryPassword);
-                message.success('密码已重置，请妥善保存临时密码');
-              }),
-            })}
-          >重置密码</Button>
-        ) : null,
-        row.id !== currentUser?.id ? (
-          <Button
-            key="disable"
-            disabled={!canManageUsers || submitting}
-            type="link"
-            size="small"
-            danger={row.status !== 'disabled'}
-            onClick={() => {
-              const next = row.status === 'disabled' ? 'active' : 'disabled';
-              if (next === 'disabled') {
-                confirmDisableUser(adminUserLabel(row), () => runMutation(async () => {
-                  await updateAdminUser(row.id, { status: next });
-                  message.success('已更新');
-                  actionRef.current?.reload();
-                }));
-              } else {
-                void runMutation(async () => {
-                  await updateAdminUser(row.id, { status: next });
-                  message.success('已更新');
-                  actionRef.current?.reload();
+      width: 280,
+      render: (_, row) => {
+        const isCurrentAccount = row.id === currentUser?.id;
+        return (
+          <Space wrap size={[0, 4]} style={{ width: '100%' }}>
+            <Button key="edit" type="link" size="small" disabled={!canManageUsers || submitting}
+              onClick={() => setProfileEdit(row)}>编辑用户</Button>
+            <Button
+              key="role"
+              type="link"
+              size="small"
+              disabled={!canManageUsers || submitting}
+              onClick={() => {
+                let selectedRole = row.role;
+                Modal.confirm({
+                  title: '修改角色',
+                  content: (
+                    <Select
+                      defaultValue={row.role}
+                      style={{ width: '100%', marginTop: 8 }}
+                      options={roleOptions}
+                      onChange={(v) => {
+                        selectedRole = v;
+                      }}
+                    />
+                  ),
+                  okText: '确认修改',
+                  onOk: () => {
+                    if (selectedRole === row.role) return;
+                    const roleLabel = roleOptions.find((o) => o.value === selectedRole)?.label || selectedRole;
+                    confirmChangeUserRole(adminUserLabel(row), roleLabel, () => runMutation(async () => {
+                      await updateAdminUser(row.id, { role: selectedRole });
+                      message.success('角色已更新');
+                      actionRef.current?.reload();
+                    }));
+                  },
                 });
-              }
-            }}
-          >
-            {row.status === 'disabled' ? '启用' : '禁用'}
-          </Button>
-        ) : null,
-      ],
+              }}
+            >
+              改角色
+            </Button>
+            <Tooltip title={row.role === 'admin' ? '管理员默认拥有全部店铺权限' : undefined}>
+              <span>
+                <Button
+                  key="perm"
+                  disabled={row.role === 'admin' || !canManageUsers || submitting || shopsLoading}
+                  type="link"
+                  size="small"
+                  onClick={async () => {
+                    if (shopsLoadingRef.current) return;
+                    shopsLoadingRef.current = true;
+                    setShopsLoading(true);
+                    try {
+                      if (!(await loadShops())) return;
+                      setEditUser(row);
+                      setPermOpen(true);
+                    } finally {
+                      shopsLoadingRef.current = false;
+                      setShopsLoading(false);
+                    }
+                  }}
+                >
+                  店铺权限
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={isCurrentAccount ? '不能重置当前登录账号的密码' : undefined}>
+              <span>
+                <Button
+                  key="resetPassword"
+                  type="link"
+                  disabled={!canManageUsers || submitting || isCurrentAccount}
+                  size="small"
+                  onClick={() => Modal.confirm({
+                    title: '重置用户密码',
+                    content: `将重置「${adminUserLabel(row)}」的登录密码并使旧登录令牌失效。请通过安全渠道交付临时密码。`,
+                    onOk: () => runMutation(async () => {
+                      const result = await resetAdminUserPassword(row.id);
+                      setTemporaryPassword(result.temporaryPassword);
+                      message.success('密码已重置，请妥善保存临时密码');
+                    }),
+                  })}
+                >重置密码</Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={isCurrentAccount ? '不能修改当前登录账号的状态' : undefined}>
+              <span>
+                <Button
+                  key="disable"
+                  disabled={!canManageUsers || submitting || isCurrentAccount}
+                  type="link"
+                  size="small"
+                  danger={row.status !== 'disabled'}
+                  onClick={() => {
+                    const next = row.status === 'disabled' ? 'active' : 'disabled';
+                    if (next === 'disabled') {
+                      confirmDisableUser(adminUserLabel(row), () => runMutation(async () => {
+                        await updateAdminUser(row.id, { status: next });
+                        message.success('已更新');
+                        actionRef.current?.reload();
+                      }));
+                    } else {
+                      void runMutation(async () => {
+                        await updateAdminUser(row.id, { status: next });
+                        message.success('已更新');
+                        actionRef.current?.reload();
+                      });
+                    }
+                  }}
+                >
+                  {row.status === 'disabled' ? '启用' : '禁用'}
+                </Button>
+              </span>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 
