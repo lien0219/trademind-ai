@@ -44,9 +44,9 @@ async function mockUsers(page: Page, users: AdminUserRow[] = []) {
   await page.route('**/api/v1/admin/roles', (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     return route.fulfill({ json: ok({ list: [
-      { code: 'admin', name: '管理员', permissions: Object.values(PERMISSIONS), enabled: true, system: true, memberCount: 1 },
-      { code: 'operator', name: '运营', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 1 },
-      { code: 'readonly', name: '只读', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 0 },
+      { code: 'admin', name: 'admin', permissions: Object.values(PERMISSIONS), enabled: true, system: true, memberCount: 1 },
+      { code: 'operator', name: 'operator', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 1 },
+      { code: 'readonly', name: 'readonly', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 0 },
     ] }) });
   });
   await page.route('**/api/v1/admin/permissions', (route) => route.fulfill({ json: ok({ permissions: [PERMISSIONS.PRODUCT_VIEW] }) }));
@@ -174,6 +174,8 @@ test('@smoke edits a user, disables and enables access, and resets the password 
   admin.writeGuard.allow({ operation: 'reset-user', method: 'POST', path: /^\/api\/v1\/admin\/users\/e2e-operator\/reset-password$/, response: ok({ temporaryPassword: 'e2e-one-time-password' }) });
   await admin.goto('/settings/users');
   let row = page.getByRole('row', { name: /E2E 运营/ });
+  await expect(row.getByRole('cell', { name: '运营', exact: true })).toBeVisible();
+  await expect(row.getByRole('cell', { name: 'operator', exact: true })).toHaveCount(0);
   await row.getByRole('button', { name: '编辑用户' }).click();
   const edit = page.getByRole('dialog', { name: '编辑用户' });
   await edit.getByLabel('显示名').fill('E2E 新显示名');
@@ -188,16 +190,21 @@ test('@smoke edits a user, disables and enables access, and resets the password 
   await expect(row.getByRole('button', { name: /禁\s*用/ })).toBeVisible();
   await row.getByRole('button', { name: '改角色' }).click();
   const roleDialog = page.getByRole('dialog', { name: '修改角色', exact: true });
+  await expect(roleDialog.getByRole('button', { name: /^取\s*消$/ })).toBeVisible();
   await roleDialog.getByRole('combobox').press('ArrowDown');
   await page.getByText('只读', { exact: true }).last().click();
   await roleDialog.getByRole('button', { name: '确认修改' }).click();
   await page.getByRole('dialog', { name: '修改用户角色' }).getByRole('button', { name: '确认执行' }).click();
   await expect(row).toContainText('只读');
+  expect(admin.writeGuard.calls('update-user')[3].postDataJSON).toEqual({ role: 'readonly' });
   await row.getByRole('button', { name: '重置密码' }).click();
-  await page.getByRole('dialog', { name: '重置用户密码' }).getByRole('button', { name: /取\s*消|Cancel/ }).click();
+  const resetDialog = page.getByRole('dialog', { name: '重置用户密码' });
+  await expect(resetDialog.getByRole('button', { name: /^取\s*消$/ })).toBeVisible();
+  await expect(resetDialog.getByRole('button', { name: '确认重置', exact: true })).toBeVisible();
+  await resetDialog.getByRole('button', { name: /^取\s*消$/ }).click();
   await admin.writeGuard.expectRequestCount('reset-user', 0);
   await row.getByRole('button', { name: '重置密码' }).click();
-  await page.getByRole('dialog', { name: '重置用户密码' }).getByRole('button', { name: /确\s*定|OK/ }).click();
+  await page.getByRole('dialog', { name: '重置用户密码' }).getByRole('button', { name: '确认重置', exact: true }).click();
   const password = page.getByRole('dialog', { name: '一次性临时密码' });
   await expect(password.locator('input')).toHaveValue('e2e-one-time-password');
   await password.getByRole('button', { name: '已安全保存' }).click();
@@ -447,10 +454,10 @@ test('@smoke creates, edits, disables, and re-enables a tenant custom role', asy
     memberCount: number;
   };
   const roles: Role[] = [
-    { code: 'admin', name: '管理员', description: '', permissions: Object.values(PERMISSIONS), enabled: true, system: true, memberCount: 1 },
-    { code: 'operator', name: '运营', description: '', permissions: [PERMISSIONS.PRODUCT_VIEW, PERMISSIONS.PRODUCT_WRITE], enabled: true, system: true, memberCount: 1 },
-    { code: 'readonly', name: '只读', description: '', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 0 },
-    { code: 'reviewer', name: '审核', description: '', permissions: [PERMISSIONS.OPERATION_TASK_REVIEW], enabled: true, system: true, memberCount: 0 },
+    { code: 'admin', name: 'admin', description: '', permissions: Object.values(PERMISSIONS), enabled: true, system: true, memberCount: 1 },
+    { code: 'operator', name: 'operator', description: '', permissions: [PERMISSIONS.PRODUCT_VIEW, PERMISSIONS.PRODUCT_WRITE], enabled: true, system: true, memberCount: 1 },
+    { code: 'readonly', name: 'readonly', description: '', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 0 },
+    { code: 'reviewer', name: 'reviewer', description: '', permissions: [PERMISSIONS.OPERATION_TASK_REVIEW], enabled: true, system: true, memberCount: 0 },
   ];
   const roleWrites = {
     create: (record: WriteRecord) => {
@@ -487,6 +494,11 @@ test('@smoke creates, edits, disables, and re-enables a tenant custom role', asy
 
   await admin.goto('/settings/users');
   await page.getByRole('tab', { name: '角色与权限矩阵' }).click();
+  for (const [code, label] of [['admin', '管理员'], ['operator', '运营'], ['readonly', '只读'], ['reviewer', '审核']]) {
+    const builtInRole = page.getByRole('row', { name: new RegExp(label) });
+    await expect(builtInRole.getByText(label, { exact: true })).toBeVisible();
+    await expect(builtInRole.getByText(code, { exact: true })).toHaveCount(0);
+  }
   await page.getByRole('button', { name: '新建角色' }).click();
   const createDialog = page.getByRole('dialog', { name: '新增自定义角色' });
   await expect(createDialog.getByLabel('角色名称')).toHaveValue('');
@@ -521,13 +533,17 @@ test('@smoke creates, edits, disables, and re-enables a tenant custom role', asy
   await roleRow.getByRole('button', { name: /停\s*用/ }).click();
   const disableDialog = page.getByRole('dialog', { name: '停用角色并立即撤权？' });
   await expect(disableDialog).toContainText('2 位成员');
-  await disableDialog.getByRole('button', { name: /确\s*定|OK/ }).click();
+  await expect(disableDialog.getByRole('button', { name: /^取\s*消$/ })).toBeVisible();
+  await expect(disableDialog.getByRole('button', { name: '确认停用', exact: true })).toBeVisible();
+  await disableDialog.getByRole('button', { name: '确认停用', exact: true }).click();
   await expect(roleRow).toContainText('已停用');
   await expect.poll(() => admin.writeGuard.calls('update-role').length).toBe(2);
 
   await roleRow.getByRole('button', { name: /启\s*用/ }).click();
   const enableDialog = page.getByRole('dialog', { name: '重新启用角色？' });
-  await enableDialog.getByRole('button', { name: /确\s*定|OK/ }).click();
+  await expect(enableDialog.getByRole('button', { name: /^取\s*消$/ })).toBeVisible();
+  await expect(enableDialog.getByRole('button', { name: '确认启用', exact: true })).toBeVisible();
+  await enableDialog.getByRole('button', { name: '确认启用', exact: true }).click();
   await expect(roleRow).toContainText('启用');
   await admin.writeGuard.expectRequestCount('update-role', 3);
   await admin.writeGuard.expectNoUnexpectedWrites();

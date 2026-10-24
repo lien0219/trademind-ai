@@ -35,6 +35,10 @@ const ROLE_OPTIONS = [
   { label: '审核', value: 'reviewer' },
 ];
 
+function roleLabel(code: string, name?: string): string {
+  return ROLE_OPTIONS.find((role) => role.value === (code || '').toLowerCase())?.label || name || code;
+}
+
 const STATUS_OPTIONS = [
   { label: '正常', value: 'active' },
   { label: '禁用', value: 'disabled' },
@@ -135,7 +139,7 @@ export default function SettingsUsersPage() {
   }, [permissionCatalog]);
   const roleOptions = useMemo(() => roles
     .filter((r) => r.enabled)
-    .map((r) => ({ label: r.name, value: r.code })), [roles]);
+    .map((r) => ({ label: roleLabel(r.code, r.name), value: r.code })), [roles]);
   const emptyLocale = useListEmptyLocale('usersSettings', {
     onAction: () => setCreateOpen(true),
     actionLabel: '创建用户',
@@ -184,7 +188,10 @@ export default function SettingsUsersPage() {
       width: 100,
       valueType: 'select',
       fieldProps: { options: roleOptions.length ? roleOptions : ROLE_OPTIONS },
-      render: (_, row) => <Tag>{roles.find((r) => r.code === row.role)?.name || roleTag(row.role)}</Tag>,
+      render: (_, row) => {
+        const role = roles.find((r) => r.code === row.role);
+        return role ? <Tag>{roleLabel(role.code, role.name)}</Tag> : roleTag(row.role);
+      },
     },
     {
       title: '状态',
@@ -242,6 +249,7 @@ export default function SettingsUsersPage() {
                     />
                   ),
                   okText: '确认修改',
+                  cancelText: '取消',
                   onOk: () => {
                     if (selectedRole === row.role) return;
                     const roleLabel = roleOptions.find((o) => o.value === selectedRole)?.label || selectedRole;
@@ -290,6 +298,8 @@ export default function SettingsUsersPage() {
                   size="small"
                   onClick={() => Modal.confirm({
                     title: '重置用户密码',
+                    okText: '确认重置',
+                    cancelText: '取消',
                     content: `将重置「${adminUserLabel(row)}」的登录密码并使旧登录令牌失效。请通过安全渠道交付临时密码。`,
                     onOk: () => runMutation(async () => {
                       const result = await resetAdminUserPassword(row.id);
@@ -366,7 +376,7 @@ export default function SettingsUsersPage() {
                 placeholder="选择对比角色"
                 style={{ minWidth: 210 }}
                 value={compareRole}
-                options={roles.map((r) => ({ label: r.name, value: r.code }))}
+                options={roles.map((r) => ({ label: roleLabel(r.code, r.name), value: r.code }))}
                 onChange={setCompareRole}
               />
             </Space>
@@ -374,7 +384,7 @@ export default function SettingsUsersPage() {
               {roles.map((r) => (
                 <div key={r.code} role="row" style={{ padding: 12, overflowWrap: 'anywhere', borderBottom: '1px solid var(--ant-color-border-secondary)' }}>
                   <Space wrap>
-                    <strong>{r.name}</strong>
+                    <strong>{roleLabel(r.code, r.name)}</strong>
                     <Tag>{r.system ? '系统角色' : '自定义角色'}</Tag>
                     <Tag color={r.enabled ? 'success' : 'default'}>{r.enabled ? '启用' : '已停用'}</Tag>
                     <span>成员：{r.memberCount} 人</span>
@@ -393,7 +403,9 @@ export default function SettingsUsersPage() {
                       <Button size="small" danger={r.enabled} disabled={!canManageUsers || submitting || !roleDirectoryReady} onClick={() => {
                         Modal.confirm({
                           title: r.enabled ? '停用角色并立即撤权？' : '重新启用角色？',
-                          content: `角色「${r.name}」现有 ${r.memberCount} 位成员，变更将影响其访问权限。`,
+                          content: `角色「${roleLabel(r.code, r.name)}」现有 ${r.memberCount} 位成员，变更将影响其访问权限。`,
+                          okText: r.enabled ? '确认停用' : '确认启用',
+                          cancelText: '取消',
                           onOk: () => runMutation(async () => {
                             await updateAdminRole(r.code, { enabled: !r.enabled });
                             message.success('角色状态已更新');
@@ -412,7 +424,7 @@ export default function SettingsUsersPage() {
                     const removals = other.permissions.filter((key) => !r.permissions.includes(key));
                     return (
                       <div style={{ marginTop: 8 }}>
-                        <div>相对于「{other.name}」的权限差异</div>
+                        <div>相对于「{roleLabel(other.code, other.name)}」的权限差异</div>
                         <Space wrap>
                           {additions.map((key) => <Tag key={key} color="green">+ {key}</Tag>)}
                           {removals.map((key) => <Tag key={key} color="red">− {key}</Tag>)}
