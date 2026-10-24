@@ -29,6 +29,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/testing/postgrestest"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type inventorySKUSearchFixture struct {
@@ -236,6 +237,51 @@ func TestInventoryWarehouseAdjustmentSerializesConcurrentWrites(t *testing.T) {
 		}
 	}
 	require.Equal(t, map[int]bool{7: true, 9: true}, manualTargets)
+}
+
+func TestInventoryLegacyMigrationAllowsConcurrentWarehouseReaders(t *testing.T) {
+	harness := postgrestest.Require(t)
+	harness.EmitMetadata(t)
+	db := harness.DB
+	require.NoError(t, database.AutoMigrate(db))
+	tenantID := time.Now().UnixNano()
+	warehouseService := &warehouse.Service{DB: db}
+	warehouseRow, err := warehouseService.Create(context.Background(), tenantID, nil, warehouse.CreateInput{
+		Code: "LEGACY-READER", Name: "Legacy migration reader", IsDefault: true,
+	})
+	require.NoError(t, err)
+	productRow := product.Product{TenantID: tenantID, Source: "manual", Status: product.StatusDraft, Title: "Legacy migration under shared warehouse access"}
+	require.NoError(t, db.Create(&productRow).Error)
+	stock := 5
+	sku := product.ProductSKU{ProductID: productRow.ID, SKUCode: "LEGACY-READER-SKU", Stock: &stock}
+	require.NoError(t, db.Create(&sku).Error)
+
+	// An order may hold this shared warehouse lock while waiting for a SKU.
+	// A migration holding that SKU must not request an incompatible warehouse
+	// lock, which would close a warehouse -> SKU -> warehouse deadlock cycle.
+	reader := db.Begin()
+	require.NoError(t, reader.Error)
+	t.Cleanup(func() { require.NoError(t, reader.Rollback().Error) })
+	var locked warehouse.Warehouse
+	require.NoError(t, reader.Clauses(clause.Locking{Strength: "SHARE"}).First(&locked, "id = ?", warehouseRow.ID).Error)
+	var migrated *inventory.LegacyStockMigrationResult
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SET LOCAL lock_timeout = '1s'").Error; err != nil {
+			return err
+		}
+		service := &inventory.Service{DB: tx, Warehouses: warehouseService}
+		var migrationErr error
+		migrated, migrationErr = service.MigrateLegacyStock(context.Background(), tenantID, nil, 100)
+		return migrationErr
+	})
+	require.NoError(t, err, "legacy migration must complete while a concurrent order holds a shared warehouse lock")
+	require.Equal(t, 1, migrated.MigratedCount)
+	require.Zero(t, migrated.RemainingCount)
+	require.Equal(t, warehouseRow.ID, migrated.WarehouseID)
+	var balance inventory.WarehouseStockBalance
+	require.NoError(t, db.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", tenantID, warehouseRow.ID, sku.ID).First(&balance).Error)
+	require.Equal(t, stock, balance.OnHand)
+	require.Zero(t, balance.Reserved)
 }
 
 func TestOrderInventoryReservationSerializesConcurrentOrders(t *testing.T) {
