@@ -16,13 +16,18 @@
 | POST | `/auth/change-required-password` | 验证临时密码、完成强制改密，成功后再登录 |
 | DELETE | `/auth/sessions/:id` | 仅撤销当前登录用户的指定会话及关联 Refresh Token |
 | POST | `/auth/sessions/revoke-others`、`/auth/logout-all` | 仅影响当前登录用户；事务审计失败整笔回滚并返回 500 |
+| POST | `/auth/logout` | Refresh 仅撤销匹配当前用户/会话的记录；撤销与成功审计同事务；数据库查询或审计失败返回错误，成功后清理 Cookie |
 | POST | `/auth/register`、`/auth/send-email-code` | 403，提示联系管理员；不公开创建管理员或发送注册验证码 |
 | GET | `/auth/profile` | 权限来自服务端；非零租户管理员不返回 `security.key.rotate` |
 | GET | `/security/keys/rotation/status`、`/security/keys/references`、`/security/keys/rotation/:id`、`/security/keys/rotation/:id/progress` | 仅 tenant 0 的有效系统管理员及密钥轮换权限；普通租户管理员、自定义角色、缺少身份或租户声明均拒绝 |
-| POST | `/security/keys/rotation/prepare`、`/security/keys/rotation/start`、`/security/keys/rotation/:id/pause`、`resume`、`verify` | 同上；成功审计和控制状态同事务，审计失败返回 500 并回滚；预检/启动仍要求确认短语 |
+| POST | `/security/keys/rotation/prepare`、`/security/keys/rotation/start`、`/security/keys/rotation/:id/pause`、`resume`、`verify` | 同上；成功审计和控制状态同事务，审计失败返回 500 并回滚；预检/启动仍要求确认短语；暂停/恢复的任务不存在或状态不匹配返回 404，不产生成功审计 |
 | GET / POST | `/security/audit/integrity/status`、`/security/audit/integrity/verify` | `audit.read`，只验证当前认证租户的审计链 |
 
 关键成功审计与业务写入同事务，拒绝/失败审计在回滚后单独写入；日志持久化失败明确返回 500。无模块权限为 403，不可见的跨租户/未授权资源通常为 404。角色、状态、授权及密码变更增加 SQL 安全版本，旧 Access、Refresh 和历史会话不可重用。
+
+Amazon、Douyin、Lazada、Shopee、TikTok 的店铺 OAuth 刷新以请求前捕获的 TokenVersion 校验提交；凭据、授权状态及刷新成功审计同事务。撤销后到达的旧刷新结果明确失败，不能恢复授权；Provider 持久化失败不得继续把新 Token 当作成功结果使用。
+
+AI 批次、商品图片批次与图片任务的读取需要 `product.view`，写入按文字/图片操作要求 `ai_text.apply` / `ai_image.apply`，并同时验证批次、子任务和输入资源的租户。客服消息同步按 `customer.view` / `customer.operate` 授权并校验店铺范围；运营总览的批次、图片、采集、刊登和客服聚合限定当前租户。
 
 本文件记录 TradeMind 后端 API 的公共约定。新增、删除或修改接口时，必须同步检查后端 handler / service / DTO、前端 services / types / 页面，以及本文档。
 

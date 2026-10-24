@@ -8,8 +8,12 @@ All notable changes to TradeMind are documented here.
 
 - Made sensitive user, role, password, shop authorization, global configuration and session-revocation audit writes transactional; added failure/denial auditing and PostgreSQL audit-chain concurrency protection.
 - Bound OAuth state to the initiating tenant, user and security version, and committed credentials, provider metadata and success evidence together.
+- Fenced refresh persistence for all five platform providers so late responses cannot restore revoked shop credentials; propagated persistence failures and audited successful background refreshes transactionally.
 - Closed public registration that previously provisioned administrators; console users are created by authorized administrators and must change temporary passwords.
 - Added tenant isolation to affected collection/runtime/file APIs and legacy browser-profile migration, plus token/session revocation and last-administrator concurrency regressions.
+- Scoped AI batches, image tasks and related product/file resources, customer-message synchronization, shop summaries and operations aggregates by tenant; quarantined legacy AI batches with conflicting or incomplete ownership evidence.
+- Extended audit hashes to actor/session/request metadata, made logout and its evidence atomic, and anchored partial-day integrity windows to verified predecessor records.
+- Removed a warehouse row-lock upgrade that could deadlock concurrent order inventory reservations; added a deterministic PostgreSQL concurrency regression.
 - Restricted global key rotation to active tenant-zero system administrators, made rotation control and audit writes atomic, serialized PostgreSQL control requests, and scoped audit-integrity checks to the authenticated tenant.
 - Completed role editing, permission preview/comparison, guarded Admin mutations and authenticated operations navigation, with mocked RBAC E2E coverage. Remote CI, full independent security review and final human acceptance remain pending; see the permission checklist.
 

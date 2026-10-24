@@ -131,8 +131,8 @@ Profile 导出：`GET /api/v1/auth/profile` → `permissions[]`
 | `/admin/users/:id/reset-password` | `user.manage`、同租户 | 临时密码只返回一次，日志不包含密码；安全版本增加与审计同事务 |
 | `/admin/roles`、`/admin/roles/:code`、`/admin/permissions` | `user.manage`；系统角色不可改写；自定义角色同租户且权限键有效 | 创建/编辑/停启与审计同事务；修改角色使全部成员安全版本增加 |
 | `/auth/change-required-password` | 验证当前临时密码及强制改密状态 | 新密码哈希、改密状态、安全版本与审计同事务 |
-| `/auth/sessions/:id`、`revoke-others`、`logout-all` | JWT 用户自己的会话；不信任客户端 userId | 会话/Refresh 撤销与成功审计同事务，审计不可用返回失败 |
-| `/shops`、店铺凭据、OAuth | `store.view` / `store.operate`、同租户店铺范围；创建/删除要求系统管理员 | 关键写入与审计同事务；OAuth state 单次使用并绑定用户、租户和安全版本，提交前再次校验 |
+| `/auth/sessions/:id`、`revoke-others`、`logout-all`、`logout` | JWT 用户自己的会话；不信任客户端 userId；logout 的 Refresh 与当前用户/会话匹配 | 会话/Refresh 撤销与成功审计同事务，审计不可用返回失败，查询故障不伪装成成功 |
+| `/shops`、店铺凭据、OAuth | `store.view` / `store.operate`、同租户店铺范围；创建/删除要求系统管理员；摘要、存在性查询及分类刷新也校验店铺范围 | 关键写入与审计同事务；OAuth state 单次使用并绑定用户、租户和安全版本；五个平台刷新以捕获的 TokenVersion 校验提交，过期回调不能恢复已撤销凭据 |
 | `/platform/settings/*`、`/platform/publish-settings/*` | `settings.manage` 及全局管理员范围 | 加密配置与成功审计同事务 |
 | `/settings/*` | 系统设置管理及全局范围 | 设置持久化与审计同事务；敏感值脱敏 |
 | `/security/keys/*` | tenant 0、有持久化身份且启用的系统管理员及 `security.key.rotate`；缺少身份或租户上下文拒绝 | 预检、启动、暂停、恢复、验证与成功审计同事务；数据库故障回滚，拒绝请求记录失败审计；PG 事务锁串行化全局控制 |
@@ -140,6 +140,8 @@ Profile 导出：`GET /api/v1/auth/profile` → `permissions[]`
 | `/collect/browser-profiles` | `product.view` / `product.write`，profile 同租户 | 列表与逐项操作校验租户；旧数据仅按可信创建人回填归属 |
 | `/collect/rules`、规则 AI、采集入口 | 商品读/写权限、当前租户；店铺操作再校验店铺范围 | 未授权请求在调用采集端或 Provider 前拒绝 |
 | AI Prompt、文件 | 对应读写能力；资源租户和店铺范围 | 无权限不能靠直接 URL 绕过页面控制 |
+| AI 批次、商品图片批次与图片任务 | `product.view`、`ai_text.apply` / `ai_image.apply`；批次、子任务、商品、图片、文件统一校验租户 | 重试按任务类型授权；跨租户输入在 Provider/队列调用前拒绝；Worker、租约、评分和清理延续任务租户 |
+| 客服消息同步、运营总览与订单关联店铺 | `customer.view` / `customer.operate` 等模块权限，租户及店铺范围 | 同步任务详情/重试、后台自动回复扫描、汇总/最近记录不跨租户；关联店铺摘要不能泄露未授权店铺 |
 | Douyin preflight / runtime | 对应配置/商品能力及受控租户上下文 | 只读检查和受控动作保持既有生产能力边界 |
 | `/workers/monitor` | `task.retry`、同租户；非管理员限制用户/店铺范围 | 监控不暴露其他租户任务 |
 | Operation Log 查询 / 导出 | `operationlog.view` 或相应审计能力、租户/店铺范围 | 不可变日志及分区哈希链；完整保存权限变化前后快照 |
@@ -148,13 +150,17 @@ Profile 导出：`GET /api/v1/auth/profile` → `permissions[]`
 
 PostgreSQL 审计串行化使用事务 advisory lock，不再在等待数据库锁时占用本地 mutex；同一业务事务可以追加多条审计。不能把其他数据库单元 fixture 的成功当作 PostgreSQL 并发证据。
 
+新增审计使用哈希版本 2，将操作者、会话、角色、店铺、权限和请求元数据绑定进证据，仍兼容已有版本 1 的校验。缺失哈希明确失败；滚动窗口通过实际前驱记录校验起点，不信任窗口首行自报的前驱哈希。后台 OAuth 刷新同样使用业务事务写审计。
+
 每次 JWT 请求读取数据库安全版本；会话还校验会话状态及版本。降权、禁用、店铺撤权、角色权限变更和密码重置会使旧 Access/Refresh/历史会话失效。重新启用角色也增加版本，旧凭据不会因此恢复。未知角色、已停用或不存在的自定义角色不能获得默认管理员权限。
 
 ## 迁移与回滚
 
 - 生产数据库为 PostgreSQL。SQLite 仅用于进程内单元 fixture；历史兼容驱动不代表切换项目数据库。
-- AutoMigrate 增加 `admin_mutation_locks`，为租户内管理员变更及账号身份竞争提供稳定锁行；增加 `collect_browser_profiles.tenant_id` 和索引。
+- AutoMigrate 增加 `admin_mutation_locks`，为租户内管理员变更及账号身份竞争提供稳定锁行；增加 `collect_browser_profiles.tenant_id`、`ai_operation_batches.tenant_id` 和索引。
 - 浏览器档案只根据持久化 `created_by` 指向的管理员回填租户；无法确定归属的旧行保留 tenant zero，不暴露给其他租户。
+- AI 批次仅在文字和图片全部子任务都能证明同一非零租户时回填；缺失商品、未知或冲突归属保持 tenant zero。只有完全无子任务的批次允许使用创建人租户，已有非零归属不被改写；两次升级由隔离 PostgreSQL 覆盖。
+- 库存历史余额迁移读取默认仓时使用 SHARE 锁，与并发订单读取兼容，避免持有 SKU 锁后将仓库 SHARE 升级为 UPDATE 的死锁；仓库元数据更新和禁用仍受行锁保护。
 - 本轮没有删除业务列、表或审计数据。重复迁移、旧 schema/索引兼容由隔离 PostgreSQL 测试验证；迁移失败必须停止启动。
 - 没有实现自动 down migration，也没有验证生产备份恢复。回退到缺少租户校验或版本校验的旧二进制可能重新开放安全缺口，不能仅以新增列兼容判断回滚安全。发布前必须在隔离副本验证恢复，保留审计和安全版本，不降低版本或删除锁表来恢复旧令牌。
 

@@ -66,6 +66,8 @@ Collector 是独立 Node.js 服务：
 
 ## 安全原则
 
+用户、角色、店铺授权、密码和会话变更由 service 持有数据库事务，成功审计与业务数据一同提交。SQL 安全版本使旧令牌和会话在撤权后失效；OAuth 刷新还以店铺 TokenVersion 阻止旧回调覆盖撤销。AI 批次、图片任务及其商品/文件关联遵循相同租户边界；历史批次仅在完整子任务证据一致时回填归属，无法证明的行保持隔离。权限覆盖及迁移边界见 [RBAC 设计](RBAC_PERMISSION_DESIGN.md)。
+
 - 不在代码中写死 API Key、Token、Secret、平台凭证。
 - 日志禁止输出完整密钥、密码、Cookie、Token。
 - AI、存储、平台能力必须由后端 Provider 调用。
