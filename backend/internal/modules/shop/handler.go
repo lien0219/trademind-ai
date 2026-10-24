@@ -363,6 +363,9 @@ func (h *Handler) ListDouyinCategories(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, "shopId required for refresh")
 			return
 		}
+		if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermStoreOperate) {
+			return
+		}
 		if !adminperm.RequireStoreOperate(c, h.Svc.DB, *shopID) {
 			return
 		}

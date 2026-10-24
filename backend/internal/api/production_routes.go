@@ -10,6 +10,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventoryread"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/platformcredential"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productioncontrol"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
@@ -26,8 +27,12 @@ func RegisterProductionRoutes(r gin.IRouter, dep *Deps) {
 	if dep.Obs != nil {
 		metricCatalog = dep.Obs.Catalog
 	}
+	opLog := dep.OpLog
+	if opLog == nil {
+		opLog = &operationlog.Service{DB: dep.DB}
+	}
 	sessions := &auth.SessionService{
-		Cfg: dep.Config, DB: dep.DB, Admins: &admin.Store{DB: dep.DB}, Metrics: metricCatalog,
+		Cfg: dep.Config, DB: dep.DB, Admins: &admin.Store{DB: dep.DB}, Metrics: metricCatalog, OpLog: opLog,
 	}
 	authed := r.Group("/api/v1")
 	authed.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessions))

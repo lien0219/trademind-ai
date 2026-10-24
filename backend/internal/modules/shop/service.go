@@ -730,6 +730,9 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 		} else if err != nil {
 			return err
 		}
+		if expectedVersion, ok := oauthExpectedShopTokenVersion(c.Request.Context()); ok && tok.TokenVersion != expectedVersion {
+			return fmt.Errorf("OAuth shop authorization is stale")
+		}
 		tok.AuthType = authTypeIn
 		tok.Platform = shopRow.Platform
 
@@ -781,6 +784,13 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 			tok.AuthConfig = datatypes.JSON(b)
 		}
 		tok.RawData = nil
+		// Any credential or provider-auth mutation invalidates refreshes that
+		// captured the previous row. This fence also covers OAuth callbacks,
+		// which reuse UpdateAuth inside their audited transaction.
+		tok.TokenVersion++
+		if tok.TokenVersion <= 0 {
+			tok.TokenVersion = 1
+		}
 
 		if tok.ID == uuid.Nil {
 			if err := tx.Create(&tok).Error; err != nil {

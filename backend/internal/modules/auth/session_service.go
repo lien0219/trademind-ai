@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/runtimediag"
@@ -25,6 +26,7 @@ type SessionService struct {
 	DB      *gorm.DB
 	Admins  *admin.Store
 	Metrics *metrics.Catalog
+	OpLog   *operationlog.Service
 }
 
 // LoginSessionResult is returned after successful credential verification.
@@ -231,6 +233,22 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 				"revoked_at":    &now,
 				"revoke_reason": "reuse_detected",
 			}).Error; err != nil {
+				return err
+			}
+			audit := s.OpLog
+			if audit == nil {
+				audit = &operationlog.Service{DB: s.DB}
+			}
+			if err := audit.WriteTxContext(ctx, tx, operationlog.WriteOpts{
+				TenantID:    row.TenantID,
+				AdminUserID: &row.UserID,
+				SessionID:   &row.SessionID,
+				Action:      "auth.refresh.reuse_detected",
+				Resource:    "auth_session",
+				ResourceID:  row.SessionID.String(),
+				Status:      "failure",
+				Message:     fmt.Sprintf("refreshTokenId=%s tokenFamilyId=%s revokeReason=reuse_detected", row.ID, row.TokenFamilyID),
+			}); err != nil {
 				return err
 			}
 			terminalErr = errors.New(ErrRefreshTokenReused)

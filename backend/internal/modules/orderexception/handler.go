@@ -54,6 +54,66 @@ func (h *Handler) denyRead(c *gin.Context) bool {
 	return !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermOrderView)
 }
 
+// ensureSourceShopVisible prevents a tenant-scoped role from using a source
+// identifier from another shop for detail or mutation operations. The
+// workbench aggregates several source tables, so the check resolves the
+// canonical exception row before allowing the action.
+func (h *Handler) ensureSourceShopVisible(c *gin.Context, sourceType, sourceID string) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "exceptions unavailable")
+		return false
+	}
+	p, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+	if err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	if p != nil && p.IsAdmin() {
+		return true
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return false
+	}
+	d, err := h.Svc.GetOrderExceptionDetail(c.Request.Context(), &tenantID, sourceType, sourceID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		} else {
+			response.HandleError(c, err)
+		}
+		return false
+	}
+	shopID, err := uuid.Parse(strings.TrimSpace(d.ShopID))
+	if err != nil || shopID == uuid.Nil || p == nil || !p.CanViewStore(shopID) {
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		return false
+	}
+	return true
+}
+
+func (h *Handler) sourceDTOVisible(c *gin.Context, d *OrderExceptionDTO) bool {
+	if d == nil {
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		return false
+	}
+	p, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+	if err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	if p != nil && p.IsAdmin() {
+		return true
+	}
+	shopID, err := uuid.Parse(strings.TrimSpace(d.ShopID))
+	if err != nil || shopID == uuid.Nil || p == nil || !p.CanViewStore(shopID) {
+		response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		return false
+	}
+	return true
+}
+
 func (h *Handler) denyInventoryWrite(c *gin.Context) bool {
 	if h == nil || h.Svc == nil || h.Svc.DB == nil {
 		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "exceptions unavailable")
@@ -134,6 +194,12 @@ func (h *Handler) List(c *gin.Context) {
 		Page:          atoiPage(c.Query("page"), 1, 1),
 		PageSize:      atoiPage(c.Query("pageSize"), 20, 1),
 	}
+	p, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	req.AllowedShopIDs = p.AllowedStoreIDs()
 	out, err := h.Svc.ListOrderExceptions(c.Request.Context(), req)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
@@ -167,6 +233,9 @@ func (h *Handler) Detail(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
+	if !h.sourceDTOVisible(c, d) {
+		return
+	}
 	response.OK(c, d)
 }
 
@@ -192,6 +261,9 @@ func (h *Handler) Handle(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceShopVisible(c, st, sid) {
+		return
+	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), &tenantID, body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
@@ -231,6 +303,9 @@ func (h *Handler) Ignore(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceShopVisible(c, st, sid) {
+		return
+	}
 	if err := h.Svc.UpsertMark(c.Request.Context(), &tenantID, body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
@@ -264,6 +339,9 @@ func (h *Handler) Unmark(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
+	if !h.ensureSourceShopVisible(c, st, sid) {
+		return
+	}
 	if err := h.Svc.DeleteMarks(c.Request.Context(), &tenantID, st, sid); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
@@ -300,6 +378,9 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	if !h.ensureSourceShopVisible(c, st, sid) {
 		return
 	}
 	out, err := h.Cmds.BindSKU(c.Request.Context(), tenantID, st, sid, body, adminUUID(c))
@@ -349,6 +430,9 @@ func (h *Handler) RetryDeduct(c *gin.Context) {
 		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, "tenant context required")
 		return
 	}
+	if !h.ensureSourceShopVisible(c, st, sid) {
+		return
+	}
 	sum, err := h.Cmds.RetryDeduct(c.Request.Context(), tenantID, st, sid, body.SyncPlatforms, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
@@ -385,6 +469,9 @@ func (h *Handler) RetryInventorySync(c *gin.Context) {
 	tid, err := uuid.Parse(sid)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid sourceId")
+		return
+	}
+	if !h.ensureSourceShopVisible(c, st, sid) {
 		return
 	}
 	task, err := h.Cmds.RetryInventorySync(c, tid, adminUUID(c))

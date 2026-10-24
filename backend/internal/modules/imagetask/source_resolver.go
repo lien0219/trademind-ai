@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
+	"gorm.io/gorm"
 )
 
 func sanitizeStorageObjectKey(raw string) (string, error) {
@@ -214,6 +215,16 @@ func firstNonEmpty(vals ...string) string {
 
 // ResolveSource resolves source_image_id / source_image_url for persisting image_tasks (display URL + id).
 func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, sourceURL string) (imageID *uuid.UUID, resolvedURL string, err error) {
+	if s == nil || s.DB == nil {
+		return nil, "", fmt.Errorf("imagetask: no db")
+	}
+	return s.resolveSourceWithDB(ctx, s.DB, sourceImageID, sourceURL)
+}
+
+func (s *Service) resolveSourceWithDB(ctx context.Context, db *gorm.DB, sourceImageID *uuid.UUID, sourceURL string) (imageID *uuid.UUID, resolvedURL string, err error) {
+	if s == nil || db == nil {
+		return nil, "", fmt.Errorf("imagetask: no db")
+	}
 	tenantID, scoped, err := imageTaskTenantScope(ctx)
 	if err != nil {
 		return nil, "", err
@@ -222,7 +233,7 @@ func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, s
 	if sourceImageID != nil && *sourceImageID != uuid.Nil {
 		sid := *sourceImageID
 		var fr files.FileRecord
-		fileQuery := s.DB.WithContext(ctx).Model(&files.FileRecord{}).Where("id = ?", sid)
+		fileQuery := db.WithContext(ctx).Model(&files.FileRecord{}).Where("id = ?", sid)
 		fileQuery = scopeFileRecordQuery(fileQuery, tenantID, scoped)
 		if err := fileQuery.First(&fr).Error; err == nil {
 			out := firstNonEmpty(fr.PublicURL)
@@ -239,7 +250,7 @@ func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, s
 			return &sid, out, nil
 		}
 		var pi product.ProductImage
-		imageQuery := s.DB.WithContext(ctx).Model(&product.ProductImage{}).Where("id = ?", sid)
+		imageQuery := db.WithContext(ctx).Model(&product.ProductImage{}).Where("id = ?", sid)
 		imageQuery = scopeProductImageQuery(imageQuery, tenantID, scoped)
 		if err := imageQuery.First(&pi).Error; err == nil {
 			out := firstNonEmpty(pi.PublicURL, pi.OriginURL)

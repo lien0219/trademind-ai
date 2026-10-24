@@ -16,6 +16,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -226,6 +228,22 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("imagetask: no db")
 	}
+	return s.createAndPersistWithDB(ctx, s.DB, p)
+}
+
+// CreateAndPersistTx inserts a pending task using the caller's transaction.
+// Callers use this when the task and its audit evidence must commit together.
+func (s *Service) CreateAndPersistTx(ctx context.Context, tx *gorm.DB, p CreatePayload) (*ImageTask, error) {
+	if s == nil || tx == nil {
+		return nil, fmt.Errorf("imagetask: transaction unavailable")
+	}
+	return s.createAndPersistWithDB(ctx, tx, p)
+}
+
+func (s *Service) createAndPersistWithDB(ctx context.Context, db *gorm.DB, p CreatePayload) (*ImageTask, error) {
+	if s == nil || db == nil {
+		return nil, fmt.Errorf("imagetask: no db")
+	}
 	if !isValidTaskType(p.TaskType) {
 		return nil, fmt.Errorf("invalid taskType")
 	}
@@ -300,13 +318,13 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	var srcURL string
 	if hasSource {
 		var rsErr error
-		imgID, srcURL, rsErr = s.ResolveSource(ctx, p.SourceImageID, p.SourceImageURL)
+		imgID, srcURL, rsErr = s.resolveSourceWithDB(ctx, db, p.SourceImageID, p.SourceImageURL)
 		if rsErr != nil {
 			return nil, rsErr
 		}
 	}
 
-	tenantID, err := s.imageTaskTenant(ctx, p.ProductID)
+	tenantID, err := s.imageTaskTenantWithDB(ctx, db, p.ProductID)
 	if err != nil {
 		return nil, err
 	}
@@ -328,10 +346,10 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		BatchID:        p.BatchID,
 		BatchNo:        strings.TrimSpace(p.BatchNo),
 	}
-	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
+	if err := db.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
 	}
-	if IsTranslateTaskType(p.TaskType) && imgID != nil {
+	if db == s.DB && IsTranslateTaskType(p.TaskType) && imgID != nil {
 		_ = s.supersedePriorTranslateResults(ctx, row, translateTargetLanguageFromHints(inputHints(p.Input)), row.ID)
 	}
 	return row, nil
@@ -339,6 +357,13 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 
 func (s *Service) imageTaskTenant(ctx context.Context, productID *uuid.UUID) (int64, error) {
 	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("imagetask: no db")
+	}
+	return s.imageTaskTenantWithDB(ctx, s.DB, productID)
+}
+
+func (s *Service) imageTaskTenantWithDB(ctx context.Context, db *gorm.DB, productID *uuid.UUID) (int64, error) {
+	if s == nil || db == nil {
 		return 0, fmt.Errorf("imagetask: no db")
 	}
 	tenantID, scoped, err := imageTaskTenantScope(ctx)
@@ -349,9 +374,10 @@ func (s *Service) imageTaskTenant(ctx context.Context, productID *uuid.UUID) (in
 		return tenantID, nil
 	}
 	var row struct{ TenantID int64 }
-	query := s.DB.WithContext(ctx).Table("products").Select("tenant_id").Where("id = ? AND deleted_at IS NULL", *productID)
+	query := db.WithContext(ctx).Table("products").Select("tenant_id").Where("id = ? AND deleted_at IS NULL", *productID)
 	if scoped {
 		query = query.Where("tenant_id = ?", tenantID)
+		query = scopeImageShopQuery(query, security.FromContext(ctx), tenantID, "products.id")
 	}
 	if err := query.Take(&row).Error; err != nil {
 		return 0, err
@@ -596,7 +622,6 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if err := s.finalizeTaskSuccess(ctx, httpCtx, task, finalURL, finalFID, storageKey, outObj, nil, false); err != nil {
 		return err
 	}
-	s.logSuccess(ctx, httpCtx, task.ID, task, modelOut, promptIDOut)
 	return nil
 }
 
@@ -657,20 +682,89 @@ func (s *Service) handleImageTaskFailure(ctx context.Context, httpCtx *gin.Conte
 	if task.RetryCount >= maxR {
 		return s.finalizeImageFailed(ctx, httpCtx, task, msg, true)
 	}
-	s.scheduleImageAutoRetry(ctx, task, msg)
+	if err := s.scheduleImageAutoRetry(ctx, task, msg); err != nil {
+		return err
+	}
 	return errors.New(msg)
 }
 
-func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, msg string) {
+// updateTaskWithAudit applies a task state transition and its audit evidence
+// in one transaction. Worker lease ownership is checked against that same
+// transaction so a stale worker cannot commit a state change without its
+// evidence.
+func (s *Service) updateTaskWithAudit(ctx context.Context, httpCtx *gin.Context, task *ImageTask, updates map[string]any, opts operationlog.WriteOpts) error {
 	if s == nil || s.DB == nil || task == nil {
-		return
+		return fmt.Errorf("imagetask: task update unavailable")
+	}
+	if s.OpLog == nil || s.OpLog.DB == nil {
+		return fmt.Errorf("imagetask: audit unavailable")
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	tenantID, scoped, err := imageTaskTenantScope(ctx)
 	if err != nil {
-		return
+		return err
+	}
+	if opts.TenantID == 0 {
+		opts.TenantID = task.TenantID
+		if opts.TenantID == 0 {
+			opts.TenantID = tenantID
+		}
+	}
+	if opts.AdminUserID == nil {
+		opts.AdminUserID = task.CreatedBy
+	}
+	if strings.TrimSpace(opts.ResourceID) == "" {
+		opts.ResourceID = task.ID.String()
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		workerID, claim := imageLeaseFrom(ctx)
+		var query *gorm.DB
+		if claim != nil && strings.TrimSpace(workerID) != "" {
+			if err := tasklease.ValidateLease(ctx, tx, ImageTask{}.TableName(), StatusRunning, task.ID, workerID, claim.ExecutionID, claim.LeaseVersion); err != nil {
+				return err
+			}
+			query = tx.WithContext(ctx).Model(&ImageTask{}).Where(
+				"id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
+				task.ID, workerID, claim.ExecutionID.String(), claim.LeaseVersion,
+			)
+		} else {
+			query = tx.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", task.ID, task.Status)
+			query = scopeImageTaskQuery(query, tenantID, scoped)
+		}
+		copyUpdates := make(map[string]any, len(updates)+3)
+		for key, value := range updates {
+			copyUpdates[key] = value
+		}
+		copyUpdates["updated_at"] = time.Now().UTC()
+		if claim != nil && strings.TrimSpace(workerID) != "" {
+			copyUpdates["locked_by"] = nil
+			copyUpdates["locked_until"] = nil
+		}
+		result := query.Updates(copyUpdates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return tasklease.ErrLeaseLost
+		}
+		if httpCtx != nil {
+			return s.OpLog.WriteTx(httpCtx, tx, opts)
+		}
+		return s.OpLog.WriteTxContext(ctx, tx, opts)
+	})
+}
+
+func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, msg string) error {
+	if s == nil || s.DB == nil || task == nil {
+		return fmt.Errorf("imagetask: auto retry unavailable")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, _, err := imageTaskTenantScope(ctx); err != nil {
+		return err
 	}
 	now := time.Now().UTC()
 	newRC := task.RetryCount + 1
@@ -696,32 +790,20 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 		"locked_by":         nil,
 		"locked_until":      nil,
 	}
-	workerID, claim := imageLeaseFrom(ctx)
-	if claim != nil && strings.TrimSpace(workerID) != "" {
-		_ = s.finishImageTask(ctx, task.ID, workerID, claim, updates)
-	} else {
-		query := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID)
-		query = scopeImageTaskQuery(query, tenantID, scoped)
-		_ = query.Updates(updates).Error
-	}
-
 	maxR := s.effectiveMaxRetries(task)
-	if s.OpLog != nil {
-		logMsg := fmt.Sprintf("taskType=%s provider=%s retryCount=%d maxRetries=%d nextRetryAt=%s productId=%s",
-			task.TaskType, task.Provider, newRC, maxR, next.Format(time.RFC3339), ptrUUIDStr(task.ProductID))
-		var admin *uuid.UUID
-		if task.CreatedBy != nil {
-			admin = task.CreatedBy
-		}
-		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
-			AdminUserID: admin,
-			Action:      "image.task.auto_retry_scheduled",
-			Resource:    "image_task",
-			ResourceID:  task.ID.String(),
-			Status:      "success",
-			Message:     truncateRunes(logMsg, 2000),
-		})
+	logMsg := fmt.Sprintf("taskType=%s provider=%s retryCount=%d maxRetries=%d nextRetryAt=%s productId=%s",
+		task.TaskType, task.Provider, newRC, maxR, next.Format(time.RFC3339), ptrUUIDStr(task.ProductID))
+	if err := s.updateTaskWithAudit(ctx, nil, task, updates, operationlog.WriteOpts{
+		TenantID:    task.TenantID,
+		AdminUserID: task.CreatedBy,
+		Action:      "image.task.auto_retry_scheduled",
+		Resource:    "image_task",
+		Status:      "success",
+		Message:     truncateRunes(logMsg, 2000),
+	}); err != nil {
+		return err
 	}
+	return nil
 }
 
 func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string, exhausted bool) error {
@@ -735,120 +817,22 @@ func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context,
 		"locked_by":         nil,
 		"locked_until":      nil,
 	}
-	workerID, claim := imageLeaseFrom(ctx)
-	if claim != nil && strings.TrimSpace(workerID) != "" {
-		if err := s.finishImageTask(ctx, task.ID, workerID, claim, updates); err != nil {
-			return err
-		}
-	} else {
-		tenantID, scoped, scopeErr := imageTaskTenantScope(ctx)
-		if scopeErr == nil {
-			query := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID)
-			query = scopeImageTaskQuery(query, tenantID, scoped)
-			_ = query.Updates(updates).Error
-		}
-	}
+	action := "image.task.failed"
 	if exhausted {
-		s.logRetryExhausted(ctx, httpCtx, task, msg)
-	} else {
-		s.logFailed(ctx, httpCtx, task, msg)
+		action = "image.task.retry_exhausted"
+	}
+	if err := s.updateTaskWithAudit(ctx, httpCtx, task, updates, operationlog.WriteOpts{
+		TenantID:    task.TenantID,
+		AdminUserID: task.CreatedBy,
+		Action:      action,
+		Resource:    "image_task",
+		Status:      "failed",
+		Message: fmt.Sprintf("taskType=%s provider=%s retryCount=%d maxRetries=%d productId=%s err=%s",
+			task.TaskType, task.Provider, task.RetryCount, s.effectiveMaxRetries(task), ptrUUIDStr(task.ProductID), truncateMsg(msg, 300)),
+	}); err != nil {
+		return err
 	}
 	return errors.New(msg)
-}
-
-func (s *Service) logRetryExhausted(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string) {
-	if s.OpLog == nil {
-		return
-	}
-	maxR := s.effectiveMaxRetries(task)
-	opts := operationlog.WriteOpts{
-		Action:     "image.task.retry_exhausted",
-		Resource:   "image_task",
-		ResourceID: task.ID.String(),
-		Status:     "failed",
-		Message: fmt.Sprintf("taskType=%s provider=%s retryCount=%d maxRetries=%d productId=%s err=%s",
-			task.TaskType, task.Provider, task.RetryCount, maxR, ptrUUIDStr(task.ProductID), truncateMsg(msg, 300)),
-	}
-	if httpCtx != nil {
-		_ = s.OpLog.Write(httpCtx, opts)
-		return
-	}
-	var admin *uuid.UUID
-	if task.CreatedBy != nil {
-		admin = task.CreatedBy
-	}
-	_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
-		AdminUserID: admin,
-		Action:      opts.Action,
-		Resource:    opts.Resource,
-		ResourceID:  opts.ResourceID,
-		Status:      opts.Status,
-		Message:     opts.Message,
-	})
-}
-
-func (s *Service) logSuccess(ctx context.Context, httpCtx *gin.Context, taskID uuid.UUID, task *ImageTask, model string, promptID string) {
-	if s.OpLog == nil {
-		return
-	}
-	msg := fmt.Sprintf("taskType=%s provider=%s model=%s productId=%s",
-		task.TaskType, task.Provider, strings.TrimSpace(model), ptrUUIDStr(task.ProductID))
-	if pid := strings.TrimSpace(promptID); pid != "" {
-		msg += " promptId=" + pid
-	}
-	opts := operationlog.WriteOpts{
-		Action:     "image.task.success",
-		Resource:   "image_task",
-		ResourceID: taskID.String(),
-		Status:     "success",
-		Message:    msg,
-	}
-	if httpCtx != nil {
-		_ = s.OpLog.Write(httpCtx, opts)
-		return
-	}
-	var admin *uuid.UUID
-	if task.CreatedBy != nil {
-		admin = task.CreatedBy
-	}
-	_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
-		AdminUserID: admin,
-		Action:      opts.Action,
-		Resource:    opts.Resource,
-		ResourceID:  opts.ResourceID,
-		Status:      opts.Status,
-		Message:     opts.Message,
-	})
-}
-
-func (s *Service) logFailed(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string) {
-	if s.OpLog == nil {
-		return
-	}
-	opts := operationlog.WriteOpts{
-		Action:     "image.task.failed",
-		Resource:   "image_task",
-		ResourceID: task.ID.String(),
-		Status:     "failed",
-		Message: fmt.Sprintf("taskType=%s provider=%s productId=%s err=%s",
-			task.TaskType, task.Provider, ptrUUIDStr(task.ProductID), truncateMsg(msg, 300)),
-	}
-	if httpCtx != nil {
-		_ = s.OpLog.Write(httpCtx, opts)
-		return
-	}
-	var admin *uuid.UUID
-	if task.CreatedBy != nil {
-		admin = task.CreatedBy
-	}
-	_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
-		AdminUserID: admin,
-		Action:      opts.Action,
-		Resource:    opts.Resource,
-		ResourceID:  opts.ResourceID,
-		Status:      opts.Status,
-		Message:     opts.Message,
-	})
 }
 
 func truncateMsg(s string, n int) string {
@@ -921,28 +905,19 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		"locked_by":         nil,
 		"locked_until":      nil,
 	}
-	update := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", id, StatusFailed)
-	update = scopeImageTaskQuery(update, tenantID, scoped)
-	res := update.Updates(updates)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return fmt.Errorf("only failed tasks can be retried")
+	if err := s.updateTaskWithAudit(ctx, c, &task, updates, operationlog.WriteOpts{
+		TenantID:    tenantID,
+		AdminUserID: task.CreatedBy,
+		Action:      "image.task.retry",
+		Resource:    "image_task",
+		Status:      "success",
+		Message: fmt.Sprintf("taskType=%s provider=%s productId=%s",
+			task.TaskType, task.Provider, ptrUUIDStr(task.ProductID)),
+	}); err != nil {
+		return err
 	}
 	if IsTranslateTaskType(task.TaskType) {
 		_ = s.supersedePriorTranslateResults(ctx, &task, translateTargetLanguageFromHints(inputHints(task.Input)), task.ID)
-	}
-
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "image.task.retry",
-			Resource:   "image_task",
-			ResourceID: id.String(),
-			Status:     "success",
-			Message: fmt.Sprintf("taskType=%s provider=%s productId=%s",
-				task.TaskType, task.Provider, ptrUUIDStr(task.ProductID)),
-		})
 	}
 
 	if s.QueueEnabled {
@@ -952,15 +927,26 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 			rid = s
 		}
 		if err := s.enqueueTask(ctx, id, task.TaskType, task.Provider, task.CreatedBy, rid); err != nil {
-			rollback := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", id)
-			rollback = scopeImageTaskQuery(rollback, tenantID, scoped)
-			_ = rollback.Updates(map[string]any{
+			rollbackTask := task
+			rollbackTask.Status = StatusPending
+			rollback := map[string]any{
 				"status":        StatusFailed,
 				"error_message": "retry enqueue failed: " + err.Error(),
 				"finished_at":   time.Now().UTC(),
 				"locked_by":     nil,
 				"locked_until":  nil,
-			}).Error
+			}
+			rollbackErr := s.updateTaskWithAudit(ctx, c, &rollbackTask, rollback, operationlog.WriteOpts{
+				TenantID:    tenantID,
+				AdminUserID: task.CreatedBy,
+				Action:      "image.task.retry_enqueue_failed",
+				Resource:    "image_task",
+				Status:      "failed",
+				Message:     "retry enqueue failed: " + err.Error(),
+			})
+			if rollbackErr != nil {
+				return fmt.Errorf("%w; rollback task state: %v", err, rollbackErr)
+			}
 			return err
 		}
 		return nil

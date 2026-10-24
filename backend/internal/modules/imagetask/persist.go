@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 )
 
@@ -172,21 +173,16 @@ func (s *Service) finalizeTaskSuccessWithStatus(ctx context.Context, task *Image
 	if fileID != nil {
 		updates["result_file_id"] = fileID
 	}
-	workerID, claim := imageLeaseFrom(ctx)
-	if claim != nil && strings.TrimSpace(workerID) != "" {
-		if err := s.finishImageTask(ctx, task.ID, workerID, claim, updates); err != nil {
-			return err
-		}
-	} else {
-		tenantID, scoped, err := imageTaskTenantScope(ctx)
-		if err != nil {
-			return err
-		}
-		query := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID)
-		query = scopeImageTaskQuery(query, tenantID, scoped)
-		if err := query.Updates(updates).Error; err != nil {
-			return err
-		}
+	if err := s.updateTaskWithAudit(ctx, nil, task, updates, operationlog.WriteOpts{
+		TenantID:    task.TenantID,
+		AdminUserID: task.CreatedBy,
+		Action:      "image.task.success",
+		Resource:    "image_task",
+		Status:      "success",
+		Message: fmt.Sprintf("taskType=%s provider=%s productId=%s",
+			task.TaskType, task.Provider, ptrUUIDStr(task.ProductID)),
+	}); err != nil {
+		return err
 	}
 	_ = s.upsertPrimaryTaskItem(ctx, task, finalURL, storageKey, fileID, scoreJSON, selectedBest)
 	hints := inputHints(task.Input)

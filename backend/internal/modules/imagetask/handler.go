@@ -43,6 +43,15 @@ func requireImagePermission(c *gin.Context, db *gorm.DB, permission string) bool
 		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
 		return false
 	}
+	p, err := adminperm.LoadPrincipal(c, db)
+	if err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	if err := security.BindGinShopScope(c, p.AllowedStoreIDs()); err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		return false
+	}
 	return true
 }
 

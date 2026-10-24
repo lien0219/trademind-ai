@@ -62,6 +62,33 @@ func SetGin(c *gin.Context, tc *TenantContext) {
 	c.Set("security.tenant_context", tc)
 }
 
+// BindGinShopScope copies the resolved authorization scope onto the request's
+// trusted tenant context. A nil scope means unrestricted access (administrator
+// or worker); an allocated empty slice means the authenticated principal has
+// no store grants and must see no store-scoped resources.
+func BindGinShopScope(c *gin.Context, shopScope []uuid.UUID) error {
+	if c == nil || c.Request == nil {
+		return ErrTenantContextMissing
+	}
+	tc := FromContext(c.Request.Context())
+	if tc == nil {
+		tc = FromGin(c)
+	}
+	if tc == nil {
+		return ErrTenantContextMissing
+	}
+	copyTC := *tc
+	if shopScope == nil {
+		copyTC.ShopScope = nil
+	} else {
+		copyTC.ShopScope = make([]uuid.UUID, len(shopScope))
+		copy(copyTC.ShopScope, shopScope)
+	}
+	SetGin(c, &copyTC)
+	c.Request = c.Request.WithContext(WithTenantContext(c.Request.Context(), &copyTC))
+	return nil
+}
+
 // BuildTenantContext constructs tenant context from gin auth keys.
 func BuildTenantContext(c *gin.Context, tenantID int64, userID uuid.UUID, sessionID uuid.UUID, role string, perms []string, shopScope []uuid.UUID) *TenantContext {
 	reqID, _ := c.Get(ctxkey.TraceID)

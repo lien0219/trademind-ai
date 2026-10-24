@@ -277,6 +277,7 @@ func (s *Service) DouyinOAuthCallback(c *gin.Context, q DouyinOAuthCallbackQuery
 	c.Set(ctxkey.TenantID, stateRow.TenantID)
 	c.Set(ctxkey.AdminID, adminID.String())
 	setOAuthExpectedTokenVersion(c, stateRow.TokenVersion)
+	setOAuthExpectedShopTokenVersion(c, stateRow.ShopTokenVersion)
 	tenantContext := &security.TenantContext{
 		TenantID:   stateRow.TenantID,
 		UserID:     *adminID,

@@ -1,8 +1,10 @@
 package taskcenter
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,17 +12,45 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
-	"gorm.io/gorm"
 )
 
 // Handler exposes /api/v1/task-center endpoints.
 type Handler struct {
 	Svc *Service
+}
+
+// bindTaskJSON decodes a request body without treating malformed JSON as an
+// empty mutation. Empty bodies remain valid for the optional remark payloads;
+// callers that require a payload must pass required=true.
+func bindTaskJSON(c *gin.Context, dst any, required bool) error {
+	if c == nil || c.Request == nil || c.Request.Body == nil {
+		if required {
+			return errTaskInvalidRequest
+		}
+		return nil
+	}
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
+	if err != nil {
+		return errTaskInvalidRequest
+	}
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		if required {
+			return errTaskInvalidRequest
+		}
+		return nil
+	}
+	if bytes.Equal(trimmed, []byte("null")) {
+		return errTaskInvalidRequest
+	}
+	if err := json.Unmarshal(trimmed, dst); err != nil {
+		return errors.Join(errTaskInvalidRequest, err)
+	}
+	return nil
 }
 
 func atoiQ(threshold int, raw string, def int) int {
@@ -101,13 +131,8 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "ignored and handled filters are mutually exclusive")
 		return
 	}
-	if h.Svc != nil && h.Svc.DB != nil {
-		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
-			p.TenantID = tid
-		}
-		if pr, err := adminperm.LoadPrincipal(c, h.Svc.DB); err == nil && pr != nil && !pr.IsAdmin() {
-			p.AllowedShopIDs = pr.AllowedStoreIDs()
-		}
+	if !h.setFailureScope(c, &p) {
+		return
 	}
 	out, err := h.Svc.ListFailures(c.Request.Context(), p)
 	if err != nil {
@@ -115,7 +140,7 @@ func (h *Handler) ListFailures(c *gin.Context) {
 			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
 			return
 		}
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -154,14 +179,12 @@ func (h *Handler) Summary(c *gin.Context) {
 	}
 	p.RequireIgnored = mf.RequireIgnored
 	p.RequireHandled = mf.RequireHandled
-	if h.Svc != nil && h.Svc.DB != nil {
-		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
-			p.TenantID = tid
-		}
+	if !h.setFailureScope(c, &p) {
+		return
 	}
 	su, err := h.Svc.Summary(c.Request.Context(), p)
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, su)
@@ -182,11 +205,7 @@ func (h *Handler) GetFailure(c *gin.Context) {
 	}
 	out, err := h.Svc.GetFailureDetail(c, tid, id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -206,15 +225,8 @@ func (h *Handler) Retry(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.RetryFailure(c, tid, id); err != nil {
-		msg := err.Error()
-		switch {
-		case strings.Contains(msg, "collect queue disabled"):
-			response.Fail(c, http.StatusConflict, response.CodeBadRequest, msg)
-			return
-		default:
-			response.Fail(c, 400, response.CodeBadRequest, msg)
-			return
-		}
+		taskFailureResponse(c, err)
+		return
 	}
 	d, err := h.Svc.GetFailureDetail(c, tid, id)
 	if err != nil {
@@ -253,9 +265,12 @@ func (h *Handler) Ignore(c *gin.Context) {
 		return
 	}
 	var body MarkRemarkBody
-	_ = c.ShouldBindJSON(&body)
+	if err := bindTaskJSON(c, &body, false); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid body")
+		return
+	}
 	if err := h.Svc.IgnoreFailure(c, tid, id, body.Remark); err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
@@ -275,9 +290,12 @@ func (h *Handler) Handle(c *gin.Context) {
 		return
 	}
 	var body MarkRemarkBody
-	_ = c.ShouldBindJSON(&body)
+	if err := bindTaskJSON(c, &body, false); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid body")
+		return
+	}
 	if err := h.Svc.HandleFailure(c, tid, id, body.Remark); err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
@@ -297,7 +315,7 @@ func (h *Handler) Unmark(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.UnmarkFailure(c, tid, id); err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
@@ -357,21 +375,34 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid end time (RFC3339)")
 		return
 	}
+	tenantID, principal, err := requestTaskPrincipal(c, h.Svc.DB, adminperm.PermAlertsRead, adminperm.PermTaskRetry)
+	if err != nil {
+		if errors.Is(err, errTaskPermissionDenied) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "permission denied")
+		} else if errors.Is(err, errTaskTenantMissing) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context required")
+		} else {
+			response.HandleError(c, err)
+		}
+		return
+	}
 	p := ListAlertsParams{
-		TenantID:        mustTenantID(c),
-		Status:          strings.TrimSpace(c.Query("status")),
-		Severity:        strings.TrimSpace(c.Query("severity")),
-		FailureCategory: strings.TrimSpace(c.Query("failureCategory")),
-		TaskType:        strings.TrimSpace(c.Query("taskType")),
-		Platform:        strings.TrimSpace(c.Query("platform")),
-		Start:           startPtr,
-		End:             endPtr,
-		Page:            atoiQ(1, c.DefaultQuery("page", "1"), 1),
-		PageSize:        atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
+		TenantID:          tenantID,
+		AllowedShopIDs:    principal.AllowedStoreIDs(),
+		RestrictShopScope: !principal.IsAdmin(),
+		Status:            strings.TrimSpace(c.Query("status")),
+		Severity:          strings.TrimSpace(c.Query("severity")),
+		FailureCategory:   strings.TrimSpace(c.Query("failureCategory")),
+		TaskType:          strings.TrimSpace(c.Query("taskType")),
+		Platform:          strings.TrimSpace(c.Query("platform")),
+		Start:             startPtr,
+		End:               endPtr,
+		Page:              atoiQ(1, c.DefaultQuery("page", "1"), 1),
+		PageSize:          atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
 	}
 	res, err := h.Svc.ListAlerts(c.Request.Context(), p)
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	page := p.Page
@@ -397,40 +428,30 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 	})
 }
 
-func mustTenantID(c *gin.Context) int64 {
-	tid, _ := adminperm.TenantIDFromGin(c)
-	return tid
-}
-
 // ScanAlerts POST /task-center/alerts/scan
 func (h *Handler) ScanAlerts(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
 		return
 	}
-	sum, err := h.Svc.ScanAndGenerateTaskAlerts(c.Request.Context())
+	tenantID, principal, err := requestTaskPrincipal(c, h.Svc.DB, adminperm.PermTaskRetry)
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		if errors.Is(err, errTaskPermissionDenied) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "permission denied")
+		} else if errors.Is(err, errTaskTenantMissing) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context required")
+		} else {
+			response.HandleError(c, err)
+		}
 		return
 	}
-	if h.Svc.OpLog != nil {
-		msg := truncateRunes(fmt.Sprintf("scan scanned=%d gen=%d up=%d skip=%d", sum.ScannedCount, sum.GeneratedCount, sum.UpdatedCount, sum.IgnoredCount), 2000)
-		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.alert.scan",
-			Resource:   "task_alert",
-			ResourceID: "scan",
-			Status:     "success",
-			Message:    msg,
-		})
-		if sum.GeneratedCount > 0 {
-			_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
-				Action:     "task_center.alert.generated",
-				Resource:   "task_alert",
-				ResourceID: "scan",
-				Status:     "success",
-				Message:    truncateRunes(fmt.Sprintf("generatedCount=%d", sum.GeneratedCount), 2000),
-			})
-		}
+	sum, err := h.Svc.ScanAndGenerateTaskAlertsForScopeRequest(c.Request.Context(), ListFailureParams{
+		TenantID: tenantID, TenantScopeSet: true,
+		RestrictShopScope: !principal.IsAdmin(), AllowedShopIDs: principal.AllowedStoreIDs(),
+	}, c)
+	if err != nil {
+		taskFailureResponse(c, err)
+		return
 	}
 	response.OK(c, sum)
 }
@@ -448,11 +469,7 @@ func (h *Handler) HandleAlert(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.HandleTaskAlert(c, id); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
@@ -471,11 +488,7 @@ func (h *Handler) IgnoreAlert(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.IgnoreTaskAlert(c, id); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
@@ -494,11 +507,7 @@ func (h *Handler) UnmarkAlert(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.UnmarkTaskAlert(c, id); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
@@ -519,17 +528,8 @@ func (h *Handler) GenerateAlertFromFailure(c *gin.Context) {
 	}
 	al, err := h.Svc.GenerateAlertForFailure(c, tid, id)
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
-	}
-	if h.Svc.OpLog != nil {
-		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.alert.generated",
-			Resource:   "task_alert",
-			ResourceID: al.ID.String(),
-			Status:     "success",
-			Message:    truncateRunes(fmt.Sprintf("taskType=%s sourceId=%s category=%s severity=%s", al.TaskType, al.SourceID, al.FailureCategory, al.Severity), 480),
-		})
 	}
 	badges := h.Svc.notificationBadgeMap(c.Request.Context(), []uuid.UUID{al.ID})
 	st := badges[al.ID]
@@ -564,19 +564,32 @@ func (h *Handler) ListAlertNotifications(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid end time (RFC3339)")
 		return
 	}
+	tenantID, principal, err := requestTaskPrincipal(c, h.Svc.DB, adminperm.PermAlertsRead, adminperm.PermTaskRetry)
+	if err != nil {
+		if errors.Is(err, errTaskPermissionDenied) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "permission denied")
+		} else if errors.Is(err, errTaskTenantMissing) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context required")
+		} else {
+			response.HandleError(c, err)
+		}
+		return
+	}
 	p := ListAlertNotificationsParams{
-		TenantID: mustTenantID(c),
-		AlertID:  alertIDPtr,
-		Channel:  strings.TrimSpace(c.Query("channel")),
-		Status:   strings.TrimSpace(c.Query("status")),
-		Start:    startPtr,
-		End:      endPtr,
-		Page:     atoiQ(1, c.DefaultQuery("page", "1"), 1),
-		PageSz:   atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
+		TenantID:          tenantID,
+		AllowedShopIDs:    principal.AllowedStoreIDs(),
+		RestrictShopScope: !principal.IsAdmin(),
+		AlertID:           alertIDPtr,
+		Channel:           strings.TrimSpace(c.Query("channel")),
+		Status:            strings.TrimSpace(c.Query("status")),
+		Start:             startPtr,
+		End:               endPtr,
+		Page:              atoiQ(1, c.DefaultQuery("page", "1"), 1),
+		PageSz:            atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
 	}
 	res, err := h.Svc.ListAlertNotifications(c.Request.Context(), p)
 	if err != nil {
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		taskFailureResponse(c, err)
 		return
 	}
 	response.OK(c, res)
@@ -599,23 +612,13 @@ func (h *Handler) NotifyAlert(c *gin.Context) {
 		return
 	}
 	var body notifyAlertBody
-	_ = c.ShouldBindJSON(&body)
-	if err := h.Svc.NotifyTaskAlertManual(c.Request.Context(), c, id, body.Channels); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, 404, response.CodeNotFound, "not found")
-			return
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+	if err := bindTaskJSON(c, &body, true); err != nil || len(normalizeChannelFilter(body.Channels)) == 0 {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "channels must contain at least one channel")
 		return
 	}
-	if h.Svc.OpLog != nil {
-		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.alert.notify.manual",
-			Resource:   "task_alert",
-			ResourceID: id.String(),
-			Status:     "success",
-			Message:    truncateRunes(fmt.Sprintf("channels=%v", body.Channels), 240),
-		})
+	if err := h.Svc.NotifyTaskAlertManual(c.Request.Context(), c, id, body.Channels); err != nil {
+		taskFailureResponse(c, err)
+		return
 	}
 	response.OK(c, gin.H{"ok": true})
 }

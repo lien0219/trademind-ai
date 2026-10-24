@@ -48,6 +48,9 @@ func (s *Service) persistOAuthAuthorization(c *gin.Context, ctx context.Context,
 	if version, ok := oauthExpectedTokenVersion(c); !ok || version <= 0 {
 		return nil, fmt.Errorf("OAuth actor security binding is required")
 	}
+	if _, ok := oauthExpectedShopTokenVersion(c.Request.Context()); !ok {
+		return nil, fmt.Errorf("OAuth shop security binding is required")
+	}
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txCtx := withOAuthPersistenceTx(ctx, tx)
 		txGin := c.Copy()
@@ -77,30 +80,30 @@ func (s *Service) persistOAuthAuthorization(c *gin.Context, ctx context.Context,
 // of a provider exchange. It must run inside the same transaction that writes
 // shop credentials, while holding the actor row lock.
 func (s *Service) revalidateOAuthActorTx(tx *gorm.DB, c *gin.Context, tenantID int64, shopID uuid.UUID, adminID *uuid.UUID) error {
-	expectedVersion, ok := oauthExpectedTokenVersion(c)
-	if !ok {
-		return nil
-	}
+	expectedVersion, hasExpectedVersion := oauthExpectedTokenVersion(c)
 	actorID := uuid.Nil
-	if adminID != nil {
-		actorID = *adminID
-	}
-	if actorID == uuid.Nil && c != nil {
+	if c != nil {
 		if raw, exists := c.Get(ctxkey.AdminID); exists {
 			if value, ok := raw.(string); ok {
 				actorID, _ = uuid.Parse(strings.TrimSpace(value))
 			}
 		}
 	}
+	if adminID != nil && *adminID != uuid.Nil {
+		if actorID != uuid.Nil && actorID != *adminID {
+			return fmt.Errorf("OAuth actor binding mismatch")
+		}
+		actorID = *adminID
+	}
 	if actorID == uuid.Nil {
-		return fmt.Errorf("OAuth actor is unavailable")
+		return fmt.Errorf("authenticated actor is unavailable")
 	}
 	var actor admin.AdminUser
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id = ?", actorID).First(&actor).Error; err != nil {
 		return fmt.Errorf("resolve OAuth actor: %w", err)
 	}
-	if actor.TenantID != tenantID || !strings.EqualFold(strings.TrimSpace(actor.Status), admin.StatusActive) || int64(actor.TokenVersion) != expectedVersion {
+	if actor.TenantID != tenantID || !strings.EqualFold(strings.TrimSpace(actor.Status), admin.StatusActive) || (hasExpectedVersion && int64(actor.TokenVersion) != expectedVersion) {
 		return fmt.Errorf("OAuth actor is no longer authorized")
 	}
 

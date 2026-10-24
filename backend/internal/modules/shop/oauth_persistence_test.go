@@ -373,3 +373,37 @@ func TestPlatformOAuthRefreshUsesTokenVersionContext(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, "shop.oauth.tiktok.refresh", rows[0].Action)
 }
+
+func TestUpdateAuthBumpsShopTokenVersionToFenceInFlightRefresh(t *testing.T) {
+	db, actor, c := newShopAuditFixture(t, true)
+	enc, err := encrypt.NewService("shop-auth-update-version-test-only")
+	require.NoError(t, err)
+	service := &Service{DB: db, Encrypter: enc, OpLog: &operationlog.Service{DB: db}}
+	shopRow := Shop{TenantID: actor.TenantID, Platform: "mock", ShopName: "auth-update-version", Status: StatusActive, AuthStatus: AuthAuthorized}
+	require.NoError(t, db.Create(&shopRow).Error)
+	token := ShopAuthToken{ShopID: shopRow.ID, Platform: "mock", AuthType: "token", TokenVersion: 7}
+	require.NoError(t, db.Create(&token).Error)
+
+	oldAccess, oldRefresh := "old-access", "old-refresh"
+	_, err = service.UpdateAuth(c, shopRow.ID, UpdateAuthBody{
+		AuthType:     "oauth2",
+		AppSecret:    "new-app-secret",
+		AccessToken:  "new-access",
+		RefreshToken: "new-refresh",
+	}, &actor.ID)
+	require.NoError(t, err)
+
+	var stored ShopAuthToken
+	require.NoError(t, db.First(&stored, "shop_id = ?", shopRow.ID).Error)
+	require.EqualValues(t, 8, stored.TokenVersion)
+
+	ctx := security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: actor.TenantID, UserID: actor.ID})
+	ctx = withOAuthExpectedShopTokenVersion(ctx, int64(7))
+	ctx = withOAuthRefreshAuditContext(ctx, c, &actor.ID, "shop.oauth.douyin_shop.refresh")
+	require.Error(t, service.persistOAuthTokenRefreshVersioned(ctx, shopRow.ID, oldAccess, oldRefresh, nil, nil))
+	require.NoError(t, db.First(&stored, "shop_id = ?", shopRow.ID).Error)
+	require.EqualValues(t, 8, stored.TokenVersion)
+	accessPlain, err := enc.Decrypt(stored.AccessTokenEnc)
+	require.NoError(t, err)
+	require.Equal(t, "new-access", string(accessPlain))
+}

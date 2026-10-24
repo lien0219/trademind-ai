@@ -167,6 +167,26 @@ func TestDouyinCategoryRoutesRequireStoreScope(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		require.Equal(t, http.StatusForbidden, w.Code)
 	})
+	t.Run("custom view role cannot trigger category refresh with an operate grant", func(t *testing.T) {
+		const roleCode = "r_0123456789abcdef01234567"
+		custom := admin.AdminUser{TenantID: 7, Username: admin.NewInternalUsername(), Email: "custom-viewer@example.test", PasswordHash: "test-only", Role: roleCode, Status: admin.StatusActive, TokenVersion: 1}
+		require.NoError(t, fx.db.Create(&custom).Error)
+		require.NoError(t, fx.db.Create(&admin.RoleDefinition{
+			TenantID:        custom.TenantID,
+			Code:            roleCode,
+			Name:            "custom view",
+			PermissionsJSON: `["store.view"]`,
+			Enabled:         true,
+		}).Error)
+		require.NoError(t, fx.db.Create(&admin.UserStorePermission{
+			UserID: custom.ID, StoreID: fx.shopA.ID, Platform: "manual", PermissionScope: admin.StorePermScopeOperate,
+		}).Error)
+		r := newShopAuthorizationRouter(fx, custom)
+		path := "/api/v1/platform/douyin/categories?shopId=" + fx.shopA.ID.String() + "&refresh=true"
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusForbidden, w.Code)
+	})
 }
 
 func newShopAuthorizationRouter(fx shopAuthorizationFixture, actor admin.AdminUser) *gin.Engine {
@@ -195,7 +215,7 @@ func newShopAuthorizationFixture(t *testing.T) shopAuthorizationFixture {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file:shop_authz_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &Shop{}, &ShopAuthToken{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.RoleDefinition{}, &admin.UserStorePermission{}, &Shop{}, &ShopAuthToken{}, &operationlog.OperationLog{}))
 	adminUser := admin.AdminUser{TenantID: 7, Username: admin.NewInternalUsername(), Email: "admin@example.test", PasswordHash: "test-only", Role: adminperm.RoleAdmin, Status: admin.StatusActive, TokenVersion: 1}
 	operator := admin.AdminUser{TenantID: 7, Username: admin.NewInternalUsername(), Email: "operator@example.test", PasswordHash: "test-only", Role: adminperm.RoleOperator, Status: admin.StatusActive, TokenVersion: 1}
 	readonly := admin.AdminUser{TenantID: 7, Username: admin.NewInternalUsername(), Email: "readonly@example.test", PasswordHash: "test-only", Role: adminperm.RoleReadonly, Status: admin.StatusActive, TokenVersion: 1}

@@ -134,7 +134,7 @@ func (s *Service) listOneTypeKeyset(ctx context.Context, taskType string, p List
 func (s *Service) mergeTaskSources(ctx context.Context, p ListFailureParams, mergeCur *TaskMergeCursorPayload, limit int) ([]UnifiedTaskDTO, map[string]TaskSourceCursor, bool, error) {
 	types := taskTypesFor(p)
 	if len(types) == 0 {
-		return nil, nil, false, fmt.Errorf("invalid taskType")
+		return nil, nil, false, fmt.Errorf("%w: invalid taskType", errTaskInvalidRequest)
 	}
 	if limit < 1 {
 		limit = pagination.DefaultLimit

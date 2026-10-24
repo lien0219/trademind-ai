@@ -211,6 +211,9 @@ func ResolveRuntime(auth platformp.TestConnectionRequest) (RuntimeConfig, error)
 			}
 			exOverlay[kk] = strings.TrimSpace(fmt.Sprint(v))
 		}
+		if err := validateShopEndpointOverrides(exOverlay, global); err != nil {
+			return RuntimeConfig{}, err
+		}
 		merged = mergeStringMaps(true, exOverlay, merged)
 	}
 
@@ -240,6 +243,33 @@ func ResolveRuntime(auth platformp.TestConnectionRequest) (RuntimeConfig, error)
 	cfg.ShopCipher = shopCipher
 
 	return cfg, nil
+}
+
+// validateShopEndpointOverrides prevents a tenant-owned shop record from
+// redirecting OAuth or API requests to an arbitrary host while still inheriting
+// the global Partner secret. In production the endpoint must come from the
+// global platform settings; an override is accepted only when it exactly
+// matches an explicitly configured global value. Tests and local fixtures with
+// no global settings retain their isolated endpoint support.
+func validateShopEndpointOverrides(overlay, global map[string]string) error {
+	if len(global) == 0 {
+		return nil
+	}
+	for _, key := range []string{
+		"auth_base_url", "api_base_url", "openapi_base_url",
+		"oauth_authorize_url", "oauth_token_get_url", "oauth_token_refresh_url",
+		"tiktok_oauth_authorize_url", "tiktok_token_get_url", "tiktok_token_refresh_url",
+	} {
+		value := strings.TrimSpace(overlay[key])
+		if value == "" {
+			continue
+		}
+		configured := strings.TrimSpace(global[key])
+		if configured == "" || !strings.EqualFold(value, configured) {
+			return fmt.Errorf("tiktok: per-shop endpoint override %q is not allowed", key)
+		}
+	}
+	return nil
 }
 
 // BuildAuthorizeURL assembles the TikTok OAuth authorize URL.

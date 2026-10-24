@@ -310,13 +310,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	if dep.Obs != nil {
 		metricCatalog = dep.Obs.Catalog
 	}
-	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore, Metrics: metricCatalog}
-	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc, Metrics: metricCatalog}
-	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	opLogSvc := dep.OpLog
 	if opLogSvc == nil {
 		opLogSvc = &operationlog.Service{DB: dep.DB}
 	}
+	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore, Metrics: metricCatalog, OpLog: opLogSvc}
+	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc, Metrics: metricCatalog}
+	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	idempotencySvc := &idempotency.Service{DB: dep.DB}
 
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}

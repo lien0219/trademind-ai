@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ type DouyinOAuthState struct {
 	model.Base
 	TenantID           int64      `gorm:"index;not null;default:0" json:"tenantId"`
 	TokenVersion       int64      `gorm:"not null;default:0" json:"-"`
+	ShopTokenVersion   int64      `gorm:"not null;default:0" json:"-"`
 	StateHash          string     `gorm:"size:128;uniqueIndex;not null" json:"stateHash"`
 	UserID             *uuid.UUID `gorm:"type:char(36);index" json:"userId,omitempty"`
 	ShopBindingContext string     `gorm:"size:255" json:"shopBindingContext,omitempty"`
@@ -87,9 +89,22 @@ func (s *Service) persistDouyinOAuthState(ctx context.Context, rawState string, 
 			return gorm.ErrRecordNotFound
 		}
 	}
+	shopTokenVersion := int64(0)
+	if shopID != nil && *shopID != uuid.Nil {
+		var token struct{ TokenVersion int64 }
+		err := s.DB.WithContext(ctx).Table("shop_auth_tokens").
+			Select("token_version").Where("shop_id = ?", *shopID).Take(&token).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("shop: resolve OAuth shop token: %w", err)
+		}
+		if err == nil {
+			shopTokenVersion = token.TokenVersion
+		}
+	}
 	row := DouyinOAuthState{
 		TenantID:           tenantID,
 		TokenVersion:       actor.TokenVersion,
+		ShopTokenVersion:   shopTokenVersion,
 		StateHash:          hashDouyinOAuthState(rawState),
 		UserID:             userID,
 		ShopBindingContext: "",
@@ -130,6 +145,29 @@ func (s *Service) consumeDouyinOAuthState(ctx context.Context, rawState string) 
 		Select("tenant_id, token_version, status").
 		Where("id = ?", *row.UserID).Take(&actor).Error; err != nil || actor.TenantID != row.TenantID || !strings.EqualFold(strings.TrimSpace(actor.Status), "active") || actor.TokenVersion != row.TokenVersion {
 		return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), err)
+	}
+	if strings.TrimSpace(row.ShopBindingContext) != "" {
+		shopID := parseUUIDPtr(row.ShopBindingContext)
+		if shopID == nil {
+			return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), fmt.Errorf("invalid OAuth shop binding"))
+		}
+		var shopRow struct{ TenantID int64 }
+		if err := s.DB.WithContext(ctx).Table("shops").Select("tenant_id").Where("id = ?", *shopID).Take(&shopRow).Error; err != nil || shopRow.TenantID != row.TenantID {
+			return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), err)
+		}
+		var token struct{ TokenVersion int64 }
+		err := s.DB.WithContext(ctx).Table("shop_auth_tokens").
+			Select("token_version").Where("shop_id = ?", *shopID).Take(&token).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), err)
+		}
+		currentVersion := int64(0)
+		if err == nil {
+			currentVersion = token.TokenVersion
+		}
+		if currentVersion != row.ShopTokenVersion {
+			return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), fmt.Errorf("OAuth shop authorization is stale"))
+		}
 	}
 	now := time.Now().UTC()
 	res := s.DB.WithContext(ctx).Model(&DouyinOAuthState{}).

@@ -1,6 +1,10 @@
 package orderexception
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // ListOrderExceptionsRequest binds GET /orders/exceptions.
 type ListOrderExceptionsRequest struct {
@@ -18,6 +22,9 @@ type ListOrderExceptionsRequest struct {
 	End           *time.Time
 	Page          int
 	PageSize      int
+	// AllowedShopIDs is nil for an all-store administrator. A non-nil empty
+	// slice means the caller has no store grants and must see no rows.
+	AllowedShopIDs []uuid.UUID
 }
 
 // ExceptionSummaryDTO is returned alongside paginated rows.

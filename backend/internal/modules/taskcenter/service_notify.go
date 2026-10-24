@@ -230,9 +230,18 @@ func validateMailToBasic(s string) bool {
 	return strings.TrimSpace(s) != ""
 }
 
-func (s *Service) persistNotification(ctx context.Context, alertID uuid.UUID, res notify.AlertNotificationResult) {
+func (s *Service) persistNotification(ctx context.Context, alertID uuid.UUID, res notify.AlertNotificationResult) error {
 	if s == nil || s.DB == nil {
-		return
+		return fmt.Errorf("taskcenter: notification persistence unavailable")
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return s.persistNotificationTx(ctx, tx, alertID, res)
+	})
+}
+
+func (s *Service) persistNotificationTx(ctx context.Context, tx *gorm.DB, alertID uuid.UUID, res notify.AlertNotificationResult) error {
+	if tx == nil {
+		return fmt.Errorf("taskcenter: notification persistence unavailable")
 	}
 	id := uuid.New()
 	now := time.Now().UTC()
@@ -258,35 +267,115 @@ func (s *Service) persistNotification(ctx context.Context, alertID uuid.UUID, re
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-	_ = s.DB.WithContext(ctx).Create(&row).Error
+	return tx.WithContext(ctx).Create(&row).Error
 }
 
-func (s *Service) writeNotifyOpLog(ginC *gin.Context, action string, alertID uuid.UUID, channel, status, msg string) {
-	if s == nil || s.OpLog == nil {
-		return
+func (s *Service) persistNotificationOutcome(
+	ctx context.Context,
+	ginC *gin.Context,
+	tenantID int64,
+	alertID uuid.UUID,
+	channel string,
+	res notify.AlertNotificationResult,
+	action string,
+	status string,
+	message string,
+) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("taskcenter: notification persistence unavailable")
+	}
+	if err := s.requireAudit(); err != nil {
+		return errors.Join(errTaskAuditOutcomeUnavailable, err)
+	}
+	if res.Channel == "" {
+		res.Channel = channel
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.persistNotificationTx(ctx, tx, alertID, res); err != nil {
+			return err
+		}
+		opts := operationlog.WriteOpts{
+			TenantID:   tenantID,
+			Action:     action,
+			Resource:   "task_alert_notification",
+			ResourceID: alertID.String(),
+			Status:     status,
+			Message:    truncateRunes(fmt.Sprintf("alertId=%s channel=%s status=%s %s", alertID.String(), channel, status, message), 480),
+		}
+		if ginC != nil {
+			return s.writeRequiredAuditTx(ginC, tx, opts)
+		}
+		return s.writeRequiredAuditBackgroundTx(ctx, tx, opts)
+	})
+}
+
+func (s *Service) persistNotificationOutcomeOrAuditFailure(
+	ctx context.Context,
+	ginC *gin.Context,
+	tenantID int64,
+	alertID uuid.UUID,
+	channel string,
+	res notify.AlertNotificationResult,
+	action string,
+	status string,
+	message string,
+) error {
+	if err := s.persistNotificationOutcome(ctx, ginC, tenantID, alertID, channel, res, action, status, message); err == nil {
+		return nil
+	} else {
+		outcomeErr := errors.Join(errTaskAuditOutcomeUnavailable, err)
+		failureErr := s.writeNotifyOpLog(ctx, ginC, tenantID, "task_center.alert.notify.failed", alertID, channel, "failed", "notification outcome persistence failed")
+		if failureErr != nil {
+			return errors.Join(outcomeErr, failureErr)
+		}
+		return outcomeErr
+	}
+}
+
+func (s *Service) writeNotifyOpLog(ctx context.Context, ginC *gin.Context, tenantID int64, action string, alertID uuid.UUID, channel, status, msg string) error {
+	if err := s.requireAudit(); err != nil {
+		return errors.Join(errTaskAuditOutcomeUnavailable, err)
 	}
 	msg = truncateRunes(fmt.Sprintf("alertId=%s channel=%s status=%s %s", alertID.String(), channel, status, msg), 480)
 	opts := operationlog.WriteOpts{
+		TenantID:   tenantID,
 		Action:     action,
 		Resource:   "task_alert_notification",
 		ResourceID: alertID.String(),
 		Status:     status,
 		Message:    msg,
 	}
+	var err error
 	if ginC != nil {
-		_ = s.OpLog.Write(ginC, opts)
-		return
+		err = s.writeRequiredAudit(ginC, opts)
+	} else {
+		err = s.writeRequiredAuditBackground(ctx, opts)
 	}
-	_ = s.OpLog.WriteBackground(context.Background(), opts)
+	if err != nil {
+		return errors.Join(errTaskAuditOutcomeUnavailable, err)
+	}
+	return nil
 }
 
-// NotifyGeneratedAlerts sends external notifications for scan/generate candidates (best-effort).
-func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertNotifyCandidate, manual bool, ginC *gin.Context, channelFilter []string) {
-	if s == nil || len(candidates) == 0 {
-		return
+// NotifyGeneratedAlerts sends external notifications for scan/generate candidates.
+func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertNotifyCandidate, manual bool, ginC *gin.Context, channelFilter []string) error {
+	if s == nil {
+		return nil
 	}
-	tc := taskCenterPlain(ctx, s.Settings)
 	filt := normalizeChannelFilter(channelFilter)
+	if manual && len(filt) == 0 {
+		return fmt.Errorf("%w: channels must contain at least one channel", errTaskInvalidRequest)
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	tc, err := taskCenterPlain(ctx, s.Settings)
+	if err != nil {
+		return errors.Join(errTaskDependencyUnavailable, err)
+	}
+	if manual && s.Settings == nil {
+		return errTaskDependencyUnavailable
+	}
 
 	var effective []string
 	if len(filt) > 0 {
@@ -294,21 +383,24 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 	} else {
 		if !manual {
 			if !parseBoolTaskCenter(tc["enable_external_notifications"], false) {
-				return
+				return nil
 			}
 			if strings.TrimSpace(tc["notification_min_severity"]) == "" {
-				return
+				return nil
 			}
 		}
 		effective = parseJSONStringSlice(tc["notification_channels"])
 	}
 	if len(effective) == 0 {
-		return
+		return nil
 	}
 
 	minSev := strings.TrimSpace(tc["notification_min_severity"])
 	an, err := s.alertNotifyPlain(ctx)
-	if err != nil || len(an) == 0 {
+	if err != nil {
+		return errors.Join(errTaskDependencyUnavailable, err)
+	}
+	if len(an) == 0 {
 		an = map[string]string{}
 	}
 	detailBase := strings.TrimSpace(tc["alert_detail_public_base"])
@@ -326,18 +418,46 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 				continue
 			}
 			if !channelEnabled(an, ch) {
+				res := notify.AlertNotificationResult{
+					Channel:      ch,
+					Status:       TaskAlertNotifStatusSkipped,
+					ErrorMessage: "channel_disabled",
+				}
+				if err := s.persistNotificationOutcomeOrAuditFailure(ctx, ginC, alert.TenantID, alert.ID, ch, res, "task_center.alert.notify.skipped", "skipped", res.ErrorMessage); err != nil {
+					return err
+				}
 				continue
 			}
 			ok, reason := s.shouldAutoNotifyChannel(ctx, alert, ch, cand.IsNew, tc, manual)
 			if !ok {
-				s.persistNotification(ctx, alert.ID, notify.AlertNotificationResult{
+				res := notify.AlertNotificationResult{
 					Channel:      ch,
 					Status:       TaskAlertNotifStatusSkipped,
 					ErrorMessage: reason,
 					Target:       ch + ":dedupe",
 					RawSummary:   map[string]any{"reason": reason},
-				})
+				}
+				if err := s.persistNotificationOutcomeOrAuditFailure(
+					ctx, ginC, alert.TenantID, alert.ID, ch, res,
+					"task_center.alert.notify.skipped", "skipped", reason,
+				); err != nil {
+					return err
+				}
 				continue
+			}
+			requested := operationlog.WriteOpts{
+				TenantID: alert.TenantID, Action: "task_center.alert.notify.channel.requested",
+				Resource: "task_alert_notification", ResourceID: alert.ID.String(), Status: "requested",
+				Message: truncateRunes(fmt.Sprintf("channel=%s", ch), 240),
+			}
+			var auditErr error
+			if ginC != nil {
+				auditErr = s.writeRequiredAudit(ginC, requested)
+			} else {
+				auditErr = s.writeRequiredAuditBackground(ctx, requested)
+			}
+			if auditErr != nil {
+				return auditErr
 			}
 
 			var res notify.AlertNotificationResult
@@ -409,16 +529,25 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 				res = notify.AlertNotificationResult{Channel: ch, Status: TaskAlertNotifStatusSkipped, ErrorMessage: "unknown channel"}
 			}
 
-			s.persistNotification(ctx, alert.ID, res)
-
+			action := "task_center.alert.notify.skipped"
+			status := TaskAlertNotifStatusSkipped
+			message := res.ErrorMessage
 			switch res.Status {
 			case TaskAlertNotifStatusSuccess:
-				s.writeNotifyOpLog(ginC, "task_center.alert.notify.success", alert.ID, ch, "success", "")
+				action = "task_center.alert.notify.success"
+				status = "success"
+				message = ""
 			case TaskAlertNotifStatusFailed:
-				s.writeNotifyOpLog(ginC, "task_center.alert.notify.failed", alert.ID, ch, "failed", res.ErrorMessage)
+				action = "task_center.alert.notify.failed"
+				status = "failed"
+				message = "notification_failed"
+			}
+			if err := s.persistNotificationOutcomeOrAuditFailure(ctx, ginC, alert.TenantID, alert.ID, ch, res, action, status, message); err != nil {
+				return err
 			}
 		}
 	}
+	return nil
 }
 
 func withAlertCount(res notify.AlertNotificationResult, alertCount int) notify.AlertNotificationResult {
@@ -454,14 +583,16 @@ func channelEnabled(an map[string]string, ch string) bool {
 
 // ListAlertNotificationsParams binds GET /alert-notifications.
 type ListAlertNotificationsParams struct {
-	TenantID int64
-	AlertID  *uuid.UUID
-	Channel  string
-	Status   string
-	Start    *time.Time
-	End      *time.Time
-	Page     int
-	PageSz   int
+	TenantID          int64
+	AllowedShopIDs    []uuid.UUID
+	RestrictShopScope bool
+	AlertID           *uuid.UUID
+	Channel           string
+	Status            string
+	Start             *time.Time
+	End               *time.Time
+	Page              int
+	PageSz            int
 }
 
 // TaskAlertNotificationDTO is API shape for one notify audit row.
@@ -505,7 +636,9 @@ func (s *Service) ListAlertNotifications(ctx context.Context, p ListAlertNotific
 	}
 	page, ps := clampPageNotif(p.Page, p.PageSz)
 	q := s.DB.WithContext(ctx).Model(&TaskAlertNotification{})
-	q = q.Where("EXISTS (SELECT 1 FROM task_alerts a WHERE a.id = task_alert_notifications.alert_id AND a.tenant_id = ?)", p.TenantID)
+	alerts := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("tenant_id = ?", p.TenantID)
+	alerts = applyTaskAlertStoreScope(alerts, p.TenantID, p.RestrictShopScope, p.AllowedShopIDs)
+	q = q.Where("alert_id IN (?)", alerts.Select("id"))
 	if p.AlertID != nil && *p.AlertID != uuid.Nil {
 		q = q.Where("alert_id = ?", *p.AlertID)
 	}
@@ -561,6 +694,10 @@ func (s *Service) NotifyTaskAlertManual(ctx context.Context, c *gin.Context, ale
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("taskcenter: no db")
 	}
+	filter := normalizeChannelFilter(channels)
+	if len(filter) == 0 {
+		return fmt.Errorf("%w: channels must contain at least one channel", errTaskInvalidRequest)
+	}
 	var a TaskAlert
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
@@ -569,19 +706,17 @@ func (s *Service) NotifyTaskAlertManual(ctx context.Context, c *gin.Context, ale
 	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", alertID, tenantID).First(&a).Error; err != nil {
 		return err
 	}
-	filter := make([]string, 0, len(channels))
-	for _, ch := range channels {
-		ch = strings.TrimSpace(strings.ToLower(ch))
-		if ch != "" {
-			filter = append(filter, ch)
-		}
+	if err := s.ensureTaskAlertStoreScope(c, a, true); err != nil {
+		return err
 	}
-	var filt []string
-	if len(filter) > 0 {
-		filt = filter
+	if err := s.writeRequiredAudit(c, operationlog.WriteOpts{
+		TenantID: tenantID, Action: "task_center.alert.notify.requested", Resource: "task_alert_notification",
+		ResourceID: a.ID.String(), Status: "requested",
+		Message: truncateRunes("channels="+strings.Join(filter, ","), 240),
+	}); err != nil {
+		return err
 	}
-	s.NotifyGeneratedAlerts(ctx, []alertNotifyCandidate{{Alert: a, IsNew: false}}, true, c, filt)
-	return nil
+	return s.NotifyGeneratedAlerts(ctx, []alertNotifyCandidate{{Alert: a, IsNew: false}}, true, c, filter)
 }
 
 func (s *Service) notificationBadgeMap(ctx context.Context, ids []uuid.UUID) map[uuid.UUID]string {

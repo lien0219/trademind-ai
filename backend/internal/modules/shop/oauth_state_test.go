@@ -18,7 +18,7 @@ import (
 func TestOAuthStateBindingRejectsChangedIdentityAndSecurityVersion(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}))
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &ShopAuthToken{}))
 
 	actor := admin.AdminUser{
 		TenantID: 77, Username: admin.NewInternalUsername(), Email: "oauth-actor@example.test",
@@ -51,7 +51,7 @@ func TestOAuthStateBindingRejectsChangedIdentityAndSecurityVersion(t *testing.T)
 func TestOAuthStateBindingRejectsDisabledActorAndTenantMismatch(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}))
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &ShopAuthToken{}))
 	actor := admin.AdminUser{
 		TenantID: 88, Username: admin.NewInternalUsername(), Email: "oauth-disabled@example.test",
 		PasswordHash: "fixture", Role: adminperm.RoleAdmin, Status: admin.StatusActive, TokenVersion: 1,

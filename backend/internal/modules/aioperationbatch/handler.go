@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +22,23 @@ type Handler struct {
 }
 
 func requireBatchPermission(c *gin.Context, db *gorm.DB, permission string) bool {
-	return adminperm.RequirePermission(c, db, permission)
+	if !adminperm.RequirePermission(c, db, permission) {
+		return false
+	}
+	return bindBatchShopScope(c, db)
+}
+
+func bindBatchShopScope(c *gin.Context, db *gorm.DB) bool {
+	p, err := adminperm.LoadPrincipal(c, db)
+	if err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	if err := security.BindGinShopScope(c, p.AllowedStoreIDs()); err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		return false
+	}
+	return true
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -268,6 +285,11 @@ func (h *Handler) RetryFailed(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	// Resolve the store scope before reading the operation discriminator. The
+	// discriminator itself must not become an IDOR oracle for another shop.
+	if !bindBatchShopScope(c, h.Svc.DB) {
 		return
 	}
 	operationType, err := h.Svc.operationTypeByID(c.Request.Context(), id)

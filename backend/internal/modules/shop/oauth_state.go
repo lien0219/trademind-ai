@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"gorm.io/gorm"
 )
 
 const oauthStateTTL = 10 * time.Minute
@@ -71,10 +72,11 @@ func oauthExpectedTokenVersionFromContext(ctx context.Context) (int64, bool) {
 // token version and user binding make role/password revocation effective even
 // while an authorization window is still open.
 type oauthStateBinding struct {
-	TenantID     int64     `json:"tenantId"`
-	UserID       uuid.UUID `json:"userId"`
-	TokenVersion int       `json:"tokenVersion"`
-	ShopID       uuid.UUID `json:"shopId"`
+	TenantID         int64     `json:"tenantId"`
+	UserID           uuid.UUID `json:"userId"`
+	TokenVersion     int       `json:"tokenVersion"`
+	ShopID           uuid.UUID `json:"shopId"`
+	ShopTokenVersion int64     `json:"shopTokenVersion"`
 }
 
 func (s *Service) newOAuthStateBinding(c *gin.Context, shopID uuid.UUID) (oauthStateBinding, error) {
@@ -106,11 +108,16 @@ func (s *Service) newOAuthStateBinding(c *gin.Context, shopID uuid.UUID) (oauthS
 	if !strings.EqualFold(strings.TrimSpace(actor.Status), "active") {
 		return oauthStateBinding{}, errors.New("shop: OAuth actor is disabled")
 	}
+	var token ShopAuthToken
+	if err := s.DB.WithContext(c.Request.Context()).Select("token_version").Where("shop_id = ?", shopID).First(&token).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return oauthStateBinding{}, fmt.Errorf("shop: resolve OAuth shop token: %w", err)
+	}
 	return oauthStateBinding{
-		TenantID:     tenantID,
-		UserID:       p.UserID,
-		TokenVersion: actor.TokenVersion,
-		ShopID:       shopID,
+		TenantID:         tenantID,
+		UserID:           p.UserID,
+		TokenVersion:     actor.TokenVersion,
+		ShopID:           shopID,
+		ShopTokenVersion: token.TokenVersion,
 	}, nil
 }
 
@@ -137,7 +144,7 @@ func (s *Service) consumeOAuthState(ctx context.Context, prefix, state string) (
 	if err := json.Unmarshal([]byte(raw), &binding); err != nil {
 		return oauthStateBinding{}, fmt.Errorf("invalid oauth state")
 	}
-	if binding.UserID == uuid.Nil || binding.ShopID == uuid.Nil || binding.TokenVersion <= 0 || binding.TenantID < 0 {
+	if binding.UserID == uuid.Nil || binding.ShopID == uuid.Nil || binding.TokenVersion <= 0 || binding.ShopTokenVersion < 0 || binding.TenantID < 0 {
 		return oauthStateBinding{}, fmt.Errorf("invalid oauth state")
 	}
 	return binding, nil
@@ -173,6 +180,14 @@ func (s *Service) validateOAuthStateBinding(c *gin.Context, binding oauthStateBi
 		!strings.EqualFold(strings.TrimSpace(actor.Status), "active") || actor.TokenVersion != binding.TokenVersion {
 		return fmt.Errorf("OAuth state actor is no longer authorized")
 	}
+	var token ShopAuthToken
+	if err := s.DB.WithContext(c.Request.Context()).Select("token_version").Where("shop_id = ?", shopID).First(&token).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("resolve OAuth shop token: %w", err)
+	}
+	if token.TokenVersion != binding.ShopTokenVersion {
+		return fmt.Errorf("OAuth state shop authorization is stale")
+	}
 	setOAuthExpectedTokenVersion(c, int64(binding.TokenVersion))
+	setOAuthExpectedShopTokenVersion(c, binding.ShopTokenVersion)
 	return nil
 }

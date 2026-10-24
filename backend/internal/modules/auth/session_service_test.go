@@ -35,7 +35,7 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	defer sqlDB.Close()
-	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}); err != nil {
+	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}, &operationlog.OperationLog{}); err != nil {
 		t.Fatal(err)
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.DefaultCost)
@@ -59,7 +59,7 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 			RefreshTokenTTLDays:   7,
 		},
 	}
-	svc := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}}
+	svc := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}, OpLog: &operationlog.Service{DB: db}}
 	res, err := svc.CreateSession(context.Background(), email, "test-password-123", "127.0.0.1", "test")
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +123,13 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 	if session.Status != SessionStatusRevoked {
 		t.Fatalf("session status = %q, want %q after refresh replay", session.Status, SessionStatusRevoked)
 	}
+	var audit operationlog.OperationLog
+	if err := db.Where("action = ? AND resource_id = ?", "auth.refresh.reuse_detected", res.SessionID.String()).First(&audit).Error; err != nil {
+		t.Fatalf("refresh reuse audit missing: %v", err)
+	}
+	if audit.Status != "failure" || audit.TenantID != 0 || audit.AdminUserID == nil || *audit.AdminUserID != uid {
+		t.Fatalf("unexpected refresh reuse audit: %+v", audit)
+	}
 	for name, refreshToken := range map[string]string{"original": raw, "latest": latest.RefreshToken} {
 		if _, err := svc.RotateRefresh(context.Background(), refreshToken, "127.0.0.1", name); err == nil || err.Error() != ErrRefreshTokenRevoked {
 			t.Fatalf("%s refresh token after replay error = %v, want %s", name, err, ErrRefreshTokenRevoked)
@@ -136,6 +143,96 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 		if err := svc.ValidateSessionAccess(context.Background(), res.SessionID, uid, claims.TokenVersion); err == nil {
 			t.Fatalf("%s access token remained valid after refresh replay", name)
 		}
+	}
+}
+
+func TestRefreshTokenReuseAuditFailureRollsBackRevocation(t *testing.T) {
+	testID := uuid.NewString()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", testID)), &gorm.Config{})
+	if err != nil {
+		t.Skipf("sqlite unavailable: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	defer sqlDB.Close()
+	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}, &operationlog.OperationLog{}); err != nil {
+		t.Fatal(err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userID := uuid.New()
+	email := fmt.Sprintf("audit-failure-%s@example.com", testID)
+	if err := db.Create(&admin.AdminUser{
+		Base:         model.Base{ID: userID},
+		Username:     "audit-failure-" + testID,
+		Email:        email,
+		PasswordHash: string(hash),
+		Role:         "admin",
+		Status:       admin.StatusActive,
+		TokenVersion: 1,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		JWTSecret: "test-jwt-secret-with-enough-length-32",
+		Auth: config.AuthConfig{
+			SessionMode:           config.AuthSessionModeSecure,
+			AccessTokenTTLMinutes: 15,
+			RefreshTokenTTLDays:   7,
+		},
+	}
+	svc := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}, OpLog: &operationlog.Service{DB: db}}
+	created, err := svc.CreateSession(context.Background(), email, "test-password-123", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	latest, err := svc.RotateRefresh(context.Background(), created.RefreshToken, "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Exec(`CREATE TRIGGER reject_refresh_reuse_audit BEFORE INSERT ON operation_logs BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RotateRefresh(context.Background(), created.RefreshToken, "127.0.0.1", "test"); err == nil || err.Error() == ErrRefreshTokenReused {
+		t.Fatalf("replay with unavailable audit must return the persistence error and roll back, got %v", err)
+	}
+
+	var session AuthSession
+	if err := db.First(&session, "id = ?", created.SessionID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if session.Status != SessionStatusActive {
+		t.Fatalf("session status = %q after audit failure, want %q", session.Status, SessionStatusActive)
+	}
+	for name, token := range map[string]string{"replayed": created.RefreshToken, "latest": latest.RefreshToken} {
+		var row AuthRefreshToken
+		if err := db.Where("token_hash = ?", authutil.HashToken(token, cfg.JWTSecret)).First(&row).Error; err != nil {
+			t.Fatalf("load %s refresh token: %v", name, err)
+		}
+		want := RefreshStatusActive
+		if name == "replayed" {
+			want = RefreshStatusRotated
+		}
+		if row.Status != want {
+			t.Errorf("%s token status = %q after audit failure, want %q", name, row.Status, want)
+		}
+	}
+	var auditCount int64
+	if err := db.Model(&operationlog.OperationLog{}).
+		Where("action = ? AND resource_id = ?", "auth.refresh.reuse_detected", created.SessionID.String()).
+		Count(&auditCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != 0 {
+		t.Fatalf("audit count = %d after rejected insert, want 0", auditCount)
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -34,11 +35,22 @@ func TestAIBatchRoutesEnforcePermissionAndTenantScope(t *testing.T) {
 	require.NoError(t, err)
 	readRole.PermissionsJSON = string(encoded)
 	require.NoError(t, db.Create(&readRole).Error)
+	storeID := uuid.New()
+	require.NoError(t, db.Create(&shop.Shop{Base: model.Base{ID: storeID}, TenantID: actor.TenantID, Platform: "manual", ShopName: "A", Status: "active", AuthStatus: "authorized"}).Error)
+	require.NoError(t, db.Create(&admin.UserStorePermission{UserID: actor.ID, StoreID: storeID, PermissionScope: admin.StorePermScopeView}).Error)
+	productRow := product.Product{TenantID: actor.TenantID, Source: "manual", Title: "authorized"}
+	require.NoError(t, db.Create(&productRow).Error)
+	require.NoError(t, db.Create(&product.ProductPlatformPublishConfig{ProductID: productRow.ID, Platform: "manual", ShopID: &storeID}).Error)
 
 	first := AIOperationBatch{TenantID: actor.TenantID, BatchNo: "tenant-a", OperationType: OperationTitleOptimize, Status: StatusSuccess}
 	foreign := AIOperationBatch{TenantID: actor.TenantID + 1, BatchNo: "tenant-b", OperationType: OperationTitleOptimize, Status: StatusSuccess}
 	require.NoError(t, db.Create(&first).Error)
 	require.NoError(t, db.Create(&foreign).Error)
+	require.NoError(t, db.Create(&aitask.AITask{
+		HardDeleteBase: model.HardDeleteBase{ID: uuid.New()},
+		TaskType:       "title_optimize", Status: aitask.StatusSuccess,
+		ProductID: &productRow.ID, BatchID: &first.ID,
+	}).Error)
 
 	router := newAIBatchAuthorizationRouter(db, actor, role)
 	list := httptest.NewRecorder()
@@ -150,6 +162,40 @@ func TestAIBatchApplyRollsBackProductChangeWhenAuditCannotBePersisted(t *testing
 	require.Zero(t, auditCount)
 }
 
+func TestCreateImageTaskWithAuditRollsBackWhenAuditCannotBePersisted(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:ai_image_task_audit_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&imagetask.ImageTask{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:fail_ai_image_task_audit", func(tx *gorm.DB) {
+		if tx.Statement.Table == "operation_logs" {
+			tx.AddError(errors.New("ai image task audit unavailable"))
+		}
+	}))
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/ai/batches/product-images", nil)
+	c.Set(ctxkey.TenantID, int64(41))
+	c.Request = c.Request.WithContext(security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: 41}))
+	svc := &Service{
+		DB:    db,
+		Image: &imagetask.Service{DB: db},
+		OpLog: &operationlog.Service{DB: db},
+	}
+
+	_, err = svc.createImageTaskWithAudit(c, imagetask.CreatePayload{
+		TaskType:       imagetask.TaskTypeGenerateScene,
+		Provider:       "local_render",
+		SourceImageURL: "https://example.test/source.jpg",
+		Input:          datatypes.JSON(`{}`),
+	}, operationlog.WriteOpts{
+		TenantID: 41, Action: "image.task.create", Resource: "image_task", Status: "success",
+	})
+	require.ErrorContains(t, err, "ai image task audit unavailable")
+	var count int64
+	require.NoError(t, db.Model(&imagetask.ImageTask{}).Count(&count).Error)
+	require.Zero(t, count)
+}
+
 func TestReconcileImageBatchDoesNotMixTenants(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:ai_batch_reconcile_scope_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
@@ -191,6 +237,12 @@ func TestRetryFailedPermissionDeniedDoesNotReconcileImageBatch(t *testing.T) {
 	require.NoError(t, err)
 	readRole.PermissionsJSON = string(encoded)
 	require.NoError(t, db.Create(&readRole).Error)
+	storeID := uuid.New()
+	require.NoError(t, db.Create(&shop.Shop{Base: model.Base{ID: storeID}, TenantID: actor.TenantID, Platform: "manual", ShopName: "A", Status: "active", AuthStatus: "authorized"}).Error)
+	require.NoError(t, db.Create(&admin.UserStorePermission{UserID: actor.ID, StoreID: storeID, PermissionScope: admin.StorePermScopeView}).Error)
+	productRow := product.Product{TenantID: actor.TenantID, Source: "manual", Title: "authorized"}
+	require.NoError(t, db.Create(&productRow).Error)
+	require.NoError(t, db.Create(&product.ProductPlatformPublishConfig{ProductID: productRow.ID, Platform: "manual", ShopID: &storeID}).Error)
 
 	batchID := uuid.New()
 	require.NoError(t, db.Create(&AIOperationBatch{
@@ -201,11 +253,12 @@ func TestRetryFailedPermissionDeniedDoesNotReconcileImageBatch(t *testing.T) {
 		Status:        StatusRunning,
 	}).Error)
 	require.NoError(t, db.Create(&imagetask.ImageTask{
-		TenantID: actor.TenantID,
-		BatchID:  &batchID,
-		TaskType: imagetask.TaskTypeGenerateScene,
-		Provider: "local",
-		Status:   imagetask.StatusFailed,
+		TenantID:  actor.TenantID,
+		BatchID:   &batchID,
+		TaskType:  imagetask.TaskTypeGenerateScene,
+		Provider:  "local",
+		Status:    imagetask.StatusFailed,
+		ProductID: &productRow.ID,
 	}).Error)
 
 	router := newAIBatchAuthorizationRouter(db, actor, role)
@@ -296,7 +349,7 @@ func newAIBatchAuthorizationFixture(t *testing.T) (*gorm.DB, admin.AdminUser, st
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file:ai_batch_authz_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.RoleDefinition{}, &admin.UserStorePermission{}, &shop.Shop{}, &AIOperationBatch{}, &aitask.AITask{}, &imagetask.ImageTask{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.RoleDefinition{}, &admin.UserStorePermission{}, &shop.Shop{}, &product.Product{}, &product.ProductPlatformPublishConfig{}, &productpublish.ProductPublication{}, &AIOperationBatch{}, &aitask.AITask{}, &imagetask.ImageTask{}, &operationlog.OperationLog{}))
 	actor := admin.AdminUser{TenantID: 41, Username: admin.NewInternalUsername(), Email: "batch-reader@example.test", PasswordHash: "test-only", Role: "r_0123456789abcdef01234567", Status: admin.StatusActive, TokenVersion: 1}
 	require.NoError(t, db.Create(&actor).Error)
 	return db, actor, actor.Role

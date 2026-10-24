@@ -32,6 +32,16 @@ func withOAuthExpectedShopTokenVersion(ctx context.Context, version int64) conte
 	return context.WithValue(ctx, oauthExpectedShopTokenVersionKey{}, version)
 }
 
+// setOAuthExpectedShopTokenVersion binds an OAuth callback to the shop token
+// version captured when its state was created. The value is copied into the
+// request context so persistence can re-check it after the provider exchange.
+func setOAuthExpectedShopTokenVersion(c *gin.Context, version int64) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	c.Request = c.Request.WithContext(withOAuthExpectedShopTokenVersion(c.Request.Context(), version))
+}
+
 func oauthExpectedShopTokenVersion(ctx context.Context) (int64, bool) {
 	if ctx == nil {
 		return 0, false

@@ -97,6 +97,33 @@ func (s *Service) writeBatchAudit(c *gin.Context, opts operationlog.WriteOpts) e
 	return s.OpLog.Write(c, opts)
 }
 
+// createImageTaskWithAudit keeps each image task and its creation evidence in
+// one transaction. A task that cannot be audited must not become runnable.
+func (s *Service) createImageTaskWithAudit(c *gin.Context, p imagetask.CreatePayload, opts operationlog.WriteOpts) (*imagetask.ImageTask, error) {
+	if s == nil || s.DB == nil || s.Image == nil || c == nil || c.Request == nil {
+		return nil, fmt.Errorf("ai image task unavailable")
+	}
+	if err := s.requireAudit(); err != nil {
+		return nil, err
+	}
+	var row *imagetask.ImageTask
+	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var err error
+		row, err = s.Image.CreateAndPersistTx(c.Request.Context(), tx, p)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(opts.ResourceID) == "" {
+			opts.ResourceID = row.ID.String()
+		}
+		return s.OpLog.WriteTx(c, tx, opts)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
 func requestTenantID(c *gin.Context) (int64, error) {
 	return adminperm.TenantIDFromGin(c)
 }
@@ -252,9 +279,10 @@ func (s *Service) resolveProductIDs(ctx context.Context, tenantID int64, ids []u
 			return nil, fmt.Errorf("product count exceeds ai_batch_max_size (%d)", maxN)
 		}
 		var visible []uuid.UUID
-		if err := s.DB.WithContext(ctx).Model(&product.Product{}).
-			Where("tenant_id = ? AND id IN ?", tenantID, ids).
-			Pluck("id", &visible).Error; err != nil {
+		tx := s.DB.WithContext(ctx).Model(&product.Product{}).
+			Where("tenant_id = ? AND id IN ?", tenantID, ids)
+		tx = applyAIProductShopScope(tx, ctx, tenantID, "products.id")
+		if err := tx.Pluck("id", &visible).Error; err != nil {
 			return nil, err
 		}
 		if len(visible) != len(ids) {
@@ -267,6 +295,7 @@ func (s *Service) resolveProductIDs(ctx context.Context, tenantID int64, ids []u
 	}
 
 	tx := s.DB.WithContext(ctx).Model(&product.Product{}).Select("id").Where("tenant_id = ?", tenantID)
+	tx = applyAIProductShopScope(tx, ctx, tenantID, "products.id")
 	if v := strings.TrimSpace(f.Status); v != "" {
 		tx = tx.Where("status = ?", v)
 	}
@@ -595,10 +624,11 @@ func (s *Service) countAITasksForBatch(ctx context.Context, batchID uuid.UUID) (
 		return 0, err
 	}
 	var n int64
-	err = s.DB.WithContext(ctx).Table("ai_tasks").
+	tx := s.DB.WithContext(ctx).Table("ai_tasks").
 		Joins("JOIN ai_operation_batches b ON b.id = ai_tasks.batch_id").
-		Where("ai_tasks.batch_id = ? AND b.tenant_id = ?", batchID, tenantID).
-		Count(&n).Error
+		Where("ai_tasks.batch_id = ? AND b.tenant_id = ?", batchID, tenantID)
+	tx = applyAIProductShopScope(tx, ctx, tenantID, "ai_tasks.product_id")
+	err = tx.Count(&n).Error
 	return int(n), err
 }
 
@@ -633,12 +663,12 @@ func (s *Service) countLatestAITasksByProductStatus(ctx context.Context, batchID
 		CreatedAt time.Time `gorm:"column:created_at"`
 	}
 	var rows []row
-	if err := s.DB.WithContext(ctx).Table("ai_tasks").
+	tx := s.DB.WithContext(ctx).Table("ai_tasks").
 		Select("ai_tasks.product_id AS product_id, ai_tasks.status AS status, ai_tasks.created_at AS created_at").
 		Joins("JOIN ai_operation_batches b ON b.id = ai_tasks.batch_id").
-		Where("ai_tasks.batch_id = ? AND b.tenant_id = ? AND ai_tasks.product_id IS NOT NULL", batchID, tenantID).
-		Order("ai_tasks.created_at DESC").
-		Find(&rows).Error; err != nil {
+		Where("ai_tasks.batch_id = ? AND b.tenant_id = ? AND ai_tasks.product_id IS NOT NULL", batchID, tenantID)
+	tx = applyAIProductShopScope(tx, ctx, tenantID, "ai_tasks.product_id")
+	if err := tx.Order("ai_tasks.created_at DESC").Find(&rows).Error; err != nil {
 		return 0, 0, err
 	}
 	seen := map[uuid.UUID]bool{}
@@ -768,7 +798,7 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 				srcURL = strings.TrimSpace(img.OriginURL)
 			}
 		}
-		row, cerr := s.Image.CreateAndPersist(ctx, imagetask.CreatePayload{
+		row, cerr := s.createImageTaskWithAudit(c, imagetask.CreatePayload{
 			TaskType:       taskType,
 			Provider:       opt.Provider,
 			ProductID:      &pid,
@@ -778,19 +808,13 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 			CreatedBy:      adminID,
 			BatchID:        &batchID,
 			BatchNo:        batchNo,
+		}, operationlog.WriteOpts{
+			TenantID: tenantID, AdminUserID: adminID, Action: "image.task.create", Resource: "image_task", Status: "success",
+			Message: fmt.Sprintf("taskType=%s provider=%s productId=%s batchNo=%s", taskType, opt.Provider, pid.String(), batchNo),
 		})
 		if cerr != nil {
 			failN++
 			continue
-		}
-		if s.Image.OpLog != nil {
-			if err := s.Image.OpLog.Write(c, operationlog.WriteOpts{
-				AdminUserID: adminID, Action: "image.task.create", Resource: "image_task",
-				ResourceID: row.ID.String(), Status: "success",
-				Message: fmt.Sprintf("taskType=%s provider=%s productId=%s batchNo=%s", row.TaskType, row.Provider, pid.String(), batchNo),
-			}); err != nil {
-				return nil, err
-			}
 		}
 		if taskType == imagetask.TaskTypeTranslateImageText {
 			// For translate image text, we do NOT enqueue to the general image:tasks queue.
@@ -816,29 +840,22 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 		}()
 	}
 
-	if err := s.reconcileImageBatch(ctx, batchID); err != nil {
-		return nil, err
-	}
-	if err := s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Update("skipped_count", skipN).Error; err != nil {
-		return nil, err
-	}
-	batch2, err := s.GetByID(ctx, batchID)
-	if err != nil {
-		return nil, fmt.Errorf("load image batch after creation: %w", err)
-	}
-
 	batchAction := "ai.batch.success"
 	if failN > 0 && createN > 0 {
 		batchAction = "ai.batch.partial_success"
 	} else if createN == 0 && failN > 0 {
 		batchAction = "ai.batch.failed"
 	}
-	if err := s.writeBatchAudit(c, operationlog.WriteOpts{
+	if err := s.reconcileImageBatchWithAudit(ctx, c, batchID, skipN, operationlog.WriteOpts{
 		TenantID: tenantID, AdminUserID: adminID, Action: batchAction,
 		Resource: "ai_operation_batch", ResourceID: batchID.String(), Status: "success",
 		Message: fmt.Sprintf("batchNo=%s tasks=%d failed=%d skipped=%d", batchNo, createN, failN, skipN),
 	}); err != nil {
 		return nil, err
+	}
+	batch2, err := s.GetByID(ctx, batchID)
+	if err != nil {
+		return nil, fmt.Errorf("load image batch after creation: %w", err)
 	}
 	return batch2, nil
 }
@@ -909,7 +926,11 @@ func (s *Service) processTranslateImageBatchAsync(ctx context.Context, batchID u
 	}
 
 	wg.Wait()
-	reconcileErr := s.reconcileImageBatch(ctx, batchID)
+	reconcileErr := s.reconcileImageBatchWithAudit(ctx, nil, batchID, 0, operationlog.WriteOpts{
+		TenantID: tenantID, AdminUserID: adminID, Action: "ai.batch.image_reconciled",
+		Resource: "ai_operation_batch", ResourceID: batchID.String(), Status: "success",
+		Message: "translated image tasks reconciled",
+	})
 	if firstErr != nil && reconcileErr != nil {
 		return fmt.Errorf("process image task: %v; reconcile image batch: %w", firstErr, reconcileErr)
 	}
@@ -930,17 +951,71 @@ func (s *Service) reconcileImageBatch(ctx context.Context, batchID uuid.UUID) er
 	if err != nil {
 		return err
 	}
+	updates, err := s.buildImageBatchReconciliation(ctx, s.DB.WithContext(ctx), batchID, tenantID, 0)
+	if err != nil {
+		return err
+	}
+	result := s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (s *Service) reconcileImageBatchWithAudit(ctx context.Context, c *gin.Context, batchID uuid.UUID, skippedCount int, opts operationlog.WriteOpts) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("no db")
+	}
+	if err := s.requireAudit(); err != nil {
+		return err
+	}
+	tenantID, err := contextTenantID(ctx)
+	if err != nil {
+		return err
+	}
+	if opts.TenantID == 0 {
+		opts.TenantID = tenantID
+	}
+	if strings.TrimSpace(opts.ResourceID) == "" {
+		opts.ResourceID = batchID.String()
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updates, err := s.buildImageBatchReconciliation(ctx, tx.WithContext(ctx), batchID, tenantID, skippedCount)
+		if err != nil {
+			return err
+		}
+		result := tx.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		if c != nil {
+			return s.OpLog.WriteTx(c, tx, opts)
+		}
+		return s.OpLog.WriteTxContext(ctx, tx, opts)
+	})
+}
+
+func (s *Service) buildImageBatchReconciliation(ctx context.Context, db *gorm.DB, batchID uuid.UUID, tenantID int64, skippedCount int) (map[string]any, error) {
+	if db == nil {
+		return nil, fmt.Errorf("no db")
+	}
 	type row struct {
 		Status string
 		N      int64
 	}
 	var rows []row
-	if err := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
+	if err := db.WithContext(ctx).Model(&imagetask.ImageTask{}).
 		Select("status, COUNT(*) as n").
 		Where("batch_id = ? AND tenant_id = ?", batchID, tenantID).
 		Group("status").
 		Find(&rows).Error; err != nil {
-		return err
+		return nil, err
 	}
 	var pending, running, success, failed, cancelled int
 	for _, r := range rows {
@@ -971,7 +1046,7 @@ func (s *Service) reconcileImageBatch(ctx context.Context, batchID uuid.UUID) er
 	out := map[string]any{
 		"successCount": success,
 		"failedCount":  failed,
-		"skippedCount": 0,
+		"skippedCount": skippedCount,
 		"pendingCount": pending,
 		"runningCount": running,
 		"taskCount":    taskCount,
@@ -981,6 +1056,7 @@ func (s *Service) reconcileImageBatch(ctx context.Context, batchID uuid.UUID) er
 		"task_count":    taskCount,
 		"success_count": success,
 		"failed_count":  failed,
+		"skipped_count": skippedCount,
 		"output":        datatypes.JSON(outJSON),
 		"status":        st,
 	}
@@ -988,14 +1064,7 @@ func (s *Service) reconcileImageBatch(ctx context.Context, batchID uuid.UUID) er
 		fin := time.Now().UTC()
 		updates["finished_at"] = &fin
 	}
-	result := s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected != 1 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return updates, nil
 }
 
 func detachedTenantContext(ctx context.Context) (context.Context, error) {
@@ -1028,6 +1097,7 @@ func (s *Service) ListBatches(c *gin.Context, q ListBatchesQuery) ([]AIOperation
 		return nil, 0, err
 	}
 	tx = tx.Where("tenant_id = ?", tenantID)
+	tx = applyAIBatchShopScope(tx, c.Request.Context(), tenantID)
 	if v := strings.TrimSpace(q.OperationType); v != "" {
 		tx = tx.Where("operation_type = ?", v)
 	}
@@ -1071,7 +1141,9 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AIOperationBatch,
 	if err != nil {
 		return nil, err
 	}
-	if err := s.DB.WithContext(ctx).First(&b, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
+	query := s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", id, tenantID)
+	query = applyAIBatchShopScope(query, ctx, tenantID)
+	if err := query.First(&b).Error; err != nil {
 		return nil, err
 	}
 	switch strings.TrimSpace(b.OperationType) {
@@ -1080,7 +1152,9 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AIOperationBatch,
 		if err := s.reconcileImageBatch(ctx, id); err != nil {
 			return nil, fmt.Errorf("reconcile image batch: %w", err)
 		}
-		if err := s.DB.WithContext(ctx).First(&b, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
+		query = s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", id, tenantID)
+		query = applyAIBatchShopScope(query, ctx, tenantID)
+		if err := query.First(&b).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -1105,6 +1179,7 @@ func (s *Service) operationTypeByID(ctx context.Context, id uuid.UUID) (string, 
 	if err := s.DB.WithContext(ctx).Model(&AIOperationBatch{}).
 		Select("operation_type").
 		Where("id = ? AND tenant_id = ?", id, tenantID).
+		Scopes(func(tx *gorm.DB) *gorm.DB { return applyAIBatchShopScope(tx, ctx, tenantID) }).
 		First(&row).Error; err != nil {
 		return "", err
 	}
@@ -1129,6 +1204,7 @@ func (s *Service) ListBatchAITasks(c *gin.Context, batchID uuid.UUID, page, ps i
 	tx := s.DB.WithContext(c.Request.Context()).Table("ai_tasks").
 		Joins("JOIN ai_operation_batches b ON b.id = ai_tasks.batch_id").
 		Where("ai_tasks.batch_id = ? AND b.tenant_id = ?", batchID, tenantID)
+	tx = applyAIProductShopScope(tx, c.Request.Context(), tenantID, "ai_tasks.product_id")
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -1143,13 +1219,12 @@ func (s *Service) ListBatchAITasks(c *gin.Context, batchID uuid.UUID, page, ps i
 		CreatedAt    time.Time
 	}
 	var rows []slim
-	if err := s.DB.WithContext(c.Request.Context()).Table("ai_tasks").
+	rowsTx := s.DB.WithContext(c.Request.Context()).Table("ai_tasks").
 		Select("ai_tasks.id", "ai_tasks.task_type", "ai_tasks.status", "ai_tasks.product_id", "ai_tasks.error_message", "ai_tasks.created_at").
 		Joins("JOIN ai_operation_batches b ON b.id = ai_tasks.batch_id").
-		Where("ai_tasks.batch_id = ? AND b.tenant_id = ?", batchID, tenantID).
-		Order("ai_tasks.created_at DESC, ai_tasks.id DESC").
-		Offset(offset).Limit(ps).
-		Find(&rows).Error; err != nil {
+		Where("ai_tasks.batch_id = ? AND b.tenant_id = ?", batchID, tenantID)
+	rowsTx = applyAIProductShopScope(rowsTx, c.Request.Context(), tenantID, "ai_tasks.product_id")
+	if err := rowsTx.Order("ai_tasks.created_at DESC, ai_tasks.id DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]map[string]any, 0, len(rows))
@@ -1236,12 +1311,13 @@ func (s *Service) retryFailedText(c *gin.Context, b *AIOperationBatch, adminID *
 	}
 
 	var failRows []uuid.UUID
-	if err := s.DB.WithContext(ctx).Table("ai_tasks").
+	tx := s.DB.WithContext(ctx).Table("ai_tasks").
 		Joins("JOIN ai_operation_batches b ON b.id = ai_tasks.batch_id").
 		Distinct("product_id").
 		Where("ai_tasks.batch_id = ? AND b.tenant_id = ? AND ai_tasks.status = ? AND ai_tasks.task_type = ?", b.ID, tenantID, "failed", taskType).
-		Where("product_id IS NOT NULL").
-		Pluck("product_id", &failRows).Error; err != nil {
+		Where("product_id IS NOT NULL")
+	tx = applyAIProductShopScope(tx, ctx, tenantID, "ai_tasks.product_id")
+	if err := tx.Pluck("product_id", &failRows).Error; err != nil {
 		return nil, err
 	}
 	if len(failRows) == 0 {
@@ -1318,17 +1394,20 @@ func (s *Service) retryFailedImage(c *gin.Context, b *AIOperationBatch, adminID 
 		return nil, err
 	}
 	var ids []uuid.UUID
-	if err := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
+	tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
 		Select("id").
-		Where("batch_id = ? AND tenant_id = ? AND status = ?", b.ID, tenantID, imagetask.StatusFailed).
-		Pluck("id", &ids).Error; err != nil {
+		Where("batch_id = ? AND tenant_id = ? AND status = ?", b.ID, tenantID, imagetask.StatusFailed)
+	tx = applyAIProductShopScope(tx, ctx, tenantID, "image_tasks.product_id")
+	if err := tx.Pluck("id", &ids).Error; err != nil {
 		return nil, err
 	}
 
 	if b.OperationType == OperationImageTranslateImageText {
 		// Reset failed tasks manually to pending, then run async processor
 		for _, id := range ids {
-			if err := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("id = ? AND tenant_id = ?", id, tenantID).Updates(map[string]any{
+			update := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("id = ? AND tenant_id = ?", id, tenantID)
+			update = applyAIProductShopScope(update, ctx, tenantID, "image_tasks.product_id")
+			if err := update.Updates(map[string]any{
 				"status":            imagetask.StatusPending,
 				"retry_count":       0,
 				"next_retry_at":     nil,
@@ -1360,10 +1439,7 @@ func (s *Service) retryFailedImage(c *gin.Context, b *AIOperationBatch, adminID 
 		}
 	}
 
-	if err := s.reconcileImageBatch(ctx, b.ID); err != nil {
-		return nil, err
-	}
-	if err := s.writeBatchAudit(c, operationlog.WriteOpts{
+	if err := s.reconcileImageBatchWithAudit(ctx, c, b.ID, 0, operationlog.WriteOpts{
 		TenantID: tenantID, AdminUserID: adminID, Action: "ai.batch.retry_failed",
 		Resource: "ai_operation_batch", ResourceID: b.ID.String(), Status: "success",
 		Message: fmt.Sprintf("batchNo=%s imageTasks=%d", b.BatchNo, len(ids)),
@@ -1419,6 +1495,7 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 				Joins("JOIN ai_operation_batches b ON b.id = ai_tasks.batch_id").
 				Where("ai_tasks.batch_id = ? AND b.tenant_id = ? AND ai_tasks.task_type = ? AND ai_tasks.status = ?", batchID, tenantID, "title_optimize", "success").
 				Order("ai_tasks.created_at DESC")
+			query = applyAIProductShopScope(query, ctx, tenantID, "ai_tasks.product_id")
 			if err := query.Find(&tasks).Error; err != nil {
 				return err
 			}
@@ -1437,7 +1514,9 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 				if err := json.Unmarshal(task.Output, &output); err != nil || strings.TrimSpace(output.OptimizedTitle) == "" {
 					continue
 				}
-				res := tx.WithContext(ctx).Model(&product.Product{}).Where("id = ? AND tenant_id = ?", task.ProductID, tenantID).Update("ai_title", strings.TrimSpace(output.OptimizedTitle))
+				productUpdate := tx.WithContext(ctx).Model(&product.Product{}).Where("id = ? AND tenant_id = ?", task.ProductID, tenantID)
+				productUpdate = applyAIProductShopScope(productUpdate, ctx, tenantID, "products.id")
+				res := productUpdate.Update("ai_title", strings.TrimSpace(output.OptimizedTitle))
 				if res.Error != nil {
 					return res.Error
 				}
@@ -1457,6 +1536,7 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 				Joins("JOIN ai_operation_batches b ON b.id = ai_tasks.batch_id").
 				Where("ai_tasks.batch_id = ? AND b.tenant_id = ? AND ai_tasks.task_type = ? AND ai_tasks.status = ?", batchID, tenantID, "product_description_generate", "success").
 				Order("ai_tasks.created_at DESC")
+			query = applyAIProductShopScope(query, ctx, tenantID, "ai_tasks.product_id")
 			if err := query.Find(&tasks).Error; err != nil {
 				return err
 			}
@@ -1475,7 +1555,9 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 				if err := json.Unmarshal(task.Output, &output); err != nil || strings.TrimSpace(output.Description) == "" {
 					continue
 				}
-				res := tx.WithContext(ctx).Model(&product.Product{}).Where("id = ? AND tenant_id = ?", task.ProductID, tenantID).Update("ai_description", strings.TrimSpace(output.Description))
+				productUpdate := tx.WithContext(ctx).Model(&product.Product{}).Where("id = ? AND tenant_id = ?", task.ProductID, tenantID)
+				productUpdate = applyAIProductShopScope(productUpdate, ctx, tenantID, "products.id")
+				res := productUpdate.Update("ai_description", strings.TrimSpace(output.Description))
 				if res.Error != nil {
 					return res.Error
 				}

@@ -56,6 +56,7 @@
 | Admin 导航双构建回归 | PASS | `auth-navigation.spec.ts` 开发与生产各 28/28；生产内部库存路由为 404、零敏感请求，开发保留授权页面；五档视口、深浅色和全局密钥权限拒绝均覆盖 |
 | Admin RBAC 与导航 E2E | PASS | 用户与角色 26 项、导航 28 项，共 54/54；全部包含在下行生产 P0 集合中，不重复累计 |
 | Admin CI P0 集合 | PASS | 最终源代码 `a2a05800` 的生产构建及 preview、1 worker、`--retries=0`；`@smoke\|@product-draft\|@publish-safety\|@contract` 共 338/338，0 FAIL、0 skip，8.6 分钟；其中 smoke 288 项，使用既有 Write Guard、Console Guard，未扩大白名单 |
+| Admin CI 完整 E2E | PASS | 当前工作树生产构建及 preview、1 worker；362 项中 352 PASS、10 SKIP、0 FAIL。7 个 Inventory Sync fixture 用例仅在开发 server 运行并已 7/7 PASS，生产 preview 明确跳过并由 `auth-navigation.spec.ts` 验证 404；3 个真实后端 operation-task 用例按既有环境条件跳过 |
 | GitHub Actions | BLOCKED | 当前修复尚未 push，无最终提交对应的 CI 结果；不能用其他 SHA 的历史运行代替 |
 | 最终差异独立安全扫描 | BLOCKED | 原扫描 41d95334-0fc4-49f1-9e4c-ac1161e718ce 未封存；原代理模型不可用且后续修复已改变快照。继续读取确认仍为 discovery，0/112 review receipts；本次 preflight 为 ready，仅委派能力为 warning，但旧阶段不能回写 preflight。该状态不能作为最终代码的完整审查或零发现结论 |
 | 生产备份恢复 / 旧二进制回滚 | BLOCKED | 仅验证隔离迁移与回滚边界，未访问生产或执行真实恢复 |
@@ -138,6 +139,7 @@ pnpm --filter @trademind/admin exec playwright test --config ../playwright.confi
 | [SECURITY.md](../SECURITY.md) | `1b9c2ba4` |
 | [admin/e2e/mocks/workers.ts](../admin/e2e/mocks/workers.ts) | `5a03a2b0` |
 | [admin/e2e/specs/auth-navigation.spec.ts](../admin/e2e/specs/auth-navigation.spec.ts) | `5a03a2b0` |
+| [admin/e2e/specs/inventory-sync.spec.ts](../admin/e2e/specs/inventory-sync.spec.ts) | 本次测试修复提交 |
 | [admin/e2e/specs/settings-users-rbac.spec.ts](../admin/e2e/specs/settings-users-rbac.spec.ts) | `5a03a2b0` |
 | [admin/e2e/utils/routes.ts](../admin/e2e/utils/routes.ts) | `5a03a2b0` |
 | [admin/src/app.tsx](../admin/src/app.tsx) | `5a03a2b0` |

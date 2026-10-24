@@ -125,6 +125,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		Where("ai_tasks.product_id IN (SELECT id FROM products WHERE tenant_id = ?)", tenantID).
 		Where("ai_tasks.status = ?", aitask.StatusFailed).
 		Where("ai_tasks.task_type IN ?", []string{"title_optimize", "product_description_generate"})
+	aiFailTx = q.Scope.applyProductIDScope(aiFailTx, tenantID, "ai_tasks.product_id")
 	if q.Start != nil {
 		aiFailTx = aiFailTx.Where("ai_tasks.updated_at >= ?", *q.Start)
 	}
@@ -135,6 +136,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 
 	batchScope := s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).
 		Where("tenant_id = ?", tenantID)
+	batchScope = q.Scope.applyBatchScope(batchScope, tenantID)
 	_ = batchScope.Session(&gorm.Session{}).Where("status = ?", aioperationbatch.StatusRunning).Count(&sum.AiBatchRunningCount).Error
 	_ = batchScope.Session(&gorm.Session{}).Where("status = ?", aioperationbatch.StatusFailed).Count(&sum.AiBatchFailedCount).Error
 
@@ -221,7 +223,23 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 		Count(&sum.OpenAlertCount).Error
 
 	if s.OrderExceptions != nil {
-		ex, err := s.OrderExceptions.DashboardSummary(ctx, q.Scope.TenantID, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End)
+		exReq := orderexception.ListOrderExceptionsRequest{
+			TenantID:       q.Scope.TenantID,
+			Platform:       strings.TrimSpace(q.Platform),
+			ShopID:         strings.TrimSpace(q.ShopID),
+			Start:          q.Start,
+			End:            q.End,
+			Page:           1,
+			PageSize:       1,
+			AllowedShopIDs: q.Scope.AllowedShopIDs,
+		}
+		var ex orderexception.ExceptionSummaryDTO
+		var err error
+		if res, listErr := s.OrderExceptions.ListOrderExceptions(ctx, exReq); listErr != nil {
+			err = listErr
+		} else if res != nil {
+			ex = res.Summary
+		}
 		if err == nil {
 			sum.OrderExceptionTotal = ex.TotalOpen
 			sum.SKUUnmatchedOrderItems = ex.SKUUnmatched
@@ -239,6 +257,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	imgPendingTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
 		Where("tenant_id = ?", tenantID).
 		Where("status IN ?", []string{imagetask.StatusPending, imagetask.StatusRunning, imagetask.StatusRetrying})
+	imgPendingTx = q.Scope.applyProductIDScope(imgPendingTx, tenantID, "image_tasks.product_id")
 	if q.Start != nil {
 		imgPendingTx = imgPendingTx.Where("created_at >= ?", *q.Start)
 	}
@@ -250,6 +269,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	imgFailedTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
 		Where("tenant_id = ?", tenantID).
 		Where("status = ?", imagetask.StatusFailed)
+	imgFailedTx = q.Scope.applyProductIDScope(imgFailedTx, tenantID, "image_tasks.product_id")
 	if q.Start != nil {
 		imgFailedTx = imgFailedTx.Where("updated_at >= ?", *q.Start)
 	}
@@ -353,7 +373,7 @@ func (s *Service) applyProductJoinScope(tx *gorm.DB, q Query, alias string) *gor
 	if q.End != nil {
 		tx = tx.Where(alias+".updated_at <= ?", *q.End)
 	}
-	return tx
+	return q.Scope.applyProductIDScope(tx, dashboardTenantID(q), alias+".id")
 }
 
 func (s *Service) collectTaskScope(ctx context.Context, q Query) *gorm.DB {
@@ -469,7 +489,7 @@ func (s *Service) suggestionPendingScope(ctx context.Context, q Query) *gorm.DB 
 	if q.End != nil {
 		tx = tx.Where("customer_reply_suggestions.updated_at <= ?", *q.End)
 	}
-	return tx
+	return q.Scope.applyShopColumn(tx, "c.shop_id")
 }
 
 func (s *Service) readinessBlockedTx(ctx context.Context, q Query) *gorm.DB {
@@ -606,6 +626,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 			Where("ai_tasks.product_id IN (SELECT id FROM products WHERE tenant_id = ?)", tenantID).
 			Where("ai_tasks.status = ?", aitask.StatusFailed).
 			Where("ai_tasks.task_type IN ?", []string{"title_optimize", "product_description_generate"})
+		tx = q.Scope.applyProductIDScope(tx, tenantID, "ai_tasks.product_id")
 		if q.Start != nil {
 			tx = tx.Where("ai_tasks.updated_at >= ?", *q.Start)
 		}
@@ -625,6 +646,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
 			Where("tenant_id = ?", tenantID).
 			Where("status = ?", imagetask.StatusFailed)
+		tx = q.Scope.applyProductIDScope(tx, tenantID, "image_tasks.product_id")
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -659,6 +681,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 		if shopPtr != nil {
 			invTx = invTx.Where("shop_id = ?", *shopPtr)
 		}
+		invTx = q.Scope.applyShopColumn(invTx, "shop_id")
 		if q.Start != nil {
 			invTx = invTx.Where("updated_at >= ?", *q.Start)
 		}
@@ -729,6 +752,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			Select("t.id, t.result_product_id AS result_product_id, t.updated_at, t.source, p.title AS prod_title, t.status").
 			Joins("INNER JOIN products p ON p.id = t.result_product_id").
 			Where("t.tenant_id = ? AND p.tenant_id = ? AND t.status = ? AND t.result_product_id IS NOT NULL", tenantID, tenantID, collect.StatusSuccess)
+		qb = q.Scope.applyProductIDScope(qb, tenantID, "t.result_product_id")
 		if soft, _ := s.schemaFlags(ctx); soft {
 			qb = qb.Where("p.deleted_at IS NULL")
 		}
@@ -770,6 +794,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			Where("ai_tasks.product_id IN (SELECT id FROM products WHERE tenant_id = ?)", tenantID).
 			Where("ai_tasks.task_type IN ?", []string{"title_optimize", "product_description_generate"}).
 			Order("ai_tasks.updated_at DESC").Limit(recentLimit)
+		tx = q.Scope.applyProductIDScope(tx, tenantID, "ai_tasks.product_id")
 		if q.Start != nil {
 			tx = tx.Where("ai_tasks.updated_at >= ?", *q.Start)
 		}
@@ -805,6 +830,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	{
 		var rows []aioperationbatch.AIOperationBatch
 		tx := s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).Where("deleted_at IS NULL AND tenant_id = ?", dashboardTenantID(q)).Order("updated_at DESC").Limit(recentLimit)
+		tx = q.Scope.applyBatchScope(tx, tenantID)
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -830,6 +856,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
 			Where("tenant_id = ?", tenantID).
 			Order("updated_at DESC").Limit(recentLimit)
+		tx = q.Scope.applyProductIDScope(tx, tenantID, "image_tasks.product_id")
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -936,6 +963,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 		}
 		var invF []inventory.InventorySyncTask
 		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ? AND tenant_id = ?", inventory.StatusFailed, tenantID).Order("updated_at DESC").Limit(recentLimit)
+		invTx = q.Scope.applyShopColumn(invTx, "shop_id")
 		if pl := strings.TrimSpace(q.Platform); pl != "" {
 			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 		}

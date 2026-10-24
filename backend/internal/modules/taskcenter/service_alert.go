@@ -19,27 +19,32 @@ import (
 
 // ListAlertsParams binds GET /task-center/alerts.
 type ListAlertsParams struct {
-	TenantID        int64
-	Status          string
-	Severity        string
-	FailureCategory string
-	TaskType        string
-	Platform        string
-	Start           *time.Time
-	End             *time.Time
-	Page            int
-	PageSize        int
+	TenantID          int64
+	AllowedShopIDs    []uuid.UUID
+	RestrictShopScope bool
+	Status            string
+	Severity          string
+	FailureCategory   string
+	TaskType          string
+	Platform          string
+	Start             *time.Time
+	End               *time.Time
+	Page              int
+	PageSize          int
 }
 
-func taskCenterPlain(ctx context.Context, s *settings.Service) map[string]string {
+func taskCenterPlain(ctx context.Context, s *settings.Service) (map[string]string, error) {
 	if s == nil {
-		return map[string]string{}
+		return map[string]string{}, nil
 	}
 	m, err := s.PlainByGroup(ctx, 0, "taskcenter")
-	if err != nil || m == nil {
-		return map[string]string{}
+	if err != nil {
+		return nil, err
 	}
-	return m
+	if m == nil {
+		return map[string]string{}, nil
+	}
+	return m, nil
 }
 
 func parseBoolTaskCenter(v string, def bool) bool {
@@ -148,6 +153,7 @@ func (s *Service) ListAlerts(ctx context.Context, p ListAlertsParams) (ListAlert
 	page, pageSize := clampPage(p.Page, p.PageSize)
 	q := s.DB.WithContext(ctx).Model(&TaskAlert{})
 	q = q.Where("tenant_id = ?", p.TenantID)
+	q = applyTaskAlertStoreScope(q, p.TenantID, p.RestrictShopScope, p.AllowedShopIDs)
 	if st := strings.TrimSpace(p.Status); st != "" {
 		q = q.Where("status = ?", st)
 	}
@@ -201,7 +207,10 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 	if s == nil || s.DB == nil {
 		return false, false, fmt.Errorf("taskcenter: no db")
 	}
-	m := taskCenterPlain(ctx, s.Settings)
+	m, err := taskCenterPlain(ctx, s.Settings)
+	if err != nil {
+		return false, false, errors.Join(errTaskDependencyUnavailable, err)
+	}
 	if !force && !shouldEmitAutoAlert(m, dto, class, now) {
 		return false, false, nil
 	}
@@ -286,17 +295,62 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 
 // ScanAndGenerateTaskAlerts evaluates recent problematic tasks and upserts OPEN alerts according to settings.
 func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSummary, error) {
-	var sum ScanAlertsSummary
+	return s.scanAndGenerateTaskAlerts(ctx, ListFailureParams{}, nil)
+}
+
+func (s *Service) ScanAndGenerateTaskAlertsForScope(ctx context.Context, scope ListFailureParams) (ScanAlertsSummary, error) {
+	return s.ScanAndGenerateTaskAlertsForScopeRequest(ctx, scope, nil)
+}
+
+func (s *Service) ScanAndGenerateTaskAlertsForScopeRequest(ctx context.Context, scope ListFailureParams, ginC *gin.Context) (ScanAlertsSummary, error) {
+	if !scope.TenantScopeSet {
+		return ScanAlertsSummary{}, fmt.Errorf("taskcenter: tenant scope is required")
+	}
+	return s.scanAndGenerateTaskAlerts(ctx, scope, ginC)
+}
+
+func (s *Service) scanAndGenerateTaskAlerts(ctx context.Context, scope ListFailureParams, ginC *gin.Context) (sum ScanAlertsSummary, err error) {
 	if s == nil || s.DB == nil {
 		return sum, fmt.Errorf("taskcenter: no db")
 	}
-	now := time.Now().UTC()
-	p := ListFailureParams{
-		Page:            1,
-		PageSize:        100,
-		IncludeMarked:   true,
-		IncludeResolved: false,
+	requestAudit := operationlog.WriteOpts{
+		TenantID:   scope.TenantID,
+		Action:     "task_center.alert.scan.requested",
+		Resource:   "task_alert",
+		ResourceID: "scan",
+		Status:     "requested",
 	}
+	if ginC != nil {
+		if err := s.writeRequiredAudit(ginC, requestAudit); err != nil {
+			return sum, err
+		}
+	} else if err := s.writeRequiredAuditBackground(ctx, requestAudit); err != nil {
+		return sum, err
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		failedAudit := requestAudit
+		failedAudit.Action = "task_center.alert.scan.completed"
+		failedAudit.Status = "failed"
+		failedAudit.Message = truncateRunes(fmt.Sprintf("scanned=%d gen=%d up=%d skip=%d error=%s", sum.ScannedCount, sum.GeneratedCount, sum.UpdatedCount, sum.IgnoredCount, err.Error()), 1000)
+		var auditErr error
+		if ginC != nil {
+			auditErr = s.writeRequiredAudit(ginC, failedAudit)
+		} else {
+			auditErr = s.writeRequiredAuditBackground(ctx, failedAudit)
+		}
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
+	}()
+	now := time.Now().UTC()
+	p := scope
+	p.Page = 1
+	p.PageSize = 100
+	p.IncludeMarked = true
+	p.IncludeResolved = false
 	types := []string{
 		TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync, TaskTypeCustomerMessageSync,
 		TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText,
@@ -317,6 +371,9 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 		for i := range part {
 			class := applyClassification(&part[i])
 			d := part[i]
+			if !passesUnifiedFilters(d, p) {
+				continue
+			}
 			scanned++
 			generated, bumped, err := s.UpsertAlertForFailure(ctx, d, class, now, false, nil)
 			if err != nil {
@@ -345,7 +402,20 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 	sum.UpdatedCount = up
 	sum.IgnoredCount = ig
 
-	s.NotifyGeneratedAlerts(ctx, candidates, false, nil, nil)
+	if err := s.NotifyGeneratedAlerts(ctx, candidates, false, ginC, nil); err != nil {
+		return sum, err
+	}
+	resultAudit := requestAudit
+	resultAudit.Action = "task_center.alert.scan.completed"
+	resultAudit.Status = "success"
+	resultAudit.Message = truncateRunes(fmt.Sprintf("scanned=%d gen=%d up=%d skip=%d", sum.ScannedCount, sum.GeneratedCount, sum.UpdatedCount, sum.IgnoredCount), 480)
+	if ginC != nil {
+		if err := s.writeRequiredAudit(ginC, resultAudit); err != nil {
+			return sum, err
+		}
+	} else if err := s.writeRequiredAuditBackground(ctx, resultAudit); err != nil {
+		return sum, err
+	}
 	return sum, nil
 }
 
@@ -361,6 +431,9 @@ func (s *Service) HandleTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	}
 	var a TaskAlert
 	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", alertID, tenantID).First(&a).Error; err != nil {
+		return err
+	}
+	if err := s.ensureTaskAlertStoreScope(c, a, true); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -381,6 +454,9 @@ func (s *Service) IgnoreTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", alertID, tenantID).First(&a).Error; err != nil {
 		return err
 	}
+	if err := s.ensureTaskAlertStoreScope(c, a, true); err != nil {
+		return err
+	}
 	now := time.Now().UTC()
 	return s.finishAlertStatusChange(ctx, c, a, TaskAlertStatusIgnored, now, adminFromGin(c), "task_center.alert.ignore")
 }
@@ -399,24 +475,30 @@ func (s *Service) UnmarkTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", alertID, tenantID).First(&a).Error; err != nil {
 		return err
 	}
-	now := time.Now().UTC()
-	if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ? AND tenant_id = ?", alertID, tenantID).
-		Updates(map[string]any{
-			"status":     TaskAlertStatusOpen,
-			"handled_at": nil,
-			"handled_by": nil,
-			"updated_at": now,
-		}).Error; err != nil {
+	if err := s.ensureTaskAlertStoreScope(c, a, true); err != nil {
 		return err
 	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+	now := time.Now().UTC()
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&TaskAlert{}).Where("id = ? AND tenant_id = ?", alertID, tenantID).
+			Updates(map[string]any{
+				"status":     TaskAlertStatusOpen,
+				"handled_at": nil,
+				"handled_by": nil,
+				"updated_at": now,
+			}).Error; err != nil {
+			return err
+		}
+		return s.writeRequiredAuditTx(c, tx, operationlog.WriteOpts{
+			TenantID:   tenantID,
 			Action:     "task_center.alert.unmark",
 			Resource:   "task_alert",
 			ResourceID: alertID.String(),
 			Status:     "success",
 			Message:    summarizeAlertAudit(a.TaskType, a.SourceID, a.FailureCategory, a.Severity),
 		})
+	}); err != nil {
+		return err
 	}
 	return nil
 }
@@ -428,23 +510,23 @@ func summarizeAlertAudit(taskType, sourceID, category, severity string) string {
 
 func (s *Service) finishAlertStatusChange(ctx context.Context, ginC *gin.Context, a TaskAlert, st string, now time.Time, admin *uuid.UUID, action string) error {
 	up := map[string]any{"status": st, "handled_at": now, "handled_by": admin, "updated_at": now}
-	if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ? AND tenant_id = ?", a.ID, a.TenantID).Updates(up).Error; err != nil {
-		return err
-	}
-	if s.OpLog != nil && ginC != nil {
-		_ = s.OpLog.Write(ginC, operationlog.WriteOpts{
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&TaskAlert{}).Where("id = ? AND tenant_id = ?", a.ID, a.TenantID).Updates(up).Error; err != nil {
+			return err
+		}
+		return s.writeRequiredAuditTx(ginC, tx, operationlog.WriteOpts{
+			TenantID:   a.TenantID,
 			Action:     action,
 			Resource:   "task_alert",
 			ResourceID: a.ID.String(),
 			Status:     "success",
 			Message:    summarizeAlertAudit(a.TaskType, a.SourceID, a.FailureCategory, a.Severity),
 		})
-	}
-	return nil
+	})
 }
 
 // GenerateAlertForFailure force-upserts alert for task row.
-func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID) (*TaskAlert, error) {
+func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID) (al *TaskAlert, err error) {
 	if s == nil {
 		return nil, fmt.Errorf("taskcenter unavailable")
 	}
@@ -460,6 +542,29 @@ func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureTaskStoreScope(c, base, true); err != nil {
+		return nil, err
+	}
+	requestAudit := operationlog.WriteOpts{
+		TenantID: tenantID, Action: "task_center.alert.generate.requested", Resource: "task_alert",
+		ResourceID: taskType + "/" + id.String(), Status: "requested",
+		Message: truncateRunes(fmt.Sprintf("taskType=%s sourceId=%s", taskType, id.String()), 240),
+	}
+	if err := s.writeRequiredAudit(c, requestAudit); err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		failedAudit := requestAudit
+		failedAudit.Action = "task_center.alert.generated"
+		failedAudit.Status = "failed"
+		failedAudit.Message = truncateRunes(fmt.Sprintf("taskType=%s sourceId=%s error=%s", taskType, id.String(), err.Error()), 1000)
+		if auditErr := s.writeRequiredAudit(c, failedAudit); auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
+	}()
 	class := applyClassification(&base)
 	now := time.Now().UTC()
 	gen, bumped, err := s.UpsertAlertForFailure(c.Request.Context(), base, class, now, true, adminFromGin(c))
@@ -469,13 +574,22 @@ func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id
 	if !gen && !bumped {
 		return nil, fmt.Errorf("could not create or bump alert")
 	}
-	var al TaskAlert
+	var alertRow TaskAlert
 	err = s.DB.WithContext(c.Request.Context()).
 		Where("tenant_id = ? AND task_type = ? AND source_id = ? AND failure_category = ?", base.TenantID, base.TaskType, base.SourceID, class.Category).
-		First(&al).Error
+		First(&alertRow).Error
 	if err != nil {
 		return nil, err
 	}
-	s.NotifyGeneratedAlerts(c.Request.Context(), []alertNotifyCandidate{{Alert: al, IsNew: gen}}, false, c, nil)
-	return &al, nil
+	if err := s.writeRequiredAudit(c, operationlog.WriteOpts{
+		TenantID: tenantID, Action: "task_center.alert.generated", Resource: "task_alert",
+		ResourceID: alertRow.ID.String(), Status: "success",
+		Message: truncateRunes(fmt.Sprintf("taskType=%s sourceId=%s category=%s severity=%s", alertRow.TaskType, alertRow.SourceID, alertRow.FailureCategory, alertRow.Severity), 480),
+	}); err != nil {
+		return nil, err
+	}
+	if err := s.NotifyGeneratedAlerts(c.Request.Context(), []alertNotifyCandidate{{Alert: alertRow, IsNew: gen}}, false, c, nil); err != nil {
+		return nil, err
+	}
+	return &alertRow, nil
 }

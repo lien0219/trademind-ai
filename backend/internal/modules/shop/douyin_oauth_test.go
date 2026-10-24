@@ -42,7 +42,7 @@ func TestDouyinStatePayloadRejectsWrongPlatform(t *testing.T) {
 
 func TestDouyinOAuthStateBindsTenantAndIsSingleUse(t *testing.T) {
 	db := newDouyinShopTestDB(t)
-	if err := db.AutoMigrate(&admin.AdminUser{}, &Shop{}, &DouyinOAuthState{}); err != nil {
+	if err := db.AutoMigrate(&admin.AdminUser{}, &Shop{}, &ShopAuthToken{}, &DouyinOAuthState{}); err != nil {
 		t.Fatalf("migrate oauth state: %v", err)
 	}
 	svc := &Service{DB: db}
@@ -58,6 +58,9 @@ func TestDouyinOAuthStateBindsTenantAndIsSingleUse(t *testing.T) {
 	if err := db.Create(&shop).Error; err != nil {
 		t.Fatalf("create OAuth shop: %v", err)
 	}
+	if err := db.Create(&ShopAuthToken{ShopID: shopID, Platform: douyinPlatform, AuthType: "oauth2", TokenVersion: 7}).Error; err != nil {
+		t.Fatalf("create OAuth shop token: %v", err)
+	}
 	if err := svc.persistDouyinOAuthState(context.Background(), "state-tenant", 41, &userID, &shopID, "https://example.test/callback"); err != nil {
 		t.Fatalf("persistDouyinOAuthState() error = %v", err)
 	}
@@ -65,7 +68,7 @@ func TestDouyinOAuthStateBindsTenantAndIsSingleUse(t *testing.T) {
 	if err := db.Where("state_hash = ?", hashDouyinOAuthState("state-tenant")).First(&row).Error; err != nil {
 		t.Fatalf("load state: %v", err)
 	}
-	if row.TenantID != 41 || row.TokenVersion != 3 || row.UserID == nil || *row.UserID != userID || row.ShopBindingContext != shopID.String() {
+	if row.TenantID != 41 || row.TokenVersion != 3 || row.ShopTokenVersion != 7 || row.UserID == nil || *row.UserID != userID || row.ShopBindingContext != shopID.String() {
 		t.Fatalf("state binding mismatch: %+v", row)
 	}
 	consumed, err := svc.consumeDouyinOAuthState(context.Background(), "state-tenant")
@@ -77,6 +80,15 @@ func TestDouyinOAuthStateBindsTenantAndIsSingleUse(t *testing.T) {
 	}
 	if _, err := svc.consumeDouyinOAuthState(context.Background(), "state-tenant"); err == nil {
 		t.Fatal("expected replayed oauth state to be rejected")
+	}
+	if err := svc.persistDouyinOAuthState(context.Background(), "state-shop-revoked", 41, &userID, &shopID, "https://example.test/callback"); err != nil {
+		t.Fatalf("persist shop-bound state: %v", err)
+	}
+	if err := db.Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).UpdateColumn("token_version", 8).Error; err != nil {
+		t.Fatalf("revoke shop token: %v", err)
+	}
+	if _, err := svc.consumeDouyinOAuthState(context.Background(), "state-shop-revoked"); err == nil {
+		t.Fatal("expected state created before shop token revocation to be rejected")
 	}
 	if err := svc.persistDouyinOAuthState(context.Background(), "state-revoked", 41, &userID, nil, "https://example.test/callback"); err != nil {
 		t.Fatalf("persist second state: %v", err)
