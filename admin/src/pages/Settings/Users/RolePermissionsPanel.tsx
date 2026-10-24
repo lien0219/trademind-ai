@@ -18,6 +18,7 @@ type Props = {
   onRefresh: () => void;
   onEdit: (role: AdminRoleRow) => void;
   onToggle: (role: AdminRoleRow) => void;
+  onDelete: (role: AdminRoleRow) => void;
 };
 
 const SYSTEM_DESCRIPTIONS: Record<string, string> = {
@@ -27,7 +28,7 @@ const SYSTEM_DESCRIPTIONS: Record<string, string> = {
   readonly: '查看业务数据与操作记录。',
 };
 
-export default function RolePermissionsPanel({ roles, loading, ready, hasError, canManage, submitting, onCreate, onRefresh, onEdit, onToggle }: Props) {
+export default function RolePermissionsPanel({ roles, loading, ready, hasError, canManage, submitting, onCreate, onRefresh, onEdit, onToggle, onDelete }: Props) {
   const [compareRole, setCompareRole] = useState<string>();
   const [previewCode, setPreviewCode] = useState<string>();
   const previewRole = roles.find((role) => role.code === previewCode);
@@ -86,8 +87,12 @@ export default function RolePermissionsPanel({ roles, loading, ready, hasError, 
                       <span><Button disabled={role.system || !canManage || submitting || !ready} onClick={() => onEdit(role)}>编辑权限</Button></span>
                     </Tooltip>
                     {!role.system && <Button danger={role.enabled} disabled={!canManage || submitting || !ready} onClick={() => onToggle(role)}>{role.enabled ? '停用' : '启用'}</Button>}
+                    {!role.system && <Tooltip title={role.memberCount > 0 ? '请先调整关联用户的角色，再删除此角色' : undefined}>
+                      <span><Button danger disabled={!canManage || submitting || !ready || role.memberCount > 0} onClick={() => onDelete(role)}>删除角色</Button></span>
+                    </Tooltip>}
                   </Space>
                 </div>
+                {!role.system && role.memberCount > 0 && <p className="tm-role-panel__delete-hint">仍有关联成员，请先调整成员角色后删除。</p>}
               </SectionCard>
             </article>
           );

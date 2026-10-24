@@ -1,10 +1,10 @@
 import { test, expect } from '../fixtures/admin.fixture';
 import { e2eUser } from '../mocks/auth';
+import { mockUsers, testUser } from '../mocks/admin-users';
 import { fail, ok, paged } from '../mocks/envelope';
 import { PERMISSIONS } from '../../src/utils/permission';
 import { AUTH_SESSION_MODE_KEY, AUTH_TOKEN_KEY } from '../../src/constants/auth';
 import type { WriteRecord } from '../utils/network-guard';
-import type { Page } from '@playwright/test';
 import type { AdminRoleRow, AdminUserRow } from '../../src/services/adminUsers';
 
 const restrictedProfiles = [
@@ -37,23 +37,6 @@ for (const profile of restrictedProfiles) {
     expect(userListReads).toBe(0);
     await admin.writeGuard.expectNoUnexpectedWrites();
   });
-}
-
-async function mockUsers(page: Page, users: AdminUserRow[] = []) {
-  await page.route('**/api/v1/admin/users?**', (route) => route.fulfill({ json: ok(paged(users)) }));
-  await page.route('**/api/v1/admin/roles', (route) => {
-    if (route.request().method() !== 'GET') return route.fallback();
-    return route.fulfill({ json: ok({ list: [
-      { code: 'admin', name: 'admin', permissions: Object.values(PERMISSIONS), enabled: true, system: true, memberCount: 1 },
-      { code: 'operator', name: 'operator', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 1 },
-      { code: 'readonly', name: 'readonly', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true, system: true, memberCount: 0 },
-    ] }) });
-  });
-  await page.route('**/api/v1/admin/permissions', (route) => route.fulfill({ json: ok({ permissions: [PERMISSIONS.PRODUCT_VIEW] }) }));
-}
-
-function testUser(): AdminUserRow {
-  return { ...e2eUser, id: 'e2e-operator', email: 'operator@example.test', displayName: 'E2E 运营', role: 'operator' };
 }
 
 test('@smoke keeps the selected grant recipient stable while shops load', async ({ admin, page }) => {
@@ -368,6 +351,11 @@ test('@smoke requires a new password before issuing a login session', async ({ a
   await page.getByRole('button', { name: '登录工作台' }).click();
   await expect(page.getByText('你的账号使用初始或重置后的临时密码，请先设置新的密码。')).toBeVisible();
   await expect(page.getByLabel('临时密码')).toHaveValue('e2e-temporary-password');
+  await page.getByLabel('新密码', { exact: true }).fill('中文密码Abcdef123456');
+  await page.getByLabel('确认新密码').fill('中文密码Abcdef123456');
+  await page.getByRole('button', { name: /修改密码/ }).click();
+  await expect(page.getByText('密码仅支持英文字母、数字和英文符号，不能包含中文或空格', { exact: true })).toBeVisible();
+  await admin.writeGuard.expectRequestCount('required-password', 0);
   await page.getByLabel('新密码', { exact: true }).fill('e2e-new-password-123');
   await page.getByLabel('确认新密码').fill('e2e-new-password-123');
   const requiredPasswordButton = page.getByRole('button', { name: /修改密码/ });
@@ -444,6 +432,7 @@ for (const theme of ['light', 'dark']) {
       await expect(resetPasswordButton).toBeDisabled();
       await expect(disableButton).toBeVisible();
       await expect(disableButton).toBeDisabled();
+      await expect(currentAccountRow.getByRole('button', { name: '删除用户' })).toBeDisabled();
       const expectNoOverflow = async () => {
         expect(await page.evaluate(() => Math.max(document.documentElement.scrollWidth - document.documentElement.clientWidth, document.body.scrollWidth - document.body.clientWidth))).toBeLessThanOrEqual(0);
       };
@@ -464,6 +453,20 @@ for (const theme of ['light', 'dark']) {
       await disableDialog.getByRole('button', { name: /^取\s*消$/ }).click();
       await expect(disableDialog).not.toBeVisible();
       await admin.writeGuard.expectRequestCount('update-user', 0);
+      await page.getByRole('button', { name: '新建用户' }).click();
+      const createUser = page.getByRole('dialog', { name: '新建用户' });
+      await expect(createUser.getByRole('button', { name: '随机生成密码' })).toBeVisible();
+      await createUser.getByRole('button', { name: '随机生成密码' }).click();
+      await expect(createUser.getByRole('button', { name: '复制密码' })).toBeEnabled();
+      await expectNoOverflow();
+      await createUser.getByRole('button', { name: /^取\s*消$/ }).click();
+      await page.getByRole('row', { name: /E2E 运营/ }).getByRole('button', { name: '删除用户' }).click();
+      const deleteUser = page.getByRole('dialog', { name: '删除用户', exact: true });
+      await expect(deleteUser).toContainText(targetUser.displayName);
+      await expectNoOverflow();
+      expect(await deleteUser.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+      await deleteUser.getByRole('button', { name: /^取\s*消$/ }).click();
+      await admin.writeGuard.expectRequestCount('delete-user', 0);
       await page.getByRole('tab', { name: '角色与权限矩阵' }).click();
       const adminRole = page.getByRole('article', { name: '管理员', exact: true });
       await expect(adminRole.getByRole('button', { name: '编辑权限', exact: true })).toBeDisabled();

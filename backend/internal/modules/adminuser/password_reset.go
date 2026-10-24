@@ -30,7 +30,9 @@ func (s *Service) ResetPassword(c *gin.Context, userID uuid.UUID, actorID *uuid.
 	if _, err := rand.Read(secret); err != nil {
 		return "", err
 	}
-	temporary := base64.RawURLEncoding.EncodeToString(secret)
+	// Keep all 192 random bits while guaranteeing the same character policy as
+	// manually assigned passwords, regardless of the random base64 characters.
+	temporary := "Tm2!" + base64.RawURLEncoding.EncodeToString(secret)
 	hashed, err := hashPassword(temporary)
 	if err != nil {
 		return "", err

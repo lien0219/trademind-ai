@@ -16,6 +16,8 @@ describe("TradeMind API contract registry", () => {
 
     expect(routes).toEqual(
       new Set([
+        "DELETE /api/v1/admin/users/:id",
+        "DELETE /api/v1/admin/roles/:code",
         "GET /api/v1/auth/profile",
         "GET /api/v1/image/providers",
         "GET /api/v1/warehouses",
@@ -794,10 +796,21 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(150);
+    expect(contracts.endpoints).toHaveLength(152);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);
+  });
+
+  it("keeps user and role deletion authenticated, tenant scoped and gated by user management", () => {
+    for (const [path, scope] of [
+      ["/api/v1/admin/users/:id", "current_tenant_user_or_not_found"],
+      ["/api/v1/admin/roles/:code", "current_tenant_custom_role_or_not_found"],
+    ]) {
+      expect(contracts.endpoints.find((item) => item.path === path && item.method === "DELETE")).toMatchObject({
+        auth: true, requiredPermission: "user.manage", requestBody: [], responseData: "DeleteResult", tenantScope: scope,
+      });
+    }
   });
 
   it("keeps order profit estimates read-only and fails closed for missing money", () => {

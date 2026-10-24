@@ -34,6 +34,8 @@ Please do not include real API keys, platform tokens, cookies, passwords, or oth
 
 Console accounts must be provisioned by an authorized administrator. Public registration and registration-code endpoints deny account creation. Sensitive RBAC, password, session-revocation and shop-credential changes must commit with their SQL audit evidence; audit failures return errors and roll back the associated local mutation. Tokens are bound to persisted security versions and, when applicable, server-side sessions. See `docs/RBAC_PERMISSION_DESIGN.md` and `docs/SECURITY_PERMISSION_CHECKLIST.md` for the permission matrix, verification limits and recovery boundaries.
 
+Newly assigned passwords must use 12–72 printable ASCII characters with both letters and digits; existing credentials remain verifiable as entered. User deletion retains historical records while invalidating access and refresh credentials. Self deletion, deletion of the last active administrator, system-role deletion and deletion of custom roles with live members are denied. Deletions and their audit evidence must commit atomically.
+
 TradeMind handles sensitive operational data, including:
 
 - AI API keys

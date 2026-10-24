@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/passwordpolicy"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -334,8 +335,8 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		return nil, err
 	}
 	pw := body.Password
-	if len([]rune(pw)) < 12 || len([]byte(pw)) > 72 {
-		return nil, inputError("密码至少 12 位且不超过 72 字节")
+	if err := passwordpolicy.Validate(pw); err != nil {
+		return nil, inputError(err.Error())
 	}
 	if len([]rune(body.DisplayName)) > 128 {
 		return nil, inputError("显示名超出长度限制")

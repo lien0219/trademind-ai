@@ -12,6 +12,8 @@ import { formatDateTime } from '@/utils/formatTime';
 import {
   createAdminUser,
   createAdminRole,
+  deleteAdminRole,
+  deleteAdminUser,
   fetchAdminRoles,
   fetchRolePermissionCatalog,
   updateAdminRole,
@@ -28,9 +30,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { PERMISSIONS } from '@/utils/permission';
+import { PASSWORD_HINT, passwordError } from '@/utils/password';
 import { confirmDisableUser } from './disableUserConfirm';
 import RolePermissionPicker from './RolePermissionPicker';
 import RolePermissionsPanel from './RolePermissionsPanel';
+import PasswordInput from './PasswordInput';
+import DeleteAccessDialog, { type DeleteAccessTarget } from './DeleteAccessDialog';
 
 const STATUS_OPTIONS = [
   { label: '正常', value: 'active' },
@@ -78,6 +83,7 @@ export default function SettingsUsersPage() {
   };
   const [createOpen, setCreateOpen] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteAccessTarget | null>(null);
   const [roles, setRoles] = useState<AdminRoleRow[]>([]);
   const [permissionCatalog, setPermissionCatalog] = useState<string[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
@@ -321,6 +327,10 @@ export default function SettingsUsersPage() {
                 </Button>
               </span>
             </Tooltip>
+            <Tooltip title={isCurrentAccount ? '不能删除当前登录账号' : undefined}>
+              <span><Button type="link" size="small" danger disabled={!canManageUsers || submitting || isCurrentAccount}
+                onClick={() => setDeleteTarget({ kind: 'user', id: row.id, name: adminUserLabel(row) })}>删除用户</Button></span>
+            </Tooltip>
           </Space>
         );
       },
@@ -360,7 +370,7 @@ export default function SettingsUsersPage() {
                   enabled: r.enabled,
                 });
                 setRoleOpen(true);
-              }} onToggle={(r) => {
+              }} onDelete={(r) => setDeleteTarget({ kind: 'role', id: r.code, name: roleLabel(r.code, r.name) })} onToggle={(r) => {
                 Modal.confirm({
                   title: r.enabled ? '停用角色并立即撤权？' : '重新启用角色？',
                   content: `角色「${roleLabel(r.code, r.name)}」现有 ${r.memberCount} 位成员，变更将影响其访问权限。`,
@@ -461,7 +471,7 @@ export default function SettingsUsersPage() {
           destroyOnHidden
         >
           <p>此临时密码仅在此处显示一次。关闭后无法重新查看，切勿发送到公开聊天或日志。</p>
-          <Input.Password value={temporaryPassword || ''} readOnly visibilityToggle />
+          <PasswordInput value={temporaryPassword || ''} readOnly />
         </Modal>
         <Modal
           title="编辑用户"
@@ -486,7 +496,11 @@ export default function SettingsUsersPage() {
         <Modal
           title="新建用户"
           open={createOpen}
-          onCancel={() => { if (!submitting) setCreateOpen(false); }}
+          onCancel={() => {
+            if (submitting) return;
+            createForm.resetFields();
+            setCreateOpen(false);
+          }}
           onOk={() => createForm.submit()}
           confirmLoading={submitting}
           okButtonProps={{ disabled: submitting }}
@@ -495,6 +509,7 @@ export default function SettingsUsersPage() {
           <Form
             name="admin-user-create"
             form={createForm}
+            preserve={false}
             layout="vertical"
             onFinish={(v) => runMutation(async () => {
               await createAdminUser(v);
@@ -507,8 +522,14 @@ export default function SettingsUsersPage() {
             <Form.Item name="email" label="邮箱" rules={[{ required: true }]}>
               <Input placeholder="operator@example.com" />
             </Form.Item>
-            <Form.Item name="password" label="初始密码" rules={[{ required: true, min: 12, message: '密码至少 12 位' }]}>
-              <Input.Password />
+            <Form.Item name="password" label="初始密码" extra={PASSWORD_HINT} rules={[
+              { required: true, message: '请输入初始密码' },
+              { validator: (_, value) => {
+                const error = passwordError(value || '');
+                return error ? Promise.reject(new Error(error)) : Promise.resolve();
+              } },
+            ]}>
+              <PasswordInput disabled={submitting} />
             </Form.Item>
             <Form.Item name="displayName" label="显示名">
               <Input />
@@ -518,6 +539,18 @@ export default function SettingsUsersPage() {
             </Form.Item>
           </Form>
         </Modal>
+
+        <DeleteAccessDialog target={deleteTarget} submitting={submitting}
+          onCancel={() => { if (!submitting) setDeleteTarget(null); }}
+          onConfirm={() => void runMutation(async () => {
+            if (!deleteTarget) return;
+            if (deleteTarget.kind === 'user') await deleteAdminUser(deleteTarget.id);
+            else await deleteAdminRole(deleteTarget.id);
+            message.success(deleteTarget.kind === 'user' ? '用户已删除' : '角色已删除');
+            setDeleteTarget(null);
+            await loadRoles();
+            actionRef.current?.reload();
+          })} />
 
         <Modal
           title={`分配店铺权限 — ${editUser?.displayName || ''}`}

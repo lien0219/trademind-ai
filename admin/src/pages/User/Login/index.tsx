@@ -19,6 +19,7 @@ import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
+import { PASSWORD_HINT, passwordError } from '@/utils/password';
 import { changeRequiredPassword, getProfile, login, register, sendEmailCode, type LoginResult } from '@/services/auth';
 import './index.less';
 
@@ -309,7 +310,13 @@ export default function LoginPage() {
                 <Form.Item name="currentPassword" label="临时密码" rules={[{ required: true }]}>
                   <Input.Password autoComplete="current-password" />
                 </Form.Item>
-                <Form.Item name="newPassword" label="新密码" rules={[{ required: true }, { min: 12, max: 72 }]}>
+                <Form.Item name="newPassword" label="新密码" extra={PASSWORD_HINT} rules={[
+                  { required: true, message: '请输入新密码' },
+                  { validator: (_, value) => {
+                    const error = passwordError(value || '');
+                    return error ? Promise.reject(new Error(error)) : Promise.resolve();
+                  } },
+                ]}>
                   <Input.Password autoComplete="new-password" />
                 </Form.Item>
                 <Form.Item name="confirmPassword" label="确认新密码" dependencies={['newPassword']} rules={[

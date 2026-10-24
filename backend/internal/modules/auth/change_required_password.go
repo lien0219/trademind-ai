@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/passwordpolicy"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -18,7 +19,7 @@ import (
 type requiredPasswordChangeInput struct {
 	Account         string `json:"account" binding:"required,max=128"`
 	CurrentPassword string `json:"currentPassword" binding:"required,max=128"`
-	NewPassword     string `json:"newPassword" binding:"required,min=12,max=72"`
+	NewPassword     string `json:"newPassword" binding:"required"`
 }
 
 // ChangeRequiredPassword is the only pre-auth path for accounts marked as
@@ -30,7 +31,11 @@ func (h *Handler) ChangeRequiredPassword(c *gin.Context) {
 	}
 	var body requiredPasswordChangeInput
 	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "密码至少12位且不超过72位")
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "请填写完整的账号与密码")
+		return
+	}
+	if err := passwordpolicy.Validate(body.NewPassword); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
 	account := strings.TrimSpace(body.Account)

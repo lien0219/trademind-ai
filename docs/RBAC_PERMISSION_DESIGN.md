@@ -15,6 +15,8 @@
 
 控制台账号由有 `user.manage` 的系统管理员创建。公开注册及其验证码接口保留路径，但返回 403，不再创建默认管理员。注册页显示联系管理员的提示并禁用提交。新建账号及管理员重置密码后，必须先修改临时密码，再签发正常登录凭据。
 
+新设密码为 12–72 位可打印 ASCII 字符，必须包含英文字母和数字，禁止中文、全角字符、空格和控制字符。新建用户可在浏览器内用 Web Crypto 生成 20 位随机密码并复制，剪贴板拒绝时保留输入并提示手动复制；取消弹窗后不保留密码。重置后也可复制一次性临时密码。旧密码登录不套用新设密码规则。
+
 `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PHONE` 指定的启动账号在后端启动时保持 `admin`、`active`，变化同时增加安全版本并记录事务审计。普通环境中修改 `.env` 密码不会覆盖既有数据库密码。应先加载完整 profile 再显示管理导航；运维根入口按已授权能力跳转，无权限显示拒绝页。
 
 ## 权限矩阵
@@ -126,10 +128,10 @@ Profile 导出：`GET /api/v1/auth/profile` → `permissions[]`
 
 | 入口 | 权限与隔离 | 审计 / 撤权 |
 | --- | --- | --- |
-| `/admin/users`、`/admin/users/:id` | `user.manage`、同租户；没有用户 DELETE 接口 | 新建/编辑与成功审计同事务；禁止自禁用、自降权；最后有效管理员保护 |
+| `/admin/users`、`/admin/users/:id` | `user.manage`、同租户；支持 DELETE 软删除 | 新建/编辑/删除与成功审计同事务；禁止自禁用、自降权、自删除；最后有效管理员保护；删除清除店铺授权并增加安全版本 |
 | `/admin/users/:id/store-permissions` | `user.manage`；目标账号和全部店铺都必须属于当前租户 | 全量替换/清空与前后差异、版本增加同事务 |
 | `/admin/users/:id/reset-password` | `user.manage`、同租户 | 临时密码只返回一次，日志不包含密码；安全版本增加与审计同事务 |
-| `/admin/roles`、`/admin/roles/:code`、`/admin/permissions` | `user.manage`；系统角色不可改写；自定义角色同租户且权限键有效 | 创建/编辑/停启与审计同事务；修改角色使全部成员安全版本增加 |
+| `/admin/roles`、`/admin/roles/:code`、`/admin/permissions` | `user.manage`；系统角色不可改写或删除；自定义角色同租户且权限键有效；DELETE 要求无未删除成员（含禁用用户），否则 409 | 创建/编辑/停启/删除与审计同事务；修改角色使全部成员安全版本增加；删除与角色分配共用租户锁 |
 | `/auth/change-required-password` | 验证当前临时密码及强制改密状态 | 新密码哈希、改密状态、安全版本与审计同事务 |
 | `/auth/sessions/:id`、`revoke-others`、`logout-all`、`logout` | JWT 用户自己的会话；不信任客户端 userId；logout 的 Refresh 与当前用户/会话匹配 | 会话/Refresh 撤销与成功审计同事务，审计不可用返回失败，查询故障不伪装成成功 |
 | `/shops`、店铺凭据、OAuth | `store.view` / `store.operate`、同租户店铺范围；创建/删除要求系统管理员；摘要、存在性查询及分类刷新也校验店铺范围 | 关键写入与审计同事务；OAuth state 单次使用并绑定用户、租户和安全版本；五个平台刷新以捕获的 TokenVersion 校验提交，过期回调不能恢复已撤销凭据 |

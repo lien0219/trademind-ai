@@ -53,7 +53,7 @@ test.describe('@smoke Settings users', () => {
     await page.getByRole('button', { name: '改角色' }).click();
     const roleDialog = page.getByRole('dialog', { name: '修改角色' });
     await expect(roleDialog).toBeVisible();
-    await roleDialog.getByRole('button', { name: /^(取消|Cancel)$/ }).click();
+    await roleDialog.getByRole('button', { name: /^(取\s*消|Cancel)$/ }).click();
     await admin.writeGuard.expectRequestCount('change-user-role', 0);
 
     await page.getByRole('button', { name: '改角色' }).click();

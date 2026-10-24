@@ -7,11 +7,13 @@
 | 方法 | 路径 | 契约 |
 | --- | --- | --- |
 | GET / POST | `/admin/users` | `user.manage`，当前租户列表/建号；新账号必须先修改临时密码 |
-| GET / PATCH | `/admin/users/:id` | 同租户及用户管理权限；编辑显示名、角色、启停；没有 DELETE 用户接口 |
+| GET / PATCH | `/admin/users/:id` | 同租户及用户管理权限；编辑显示名、角色、启停 |
+| DELETE | `/admin/users/:id` | 同租户有效系统管理员的 `user.manage`；软删除账号、清除店铺授权、安全版本递增与审计同事务；不能删除自己或最后有效管理员；成功 `{deleted:true}` |
 | PUT | `/admin/users/:id/store-permissions` | 全量替换授予列表；空数组撤销全部；目标用户及每家店铺都校验租户 |
 | POST | `/admin/users/:id/reset-password` | 成功返回一次 `temporaryPassword`；旧凭据立即失效；日志不含密码 |
 | GET / POST | `/admin/roles` | 含成员数的角色列表/新建自定义角色；系统权限不可委派 |
 | PATCH | `/admin/roles/:code` | 修改名称、描述、权限和 enabled；系统角色拒绝，停启均使成员旧凭据失效 |
+| DELETE | `/admin/roles/:code` | 同租户有效系统管理员的 `user.manage`；只允许无未删除成员的自定义角色；有成员返回 HTTP 409 / code 40001，系统角色返回 400；成功 `{deleted:true}` |
 | GET | `/admin/permissions` | 返回可委派权限目录，不能靠提交未展示键绕过后端白名单 |
 | POST | `/auth/change-required-password` | 验证临时密码、完成强制改密，成功后再登录 |
 | DELETE | `/auth/sessions/:id` | 仅撤销当前登录用户的指定会话及关联 Refresh Token |
@@ -24,6 +26,8 @@
 | GET / POST | `/security/audit/integrity/status`、`/security/audit/integrity/verify` | `audit.read`，只验证当前认证租户的审计链 |
 
 关键成功审计与业务写入同事务，拒绝/失败审计在回滚后单独写入；日志持久化失败明确返回 500。无模块权限为 403，不可见的跨租户/未授权资源通常为 404。角色、状态、授权及密码变更增加 SQL 安全版本，旧 Access、Refresh 和历史会话不可重用。
+
+新建账号和首次强制改密的新密码统一要求 12–72 位可打印 ASCII 字符，必须包含英文字母和数字，可含英文符号；中文、全角、空格及控制字符均拒绝。旧密码仍按原样验证。前端在本地安全随机生成 20 位密码并提供显式复制；密码重置由后端生成符合规则的一次性临时密码，只在成功响应中返回。删除后历史业务及审计保留；重复删除返回 404。审计或数据库错误时删除整笔回滚并返回 500。
 
 Amazon、Douyin、Lazada、Shopee、TikTok 的店铺 OAuth 刷新以请求前捕获的 TokenVersion 校验提交；凭据、授权状态及刷新成功审计同事务。撤销后到达的旧刷新结果明确失败，不能恢复授权；Provider 持久化失败不得继续把新 Token 当作成功结果使用。
 

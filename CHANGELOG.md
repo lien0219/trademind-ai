@@ -6,6 +6,8 @@ All notable changes to TradeMind are documented here.
 
 ### User and permission security maintenance (2026-10-24)
 
+- Added a consistent 12–72 character ASCII password policy for new credentials, secure local password generation and explicit copying, including one-time reset credentials.
+- Added tenant-scoped user soft deletion and deletion of empty custom roles with transactional audit, credential revocation, self/last-administrator/system-role protection and regression coverage. New PostgreSQL concurrency checks await isolated CI validation.
 - Made sensitive user, role, password, shop authorization, global configuration and session-revocation audit writes transactional; added failure/denial auditing and PostgreSQL audit-chain concurrency protection.
 - Bound OAuth state to the initiating tenant, user and security version, and committed credentials, provider metadata and success evidence together.
 - Fenced refresh persistence for all five platform providers so late responses cannot restore revoked shop credentials; propagated persistence failures and audited successful background refreshes transactionally.

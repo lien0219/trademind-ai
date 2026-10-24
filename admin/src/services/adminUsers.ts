@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, patchJSON, postJSON, putJSON } from '@/services/request';
+import { deleteJSON, getJSON, getWithParams, patchJSON, postJSON, putJSON } from '@/services/request';
 
 export type StorePermissionRow = {
   id?: string;
@@ -53,6 +53,10 @@ export async function updateAdminUser(id: string, body: UpdateAdminUserBody) {
   return patchJSON<AdminUserRow, UpdateAdminUserBody>(`/api/v1/admin/users/${id}`, body);
 }
 
+export async function deleteAdminUser(id: string): Promise<{ deleted: boolean }> {
+  return deleteJSON(`/api/v1/admin/users/${encodeURIComponent(id)}`);
+}
+
 export async function setAdminUserStorePermissions(id: string, items: SetStorePermissionsBody['items']) {
   const body: SetStorePermissionsBody = { items };
   return putJSON<AdminUserRow, SetStorePermissionsBody>(
@@ -92,6 +96,10 @@ export async function createAdminRole(values: RoleEditorValues): Promise<AdminRo
 
 export async function updateAdminRole(code: string, values: RoleEditorValues): Promise<AdminRoleRow> {
   return patchJSON(`/api/v1/admin/roles/${encodeURIComponent(code)}`, values);
+}
+
+export async function deleteAdminRole(code: string): Promise<{ deleted: boolean }> {
+  return deleteJSON(`/api/v1/admin/roles/${encodeURIComponent(code)}`);
 }
 
 export async function resetAdminUserPassword(id: string): Promise<{ temporaryPassword: string }> {

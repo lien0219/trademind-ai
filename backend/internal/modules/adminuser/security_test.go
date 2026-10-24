@@ -194,6 +194,9 @@ func TestCreateUserRejectsMalformedAccountAndWeakPassword(t *testing.T) {
 	for _, body := range []CreateBody{
 		{Email: "not-an-account", Password: "test-password-123", Role: "operator"},
 		{Email: "new@example.test", Password: "short1", Role: "operator"},
+		{Email: "new@example.test", Password: "测试密码不能使用中文123456", Role: "operator"},
+		{Email: "new@example.test", Password: "123456789012", Role: "operator"},
+		{Email: "new@example.test", Password: "password 123456", Role: "operator"},
 	} {
 		svc, actor, _ := securityFixture(t)
 		w := roleRequest(t, svc, actor, http.MethodPost, "/api/v1/admin/users", body)

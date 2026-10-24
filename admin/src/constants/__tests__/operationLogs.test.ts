@@ -5,6 +5,13 @@ import {
 } from '../operationLogs';
 
 describe('operation log alert labels', () => {
+  it('translates user and role deletion audit records', () => {
+    expect(operationLogResourceLabel('admin_user')).toBe('后台用户');
+    expect(operationLogResourceLabel('admin_role')).toBe('后台角色');
+    expect(operationLogActionLabel('user.delete')).toBe('删除用户');
+    expect(operationLogActionLabel('role.delete')).toBe('删除角色');
+  });
+
   it('keeps system alert audit records user-facing', () => {
     expect(operationLogResourceLabel('alert_event')).toBe('系统告警');
     expect(operationLogActionLabel('alert.acknowledge')).toBe('确认系统告警');
