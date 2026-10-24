@@ -65,6 +65,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantmgmt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehousefee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
@@ -927,6 +928,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
+	tenantmgmt.Register(authed, &tenantmgmt.Handler{
+		Service: &tenantmgmt.Service{DB: dep.DB, Audit: opLogSvc},
+	})
 
 	secSvc := &securitymod.Service{DB: dep.DB, Cfg: dep.Config, OpLogs: opLogSvc, Metrics: metricCatalog}
 	secH := &securitymod.Handler{Svc: secSvc, DB: dep.DB}
