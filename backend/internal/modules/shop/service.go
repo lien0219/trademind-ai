@@ -532,6 +532,12 @@ func (s *Service) GetSummary(c *gin.Context, id uuid.UUID) (*SummaryDTO, error) 
 		}
 		return nil, err
 	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	return &SummaryDTO{
 		ID:         row.ID,
 		Platform:   row.Platform,
@@ -548,8 +554,37 @@ func (s *Service) BatchSummaries(c *gin.Context, ids []uuid.UUID) (map[uuid.UUID
 	if s == nil || s.DB == nil || len(ids) == 0 {
 		return out, nil
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	p, err := adminperm.LoadPrincipal(c, s.DB)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return out, nil
+	}
+	if !p.IsAdmin() {
+		allowed := make([]uuid.UUID, 0, len(ids))
+		seen := make(map[uuid.UUID]struct{}, len(ids))
+		for _, id := range ids {
+			if id == uuid.Nil || !p.CanViewStore(id) {
+				continue
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			allowed = append(allowed, id)
+		}
+		if len(allowed) == 0 {
+			return out, nil
+		}
+		ids = allowed
+	}
 	var rows []Shop
-	if err := s.DB.WithContext(c.Request.Context()).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("tenant_id = ? AND id IN ?", tid, ids).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range rows {
@@ -570,11 +605,24 @@ func (s *Service) Exists(c *gin.Context, id uuid.UUID) (bool, error) {
 	if s == nil || s.DB == nil || id == uuid.Nil {
 		return false, nil
 	}
-	var n int64
-	if err := s.DB.WithContext(c.Request.Context()).Model(&Shop{}).Where("id = ?", id).Count(&n).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return false, err
 	}
-	return n > 0, nil
+	var n int64
+	if err := s.DB.WithContext(c.Request.Context()).Model(&Shop{}).Where("tenant_id = ? AND id = ?", tid, id).Count(&n).Error; err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 type UpdateAuthBody struct {
@@ -833,6 +881,7 @@ func (s *Service) buildDecryptedAuth(shopRow *Shop, tok *ShopAuthToken) (*Shop, 
 		MarketplaceID:         tok.MarketplaceID,
 		AccessTokenExpiresAt:  tok.ExpiresAt,
 		RefreshTokenExpiresAt: tok.RefreshExpiresAt,
+		TokenVersion:          tok.TokenVersion,
 	}
 	if len(tok.AuthConfig) > 0 {
 		var m map[string]any

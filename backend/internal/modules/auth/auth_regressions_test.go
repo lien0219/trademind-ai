@@ -133,6 +133,52 @@ func TestSessionRevocationsRequireAtomicAudit(t *testing.T) {
 	}
 }
 
+func TestRevokeByRefreshTokenReturnsLookupErrors(t *testing.T) {
+	db, cfg, _, sessions := newAuthRegressionFixture(t, config.AuthSessionModeSecure)
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:fail_refresh_lookup", func(tx *gorm.DB) {
+		if tx.Statement.Table == "auth_refresh_tokens" {
+			tx.AddError(errors.New("refresh lookup unavailable"))
+		}
+	}))
+
+	err := sessions.RevokeByRefreshToken(context.Background(), "synthetic-refresh")
+	require.ErrorContains(t, err, "refresh lookup unavailable")
+	_ = cfg
+}
+
+func TestLogoutFailsClosedAndRollsBackWhenAuditFails(t *testing.T) {
+	db, cfg, user, sessions := newAuthRegressionFixture(t, config.AuthSessionModeSecure)
+	login, err := sessions.CreateSession(context.Background(), user.Email, "valid-password-123", "127.0.0.1", "logout-regression")
+	require.NoError(t, err)
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:fail_logout_audit", func(tx *gorm.DB) {
+		if tx.Statement.Table == "operation_logs" {
+			tx.AddError(errors.New("logout audit unavailable"))
+		}
+	}))
+
+	h := &Handler{Cfg: cfg, Sessions: sessions, OpLog: &operationlog.Service{DB: db}}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewBufferString(fmt.Sprintf(`{"refreshToken":%q}`, login.RefreshToken)))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(ctxkey.AdminID, user.ID.String())
+	c.Set(ctxkey.TenantID, user.TenantID)
+	c.Set(ctxkey.SessionID, login.SessionID.String())
+
+	h.Logout(c)
+	require.Equal(t, http.StatusInternalServerError, w.Code, w.Body.String())
+
+	var session AuthSession
+	require.NoError(t, db.First(&session, "id = ?", login.SessionID).Error)
+	require.Equal(t, SessionStatusActive, session.Status)
+	var refresh AuthRefreshToken
+	require.NoError(t, db.Where("session_id = ?", login.SessionID).First(&refresh).Error)
+	require.Equal(t, RefreshStatusActive, refresh.Status)
+	var auditCount int64
+	require.NoError(t, db.Model(&operationlog.OperationLog{}).Count(&auditCount).Error)
+	require.Zero(t, auditCount)
+}
+
 func newAuthRegressionFixture(t *testing.T, mode string) (*gorm.DB, *config.Config, *admin.AdminUser, *SessionService) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:auth_regression_%s?mode=memory&cache=shared", uuid.NewString())), &gorm.Config{})

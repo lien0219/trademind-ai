@@ -157,6 +157,16 @@ func TestDouyinCategoryRoutesRequireStoreScope(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/platform/douyin/categories/stats", nil))
 		require.Equal(t, http.StatusForbidden, w.Code)
 	})
+	t.Run("store viewer cannot trigger category refresh through GET", func(t *testing.T) {
+		viewer := admin.AdminUser{TenantID: 7, Username: admin.NewInternalUsername(), Email: "viewer@example.test", PasswordHash: "test-only", Role: adminperm.RoleReadonly, Status: admin.StatusActive, TokenVersion: 1}
+		require.NoError(t, fx.db.Create(&viewer).Error)
+		require.NoError(t, fx.db.Create(&admin.UserStorePermission{UserID: viewer.ID, StoreID: fx.shopA.ID, Platform: "manual", PermissionScope: admin.StorePermScopeView}).Error)
+		r := newShopAuthorizationRouter(fx, viewer)
+		path := "/api/v1/platform/douyin/categories?shopId=" + fx.shopA.ID.String() + "&refresh=true"
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusForbidden, w.Code)
+	})
 }
 
 func newShopAuthorizationRouter(fx shopAuthorizationFixture, actor admin.AdminUser) *gin.Engine {

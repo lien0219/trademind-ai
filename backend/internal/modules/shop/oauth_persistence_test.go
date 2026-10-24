@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -242,4 +243,133 @@ func TestDouyinOAuthBundleRollsBackAuditWhenFinalRawDataWriteFails(t *testing.T)
 		require.NoError(t, db.Model(model).Count(&count).Error)
 		require.Zero(t, count)
 	}
+}
+
+func TestDouyinRefreshPersistenceIsFencedAfterRevokeAndAudited(t *testing.T) {
+	db, actor, c := newShopAuditFixture(t, true)
+	enc, err := encrypt.NewService("douyin-refresh-fence-test-only")
+	require.NoError(t, err)
+	service := &Service{DB: db, Encrypter: enc, OpLog: &operationlog.Service{DB: db}}
+	shopRow := Shop{TenantID: actor.TenantID, Platform: douyinPlatform, ShopName: "refresh-fence", Status: StatusActive, AuthStatus: AuthAuthorized}
+	require.NoError(t, db.Create(&shopRow).Error)
+	oldAccess, err := enc.Encrypt([]byte("old-access"))
+	require.NoError(t, err)
+	oldRefresh, err := enc.Encrypt([]byte("old-refresh"))
+	require.NoError(t, err)
+	token := ShopAuthToken{ShopID: shopRow.ID, Platform: douyinPlatform, AuthType: "oauth2", AccessTokenEnc: oldAccess, RefreshTokenEnc: oldRefresh, TokenVersion: 7}
+	require.NoError(t, db.Create(&token).Error)
+
+	ctx := security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: actor.TenantID, UserID: actor.ID})
+	ctx = withOAuthExpectedShopTokenVersion(ctx, token.TokenVersion)
+	ctx = withOAuthRefreshAuditContext(ctx, c, &actor.ID, "douyin.auth.refresh")
+	_, err = service.DouyinOAuthRevoke(c, shopRow.ID, &actor.ID)
+	require.NoError(t, err)
+	require.Error(t, service.persistOAuthTokenRefreshVersioned(ctx, shopRow.ID, "new-access", "new-refresh", nil, nil))
+
+	var storedShop Shop
+	require.NoError(t, db.First(&storedShop, "id = ?", shopRow.ID).Error)
+	require.Equal(t, AuthUnauthorized, storedShop.AuthStatus)
+	var storedToken ShopAuthToken
+	require.NoError(t, db.First(&storedToken, "shop_id = ?", shopRow.ID).Error)
+	require.EqualValues(t, 8, storedToken.TokenVersion)
+	require.Empty(t, storedToken.AccessTokenEnc)
+	require.Empty(t, storedToken.RefreshTokenEnc)
+	require.Error(t, service.setAuthStatusVersioned(ctx, shopRow.ID, AuthAuthorized, 8))
+}
+
+func TestDouyinRefreshMetadataCannotOverwriteRevoke(t *testing.T) {
+	db, actor, c := newShopAuditFixture(t, true)
+	enc, err := encrypt.NewService("douyin-refresh-metadata-fence-test-only")
+	require.NoError(t, err)
+	service := &Service{DB: db, Encrypter: enc, OpLog: &operationlog.Service{DB: db}}
+	shopRow := Shop{TenantID: actor.TenantID, Platform: douyinPlatform, ShopName: "before", Status: StatusActive, AuthStatus: AuthAuthorized}
+	require.NoError(t, db.Create(&shopRow).Error)
+	token := ShopAuthToken{ShopID: shopRow.ID, Platform: douyinPlatform, AuthType: "oauth2", TokenVersion: 11}
+	require.NoError(t, db.Create(&token).Error)
+	ctx := security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: actor.TenantID, UserID: actor.ID})
+	_, err = service.DouyinOAuthRevoke(c, shopRow.ID, &actor.ID)
+	require.NoError(t, err)
+	err = service.persistDouyinShopInfoVersioned(ctx, shopRow.ID, &platformdouyin.ShopInfo{
+		PlatformShopID: "after-revoke",
+		ShopName:       "should-not-write",
+		Raw:            map[string]any{"provider": "stale-refresh"},
+	}, token.TokenVersion)
+	require.Error(t, err)
+	var storedShop Shop
+	require.NoError(t, db.First(&storedShop, "id = ?", shopRow.ID).Error)
+	require.Equal(t, "before", storedShop.ShopName)
+	require.Equal(t, AuthUnauthorized, storedShop.AuthStatus)
+	var storedToken ShopAuthToken
+	require.NoError(t, db.First(&storedToken, "shop_id = ?", shopRow.ID).Error)
+	require.EqualValues(t, 12, storedToken.TokenVersion)
+	require.Empty(t, storedToken.RawData)
+}
+
+func TestDouyinRefreshPersistenceCommitsRedactedAudit(t *testing.T) {
+	db, actor, c := newShopAuditFixture(t, true)
+	enc, err := encrypt.NewService("douyin-refresh-audit-success-test-only")
+	require.NoError(t, err)
+	service := &Service{DB: db, Encrypter: enc, OpLog: &operationlog.Service{DB: db}}
+	shopRow := Shop{TenantID: actor.TenantID, Platform: douyinPlatform, ShopName: "refresh-audit-success", Status: StatusActive, AuthStatus: AuthAuthorized}
+	require.NoError(t, db.Create(&shopRow).Error)
+	token := ShopAuthToken{ShopID: shopRow.ID, Platform: douyinPlatform, AuthType: "oauth2", TokenVersion: 2}
+	require.NoError(t, db.Create(&token).Error)
+	ctx := security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: actor.TenantID, UserID: actor.ID})
+	ctx = withOAuthExpectedShopTokenVersion(ctx, token.TokenVersion)
+	ctx = withOAuthRefreshAuditContext(ctx, c, &actor.ID, "douyin.auth.refresh")
+	require.NoError(t, service.persistOAuthTokenRefreshVersioned(ctx, shopRow.ID, "new-access-secret", "new-refresh-secret", nil, nil))
+	var stored Shop
+	require.NoError(t, db.First(&stored, "id = ?", shopRow.ID).Error)
+	require.Equal(t, AuthAuthorized, stored.AuthStatus)
+	var storedToken ShopAuthToken
+	require.NoError(t, db.First(&storedToken, "shop_id = ?", shopRow.ID).Error)
+	require.EqualValues(t, 3, storedToken.TokenVersion)
+	var rows []operationlog.OperationLog
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 1)
+	require.Equal(t, "douyin.auth.refresh", rows[0].Action)
+	require.NotContains(t, rows[0].Message, "new-access-secret")
+	require.NotContains(t, rows[0].Message, "new-refresh-secret")
+}
+
+func TestDouyinRefreshPersistenceRollsBackWithoutAudit(t *testing.T) {
+	db, actor, c := newShopAuditFixture(t, true)
+	enc, err := encrypt.NewService("douyin-refresh-audit-test-only")
+	require.NoError(t, err)
+	service := &Service{DB: db, Encrypter: enc}
+	shopRow := Shop{TenantID: actor.TenantID, Platform: douyinPlatform, ShopName: "refresh-audit", Status: StatusActive, AuthStatus: AuthAuthorized}
+	require.NoError(t, db.Create(&shopRow).Error)
+	token := ShopAuthToken{ShopID: shopRow.ID, Platform: douyinPlatform, AuthType: "oauth2", TokenVersion: 2}
+	require.NoError(t, db.Create(&token).Error)
+	ctx := security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: actor.TenantID, UserID: actor.ID})
+	ctx = withOAuthExpectedShopTokenVersion(ctx, token.TokenVersion)
+	ctx = withOAuthRefreshAuditContext(ctx, c, &actor.ID, "douyin.auth.refresh")
+	require.Error(t, service.persistOAuthTokenRefreshVersioned(ctx, shopRow.ID, "new-access", "new-refresh", nil, nil))
+	var stored ShopAuthToken
+	require.NoError(t, db.First(&stored, "shop_id = ?", shopRow.ID).Error)
+	require.EqualValues(t, 2, stored.TokenVersion)
+	require.Empty(t, stored.AccessTokenEnc)
+	require.Empty(t, stored.RefreshTokenEnc)
+}
+
+func TestPlatformOAuthRefreshUsesTokenVersionContext(t *testing.T) {
+	db, actor, c := newShopAuditFixture(t, true)
+	enc, err := encrypt.NewService("platform-refresh-version-context-test-only")
+	require.NoError(t, err)
+	service := &Service{DB: db, Encrypter: enc, OpLog: &operationlog.Service{DB: db}}
+	shopRow := Shop{TenantID: actor.TenantID, Platform: "tiktok", ShopName: "platform-refresh", Status: StatusActive, AuthStatus: AuthAuthorized}
+	require.NoError(t, db.Create(&shopRow).Error)
+	token := ShopAuthToken{ShopID: shopRow.ID, Platform: shopRow.Platform, AuthType: "oauth2", TokenVersion: 4}
+	require.NoError(t, db.Create(&token).Error)
+	ctx := security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: actor.TenantID, UserID: actor.ID})
+	ctx = platformp.WithOAuthExpectedTokenVersion(ctx, token.TokenVersion)
+	ctx = withOAuthRefreshAction(ctx, "shop.oauth.tiktok.refresh")
+	require.NoError(t, service.persistOAuthTokenRefreshVersioned(ctx, shopRow.ID, "new-access", "new-refresh", nil, nil))
+	var stored ShopAuthToken
+	require.NoError(t, db.First(&stored, "shop_id = ?", shopRow.ID).Error)
+	require.EqualValues(t, 5, stored.TokenVersion)
+	var rows []operationlog.OperationLog
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 1)
+	require.Equal(t, "shop.oauth.tiktok.refresh", rows[0].Action)
 }

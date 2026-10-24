@@ -88,6 +88,41 @@ func (s *Service) WriteTx(c *gin.Context, tx *gorm.DB, opts WriteOpts) error {
 	return nil
 }
 
+// WriteTxContext persists an internal/background audit record inside the
+// caller's business transaction. It is used when no HTTP request exists but
+// the mutation still requires atomic audit evidence.
+func (s *Service) WriteTxContext(ctx context.Context, tx *gorm.DB, opts WriteOpts) error {
+	if s == nil || s.DB == nil || tx == nil {
+		return fmt.Errorf("operationlog: audit transaction unavailable")
+	}
+	row := newBackgroundRow(opts)
+	row.Message = opts.Message
+	if row.AdminRole == "" && row.AdminUserID != nil {
+		var actor struct{ Role string }
+		if err := tx.Table("admin_users").Select("role").Where("id = ?", *row.AdminUserID).Take(&actor).Error; err != nil {
+			return fmt.Errorf("operationlog: resolve audit actor: %w", err)
+		}
+		row.AdminRole = strings.TrimSpace(actor.Role)
+	}
+	var releaseChainLocks func()
+	if err := func() error {
+		var err error
+		releaseChainLocks, err = s.appendHashChain(tx, row)
+		return err
+	}(); err != nil {
+		return fmt.Errorf("operationlog: append audit chain: %w", err)
+	}
+	defer func() {
+		if releaseChainLocks != nil {
+			releaseChainLocks()
+		}
+	}()
+	if err := tx.Create(row).Error; err != nil {
+		return fmt.Errorf("operationlog: insert audit record: %w", err)
+	}
+	return nil
+}
+
 func (s *Service) newRow(c *gin.Context, opts WriteOpts) *OperationLog {
 	row := s.newRowBase(c, opts)
 	if row.AdminRole == "" && row.AdminUserID != nil && s.DB != nil {
@@ -178,14 +213,16 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	adminID := opts.AdminUserID
-	username := strings.TrimSpace(opts.Username)
+	row := newBackgroundRow(opts)
+	return s.writeWithDiagnostics(ctx, row, opts)
+}
 
+func newBackgroundRow(opts WriteOpts) *OperationLog {
 	row := &OperationLog{
-		AdminUserID: adminID,
+		AdminUserID: opts.AdminUserID,
 		SessionID:   opts.SessionID,
 		AdminRole:   strings.TrimSpace(opts.AdminRole),
-		Username:    username,
+		Username:    strings.TrimSpace(opts.Username),
 		TenantID:    opts.TenantID,
 		Action:      strings.TrimSpace(opts.Action),
 		Resource:    strings.TrimSpace(opts.Resource),
@@ -200,7 +237,9 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 		Message:     truncateRunes(opts.Message, 2000),
 		CreatedAt:   time.Now().UTC(),
 	}
-	return s.writeWithDiagnostics(ctx, row, opts)
+	row.CreatedAt = row.CreatedAt.UTC().Truncate(time.Microsecond)
+	row.ChainPartition = chainPartition(row.TenantID, row.CreatedAt)
+	return row
 }
 
 func (s *Service) writeWithDiagnostics(ctx context.Context, row *OperationLog, opts WriteOpts) error {

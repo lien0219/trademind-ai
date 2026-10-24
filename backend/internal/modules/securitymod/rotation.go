@@ -74,16 +74,36 @@ func (s *Service) RotationProgress(ctx context.Context, id uuid.UUID) (*KeyRotat
 
 // PauseRotation marks job paused.
 func (s *Service) PauseRotation(ctx context.Context, id uuid.UUID) error {
-	return s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("security: unavailable")
+	}
+	result := s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
 		Where("id = ? AND status = ?", id, RotationRunning).
-		Update("status", RotationPaused).Error
+		Update("status", RotationPaused)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ResumeRotation resumes paused job.
 func (s *Service) ResumeRotation(ctx context.Context, id uuid.UUID) error {
-	return s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("security: unavailable")
+	}
+	result := s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
 		Where("id = ? AND status = ?", id, RotationPaused).
-		Update("status", RotationRunning).Error
+		Update("status", RotationRunning)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // CountSecretReferencesByKeyID aggregates old-key and legacy references across all secret targets.

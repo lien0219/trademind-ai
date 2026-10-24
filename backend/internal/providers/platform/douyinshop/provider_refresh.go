@@ -2,6 +2,7 @@ package douyinshop
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -11,8 +12,11 @@ import (
 )
 
 func setAuthStatusMaybe(ctx context.Context, shopID uuid.UUID, status string) error {
-	if bridges == nil || shopID == uuid.Nil {
+	if shopID == uuid.Nil {
 		return nil
+	}
+	if bridges == nil {
+		return errors.New("douyin_shop: auth status persistence unavailable")
 	}
 	return bridges.SetShopAuthStatus(ctx, shopID, status)
 }
@@ -28,9 +32,13 @@ func newClientFromAuth(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 		RefreshTokenValue:     strings.TrimSpace(auth.RefreshToken),
 		AccessTokenExpiresAt:  auth.AccessTokenExpiresAt,
 		RefreshTokenExpiresAt: auth.RefreshTokenExpiresAt,
+		TokenVersion:          auth.TokenVersion,
 		PersistRefreshedToken: func(ctx context.Context, tok *TokenBundle) error {
-			if tok == nil || bridges == nil || shopID == uuid.Nil {
+			if tok == nil || shopID == uuid.Nil {
 				return nil
+			}
+			if bridges == nil {
+				return errors.New("douyin_shop: token persistence unavailable")
 			}
 			refresh := strings.TrimSpace(tok.RefreshToken)
 			if refresh == "" {
@@ -39,6 +47,9 @@ func newClientFromAuth(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 			return bridges.PersistOAuthTokenRefresh(ctx, shopID, tok.AccessToken, refresh, tok.AccessExpiresAt, tok.RefreshExpiresAt)
 		},
 		MarkAuthStatus: func(ctx context.Context, status string) error {
+			if strings.EqualFold(strings.TrimSpace(status), "authorized") {
+				return nil
+			}
 			return setAuthStatusMaybe(ctx, shopID, status)
 		},
 	}
@@ -59,8 +70,11 @@ func ensureFreshClient(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 		return client, cfg, nil
 	}
 	if !client.refreshUsable(now) {
-		_ = setAuthStatusMaybe(ctx, shopID, "expired")
-		return nil, RuntimeConfig{}, NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+		authErr := NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+		if statusErr := client.markAuthStatus(ctx, "expired"); statusErr != nil {
+			return nil, RuntimeConfig{}, errors.Join(authErr, statusErr)
+		}
+		return nil, RuntimeConfig{}, authErr
 	}
 	if _, err := client.RefreshAccessToken(ctx); err != nil {
 		return nil, RuntimeConfig{}, err

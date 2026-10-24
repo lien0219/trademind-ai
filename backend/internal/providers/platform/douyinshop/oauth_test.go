@@ -2,11 +2,14 @@ package douyinshop
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -238,6 +241,69 @@ func TestEnsureFreshAccessRefreshesExpiredToken(t *testing.T) {
 	}
 	if got != "new-access" || persisted == nil || persisted.RefreshToken != "new-refresh" {
 		t.Fatalf("refresh was not persisted: got=%s persisted=%+v", got, persisted)
+	}
+}
+
+func TestEnsureFreshAccessReturnsAuthorizedStatusPersistenceError(t *testing.T) {
+	now := time.Date(2026, 6, 6, 1, 2, 3, 0, time.UTC)
+	wantErr := errors.New("authorized status persistence failed")
+	c := &Client{
+		Config:                RuntimeConfig{AppKey: "ak", AppSecret: "secret", APIBaseURL: "https://openapi-fxg.jinritemai.com"},
+		Now:                   func() time.Time { return now },
+		RefreshTokenValue:     "old-refresh",
+		AccessTokenExpiresAt:  ptrTime(now.Add(-time.Minute)),
+		RefreshTokenExpiresAt: ptrTime(now.Add(time.Hour)),
+		MarkAuthStatus: func(context.Context, string) error {
+			return wantErr
+		},
+		HTTP: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(strings.NewReader("{\"code\":10000,\"data\":{\"access_token\":\"new-access\",\"refresh_token\":\"new-refresh\",\"expires_in\":3600}}")),
+			}, nil
+		}),
+	}
+
+	_, err := c.EnsureFreshAccess(context.Background())
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected authorized status persistence error, got %v", err)
+	}
+}
+
+func TestEnsureFreshAccessBindsAndAdvancesTokenVersion(t *testing.T) {
+	now := time.Date(2026, 6, 6, 1, 2, 3, 0, time.UTC)
+	var seenVersion int64 = -1
+	c := &Client{
+		Config:                RuntimeConfig{AppKey: "ak", AppSecret: "secret", APIBaseURL: "https://openapi-fxg.jinritemai.com"},
+		Now:                   func() time.Time { return now },
+		RefreshTokenValue:     "old-refresh",
+		AccessTokenExpiresAt:  ptrTime(now.Add(-time.Minute)),
+		RefreshTokenExpiresAt: ptrTime(now.Add(time.Hour)),
+		TokenVersion:          7,
+		PersistRefreshedToken: func(ctx context.Context, _ *TokenBundle) error {
+			var ok bool
+			seenVersion, ok = platformp.OAuthExpectedTokenVersion(ctx)
+			if !ok {
+				return errors.New("missing token version context")
+			}
+			return nil
+		},
+		HTTP: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(strings.NewReader("{\"code\":10000,\"data\":{\"access_token\":\"new-access\",\"refresh_token\":\"new-refresh\",\"expires_in\":3600}}")),
+			}, nil
+		}),
+	}
+
+	if _, err := c.EnsureFreshAccess(context.Background()); err != nil {
+		t.Fatalf("EnsureFreshAccess() error = %v", err)
+	}
+	if seenVersion != 7 {
+		t.Fatalf("expected refresh to bind token version 7, got %d", seenVersion)
+	}
+	if c.TokenVersion != 8 {
+		t.Fatalf("expected client token version 8 after refresh, got %d", c.TokenVersion)
 	}
 }
 

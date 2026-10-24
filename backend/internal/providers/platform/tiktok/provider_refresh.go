@@ -2,6 +2,7 @@ package tiktok
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -28,10 +29,19 @@ func ensureFreshAccess(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 		return "", updated, fmt.Errorf("tiktok authorization expired (missing refresh_token)")
 	}
 
-	tok, _, err := RefreshAccessToken(ctx, auth, ref)
+	refreshCtx := ctx
+	if refreshCtx == nil {
+		refreshCtx = context.Background()
+	}
+	if shopID != uuid.Nil {
+		refreshCtx = platformp.WithOAuthExpectedTokenVersion(refreshCtx, auth.TokenVersion)
+	}
+	tok, _, err := RefreshAccessToken(refreshCtx, auth, ref)
 	if err != nil {
 		if shopID != uuid.Nil {
-			_ = setAuthStatusMaybe(ctx, shopID, "expired")
+			if statusErr := setAuthStatusMaybe(refreshCtx, shopID, "expired"); statusErr != nil {
+				return "", updated, errors.Join(err, fmt.Errorf("tiktok: persist expired auth status: %w", statusErr))
+			}
 		}
 		return "", updated, err
 	}
@@ -44,15 +54,23 @@ func ensureFreshAccess(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 	updated.AccessTokenExpiresAt = tok.AccessExpiresAt
 	updated.RefreshTokenExpiresAt = tok.RefreshExpiresAt
 
-	if shopID != uuid.Nil && bridges != nil {
-		_ = bridges.PersistOAuthTokenRefresh(ctx, shopID, updated.AccessToken, newRef, tok.AccessExpiresAt, tok.RefreshExpiresAt)
+	if shopID != uuid.Nil {
+		if bridges == nil {
+			return "", updated, fmt.Errorf("tiktok: OAuth persistence unavailable")
+		}
+		if err := bridges.PersistOAuthTokenRefresh(refreshCtx, shopID, updated.AccessToken, newRef, tok.AccessExpiresAt, tok.RefreshExpiresAt); err != nil {
+			return "", updated, fmt.Errorf("tiktok: persist refreshed token: %w", err)
+		}
 	}
 	return updated.AccessToken, updated, nil
 }
 
 func setAuthStatusMaybe(ctx context.Context, shopID uuid.UUID, status string) error {
-	if bridges == nil || shopID == uuid.Nil {
+	if shopID == uuid.Nil {
 		return nil
+	}
+	if bridges == nil {
+		return fmt.Errorf("tiktok: auth status persistence unavailable")
 	}
 	return bridges.SetShopAuthStatus(ctx, shopID, status)
 }

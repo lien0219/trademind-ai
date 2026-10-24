@@ -217,16 +217,52 @@ func (h *Handler) Logout(c *gin.Context) {
 		_ = c.ShouldBindJSON(&body)
 		raw = strings.TrimSpace(body.RefreshToken)
 	}
-	if h.Sessions != nil && raw != "" {
-		_ = h.Sessions.RevokeByRefreshToken(c.Request.Context(), raw)
+	if h == nil || h.Sessions == nil || h.Sessions.DB == nil || h.Sessions.Cfg == nil || h.OpLog == nil || h.OpLog.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "logout unavailable")
+		return
 	}
-	ClearSessionCookies(c, h.Cfg)
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+	var uid *uuid.UUID
+	if id, ok := currentUserID(c); ok {
+		uid = &id
+	}
+	var sid *uuid.UUID
+	if rawSID, ok := c.Get(ctxkey.SessionID); ok {
+		if value, ok := rawSID.(string); ok {
+			if parsed, err := uuid.Parse(strings.TrimSpace(value)); err == nil && parsed != uuid.Nil {
+				sid = &parsed
+			}
+		}
+	}
+	err := h.Sessions.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		sessions := *h.Sessions
+		sessions.DB = tx
+		revoked, err := sessions.revokeByRefreshTokenTx(c.Request.Context(), tx, raw, uid, sid)
+		if err != nil {
+			return err
+		}
+		if !revoked && sid != nil && uid != nil {
+			var sess AuthSession
+			if err := tx.WithContext(c.Request.Context()).First(&sess, "id = ?", *sid).Error; err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+			} else if sess.UserID == *uid {
+				if err := sessions.revokeSessionTx(tx, *sid, "logout"); err != nil {
+					return err
+				}
+			}
+		}
+		return h.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
 			Action:   "logout",
 			Resource: "auth",
 			Status:   "success",
+			Message:  "logout committed",
 		})
+	})
+	if err != nil {
+		response.HandleError(c, err)
+		return
 	}
+	ClearSessionCookies(c, h.Cfg)
 	response.OK(c, gin.H{"ok": true})
 }

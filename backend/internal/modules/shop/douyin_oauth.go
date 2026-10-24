@@ -518,8 +518,18 @@ func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopI
 		return nil, nil, nil, fmt.Errorf("shop platform must be douyin_shop")
 	}
 	if tok == nil || strings.TrimSpace(auth.RefreshToken) == "" {
-		if err := s.setAuthStatusCtx(ctx, shopID, AuthExpired); err != nil {
-			return nil, shopRow, tok, fmt.Errorf("douyin auth expired and status could not be persisted: %w", err)
+		// A locally revoked shop must remain unauthorized. A stale refresh
+		// attempt must not turn the revocation into an expired status.
+		if !strings.EqualFold(strings.TrimSpace(shopRow.AuthStatus), AuthUnauthorized) {
+			var statusErr error
+			if tok != nil {
+				statusErr = s.setAuthStatusVersioned(ctx, shopID, AuthExpired, tok.TokenVersion)
+			} else {
+				statusErr = s.setAuthStatusCtx(ctx, shopID, AuthExpired)
+			}
+			if statusErr != nil {
+				return nil, shopRow, tok, fmt.Errorf("douyin auth expired and status could not be persisted: %w", statusErr)
+			}
 		}
 		return nil, shopRow, tok, douyinErr(DouyinAuthExpired, douyinFriendlyMessage(DouyinAuthExpired), nil)
 	}
@@ -527,6 +537,8 @@ func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopI
 	if err != nil {
 		return nil, shopRow, tok, err
 	}
+	var refreshVersionMu sync.Mutex
+	refreshVersion := tok.TokenVersion
 	client := &platformdouyin.Client{
 		ShopID:                shopID.String(),
 		Config:                cfg,
@@ -543,10 +555,26 @@ func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopI
 			if strings.TrimSpace(refresh) == "" {
 				refresh = auth.RefreshToken
 			}
-			return s.persistOAuthTokenRefresh(ctx, shopID, bundle.AccessToken, refresh, bundle.AccessExpiresAt, bundle.RefreshExpiresAt)
+			refreshVersionMu.Lock()
+			expectedVersion := refreshVersion
+			refreshVersionMu.Unlock()
+			refreshCtx := withOAuthExpectedShopTokenVersion(ctx, expectedVersion)
+			refreshCtx = withOAuthRefreshAuditContext(refreshCtx, c, adminID, "douyin.auth.refresh")
+			if err := s.persistOAuthTokenRefreshVersioned(refreshCtx, shopID, bundle.AccessToken, refresh, bundle.AccessExpiresAt, bundle.RefreshExpiresAt); err != nil {
+				return err
+			}
+			refreshVersionMu.Lock()
+			if refreshVersion == expectedVersion {
+				refreshVersion++
+			}
+			refreshVersionMu.Unlock()
+			return nil
 		},
 		MarkAuthStatus: func(ctx context.Context, status string) error {
-			return s.setAuthStatusCtx(ctx, shopID, status)
+			refreshVersionMu.Lock()
+			expectedVersion := refreshVersion
+			refreshVersionMu.Unlock()
+			return s.setAuthStatusVersioned(ctx, shopID, status, expectedVersion)
 		},
 		Logger: platformdouyin.SafeLoggerFunc(func(ctx context.Context, entry platformdouyin.SafeRequestLog) {
 			action := "douyin.client.request"
@@ -604,7 +632,7 @@ func (s *Service) persistDouyinShopInfo(ctx context.Context, shopID uuid.UUID, i
 	}
 
 	var tok ShopAuthToken
-	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+	if err := oauthPersistenceDB(ctx, s.DB).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
 		return err
 	}
 	authConfig := map[string]any{}
@@ -656,6 +684,39 @@ func (s *Service) persistDouyinShopInfo(ctx context.Context, shopID uuid.UUID, i
 	return s.updateShopAuthTokenOAuthFields(ctx, shopID, tokenUpdates)
 }
 
+// persistDouyinShopInfoVersioned applies provider metadata only when the
+// refresh that produced it still owns the captured token version. Revoke and
+// refresh use the same shop-then-token lock order, so a stale callback cannot
+// restore authorization or overwrite revoked metadata.
+func (s *Service) persistDouyinShopInfoVersioned(ctx context.Context, shopID uuid.UUID, info *platformdouyin.ShopInfo, expectedVersion int64) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("shop: no db")
+	}
+	if info == nil {
+		return fmt.Errorf("douyin shop info is empty")
+	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var shopRow Shop
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).First(&shopRow).Error; err != nil {
+			return err
+		}
+		var tok ShopAuthToken
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+			return err
+		}
+		if tok.TokenVersion != expectedVersion || strings.EqualFold(strings.TrimSpace(shopRow.AuthStatus), AuthUnauthorized) {
+			return fmt.Errorf("shop: Douyin shop info refresh is stale or revoked (expectedVersion=%d actualVersion=%d authStatus=%s)", expectedVersion, tok.TokenVersion, strings.TrimSpace(shopRow.AuthStatus))
+		}
+		return s.persistDouyinShopInfo(withOAuthPersistenceTx(ctx, tx), shopID, info)
+	})
+}
+
 func (s *Service) markDouyinShopInfoFailed(ctx context.Context, shopID uuid.UUID, code, msg, status string) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("shop: no db")
@@ -694,6 +755,64 @@ func (s *Service) markDouyinShopInfoFailed(ctx context.Context, shopID uuid.UUID
 	return s.updateShopAuthTokenOAuthFields(ctx, shopID, map[string]any{"raw_data": datatypes.JSON(rawB)})
 }
 
+// markDouyinShopInfoFailedVersioned records a refresh failure only while the
+// captured token version remains current. This keeps a revoked shop in the
+// unauthorized state when an older provider request finishes late.
+func (s *Service) markDouyinShopInfoFailedVersioned(ctx context.Context, shopID uuid.UUID, code, msg, status string, expectedVersion int64) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("shop: no db")
+	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var shopRow Shop
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).First(&shopRow).Error; err != nil {
+			return err
+		}
+		var tok ShopAuthToken
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
+			return err
+		}
+		if tok.TokenVersion != expectedVersion || strings.EqualFold(strings.TrimSpace(shopRow.AuthStatus), AuthUnauthorized) {
+			return fmt.Errorf("shop: Douyin shop info failure is stale or revoked (expectedVersion=%d actualVersion=%d authStatus=%s)", expectedVersion, tok.TokenVersion, strings.TrimSpace(shopRow.AuthStatus))
+		}
+		if st := strings.TrimSpace(status); st != "" {
+			result := tx.Model(&Shop{}).Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).Update("auth_status", st)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return gorm.ErrRecordNotFound
+			}
+		}
+		raw := map[string]any{}
+		if len(tok.RawData) > 0 {
+			_ = json.Unmarshal(tok.RawData, &raw)
+		}
+		raw["provider"] = "douyin_shop"
+		raw["shop_info_status"] = "failed"
+		raw["last_error_code"] = strings.TrimSpace(code)
+		raw["last_error_message"] = douyinSafeText(msg)
+		raw["last_error_at"] = time.Now().UTC().Format(time.RFC3339)
+		rawB, err := json.Marshal(raw)
+		if err != nil {
+			return err
+		}
+		result := tx.Model(&ShopAuthToken{}).Where("id = ? AND shop_id = ?", tok.ID, shopID).Update("raw_data", datatypes.JSON(rawB))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+}
+
 func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*ShopDetailDTO, error) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
@@ -701,7 +820,7 @@ func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *
 	mu.Lock()
 	defer mu.Unlock()
 
-	client, _, _, err := s.douyinClientForShop(c, ctx, shopID, adminID)
+	client, _, initialToken, err := s.douyinClientForShop(c, ctx, shopID, adminID)
 	if err != nil {
 		return nil, err
 	}
@@ -712,18 +831,25 @@ func (s *Service) DouyinOAuthRefresh(c *gin.Context, shopID uuid.UUID, adminID *
 		if authErr.Code == DouyinPermissionDenied {
 			status = AuthInvalid
 		}
-		if persistErr := s.markDouyinShopInfoFailed(ctx, shopID, authErr.Code, authErr.Message, status); persistErr != nil {
+		if initialToken == nil {
+			return nil, fmt.Errorf("shop: OAuth token version unavailable")
+		}
+		if persistErr := s.markDouyinShopInfoFailedVersioned(ctx, shopID, authErr.Code, authErr.Message, status, initialToken.TokenVersion); persistErr != nil {
 			return nil, persistErr
 		}
 		s.douyinLog(c, adminID, &shopID, "douyin.auth.refresh_failed", "failed", authErr.Code, authErr.Message)
 		return nil, authErr
 	}
+	if initialToken == nil {
+		return nil, fmt.Errorf("shop: OAuth token version unavailable")
+	}
+	expectedVersion := initialToken.TokenVersion + 1
 	if info := platformdouyin.ShopInfoFromTokenBundle(tok); info != nil {
-		if err := s.persistDouyinShopInfo(ctx, shopID, info); err != nil {
+		if err := s.persistDouyinShopInfoVersioned(ctx, shopID, info, expectedVersion); err != nil {
 			return nil, err
 		}
 	}
-	if err := s.setAuthStatusCtx(ctx, shopID, AuthAuthorized); err != nil {
+	if err := s.setAuthStatusVersioned(ctx, shopID, AuthAuthorized, expectedVersion); err != nil {
 		return nil, err
 	}
 	s.douyinLog(c, adminID, &shopID, "douyin.auth.refresh", "success", "", "token refreshed")
@@ -736,12 +862,6 @@ func (s *Service) DouyinOAuthRevoke(c *gin.Context, shopID uuid.UUID, adminID *u
 	if err != nil {
 		return nil, err
 	}
-	updates := map[string]any{
-		"access_token_enc":  "",
-		"refresh_token_enc": "",
-		"expires_at":        nil,
-		"auth_config":       datatypes.JSON([]byte(`{"revokedLocally":true}`)),
-	}
 	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row Shop
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&row).Error; err != nil {
@@ -750,12 +870,18 @@ func (s *Service) DouyinOAuthRevoke(c *gin.Context, shopID uuid.UUID, adminID *u
 		if strings.TrimSpace(row.Platform) != "douyin_shop" {
 			return fmt.Errorf("shop platform must be douyin_shop")
 		}
-		tokenResult := tx.Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).Updates(updates)
-		if tokenResult.Error != nil {
-			return tokenResult.Error
+		var token ShopAuthToken
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("shop_id = ?", shopID).First(&token).Error; err != nil {
+			return err
 		}
-		if tokenResult.RowsAffected != 1 {
-			return gorm.ErrRecordNotFound
+		token.AccessTokenEnc = ""
+		token.RefreshTokenEnc = ""
+		token.ExpiresAt = nil
+		token.RefreshExpiresAt = nil
+		token.AuthConfig = datatypes.JSON([]byte(`{"revokedLocally":true}`))
+		token.TokenVersion++
+		if err := tx.Save(&token).Error; err != nil {
+			return err
 		}
 		statusResult := tx.Model(&Shop{}).Where("id = ? AND tenant_id = ?", shopID, tenantID).Update("auth_status", AuthUnauthorized)
 		if statusResult.Error != nil {

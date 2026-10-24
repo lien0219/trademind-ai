@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -23,10 +24,13 @@ type tikTokBridge struct {
 }
 
 func (b tikTokBridge) PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error {
-	return b.svc.persistOAuthTokenRefresh(ctx, shopID, access, refresh, accessExp, refreshExp)
+	return b.svc.persistOAuthTokenRefreshForPlatform(ctx, shopID, access, refresh, accessExp, refreshExp, "shop.oauth.tiktok.refresh")
 }
 
 func (b tikTokBridge) SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error {
+	if _, ok := platformp.OAuthExpectedTokenVersion(ctx); ok {
+		return b.svc.setAuthStatusVersionedForPlatform(ctx, shopID, status, "shop.oauth.tiktok.status")
+	}
 	return b.svc.setAuthStatusCtx(ctx, shopID, status)
 }
 

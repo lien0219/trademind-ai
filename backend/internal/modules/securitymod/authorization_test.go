@@ -155,6 +155,27 @@ func TestRotationDeniedRequestIsAudited(t *testing.T) {
 	require.Equal(t, "denied", rows[0].Status)
 }
 
+func TestRotationPauseAndResumeRejectMissingOrStaleJobs(t *testing.T) {
+	db, _, r, _ := rotationHTTPFixture(t, 0, "admin", admin.StatusActive, true, true)
+	running := securitymod.KeyRotationJob{ActiveKeyID: "active", Scope: "global", Status: securitymod.RotationRunning}
+	require.NoError(t, db.Create(&running).Error)
+
+	paused := rotationRequest(r, http.MethodPost, "/keys/rotation/"+running.ID.String()+"/resume", "{}")
+	require.Equal(t, http.StatusNotFound, paused.Code, paused.Body.String())
+	var stored securitymod.KeyRotationJob
+	require.NoError(t, db.First(&stored, "id = ?", running.ID).Error)
+	require.Equal(t, securitymod.RotationRunning, stored.Status)
+
+	missing := rotationRequest(r, http.MethodPost, "/keys/rotation/"+uuid.NewString()+"/pause", "{}")
+	require.Equal(t, http.StatusNotFound, missing.Code, missing.Body.String())
+	require.NoError(t, db.First(&stored, "id = ?", running.ID).Error)
+	require.Equal(t, securitymod.RotationRunning, stored.Status)
+
+	var successes int64
+	require.NoError(t, db.Model(&operationlog.OperationLog{}).Where("action IN ? AND status = ?", []string{"key_rotation_pause", "key_rotation_resume"}, "success").Count(&successes).Error)
+	require.Zero(t, successes, "stale controls must not create success audit evidence")
+}
+
 func TestRotationVerificationReturnsPersistenceError(t *testing.T) {
 	db, svc, _, _ := rotationHTTPFixture(t, 0, "admin", admin.StatusActive, true, true)
 	job := securitymod.KeyRotationJob{ActiveKeyID: "active", Scope: "global", Status: securitymod.RotationCompleted}

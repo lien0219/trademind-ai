@@ -358,6 +358,15 @@ func (h *Handler) ListDouyinCategories(c *gin.Context) {
 		}
 		shopID = &u
 	}
+	if queryBoolShop(c, "refresh") {
+		if shopID == nil || *shopID == uuid.Nil {
+			response.Fail(c, 400, response.CodeBadRequest, "shopId required for refresh")
+			return
+		}
+		if !adminperm.RequireStoreOperate(c, h.Svc.DB, *shopID) {
+			return
+		}
+	}
 	out, err := h.Svc.ListDouyinCategories(c, DouyinCategoryListQuery{
 		Keyword:  c.Query("keyword"),
 		ParentID: c.Query("parentId"),

@@ -1,6 +1,7 @@
 package securitymod
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -143,6 +144,10 @@ func (h *Handler) RotationPause(c *gin.Context) {
 	if err := h.withRotationAudit(c, "pause", func(svc *Service) (string, error) {
 		return id.String(), svc.PauseRotation(c.Request.Context(), id)
 	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "rotation job not found or not running")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
@@ -161,6 +166,10 @@ func (h *Handler) RotationResume(c *gin.Context) {
 	if err := h.withRotationAudit(c, "resume", func(svc *Service) (string, error) {
 		return id.String(), svc.ResumeRotation(c.Request.Context(), id)
 	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "rotation job not found or not paused")
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}

@@ -264,6 +264,34 @@ func TestDouyinClientForShopReturnsAuthStatusPersistenceFailure(t *testing.T) {
 	}
 }
 
+func TestDouyinClientForShopDoesNotOverwriteLocalRevokeWhenCredentialsAreMissing(t *testing.T) {
+	db := newDouyinShopTestDB(t)
+	shop := Shop{
+		Platform:   "douyin_shop",
+		ShopName:   "Revoked",
+		Status:     StatusActive,
+		AuthStatus: AuthUnauthorized,
+	}
+	if err := db.Create(&shop).Error; err != nil {
+		t.Fatalf("create shop: %v", err)
+	}
+	if err := db.Create(&ShopAuthToken{ShopID: shop.ID, Platform: "douyin_shop", AuthType: "oauth2", TokenVersion: 4}).Error; err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+	svc := &Service{DB: db}
+	client, _, _, err := svc.douyinClientForShop(nil, oauthBridgeTenantContext(0), shop.ID, nil)
+	if client != nil || err == nil {
+		t.Fatalf("expected revoked shop to fail closed without status rewrite, got client=%v err=%v", client, err)
+	}
+	var stored Shop
+	if err := db.First(&stored, "id = ?", shop.ID).Error; err != nil {
+		t.Fatalf("reload shop: %v", err)
+	}
+	if stored.AuthStatus != AuthUnauthorized {
+		t.Fatalf("local revoke was overwritten: %s", stored.AuthStatus)
+	}
+}
+
 func TestDouyinOAuthRevokeRollsBackWhenAuditIsUnavailable(t *testing.T) {
 	db := newDouyinShopTestDB(t)
 	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}); err != nil {

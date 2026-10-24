@@ -491,14 +491,41 @@ func (s *SessionService) RevokeByRefreshToken(ctx context.Context, refreshRaw st
 	if s == nil || s.DB == nil || s.Cfg == nil {
 		return fmt.Errorf("auth: misconfigured")
 	}
-	hash := authutil.HashToken(strings.TrimSpace(refreshRaw), s.Cfg.JWTSecret)
-	var row AuthRefreshToken
-	if err := s.DB.WithContext(ctx).Where("token_hash = ?", hash).First(&row).Error; err != nil {
-		return nil
-	}
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return s.revokeSessionTx(tx, row.SessionID, "logout")
+		_, err := s.revokeByRefreshTokenTx(ctx, tx, refreshRaw, nil, nil)
+		return err
 	})
+}
+
+// revokeByRefreshTokenTx looks up and revokes a refresh-token session inside
+// the caller's transaction. A missing token is idempotent; database failures
+// are returned so callers cannot report a successful logout without evidence.
+func (s *SessionService) revokeByRefreshTokenTx(ctx context.Context, tx *gorm.DB, refreshRaw string, userID, sessionID *uuid.UUID) (bool, error) {
+	if s == nil || s.Cfg == nil || tx == nil {
+		return false, fmt.Errorf("auth: misconfigured")
+	}
+	raw := strings.TrimSpace(refreshRaw)
+	if raw == "" {
+		return false, nil
+	}
+	hash := authutil.HashToken(raw, s.Cfg.JWTSecret)
+	var row AuthRefreshToken
+	if err := tx.WithContext(ctx).Where("token_hash = ?", hash).First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if userID != nil && row.UserID != *userID {
+		return false, nil
+	}
+	if sessionID != nil && row.SessionID != *sessionID {
+		return false, nil
+	}
+	if err := s.revokeSessionTx(tx, row.SessionID, "logout"); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ConstantTimeCompare wraps subtle.ConstantTimeCompare for tests.

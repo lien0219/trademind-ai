@@ -15,8 +15,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// hashChainVersion is the audit integrity schema version.
-const hashChainVersion = 1
+// hashChainVersion is the audit integrity schema version. Version 2 binds
+// actor/session attribution and request metadata into the evidence hash.
+const hashChainVersion = 2
 
 var chainPartitionLocks sync.Map
 
@@ -74,7 +75,7 @@ func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) (func(), error
 		err := query.First(&prev).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			row.PrevHash = ""
-			row.EntryHash = computeEntryHash(row.PrevHash, row)
+			row.EntryHash = computeEntryHashV2(row.PrevHash, row)
 			completed = true
 			return release, nil
 		}
@@ -83,7 +84,7 @@ func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) (func(), error
 		}
 		if row.CreatedAt.After(prev.CreatedAt) {
 			row.PrevHash = strings.TrimSpace(prev.EntryHash)
-			row.EntryHash = computeEntryHash(row.PrevHash, row)
+			row.EntryHash = computeEntryHashV2(row.PrevHash, row)
 			completed = true
 			return release, nil
 		}
@@ -91,7 +92,7 @@ func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) (func(), error
 		row.CreatedAt = prev.CreatedAt.Add(time.Microsecond).UTC()
 		if chainPartition(row.TenantID, row.CreatedAt) == partition {
 			row.PrevHash = strings.TrimSpace(prev.EntryHash)
-			row.EntryHash = computeEntryHash(row.PrevHash, row)
+			row.EntryHash = computeEntryHashV2(row.PrevHash, row)
 			completed = true
 			return release, nil
 		}
@@ -127,8 +128,16 @@ func chainPartition(tenantID int64, at time.Time) string {
 }
 
 func computeEntryHash(prevHash string, row *OperationLog) string {
+	return computeEntryHashVersion(1, prevHash, row)
+}
+
+func computeEntryHashV2(prevHash string, row *OperationLog) string {
+	return computeEntryHashVersion(2, prevHash, row)
+}
+
+func computeEntryHashVersion(version int, prevHash string, row *OperationLog) string {
 	summary := sha256.Sum256([]byte(strings.TrimSpace(row.Message)))
-	payload := strings.Join([]string{
+	fields := []string{
 		prevHash,
 		fmt.Sprintf("%d", row.TenantID),
 		row.Action,
@@ -138,9 +147,33 @@ func computeEntryHash(prevHash string, row *OperationLog) string {
 		row.RequestID,
 		row.CreatedAt.UTC().Format(time.RFC3339Nano),
 		hex.EncodeToString(summary[:]),
-	}, "|")
+	}
+	if version >= 2 {
+		fields = append(fields,
+			fmt.Sprintf("%d", version),
+			uuidValue(row.AdminUserID),
+			uuidValue(row.SessionID),
+			row.AdminRole,
+			row.Username,
+			uuidValue(row.ShopID),
+			row.Platform,
+			row.Permission,
+			row.Method,
+			row.Path,
+			row.IPHash,
+			row.UserAgentSummary,
+		)
+	}
+	payload := strings.Join(fields, "|")
 	sum := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(sum[:])
+}
+
+func uuidValue(v *uuid.UUID) string {
+	if v == nil {
+		return ""
+	}
+	return v.String()
 }
 
 // VerifyChain checks hash chain integrity for a partition/date range.
@@ -167,12 +200,40 @@ func (s *Service) VerifyChain(ctx context.Context, tenantID int64, from, to time
 			// range may contain multiple independent chains.
 			prev = ""
 			prevPartition = partition
+			if i == 0 {
+				// A rolling window may begin halfway through its first day.
+				// Anchor it to the actual predecessor instead of treating the
+				// first selected row as a new genesis or trusting its PrevHash.
+				var predecessor OperationLog
+				err := s.DB.WithContext(ctx).
+					Where("tenant_id = ? AND chain_partition = ?", tenantID, partition).
+					Where("created_at < ? OR (created_at = ? AND id < ?)", row.CreatedAt, row.CreatedAt, row.ID).
+					Order("created_at DESC, id DESC").Take(&predecessor).Error
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					return i, nil, fmt.Errorf("load audit chain predecessor: %w", err)
+				}
+				if err == nil {
+					expected := computeEntryHash(predecessor.PrevHash, &predecessor)
+					if predecessor.HashVersion >= 2 {
+						expected = computeEntryHashV2(predecessor.PrevHash, &predecessor)
+					}
+					if predecessor.EntryHash == "" || predecessor.EntryHash != expected {
+						at := predecessor.CreatedAt
+						return i, &at, fmt.Errorf("audit chain predecessor mismatch")
+					}
+					prev = predecessor.EntryHash
+				}
+			}
+		}
+		if strings.TrimSpace(row.EntryHash) == "" {
+			t := row.CreatedAt
+			return i, &t, fmt.Errorf("audit chain entry hash missing at index %d", i)
 		}
 		expected := computeEntryHash(prev, &row)
-		if strings.TrimSpace(row.EntryHash) == "" {
-			continue
+		if row.HashVersion >= 2 {
+			expected = computeEntryHashV2(prev, &row)
 		}
-		if row.EntryHash != expected || (i > 0 && row.PrevHash != prev) {
+		if row.EntryHash != expected || row.PrevHash != prev {
 			t := row.CreatedAt
 			return i, &t, fmt.Errorf("audit chain mismatch at index %d", i)
 		}

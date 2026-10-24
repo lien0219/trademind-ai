@@ -139,6 +139,32 @@ func TestWriteBootstrapAuditTxParticipatesInCallerTransaction(t *testing.T) {
 	}
 }
 
+func TestWriteTxContextParticipatesInCallerTransaction(t *testing.T) {
+	db := newOperationLogTestDB(t)
+	svc := &Service{DB: db}
+	ctx := context.Background()
+	rollbackErr := errors.New("force internal audit rollback")
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := svc.WriteTxContext(ctx, tx, WriteOpts{
+			TenantID: 7, AdminRole: "worker", Action: "shop.oauth.refresh", Resource: "shop",
+			ResourceID: uuid.NewString(), Status: "success", Message: "token refreshed",
+		}); err != nil {
+			return err
+		}
+		return rollbackErr
+	})
+	if !errors.Is(err, rollbackErr) {
+		t.Fatalf("transaction error = %v, want %v", err, rollbackErr)
+	}
+	var count int64
+	if err := db.Model(&OperationLog{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("persisted %d internal audit rows from rollback", count)
+	}
+}
+
 func TestPreviousHashLookupFailureDoesNotWriteEmptyHash(t *testing.T) {
 	db := newOperationLogTestDB(t)
 	svc := &Service{DB: db}
@@ -214,6 +240,33 @@ func TestVerifyChainResetsPredecessorAtDatePartitionBoundary(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("verify count = %d, want 2", count)
+	}
+}
+
+func TestVerifyChainAnchorsPartialDayRangeToStoredPredecessor(t *testing.T) {
+	db := newOperationLogTestDB(t)
+	svc := &Service{DB: db}
+	firstAt := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
+	secondAt := firstAt.Add(time.Hour)
+	first := OperationLog{ID: uuid.New(), TenantID: 17, Action: "user.update", Resource: "admin_user", Status: "success", CreatedAt: firstAt, ChainPartition: chainPartition(17, firstAt)}
+	first.EntryHash = computeEntryHash("", &first)
+	second := OperationLog{ID: uuid.New(), TenantID: 17, Action: "role.update", Resource: "admin_role", Status: "success", CreatedAt: secondAt, ChainPartition: chainPartition(17, secondAt), PrevHash: first.EntryHash}
+	second.EntryHash = computeEntryHash(first.EntryHash, &second)
+	for _, row := range []OperationLog{first, second} {
+		if err := db.Create(&row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	from := firstAt.Add(30 * time.Minute)
+	count, _, err := svc.VerifyChain(context.Background(), 17, from, secondAt.Add(time.Minute))
+	if err != nil || count != 1 {
+		t.Fatalf("verify partial-day range = (%d, %v), want (1, nil)", count, err)
+	}
+	if err := db.Model(&first).Update("message", "tampered predecessor").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.VerifyChain(context.Background(), 17, from, secondAt.Add(time.Minute)); err == nil {
+		t.Fatal("partial-day verification accepted a tampered predecessor")
 	}
 }
 
@@ -293,6 +346,44 @@ func TestWriteTxRetainsCompletePermissionChangeEvidence(t *testing.T) {
 	}
 	if _, _, err := svc.VerifyChain(context.Background(), 7, time.Now().Add(-time.Hour), time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestVerifyChainDetectsActorAttributionTamper(t *testing.T) {
+	db := newOperationLogTestDB(t)
+	svc := &Service{DB: db}
+	actorID := uuid.New()
+	if err := svc.WriteBackground(context.Background(), WriteOpts{
+		TenantID: 7, AdminUserID: &actorID, AdminRole: "admin", Username: "operator@example.test",
+		Action: "user.role.update", Resource: "admin_user", ResourceID: actorID.String(), Status: "success",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var row OperationLog
+	if err := db.First(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	requireAdminRole := "readonly"
+	if err := db.Model(&row).Update("admin_role", requireAdminRole).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.VerifyChain(context.Background(), 7, row.CreatedAt.Add(-time.Hour), row.CreatedAt.Add(time.Hour)); err == nil {
+		t.Fatal("actor attribution tamper was not detected")
+	}
+}
+
+func TestVerifyChainRejectsMissingEntryHash(t *testing.T) {
+	db := newOperationLogTestDB(t)
+	svc := &Service{DB: db}
+	row := OperationLog{
+		ID: uuid.New(), TenantID: 8, Action: "user.disable", Resource: "admin_user", Status: "success",
+		CreatedAt: time.Now().UTC(), ChainPartition: chainPartition(8, time.Now().UTC()),
+	}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.VerifyChain(context.Background(), 8, row.CreatedAt.Add(-time.Hour), row.CreatedAt.Add(time.Hour)); err == nil {
+		t.Fatal("missing entry hash was accepted")
 	}
 }
 
