@@ -169,3 +169,5 @@ PostgreSQL 审计串行化使用事务 advisory lock，不再在等待数据库�
 - `admin/src/utils/permission.ts`
 - `admin/src/hooks/usePermission.ts`
 - `admin/src/components/PermissionGuard.tsx`
+- `admin/src/constants/permissionLabels.ts`：系统角色、权限及模块的中文展示映射。权限标识与服务端契约保持一致，未知标识显示中文提示，不参与权限推断。
+- `admin/src/pages/Settings/Users`：角色卡片按模块概览授权范围，支持中文权限预览与角色差异对比。创建/编辑角色使用服务端可委派目录，搜索和分组勾选保留隐藏的已选权限，提交仍使用原始权限键；系统角色保持只读。

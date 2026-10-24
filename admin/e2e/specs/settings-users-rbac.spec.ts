@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../../src/utils/permission';
 import { AUTH_SESSION_MODE_KEY, AUTH_TOKEN_KEY } from '../../src/constants/auth';
 import type { WriteRecord } from '../utils/network-guard';
 import type { Page } from '@playwright/test';
-import type { AdminUserRow } from '../../src/services/adminUsers';
+import type { AdminRoleRow, AdminUserRow } from '../../src/services/adminUsers';
 
 const restrictedProfiles = [
   { label: 'operator', role: 'operator', permissions: [PERMISSIONS.PRODUCT_WRITE] },
@@ -97,7 +97,7 @@ test('@smoke retries role directory loading after the role list fails', async ({
   await expect(page.getByRole('button', { name: '新建角色' })).toBeDisabled();
 
   await page.getByRole('button', { name: '重试角色目录' }).click();
-  await expect(page.getByRole('row', { name: /运营/ })).toBeVisible();
+  await expect(page.getByRole('article', { name: '运营', exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '新建角色' })).toBeEnabled();
   expect(rolesReads).toBe(2);
@@ -123,7 +123,7 @@ test('@smoke retries permission catalog loading before enabling role creation', 
   await expect(page.getByRole('button', { name: '新建角色' })).toBeEnabled();
   await page.getByRole('button', { name: '新建角色' }).click();
   const dialog = page.getByRole('dialog', { name: '新增自定义角色' });
-  await expect(dialog.getByRole('checkbox', { name: PERMISSIONS.PRODUCT_WRITE })).toBeVisible();
+  await expect(dialog.getByRole('checkbox', { name: '编辑商品', exact: true })).toBeVisible();
   expect(permissionReads).toBe(2);
   await admin.writeGuard.expectRequestCount('create-role', 0);
   await admin.writeGuard.expectNoUnexpectedWrites();
@@ -428,6 +428,9 @@ for (const theme of ['light', 'dark']) {
       await page.addInitScript((mode) => localStorage.setItem('trademind_admin_theme_mode', mode), theme);
       const targetUser = { ...testUser(), displayName: `E2E 运营 ${'超长账号名称'.repeat(8)}` };
       await mockUsers(page, [e2eUser, targetUser]);
+      await page.route('**/api/v1/admin/permissions', (route) => route.fulfill({ json: ok({
+        permissions: Object.values(PERMISSIONS).filter((key) => key !== PERMISSIONS.SECURITY_KEY_ROTATE),
+      }) }));
       await admin.goto('/settings/users');
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await expect(page.getByRole('row', { name: /E2E 运营/ })).toBeVisible();
@@ -462,9 +465,40 @@ for (const theme of ['light', 'dark']) {
       await expect(disableDialog).not.toBeVisible();
       await admin.writeGuard.expectRequestCount('update-user', 0);
       await page.getByRole('tab', { name: '角色与权限矩阵' }).click();
-      await page.getByRole('button', { name: '新建角色' }).click();
-      await expect(page.getByRole('dialog', { name: '新增自定义角色' })).toBeVisible();
+      const adminRole = page.getByRole('article', { name: '管理员', exact: true });
+      await expect(adminRole.getByRole('button', { name: '编辑权限', exact: true })).toBeDisabled();
+      await expect(adminRole).not.toContainText(PERMISSIONS.PRODUCT_VIEW);
       await expectNoOverflow();
+      await adminRole.getByRole('button', { name: '权限预览', exact: true }).click();
+      const preview = page.getByRole('dialog', { name: '角色权限预览', exact: true });
+      await expect(preview).toContainText('查看商品');
+      await expect(preview).toContainText('轮换系统密钥');
+      await expect(preview).not.toContainText(PERMISSIONS.SECURITY_KEY_ROTATE);
+      await expectNoOverflow();
+      await preview.getByRole('button', { name: /^关\s*闭$/ }).click();
+      await page.getByRole('button', { name: '新建角色' }).click();
+      const roleDialog = page.getByRole('dialog', { name: '新增自定义角色' });
+      await expect(roleDialog).toBeVisible();
+      await expect(roleDialog).not.toContainText(PERMISSIONS.PRODUCT_VIEW);
+      await expect(roleDialog).not.toContainText('轮换系统密钥');
+      await roleDialog.getByRole('textbox', { name: '搜索权限' }).fill('查看商品');
+      await roleDialog.getByRole('checkbox', { name: '查看商品', exact: true }).check();
+      await expect(roleDialog).toContainText('已选择 1 项');
+      await expectNoOverflow();
+      const roleBounds = await roleDialog.boundingBox();
+      expect(roleBounds).not.toBeNull();
+      if (!roleBounds) throw new Error('role dialog has no visible bounds');
+      expect(roleBounds.x).toBeGreaterThanOrEqual(0);
+      expect(roleBounds.y).toBeGreaterThanOrEqual(0);
+      expect(roleBounds.x + roleBounds.width).toBeLessThanOrEqual(viewport.width);
+      expect(roleBounds.y + roleBounds.height).toBeLessThanOrEqual(viewport.height);
+      expect(await roleDialog.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+      await roleDialog.getByRole('button', { name: /^取\s*消$/ }).click();
+      await page.getByRole('button', { name: '新建角色' }).click();
+      await expect(roleDialog.getByLabel('角色名称')).toHaveValue('');
+      await expect(roleDialog).toContainText('已选择 0 项');
+      await roleDialog.getByRole('button', { name: /^取\s*消$/ }).click();
+      await admin.writeGuard.expectRequestCount('create-role', 0);
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     });
   }
@@ -523,7 +557,7 @@ test('@smoke creates, edits, disables, and re-enables a tenant custom role', asy
   await admin.goto('/settings/users');
   await page.getByRole('tab', { name: '角色与权限矩阵' }).click();
   for (const [code, label] of [['admin', '管理员'], ['operator', '运营'], ['readonly', '只读'], ['reviewer', '审核']]) {
-    const builtInRole = page.getByRole('row', { name: new RegExp(label) });
+    const builtInRole = page.getByRole('article', { name: label, exact: true });
     await expect(builtInRole.getByText(label, { exact: true })).toBeVisible();
     await expect(builtInRole.getByText(code, { exact: true })).toHaveCount(0);
   }
@@ -531,16 +565,28 @@ test('@smoke creates, edits, disables, and re-enables a tenant custom role', asy
   const createDialog = page.getByRole('dialog', { name: '新增自定义角色' });
   await expect(createDialog.getByLabel('角色名称')).toHaveValue('');
   await createDialog.getByLabel('角色名称').fill('E2E 自定义运营');
-  await createDialog.getByText(PERMISSIONS.PRODUCT_VIEW, { exact: true }).click();
-  await expect(createDialog.getByRole('checkbox', { name: PERMISSIONS.PRODUCT_VIEW })).toBeChecked();
-  await createDialog.getByRole('button', { name: /确\s*定|OK/ }).click();
+  await expect(createDialog.getByRole('region', { name: '商品管理', exact: true })).toBeVisible();
+  await expect(createDialog).not.toContainText(PERMISSIONS.PRODUCT_VIEW);
+  await createDialog.getByRole('checkbox', { name: '查看商品', exact: true }).check();
+  await expect(createDialog.getByRole('checkbox', { name: '查看商品', exact: true })).toBeChecked();
+  await expect(createDialog).toContainText('已选择 1 项');
+  await createDialog.getByRole('button', { name: '创建角色', exact: true }).click();
 
-  const roleRow = page.getByRole('row', { name: /E2E 自定义运营/ });
+  const roleRow = page.getByRole('article', { name: 'E2E 自定义运营', exact: true });
   await expect(roleRow).toContainText('成员：2 人');
-  await expect(roleRow).toContainText(PERMISSIONS.PRODUCT_VIEW);
+  await expect(roleRow).toContainText('商品管理');
+  await expect(roleRow).not.toContainText(PERMISSIONS.PRODUCT_VIEW);
   await admin.writeGuard.expectRequestCount('create-role', 1);
+  expect(admin.writeGuard.calls('create-role')[0].postDataJSON).toMatchObject({
+    name: 'E2E 自定义运营', permissions: [PERMISSIONS.PRODUCT_VIEW], enabled: true,
+  });
+  await roleRow.getByRole('button', { name: '权限预览', exact: true }).click();
+  const previewDialog = page.getByRole('dialog', { name: '角色权限预览', exact: true });
+  await expect(previewDialog).toContainText('查看商品');
+  await expect(previewDialog).not.toContainText(PERMISSIONS.PRODUCT_VIEW);
+  await previewDialog.getByRole('button', { name: /^关\s*闭$/ }).click();
 
-  await page.getByRole('combobox').click();
+  await page.getByRole('combobox', { name: '选择对比角色' }).click();
   await page.getByText('只读', { exact: true }).last().click();
   await expect(roleRow).toContainText(`相对于「只读」的权限差异`);
   await expect(roleRow).toContainText('权限一致');
@@ -548,15 +594,15 @@ test('@smoke creates, edits, disables, and re-enables a tenant custom role', asy
   await roleRow.getByRole('button', { name: '编辑权限' }).click();
   const editDialog = page.getByRole('dialog', { name: '编辑角色与权限' });
   await expect(editDialog.getByLabel('角色名称')).toHaveValue('E2E 自定义运营');
-  await editDialog.getByText(PERMISSIONS.PRODUCT_WRITE, { exact: true }).click();
-  await expect(editDialog.getByRole('checkbox', { name: PERMISSIONS.PRODUCT_WRITE })).toBeChecked();
-  await editDialog.getByRole('button', { name: /确\s*定|OK/ }).click();
+  await editDialog.getByRole('checkbox', { name: '编辑商品', exact: true }).check();
+  await expect(editDialog.getByRole('checkbox', { name: '编辑商品', exact: true })).toBeChecked();
+  await editDialog.getByRole('button', { name: '保存修改', exact: true }).click();
   await admin.writeGuard.expectRequestCount('update-role', 1);
   expect(admin.writeGuard.calls('update-role')[0].postDataJSON).toMatchObject({
     permissions: expect.arrayContaining([PERMISSIONS.PRODUCT_WRITE]),
   });
-  await expect(roleRow).toContainText(PERMISSIONS.PRODUCT_WRITE);
-  await expect(roleRow).toContainText(`+ ${PERMISSIONS.PRODUCT_WRITE}`);
+  await expect(roleRow).toContainText('多出：编辑商品');
+  await expect(roleRow).not.toContainText(PERMISSIONS.PRODUCT_WRITE);
 
   await roleRow.getByRole('button', { name: /停\s*用/ }).click();
   const disableDialog = page.getByRole('dialog', { name: '停用角色并立即撤权？' });
@@ -575,4 +621,56 @@ test('@smoke creates, edits, disables, and re-enables a tenant custom role', asy
   await expect(roleRow).toContainText('启用');
   await admin.writeGuard.expectRequestCount('update-role', 3);
   await admin.writeGuard.expectNoUnexpectedWrites();
+});
+
+test('@smoke preserves role permissions after a rejected save and prevents duplicate submission', async ({ admin, page }) => {
+  await mockUsers(page);
+  const roles: AdminRoleRow[] = [];
+  await page.route('**/api/v1/admin/roles', (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    return route.fulfill({ json: ok({ list: roles }) });
+  });
+  await page.route('**/api/v1/admin/permissions', (route) => route.fulfill({ json: ok({
+    permissions: [PERMISSIONS.PRODUCT_VIEW, PERMISSIONS.ORDER_VIEW],
+  }) }));
+  let release: (() => void) | undefined;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let attempts = 0;
+  admin.writeGuard.allow({ operation: 'create-role', method: 'POST', path: /^\/api\/v1\/admin\/roles$/, response: async (record) => {
+    await pending;
+    if (++attempts === 1) return fail('角色保存失败，请稍后重试', 50001);
+    const body = record.postDataJSON as { name: string; permissions: string[]; enabled: boolean };
+    const role: AdminRoleRow = { ...body, code: 'r_0123456789abcdef01234567', description: '', memberCount: 0, system: false };
+    roles.push(role);
+    return ok(role);
+  } });
+  await admin.goto('/settings/users');
+  await page.getByRole('tab', { name: '角色与权限矩阵' }).click();
+  await page.getByRole('button', { name: '新建角色' }).click();
+  const dialog = page.getByRole('dialog', { name: '新增自定义角色' });
+  await dialog.getByRole('button', { name: '创建角色', exact: true }).click();
+  await expect(dialog.getByText('请输入角色名称', { exact: true })).toBeVisible();
+  await admin.writeGuard.expectRequestCount('create-role', 0);
+  await dialog.getByLabel('角色名称').fill('E2E 商品与订单运营');
+  await dialog.getByRole('checkbox', { name: '查看商品', exact: true }).check();
+  await dialog.getByRole('textbox', { name: '搜索权限' }).fill('订单');
+  await dialog.getByRole('checkbox', { name: '查看订单', exact: true }).check();
+  await expect(dialog).toContainText('已选择 2 项');
+  await dialog.getByRole('button', { name: '创建角色', exact: true }).dblclick();
+  try {
+    await admin.writeGuard.expectRequestCount('create-role', 1);
+    await expect(dialog.getByRole('button', { name: '创建角色', exact: true })).toBeDisabled();
+  } finally { release?.(); }
+  await expect(page.getByText('角色保存失败，请稍后重试').first()).toBeVisible();
+  await expect(dialog.getByLabel('角色名称')).toHaveValue('E2E 商品与订单运营');
+  await expect(dialog).toContainText('已选择 2 项');
+  await admin.writeGuard.expectRequestCount('create-role', 1);
+  await dialog.getByRole('textbox', { name: '搜索权限' }).fill('');
+  await expect(dialog.getByRole('checkbox', { name: '查看商品', exact: true })).toBeChecked();
+  await dialog.getByRole('button', { name: '创建角色', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'E2E 商品与订单运营', exact: true })).toBeVisible();
+  await admin.writeGuard.expectRequestCount('create-role', 2);
+  expect(admin.writeGuard.calls('create-role')[1].postDataJSON).toMatchObject({
+    name: 'E2E 商品与订单运营', enabled: true, permissions: [PERMISSIONS.PRODUCT_VIEW, PERMISSIONS.ORDER_VIEW],
+  });
 });

@@ -2,6 +2,8 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { layoutTokens } from '@/constants/layoutTokens';
+import { ROLE_OPTIONS, roleLabel } from '@/constants/permissionLabels';
 import {
   confirmAssignStorePermissions,
   confirmChangeUserRole,
@@ -21,23 +23,14 @@ import {
   type AdminUserRow,
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
-import { Alert, Button, Checkbox, Divider, Form, Input, Modal, Select, Space, Tag, Tabs, Tooltip, message } from 'antd';
+import { Alert, Button, Checkbox, Form, Input, Modal, Select, Space, Tag, Tabs, Tooltip, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { PERMISSIONS } from '@/utils/permission';
 import { confirmDisableUser } from './disableUserConfirm';
-
-const ROLE_OPTIONS = [
-  { label: '管理员', value: 'admin' },
-  { label: '运营', value: 'operator' },
-  { label: '只读', value: 'readonly' },
-  { label: '审核', value: 'reviewer' },
-];
-
-function roleLabel(code: string, name?: string): string {
-  return ROLE_OPTIONS.find((role) => role.value === (code || '').toLowerCase())?.label || name || code;
-}
+import RolePermissionPicker from './RolePermissionPicker';
+import RolePermissionsPanel from './RolePermissionsPanel';
 
 const STATUS_OPTIONS = [
   { label: '正常', value: 'active' },
@@ -126,17 +119,6 @@ export default function SettingsUsersPage() {
     if (canManageUsers) void loadRoles();
   }, [canManageUsers, loadRoles]);
   const roleDirectoryReady = rolesReady && !rolesLoading && !roleLoadError;
-  const [compareRole, setCompareRole] = useState<string>();
-  const permissionGroups = useMemo(() => {
-    const groups = new Map<string, string[]>();
-    for (const key of permissionCatalog) {
-      const prefix = key.split('.')[0] || 'other';
-      const existing = groups.get(prefix) || [];
-      existing.push(key);
-      groups.set(prefix, existing);
-    }
-    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [permissionCatalog]);
   const roleOptions = useMemo(() => roles
     .filter((r) => r.enabled)
     .map((r) => ({ label: roleLabel(r.code, r.name), value: r.code })), [roles]);
@@ -364,79 +346,33 @@ export default function SettingsUsersPage() {
                 action={<Button size="small" loading={rolesLoading} onClick={() => void loadRoles()}>重试角色目录</Button>}
               />
             )}
-            <Space wrap style={{ marginBottom: 16 }}>
-              <Button type="primary" disabled={!canManageUsers || !roleDirectoryReady} onClick={() => {
+            <RolePermissionsPanel roles={roles} loading={rolesLoading} ready={roleDirectoryReady} hasError={!!roleLoadError}
+              canManage={canManageUsers} submitting={submitting} onRefresh={() => void loadRoles()} onCreate={() => {
                 setRoleEdit(null);
                 setRoleInitialValues({ permissions: [], enabled: true });
                 setRoleOpen(true);
-              }}>新建角色</Button>
-              <Button loading={rolesLoading} onClick={() => void loadRoles()}>刷新角色</Button>
-              <Select
-                allowClear
-                placeholder="选择对比角色"
-                style={{ minWidth: 210 }}
-                value={compareRole}
-                options={roles.map((r) => ({ label: roleLabel(r.code, r.name), value: r.code }))}
-                onChange={setCompareRole}
-              />
-            </Space>
-            <div role="table" aria-label="角色权限管理">
-              {roles.map((r) => (
-                <div key={r.code} role="row" style={{ padding: 12, overflowWrap: 'anywhere', borderBottom: '1px solid var(--ant-color-border-secondary)' }}>
-                  <Space wrap>
-                    <strong>{roleLabel(r.code, r.name)}</strong>
-                    <Tag>{r.system ? '系统角色' : '自定义角色'}</Tag>
-                    <Tag color={r.enabled ? 'success' : 'default'}>{r.enabled ? '启用' : '已停用'}</Tag>
-                    <span>成员：{r.memberCount} 人</span>
-                    <span>权限：{r.permissions.length}</span>
-                    <Button size="small" disabled={r.system || !canManageUsers || submitting || !roleDirectoryReady} onClick={() => {
-                      setRoleEdit(r);
-                      setRoleInitialValues({
-                        name: r.name,
-                        description: r.description,
-                        permissions: r.permissions,
-                        enabled: r.enabled,
-                      });
-                      setRoleOpen(true);
-                    }}>编辑权限</Button>
-                    {!r.system && (
-                      <Button size="small" danger={r.enabled} disabled={!canManageUsers || submitting || !roleDirectoryReady} onClick={() => {
-                        Modal.confirm({
-                          title: r.enabled ? '停用角色并立即撤权？' : '重新启用角色？',
-                          content: `角色「${roleLabel(r.code, r.name)}」现有 ${r.memberCount} 位成员，变更将影响其访问权限。`,
-                          okText: r.enabled ? '确认停用' : '确认启用',
-                          cancelText: '取消',
-                          onOk: () => runMutation(async () => {
-                            await updateAdminRole(r.code, { enabled: !r.enabled });
-                            message.success('角色状态已更新');
-                            await loadRoles();
-                          }),
-                        });
-                      }}>{r.enabled ? '停用' : '启用'}</Button>
-                    )}
-                  </Space>
-                  {r.description && <div style={{ marginTop: 6 }}>{r.description}</div>}
-                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>{r.permissions.join('、') || '无授权权限'}</div>
-                  {compareRole && compareRole !== r.code && (() => {
-                    const other = roles.find((role) => role.code === compareRole);
-                    if (!other) return null;
-                    const additions = r.permissions.filter((key) => !other.permissions.includes(key));
-                    const removals = other.permissions.filter((key) => !r.permissions.includes(key));
-                    return (
-                      <div style={{ marginTop: 8 }}>
-                        <div>相对于「{roleLabel(other.code, other.name)}」的权限差异</div>
-                        <Space wrap>
-                          {additions.map((key) => <Tag key={key} color="green">+ {key}</Tag>)}
-                          {removals.map((key) => <Tag key={key} color="red">− {key}</Tag>)}
-                          {!additions.length && !removals.length && <Tag>权限一致</Tag>}
-                        </Space>
-                      </div>
-                    );
-                  })()}
-
-                </div>
-              ))}
-            </div>
+              }} onEdit={(r) => {
+                setRoleEdit(r);
+                setRoleInitialValues({
+                  name: r.name,
+                  description: r.description,
+                  permissions: r.permissions,
+                  enabled: r.enabled,
+                });
+                setRoleOpen(true);
+              }} onToggle={(r) => {
+                Modal.confirm({
+                  title: r.enabled ? '停用角色并立即撤权？' : '重新启用角色？',
+                  content: `角色「${roleLabel(r.code, r.name)}」现有 ${r.memberCount} 位成员，变更将影响其访问权限。`,
+                  okText: r.enabled ? '确认停用' : '确认启用',
+                  cancelText: '取消',
+                  onOk: () => runMutation(async () => {
+                    await updateAdminRole(r.code, { enabled: !r.enabled });
+                    message.success('角色状态已更新');
+                    await loadRoles();
+                  }),
+                });
+              }} />
           </>
         ) : (
         <ProTable<AdminUserRow>
@@ -473,9 +409,14 @@ export default function SettingsUsersPage() {
           onCancel={() => { if (!submitting) setRoleOpen(false); }}
           onOk={() => { if (roleDirectoryReady) roleForm.submit(); }}
           confirmLoading={submitting}
-          okButtonProps={{ disabled: submitting || !roleDirectoryReady }}
+          okButtonProps={{ disabled: submitting || !roleDirectoryReady, 'aria-label': roleEdit ? '保存修改' : '创建角色' }}
+          okText={roleEdit ? '保存修改' : '创建角色'}
+          cancelText="取消"
           destroyOnHidden
-          width={780}
+          centered
+          width={layoutTokens.modalWidthLg}
+          className="tm-role-editor"
+          styles={{ body: { maxHeight: 'calc(100dvh - 200px)', overflowY: 'auto' } }}
         >
           <Form key={roleEdit?.code || 'new-role'} name="admin-role" form={roleForm} preserve={false} initialValues={roleInitialValues} layout="vertical" onFinish={(values) => runMutation(async () => {
               if (!roleDirectoryReady) return;
@@ -492,32 +433,21 @@ export default function SettingsUsersPage() {
               await loadRoles();
               actionRef.current?.reload();
           })}>
-            <Form.Item label="角色名称" name="name" rules={[{ required: true, max: 80 }]}>
-              <Input maxLength={80} />
-            </Form.Item>
-            {roleEdit && <div style={{ marginBottom: 12 }}>当前关联用户：{roleEdit.memberCount} 人。保存权限或停用角色会触发重新鉴权。</div>}
-            <Form.Item label="角色描述" name="description">
-              <Input.TextArea maxLength={400} />
-            </Form.Item>
-            <Divider>模块 / 页面 / 按钮 / API 权限</Divider>
-            <Form.Item label="模块 / 页面 / 操作 / API 权限" required>
-              <Form.Item name="permissions" noStyle>
-                <Checkbox.Group style={{ width: '100%' }}>
-                  <div style={{ maxHeight: 350, overflowY: 'auto' }}>
-                    {permissionGroups.map(([module, keys]) => (
-                      <section key={module} style={{ padding: '8px 0', borderBottom: '1px solid var(--ant-color-border-secondary)' }}>
-                        <strong>{module} ({keys.length})</strong>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8, marginTop: 8 }}>
-                          {keys.map((key) => <Checkbox key={key} value={key} style={{ overflowWrap: 'anywhere' }}>{key}</Checkbox>)}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
-                </Checkbox.Group>
+            <p className="tm-role-editor__intro">按岗位配置权限，创建后可分配给用户。</p>
+            {roleEdit && <Alert className="tm-role-editor__notice" type="info" showIcon message={`当前关联用户：${roleEdit.memberCount} 人。保存权限或停用角色会触发重新鉴权。`} />}
+            <div className="tm-role-editor__fields">
+              <Form.Item label="角色名称" name="name" rules={[{ required: true, message: '请输入角色名称' }, { max: 80, message: '角色名称不能超过 80 个字符' }]}>
+                <Input maxLength={80} placeholder="例如：商品运营、财务审核" />
               </Form.Item>
+              <Form.Item name="enabled" label="启用状态" valuePropName="checked">
+                <Checkbox>启用此角色</Checkbox>
+              </Form.Item>
+            </div>
+            <Form.Item label="角色描述" name="description">
+              <Input.TextArea maxLength={400} rows={2} showCount placeholder="说明此角色适用的岗位和职责（选填）" />
             </Form.Item>
-            <Form.Item name="enabled" label="启用状态" valuePropName="checked">
-              <Checkbox>启用此角色</Checkbox>
+            <Form.Item name="permissions" label="权限范围" extra="所选权限决定可访问的页面与操作；未选择的功能不授予权限。">
+              <RolePermissionPicker catalog={permissionCatalog} disabled={submitting || !roleDirectoryReady} />
             </Form.Item>
           </Form>
         </Modal>
