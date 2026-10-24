@@ -233,14 +233,3 @@ export function confirmAssignStorePermissions(username: string, onOk: OkFn) {
     onOk,
   });
 }
-
-/** 禁用用户 */
-export function confirmDisableUser(username: string, onOk: OkFn) {
-  confirmSensitiveAction({
-    title: '禁用用户',
-    content: `将禁用用户「${username}」，该账号将无法登录。`,
-    impacts: ['账号登录状态'],
-    reversible: true,
-    onOk,
-  });
-}

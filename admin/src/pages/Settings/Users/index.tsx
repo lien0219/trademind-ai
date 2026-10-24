@@ -5,7 +5,6 @@ import { PAGE_COPY } from '@/constants/copywriting';
 import {
   confirmAssignStorePermissions,
   confirmChangeUserRole,
-  confirmDisableUser,
 } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
 import {
@@ -27,6 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { PERMISSIONS } from '@/utils/permission';
+import { confirmDisableUser } from './disableUserConfirm';
 
 const ROLE_OPTIONS = [
   { label: '管理员', value: 'admin' },

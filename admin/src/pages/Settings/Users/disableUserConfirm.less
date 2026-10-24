@@ -1,0 +1,78 @@
+.tm-disable-user-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 4px;
+  overflow-wrap: anywhere;
+
+  &__intro {
+    margin: 0;
+    color: var(--ant-color-text-secondary);
+  }
+
+  &__account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: var(--ant-border-radius-lg);
+    background: var(--ant-color-fill-alter);
+  }
+
+  &__avatar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--ant-border-radius);
+    color: var(--ant-color-text-secondary);
+    background: var(--ant-color-bg-container);
+    font-size: 18px;
+  }
+
+  &__identity {
+    min-width: 0;
+  }
+
+  &__label {
+    margin-bottom: 4px;
+    color: var(--ant-color-text-secondary);
+    font-size: 12px;
+  }
+
+  &__name,
+  &__heading {
+    color: var(--ant-color-text);
+    font-weight: 600;
+  }
+
+  &__impacts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding-inline-start: 18px;
+    color: var(--ant-color-text-secondary);
+    line-height: 1.7;
+  }
+
+  &__hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ant-color-border-secondary);
+    color: var(--ant-color-text-secondary);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  &__hint-icon {
+    flex: none;
+    margin-top: 4px;
+    color: var(--ant-color-info);
+  }
+}
