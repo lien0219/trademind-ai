@@ -51,7 +51,7 @@ func (h *Handler) CheckBatch(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "请求参数无效")
 		return
 	}
-	out, err := h.Svc.CheckBatch(c.Request.Context(), body)
+	out, err := h.Svc.CheckBatch(c, body)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -84,7 +84,7 @@ func (h *Handler) ListBatches(c *gin.Context) {
 	}
 	page := atoiQP(c, "page", 1)
 	ps := atoiQP(c, "pageSize", 20)
-	items, total, err := h.Svc.ListBatches(c.Request.Context(), page, ps)
+	items, total, err := h.Svc.ListBatches(c, page, ps)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -114,7 +114,7 @@ func (h *Handler) GetBatch(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "无效的批次 ID")
 		return
 	}
-	detail, err := h.Svc.GetBatchDetail(c.Request.Context(), id, c.Query("status"))
+	detail, err := h.Svc.GetBatchDetail(c, id, c.Query("status"))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "批次不存在")
@@ -154,7 +154,7 @@ func (h *Handler) CancelPending(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "无效的批次 ID")
 		return
 	}
-	n, err := h.Svc.CancelPending(c.Request.Context(), id)
+	n, err := h.Svc.CancelPending(c, id)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -251,7 +251,7 @@ func (h *Handler) RejectItem(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "无效的子项 ID")
 		return
 	}
-	if err := h.Svc.RejectItem(c.Request.Context(), id); err != nil {
+	if err := h.Svc.RejectItem(c, id); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

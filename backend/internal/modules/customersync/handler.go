@@ -72,6 +72,9 @@ func (h *Handler) SyncShopCustomerMessages(c *gin.Context) {
 	out, err := h.Svc.CreateShopSync(c, id, body, adminUUID(c))
 	if err != nil {
 		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+			return
 		case errors.Is(err, platformp.ErrManualCustomerMessageUnsupported):
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 			return
@@ -113,7 +116,7 @@ func (h *Handler) ListTasks(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.List(c.Request.Context(), q)
+	res, err := h.Svc.List(c, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -140,7 +143,7 @@ func (h *Handler) GetTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDTO(c.Request.Context(), id)
+	out, err := h.Svc.GetDTO(c, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -165,6 +168,10 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}

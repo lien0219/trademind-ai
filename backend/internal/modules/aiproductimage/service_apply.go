@@ -22,6 +22,7 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 		ProductID: item.ProductID.String(),
 	}
 	ctx := c.Request.Context()
+	tenantID, hasTenant := optionalRequestTenantID(c)
 	allowReplay := item.Status == ItemApplied && s.Idempotency != nil
 	if item.Status == ItemApplied && !allowReplay {
 		result.Status = ItemConflict
@@ -48,7 +49,8 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 	targetVersion, beforeVersion := s.resolveImageTargetVersion(c, item)
 	if !allowReplay {
 		if err := s.verifyImageSnapshot(c, item); err != nil {
-			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			_ = scopeOptional(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID, scopeItemQuery).
+				Where("id = ?", item.ID).Update("status", ItemConflict).Error
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
 			result.ErrorCode = ErrCodeTargetVersionConflict
@@ -96,18 +98,34 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 		return result
 	}
 	if idemJob != nil {
-		ok, reconcileErr := s.ReconcileImageApply(ctx, idemJob, item, slot)
-		if ok {
-			result.Status = ItemApplied
-			result.StatusLabel = itemStatusLabel(ItemApplied)
-			return result
-		}
-		if reconcileErr != nil && strings.Contains(reconcileErr.Error(), product.CodeAIApplyReconciliationConflict) {
-			result.Status = ItemConflict
-			result.StatusLabel = itemStatusLabel(ItemConflict)
-			result.ErrorCode = product.CodeAIApplyReconciliationConflict
-			result.ErrorMessage = reconcileErr.Error()
-			return result
+		if hasTenant {
+			ok, reconcileErr := s.ReconcileImageApply(ctx, idemJob, item, slot, *tenantID)
+			if ok {
+				result.Status = ItemApplied
+				result.StatusLabel = itemStatusLabel(ItemApplied)
+				return result
+			}
+			if reconcileErr != nil && strings.Contains(reconcileErr.Error(), product.CodeAIApplyReconciliationConflict) {
+				result.Status = ItemConflict
+				result.StatusLabel = itemStatusLabel(ItemConflict)
+				result.ErrorCode = product.CodeAIApplyReconciliationConflict
+				result.ErrorMessage = reconcileErr.Error()
+				return result
+			}
+		} else {
+			ok, reconcileErr := s.ReconcileImageApply(ctx, idemJob, item, slot)
+			if ok {
+				result.Status = ItemApplied
+				result.StatusLabel = itemStatusLabel(ItemApplied)
+				return result
+			}
+			if reconcileErr != nil && strings.Contains(reconcileErr.Error(), product.CodeAIApplyReconciliationConflict) {
+				result.Status = ItemConflict
+				result.StatusLabel = itemStatusLabel(ItemConflict)
+				result.ErrorCode = product.CodeAIApplyReconciliationConflict
+				result.ErrorMessage = reconcileErr.Error()
+				return result
+			}
 		}
 	}
 
@@ -125,7 +143,8 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 		msg := applyErr.Error()
 		if strings.Contains(msg, "content conflict") || strings.Contains(msg, "conflict") {
 			s.failImageApply(ctx, idemJob, ErrCodeTargetVersionConflict, false)
-			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			_ = scopeOptional(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID, scopeItemQuery).
+				Where("id = ?", item.ID).Update("status", ItemConflict).Error
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
 			result.ErrorCode = ErrCodeTargetVersionConflict
@@ -151,7 +170,8 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 		updates["application_id"] = app.ID
 		appID = app.ID.String()
 	}
-	_ = s.DB.WithContext(ctx).Model(item).Updates(updates).Error
+	_ = scopeOptional(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID, scopeItemQuery).
+		Where("id = ?", item.ID).Updates(updates).Error
 
 	afterVersion, _ := s.resolveImageTargetVersion(c, item)
 	if strings.TrimSpace(item.ResultStorageKey) != "" {
@@ -176,9 +196,11 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 
 func (s *Service) resolveImageTargetVersion(c *gin.Context, item *AIProductImageItem) (current string, expected string) {
 	ctx := c.Request.Context()
+	tenantID, _ := optionalRequestTenantID(c)
 	if item.ImageID != nil {
 		var img product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&img, "id = ?", *item.ImageID).Error; err == nil {
+		if err := scopeOptional(s.DB.WithContext(ctx), tenantID, scopeImageQuery).
+			Where("id = ?", *item.ImageID).First(&img).Error; err == nil {
 			current = img.UpdatedAt.UTC().Format(time.RFC3339Nano)
 			if item.ImageUpdatedAt != nil {
 				expected = item.ImageUpdatedAt.UTC().Format(time.RFC3339Nano)
@@ -189,7 +211,8 @@ func (s *Service) resolveImageTargetVersion(c *gin.Context, item *AIProductImage
 		}
 	}
 	var p product.Product
-	if err := s.DB.WithContext(ctx).First(&p, "id = ?", item.ProductID).Error; err == nil {
+	if err := scopeOptional(s.DB.WithContext(ctx), tenantID, scopeProductQuery).
+		Where("id = ?", item.ProductID).First(&p).Error; err == nil {
 		current = p.UpdatedAt.UTC().Format(time.RFC3339Nano)
 		expected = current
 	}
@@ -201,7 +224,9 @@ func (s *Service) verifyImageSnapshot(c *gin.Context, item *AIProductImageItem) 
 		return nil
 	}
 	var img product.ProductImage
-	if err := s.DB.WithContext(c.Request.Context()).First(&img, "id = ?", *item.ImageID).Error; err != nil {
+	tenantID, _ := optionalRequestTenantID(c)
+	if err := scopeOptional(s.DB.WithContext(c.Request.Context()), tenantID, scopeImageQuery).
+		Where("id = ?", *item.ImageID).First(&img).Error; err != nil {
 		return fmt.Errorf("content conflict: source image missing")
 	}
 	pubURL := strings.TrimSpace(img.PublicURL)
@@ -222,16 +247,25 @@ func (s *Service) applyNewImage(c *gin.Context, item *AIProductImageItem, mode s
 		return nil, fmt.Errorf("imagetask service unavailable")
 	}
 	ctx := c.Request.Context()
+	tenantID, _ := optionalRequestTenantID(c)
 	var prevBestMainID string
 	if mode == ApplySetMain {
 		var prevBest product.ProductImage
-		if err := s.DB.WithContext(ctx).
+		if err := scopeOptional(s.DB.WithContext(ctx), tenantID, scopeImageQuery).
 			Where("product_id = ? AND is_best_main = ?", item.ProductID, true).
 			First(&prevBest).Error; err == nil {
 			prevBestMainID = prevBest.ID.String()
 		}
 	}
 	taskID := *item.ImageTaskID
+	var task imagetask.ImageTask
+	if err := scopeOptional(s.DB.WithContext(ctx), tenantID, scopeTaskQuery).
+		Where("id = ?", taskID).First(&task).Error; err != nil {
+		return nil, err
+	}
+	if task.ProductID == nil || *task.ProductID != item.ProductID {
+		return nil, fmt.Errorf("image task product mismatch")
+	}
 	imgRow, err := s.Image.ApplyTaskResult(ctx, imagetask.ApplyItemOpts{
 		ProductID: item.ProductID,
 		TaskID:    taskID,
@@ -271,14 +305,20 @@ func (s *Service) applyReplaceImage(c *gin.Context, item *AIProductImageItem, ad
 		return nil, fmt.Errorf("缺少原图信息")
 	}
 	ctx := c.Request.Context()
+	tenantID, _ := optionalRequestTenantID(c)
 	var orig product.ProductImage
-	if err := s.DB.WithContext(ctx).First(&orig, "id = ? AND product_id = ?", *item.ImageID, item.ProductID).Error; err != nil {
+	if err := scopeOptional(s.DB.WithContext(ctx), tenantID, scopeImageQuery).
+		Where("id = ? AND product_id = ?", *item.ImageID, item.ProductID).First(&orig).Error; err != nil {
 		return nil, err
 	}
 	prevSnap, _ := json.Marshal(orig)
 	var task imagetask.ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", *item.ImageTaskID).Error; err != nil {
+	if err := scopeOptional(s.DB.WithContext(ctx), tenantID, scopeTaskQuery).
+		Where("id = ?", *item.ImageTaskID).First(&task).Error; err != nil {
 		return nil, err
+	}
+	if task.ProductID == nil || *task.ProductID != item.ProductID {
+		return nil, fmt.Errorf("image task product mismatch")
 	}
 	resultURL := strings.TrimSpace(item.ResultImageURL)
 	if resultURL == "" {
@@ -290,7 +330,7 @@ func (s *Service) applyReplaceImage(c *gin.Context, item *AIProductImageItem, ad
 	storageKey := strings.TrimSpace(item.ResultStorageKey)
 	now := time.Now().UTC()
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&product.ProductImage{}).
+		res := scopeOptional(tx.Model(&product.ProductImage{}), tenantID, scopeImageQuery).
 			Where("id = ? AND updated_at = ?", orig.ID, orig.UpdatedAt).
 			Updates(map[string]any{
 				"public_url":     resultURL,
@@ -330,17 +370,31 @@ func (s *Service) applyReplaceImage(c *gin.Context, item *AIProductImageItem, ad
 }
 
 func (s *Service) ApplyItem(c *gin.Context, itemID uuid.UUID, body ApplyItemBody, adminID *uuid.UUID) (*ApplyItemResult, error) {
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	var item AIProductImageItem
-	if err := s.DB.WithContext(c.Request.Context()).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := scopeItemQuery(s.DB.WithContext(c.Request.Context()), tenantID).Where("id = ?", itemID).First(&item).Error; err != nil {
+		return nil, err
+	}
+	if err := s.validateItemTenant(c.Request.Context(), &item, tenantID); err != nil {
 		return nil, err
 	}
 	r := s.applyOneItem(c, &item, body.ApplyMode, adminID)
-	s.refreshAppliedCount(c.Request.Context(), item.BatchID)
+	s.refreshAppliedCount(c.Request.Context(), item.BatchID, tenantID)
 	return &r, nil
 }
 
 func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySelectedBody, adminID *uuid.UUID) (*ApplyResultSummary, error) {
 	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.GetBatchByID(c, batchID); err != nil {
+		return nil, err
+	}
 	if len(body.ItemIDs) == 0 {
 		return nil, fmt.Errorf("请选择要应用的结果")
 	}
@@ -351,7 +405,11 @@ func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySel
 			continue
 		}
 		var item AIProductImageItem
-		if err := s.DB.WithContext(ctx).Where("id = ? AND batch_id = ?", id, batchID).First(&item).Error; err != nil {
+		if err := scopeItemQuery(s.DB.WithContext(ctx), tenantID).
+			Where("id = ? AND batch_id = ?", id, batchID).First(&item).Error; err != nil {
+			continue
+		}
+		if err := s.validateItemTenant(ctx, &item, tenantID); err != nil {
 			continue
 		}
 		mode := body.ApplyMode
@@ -369,7 +427,7 @@ func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySel
 			summary.FailedCount++
 		}
 	}
-	s.refreshAppliedCount(ctx, batchID)
+	s.refreshAppliedCount(ctx, batchID, tenantID)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
@@ -385,8 +443,15 @@ func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySel
 
 func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.UUID) (*UndoAppliedSummary, error) {
 	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.GetBatchByID(c, batchID); err != nil {
+		return nil, err
+	}
 	var items []AIProductImageItem
-	if err := s.DB.WithContext(ctx).
+	if err := scopeItemQuery(s.DB.WithContext(ctx), tenantID).
 		Where("batch_id = ? AND status = ? AND application_id IS NOT NULL", batchID, ItemApplied).
 		Find(&items).Error; err != nil {
 		return nil, err
@@ -405,7 +470,7 @@ func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 		}
 		appID := *item.ApplicationID
 		var app product.ProductImageApplication
-		if err := s.DB.WithContext(ctx).First(&app, "id = ?", appID).Error; err != nil {
+		if err := scopeApplicationQuery(s.DB.WithContext(ctx), tenantID).Where("id = ?", appID).First(&app).Error; err != nil {
 			r.Status = "failed"
 			r.StatusLabel = "失败"
 			r.ErrorMessage = err.Error()
@@ -415,11 +480,11 @@ func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 		}
 		targetVersion := ""
 		var img product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&img, "id = ?", app.ProductImageID).Error; err == nil {
+		if err := scopeImageQuery(s.DB.WithContext(ctx), tenantID).Where("id = ?", app.ProductImageID).First(&img).Error; err == nil {
 			targetVersion = img.UpdatedAt.UTC().Format(time.RFC3339Nano)
 		} else {
 			var p product.Product
-			if err := s.DB.WithContext(ctx).First(&p, "id = ?", item.ProductID).Error; err == nil {
+			if err := scopeProductQuery(s.DB.WithContext(ctx), tenantID).Where("id = ?", item.ProductID).First(&p).Error; err == nil {
 				targetVersion = p.UpdatedAt.UTC().Format(time.RFC3339Nano)
 			}
 		}
@@ -458,7 +523,8 @@ func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 			msg := err.Error()
 			if strings.Contains(msg, "conflict") {
 				s.failImageUndo(ctx, idemJob, ErrCodeUndoVersionConflict, false)
-				_ = s.DB.WithContext(ctx).Model(&item).Update("status", ItemConflict).Error
+				_ = scopeItemQuery(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID).
+					Where("id = ?", item.ID).Update("status", ItemConflict).Error
 				r.Status = ItemConflict
 				r.StatusLabel = itemStatusLabel(ItemConflict)
 				r.ErrorCode = ErrCodeUndoVersionConflict
@@ -473,7 +539,8 @@ func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 			}
 		} else {
 			_ = s.completeImageUndo(ctx, idemJob, appID.String())
-			_ = s.DB.WithContext(ctx).Model(&item).Updates(map[string]any{
+			_ = scopeItemQuery(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID).
+				Where("id = ?", item.ID).Updates(map[string]any{
 				"status": ItemPendingReview, "application_id": nil, "applied_at": nil, "applied_by": nil, "apply_mode": "",
 			}).Error
 			r.Status = "undone"
@@ -482,7 +549,7 @@ func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 		}
 		summary.Items = append(summary.Items, r)
 	}
-	s.refreshAppliedCount(ctx, batchID)
+	s.refreshAppliedCount(ctx, batchID, tenantID)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
@@ -498,8 +565,10 @@ func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 
 func (s *Service) undoOneApplication(c *gin.Context, appID uuid.UUID, adminID *uuid.UUID) error {
 	ctx := c.Request.Context()
+	tenantID, _ := optionalRequestTenantID(c)
 	var app product.ProductImageApplication
-	if err := s.DB.WithContext(ctx).First(&app, "id = ? AND status = ?", appID, product.ImageApplyStatusApplied).Error; err != nil {
+	if err := scopeOptional(s.DB.WithContext(ctx), tenantID, scopeApplicationQuery).
+		Where("id = ? AND status = ?", appID, product.ImageApplyStatusApplied).First(&app).Error; err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -511,10 +580,12 @@ func (s *Service) undoOneApplication(c *gin.Context, appID uuid.UUID, adminID *u
 				return fmt.Errorf("undo snapshot invalid")
 			}
 			var cur product.ProductImage
-			if err := tx.First(&cur, "id = ?", app.ProductImageID).Error; err != nil {
+			if err := scopeOptional(tx, tenantID, scopeImageQuery).
+				Where("id = ?", app.ProductImageID).First(&cur).Error; err != nil {
 				return err
 			}
-			res := tx.Model(&product.ProductImage{}).Where("id = ? AND updated_at = ?", cur.ID, cur.UpdatedAt).Updates(map[string]any{
+			res := scopeOptional(tx.Model(&product.ProductImage{}), tenantID, scopeImageQuery).
+				Where("id = ? AND updated_at = ?", cur.ID, cur.UpdatedAt).Updates(map[string]any{
 				"public_url":     prev.PublicURL,
 				"origin_url":     prev.OriginURL,
 				"storage_key":    prev.StorageKey,
@@ -531,13 +602,14 @@ func (s *Service) undoOneApplication(c *gin.Context, appID uuid.UUID, adminID *u
 			}
 		case ApplySetMain, ApplyAddDetail, ApplySaveToGallery:
 			var cur product.ProductImage
-			if err := tx.First(&cur, "id = ?", app.ProductImageID).Error; err != nil {
+			if err := scopeOptional(tx, tenantID, scopeImageQuery).
+				Where("id = ?", app.ProductImageID).First(&cur).Error; err != nil {
 				return err
 			}
 			if cur.Source != product.ImageSourceAI {
 				return fmt.Errorf("content conflict: image no longer AI-applied")
 			}
-			if err := tx.Delete(&cur).Error; err != nil {
+			if err := scopeOptional(tx, tenantID, scopeImageQuery).Delete(&cur).Error; err != nil {
 				return err
 			}
 			if app.ApplyMode == ApplySetMain {
@@ -545,7 +617,7 @@ func (s *Service) undoOneApplication(c *gin.Context, appID uuid.UUID, adminID *u
 				_ = json.Unmarshal(app.PreviousSnapshot, &snap)
 				if prevID, ok := snap["previousBestMainId"].(string); ok && strings.TrimSpace(prevID) != "" {
 					if pid, err := uuid.Parse(prevID); err == nil {
-						_ = tx.Model(&product.ProductImage{}).
+						_ = scopeOptional(tx.Model(&product.ProductImage{}), tenantID, scopeImageQuery).
 							Where("id = ? AND product_id = ?", pid, app.ProductID).
 							Update("is_best_main", true).Error
 					}
@@ -554,7 +626,8 @@ func (s *Service) undoOneApplication(c *gin.Context, appID uuid.UUID, adminID *u
 		default:
 			return fmt.Errorf("unsupported apply mode for undo")
 		}
-		res := tx.Model(&product.ProductImageApplication{}).Where("id = ? AND status = ?", app.ID, product.ImageApplyStatusApplied).Updates(map[string]any{
+		res := scopeOptional(tx.Model(&product.ProductImageApplication{}), tenantID, scopeApplicationQuery).
+			Where("id = ? AND status = ?", app.ID, product.ImageApplyStatusApplied).Updates(map[string]any{
 			"status":    product.ImageApplyStatusUndone,
 			"undone_by": adminID,
 			"undone_at": &now,

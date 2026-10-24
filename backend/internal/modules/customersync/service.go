@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -131,12 +132,12 @@ func (s *Service) createSyncTaskIfIdle(ctx context.Context, task *CustomerMessag
 	created := false
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var lockedShop shop.Shop
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&lockedShop, "id = ?", task.ShopID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&lockedShop, "id = ? AND tenant_id = ?", task.ShopID, task.TenantID).Error; err != nil {
 			return err
 		}
 		var active int64
 		if err := tx.Model(&CustomerMessageSyncTask{}).
-			Where("shop_id = ? AND status IN ?", task.ShopID, []string{StatusPending, StatusRunning}).Count(&active).Error; err != nil {
+			Where("tenant_id = ? AND shop_id = ? AND status IN ?", task.TenantID, task.ShopID, []string{StatusPending, StatusRunning}).Count(&active).Error; err != nil {
 			return err
 		}
 		if active > 0 {
@@ -231,8 +232,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureCustomerSyncAccess(c, s.DB, shopID, true); err != nil {
+		return nil, err
+	}
 	var row shop.Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND tenant_id = ?", shopID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	prov := platformp.Get(strings.TrimSpace(row.Platform))
@@ -302,7 +310,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), task.ID)
+	out, err := s.GetDTO(c, task.ID)
 	return &out, err
 }
 
@@ -505,29 +513,42 @@ func (s *Service) taskToDTO(ctx context.Context, t *CustomerMessageSyncTask, sho
 	}
 }
 
-func (s *Service) shopNameLookup(ctx context.Context, shopID uuid.UUID) string {
+func (s *Service) shopNameLookup(ctx context.Context, tenantID int64, shopID uuid.UUID) string {
 	var sh shop.Shop
-	if err := s.DB.WithContext(ctx).First(&sh, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&sh, "id = ? AND tenant_id = ?", shopID, tenantID).Error; err != nil {
 		return ""
 	}
 	return sh.ShopName
 }
 
 // GetDTO loads one task.
-func (s *Service) GetDTO(ctx context.Context, id uuid.UUID) (TaskDTO, error) {
+func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	var zero TaskDTO
-	var t CustomerMessageSyncTask
-	if err := s.DB.WithContext(ctx).First(&t, "id = ?", id).Error; err != nil {
+	if s == nil || s.DB == nil {
+		return zero, fmt.Errorf("customersync: no db")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return zero, err
 	}
-	name := s.shopNameLookup(ctx, t.ShopID)
-	return s.taskToDTO(ctx, &t, name), nil
+	var t CustomerMessageSyncTask
+	if err := s.DB.WithContext(c.Request.Context()).First(&t, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
+		return zero, err
+	}
+	if err := ensureCustomerSyncAccess(c, s.DB, t.ShopID, false); err != nil {
+		return zero, err
+	}
+	name := s.shopNameLookup(c.Request.Context(), tenantID, t.ShopID)
+	return s.taskToDTO(c.Request.Context(), &t, name), nil
 }
 
 // List paginates tasks.
-func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
+func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
+	}
+	if err := ensureCustomerPermission(c, s.DB, adminperm.PermCustomerView); err != nil {
+		return nil, err
 	}
 	page := q.Page
 	if page < 1 {
@@ -541,7 +562,17 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 
-	tx := s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&CustomerMessageSyncTask{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if q.ShopID != nil && *q.ShopID != uuid.Nil {
 		tx = tx.Where("shop_id = ?", *q.ShopID)
 	}
@@ -569,8 +600,12 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 	}
 
 	out := make([]TaskDTO, len(rows))
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	for i := range rows {
-		out[i] = s.taskToDTO(ctx, &rows[i], s.shopNameLookup(ctx, rows[i].ShopID))
+		out[i] = s.taskToDTO(c.Request.Context(), &rows[i], s.shopNameLookup(c.Request.Context(), tenantID, rows[i].ShopID))
 	}
 
 	return &ListResult{
@@ -588,7 +623,14 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		return nil, fmt.Errorf("customersync: no db")
 	}
 	var task CustomerMessageSyncTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ? AND tenant_id = ?", taskID, tenantID).Error; err != nil {
+		return nil, err
+	}
+	if err := ensureCustomerSyncAccess(c, s.DB, task.ShopID, true); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(task.Status) != StatusFailed {
@@ -596,7 +638,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 	var active int64
 	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerMessageSyncTask{}).
-		Where("shop_id = ? AND id <> ? AND status IN ?", task.ShopID, task.ID, []string{StatusPending, StatusRunning}).
+		Where("tenant_id = ? AND shop_id = ? AND id <> ? AND status IN ?", tenantID, task.ShopID, task.ID, []string{StatusPending, StatusRunning}).
 		Count(&active).Error; err != nil {
 		return nil, err
 	}
@@ -605,7 +647,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 
 	reset := time.Now().UTC()
-	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerMessageSyncTask{}).Where("id = ?", taskID).
+	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerMessageSyncTask{}).Where("id = ? AND tenant_id = ?", taskID, tenantID).
 		Updates(map[string]any{
 			"status":        StatusPending,
 			"error_message": "",
@@ -650,6 +692,46 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), taskID)
+	out, err := s.GetDTO(c, taskID)
 	return &out, err
+}
+
+// ensureCustomerPermission is a service-layer guard for callers that bypass
+// the HTTP router. Route middleware still returns the user-facing 403 response.
+func ensureCustomerPermission(c *gin.Context, db *gorm.DB, permission string) error {
+	p, err := adminperm.LoadPrincipal(c, db)
+	if err != nil {
+		return err
+	}
+	if p == nil || !p.Can(permission) {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// ensureCustomerSyncAccess enforces both the customer permission and the
+// tenant/store boundary for one task or shop. Out-of-scope resources are
+// deliberately reported as not found to avoid existence leaks in services
+// that are called outside a route's permission middleware.
+func ensureCustomerSyncAccess(c *gin.Context, db *gorm.DB, shopID uuid.UUID, operate bool) error {
+	permission := adminperm.PermCustomerView
+	if operate {
+		permission = adminperm.PermCustomerOperate
+	}
+	if err := ensureCustomerPermission(c, db, permission); err != nil {
+		return err
+	}
+	if err := adminperm.EnsureStoreVisible(c, db, &shopID); err != nil {
+		return err
+	}
+	if operate {
+		p, err := adminperm.LoadPrincipal(c, db)
+		if err != nil {
+			return err
+		}
+		if p == nil || !p.CanOperateStore(shopID) {
+			return gorm.ErrRecordNotFound
+		}
+	}
+	return nil
 }

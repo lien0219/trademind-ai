@@ -16,8 +16,14 @@ func (s *Service) GetTaskItem(ctx context.Context, itemID uuid.UUID) (*ImageTask
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("imagetask: no db")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var item ImageTaskItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	query := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).Where("id = ?", itemID)
+	query = scopeImageTaskItemQuery(query, tenantID, scoped)
+	if err := query.First(&item).Error; err != nil {
 		return nil, err
 	}
 	return &item, nil
@@ -57,33 +63,54 @@ func (s *Service) ScoreImageHTTP(ctx context.Context, req ScoreImageRequest) (Im
 	if s == nil {
 		return ImageScore{}, fmt.Errorf("imagetask: unavailable")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return ImageScore{}, err
+	}
 	imageURL := strings.TrimSpace(req.SourceImageURL)
 	imageType := strings.TrimSpace(req.ImageType)
 	if imageType == "" {
 		imageType = "main"
 	}
 	productTitle := ""
+	if req.ProductID != nil && s.DB == nil {
+		return ImageScore{}, fmt.Errorf("imagetask: no db")
+	}
 	if req.ProductID != nil && s.DB != nil {
 		var p product.Product
-		if err := s.DB.WithContext(ctx).Select("title").First(&p, "id = ?", *req.ProductID).Error; err == nil {
-			productTitle = strings.TrimSpace(p.Title)
+		query := s.DB.WithContext(ctx).Model(&product.Product{}).Select("title").Where("id = ?", *req.ProductID)
+		query = scopeProductQuery(query, tenantID, scoped)
+		if err := query.First(&p).Error; err != nil {
+			return ImageScore{}, err
 		}
+		productTitle = strings.TrimSpace(p.Title)
 	}
-	if imageURL == "" && req.SourceImageID != nil && s.DB != nil {
+	if req.SourceImageID != nil && s.DB != nil {
 		var im product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&im, "id = ?", *req.SourceImageID).Error; err == nil {
-			imageURL = strings.TrimSpace(im.PublicURL)
-			if imageURL == "" {
-				imageURL = strings.TrimSpace(im.OriginURL)
-			}
-			if imageType == "main" && strings.TrimSpace(im.ImageType) != "" {
-				imageType = strings.TrimSpace(im.ImageType)
-			}
-			if req.ProductID == nil {
-				pid := im.ProductID
-				req.ProductID = &pid
-			}
+		query := s.DB.WithContext(ctx).Model(&product.ProductImage{}).Where("id = ?", *req.SourceImageID)
+		if req.ProductID != nil {
+			query = query.Where("product_id = ?", *req.ProductID)
 		}
+		query = scopeProductImageQuery(query, tenantID, scoped)
+		if err := query.First(&im).Error; err != nil {
+			return ImageScore{}, err
+		}
+		resolvedURL := strings.TrimSpace(im.PublicURL)
+		if resolvedURL == "" {
+			resolvedURL = strings.TrimSpace(im.OriginURL)
+		}
+		if resolvedURL != "" {
+			imageURL = resolvedURL
+		}
+		if imageType == "main" && strings.TrimSpace(im.ImageType) != "" {
+			imageType = strings.TrimSpace(im.ImageType)
+		}
+		if req.ProductID == nil {
+			pid := im.ProductID
+			req.ProductID = &pid
+		}
+	} else if req.SourceImageID != nil {
+		return ImageScore{}, fmt.Errorf("imagetask: no db")
 	}
 	if imageURL == "" {
 		return ImageScore{}, fmt.Errorf("sourceImageUrl or sourceImageId required")
@@ -94,9 +121,14 @@ func (s *Service) ScoreImageHTTP(ctx context.Context, req ScoreImageRequest) (Im
 	}
 	if req.SourceImageID != nil && s.DB != nil {
 		v := score.OverallScore
-		_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
-			Where("id = ?", *req.SourceImageID).
-			Update("score", v).Error
+		query := s.DB.WithContext(ctx).Model(&product.ProductImage{}).Where("id = ?", *req.SourceImageID)
+		if req.ProductID != nil {
+			query = query.Where("product_id = ?", *req.ProductID)
+		}
+		query = scopeProductImageQuery(query, tenantID, scoped)
+		if err := query.Update("score", v).Error; err != nil {
+			return ImageScore{}, err
+		}
 	}
 	return score, nil
 }

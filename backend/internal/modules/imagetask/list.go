@@ -18,6 +18,7 @@ type ListQuery struct {
 	Provider  string
 	ProductID *uuid.UUID
 	BatchID   *uuid.UUID
+	TenantID  *int64
 	Start     *time.Time
 	End       *time.Time
 }
@@ -36,6 +37,16 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("imagetask: no db")
 	}
+	ctx := c.Request.Context()
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// The authenticated context is authoritative whenever this is an HTTP
+	// request. A caller-provided tenant filter must not broaden the scope.
+	if scoped {
+		q.TenantID = &tenantID
+	}
 	page := q.Page
 	if page < 1 {
 		page = 1
@@ -48,10 +59,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 
-	tx := s.DB.WithContext(c.Request.Context()).Model(&ImageTask{}).
+	tx := s.DB.WithContext(ctx).Model(&ImageTask{}).
 		Select("id", "task_type", "provider", "status", "product_id", "source_image_id", "source_image_url",
 			"batch_id", "batch_no", "result_file_id", "result_url", "error_message", "retry_count", "max_retries", "next_retry_at", "retry_enqueued_at",
 			"created_by", "started_at", "finished_at", "created_at", "updated_at")
+	tx = scopeImageTaskQuery(tx, tenantID, scoped)
 
 	if v := strings.TrimSpace(q.TaskType); v != "" {
 		tx = tx.Where("task_type = ?", v)
@@ -67,6 +79,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 	if q.BatchID != nil {
 		tx = tx.Where("batch_id = ?", *q.BatchID)
+	}
+	if q.TenantID != nil {
+		tx = tx.Where("tenant_id = ?", *q.TenantID)
 	}
 	if q.Start != nil {
 		tx = tx.Where("created_at >= ?", *q.Start)

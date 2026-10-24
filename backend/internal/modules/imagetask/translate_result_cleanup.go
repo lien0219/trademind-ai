@@ -113,8 +113,14 @@ func (s *Service) clearTranslateTaskOutput(ctx context.Context, taskID uuid.UUID
 	if s == nil || s.DB == nil {
 		return nil
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
 	fin := time.Now().UTC()
-	return s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID).Updates(map[string]any{
+	query := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	return query.Updates(map[string]any{
 		"status":         StatusFailed,
 		"result_url":     "",
 		"result_file_id": nil,
@@ -130,9 +136,15 @@ func (s *Service) markTranslateTasksObsolete(ctx context.Context, taskIDs []uuid
 	if s == nil || s.DB == nil || len(taskIDs) == 0 {
 		return nil
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
 	fin := time.Now().UTC()
-	return s.DB.WithContext(ctx).Model(&ImageTask{}).
-		Where("id IN ?", taskIDs).
+	query := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("id IN ?", taskIDs)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	return query.
 		Updates(map[string]any{
 			"status":         StatusObsolete,
 			"result_url":     "",
@@ -152,6 +164,10 @@ func (s *Service) supersedePriorTranslateResults(ctx context.Context, task *Imag
 	if targetLang == "" {
 		targetLang = "en"
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
 	var rows []ImageTask
 	q := s.DB.WithContext(ctx).
 		Where("task_type = ? AND source_image_id = ? AND id <> ?", TaskTypeTranslateImageText, task.SourceImageID, excludeTaskID).
@@ -159,6 +175,7 @@ func (s *Service) supersedePriorTranslateResults(ctx context.Context, task *Imag
 			StatusFailed, StatusLowQuality, StatusFailedValidation, StatusNeedManualReview, StatusObsolete,
 			StatusSuccess, StatusSuccessWithWarnings, StatusSuccessWithReview,
 		})
+	q = scopeImageTaskQuery(q, tenantID, scoped)
 	if err := q.Find(&rows).Error; err != nil {
 		return err
 	}
@@ -203,7 +220,13 @@ func (s *Service) discardUnusableTranslateOutput(ctx context.Context, task *Imag
 	}
 	outBytes, _ := json.Marshal(out)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(map[string]any{
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return
+	}
+	query := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	_ = query.Updates(map[string]any{
 		"result_url":     "",
 		"result_file_id": nil,
 		"output":         outBytes,
@@ -211,15 +234,16 @@ func (s *Service) discardUnusableTranslateOutput(ctx context.Context, task *Imag
 		"finished_at":    &fin,
 		"completed_at":   &fin,
 	}).Error
-	_ = s.DB.WithContext(ctx).Model(&ImageTaskItem{}).
-		Where("task_id = ?", task.ID).
-		Updates(map[string]any{
-			"status":             ItemStatusFailed,
-			"output_image_url":   "",
-			"output_storage_key": "",
-			"output_file_id":     nil,
-			"error_message":      truncateRunes("输出质量不达标，结果已删除", 4000),
-		}).Error
+	itemQuery := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).
+		Where("task_id = ?", task.ID)
+	itemQuery = scopeImageTaskItemQuery(itemQuery, tenantID, scoped)
+	_ = itemQuery.Updates(map[string]any{
+		"status":             ItemStatusFailed,
+		"output_image_url":   "",
+		"output_storage_key": "",
+		"output_file_id":     nil,
+		"error_message":      truncateRunes("输出质量不达标，结果已删除", 4000),
+	}).Error
 }
 
 func translateArtifactsFromPersist(storageKey string, fileID *uuid.UUID, finalURL string) translateResultArtifacts {

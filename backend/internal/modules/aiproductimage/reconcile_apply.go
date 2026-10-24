@@ -12,14 +12,17 @@ import (
 )
 
 // ReconcileImageApply repairs idempotency when image apply committed but Complete did not run.
-func (s *Service) ReconcileImageApply(ctx context.Context, job *imageApplyAcquire, item *AIProductImageItem, slot string) (bool, error) {
+func (s *Service) ReconcileImageApply(ctx context.Context, job *imageApplyAcquire, item *AIProductImageItem, slot string, tenantIDs ...int64) (bool, error) {
 	if s == nil || s.DB == nil || s.Idempotency == nil || job == nil || item == nil || item.ImageTaskID == nil {
 		return false, nil
 	}
 
 	var app product.ProductImageApplication
-	err := s.DB.WithContext(ctx).
-		Where("product_id = ? AND image_task_id = ? AND status = ?", item.ProductID, item.ImageTaskID, product.ImageApplyStatusApplied).
+	q := s.DB.WithContext(ctx)
+	if len(tenantIDs) > 0 {
+		q = scopeApplicationQuery(q, tenantIDs[0])
+	}
+	err := q.Where("product_id = ? AND image_task_id = ? AND status = ?", item.ProductID, item.ImageTaskID, product.ImageApplyStatusApplied).
 		Order("applied_at DESC").First(&app).Error
 	if err != nil {
 		return false, nil
@@ -38,7 +41,11 @@ func (s *Service) ReconcileImageApply(ctx context.Context, job *imageApplyAcquir
 	}); err != nil {
 		return false, err
 	}
-	_ = s.DB.WithContext(ctx).Model(item).Updates(map[string]any{"status": ItemApplied}).Error
+	q = s.DB.WithContext(ctx).Model(&AIProductImageItem{})
+	if len(tenantIDs) > 0 {
+		q = scopeItemQuery(q, tenantIDs[0])
+	}
+	_ = q.Where("id = ?", item.ID).Updates(map[string]any{"status": ItemApplied}).Error
 	return true, nil
 }
 

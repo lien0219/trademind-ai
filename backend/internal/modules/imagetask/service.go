@@ -306,8 +306,12 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 		}
 	}
 
+	tenantID, err := s.imageTaskTenant(ctx, p.ProductID)
+	if err != nil {
+		return nil, err
+	}
 	row := &ImageTask{
-		TenantID:       s.imageTaskTenant(ctx, p.ProductID),
+		TenantID:       tenantID,
 		TaskType:       p.TaskType,
 		Provider:       effectiveProv,
 		Status:         StatusPending,
@@ -333,15 +337,29 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	return row, nil
 }
 
-func (s *Service) imageTaskTenant(ctx context.Context, productID *uuid.UUID) int64 {
-	if s == nil || s.DB == nil || productID == nil || *productID == uuid.Nil {
-		return 0
+func (s *Service) imageTaskTenant(ctx context.Context, productID *uuid.UUID) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("imagetask: no db")
+	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if productID == nil || *productID == uuid.Nil {
+		return tenantID, nil
 	}
 	var row struct{ TenantID int64 }
-	if err := s.DB.WithContext(ctx).Table("products").Select("tenant_id").Where("id = ? AND deleted_at IS NULL", *productID).Take(&row).Error; err != nil {
-		return 0
+	query := s.DB.WithContext(ctx).Table("products").Select("tenant_id").Where("id = ? AND deleted_at IS NULL", *productID)
+	if scoped {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
-	return row.TenantID
+	if err := query.Take(&row).Error; err != nil {
+		return 0, err
+	}
+	if scoped && row.TenantID != tenantID {
+		return 0, fmt.Errorf("product tenant mismatch")
+	}
+	return row.TenantID, nil
 }
 
 // FinalizeNewImageTask enqueues a pending task or runs it inline (same contract as HTTP POST /image/tasks).
@@ -371,7 +389,13 @@ func (s *Service) deleteTask(ctx context.Context, id uuid.UUID) {
 	if s == nil || s.DB == nil {
 		return
 	}
-	_ = s.DB.WithContext(ctx).Unscoped().Delete(&ImageTask{}, "id = ?", id).Error
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return
+	}
+	query := s.DB.WithContext(ctx).Unscoped().Where("id = ?", id)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	_ = query.Delete(&ImageTask{}).Error
 }
 
 // ProcessQueuedTask is invoked by the image worker: CAS pending → running, then run provider.
@@ -388,6 +412,10 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("imagetask: no db")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -396,7 +424,9 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	}()
 
 	var peek ImageTask
-	if err := s.DB.WithContext(ctx).First(&peek, "id = ?", taskID).Error; err != nil {
+	peekQuery := s.DB.WithContext(ctx).Where("id = ?", taskID)
+	peekQuery = scopeImageTaskQuery(peekQuery, tenantID, scoped)
+	if err := peekQuery.First(&peek).Error; err != nil {
 		return err
 	}
 	lease := s.computeExecutionTimeout(ctx, &peek)
@@ -638,6 +668,10 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return
+	}
 	now := time.Now().UTC()
 	newRC := task.RetryCount + 1
 	delaySec := imageRetryDelaySeconds(newRC, s.effectiveRetryBaseSec(), s.effectiveRetryMaxSec())
@@ -666,7 +700,9 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 	if claim != nil && strings.TrimSpace(workerID) != "" {
 		_ = s.finishImageTask(ctx, task.ID, workerID, claim, updates)
 	} else {
-		_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error
+		query := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID)
+		query = scopeImageTaskQuery(query, tenantID, scoped)
+		_ = query.Updates(updates).Error
 	}
 
 	maxR := s.effectiveMaxRetries(task)
@@ -705,7 +741,12 @@ func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context,
 			return err
 		}
 	} else {
-		_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error
+		tenantID, scoped, scopeErr := imageTaskTenantScope(ctx)
+		if scopeErr == nil {
+			query := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID)
+			query = scopeImageTaskQuery(query, tenantID, scoped)
+			_ = query.Updates(updates).Error
+		}
 	}
 	if exhausted {
 		s.logRetryExhausted(ctx, httpCtx, task, msg)
@@ -830,8 +871,14 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*ImageTask, error)
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("imagetask: no db")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var row ImageTask
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+	query := s.DB.WithContext(ctx).Where("id = ?", id)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&row).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil
@@ -843,9 +890,15 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		return fmt.Errorf("imagetask: no db")
 	}
 	ctx := c.Request.Context()
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
 
 	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", id).Error; err != nil {
+	query := s.DB.WithContext(ctx).Where("id = ?", id)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&task).Error; err != nil {
 		return err
 	}
 	if task.Status != StatusFailed {
@@ -868,7 +921,9 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		"locked_by":         nil,
 		"locked_until":      nil,
 	}
-	res := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", id, StatusFailed).Updates(updates)
+	update := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", id, StatusFailed)
+	update = scopeImageTaskQuery(update, tenantID, scoped)
+	res := update.Updates(updates)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -897,7 +952,9 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 			rid = s
 		}
 		if err := s.enqueueTask(ctx, id, task.TaskType, task.Provider, task.CreatedBy, rid); err != nil {
-			_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", id).Updates(map[string]any{
+			rollback := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", id)
+			rollback = scopeImageTaskQuery(rollback, tenantID, scoped)
+			_ = rollback.Updates(map[string]any{
 				"status":        StatusFailed,
 				"error_message": "retry enqueue failed: " + err.Error(),
 				"finished_at":   time.Now().UTC(),

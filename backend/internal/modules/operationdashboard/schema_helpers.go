@@ -58,6 +58,7 @@ func (s *Service) schemaFlags(ctx context.Context) (softDelete, aiDesc bool) {
 
 func (s *Service) productTimeScope(ctx context.Context, q Query) *gorm.DB {
 	tx := s.DB.WithContext(ctx).Table("products AS products")
+	tx = tx.Where("products.tenant_id = ?", dashboardTenantID(q))
 	if soft, _ := s.schemaFlags(ctx); soft {
 		tx = tx.Where("products.deleted_at IS NULL")
 	}

@@ -359,6 +359,9 @@ func AutoMigrate(db *gorm.DB) error {
 	); err != nil {
 		return err
 	}
+	if err := migrateAIOperationBatchTenant(db); err != nil {
+		return fmt.Errorf("backfill AI operation batch tenants: %w", err)
+	}
 	if err := backfillCollectBrowserProfileTenants(db); err != nil {
 		return fmt.Errorf("backfill collect browser profile tenants: %w", err)
 	}

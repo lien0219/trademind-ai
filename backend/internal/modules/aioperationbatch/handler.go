@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -17,6 +18,10 @@ import (
 // Handler serves bulk AI batch HTTP API.
 type Handler struct {
 	Svc *Service
+}
+
+func requireBatchPermission(c *gin.Context, db *gorm.DB, permission string) bool {
+	return adminperm.RequirePermission(c, db, permission)
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -48,6 +53,9 @@ func (h *Handler) CreateProductText(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "ai batches unavailable")
 		return
 	}
+	if !requireBatchPermission(c, h.Svc.DB, adminperm.PermAITextApply) {
+		return
+	}
 	var body CreateProductTextBatchBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
@@ -67,6 +75,9 @@ func (h *Handler) CreateProductImages(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "ai batches unavailable")
 		return
 	}
+	if !requireBatchPermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
+		return
+	}
 	var body CreateProductImagesBatchBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
@@ -84,6 +95,9 @@ func (h *Handler) CreateProductImages(c *gin.Context) {
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "ai batches unavailable")
+		return
+	}
+	if !requireBatchPermission(c, h.Svc.DB, adminperm.PermProductView) {
 		return
 	}
 	q := ListBatchesQuery{
@@ -134,6 +148,9 @@ func (h *Handler) Get(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "ai batches unavailable")
 		return
 	}
+	if !requireBatchPermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -153,9 +170,20 @@ func (h *Handler) Get(c *gin.Context) {
 	var recentImg []imagetask.ImageTask
 	switch batch.OperationType {
 	case OperationTitleOptimize, OperationDescriptionGenerate:
-		recentAI, _, _ = h.Svc.ListBatchAITasks(c, id, 1, 10)
-	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
-		recentImg, _, _ = h.Svc.ListBatchImageTasks(c, id, 1, 10)
+		var listErr error
+		recentAI, _, listErr = h.Svc.ListBatchAITasks(c, id, 1, 10)
+		if listErr != nil {
+			response.HandleError(c, listErr)
+			return
+		}
+	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground,
+		OperationImageBatchGenerateMain, OperationImageTranslateImageText, OperationImageScore, OperationImageSelectBestMain:
+		var listErr error
+		recentImg, _, listErr = h.Svc.ListBatchImageTasks(c, id, 1, 10)
+		if listErr != nil {
+			response.HandleError(c, listErr)
+			return
+		}
 	}
 
 	response.OK(c, gin.H{
@@ -169,6 +197,9 @@ func (h *Handler) Get(c *gin.Context) {
 func (h *Handler) Tasks(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "ai batches unavailable")
+		return
+	}
+	if !requireBatchPermission(c, h.Svc.DB, adminperm.PermProductView) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -196,7 +227,8 @@ func (h *Handler) Tasks(c *gin.Context) {
 			return
 		}
 		response.OK(c, gin.H{"kind": "ai_tasks", "list": items, "pagination": pageBlock(page, ps, total)})
-	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
+	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground,
+		OperationImageBatchGenerateMain, OperationImageTranslateImageText, OperationImageScore, OperationImageSelectBestMain:
 		items, total, err := h.Svc.ListBatchImageTasks(c, id, page, ps)
 		if err != nil {
 			response.HandleError(c, err)
@@ -238,6 +270,22 @@ func (h *Handler) RetryFailed(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	operationType, err := h.Svc.operationTypeByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	permission := adminperm.PermAIImageApply
+	if operationType == OperationTitleOptimize || operationType == OperationDescriptionGenerate {
+		permission = adminperm.PermAITextApply
+	}
+	if !requireBatchPermission(c, h.Svc.DB, permission) {
+		return
+	}
 	batch, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -250,6 +298,9 @@ func (h *Handler) RetryFailed(c *gin.Context) {
 func (h *Handler) ApplyResults(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "ai batches unavailable")
+		return
+	}
+	if !requireBatchPermission(c, h.Svc.DB, adminperm.PermAITextApply) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

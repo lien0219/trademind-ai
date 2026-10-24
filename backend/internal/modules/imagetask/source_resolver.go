@@ -214,11 +214,17 @@ func firstNonEmpty(vals ...string) string {
 
 // ResolveSource resolves source_image_id / source_image_url for persisting image_tasks (display URL + id).
 func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, sourceURL string) (imageID *uuid.UUID, resolvedURL string, err error) {
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, "", err
+	}
 	urlStr := strings.TrimSpace(sourceURL)
 	if sourceImageID != nil && *sourceImageID != uuid.Nil {
 		sid := *sourceImageID
 		var fr files.FileRecord
-		if err := s.DB.WithContext(ctx).First(&fr, "id = ?", sid).Error; err == nil {
+		fileQuery := s.DB.WithContext(ctx).Model(&files.FileRecord{}).Where("id = ?", sid)
+		fileQuery = scopeFileRecordQuery(fileQuery, tenantID, scoped)
+		if err := fileQuery.First(&fr).Error; err == nil {
 			out := firstNonEmpty(fr.PublicURL)
 			if out == "" && strings.TrimSpace(fr.ObjectKey) != "" && s.Settings != nil {
 				sm, e2 := s.Settings.PlainByGroup(ctx, 0, "storage")
@@ -233,7 +239,9 @@ func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, s
 			return &sid, out, nil
 		}
 		var pi product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&pi, "id = ?", sid).Error; err == nil {
+		imageQuery := s.DB.WithContext(ctx).Model(&product.ProductImage{}).Where("id = ?", sid)
+		imageQuery = scopeProductImageQuery(imageQuery, tenantID, scoped)
+		if err := imageQuery.First(&pi).Error; err == nil {
 			out := firstNonEmpty(pi.PublicURL, pi.OriginURL)
 			if out == "" && strings.TrimSpace(pi.ObjectKey) != "" && s.Settings != nil {
 				sm, e2 := s.Settings.PlainByGroup(ctx, 0, "storage")
@@ -248,9 +256,9 @@ func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, s
 			}
 			return &sid, out, nil
 		}
-		if urlStr != "" {
-			return nil, urlStr, nil
-		}
+		// An explicitly supplied image ID must resolve inside the current
+		// tenant. Falling back to a caller URL here would turn a cross-tenant
+		// ID into an accepted request.
 		return nil, "", fmt.Errorf("sourceImageId not found")
 	}
 	if urlStr != "" {
@@ -276,6 +284,10 @@ func (s *Service) resolveRemoveBGSource(ctx context.Context, task *ImageTask) (r
 	if s.Settings == nil {
 		return zero, errors.New("source image is not readable and not publicly accessible")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return zero, err
+	}
 	sm, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
 		return zero, err
@@ -284,7 +296,9 @@ func (s *Service) resolveRemoveBGSource(ctx context.Context, task *ImageTask) (r
 	if task.SourceImageID != nil && *task.SourceImageID != uuid.Nil {
 		sid := *task.SourceImageID
 		var fr files.FileRecord
-		if err := s.DB.WithContext(ctx).First(&fr, "id = ?", sid).Error; err == nil {
+		fileQuery := s.DB.WithContext(ctx).Model(&files.FileRecord{}).Where("id = ?", sid)
+		fileQuery = scopeFileRecordQuery(fileQuery, tenantID, scoped)
+		if err := fileQuery.First(&fr).Error; err == nil {
 			if strings.TrimSpace(fr.ObjectKey) != "" {
 				rc, fn, ct, err := s.openFileRecordObject(ctx, sm, &fr)
 				if err == nil {
@@ -312,7 +326,9 @@ func (s *Service) resolveRemoveBGSource(ctx context.Context, task *ImageTask) (r
 		}
 
 		var pi product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&pi, "id = ?", sid).Error; err == nil {
+		imageQuery := s.DB.WithContext(ctx).Model(&product.ProductImage{}).Where("id = ?", sid)
+		imageQuery = scopeProductImageQuery(imageQuery, tenantID, scoped)
+		if err := imageQuery.First(&pi).Error; err == nil {
 			if strings.TrimSpace(pi.ObjectKey) != "" {
 				rc, fn, ct, err := s.openProductImageObject(ctx, sm, &pi)
 				if err == nil {
@@ -359,8 +375,14 @@ func (s *Service) resolveRemoveBGFromURL(ctx context.Context, sm map[string]stri
 			return removeBGSource{File: rc, Filename: fn, ContentType: ct}, nil
 		}
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return zero, err
+	}
 	var fr files.FileRecord
-	if err := s.DB.WithContext(ctx).Where("public_url = ?", u).First(&fr).Error; err == nil {
+	fileQuery := s.DB.WithContext(ctx).Model(&files.FileRecord{}).Where("public_url = ?", u)
+	fileQuery = scopeFileRecordQuery(fileQuery, tenantID, scoped)
+	if err := fileQuery.First(&fr).Error; err == nil {
 		if strings.TrimSpace(fr.ObjectKey) != "" {
 			rc, fn, ct, err := s.openFileRecordObject(ctx, sm, &fr)
 			if err == nil {

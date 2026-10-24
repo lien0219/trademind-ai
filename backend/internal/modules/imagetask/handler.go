@@ -13,8 +13,10 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -22,6 +24,26 @@ import (
 // Handler serves image task HTTP API.
 type Handler struct {
 	Svc *Service
+}
+
+func requireImagePermission(c *gin.Context, db *gorm.DB, permission string) bool {
+	if !adminperm.RequirePermission(c, db, permission) {
+		return false
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		return false
+	}
+	tenant, err := security.RequireTenantContext(c.Request.Context())
+	if err != nil || tenant.TenantID != tenantID {
+		if err == nil {
+			err = security.ErrTenantAccessDenied
+		}
+		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		return false
+	}
+	return true
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -62,6 +84,9 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
+		return
+	}
 	var body createBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
@@ -92,8 +117,14 @@ func (h *Handler) Create(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, "invalid productId")
 			return
 		}
+		tenantID, tenantErr := adminperm.TenantIDFromGin(c)
+		if tenantErr != nil {
+			response.Fail(c, 401, response.CodeUnauthorized, tenantErr.Error())
+			return
+		}
 		var n int64
-		if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&product.Product{}).Where("id = ?", pid).Count(&n).Error; err != nil || n == 0 {
+		if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&product.Product{}).
+			Where("id = ? AND tenant_id = ?", pid, tenantID).Count(&n).Error; err != nil || n == 0 {
 			response.Fail(c, 400, response.CodeBadRequest, "product not found")
 			return
 		}
@@ -182,12 +213,21 @@ func (h *Handler) List(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		return
+	}
 	q := ListQuery{
 		Page:     atoiQP(c, "page", 1),
 		PageSize: atoiQP(c, "pageSize", 20),
 		TaskType: c.Query("taskType"),
 		Status:   c.Query("status"),
 		Provider: c.Query("provider"),
+		TenantID: &tenantID,
 	}
 	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
 		if pid, err := uuid.Parse(raw); err == nil {
@@ -298,6 +338,9 @@ func (h *Handler) Monitor(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
 	snap, err := h.Svc.BuildMonitorSnapshot(c.Request.Context())
 	if err != nil {
 		response.HandleError(c, err)
@@ -310,6 +353,9 @@ func (h *Handler) Monitor(c *gin.Context) {
 func (h *Handler) Get(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermProductView) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -333,6 +379,9 @@ func (h *Handler) Get(c *gin.Context) {
 func (h *Handler) Retry(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

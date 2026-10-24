@@ -13,9 +13,14 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 )
 
-func (s *Service) GetBatchByID(ctx context.Context, id uuid.UUID) (*AIProductImageBatch, error) {
+func (s *Service) GetBatchByID(c *gin.Context, id uuid.UUID) (*AIProductImageBatch, error) {
+	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	var b AIProductImageBatch
-	if err := s.DB.WithContext(ctx).First(&b, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id = ?", id).Where("tenant_id = ?", tenantID).First(&b).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil
@@ -104,7 +109,12 @@ func (s *Service) buildItemDTO(_ context.Context, item *AIProductImageItem, p *p
 	return dto
 }
 
-func (s *Service) ListBatches(ctx context.Context, page, pageSize int) ([]BatchListItem, int64, error) {
+func (s *Service) ListBatches(c *gin.Context, page, pageSize int) ([]BatchListItem, int64, error) {
+	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, 0, err
+	}
 	if page < 1 {
 		page = 1
 	}
@@ -115,7 +125,7 @@ func (s *Service) ListBatches(ctx context.Context, page, pageSize int) ([]BatchL
 		pageSize = 100
 	}
 	var total int64
-	tx := s.DB.WithContext(ctx).Model(&AIProductImageBatch{})
+	tx := scopeBatchQuery(s.DB.WithContext(ctx).Model(&AIProductImageBatch{}), tenantID)
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -131,12 +141,17 @@ func (s *Service) ListBatches(ctx context.Context, page, pageSize int) ([]BatchL
 	return out, total, nil
 }
 
-func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter string) (*BatchDetailDTO, error) {
-	b, err := s.GetBatchByID(ctx, id)
+func (s *Service) GetBatchDetail(c *gin.Context, id uuid.UUID, statusFilter string) (*BatchDetailDTO, error) {
+	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
 	if err != nil {
 		return nil, err
 	}
-	q := s.DB.WithContext(ctx).Where("batch_id = ?", id)
+	b, err := s.GetBatchByID(c, id)
+	if err != nil {
+		return nil, err
+	}
+	q := scopeItemQuery(s.DB.WithContext(ctx), tenantID).Where("batch_id = ?", id)
 	if sf := strings.TrimSpace(statusFilter); sf != "" && sf != "all" {
 		q = q.Where("status = ?", sf)
 	}
@@ -151,7 +166,9 @@ func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter
 	products := map[uuid.UUID]*product.Product{}
 	if len(pids) > 0 {
 		var rows []product.Product
-		_ = s.DB.WithContext(ctx).Where("id IN ?", pids).Find(&rows).Error
+		if err := scopeProductQuery(s.DB.WithContext(ctx), tenantID).Where("id IN ?", pids).Find(&rows).Error; err != nil {
+			return nil, err
+		}
 		for i := range rows {
 			products[rows[i].ID] = &rows[i]
 		}
@@ -216,12 +233,16 @@ func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter
 
 func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.UUID) (*AIProductImageBatch, error) {
 	ctx := c.Request.Context()
-	b, err := s.GetBatchByID(ctx, batchID)
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	b, err := s.GetBatchByID(c, batchID)
 	if err != nil {
 		return nil, err
 	}
 	var retryItems []AIProductImageItem
-	if err := s.DB.WithContext(ctx).
+	if err := scopeItemQuery(s.DB.WithContext(ctx), tenantID).
 		Where("batch_id = ? AND status IN ?", batchID, []string{ItemFailed, ItemPending, ItemRunning}).
 		Find(&retryItems).Error; err != nil {
 		return nil, err
@@ -239,11 +260,11 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 		opts.KeepBrandLogo = boolFromAny(o["keepBrandLogo"])
 		opts.OutputFormat = fmt.Sprint(o["outputFormat"])
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageBatch{}).Where("id = ?", batchID).Updates(map[string]any{
+	_ = scopeBatchQuery(s.DB.WithContext(ctx).Model(&AIProductImageBatch{}), tenantID).Where("id = ?", batchID).Updates(map[string]any{
 		"status": BatchRunning, "finished_at": nil,
 	}).Error
 	for _, item := range retryItems {
-		_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ?", item.ID).Updates(map[string]any{
+		_ = scopeItemQuery(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID).Where("id = ?", item.ID).Updates(map[string]any{
 			"status": ItemPending, "error_code": "", "error_message": "",
 		}).Error
 	}
@@ -253,7 +274,7 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 			itemCopy := item
 			s.runOneItem(cp, &itemCopy, opts, adminID)
 		}
-		s.finalizeBatch(context.Background(), batchID)
+		s.finalizeBatch(context.Background(), batchID, tenantID)
 	}()
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -279,35 +300,53 @@ func boolFromAny(v any) bool {
 	}
 }
 
-func (s *Service) CancelPending(ctx context.Context, batchID uuid.UUID) (int, error) {
-	res := s.DB.WithContext(ctx).Model(&AIProductImageItem{}).
+func (s *Service) CancelPending(c *gin.Context, batchID uuid.UUID) (int, error) {
+	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := s.GetBatchByID(c, batchID); err != nil {
+		return 0, err
+	}
+	res := scopeItemQuery(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID).
 		Where("batch_id = ? AND status = ?", batchID, ItemPending).
 		Update("status", ItemCancelled)
 	if res.Error != nil {
 		return 0, res.Error
 	}
-	s.finalizeBatch(ctx, batchID)
+	s.finalizeBatch(ctx, batchID, tenantID)
 	return int(res.RowsAffected), nil
 }
 
-func (s *Service) RejectItem(ctx context.Context, itemID uuid.UUID) error {
+func (s *Service) RejectItem(c *gin.Context, itemID uuid.UUID) error {
+	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return err
+	}
 	var item AIProductImageItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := scopeItemQuery(s.DB.WithContext(ctx), tenantID).Where("id = ?", itemID).First(&item).Error; err != nil {
 		return err
 	}
 	if item.Status != ItemPendingReview && item.Status != ItemSuccess {
 		return fmt.Errorf("当前状态不可放弃")
 	}
-	return s.DB.WithContext(ctx).Model(&item).Update("status", ItemRejected).Error
+	return scopeItemQuery(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID).
+		Where("id = ?", item.ID).Update("status", ItemRejected).Error
 }
 
 func (s *Service) RegenerateItem(c *gin.Context, itemID uuid.UUID, adminID *uuid.UUID) (*ItemDetailDTO, error) {
 	ctx := c.Request.Context()
-	var item AIProductImageItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	tenantID, err := requestTenantID(c)
+	if err != nil {
 		return nil, err
 	}
-	b, err := s.GetBatchByID(ctx, item.BatchID)
+	var item AIProductImageItem
+	if err := scopeItemQuery(s.DB.WithContext(ctx), tenantID).Where("id = ?", itemID).First(&item).Error; err != nil {
+		return nil, err
+	}
+	b, err := s.GetBatchByID(c, item.BatchID)
 	if err != nil {
 		return nil, err
 	}
@@ -321,21 +360,31 @@ func (s *Service) RegenerateItem(c *gin.Context, itemID uuid.UUID, adminID *uuid
 		opts.KeepBrandLogo = boolFromAny(o["keepBrandLogo"])
 		opts.OutputFormat = fmt.Sprint(o["outputFormat"])
 	}
-	_ = s.DB.WithContext(ctx).Model(&item).Updates(map[string]any{
+	_ = scopeItemQuery(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID).
+		Where("id = ?", item.ID).Updates(map[string]any{
 		"status": ItemPending, "error_code": "", "error_message": "",
 	}).Error
 	s.runOneItem(c, &item, opts, adminID)
 	var refreshed AIProductImageItem
-	_ = s.DB.WithContext(ctx).First(&refreshed, "id = ?", itemID).Error
+	if err := scopeItemQuery(s.DB.WithContext(ctx), tenantID).Where("id = ?", itemID).First(&refreshed).Error; err != nil {
+		return nil, err
+	}
 	var p product.Product
-	_ = s.DB.WithContext(ctx).First(&p, "id = ?", refreshed.ProductID).Error
+	if err := scopeProductQuery(s.DB.WithContext(ctx), tenantID).Where("id = ?", refreshed.ProductID).First(&p).Error; err != nil {
+		return nil, err
+	}
 	dto := s.buildItemDTO(ctx, &refreshed, &p)
 	return &dto, nil
 }
 
-func (s *Service) refreshAppliedCount(ctx context.Context, batchID uuid.UUID) {
+func (s *Service) refreshAppliedCount(ctx context.Context, batchID uuid.UUID, tenantIDs ...int64) {
 	var n int64
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).
-		Where("batch_id = ? AND status = ?", batchID, ItemApplied).Count(&n).Error
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageBatch{}).Where("id = ?", batchID).Update("applied_count", n).Error
+	q := s.DB.WithContext(ctx).Model(&AIProductImageItem{})
+	bq := s.DB.WithContext(ctx).Model(&AIProductImageBatch{})
+	if len(tenantIDs) > 0 {
+		q = scopeItemQuery(q, tenantIDs[0])
+		bq = scopeBatchQuery(bq, tenantIDs[0])
+	}
+	_ = q.Where("batch_id = ? AND status = ?", batchID, ItemApplied).Count(&n).Error
+	_ = bq.Where("id = ?", batchID).Update("applied_count", n).Error
 }

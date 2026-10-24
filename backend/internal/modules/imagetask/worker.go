@@ -83,21 +83,34 @@ func runImageWorker(ctx context.Context, log *slog.Logger, svc *Service, queueNa
 
 		jobCtx := context.Background()
 		if svc.DB != nil {
-			var probe ImageTask
-			if err := svc.DB.WithContext(jobCtx).Select("product_id").First(&probe, "id = ?", tid).Error; err == nil && probe.ProductID != nil {
+			var probe struct {
+				TenantID  int64      `gorm:"column:tenant_id"`
+				ProductID *uuid.UUID `gorm:"column:product_id"`
+			}
+			if err := svc.DB.WithContext(jobCtx).Table(ImageTask{}.TableName()).
+				Select("tenant_id", "product_id").Where("id = ?", tid).Take(&probe).Error; err != nil {
+				if log != nil {
+					log.Warn("image_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", err)
+				}
+				continue
+			}
+			if probe.ProductID != nil {
 				ptid, terr := tasktenant.ResolveProductTenant(jobCtx, svc.DB, *probe.ProductID)
-				if terr != nil {
+				if terr != nil || ptid != probe.TenantID {
 					if log != nil {
-						log.Warn("image_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+						log.Warn("image_worker_tenant_mismatch", "worker", slot, "taskId", tid.String(), "taskTenantId", probe.TenantID, "error", tasktenant.WrapError(terr))
 					}
 					continue
 				}
-				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, ptid, uuid.Nil, "image_task")
-				if terr != nil {
-					continue
-				}
-				jobCtx = wctx
 			}
+			wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, uuid.Nil, "image_task")
+			if terr != nil {
+				if log != nil {
+					log.Warn("image_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "tenantId", probe.TenantID, "error", tasktenant.WrapError(terr))
+				}
+				continue
+			}
+			jobCtx = wctx
 		}
 		if err := svc.ProcessQueuedTask(jobCtx, tid, workerLeaseID); err != nil && log != nil {
 			log.Warn("image_worker_task_error", "worker", slot, "taskId", tid.String(), "error", err)

@@ -36,6 +36,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/ai/image-tasks': PERMISSIONS.PRODUCT_VIEW,
   '/ai/text-batches': PERMISSIONS.PRODUCT_VIEW,
   '/ai/image-batches': PERMISSIONS.PRODUCT_VIEW,
+  '/ai/batches': PERMISSIONS.PRODUCT_VIEW,
   '/ai/operation-workbench': PERMISSIONS.PRODUCT_VIEW,
   '/product/drafts': PERMISSIONS.PRODUCT_VIEW,
   '/product/publish-tasks': PERMISSIONS.PRODUCT_VIEW,

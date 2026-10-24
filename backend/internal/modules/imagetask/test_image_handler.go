@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr"
@@ -53,6 +54,9 @@ func (h *Handler) TestImage(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image settings unavailable")
 		return
 	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermSettingsManage) {
+		return
+	}
 	var body testImageBody
 	_ = c.ShouldBindJSON(&body)
 	m, err := h.Svc.Settings.PlainByGroup(c.Request.Context(), 0, "image")
@@ -89,6 +93,9 @@ func (h *Handler) TestImage(c *gin.Context) {
 func (h *Handler) TestOCR(c *gin.Context) {
 	if h == nil || h.Svc == nil || h.Svc.Settings == nil {
 		response.Fail(c, 500, response.CodeInternalError, "OCR 设置不可用")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermSettingsManage) {
 		return
 	}
 	var body testOCRBody
