@@ -16,7 +16,9 @@ import (
 
 // Handler is a control-plane endpoint. It never binds tenant scope to an
 // arbitrary request header and does not bypass application RBAC.
-type Handler struct { Service *Service }
+type Handler struct {
+	Service *Service
+}
 
 func (h *Handler) actor(c *gin.Context) (uuid.UUID, bool) {
 	if h == nil || h.Service == nil || h.Service.DB == nil {
@@ -42,7 +44,9 @@ func (h *Handler) actor(c *gin.Context) (uuid.UUID, bool) {
 }
 
 func (h *Handler) List(c *gin.Context) {
-	if _, ok := h.actor(c); !ok { return }
+	if _, ok := h.actor(c); !ok {
+		return
+	}
 	var rows []admin.Tenant
 	if err := h.Service.DB.WithContext(c.Request.Context()).Order("id DESC").Limit(200).Find(&rows).Error; err != nil {
 		response.HandleError(c, err)
@@ -52,7 +56,10 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Create(c *gin.Context) {
-	actor, ok := h.actor(c); if !ok { return }
+	actor, ok := h.actor(c)
+	if !ok {
+		return
+	}
 	var in CreateTenantInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid tenant request")
@@ -67,13 +74,18 @@ func (h *Handler) Create(c *gin.Context) {
 }
 
 func (h *Handler) SetStatus(c *gin.Context) {
-	actor, ok := h.actor(c); if !ok { return }
+	actor, ok := h.actor(c)
+	if !ok {
+		return
+	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid tenant id")
 		return
 	}
-	var in struct { Status string `json:"status" binding:"required"` }
+	var in struct {
+		Status string `json:"status" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid tenant status")
 		return
@@ -90,7 +102,9 @@ func (h *Handler) SetStatus(c *gin.Context) {
 }
 
 func Register(g *gin.RouterGroup, h *Handler) {
-	if g == nil || h == nil { return }
+	if g == nil || h == nil {
+		return
+	}
 	r := g.Group("/platform/tenants")
 	r.GET("", h.List)
 	r.POST("", h.Create)
