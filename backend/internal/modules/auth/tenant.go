@@ -58,7 +58,7 @@ func resolveLoginTenant(ctx context.Context, db *gorm.DB, user *admin.AdminUser)
 		}
 	}
 	var fallback membershipTenant
-	err := query().Order("m.tenant_id ASC").Take(&fallback).Error
+	err = query().Order("m.tenant_id ASC").Take(&fallback).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, nil
 	}
