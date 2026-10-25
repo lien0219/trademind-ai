@@ -27,8 +27,12 @@ func resolveLoginTenant(ctx context.Context, db *gorm.DB, user *admin.AdminUser)
 			if err == nil { return row.ID,nil }
 			if !errors.Is(err,gorm.ErrRecordNotFound){return 0,err}
 		}
-		err := db.WithContext(ctx).Where("status = ?",admin.TenantActive).Order("id ASC").First(&row).Error
-		if err == nil{return row.ID,nil}
+		// Deleted customer enterprises cannot strand Root in tenant zero.
+		err := db.WithContext(ctx).Where("code = ? AND status = ?", admin.RootWorkspaceCode, admin.TenantActive).First(&row).Error
+		if err == nil { return row.ID,nil }
+		if err != nil && !errors.Is(err,gorm.ErrRecordNotFound) { return 0,err }
+		err = db.WithContext(ctx).Where("status = ?",admin.TenantActive).Order("id ASC").First(&row).Error
+		if err == nil {return row.ID,nil}
 		if errors.Is(err,gorm.ErrRecordNotFound){return 0,nil}
 		return 0,err
 	}

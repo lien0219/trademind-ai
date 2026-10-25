@@ -209,6 +209,7 @@ func (s *Service) UpdateTenant(ctx context.Context, actor uuid.UUID, id int64, i
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", id).Error; err != nil {
 			return err
 		}
+		if row.Code == admin.RootWorkspaceCode {return errors.New("Root workspace cannot be edited")}
 		if row.Version != in.Version {
 			return errors.New("tenant version conflict")
 		}
@@ -286,7 +287,7 @@ func (s *Service) ListTenants(ctx context.Context, keyword, status string, page,
 	if pageSize < 1 || pageSize > 200 {
 		pageSize = 50
 	}
-	q := s.DB.WithContext(ctx).Model(&admin.Tenant{})
+	q := s.DB.WithContext(ctx).Model(&admin.Tenant{}).Where("code <> ?",admin.RootWorkspaceCode)
 	if strings.TrimSpace(keyword) != "" {
 		like := "%" + strings.TrimSpace(keyword) + "%"
 		q = q.Where("code LIKE ? OR name LIKE ?", like, like)

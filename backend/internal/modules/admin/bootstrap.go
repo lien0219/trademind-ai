@@ -299,43 +299,65 @@ func ensureBootstrapPlatformOperator(ctx context.Context, tx *gorm.DB, user *Adm
 // ensureBootstrapRoot runs inside the bootstrap global identity lock.
 // The unique singleton cannot be rebound by changing .env on a restart.
 func ensureBootstrapRoot(ctx context.Context, tx *gorm.DB, u *AdminUser, audit BootstrapAuditWriter) (bool, error) {
- if !tx.Migrator().HasTable(&RootAccount{}) {
-  // Older isolated test fixtures may intentionally omit the newer schema.
-  // Root authorization itself fails closed without the table.
-  return false, nil
- }
- if u == nil || u.ID == uuid.Nil || u.TenantID != 0 {
-  return false, nil
- }
- var root RootAccount
- err := tx.WithContext(ctx).Clauses(clause.Locking{Strength:"UPDATE"}).First(&root, "id = ?", 1).Error
- changed := false
- switch {
- case errors.Is(err, gorm.ErrRecordNotFound):
-  root = RootAccount{ID:1, UserID:u.ID}
-  if err := tx.WithContext(ctx).Create(&root).Error; err != nil { return false, fmt.Errorf("bind unique root: %w",err) }
-  if err := writeBootstrapAudit(audit,ctx,tx,0,"admin.bootstrap.root_bind","root_account",u.ID.String(),"singleton root identity bound"); err != nil { return false,err }
-  changed = true
- case err != nil: return false,err
- case root.UserID != u.ID: return false,fmt.Errorf("bootstrap root is bound to a different identity; refusing implicit transfer")
- }
- // An empty installation gets a usable enterprise automatically.
- // Never rewrite existing tenant ownership or tenant-zero legacy data.
- if !tx.Migrator().HasTable(&Tenant{}) || !tx.Migrator().HasTable(&TenantMembership{}) {
-  return changed,nil
- }
- var n int64
- if err := tx.WithContext(ctx).Model(&Tenant{}).Count(&n).Error; err != nil { return false,err }
- if n == 0 {
-  tenant := Tenant{Code:"default",Name:"默认企业",Status:TenantActive,Version:1,SettingsJSON:"{}",OwnerUserID:&u.ID}
-  if err := tx.WithContext(ctx).Create(&tenant).Error; err != nil { return false,fmt.Errorf("provision default tenant: %w",err) }
-  member := TenantMembership{TenantID:tenant.ID,UserID:u.ID,Role:RoleAdmin,Status:MembershipActive}
-  if err := tx.WithContext(ctx).Create(&member).Error; err != nil { return false,fmt.Errorf("provision root tenant membership: %w",err) }
-  if err := tx.WithContext(ctx).Model(&AdminUser{}).Where("id = ?",u.ID).Update("last_tenant_id",tenant.ID).Error; err != nil { return false,err }
-  if err := writeBootstrapAudit(audit,ctx,tx,tenant.ID,"admin.bootstrap.default_tenant","tenant",fmt.Sprint(tenant.ID),"default enterprise created; root owner");err != nil{return false,err}
-  changed = true
- }
- return changed,nil
+	if !tx.Migrator().HasTable(&RootAccount{}) {
+		// Existing isolated tests may intentionally omit the Root schema.
+		return false, nil
+	}
+	if u == nil || u.ID == uuid.Nil || u.TenantID != 0 { return false, nil }
+	var root RootAccount
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&root, "id = ?", 1).Error
+	changed := false
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		root = RootAccount{ID: 1, UserID: u.ID}
+		if err := tx.WithContext(ctx).Create(&root).Error; err != nil { return false, fmt.Errorf("bind unique root: %w", err) }
+		if err := writeBootstrapAudit(audit, ctx, tx, 0, "admin.bootstrap.root_bind", "root_account", u.ID.String(), "singleton root identity bound"); err != nil { return false, err }
+		changed = true
+	case err != nil:
+		return false, err
+	case root.UserID != u.ID:
+		return false, fmt.Errorf("bootstrap root is bound to a different identity; refusing implicit transfer")
+	}
+	if !tx.Migrator().HasTable(&Tenant{}) || !tx.Migrator().HasTable(&TenantMembership{}) { return changed, nil }
+	// Reconcile the internal workspace independently of customer tenant count.
+	// Deleted customer tenants are retained as tombstones and never resurrected.
+	var workspace Tenant
+	err = tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("code = ?", RootWorkspaceCode).First(&workspace).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		workspace = Tenant{Code: RootWorkspaceCode, Name: RootWorkspaceName, Status: TenantActive, OwnerUserID: &u.ID, SettingsJSON: "{}", Version: 1}
+		if err := tx.WithContext(ctx).Create(&workspace).Error; err != nil { return false, fmt.Errorf("provision Root workspace: %w", err) }
+		if err := writeBootstrapAudit(audit, ctx, tx, workspace.ID, "admin.bootstrap.root_workspace", "tenant", fmt.Sprint(workspace.ID), "internal Root workspace created"); err != nil { return false, err }
+		changed = true
+	case err != nil:
+		return false, err
+	case workspace.Status != TenantActive || workspace.OwnerUserID == nil || *workspace.OwnerUserID != u.ID:
+		return false, errors.New("reserved Root workspace identity or status mismatch; manual security review required")
+	}
+	var membership TenantMembership
+	err = tx.WithContext(ctx).Where("tenant_id = ? AND user_id = ?", workspace.ID, u.ID).First(&membership).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		membership = TenantMembership{TenantID: workspace.ID, UserID: u.ID, Role: RoleAdmin, Status: MembershipActive}
+		if err := tx.WithContext(ctx).Create(&membership).Error; err != nil { return false, fmt.Errorf("provision Root membership: %w", err) }
+		changed = true
+	case err != nil:
+		return false, err
+	case membership.Role != RoleAdmin || membership.Status != MembershipActive:
+		return false, errors.New("reserved Root membership was modified")
+	}
+	// A valid last-selected enterprise is preserved. A deleted, suspended or
+	// nonexistent enterprise falls back to the internal Root workspace.
+	var selected Tenant
+	if u.LastTenantID > 0 {
+		err = tx.WithContext(ctx).Where("id = ? AND status = ?", u.LastTenantID, TenantActive).First(&selected).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) { return false, err }
+	}
+	if selected.ID == 0 {
+		if err := tx.WithContext(ctx).Model(&AdminUser{}).Where("id = ?", u.ID).Update("last_tenant_id", workspace.ID).Error; err != nil { return false, err }
+		changed = true
+	}
+	return changed, nil
 }
 
 func valueOr(values map[string]any, key, fallback string) string {

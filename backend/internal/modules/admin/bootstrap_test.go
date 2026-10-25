@@ -181,7 +181,7 @@ func TestBootstrapRootSingletonProvisionAndEnvRebindingDenied(t *testing.T) {
  var root RootAccount
  if err := db.First(&root,"id = ?",1).Error;err != nil{t.Fatal(err)}
  var tenant Tenant
- if err := db.First(&tenant,"code = ?","default").Error;err != nil{t.Fatal(err)}
+ if err := db.First(&tenant,"code = ?",RootWorkspaceCode).Error;err != nil{t.Fatal(err)}
  if tenant.Status != TenantActive || tenant.OwnerUserID == nil || *tenant.OwnerUserID != root.UserID{t.Fatalf("invalid default owner %+v",tenant)}
  var member TenantMembership
  if err := db.Where("tenant_id = ? AND user_id = ?",tenant.ID,root.UserID).First(&member).Error;err != nil{t.Fatal(err)}
@@ -196,4 +196,22 @@ func TestBootstrapRootSingletonProvisionAndEnvRebindingDenied(t *testing.T) {
  var retained RootAccount
  if err:=db.First(&retained,"id = ?",1).Error;err != nil{t.Fatal(err)}
  if retained.UserID != root.UserID{t.Fatal("root singleton changed")}
+}
+
+func TestBootstrapRootWorkspaceWithDeletedCustomerTenant(t *testing.T) {
+	db := testBootstrapDB(t)
+	if err := db.AutoMigrate(&RootAccount{}, &Tenant{}, &TenantMembership{}); err != nil { t.Fatal(err) }
+	deleted := Tenant{Code:"deleted-customer",Name:"Old tenant",Status:TenantDeleted,SettingsJSON:"{}",Version:2}
+	if err := db.Create(&deleted).Error; err != nil { t.Fatal(err) }
+	cfg := &config.Config{AppEnv: config.EnvDevelopment, BootstrapAdminEmail:"root-tombstone@example.test",BootstrapAdminPassword:"local-test-password"}
+	if err := EnsureBootstrapAdmin(context.Background(),db,cfg,slog.Default(),&recordingBootstrapAuditWriter{});err != nil { t.Fatal(err) }
+	var ws Tenant
+	if err := db.Where("code = ?",RootWorkspaceCode).First(&ws).Error;err != nil {t.Fatal(err)}
+	if ws.Status != TenantActive || ws.ID == deleted.ID { t.Fatal("invalid Root workspace") }
+	var old Tenant
+	if err := db.First(&old,"id = ?",deleted.ID).Error;err != nil {t.Fatal(err)}
+	if old.Status != TenantDeleted { t.Fatal("customer tombstone modified") }
+	var root AdminUser
+	if err := db.Where("email = ?",cfg.BootstrapAdminEmail).First(&root).Error;err != nil {t.Fatal(err)}
+	if root.LastTenantID != ws.ID { t.Fatalf("wrong initial Root workspace: %d != %d",root.LastTenantID,ws.ID) }
 }

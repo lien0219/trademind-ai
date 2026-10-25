@@ -35,6 +35,10 @@ type Tenant struct {
 func (Tenant) TableName() string { return "tenants" }
 
 const (
+	// RootWorkspaceCode is the protected, internal business data scope for the
+	// singleton Root identity. It is never a customer-managed enterprise.
+	RootWorkspaceCode = "root-workspace"
+	RootWorkspaceName = "系统工作台"
 	TenantPending       = "pending"
 	TenantActive        = "active"
 	TenantSuspended     = "suspended"

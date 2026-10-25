@@ -33,6 +33,7 @@ func (s *Service) DeleteTenant(ctx context.Context, actor uuid.UUID, id int64, c
 		if err := adminperm.LockTenantMutation(tx, id); err != nil { return fmt.Errorf("lock tenant for deletion: %w", err) }
 		var row admin.Tenant
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", id).Error; err != nil { return err }
+		if row.Code == admin.RootWorkspaceCode {return errors.New("Root workspace cannot be deleted")}
 		if row.Status == admin.TenantDeleted { return ErrTenantAlreadyDeleted }
 		if row.Version != version { return ErrTenantVersionConflict }
 		if row.Code != code { return ErrTenantCodeMismatch }
