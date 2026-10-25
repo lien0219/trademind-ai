@@ -218,6 +218,7 @@ Operational values must be supplied by the target host or managed secret system 
 ## 测试资源
 
 - `TEST_DATABASE_URL` 与 `TEST_REDIS_URL` 只用于显式隔离的测试资源或 CI service container，不属于生产运行配置。
+- PostgreSQL 集成测试要求 `APP_ENV=test`；`test:db`、`test:backend:integration` 与库存套件还包含 PostgreSQL/Redis 联合 Worker 回归，应同时提供两个隔离 URL。Redis URL 必须包含大于 0 的测试 DB 编号。
 - 本地测试数据库可不存在；项目不会自动创建或重建 `trademind_test`。
 - GitHub Actions 可以在作业内临时创建同名数据库，作业结束后随 service container 销毁。
 - 未提供安全隔离 URL 时，不在本地运行对应集成测试，且绝不回退到开发库或生产资源。

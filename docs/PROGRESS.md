@@ -1,6 +1,10 @@
 # TradeMind 当前维护状态
 
-更新时间：2026-10-25
+更新时间：2026-10-26
+
+2026-10-26 修复多租户提交的 CI 测试编排：PostgreSQL 套件通过显式 `integration` build tag 与常规 Go 单元任务分离，保留 `inventorypostgres` 兼容；code quality 与 backend integration 作业均提供独立 PostgreSQL/Redis service container、`APP_ENV=test` 及两个测试 URL，避免数据库守卫误拒绝和 Worker 缺少 Redis 后跳过。工作流回归检查测试资源隔离、环境继承与 PostgreSQL 健康探针身份。该修复不改变业务 API 或生产配置，目标修复提交对应的远程 CI 仍需推送后独立确认，不能据本地结果宣称生产就绪。
+
+该 CI 修复已在独立 PostgreSQL 16 / Redis 7 上完成本地复验：迁移、库存集成、Redis 队列及 OAuth Race 通过；全包 Go Race 为 1814 个测试项 PASS，完整 PostgreSQL/Redis 集成 Race 为 45 个顶层用例、含子测试 74 项 PASS，两者均零测试跳过。`pnpm quality:ci`、`pnpm architecture:ci`、工作流回归 45 项、前端 295 项、Collector 21 项、API 契约 26 项及 Admin/Collector 构建通过，Admin TypeScript 当前零错误，架构未增加历史 baseline 之外的违规。修复不增加生产 schema 迁移；最终修复 SHA 的远程 CI、Deep Scan 与生产备份恢复演练仍为 BLOCKED。
 
 多租户 SaaS 开发：在 `dev` 完成租户注册/状态管理、跨租户身份 membership、邮件绑定的一次性邀请、服务端租户切换、租户 RBAC/店铺授权衔接、平台/租户管理页面和受影响异步入口的归属校验；兼容迁移以明确证据回填，不可判定历史记录留在 tenant 0。修复 PostgreSQL tenant 自增序列回填后未推进的问题，并新增租户切换列表回归，确保只有 active membership + active tenant 可选。2026-10-25 `go test -count=1 ./...` 全包通过（集成包使用隔离 PostgreSQL/Redis）；列表回归在修复前失败、修复后定向通过。Go race/vet/build、Admin TypeScript/单测/构建、远程 CI、深度安全扫描、完整跨租户人工矩阵和生产备份恢复演练仍待完成/阻塞；生产就绪结论为 BLOCKED。详见[架构](MULTI_TENANT_ARCHITECTURE.md)、[安全](MULTI_TENANT_SECURITY.md)、[迁移](MULTI_TENANT_MIGRATION.md)、[运维](MULTI_TENANT_OPERATIONS.md)及[验收状态](MULTI_TENANT_ACCEPTANCE.md)。
 

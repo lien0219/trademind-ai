@@ -27,6 +27,7 @@
 
 - [ ] 受影响的核心自动化回归仍由工作流覆盖
 - [ ] PostgreSQL / Redis 测试使用 CI service container
+- [ ] 调用数据库/Worker 回归的作业（含 affected quality）已配置 `APP_ENV=test` 和两个隔离 URL；单元与显式集成套件的覆盖均保留
 - [ ] RBAC / OAuth 改动保留 callback/state、审计失败回滚、旧 Token 撤权和租户隔离回归；最终 SHA CI 无证据时标记 BLOCKED
 - [ ] 未删除工作流依赖的测试、fixture、Mock 或配置
 - [ ] 没有用 skip、弱化断言或扩大 baseline 掩盖失败

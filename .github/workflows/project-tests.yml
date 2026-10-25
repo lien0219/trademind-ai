@@ -105,6 +105,33 @@ jobs:
   code-quality:
     name: code quality
     runs-on: ubuntu-latest
+    env:
+      APP_ENV: test
+      TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trademind
+          POSTGRES_PASSWORD: trademind
+          POSTGRES_DB: trademind_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trademind -d trademind_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -246,6 +273,10 @@ jobs:
   backend-integration:
     name: backend PostgreSQL and Redis integration
     runs-on: ubuntu-latest
+    env:
+      APP_ENV: test
+      TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
     services:
       postgres:
         image: postgres:16
@@ -256,7 +287,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U trademind -d trademind_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -287,8 +318,6 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: PostgreSQL migration tests
-        env:
-          TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
         run: pnpm test:db
 
       - name: Setup Node.js
@@ -298,19 +327,11 @@ jobs:
           cache: pnpm
 
       - name: PostgreSQL inventory integration tests
-        env:
-          APP_ENV: test
-          TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
         run: pnpm test:db:inventory && pnpm test:db:inventory:race
 
       - name: Redis queue tests
-        env:
-          TEST_REDIS_URL: redis://127.0.0.1:6379/15
         run: pnpm test:redis
 
       - name: OAuth callback persistence and state security
         working-directory: backend
-        env:
-          APP_ENV: test
-          TEST_REDIS_URL: redis://127.0.0.1:6379/15
         run: go test -race ./internal/modules/shop -run 'OAuth' -count=1
