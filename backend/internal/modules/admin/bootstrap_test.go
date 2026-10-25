@@ -35,7 +35,7 @@ func testBootstrapDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
-	if err := db.AutoMigrate(&AdminUser{}, &AdminMutationLock{}); err != nil {
+	if err := db.AutoMigrate(&AdminUser{}, &AdminMutationLock{}, &PlatformOperator{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db
@@ -60,7 +60,7 @@ func TestEnsureBootstrapAdmin_createsAdminRole(t *testing.T) {
 	if u.Role != RoleAdmin || u.Status != StatusActive {
 		t.Fatalf("got role=%q status=%q", u.Role, u.Status)
 	}
-	if len(audit.calls) != 1 || audit.calls[0].action != "admin.bootstrap.create" || audit.calls[0].resourceID != u.ID.String() {
+	if len(audit.calls) != 2 || audit.calls[0].action != "admin.bootstrap.create" || audit.calls[1].action != "admin.bootstrap.platform_grant" || audit.calls[1].resourceID != u.ID.String() {
 		t.Fatalf("unexpected bootstrap audit calls: %+v", audit.calls)
 	}
 }
@@ -96,7 +96,7 @@ func TestEnsureBootstrapAdmin_syncsExistingOperatorToAdmin(t *testing.T) {
 	if u.TokenVersion != existing.TokenVersion+1 {
 		t.Fatalf("token version = %d, want %d", u.TokenVersion, existing.TokenVersion+1)
 	}
-	if len(audit.calls) != 1 || audit.calls[0].action != "admin.bootstrap.privileges_sync" {
+	if len(audit.calls) != 2 || audit.calls[0].action != "admin.bootstrap.platform_grant" || audit.calls[1].action != "admin.bootstrap.privileges_sync" {
 		t.Fatalf("unexpected bootstrap audit calls: %+v", audit.calls)
 	}
 }
@@ -137,4 +137,37 @@ func TestEnsureBootstrapAdmin_auditFailureRollsBackPrivilegeAndTokenChanges(t *t
 	if got.Role != "operator" || got.Status != StatusDisabled || got.TokenVersion != 8 {
 		t.Fatalf("privilege change escaped failed audit transaction: role=%q status=%q tokenVersion=%d", got.Role, got.Status, got.TokenVersion)
 	}
+}
+
+// New installations must persist a platform operator grant exactly once.
+func TestEnsureBootstrapAdmin_platformGrantIdempotentAndRestored(t *testing.T) {
+	db := testBootstrapDB(t)
+	cfg := &config.Config{AppEnv: config.EnvDevelopment, BootstrapAdminEmail: "root@example.com", BootstrapAdminPassword: "secret"}
+	audit := &recordingBootstrapAuditWriter{}
+	ctx := context.Background()
+	if err := EnsureBootstrapAdmin(ctx, db, cfg, slog.Default(), audit); err != nil { t.Fatal(err) }
+	var u AdminUser
+	if err := db.Where("email = ?", cfg.BootstrapAdminEmail).First(&u).Error; err != nil { t.Fatal(err) }
+	var grant PlatformOperator
+	if err := db.First(&grant, "user_id = ?", u.ID).Error; err != nil || !grant.Enabled { t.Fatalf("grant=%+v err=%v", grant, err) }
+	count := len(audit.calls)
+	if err := EnsureBootstrapAdmin(ctx, db, cfg, slog.Default(), audit); err != nil { t.Fatal(err) }
+	if len(audit.calls) != count { t.Fatal("idempotent startup must not create extra audit events") }
+	if err := db.Model(&grant).Update("enabled", false).Error; err != nil { t.Fatal(err) }
+	beforeVersion := u.TokenVersion
+	if err := EnsureBootstrapAdmin(ctx, db, cfg, slog.Default(), audit); err != nil { t.Fatal(err) }
+	if err := db.First(&grant, "user_id = ?", u.ID).Error; err != nil || !grant.Enabled { t.Fatalf("grant not restored: %+v %v", grant, err) }
+	if err := db.First(&u, "id = ?", u.ID).Error; err != nil { t.Fatal(err) }
+	if u.TokenVersion != beforeVersion + 1 { t.Fatalf("grant change did not revoke old tokens: %d", u.TokenVersion) }
+}
+
+func TestEnsureBootstrapAdmin_neverPromotesTenantLocalUser(t *testing.T) {
+	db := testBootstrapDB(t)
+	u := AdminUser{TenantID: 42, Username: NewInternalUsername(), Email: "owner@example.com", PasswordHash: "hash", Role: RoleAdmin, Status: StatusActive}
+	if err := db.Create(&u).Error; err != nil { t.Fatal(err) }
+	cfg := &config.Config{AppEnv: config.EnvDevelopment, BootstrapAdminEmail: u.Email}
+	if err := EnsureBootstrapAdmin(context.Background(), db, cfg, slog.Default(), &recordingBootstrapAuditWriter{}); err != nil { t.Fatal(err) }
+	var count int64
+	if err := db.Model(&PlatformOperator{}).Where("user_id = ?", u.ID).Count(&count).Error; err != nil { t.Fatal(err) }
+	if count != 0 { t.Fatal("tenant-local user was promoted to platform operator") }
 }

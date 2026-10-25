@@ -77,6 +77,13 @@ export default function LoginPage() {
   useEffect(() => {
     if (!loggedIn) return;
     const q = new URLSearchParams(history.location.search);
+    const user = initialState?.currentUser;
+    if (user?.platformOperator === true && user.tenantId === 0) {
+      const redirect = q.get('redirect');
+      history.replace(redirect?.startsWith('/tenant/invitations/accept')
+        ? redirect : '/platform/tenants');
+      return;
+    }
     history.replace(q.get('redirect') || '/dashboard');
   }, [loggedIn]);
 

@@ -18,7 +18,7 @@ func perfBootstrapDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
-	if err := db.AutoMigrate(&AdminUser{}, &AdminMutationLock{}, &UserStorePermission{}); err != nil {
+	if err := db.AutoMigrate(&AdminUser{}, &AdminMutationLock{}, &PlatformOperator{}, &UserStorePermission{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Exec(`CREATE TABLE IF NOT EXISTS shops (

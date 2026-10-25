@@ -53,6 +53,8 @@ type HeaderLayoutProps = SiderMenuLayoutProps & {
 type HeaderContentProps = HeaderLayoutProps & {
   role?: string | null;
   permissions?: string[];
+  tenantId?: number;
+  platformOperator?: boolean;
 };
 
 const DESKTOP_SIDER_WIDTH = 224;
@@ -284,11 +286,13 @@ function AppSiderFooter({
 function AppHeaderContent({
   role,
   permissions,
+  tenantId,
+  platformOperator,
   ...layoutProps
 }: HeaderContentProps) {
   const canSearchPath = useCallback(
-    (path: string) => canAccessPath(path, role, permissions),
-    [permissions, role],
+    (path: string) => canAccessPath(path, role, permissions, platformOperator, tenantId),
+    [permissions, role, platformOperator, tenantId],
   );
 
   return (
@@ -328,6 +332,8 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       {...props}
       role={initialState?.currentUser?.role}
       permissions={initialState?.currentUser?.permissions}
+      tenantId={initialState?.currentUser?.tenantId}
+      platformOperator={initialState?.currentUser?.platformOperator === true}
     />
   ),
   menuHeaderRender: (
@@ -378,6 +384,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       initialState?.currentUser?.role,
       initialState?.currentUser?.permissions,
       initialState?.currentUser?.platformOperator === true,
+      initialState?.currentUser?.tenantId,
     ),
   onPageChange: () => {
     const { pathname } = history.location;
@@ -389,6 +396,14 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     }
     if (pathname.startsWith('/platform') && initialState?.currentUser?.platformOperator !== true) {
       history.replace('/dashboard');
+      return;
+    }
+    // The bootstrap identity has no tenant business authorization until it
+    // is explicitly assigned to an active enterprise.
+    const user = initialState?.currentUser;
+    if (user?.platformOperator === true && user.tenantId === 0 &&
+        !canAccessPath(pathname, user.role, user.permissions, true, 0)) {
+      history.replace('/platform/tenants');
     }
   },
 });

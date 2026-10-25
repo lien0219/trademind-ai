@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -163,6 +165,9 @@ func createBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 	if err := writeBootstrapAudit(audit, ctx, db, 0, "admin.bootstrap.create", "admin_user", u.ID.String(), "role=admin status=active"); err != nil {
 		return err
 	}
+	if _, err := ensureBootstrapPlatformOperator(ctx, db, &u, audit); err != nil {
+		return err
+	}
 	if log != nil {
 		log.Info("admin_bootstrapped", "email", id.email, "phone", id.phone, "id", u.ID.String(), "role", RoleAdmin)
 	}
@@ -236,7 +241,11 @@ func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, cfg *confi
 			}
 		}
 	}
-	if len(updates) == 0 {
+	platformGrantChanged, err := ensureBootstrapPlatformOperator(ctx, db, &u, audit)
+	if err != nil {
+		return err
+	}
+	if len(updates) == 0 && !platformGrantChanged {
 		return nil
 	}
 	updates["token_version"] = gorm.Expr("token_version + 1")
@@ -251,6 +260,39 @@ func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, cfg *confi
 		log.Info("admin_bootstrap_privileges_synced", "email", u.Email, "phone", u.Phone, "id", u.ID.String(), "role", RoleAdmin)
 	}
 	return nil
+}
+
+// ensureBootstrapPlatformOperator grants only an explicitly configured
+// system-scoped bootstrap identity the platform control-plane capability.
+// Callers hold the bootstrap lock and a SQL transaction; failed audit rolls
+// back the grant. Tenant memberships remain completely independent.
+func ensureBootstrapPlatformOperator(ctx context.Context, tx *gorm.DB, user *AdminUser, audit BootstrapAuditWriter) (bool, error) {
+	if user == nil || user.ID == uuid.Nil || user.TenantID != 0 {
+		return false, nil
+	}
+	if !tx.Migrator().HasTable(&PlatformOperator{}) {
+		return false, fmt.Errorf("admin bootstrap: platform_operators table missing; run migrations first")
+	}
+	var grant PlatformOperator
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", user.ID).Take(&grant).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		if err := tx.WithContext(ctx).Create(&PlatformOperator{UserID: user.ID, Enabled: true}).Error; err != nil {
+			return false, fmt.Errorf("admin bootstrap: create platform grant: %w", err)
+		}
+	case err != nil:
+		return false, fmt.Errorf("admin bootstrap: read platform grant: %w", err)
+	case grant.Enabled:
+		return false, nil
+	default:
+		if err := tx.WithContext(ctx).Model(&grant).Update("enabled", true).Error; err != nil {
+			return false, fmt.Errorf("admin bootstrap: restore platform grant: %w", err)
+		}
+	}
+	if err := writeBootstrapAudit(audit, ctx, tx, 0, "admin.bootstrap.platform_grant", "platform_operator", user.ID.String(), "enabled=true"); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func valueOr(values map[string]any, key, fallback string) string {

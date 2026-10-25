@@ -87,7 +87,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
     if (user.tenantId != null) void loadTenants();
   }, [loadTenants, user.tenantId]);
 
-  if (user.tenantId == null) return null;
+  if (user.tenantId == null || user.tenantId === 0) return null;
 
   const needle = keyword.trim().toLowerCase();
   const visibleTenants = tenants.filter((tenant) =>
@@ -211,6 +211,8 @@ export default function AppTopNav({
     "/settings/users",
     user.role,
     user.permissions,
+    user.platformOperator === true,
+    user.tenantId,
   );
 
   const closeAndNavigate = (path: string) => {
@@ -228,7 +230,7 @@ export default function AppTopNav({
       <Dropdown
         menu={{
           items: [
-            ...(user.tenantId != null
+            ...(user.tenantId != null && user.tenantId > 0
               ? [
                   {
                     key: "tenant-settings",
