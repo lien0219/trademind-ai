@@ -204,6 +204,7 @@ func (s *Service) UpdateTenant(ctx context.Context, actor uuid.UUID, id int64, i
 		if row.Version != in.Version {
 			return errors.New("tenant version conflict")
 		}
+		if row.Status == admin.TenantDeleted { return ErrTenantAlreadyDeleted }
 		updates := map[string]any{"name": strings.TrimSpace(in.Name), "description": strings.TrimSpace(in.Description), "legal_name": strings.TrimSpace(in.LegalName), "contact_email": strings.TrimSpace(strings.ToLower(in.ContactEmail)), "contact_phone": strings.TrimSpace(in.ContactPhone), "version": row.Version + 1}
 		if strings.TrimSpace(in.SettingsJSON) != "" {
 			settingsJSON, err := normalizeSettingsJSON(in.SettingsJSON)
@@ -247,6 +248,7 @@ func (s *Service) UpdateTenantAsMember(ctx context.Context, actor uuid.UUID, ten
 		if row.Version != in.Version {
 			return errors.New("tenant version conflict")
 		}
+		if row.Status == admin.TenantDeleted { return ErrTenantAlreadyDeleted }
 		updates := map[string]any{"name": strings.TrimSpace(in.Name), "description": strings.TrimSpace(in.Description), "legal_name": strings.TrimSpace(in.LegalName), "contact_email": strings.TrimSpace(strings.ToLower(in.ContactEmail)), "contact_phone": strings.TrimSpace(in.ContactPhone), "version": row.Version + 1}
 		if strings.TrimSpace(in.SettingsJSON) != "" {
 			settingsJSON, err := normalizeSettingsJSON(in.SettingsJSON)
@@ -281,8 +283,12 @@ func (s *Service) ListTenants(ctx context.Context, keyword, status string, page,
 		like := "%" + strings.TrimSpace(keyword) + "%"
 		q = q.Where("code LIKE ? OR name LIKE ?", like, like)
 	}
-	if strings.TrimSpace(status) != "" {
-		q = q.Where("status = ?", strings.TrimSpace(strings.ToLower(status)))
+	filterStatus := strings.TrimSpace(strings.ToLower(status))
+	if filterStatus == admin.TenantDeleted {
+		q = q.Where("status = ?", admin.TenantDeleted)
+	} else {
+		q = q.Where("status <> ?", admin.TenantDeleted)
+		if filterStatus != "" { q = q.Where("status = ?", filterStatus) }
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {

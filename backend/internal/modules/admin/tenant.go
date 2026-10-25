@@ -26,6 +26,7 @@ type Tenant struct {
 	ActivatedAt   *time.Time `json:"activatedAt,omitempty"`
 	SuspendedAt   *time.Time `json:"suspendedAt,omitempty"`
 	ArchivedAt    *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt     *time.Time `gorm:"index" json:"deletedAt,omitempty"`
 	CreatedBy     *uuid.UUID `gorm:"type:char(36)" json:"createdBy,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
@@ -39,6 +40,7 @@ const (
 	TenantSuspended     = "suspended"
 	TenantArchived      = "archived"
 	TenantClosed        = "closed"
+	TenantDeleted       = "deleted"
 	MembershipInvited   = "invited"
 	MembershipActive    = "active"
 	MembershipDisabled  = "disabled"

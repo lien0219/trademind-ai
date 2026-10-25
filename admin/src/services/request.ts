@@ -112,8 +112,8 @@ export async function getWithParams<T>(path: string, params?: Record<string, str
 }
 
 /** DELETE */
-export async function deleteJSON<T>(path: string): Promise<T> {
-  const res = await requestEnvelope<T>(path, { method: 'DELETE' });
+export async function deleteJSON<T, B extends object = object>(path: string, body?: B): Promise<T> {
+  const res = await requestEnvelope<T>(path, { method: 'DELETE', data: body });
   return unwrap(res);
 }
 

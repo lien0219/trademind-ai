@@ -6,6 +6,7 @@ import {
   StopOutlined,
   CheckCircleOutlined,
   LoginOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { history, Link } from '@umijs/max';
 import {
@@ -28,6 +29,7 @@ import { EmptyState, ErrorAlert, SectionCard, StatusTag, TmPageContainer } from 
 import {
   createPlatformTenant,
   createTenantIdempotencyKey,
+  deletePlatformTenant,
   queryPlatformTenants,
   queryAuthTenants,
   switchAuthTenant,
@@ -51,6 +53,7 @@ const STATUS_OPTIONS: { label: string; value: TenantStatus }[] = [
   { label: '已暂停', value: 'suspended' },
   { label: '已归档', value: 'archived' },
   { label: '已关闭', value: 'closed' },
+  { label: '已删除', value: 'deleted' },
 ];
 
 const statusText: Record<TenantStatus, string> = {
@@ -59,6 +62,7 @@ const statusText: Record<TenantStatus, string> = {
   suspended: '已暂停',
   archived: '已归档',
   closed: '已关闭',
+  deleted: '已删除',
 };
 
 type TenantFormValues = {
@@ -107,6 +111,9 @@ export default function PlatformTenantsPage() {
   const [accessLoading, setAccessLoading] = useState(true);
   const [accessError, setAccessError] = useState(false);
   const [switchingTenantId, setSwitchingTenantId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [form] = Form.useForm<TenantFormValues>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Tenant | null>(null);
@@ -251,6 +258,28 @@ export default function PlatformTenantsPage() {
     });
   };
 
+  const deleteTenant = async () => {
+    const target = deleteTarget;
+    if (!target || deleteCode !== target.code || deleting || submittingRef.current) return;
+    if (!['suspended', 'archived', 'closed'].includes(target.status)) return;
+    submittingRef.current = true;
+    setDeleting(true);
+    try {
+      await deletePlatformTenant(target.id, { code: target.code, version: target.version });
+      message.success('企业已删除，历史数据及审计记录已保留');
+      setDeleteTarget(null);
+      setDeleteCode('');
+      if (status !== 'deleted' && page > 1 && rows.length === 1) setPage(page - 1);
+      else await Promise.all([load(), loadAuthorized()]);
+    } catch (error) {
+      message.error((error as Error)?.message || '删除失败，请刷新列表后重试');
+      await load();
+    } finally {
+      submittingRef.current = false;
+      setDeleting(false);
+    }
+  };
+
   const columns = useMemo<TableColumnsType<Tenant>>(() => [
     {
       title: '企业标识',
@@ -272,7 +301,7 @@ export default function PlatformTenantsPage() {
       title: '操作',
       key: 'actions',
       fixed: 'right',
-      width: 320,
+      width: 410,
       render: (_value, row) => {
         const action = statusAction(row);
         const authorized = canEnterTenantWorkspace(row, authorizedTenants);
@@ -294,6 +323,17 @@ export default function PlatformTenantsPage() {
             )}
             <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => history.push(`/platform/tenants/${row.id}`)}>详情</Button>
             <Button type="link" size="small" icon={<EditOutlined />} disabled={submitting} onClick={() => openEdit(row)}>编辑</Button>
+            {row.status !== 'deleted' ? (
+              <Button
+                type="link"
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                disabled={submitting || deleting || !['suspended', 'archived', 'closed'].includes(row.status)}
+                title={['active', 'pending'].includes(row.status) ? '请先暂停或归档企业' : '逻辑删除，保留历史记录'}
+                onClick={() => { setDeleteTarget(row); setDeleteCode(''); }}
+              >删除</Button>
+            ) : null}
             {action ? (
               <Button
                 type="link"
@@ -310,7 +350,7 @@ export default function PlatformTenantsPage() {
         );
       },
     },
-  ], [submitting, load, authorizedTenants, accessLoading, accessError, switchingTenantId, enterTenant]);
+  ], [submitting, deleting, load, authorizedTenants, accessLoading, accessError, switchingTenantId, enterTenant]);
 
   if (!isPlatformOperator) {
     return <TmPageContainer title="租户管理"><Result status="403" title="无权访问" subTitle="平台租户管理仅对平台运营管理员开放。" /></TmPageContainer>;
@@ -380,6 +420,32 @@ export default function PlatformTenantsPage() {
         />
       </SectionCard>
 
+      <Modal
+        open={Boolean(deleteTarget)}
+        title={deleteTarget ? `删除企业：${deleteTarget.name}` : '删除企业'}
+        okText="确认删除"
+        okButtonProps={{ danger: true, disabled: !deleteTarget || deleteCode !== deleteTarget.code || deleting }}
+        confirmLoading={deleting}
+        onCancel={() => { if (!deleting) { setDeleteTarget(null); setDeleteCode(''); } }}
+        onOk={() => { void deleteTenant(); }}
+        destroyOnHidden
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message="删除后将从默认企业列表移除"
+          description="删除会停用企业，撤销其会话及待处理邀请。订单、店铺、文件和审计记录不会物理删除；无法在普通后台恢复，原企业标识仍会保留。"
+          style={{ marginBottom: 16 }}
+        />
+        <p>请输入企业标识 <strong>{deleteTarget?.code}</strong> 确认：</p>
+        <Input
+          aria-label="输入企业标识确认删除"
+          value={deleteCode}
+          onChange={(e) => setDeleteCode(e.target.value)}
+          autoComplete="off"
+          disabled={deleting}
+        />
+      </Modal>
       <Modal
         open={modalOpen}
         title={editing ? `编辑企业：${editing.name}` : '创建企业'}

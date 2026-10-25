@@ -6,7 +6,7 @@ import {
   postJSON,
 } from '@/services/request';
 
-export type TenantStatus = 'pending' | 'active' | 'suspended' | 'archived' | 'closed';
+export type TenantStatus = 'pending' | 'active' | 'suspended' | 'archived' | 'closed' | 'deleted';
 
 export type Tenant = {
   id: number;
@@ -22,6 +22,7 @@ export type Tenant = {
   version: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 };
 
 export type TenantDetail = {
@@ -131,6 +132,13 @@ export async function updatePlatformTenantStatus(
 ) {
   return patchJSON<Tenant, { status: TenantStatus; version: number }>(
     `/api/v1/platform/tenants/${encodeURIComponent(String(id))}/status`,
+    body,
+  );
+}
+
+export async function deletePlatformTenant(id: number | string, body: { code: string; version: number }) {
+  return deleteJSON<{ deleted: boolean }, typeof body>(
+    `/api/v1/platform/tenants/${encodeURIComponent(String(id))}`,
     body,
   );
 }

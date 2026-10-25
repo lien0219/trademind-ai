@@ -407,6 +407,43 @@ func (h *Handler) SetStatus(c *gin.Context) {
 	response.OK(c, row)
 }
 
+// Delete logically removes a tenant and preserves its business history.
+func (h *Handler) Delete(c *gin.Context) {
+	actor, ok := h.actor(c)
+	if !ok { return }
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid tenant id")
+		return
+	}
+	var in struct {
+		Code string `json:"code" binding:"required"`
+		Version int64 `json:"version" binding:"required,gt=0"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "tenant code and version required")
+		return
+	}
+	if err := h.Service.DeleteTenant(c.Request.Context(), actor, id, in.Code, in.Version); err != nil {
+		switch {
+		case errors.Is(err, ErrTenantVersionConflict):
+			response.Fail(c, http.StatusConflict, response.CodeConflict, "tenant version conflict")
+		case errors.Is(err, ErrTenantMustBeInactive):
+			response.Fail(c, http.StatusConflict, response.CodeConflict, "suspend tenant before deleting")
+		case errors.Is(err, ErrTenantCodeMismatch):
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "tenant code does not match")
+		case errors.Is(err, ErrTenantAlreadyDeleted):
+			response.Fail(c, http.StatusConflict, response.CodeConflict, "tenant already deleted")
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "tenant not found")
+		default:
+			response.HandleError(c, err)
+		}
+		return
+	}
+	response.OK(c, gin.H{"deleted": true})
+}
+
 func Register(g *gin.RouterGroup, h *Handler) {
 	if g == nil || h == nil {
 		return
@@ -417,6 +454,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	r.GET("/:id", h.Detail)
 	r.PATCH("/:id", h.Update)
 	r.PUT("/:id", h.Update)
+	r.DELETE("/:id", h.Delete)
 	r.PATCH("/:id/status", h.SetStatus)
 	r.GET("/:id/audit", h.Audit)
 	current := g.Group("/tenant/current")
