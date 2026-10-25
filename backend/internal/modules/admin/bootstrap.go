@@ -168,6 +168,7 @@ func createBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 	if _, err := ensureBootstrapPlatformOperator(ctx, db, &u, audit); err != nil {
 		return err
 	}
+	if _, err := ensureBootstrapRoot(ctx, db, &u, audit); err != nil { return err }
 	if log != nil {
 		log.Info("admin_bootstrapped", "email", id.email, "phone", id.phone, "id", u.ID.String(), "role", RoleAdmin)
 	}
@@ -242,10 +243,10 @@ func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, cfg *confi
 		}
 	}
 	platformGrantChanged, err := ensureBootstrapPlatformOperator(ctx, db, &u, audit)
-	if err != nil {
-		return err
-	}
-	if len(updates) == 0 && !platformGrantChanged {
+	if err != nil { return err }
+	rootGrantChanged, err := ensureBootstrapRoot(ctx, db, &u, audit)
+	if err != nil { return err }
+	if len(updates) == 0 && !platformGrantChanged && !rootGrantChanged {
 		return nil
 	}
 	updates["token_version"] = gorm.Expr("token_version + 1")
@@ -293,6 +294,48 @@ func ensureBootstrapPlatformOperator(ctx context.Context, tx *gorm.DB, user *Adm
 		return false, err
 	}
 	return true, nil
+}
+
+// ensureBootstrapRoot runs inside the bootstrap global identity lock.
+// The unique singleton cannot be rebound by changing .env on a restart.
+func ensureBootstrapRoot(ctx context.Context, tx *gorm.DB, u *AdminUser, audit BootstrapAuditWriter) (bool, error) {
+ if !tx.Migrator().HasTable(&RootAccount{}) {
+  // Older isolated test fixtures may intentionally omit the newer schema.
+  // Root authorization itself fails closed without the table.
+  return false, nil
+ }
+ if u == nil || u.ID == uuid.Nil || u.TenantID != 0 {
+  return false, nil
+ }
+ var root RootAccount
+ err := tx.WithContext(ctx).Clauses(clause.Locking{Strength:"UPDATE"}).First(&root, "id = ?", 1).Error
+ changed := false
+ switch {
+ case errors.Is(err, gorm.ErrRecordNotFound):
+  root = RootAccount{ID:1, UserID:u.ID}
+  if err := tx.WithContext(ctx).Create(&root).Error; err != nil { return false, fmt.Errorf("bind unique root: %w",err) }
+  if err := writeBootstrapAudit(audit,ctx,tx,0,"admin.bootstrap.root_bind","root_account",u.ID.String(),"singleton root identity bound"); err != nil { return false,err }
+  changed = true
+ case err != nil: return false,err
+ case root.UserID != u.ID: return false,fmt.Errorf("bootstrap root is bound to a different identity; refusing implicit transfer")
+ }
+ // An empty installation gets a usable enterprise automatically.
+ // Never rewrite existing tenant ownership or tenant-zero legacy data.
+ if !tx.Migrator().HasTable(&Tenant{}) || !tx.Migrator().HasTable(&TenantMembership{}) {
+  return changed,nil
+ }
+ var n int64
+ if err := tx.WithContext(ctx).Model(&Tenant{}).Count(&n).Error; err != nil { return false,err }
+ if n == 0 {
+  tenant := Tenant{Code:"default",Name:"默认企业",Status:TenantActive,Version:1,SettingsJSON:"{}",OwnerUserID:&u.ID}
+  if err := tx.WithContext(ctx).Create(&tenant).Error; err != nil { return false,fmt.Errorf("provision default tenant: %w",err) }
+  member := TenantMembership{TenantID:tenant.ID,UserID:u.ID,Role:RoleAdmin,Status:MembershipActive}
+  if err := tx.WithContext(ctx).Create(&member).Error; err != nil { return false,fmt.Errorf("provision root tenant membership: %w",err) }
+  if err := tx.WithContext(ctx).Model(&AdminUser{}).Where("id = ?",u.ID).Update("last_tenant_id",tenant.ID).Error; err != nil { return false,err }
+  if err := writeBootstrapAudit(audit,ctx,tx,tenant.ID,"admin.bootstrap.default_tenant","tenant",fmt.Sprint(tenant.ID),"default enterprise created; root owner");err != nil{return false,err}
+  changed = true
+ }
+ return changed,nil
 }
 
 func valueOr(values map[string]any, key, fallback string) string {

@@ -22,6 +22,7 @@ declare namespace API {
     tenantId?: number;
     tenantName?: string;
     platformOperator?: boolean;
+    isRoot?: boolean;
     createdAt?: string;
     updatedAt?: string;
   };

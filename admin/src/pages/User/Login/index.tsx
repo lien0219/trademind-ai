@@ -78,7 +78,7 @@ export default function LoginPage() {
     if (!loggedIn) return;
     const q = new URLSearchParams(history.location.search);
     const user = initialState?.currentUser;
-    if (user?.platformOperator === true && user.tenantId === 0) {
+    if (user?.platformOperator === true && user.tenantId === 0 && user.isRoot !== true) {
       const redirect = q.get('redirect');
       history.replace(redirect?.startsWith('/tenant/invitations/accept')
         ? redirect : '/platform/tenants');

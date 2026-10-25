@@ -225,6 +225,7 @@ export default function AppTopNav({
     user.permissions,
     user.platformOperator === true,
     user.tenantId,
+    user.isRoot === true,
   );
 
   const closeAndNavigate = (path: string) => {

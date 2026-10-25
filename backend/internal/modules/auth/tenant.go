@@ -18,6 +18,20 @@ func resolveLoginTenant(ctx context.Context, db *gorm.DB, user *admin.AdminUser)
 		return 0, errors.New("auth: tenant resolution unavailable")
 	}
 	registry, memberships := adminperm.TenantSchemaState(db)
+	root, err := adminperm.IsRoot(ctx,db,user.ID)
+	if err != nil {return 0,err}
+	if root && registry && memberships {
+		var row admin.Tenant
+		if user.LastTenantID > 0 {
+			err := db.WithContext(ctx).Where("id = ? AND status = ?",user.LastTenantID,admin.TenantActive).First(&row).Error
+			if err == nil { return row.ID,nil }
+			if !errors.Is(err,gorm.ErrRecordNotFound){return 0,err}
+		}
+		err := db.WithContext(ctx).Where("status = ?",admin.TenantActive).Order("id ASC").First(&row).Error
+		if err == nil{return row.ID,nil}
+		if errors.Is(err,gorm.ErrRecordNotFound){return 0,nil}
+		return 0,err
+	}
 	if !registry && !memberships {
 		return user.TenantID, nil
 	}

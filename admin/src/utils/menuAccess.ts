@@ -108,7 +108,9 @@ function canAccessRoute(
   profilePerms?: string[],
   platformOperator = false,
   tenantId?: number,
+  isRoot = false,
 ): boolean {
+  if (isRoot && tenantId !== 0) return true;
   // A tenant-zero session can administer the platform but cannot browse
   // tenant business data without an explicitly selected membership.
   if (tenantId === 0) {
@@ -134,13 +136,14 @@ export function filterMenuByPermission(
   profilePerms?: string[],
   platformOperator = false,
   tenantId?: number,
+  isRoot = false,
 ): MenuDataItem[] {
   const walk = (items: MenuDataItem[]): MenuDataItem[] =>
     items
       .map((item) => {
         if (item.hideInMenu) return item;
         const path = item.path || item.redirect;
-        if (path && !canAccessRoute(path, role, profilePerms, platformOperator, tenantId)) {
+        if (path && !canAccessRoute(path, role, profilePerms, platformOperator, tenantId, isRoot)) {
           return null;
         }
         const children = item.children ? walk(item.children) : undefined;
@@ -161,6 +164,7 @@ export function canAccessPath(
   profilePerms?: string[],
   platformOperator = false,
   tenantId?: number,
+  isRoot = false,
 ): boolean {
-  return canAccessRoute(pathname, role, profilePerms, platformOperator, tenantId);
+  return canAccessRoute(pathname, role, profilePerms, platformOperator, tenantId, isRoot);
 }

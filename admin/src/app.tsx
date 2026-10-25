@@ -385,6 +385,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       initialState?.currentUser?.permissions,
       initialState?.currentUser?.platformOperator === true,
       initialState?.currentUser?.tenantId,
+      initialState?.currentUser?.isRoot === true,
     ),
   onPageChange: () => {
     const { pathname } = history.location;

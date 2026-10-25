@@ -103,8 +103,16 @@ func (s *Service) requireTenantPermission(ctx context.Context, tenantID int64, u
 	if s == nil || s.DB == nil || tenantID <= 0 || userID == uuid.Nil {
 		return nil, errors.New("tenant permission required")
 	}
+	root, err := adminperm.IsRoot(ctx,s.DB,userID)
+	if err != nil {return nil,err}
+	if root {
+		var tenant admin.Tenant
+		if err := s.DB.WithContext(ctx).First(&tenant,"id = ?",tenantID).Error;err != nil{return nil,err}
+		if tenant.Status != admin.TenantActive {return nil,errors.New("tenant inactive")}
+		return &admin.TenantMembership{TenantID:tenantID,UserID:userID,Role:adminperm.RoleAdmin,Status:admin.MembershipActive},nil
+	}
 	var m admin.TenantMembership
-	err := s.DB.WithContext(ctx).Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, admin.MembershipActive).First(&m).Error
+	err = s.DB.WithContext(ctx).Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, admin.MembershipActive).First(&m).Error
 	if err != nil {
 		return nil, errors.New("tenant permission required")
 	}

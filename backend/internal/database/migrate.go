@@ -246,6 +246,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&admin.TenantMembership{},
 		&admin.TenantInvitation{},
 		&admin.PlatformOperator{},
+		&admin.RootAccount{},
 		&admin.UserStorePermission{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},

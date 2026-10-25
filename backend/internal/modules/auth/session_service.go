@@ -232,6 +232,8 @@ func (s *SessionService) SwitchTenant(ctx context.Context, userID uuid.UUID, cur
 		if user.MustChangePassword {
 			return errors.New(ErrPasswordChangeRequired)
 		}
+		root, err := adminperm.IsRoot(ctx,tx,userID)
+		if err != nil {return err}
 		if targetTenantID == 0 {
 			if !adminperm.IsSystemAdministrator(&user) {
 				return errors.New(ErrTenantAccessDenied)
@@ -245,6 +247,7 @@ func (s *SessionService) SwitchTenant(ctx context.Context, userID uuid.UUID, cur
 				return errors.New(ErrSessionRevoked)
 			}
 		}
+		_ = root // root access is strictly resolved by ResolveTenantAccess
 
 		if currentSessionID != uuid.Nil {
 			var current AuthSession

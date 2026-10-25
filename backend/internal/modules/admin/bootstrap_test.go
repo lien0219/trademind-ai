@@ -171,3 +171,29 @@ func TestEnsureBootstrapAdmin_neverPromotesTenantLocalUser(t *testing.T) {
 	if err := db.Model(&PlatformOperator{}).Where("user_id = ?", u.ID).Count(&count).Error; err != nil { t.Fatal(err) }
 	if count != 0 { t.Fatal("tenant-local user was promoted to platform operator") }
 }
+
+func TestBootstrapRootSingletonProvisionAndEnvRebindingDenied(t *testing.T) {
+ db := testBootstrapDB(t)
+ if err := db.AutoMigrate(&RootAccount{}, &Tenant{}, &TenantMembership{});err != nil{t.Fatal(err)}
+ cfg := &config.Config{AppEnv:config.EnvDevelopment,BootstrapAdminEmail:"root@example.test",BootstrapAdminPassword:"long-temporary-test-password"}
+ audit := &recordingBootstrapAuditWriter{}
+ if err := EnsureBootstrapAdmin(context.Background(),db,cfg,slog.Default(),audit);err != nil{t.Fatal(err)}
+ var root RootAccount
+ if err := db.First(&root,"id = ?",1).Error;err != nil{t.Fatal(err)}
+ var tenant Tenant
+ if err := db.First(&tenant,"code = ?","default").Error;err != nil{t.Fatal(err)}
+ if tenant.Status != TenantActive || tenant.OwnerUserID == nil || *tenant.OwnerUserID != root.UserID{t.Fatalf("invalid default owner %+v",tenant)}
+ var member TenantMembership
+ if err := db.Where("tenant_id = ? AND user_id = ?",tenant.ID,root.UserID).First(&member).Error;err != nil{t.Fatal(err)}
+ if member.Role != RoleAdmin || member.Status != MembershipActive {t.Fatal("root must own the default workspace")}
+ if err := EnsureBootstrapAdmin(context.Background(),db,cfg,slog.Default(),audit);err != nil{t.Fatal(err)}
+ var count int64
+ if err:=db.Model(&Tenant{}).Count(&count).Error;err != nil||count != 1{t.Fatalf("not idempotent count=%d err=%v",count,err)}
+ second := AdminUser{Username:NewInternalUsername(),Email:"new-root@example.test",Role:RoleAdmin,Status:StatusActive,PasswordHash:"not-used"}
+ if err := db.Create(&second).Error;err != nil{t.Fatal(err)}
+ cfg.BootstrapAdminEmail = second.Email
+ if err := EnsureBootstrapAdmin(context.Background(),db,cfg,slog.Default(),audit);err == nil{t.Fatal("changing .env cannot reassign persisted root")}
+ var retained RootAccount
+ if err:=db.First(&retained,"id = ?",1).Error;err != nil{t.Fatal(err)}
+ if retained.UserID != root.UserID{t.Fatal("root singleton changed")}
+}

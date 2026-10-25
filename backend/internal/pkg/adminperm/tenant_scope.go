@@ -25,6 +25,14 @@ func CheckTenantPermission(ctx context.Context, db *gorm.DB, tenantID int64, use
 	if db == nil || tenantID <= 0 || userID == uuid.Nil {
 		return ErrTenantPermissionDenied
 	}
+	root, rootErr := IsRoot(ctx,db,userID)
+	if rootErr != nil {return rootErr}
+	if root {
+		access, err := ResolveTenantAccess(ctx,db,userID,tenantID)
+		if err != nil {return err}
+		if access == nil || !access.Allowed {return ErrTenantPermissionDenied}
+		return nil
+	}
 	var user admin.AdminUser
 	if err := db.WithContext(ctx).Select("status").First(&user, "id = ?", userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

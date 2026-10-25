@@ -193,7 +193,9 @@ func (h *Handler) Profile(c *gin.Context) {
 		}
 	}
 	registry, memberships := adminperm.TenantSchemaState(h.DB)
-	platformOperator := p != nil && p.PlatformOperator
+	root, rootErr := adminperm.IsRoot(c.Request.Context(),h.DB,uid)
+	if rootErr != nil {response.HandleError(c,rootErr);return}
+	platformOperator := (p != nil && p.PlatformOperator) || root
 	if p != nil && p.SystemContext {
 		tenantName = "系统控制台"
 	}
@@ -228,6 +230,7 @@ func (h *Handler) Profile(c *gin.Context) {
 		"tenantId":         tenantID,
 		"tenantName":       tenantName,
 		"platformOperator": platformOperator,
+		"isRoot": root,
 		"permissions":      perms,
 		"storePermissions": storePerms,
 		"createdAt":        u.CreatedAt,

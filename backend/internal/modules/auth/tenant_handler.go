@@ -36,6 +36,8 @@ func (h *Handler) Tenants(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
+	root, err := adminperm.IsRoot(c.Request.Context(), h.DB, uid)
+	if err != nil {response.HandleError(c,err); return}
 	if adminperm.IsSystemAdministrator(&identity) {
 		items = append(items, gin.H{"id": 0, "code": "system", "name": "系统控制台", "status": admin.TenantActive, "role": adminperm.RoleAdmin})
 	}
@@ -47,6 +49,15 @@ func (h *Handler) Tenants(c *gin.Context) {
 			Name   string
 			Status string
 			Role   string
+		}
+		if root {
+			var all []admin.Tenant
+			if err := h.DB.WithContext(c.Request.Context()).Where("status = ?",admin.TenantActive).Order("name ASC, id ASC").Find(&all).Error; err != nil {
+				response.HandleError(c,err);return
+			}
+			for _,t := range all {items = append(items, gin.H{"id":t.ID,"code":t.Code,"name":t.Name,"status":t.Status,"role":adminperm.RoleAdmin})}
+			response.OK(c,gin.H{"items":items,"currentTenantId":currentTenant})
+			return
 		}
 		err := h.DB.WithContext(c.Request.Context()).Table("tenant_memberships AS m").
 			Select("t.id, t.code, t.name, t.status, m.role").
