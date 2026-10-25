@@ -51,7 +51,7 @@ func EnsureProductVisible(c *gin.Context, db *gorm.DB, productID uuid.UUID) erro
 	}
 	var count int64
 	err = db.WithContext(c.Request.Context()).Raw(`
-SELECT COUNT(*)::bigint FROM (
+SELECT COUNT(*) FROM (
 	SELECT product_id FROM product_platform_publish_configs WHERE product_id = ? AND shop_id IN ?
 	UNION
 	SELECT product_id FROM product_publications WHERE product_id = ? AND shop_id IN ? AND deleted_at IS NULL

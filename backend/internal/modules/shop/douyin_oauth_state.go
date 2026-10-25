@@ -66,19 +66,9 @@ func (s *Service) persistDouyinOAuthState(ctx context.Context, rawState string, 
 	if userID == nil || *userID == uuid.Nil {
 		return fmt.Errorf("shop: OAuth state requires an authenticated user")
 	}
-	var actor struct {
-		TenantID     int64
-		TokenVersion int64
-		Status       string
-	}
-	if err := s.DB.WithContext(ctx).Table("admin_users").
-		Select("tenant_id, token_version, status").
-		Where("id = ? AND tenant_id = ?", *userID, tenantID).
-		Take(&actor).Error; err != nil {
+	actorVersion, err := oauthActorAuthorization(ctx, s.DB, tenantID, userID, shopID)
+	if err != nil {
 		return fmt.Errorf("shop: resolve OAuth actor: %w", err)
-	}
-	if !strings.EqualFold(strings.TrimSpace(actor.Status), "active") {
-		return fmt.Errorf("shop: OAuth actor is disabled")
 	}
 	if shopID != nil && *shopID != uuid.Nil {
 		var count int64
@@ -103,7 +93,7 @@ func (s *Service) persistDouyinOAuthState(ctx context.Context, rawState string, 
 	}
 	row := DouyinOAuthState{
 		TenantID:           tenantID,
-		TokenVersion:       actor.TokenVersion,
+		TokenVersion:       actorVersion,
 		ShopTokenVersion:   shopTokenVersion,
 		StateHash:          hashDouyinOAuthState(rawState),
 		UserID:             userID,
@@ -136,18 +126,12 @@ func (s *Service) consumeDouyinOAuthState(ctx context.Context, rawState string) 
 	if row.UserID == nil || *row.UserID == uuid.Nil {
 		return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), nil)
 	}
-	var actor struct {
-		TenantID     int64
-		TokenVersion int64
-		Status       string
-	}
-	if err := s.DB.WithContext(ctx).Table("admin_users").
-		Select("tenant_id, token_version, status").
-		Where("id = ?", *row.UserID).Take(&actor).Error; err != nil || actor.TenantID != row.TenantID || !strings.EqualFold(strings.TrimSpace(actor.Status), "active") || actor.TokenVersion != row.TokenVersion {
+	shopID := parseUUIDPtr(row.ShopBindingContext)
+	actorVersion, err := oauthActorAuthorization(ctx, s.DB, row.TenantID, row.UserID, shopID)
+	if err != nil || actorVersion != row.TokenVersion {
 		return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), err)
 	}
 	if strings.TrimSpace(row.ShopBindingContext) != "" {
-		shopID := parseUUIDPtr(row.ShopBindingContext)
 		if shopID == nil {
 			return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), fmt.Errorf("invalid OAuth shop binding"))
 		}

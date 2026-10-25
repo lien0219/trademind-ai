@@ -14,7 +14,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/advertisingfee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
@@ -42,6 +44,29 @@ type legacyRuntimeControl struct {
 	ReadKillActive     bool  `gorm:"not null;default:true"`
 	WriteKillActive    bool  `gorm:"not null;default:true"`
 	Revision           int   `gorm:"not null;default:1"`
+}
+
+func TestTenantBackfillKeepsGeneratedTenantIDsAvailable(t *testing.T) {
+	db := postgrestest.Require(t).DB
+	legacyAdmin := admin.AdminUser{
+		TenantID:     1,
+		Username:     admin.NewInternalUsername(),
+		Email:        "tenant-sequence@example.test",
+		PasswordHash: "test-only",
+		Role:         admin.RoleAdmin,
+		Status:       admin.StatusActive,
+		TokenVersion: 1,
+	}
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}))
+	require.NoError(t, db.Create(&legacyAdmin).Error)
+
+	require.NoError(t, database.AutoMigrate(db))
+	var backfilled admin.Tenant
+	require.NoError(t, db.First(&backfilled, "id = ?", legacyAdmin.TenantID).Error)
+
+	newTenant := admin.Tenant{Code: "sequence-probe", Name: "Sequence Probe", Status: admin.TenantActive, SettingsJSON: "{}", Version: 1}
+	require.NoError(t, db.Create(&newTenant).Error)
+	require.Greater(t, newTenant.ID, backfilled.ID)
 }
 
 type legacyImageTaskItem imagetask.ImageTaskItem
@@ -118,6 +143,82 @@ func TestAutoMigrateAIBatchOwnershipRequiresCompleteConsistentEvidence(t *testin
 		require.EqualValues(t, wantCount, total, want.name)
 		require.Len(t, rows, wantCount, want.name)
 	}
+}
+
+func TestAutoMigrateTenantSecurityBackfillPreservesAmbiguousOwnership(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
+	_, ok, err := safeenv.TestDatabaseURLFromEnv()
+	require.NoError(t, err)
+	if !ok {
+		t.Skip("TEST_DATABASE_URL is not set; skipping PostgreSQL tenant security backfill migration")
+	}
+
+	db := postgrestest.Require(t).DB
+	require.NoError(t, database.AutoMigrate(db))
+
+	owner21 := admin.AdminUser{TenantID: 21, Username: admin.NewInternalUsername(), Role: admin.RoleAdmin, Status: admin.StatusActive}
+	owner22 := admin.AdminUser{TenantID: 22, Username: admin.NewInternalUsername(), Role: admin.RoleAdmin, Status: admin.StatusActive}
+	require.NoError(t, db.Create(&owner21).Error)
+	require.NoError(t, db.Create(&owner22).Error)
+
+	product21 := product.Product{TenantID: 21, Source: "manual", Title: "Tenant 21 migration source", Status: product.StatusDraft}
+	product22 := product.Product{TenantID: 22, Source: "manual", Title: "Tenant 22 migration source", Status: product.StatusDraft}
+	require.NoError(t, db.Create(&product21).Error)
+	require.NoError(t, db.Create(&product22).Error)
+
+	textSame := aiproducttext.AIProductTextBatch{
+		BatchNo: uuid.NewString(), IdempotencyKey: uuid.NewString(), Status: aiproducttext.BatchFailed,
+	}
+	textMixed := aiproducttext.AIProductTextBatch{
+		BatchNo: uuid.NewString(), IdempotencyKey: uuid.NewString(), Status: aiproducttext.BatchFailed,
+	}
+	require.NoError(t, db.Create(&textSame).Error)
+	require.NoError(t, db.Create(&textMixed).Error)
+	require.NoError(t, db.Create(&aiproducttext.AIProductTextItem{
+		BatchID: textSame.ID, ProductID: product21.ID, OperationType: aiproducttext.OpTitle, Status: aiproducttext.ItemFailed,
+	}).Error)
+	require.NoError(t, db.Create(&aiproducttext.AIProductTextItem{
+		BatchID: textMixed.ID, ProductID: product21.ID, OperationType: aiproducttext.OpTitle, Status: aiproducttext.ItemFailed,
+	}).Error)
+	require.NoError(t, db.Create(&aiproducttext.AIProductTextItem{
+		BatchID: textMixed.ID, ProductID: product22.ID, OperationType: aiproducttext.OpTitle, Status: aiproducttext.ItemFailed,
+	}).Error)
+
+	collectBatch := collect.CollectBatch{
+		Source: "manual", TotalCount: 2, PendingCount: 2, Status: collect.BatchStatusRunning, CreatedBy: &owner21.ID,
+	}
+	require.NoError(t, db.Create(&collectBatch).Error)
+	consistentTask := collect.CollectTask{
+		Source: "manual", SourceURL: "https://example.test/tenant-21", Status: collect.StatusSuccess,
+		CreatedBy: &owner21.ID, BatchID: &collectBatch.ID, ResultProductID: &product21.ID,
+	}
+	conflictingTask := collect.CollectTask{
+		Source: "manual", SourceURL: "https://example.test/mixed", Status: collect.StatusSuccess,
+		CreatedBy: &owner21.ID, BatchID: &collectBatch.ID, ResultProductID: &product22.ID,
+	}
+	require.NoError(t, db.Create(&consistentTask).Error)
+	require.NoError(t, db.Create(&conflictingTask).Error)
+
+	require.NoError(t, database.AutoMigrate(db))
+	require.NoError(t, database.AutoMigrate(db))
+
+	var storedText []aiproducttext.AIProductTextBatch
+	require.NoError(t, db.Order("batch_no").Find(&storedText).Error)
+	textByID := make(map[uuid.UUID]aiproducttext.AIProductTextBatch, len(storedText))
+	for _, row := range storedText {
+		textByID[row.ID] = row
+	}
+	require.EqualValues(t, 21, textByID[textSame.ID].TenantID)
+	require.Zero(t, textByID[textMixed.ID].TenantID)
+
+	var storedTasks []collect.CollectTask
+	require.NoError(t, db.Where("id IN ?", []uuid.UUID{consistentTask.ID, conflictingTask.ID}).Find(&storedTasks).Error)
+	tasksByID := make(map[uuid.UUID]collect.CollectTask, len(storedTasks))
+	for _, row := range storedTasks {
+		tasksByID[row.ID] = row
+	}
+	require.EqualValues(t, 21, tasksByID[consistentTask.ID].TenantID)
+	require.Zero(t, tasksByID[conflictingTask.ID].TenantID)
 }
 
 func TestCustomerAutoReplyReliabilityConstraints(t *testing.T) {

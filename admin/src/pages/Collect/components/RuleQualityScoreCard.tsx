@@ -9,7 +9,7 @@ type Props = {
   confidence?: number;
 };
 
-function hitStatus(hit: CollectRuleAIQualityGate['fieldHits'][number]) {
+function hitStatus(hit: NonNullable<CollectRuleAIQualityGate['fieldHits']>[number]) {
   if (hit.extracted) return { icon: <CheckCircleOutlined />, color: 'success' as const, text: '已识别' };
   if (hit.inRule) return { icon: <MinusCircleOutlined />, color: 'warning' as const, text: '规则有·未识别' };
   return { icon: <CloseCircleOutlined />, color: 'default' as const, text: '未生成' };

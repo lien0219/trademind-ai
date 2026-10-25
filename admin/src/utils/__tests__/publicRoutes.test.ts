@@ -9,7 +9,7 @@ describe('isPublicAdminPath', () => {
     },
   );
 
-  it.each(['/dashboard', '/user', '/user/register/invite'])('protects %s', (pathname) => {
+  it.each(['/dashboard', '/user', '/user/register/invite', '/tenant/members'])('protects %s', (pathname) => {
     expect(isPublicAdminPath(pathname)).toBe(false);
   });
 });

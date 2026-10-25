@@ -81,18 +81,26 @@ func ptrAttrsJSON(src *json.RawMessage) (*datatypes.JSON, error) {
 	return &j, nil
 }
 
-func (s *Service) ensureSKUProductVisible(c *gin.Context, productID uuid.UUID) error {
+func (s *Service) ensureProductTenantVisible(c *gin.Context, productID uuid.UUID) (int64, error) {
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := adminperm.EnsureProductVisible(c, s.DB, productID); err != nil {
-		return err
+		return 0, err
 	}
 	var productRow Product
-	return s.DB.WithContext(c.Request.Context()).Select("id").
+	if err := s.DB.WithContext(c.Request.Context()).Select("id").
 		Where("id = ? AND tenant_id = ?", productID, tenantID).
-		First(&productRow).Error
+		First(&productRow).Error; err != nil {
+		return 0, err
+	}
+	return tenantID, nil
+}
+
+func (s *Service) ensureSKUProductVisible(c *gin.Context, productID uuid.UUID) error {
+	_, err := s.ensureProductTenantVisible(c, productID)
+	return err
 }
 
 func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, adminID *uuid.UUID) (*ProductSKU, error) {
@@ -270,13 +278,12 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
-	imgType, err := normalizeImageType(body.ImageType)
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
 	if err != nil {
 		return nil, err
 	}
-
-	var probe Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&probe, "id = ?", productID).Error; err != nil {
+	imgType, err := normalizeImageType(body.ImageType)
+	if err != nil {
 		return nil, err
 	}
 
@@ -290,7 +297,7 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 
 	if body.FileID != nil && *body.FileID != uuid.Nil {
 		var fr files.FileRecord
-		if err := s.DB.WithContext(c.Request.Context()).First(&fr, "id = ?", *body.FileID).Error; err != nil {
+		if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", *body.FileID, tenantID).First(&fr).Error; err != nil {
 			return nil, err
 		}
 		if objKey == "" {
@@ -383,6 +390,9 @@ func (s *Service) UpdateProductImage(c *gin.Context, productID, imageID uuid.UUI
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	if _, err := s.ensureProductTenantVisible(c, productID); err != nil {
+		return nil, err
+	}
 	var row ProductImage
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND product_id = ?", imageID, productID).Error; err != nil {
 		return nil, err
@@ -447,6 +457,9 @@ func (s *Service) DeleteProductImage(c *gin.Context, productID, imageID uuid.UUI
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("product: no db")
 	}
+	if _, err := s.ensureProductTenantVisible(c, productID); err != nil {
+		return err
+	}
 	res := s.DB.WithContext(c.Request.Context()).Delete(&ProductImage{}, "id = ? AND product_id = ?", imageID, productID)
 	if res.Error != nil {
 		return res.Error
@@ -472,9 +485,7 @@ func (s *Service) ReorderProductImages(c *gin.Context, productID uuid.UUID, body
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("product: no db")
 	}
-
-	var probe Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&probe, "id = ?", productID).Error; err != nil {
+	if _, err := s.ensureProductTenantVisible(c, productID); err != nil {
 		return err
 	}
 

@@ -479,8 +479,6 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
     textPadding: opts.textPadding ?? 6,
     maskPadding: opts.maskPadding ?? 2,
     layoutTemplate: opts.layoutTemplate ?? 'preserve_original',
-    compactTranslation: opts.compactTranslation !== false,
-    allowTextOverflow: opts.allowTextOverflow === true,
     styleMode: opts.styleMode ?? undefined,
   };
   if (layoutMode === 'preserve') {
@@ -503,6 +501,8 @@ export function buildTranslateImageTextInput(opts: TranslateImageTextInputOpts):
 }
 
 export type TranslateLayoutSummary = {
+  renderMode?: string;
+  eraseMode?: string;
   autoLayout?: boolean;
   layoutTemplate?: string;
   eraseAreaRatio?: number;
@@ -521,6 +521,7 @@ export type TranslateLayoutSummary = {
 };
 
 export type TranslateTaskOutput = {
+  resultUnavailable?: boolean;
   sourceLanguage?: string;
   targetLanguage?: string;
   renderMode?: string;
@@ -573,7 +574,7 @@ export type TranslateTaskOutput = {
     renderedBlocksCount?: number;
     verifiedBlocksCount?: number;
   };
-  layout?: TranslateLayoutSummary & { renderMode?: string; eraseMode?: string };
+  layout?: TranslateLayoutSummary;
   verification?: {
     imageChanged?: boolean;
     targetTextDetected?: boolean;

@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, value string, taskID uuid.UUID, expectedUpdatedAt string, sourceSnapshotHash string, adminID *uuid.UUID) error {
@@ -22,6 +23,10 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 	}
 	if p == nil {
 		return fmt.Errorf("product is required")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
 	}
 	expectedAt, err := parseExpectedUpdatedAt(expectedUpdatedAt)
 	if err != nil {
@@ -69,7 +74,7 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 	now := time.Now().UTC()
 	txErr := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var current Product
-		if err := tx.First(&current, "id = ?", p.ID).Error; err != nil {
+		if err := tx.Where("tenant_id = ?", tenantID).First(&current, "id = ?", p.ID).Error; err != nil {
 			return err
 		}
 		taskHash, err := s.validateAITaskForApply(c.Request.Context(), taskID, current.ID)
@@ -110,7 +115,7 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 		default:
 			return fmt.Errorf("unsupported ai content field")
 		}
-		res := tx.Model(&Product{}).Where("id = ? AND updated_at = ?", current.ID, current.UpdatedAt).Updates(updates)
+		res := tx.Model(&Product{}).Where("id = ? AND tenant_id = ? AND updated_at = ?", current.ID, tenantID, current.UpdatedAt).Updates(updates)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -139,6 +144,10 @@ func (s *Service) UndoAIContent(c *gin.Context, productID uuid.UUID, fieldType s
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
+	if err != nil {
+		return nil, err
+	}
 	expectedAt, err := parseExpectedUpdatedAt(body.ExpectedUpdatedAt)
 	if err != nil {
 		return nil, err
@@ -155,7 +164,7 @@ func (s *Service) UndoAIContent(c *gin.Context, productID uuid.UUID, fieldType s
 	var undoneApplicationID uuid.UUID
 	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var current Product
-		if err := tx.First(&current, "id = ?", productID).Error; err != nil {
+		if err := tx.Where("tenant_id = ?", tenantID).First(&current, "id = ?", productID).Error; err != nil {
 			return err
 		}
 		var app ProductAIContentApplication
@@ -181,7 +190,7 @@ func (s *Service) UndoAIContent(c *gin.Context, productID uuid.UUID, fieldType s
 		default:
 			return fmt.Errorf("unsupported ai content field")
 		}
-		res := tx.Model(&Product{}).Where("id = ? AND updated_at = ?", productID, current.UpdatedAt).Updates(updates)
+		res := tx.Model(&Product{}).Where("id = ? AND tenant_id = ? AND updated_at = ?", productID, tenantID, current.UpdatedAt).Updates(updates)
 		if res.Error != nil {
 			return res.Error
 		}

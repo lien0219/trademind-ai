@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/gorm"
 )
@@ -79,6 +80,107 @@ type oauthStateBinding struct {
 	ShopTokenVersion int64     `json:"shopTokenVersion"`
 }
 
+// oauthActorAuthorization resolves the durable identity and selected-tenant
+// authorization used by every OAuth state lifecycle. AdminUser.TenantID and
+// AdminUser.Role are legacy fields only; once either tenant table exists the
+// live membership is authoritative and a shop grant is required for all
+// non-admin memberships, including custom roles.
+func oauthActorAuthorization(ctx context.Context, db *gorm.DB, tenantID int64, userID, shopID *uuid.UUID) (int64, error) {
+	if db == nil || tenantID < 0 || userID == nil || *userID == uuid.Nil {
+		return 0, errors.New("OAuth actor is unavailable")
+	}
+	registry, memberships := adminperm.TenantSchemaState(db)
+	if registry || memberships {
+		if !registry || !memberships || tenantID <= 0 {
+			return 0, adminperm.ErrTenantPermissionDenied
+		}
+		if err := adminperm.CheckTenantPermission(ctx, db, tenantID, *userID, adminperm.PermStoreOperate); err != nil {
+			return 0, err
+		}
+		var user admin.AdminUser
+		if err := db.WithContext(ctx).Select("token_version, status").First(&user, "id = ?", *userID).Error; err != nil {
+			return 0, err
+		}
+		if !strings.EqualFold(strings.TrimSpace(user.Status), admin.StatusActive) {
+			return 0, errors.New("OAuth actor is disabled")
+		}
+		if shopID != nil && *shopID != uuid.Nil {
+			var membership admin.TenantMembership
+			if err := db.WithContext(ctx).Select("role").Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, *userID, admin.MembershipActive).First(&membership).Error; err != nil {
+				return 0, err
+			}
+			if strings.TrimSpace(strings.ToLower(membership.Role)) != adminperm.RoleAdmin {
+				var grant admin.UserStorePermission
+				if err := db.WithContext(ctx).Joins("JOIN shops ON shops.id = user_store_permissions.store_id").
+					Where("user_store_permissions.user_id = ? AND user_store_permissions.store_id = ? AND shops.tenant_id = ? AND user_store_permissions.permission_scope IN ?", *userID, *shopID, tenantID, []string{admin.StorePermScopeOperate, admin.StorePermScopeManage}).First(&grant).Error; err != nil {
+					return 0, err
+				}
+			}
+		}
+		return int64(user.TokenVersion), nil
+	}
+
+	var user admin.AdminUser
+	query := db.WithContext(ctx).Select("tenant_id, role, token_version, status").Where("id = ?", *userID)
+	if tenantID >= 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	if err := query.First(&user).Error; err != nil {
+		return 0, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(user.Status), admin.StatusActive) {
+		return 0, errors.New("OAuth actor is no longer authorized")
+	}
+	allowed, err := legacyOAuthRoleHasPermission(ctx, db, tenantID, user.Role, adminperm.PermStoreOperate)
+	if err != nil {
+		return 0, fmt.Errorf("resolve OAuth actor permissions: %w", err)
+	}
+	if !allowed {
+		return 0, errors.New("OAuth actor is no longer authorized")
+	}
+	if shopID != nil && *shopID != uuid.Nil && !strings.EqualFold(strings.TrimSpace(user.Role), adminperm.RoleAdmin) {
+		var grant admin.UserStorePermission
+		if err := db.WithContext(ctx).Joins("JOIN shops ON shops.id = user_store_permissions.store_id").
+			Where("user_store_permissions.user_id = ? AND user_store_permissions.store_id = ? AND shops.tenant_id = ? AND user_store_permissions.permission_scope IN ?", *userID, *shopID, tenantID, []string{admin.StorePermScopeOperate, admin.StorePermScopeManage}).First(&grant).Error; err != nil {
+			return 0, err
+		}
+	}
+	return int64(user.TokenVersion), nil
+}
+
+func legacyOAuthRoleHasPermission(ctx context.Context, db *gorm.DB, tenantID int64, role, permission string) (bool, error) {
+	role = strings.TrimSpace(strings.ToLower(role))
+	if !adminperm.IsCustomRole(role) {
+		return adminperm.StrictHasPermission(role, permission), nil
+	}
+	if db == nil || !db.Migrator().HasTable(&admin.RoleDefinition{}) {
+		return false, nil
+	}
+	var definition admin.RoleDefinition
+	if err := db.WithContext(ctx).
+		Where("tenant_id = ? AND code = ? AND enabled = ?", tenantID, role, true).
+		First(&definition).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	var permissions []string
+	if err := json.Unmarshal([]byte(definition.PermissionsJSON), &permissions); err != nil {
+		return false, nil
+	}
+	validated, err := adminperm.ValidateCustomPermissions(permissions)
+	if err != nil {
+		return false, nil
+	}
+	for _, granted := range validated {
+		if strings.TrimSpace(granted) == permission {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *Service) newOAuthStateBinding(c *gin.Context, shopID uuid.UUID) (oauthStateBinding, error) {
 	if s == nil || s.DB == nil {
 		return oauthStateBinding{}, fmt.Errorf("shop: db unavailable")
@@ -94,19 +196,9 @@ func (s *Service) newOAuthStateBinding(c *gin.Context, shopID uuid.UUID) (oauthS
 	if p == nil || p.UserID == uuid.Nil || p.Disabled {
 		return oauthStateBinding{}, errors.New("shop: OAuth actor unavailable")
 	}
-	var actor struct {
-		TenantID     int64
-		TokenVersion int
-		Status       string
-	}
-	if err := s.DB.WithContext(c.Request.Context()).Table("admin_users").
-		Select("tenant_id, token_version, status").
-		Where("id = ? AND tenant_id = ?", p.UserID, tenantID).
-		Take(&actor).Error; err != nil {
+	actorVersion, err := oauthActorAuthorization(c.Request.Context(), s.DB, tenantID, &p.UserID, &shopID)
+	if err != nil {
 		return oauthStateBinding{}, fmt.Errorf("shop: resolve OAuth actor: %w", err)
-	}
-	if !strings.EqualFold(strings.TrimSpace(actor.Status), "active") {
-		return oauthStateBinding{}, errors.New("shop: OAuth actor is disabled")
 	}
 	var token ShopAuthToken
 	if err := s.DB.WithContext(c.Request.Context()).Select("token_version").Where("shop_id = ?", shopID).First(&token).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -115,7 +207,7 @@ func (s *Service) newOAuthStateBinding(c *gin.Context, shopID uuid.UUID) (oauthS
 	return oauthStateBinding{
 		TenantID:         tenantID,
 		UserID:           p.UserID,
-		TokenVersion:     actor.TokenVersion,
+		TokenVersion:     int(actorVersion),
 		ShopID:           shopID,
 		ShopTokenVersion: token.TokenVersion,
 	}, nil
@@ -168,16 +260,8 @@ func (s *Service) validateOAuthStateBinding(c *gin.Context, binding oauthStateBi
 	if p == nil || p.Disabled || p.UserID == uuid.Nil || p.UserID != binding.UserID {
 		return fmt.Errorf("OAuth state actor is no longer authorized")
 	}
-	var actor struct {
-		TenantID     int64
-		TokenVersion int
-		Status       string
-	}
-	if err := s.DB.WithContext(c.Request.Context()).Table("admin_users").
-		Select("tenant_id, token_version, status").
-		Where("id = ?", binding.UserID).
-		Take(&actor).Error; err != nil || actor.TenantID != binding.TenantID ||
-		!strings.EqualFold(strings.TrimSpace(actor.Status), "active") || actor.TokenVersion != binding.TokenVersion {
+	actorVersion, err := oauthActorAuthorization(c.Request.Context(), s.DB, binding.TenantID, &binding.UserID, &shopID)
+	if err != nil || actorVersion != int64(binding.TokenVersion) {
 		return fmt.Errorf("OAuth state actor is no longer authorized")
 	}
 	var token ShopAuthToken

@@ -44,6 +44,7 @@ Whether you are building a private commerce workspace or adding AI and platform 
 | AI Product Growth | Product collection, draft management, AI titles and descriptions, image processing, and publish-readiness checks in one workspace. |
 | Multi-platform Operations | Store authorization, order sync, SKU matching, inventory mirrors, and product publishing around a unified product asset. |
 | Open and Controlled | Provider-based architecture for AI, storage, image, platform, and collector integrations, with permissions, audit trails, and human confirmation for critical actions. |
+| Multi-tenant Teams | A shared identity can join multiple business tenants with separate roles, store grants, and request context. Tenant provisioning, invitations, session switching, and lifecycle controls use a separate platform control plane. |
 
 ## Screenshots
 
@@ -88,6 +89,7 @@ The screenshots below show TradeMind's core workflow: **collection → draft →
 ### Multi-platform Operations
 
 - Store authorization with Douyin Shop OAuth, encrypted secrets, and connection tests.
+- Business tenants with controlled provisioning, member invitations, per-tenant roles and store grants, server-validated session switching, and suspension revocation. See the [multi-tenant architecture](docs/MULTI_TENANT_ARCHITECTURE.md) for migration and acceptance boundaries.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
 - ERP procurement and returns with warehouse and supplier master data, manually confirmed replenishment-to-draft creation, purchase-order approval, partial receipts, receipt-bound supplier returns, warehouse movements, idempotent processing, and an Admin workspace with separated approval/execution duties and revision conflict protection.

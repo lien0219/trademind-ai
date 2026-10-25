@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	goredis "github.com/redis/go-redis/v9"
 )
 
 // QueueMessage is JSON-serialized for Redis list LPUSH (producer → worker).
@@ -92,10 +91,12 @@ func (s *Service) requeueReservedTask(ctx context.Context, queueName, payload st
 	if s == nil || s.Redis == nil || s.Redis.Client == nil {
 		return ErrRedisQueueUnavailable
 	}
-	_, err := s.Redis.TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
-		pipe.LPush(ctx, collectQueueName(queueName), payload)
-		pipe.LRem(ctx, collectProcessingQueueName(queueName), 1, payload)
-		return nil
-	})
+	_, err := s.Redis.Eval(ctx, `
+local removed = redis.call('lrem', KEYS[2], 1, ARGV[1])
+if removed > 0 then
+  return redis.call('lpush', KEYS[1], ARGV[1])
+end
+return 0
+`, []string{collectQueueName(queueName), collectProcessingQueueName(queueName)}, payload).Result()
 	return err
 }

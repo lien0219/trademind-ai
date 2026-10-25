@@ -25,6 +25,26 @@
 | POST | `/security/keys/rotation/prepare`、`/security/keys/rotation/start`、`/security/keys/rotation/:id/pause`、`resume`、`verify` | 同上；成功审计和控制状态同事务，审计失败返回 500 并回滚；预检/启动仍要求确认短语；暂停/恢复的任务不存在或状态不匹配返回 404，不产生成功审计 |
 | GET / POST | `/security/audit/integrity/status`、`/security/audit/integrity/verify` | `audit.read`，只验证当前认证租户的审计链 |
 
+## 多租户
+
+以下路径均以 `/api/v1` 为前缀。业务请求的 tenant context 取自已验证的 JWT/Session；请求 body 中的 `tenantId` 只用于切换目标。平台控制面要求已启用的 `platform_operators` 身份；目前没有应用内平台运营者授权管理 API。
+
+| 方法 | 路径 | 权限与契约 |
+| --- | --- | --- |
+| GET | `/auth/tenants` | 返回当前身份有效 membership 且租户为 active 的可切换租户，以及 `currentTenantId`。 |
+| POST | `/auth/tenants/switch` | JSON `{tenantId}`；服务端重新校验租户和 membership，创建 tenant-bound Session 并撤销旧 Session/凭据；拒绝暂停租户、停用成员或非成员。 |
+| GET / POST | `/platform/tenants` | 平台运营者分页查询/创建租户。创建需要 `code`、`name`、`ownerEmail`、`idempotencyKey`；租户、owner membership 和成功审计事务提交。可选 `ownerPassword` 只用于新建 owner，首次登录需改密；邀请/创建本身不会启用公开注册。 |
+| GET / PATCH | `/platform/tenants/:id` | 平台运营者读取详情/更新租户元数据；写入提交当前 `version`，冲突时拒绝。 |
+| PATCH | `/platform/tenants/:id/status` | 平台运营者提交 `{status,version}`；按合法生命周期迁移并撤销暂停/归档/关闭租户成员凭据；状态变化与成功审计同事务。 |
+| GET | `/platform/tenants/:id/audit` | 平台运营者查看租户最近最多 200 条操作日志。 |
+| GET / PATCH | `/tenant/current` | 查询当前租户；`settings.manage` 可按 `version` 更新资料。 |
+| GET / PATCH | `/tenant/members`、`/tenant/members/:id` | `user.manage` 查询成员或更新当前租户成员角色、状态及店铺权限。最后一位有效管理员受保护；变更会使成员旧凭据失效。 |
+| POST | `/tenant/members/leave` | 当前成员退出；最后一位有效管理员不能退出。 |
+| GET / POST / DELETE | `/tenant/invitations`、`/tenant/invitations/:id` | `user.manage` 管理邀请。创建返回一次性明文 Token；数据库保存 Token 摘要，邀请绑定邮箱/角色/店铺授权并有过期时间。服务端不发送邮件。 |
+| POST | `/tenant/invitations/accept` | 已认证用户提交 `{token}`；仅在邮箱匹配且邀请有效时单次接受，返回 `{tenantId}`，不提供匿名注册。 |
+
+成员和邀请端点同时保留 `/tenant/current/members`、`/tenant/current/invitations` 兼容别名。成功响应统一采用 `code`、`message`、`data`、`traceId` envelope。租户生命周期、身份/Session 模型、迁移和回滚边界见[多租户架构](MULTI_TENANT_ARCHITECTURE.md)、[安全控制](MULTI_TENANT_SECURITY.md)与[迁移手册](MULTI_TENANT_MIGRATION.md)。
+
 关键成功审计与业务写入同事务，拒绝/失败审计在回滚后单独写入；日志持久化失败明确返回 500。无模块权限为 403，不可见的跨租户/未授权资源通常为 404。角色、状态、授权及密码变更增加 SQL 安全版本，旧 Access、Refresh 和历史会话不可重用。
 
 新建账号和首次强制改密的新密码统一要求 12–72 位可打印 ASCII 字符，必须包含英文字母和数字，可含英文符号；中文、全角、空格及控制字符均拒绝。旧密码仍按原样验证。前端在本地安全随机生成 20 位密码并提供显式复制；密码重置由后端生成符合规则的一次性临时密码，只在成功响应中返回。删除后历史业务及审计保留；重复删除返回 404。审计或数据库错误时删除整笔回滚并返回 500。

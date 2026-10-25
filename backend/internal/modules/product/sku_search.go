@@ -9,8 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -105,7 +107,18 @@ func (s *Service) RequireSKUSearchTenant(c *gin.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if user.TenantID != tenantID || !strings.EqualFold(strings.TrimSpace(user.Status), admin.StatusActive) {
+	if !strings.EqualFold(strings.TrimSpace(user.Status), admin.StatusActive) {
+		return 0, errSKUSearchPermissionDenied
+	}
+	access, err := adminperm.ResolveTenantAccess(c.Request.Context(), s.DB, actorID, tenantID)
+	if err != nil {
+		return 0, err
+	}
+	if access.Schema {
+		if !access.Allowed {
+			return 0, errSKUSearchPermissionDenied
+		}
+	} else if user.TenantID != tenantID {
 		return 0, errSKUSearchPermissionDenied
 	}
 	return tenantID, nil
@@ -158,13 +171,13 @@ func (r *gormSKUSearchRepository) SearchSKUs(ctx context.Context, tenantID int64
 		tx = tx.Where(`(LOWER(sk.sku_code) LIKE ? OR LOWER(sk.sku_name) LIKE ? OR LOWER(p.title) LIKE ?)`, pat, pat, pat)
 	}
 	type row struct {
-		SKUID        string `gorm:"column:sku_id"`
-		ProductID    string `gorm:"column:product_id"`
-		SKUCode      string `gorm:"column:sku_code"`
-		SKUName      string `gorm:"column:sku_name"`
-		Stock        *int   `gorm:"column:stock"`
-		Attrs        any    `gorm:"column:attrs"`
-		ProductTitle string `gorm:"column:product_title"`
+		SKUID        string         `gorm:"column:sku_id"`
+		ProductID    string         `gorm:"column:product_id"`
+		SKUCode      string         `gorm:"column:sku_code"`
+		SKUName      string         `gorm:"column:sku_name"`
+		Stock        *int           `gorm:"column:stock"`
+		Attrs        datatypes.JSON `gorm:"column:attrs"`
+		ProductTitle string         `gorm:"column:product_title"`
 	}
 	var rows []row
 	if err := tx.Order("p.updated_at DESC, sk.created_at ASC").Limit(lim).Scan(&rows).Error; err != nil {

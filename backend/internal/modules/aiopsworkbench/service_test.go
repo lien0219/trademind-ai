@@ -16,9 +16,17 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
+
+func workbenchLegacyContext() context.Context {
+	return security.WithTenantContext(context.Background(), &security.TenantContext{
+		TenantID:   0,
+		AuthSource: security.AuthSourceLegacyDevZero,
+	})
+}
 
 func newWorkbenchTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -121,7 +129,7 @@ func TestCollectAITextReviewAndConflict(t *testing.T) {
 	}
 
 	svc := &Service{DB: db, ProductCheck: &productcheck.Service{DB: db}}
-	items, err := svc.collectAllTodos(context.Background(), Query{})
+	items, err := svc.collectAllTodos(workbenchLegacyContext(), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +173,7 @@ func TestCollectAIImageReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db}
-	all, err := svc.collectAllTodos(context.Background(), Query{})
+	all, err := svc.collectAllTodos(workbenchLegacyContext(), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +265,7 @@ func TestCollectPublishBatchFailedAndPartial(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db}
-	all, err := svc.collectAllTodos(context.Background(), Query{})
+	all, err := svc.collectAllTodos(workbenchLegacyContext(), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +293,7 @@ func TestCollectPublishCheckFailedAndWarning(t *testing.T) {
 		DB:           db,
 		ProductCheck: &productcheck.Service{DB: db},
 	}
-	all, err := svc.collectAllTodos(context.Background(), Query{})
+	all, err := svc.collectAllTodos(workbenchLegacyContext(), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +361,7 @@ func TestSummaryCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db, ProductCheck: &productcheck.Service{DB: db}}
-	sum, err := svc.GetSummary(context.Background(), Query{})
+	sum, err := svc.GetSummary(workbenchLegacyContext(), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}

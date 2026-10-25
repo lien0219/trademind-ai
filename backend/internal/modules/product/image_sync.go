@@ -109,8 +109,13 @@ func (s *Service) SyncImages(c *gin.Context, productID uuid.UUID, body SyncImage
 		scope = "all"
 	}
 
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
+	if err != nil {
+		return nil, err
+	}
 	var prod Product
-	if err := s.DB.WithContext(c.Request.Context()).Preload("Images").First(&prod, "id = ?", productID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Preload("Images").
+		First(&prod, "id = ? AND tenant_id = ?", productID, tenantID).Error; err != nil {
 		return nil, err
 	}
 
@@ -159,6 +164,7 @@ func (s *Service) SyncImages(c *gin.Context, productID uuid.UUID, body SyncImage
 			ObjectKey:   objKey,
 			ContentType: ct,
 			Data:        data,
+			TenantID:    prod.TenantID,
 			CreatedBy:   adminID,
 		})
 		if err != nil {

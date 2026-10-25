@@ -6,6 +6,159 @@
   },
   "endpoints": [
     {
+      "method": "GET",
+      "path": "/api/v1/auth/tenants",
+      "auth": true,
+      "requestBody": [],
+      "responseData": "AuthTenantList",
+      "tenantScope": "memberships_of_authenticated_user"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/tenants/switch",
+      "auth": true,
+      "requestBody": ["tenantId"],
+      "responseData": "TenantSwitchSession",
+      "tenantScope": "authorized_active_membership_only",
+      "externalWrite": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants",
+      "auth": true,
+      "query": ["keyword", "status", "page", "pageSize"],
+      "responseData": "PlatformTenantPage",
+      "requiredPermission": "platform_operator"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/platform/tenants",
+      "auth": true,
+      "requestBody": ["code", "name", "ownerEmail", "idempotencyKey"],
+      "optionalBody": ["description", "legalName", "contactEmail", "contactPhone", "ownerPassword", "ownerDisplayName"],
+      "responseData": "Tenant",
+      "requiredPermission": "platform_operator",
+      "idempotent": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/:id",
+      "auth": true,
+      "responseData": "PlatformTenantDetail",
+      "requiredPermission": "platform_operator"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/platform/tenants/:id",
+      "auth": true,
+      "requestBody": ["name", "version"],
+      "optionalBody": ["description", "legalName", "contactEmail", "contactPhone", "settings"],
+      "responseData": "Tenant",
+      "requiredPermission": "platform_operator",
+      "tenantScope": "platform_tenant_metadata_only",
+      "versioned": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/platform/tenants/:id/status",
+      "auth": true,
+      "requestBody": ["status", "version"],
+      "responseData": "Tenant",
+      "requiredPermission": "platform_operator",
+      "tenantScope": "platform_tenant_lifecycle",
+      "versioned": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/:id/audit",
+      "auth": true,
+      "responseData": "PlatformTenantAuditList",
+      "responseFields": ["items[].id", "items[].action", "items[].status", "items[].createdAt"],
+      "requiredPermission": "platform_operator"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenant/current",
+      "auth": true,
+      "responseData": "CurrentTenantDetail",
+      "tenantScope": "authenticated_tenant_context"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenant/current",
+      "auth": true,
+      "requestBody": ["name", "version"],
+      "optionalBody": ["description", "legalName", "contactEmail", "contactPhone", "settings"],
+      "responseData": "Tenant",
+      "requiredPermission": "settings.manage",
+      "tenantScope": "authenticated_tenant_context",
+      "versioned": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenant/members",
+      "auth": true,
+      "responseData": "TenantMemberList",
+      "requiredPermission": "user.manage",
+      "tenantScope": "authenticated_tenant_context"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenant/members/:id",
+      "auth": true,
+      "requestBody": ["role", "status", "storePermissions"],
+      "responseData": "TenantMember",
+      "requiredPermission": "user.manage",
+      "tenantScope": "current_tenant_membership_only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenant/members/leave",
+      "auth": true,
+      "requestBody": [],
+      "responseData": "TenantMembershipLeaveResult",
+      "tenantScope": "authenticated_user_current_membership"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenant/invitations",
+      "auth": true,
+      "responseData": "TenantInvitationList",
+      "requiredPermission": "user.manage",
+      "tenantScope": "authenticated_tenant_context"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenant/invitations",
+      "auth": true,
+      "requestBody": ["email", "role", "storePermissions"],
+      "optionalBody": ["expiresInHours"],
+      "responseData": "TenantInvitationCreated",
+      "requiredPermission": "user.manage",
+      "tenantScope": "authenticated_tenant_context",
+      "tokenDisclosure": "one_time_response_only",
+      "emailSent": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tenant/invitations/:id",
+      "auth": true,
+      "requestBody": [],
+      "responseData": "TenantInvitationCancelResult",
+      "requiredPermission": "user.manage",
+      "tenantScope": "current_tenant_invitation_only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenant/invitations/accept",
+      "auth": true,
+      "requestBody": ["token"],
+      "responseData": "TenantInvitationAcceptResult",
+      "responseFields": ["tenantId"],
+      "tenantScope": "authenticated_email_bound_invitation",
+      "anonymousSignup": false
+    },
+    {
       "method": "DELETE",
       "path": "/api/v1/admin/users/:id",
       "auth": true,

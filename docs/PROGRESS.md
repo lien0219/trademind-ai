@@ -1,6 +1,8 @@
 # TradeMind 当前维护状态
 
-更新时间：2026-10-24
+更新时间：2026-10-25
+
+多租户 SaaS 开发：在 `dev` 完成租户注册/状态管理、跨租户身份 membership、邮件绑定的一次性邀请、服务端租户切换、租户 RBAC/店铺授权衔接、平台/租户管理页面和受影响异步入口的归属校验；兼容迁移以明确证据回填，不可判定历史记录留在 tenant 0。修复 PostgreSQL tenant 自增序列回填后未推进的问题，并新增租户切换列表回归，确保只有 active membership + active tenant 可选。2026-10-25 `go test -count=1 ./...` 全包通过（集成包使用隔离 PostgreSQL/Redis）；列表回归在修复前失败、修复后定向通过。Go race/vet/build、Admin TypeScript/单测/构建、远程 CI、深度安全扫描、完整跨租户人工矩阵和生产备份恢复演练仍待完成/阻塞；生产就绪结论为 BLOCKED。详见[架构](MULTI_TENANT_ARCHITECTURE.md)、[安全](MULTI_TENANT_SECURITY.md)、[迁移](MULTI_TENANT_MIGRATION.md)、[运维](MULTI_TENANT_OPERATIONS.md)及[验收状态](MULTI_TENANT_ACCEPTANCE.md)。
 
 用户管理补充维护：新建与首次改密统一采用 12–72 位英文字符密码策略，增加 20 位安全随机生成及复制（含重置临时密码）；用户支持带撤权与事务审计的软删除，自定义角色仅在无成员时可删除，保留自删、最后管理员和系统角色保护。相关 Go 单元/Race、前端 28 项、契约 25 项、Admin 页面 E2E 41/41（生产构建预览，单 worker、零重试）及构建/静态检查已通过；本次状态见 [权限检查清单](SECURITY_PERMISSION_CHECKLIST.md)。新增 PostgreSQL 删除竞争测试因缺少显式隔离测试库地址标记 BLOCKED / 交由 CI；未提交、未推送、未触发远程 CI，不复用下面的历史全量结果作为本次结果。无需数据库迁移，回退代码不恢复已删除对象。
 
@@ -149,3 +151,5 @@ TradeMind 已由项目所有者确认进入生产维护阶段。当前工作重�
 同日完成多实例与崩溃恢复加固：Redis 改为 ready/processing 可靠消费并由数据库 pending 扫描补发，自动回复运行使用可续租执行租约；生成阶段可安全恢复，发送阶段结果未知一律转人工。消息同步、人工回复与自动发送共享会话锁并在外发前最终复核；PostgreSQL 新增平台消息、外部会话和单店在途同步唯一约束及热查询复合索引。Admin 切店请求按序隔离，加载失败清空并禁用旧表单，远程店铺搜索采用分页与防抖。
 
 生产验收前进一步收紧发送与运维边界：平台发送幂等租约长于平台超时并持续续期，平台成功且本地消息已落库时，即使幂等完成标记失败也只按 `clientMessageId` 重放本地消息，不再产生可重发窗口。自动回复可用状态改为 Redis、客服消息同步 Worker、轮询调度器和自动回复消费者整链路探活，`/health` 增加 ready/processing 队列与进程状态。`sending` 租约过期会原子转人工并写入统一失败中心；最近运行记录返回截断错误说明。PostgreSQL 去重迁移同时保护 `sent_message_id` 引用。Admin 运行设置加载失败时保持禁用，显式重试成功后才允许保存。
+
+2026-10-26 完成 TradeMind 多租户开发的本地自动化收尾：在专用 PostgreSQL `127.0.0.1:58942` 与 Redis `127.0.0.1:58945/14` 上通过租户生命周期、成员/邀请、RBAC、Session、迁移、Worker/Webhook、缓存/文件隔离和受影响业务回归；最终 `CI=1 APP_ENV=test ... pnpm quality:affected` 通过，包含 Go、Admin 55/295、契约 26、309 项单 worker Smoke E2E、架构、命名、敏感检查与隔离数据库/Redis 集成。TradeMind Deep Scan `b4028406-2b2d-4a3c-981d-ad2617eee5ba` 仍在旧 revision `67babce3...` 的 discovery，TradeMind Standard Scan `610c9ff7-c185-46c5-89f8-e1ae7d1fd600` 仍在 `12533fd...` 的 threat_model，ModuRelay `867797d3-782c-4ded-af5f-bb2fbc582ceb` 仍在 discovery；本轮未操作 ModuRelay，也未启动并行扫描，因此最终工作树 Deep Scan 明确 BLOCKED。生产迁移/恢复、远程 CI、部署和一次性人工验收仍未执行，生产就绪继续 BLOCKED。详见 [多租户验收状态](MULTI_TENANT_ACCEPTANCE.md)。

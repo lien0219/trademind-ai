@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -453,6 +454,9 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	peekQuery := s.DB.WithContext(ctx).Where("id = ?", taskID)
 	peekQuery = scopeImageTaskQuery(peekQuery, tenantID, scoped)
 	if err := peekQuery.First(&peek).Error; err != nil {
+		return err
+	}
+	if _, _, err := tasktenant.BeginWorker(ctx, s.DB, peek.TenantID, uuid.Nil, "image_task_execute"); err != nil {
 		return err
 	}
 	lease := s.computeExecutionTimeout(ctx, &peek)

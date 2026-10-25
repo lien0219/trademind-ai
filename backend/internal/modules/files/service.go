@@ -22,7 +22,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
+	"github.com/trademind-ai/trademind/backend/internal/providers/storage/keypath"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"golang.org/x/image/webp"
 	"gorm.io/gorm"
@@ -164,6 +166,7 @@ type SaveProcessedOpts struct {
 	ObjectKey    string
 	Data         []byte
 	ContentType  string
+	TenantID     int64
 	CreatedBy    *uuid.UUID
 }
 
@@ -191,6 +194,14 @@ func (s *Service) SaveProcessed(ctx context.Context, opts SaveProcessedOpts) (*F
 	if ct == "" {
 		ct = http.DetectContentType(data)
 	}
+	tenantID, err := resolveFileTenant(ctx, opts.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	objKey, err = tenantObjectKey(tenantID, objKey)
+	if err != nil {
+		return nil, err
+	}
 
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
@@ -211,6 +222,7 @@ func (s *Service) SaveProcessed(ctx context.Context, opts SaveProcessedOpts) (*F
 	}
 
 	row := &FileRecord{
+		TenantID:     tenantID,
 		OriginalName: strings.TrimSpace(opts.OriginalName),
 		ObjectKey:    objKey,
 		PublicURL:    pubURL,
@@ -354,7 +366,12 @@ func (s *Service) DeleteRecordByID(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("files: misconfigured")
 	}
 	var row FileRecord
-	if err := s.DB.WithContext(ctx).Where("id = ?", id).First(&row).Error; err != nil {
+	tc, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
+	query := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tc.TenantID)
+	if err := query.First(&row).Error; err != nil {
 		return err
 	}
 	return s.deleteRecord(ctx, &row)
@@ -377,6 +394,10 @@ func (s *Service) DeleteRecordByTenant(c *gin.Context, id uuid.UUID) error {
 }
 
 func (s *Service) deleteRecord(ctx context.Context, row *FileRecord) error {
+	tc, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
 		return err
@@ -388,7 +409,7 @@ func (s *Service) deleteRecord(ctx context.Context, row *FileRecord) error {
 	if err := prov.Delete(ctx, row.ObjectKey); err != nil {
 		return err
 	}
-	return s.DB.WithContext(ctx).Delete(&FileRecord{}, "id = ?", row.ID).Error
+	return s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", row.ID, tc.TenantID).Delete(&FileRecord{}).Error
 }
 
 // DeleteStorageObject removes an object from configured storage (ignores empty keys).
@@ -396,6 +417,17 @@ func (s *Service) DeleteStorageObject(ctx context.Context, objectKey string) err
 	objectKey = strings.TrimSpace(objectKey)
 	if s == nil || s.Settings == nil || objectKey == "" {
 		return nil
+	}
+	tc, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
+	if s.DB == nil {
+		return fmt.Errorf("files: tenant-scoped storage deletion requires db")
+	}
+	var row FileRecord
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND object_key = ?", tc.TenantID, objectKey).First(&row).Error; err != nil {
+		return err
 	}
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
@@ -406,4 +438,47 @@ func (s *Service) DeleteStorageObject(ctx context.Context, objectKey string) err
 		return err
 	}
 	return prov.Delete(ctx, objectKey)
+}
+
+func resolveFileTenant(ctx context.Context, requested int64) (int64, error) {
+	tc := security.FromContext(ctx)
+	if requested > 0 {
+		if tc != nil && tc.TenantID > 0 && tc.TenantID != requested {
+			return 0, security.ErrTaskTenantMismatch
+		}
+		return requested, nil
+	}
+	if tc != nil {
+		if tc.TenantID <= 0 {
+			return 0, security.ErrTenantContextMissing
+		}
+		return tc.TenantID, nil
+	}
+	// Existing SQLite-only unit tests create standalone file rows without an
+	// auth context. Production upload and worker paths always carry a tenant.
+	return 0, nil
+}
+
+func tenantObjectKey(tenantID int64, objectKey string) (string, error) {
+	if tenantID < 0 {
+		return "", security.ErrTenantContextMissing
+	}
+	key, err := keypath.NormalizeSafe(objectKey)
+	if err != nil {
+		return "", err
+	}
+	if tenantID == 0 {
+		return key, nil
+	}
+	prefix := fmt.Sprintf("t%d/", tenantID)
+	if strings.HasPrefix(key, prefix) {
+		return key, nil
+	}
+	if strings.HasPrefix(key, "t") {
+		first := strings.SplitN(key, "/", 2)[0]
+		if len(first) > 1 && first[1:] != "" && strings.Trim(first[1:], "0123456789") == "" {
+			return "", fmt.Errorf("files: object key belongs to another tenant")
+		}
+	}
+	return prefix + key, nil
 }

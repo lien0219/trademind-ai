@@ -15,11 +15,14 @@ type StoreGrant struct {
 
 // Principal is the resolved admin authorization context.
 type Principal struct {
-	UserID      uuid.UUID
-	Role        string
-	Disabled    bool
-	Permissions []string
-	StoreGrants []StoreGrant
+	UserID           uuid.UUID
+	TenantID         int64
+	Role             string
+	Disabled         bool
+	PlatformOperator bool
+	SystemContext    bool
+	Permissions      []string
+	StoreGrants      []StoreGrant
 }
 
 // IsAdmin returns true for global admin role.
@@ -37,7 +40,7 @@ func (p *Principal) Can(perm string) bool {
 	if p == nil || p.Disabled {
 		return false
 	}
-	if IsCustomRole(p.Role) {
+	if p.SystemContext || IsCustomRole(p.Role) {
 		return permissionIn(p.Permissions, perm)
 	}
 	return HasPermission(p.Role, perm)
@@ -68,7 +71,7 @@ func (p *Principal) AllowedStoreIDs() []uuid.UUID {
 
 // CanViewStore checks read access to a store.
 func (p *Principal) CanViewStore(storeID uuid.UUID) bool {
-	if p == nil || storeID == uuid.Nil {
+	if p == nil || p.SystemContext || storeID == uuid.Nil {
 		return false
 	}
 	if p.IsAdmin() {
@@ -84,7 +87,7 @@ func (p *Principal) CanViewStore(storeID uuid.UUID) bool {
 
 // CanOperateStore checks write access to a store-scoped resource.
 func (p *Principal) CanOperateStore(storeID uuid.UUID) bool {
-	if p == nil || storeID == uuid.Nil {
+	if p == nil || p.SystemContext || storeID == uuid.Nil {
 		return false
 	}
 	if p.IsReadonly() {

@@ -26,6 +26,15 @@ func (s *Service) ResetPassword(c *gin.Context, userID uuid.UUID, actorID *uuid.
 	if err != nil {
 		return "", err
 	}
+	membershipMode := s.tenantMembershipMode()
+	if membershipMode {
+		if err := s.requireTenantMembershipSchema(); err != nil {
+			return "", err
+		}
+		if tenantID <= 0 {
+			return "", inputError("tenant context required")
+		}
+	}
 	secret := make([]byte, 24)
 	if _, err := rand.Read(secret); err != nil {
 		return "", err
@@ -40,17 +49,39 @@ func (s *Service) ResetPassword(c *gin.Context, userID uuid.UUID, actorID *uuid.
 	now := time.Now().UTC()
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var user admin.AdminUser
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if membershipMode {
+			if err := s.lockTenantManageTx(c, tx, tenantID); err != nil {
+				return err
+			}
+			var member admin.TenantMembership
+			var lookupErr error
+			user, member, lookupErr = membershipUser(c.Request.Context(), tx, userID, tenantID, true)
+			if lookupErr != nil {
+				return lookupErr
+			}
+			if member.Status != admin.MembershipActive && member.Status != admin.MembershipDisabled {
+				return gorm.ErrRecordNotFound
+			}
+			if err := s.sharedIdentityChangeAllowed(c.Request.Context(), tx, userID, tenantID, actorID); err != nil {
+				return err
+			}
+			if strings.EqualFold(member.Role, adminperm.RoleAdmin) && !strings.EqualFold(member.Status, admin.MembershipActive) {
+				return inputError("管理员账号已禁用")
+			}
+		} else if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND tenant_id = ?", userID, tenantID).First(&user).Error; err != nil {
 			return err
 		}
-		if strings.EqualFold(user.Role, adminperm.RoleAdmin) && !strings.EqualFold(user.Status, admin.StatusActive) {
+		if !membershipMode && strings.EqualFold(user.Role, adminperm.RoleAdmin) && !strings.EqualFold(user.Status, admin.StatusActive) {
 			return inputError("管理员账号已禁用")
 		}
 		if err := tx.Model(&user).Updates(map[string]any{
 			"password_hash": hashed, "password_changed_at": now, "must_change_password": true,
 			"token_version": gorm.Expr("token_version + 1"),
 		}).Error; err != nil {
+			return err
+		}
+		if err := revokeIdentitySessionsTx(tx, userID, "password_reset"); err != nil {
 			return err
 		}
 		return writeSensitiveAudit(tx, s.OpLog, c, actorID, "user.password.reset", "admin_user", userID.String(), "temporary credential issued; prior tokens invalidated")

@@ -157,6 +157,8 @@ func (h *Handler) SetStorePermissions(c *gin.Context) {
 func handleMutationError(c *gin.Context, err error) {
 	var invalid inputError
 	switch {
+	case errors.Is(err, adminperm.ErrTenantPermissionDenied):
+		response.Fail(c, 403, response.CodeForbidden, "当前账号无权管理企业成员")
 	case errors.Is(err, ErrAuditFailure):
 		response.HandleError(c, err)
 	case errors.As(err, &invalid):

@@ -73,7 +73,7 @@ export async function getJSON<T>(path: string): Promise<T> {
 }
 
 /** 通用 PUT */
-export async function putJSON<T, B extends object>(path: string, body: B, options?: RequestOptions): Promise<T> {
+export async function putJSON<T, B extends object = object>(path: string, body: B, options?: RequestOptions): Promise<T> {
   const res = await requestEnvelope<T>(path, {
     method: 'PUT',
     data: body,
@@ -93,7 +93,7 @@ export async function patchJSON<T, B extends object>(path: string, body: B, opti
 }
 
 /** 通用 POST */
-export async function postJSON<T>(path: string, body?: object, options?: RequestOptions): Promise<T> {
+export async function postJSON<T, B extends object = object>(path: string, body?: B, options?: RequestOptions): Promise<T> {
   const res = await requestEnvelope<T>(path, {
     method: 'POST',
     data: body,

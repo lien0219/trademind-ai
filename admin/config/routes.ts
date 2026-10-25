@@ -625,6 +625,60 @@ export default [
     ],
   },
   {
+    path: '/tenant',
+    name: '企业工作台',
+    icon: 'ApartmentOutlined',
+    routes: [
+      {
+        path: '/tenant',
+        redirect: '/tenant/settings',
+        hideInMenu: true,
+      },
+      {
+        path: '/tenant/settings',
+        name: '企业信息与设置',
+        icon: 'SettingOutlined',
+        component: './Tenant/Settings',
+      },
+      {
+        path: '/tenant/members',
+        name: '企业成员与邀请',
+        icon: 'TeamOutlined',
+        component: './Tenant/Members',
+      },
+      {
+        path: '/tenant/invitations/accept',
+        name: '接受企业邀请',
+        component: './Tenant/AcceptInvitation',
+        hideInMenu: true,
+      },
+    ],
+  },
+  {
+    path: '/platform',
+    name: '平台管理',
+    icon: 'AppstoreOutlined',
+    routes: [
+      {
+        path: '/platform',
+        redirect: '/platform/tenants',
+        hideInMenu: true,
+      },
+      {
+        path: '/platform/tenants',
+        name: '租户管理',
+        icon: 'ApartmentOutlined',
+        component: './Platform/Tenants',
+      },
+      {
+        path: '/platform/tenants/:id',
+        name: '租户详情',
+        component: './Platform/Tenants/Detail',
+        hideInMenu: true,
+      },
+    ],
+  },
+  {
     path: '/settings',
     name: '设置',
     icon: 'SettingOutlined',

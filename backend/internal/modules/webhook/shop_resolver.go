@@ -26,6 +26,7 @@ const (
 	CodeDouyinWebhookAuthorizationExpired = "DOUYIN_WEBHOOK_AUTHORIZATION_EXPIRED"
 	CodeDouyinWebhookBindingRevoked       = "DOUYIN_WEBHOOK_BINDING_REVOKED"
 	CodeDouyinWebhookUntrustedShopID      = "DOUYIN_WEBHOOK_UNTRUSTED_SHOP_IDENTIFIER"
+	CodeDouyinWebhookClaimConflict        = "DOUYIN_WEBHOOK_SIGNED_CLAIM_CONFLICT"
 )
 
 // WebhookShopResolver is the single entry for assigning a verified platform
@@ -224,12 +225,8 @@ func ExtractResolveWebhookShopInput(platform, eventType string, headers http.Hea
 		EventType:       eventType,
 		VerifiedHeaders: safeHeaders(headers),
 	}
-	if app := firstHeader(headers, "X-Douyin-Client-Key", "X-Douyin-App-Id", "X-Douyin-App-Key", "X-Client-Key"); app != "" {
-		input.AppID = app
-	}
-	if shopID := firstHeader(headers, "X-Douyin-Shop-Id", "X-Platform-Shop-Id", "X-Shop-Id"); shopID != "" {
-		input.PlatformShopID = shopID
-	}
+	headerAppID := firstHeader(headers, "X-Douyin-Client-Key", "X-Douyin-App-Id", "X-Douyin-App-Key", "X-Client-Key")
+	headerShopID := firstHeader(headers, "X-Douyin-Shop-Id", "X-Platform-Shop-Id", "X-Shop-Id")
 	if id := firstHeader(headers, "X-Webhook-Secret-Binding-Id", "X-TradeMind-Secret-Binding-Id"); id != "" {
 		if parsed, err := uuid.Parse(id); err == nil {
 			input.WebhookSecretBindingID = &parsed
@@ -239,20 +236,25 @@ func ExtractResolveWebhookShopInput(platform, eventType string, headers http.Hea
 	if err := json.Unmarshal(raw, &body); err != nil {
 		return input, err
 	}
-	if input.AppID == "" {
-		input.AppID = firstJSONPathString(body, "client_key", "clientKey", "app_id", "appId", "app_key", "appKey")
+	bodyAppID := firstJSONPathString(body, "client_key", "clientKey", "app_id", "appId", "app_key", "appKey",
+		"content.client_key", "content.clientKey", "content.app_id", "content.appId", "content.app_key", "content.appKey",
+		"data.client_key", "data.clientKey", "data.app_id", "data.appId", "data.app_key", "data.appKey")
+	bodyShopID := firstJSONPathString(body,
+		"shop_id", "shopId", "store_id", "storeId", "platform_shop_id", "platformShopId",
+		"content.shop_id", "content.shopId", "content.store_id", "content.storeId", "content.platform_shop_id", "content.platformShopId",
+		"data.shop_id", "data.shopId", "data.store_id", "data.storeId", "data.platform_shop_id", "data.platformShopId",
+		"0.data.shop_id", "0.data.shopId", "0.data.store_id", "0.data.storeId", "0.data.platform_shop_id", "0.data.platformShopId",
+	)
+	if bodyAppID != "" && headerAppID != "" && bodyAppID != headerAppID {
+		return input, newCodeError(CodeDouyinWebhookClaimConflict, http.StatusBadRequest, CodeDouyinWebhookClaimConflict)
 	}
-	if input.PlatformShopID == "" {
-		input.PlatformShopID = firstJSONPathString(body,
-			"shop_id", "shopId", "store_id", "storeId", "platform_shop_id", "platformShopId",
-			"content.shop_id", "content.shopId", "content.store_id", "content.storeId", "content.platform_shop_id", "content.platformShopId",
-			"data.shop_id", "data.shopId", "data.store_id", "data.storeId", "data.platform_shop_id", "data.platformShopId",
-			"0.data.shop_id", "0.data.shopId", "0.data.store_id", "0.data.storeId", "0.data.platform_shop_id", "0.data.platformShopId",
-		)
+	if bodyShopID != "" && headerShopID != "" && bodyShopID != headerShopID {
+		return input, newCodeError(CodeDouyinWebhookClaimConflict, http.StatusBadRequest, CodeDouyinWebhookClaimConflict)
 	}
+	input.AppID = firstNonEmptyString(bodyAppID, headerAppID)
+	input.PlatformShopID = firstNonEmptyString(bodyShopID, headerShopID)
 	return input, nil
 }
-
 func normalizeDouyinPlatform(platform string) string {
 	p := strings.ToLower(strings.TrimSpace(platform))
 	switch p {

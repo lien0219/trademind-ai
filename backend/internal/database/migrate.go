@@ -244,6 +244,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&admin.RoleDefinition{},
 		&admin.Tenant{},
 		&admin.TenantMembership{},
+		&admin.TenantInvitation{},
 		&admin.PlatformOperator{},
 		&admin.UserStorePermission{},
 		&settings.Setting{},
@@ -361,6 +362,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.QuotaPolicy{},
 	); err != nil {
 		return err
+	}
+	if err := backfillTenantMemberships(db); err != nil {
+		return fmt.Errorf("backfill tenant memberships: %w", err)
 	}
 	if err := migrateAIOperationBatchTenant(db); err != nil {
 		return fmt.Errorf("backfill AI operation batch tenants: %w", err)

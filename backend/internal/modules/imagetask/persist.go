@@ -51,6 +51,7 @@ func (s *Service) persistProviderResult(ctx context.Context, task *ImageTask, re
 		ObjectKey:    objKey,
 		Data:         data,
 		ContentType:  ct,
+		TenantID:     task.TenantID,
 		CreatedBy:    task.CreatedBy,
 	})
 	if saveErr != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/gorm"
 )
@@ -41,12 +42,22 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product check unavailable")
 	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var prod product.Product
 	if err := s.DB.WithContext(ctx).
+		Where("tenant_id = ?", tenant.TenantID).
 		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
 		First(&prod, "id = ?", req.ProductID).Error; err != nil {
 		return nil, err
+	}
+	if req.ShopID != nil && *req.ShopID != uuid.Nil {
+		if err := s.ensureShopVisible(ctx, tenant, *req.ShopID); err != nil {
+			return nil, err
+		}
 	}
 
 	out := &CheckProductReadinessResult{
@@ -113,6 +124,26 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	out.Score = readinessScore(errN, warnN)
 	_ = mainURLs // reserved if we need cross-checks later
 	return out, nil
+}
+
+func (s *Service) ensureShopVisible(ctx context.Context, tenant *security.TenantContext, shopID uuid.UUID) error {
+	if tenant.ShopScope != nil {
+		allowed := false
+		for _, allowedID := range tenant.ShopScope {
+			if allowedID == shopID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return gorm.ErrRecordNotFound
+		}
+	}
+	var row shop.Shop
+	return s.DB.WithContext(ctx).
+		Select("id").
+		Where("id = ? AND tenant_id = ?", shopID, tenant.TenantID).
+		First(&row).Error
 }
 
 func readinessScore(errN, warnN int) int {

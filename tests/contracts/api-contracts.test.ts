@@ -18,7 +18,15 @@ describe("TradeMind API contract registry", () => {
       new Set([
         "DELETE /api/v1/admin/users/:id",
         "DELETE /api/v1/admin/roles/:code",
+        "DELETE /api/v1/tenant/invitations/:id",
+        "GET /api/v1/auth/tenants",
         "GET /api/v1/auth/profile",
+        "GET /api/v1/platform/tenants",
+        "GET /api/v1/platform/tenants/:id",
+        "GET /api/v1/platform/tenants/:id/audit",
+        "GET /api/v1/tenant/current",
+        "GET /api/v1/tenant/invitations",
+        "GET /api/v1/tenant/members",
         "GET /api/v1/image/providers",
         "GET /api/v1/warehouses",
         "GET /api/v1/logistics/channels",
@@ -50,6 +58,11 @@ describe("TradeMind API contract registry", () => {
         "GET /api/v1/inventory/stocktakes/:id",
         "POST /api/v1/inventory/stocktakes",
         "PATCH /api/v1/inventory/stocktakes/:id/items/:itemId",
+        "PATCH /api/v1/platform/tenants/:id",
+        "PATCH /api/v1/platform/tenants/:id/status",
+        "PATCH /api/v1/tenant/current",
+        "PATCH /api/v1/tenant/members/:id",
+        "POST /api/v1/auth/tenants/switch",
         "POST /api/v1/inventory/stocktakes/:id/submit",
         "POST /api/v1/inventory/stocktakes/:id/approve",
         "POST /api/v1/inventory/stocktakes/:id/post",
@@ -110,12 +123,16 @@ describe("TradeMind API contract registry", () => {
         "POST /api/v1/orders/:id/shipments/:shipmentId/events",
         "POST /api/v1/orders/:id/fulfill",
         "POST /api/v1/orders/fulfillment-batch",
+        "POST /api/v1/platform/tenants",
         "GET /api/v1/orders/:id/inventory-effects",
         "GET /api/v1/suppliers",
         "POST /api/v1/suppliers",
         "PUT /api/v1/suppliers/:id",
         "GET /api/v1/suppliers/:id/skus",
         "POST /api/v1/suppliers/:id/skus",
+        "POST /api/v1/tenant/invitations",
+        "POST /api/v1/tenant/invitations/accept",
+        "POST /api/v1/tenant/members/leave",
         "GET /api/v1/purchase-orders",
         "GET /api/v1/procurement/replenishment-suggestions",
         "POST /api/v1/purchase-orders",
@@ -796,10 +813,42 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(152);
+    expect(contracts.endpoints).toHaveLength(169);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);
+  });
+
+  it("documents the multitenant console routes and their authorization scopes", () => {
+    const endpoint = (key: string) =>
+      contracts.endpoints.find((item) => routeKey(item) === key);
+
+    expect(endpoint("GET /api/v1/auth/tenants")?.tenantScope).toBe("memberships_of_authenticated_user");
+    expect(endpoint("POST /api/v1/auth/tenants/switch")).toMatchObject({
+      auth: true,
+      requestBody: ["tenantId"],
+      tenantScope: "authorized_active_membership_only",
+    });
+    expect(endpoint("POST /api/v1/platform/tenants")?.requestBody).toEqual([
+      "code", "name", "ownerEmail", "idempotencyKey",
+    ]);
+    expect(endpoint("PATCH /api/v1/platform/tenants/:id/status")?.requestBody).toEqual(["status", "version"]);
+    expect(endpoint("PATCH /api/v1/tenant/members/:id")?.requestBody).toEqual([
+      "role", "status", "storePermissions",
+    ]);
+    expect(endpoint("GET /api/v1/platform/tenants/:id/audit")?.responseFields).toContain("items[].id");
+    expect(endpoint("POST /api/v1/tenant/invitations")).toMatchObject({
+      optionalBody: ["expiresInHours"],
+      tokenDisclosure: "one_time_response_only",
+    });
+    expect(endpoint("POST /api/v1/tenant/invitations/accept")).toMatchObject({
+      auth: true,
+      requestBody: ["token"],
+      responseFields: ["tenantId"],
+      anonymousSignup: false,
+    });
+    expect(contracts.endpoints.filter((item) => item.path.startsWith("/api/v1/platform/tenants"))
+      .every((item) => item.requiredPermission === "platform_operator")).toBe(true);
   });
 
   it("keeps user and role deletion authenticated, tenant scoped and gated by user management", () => {

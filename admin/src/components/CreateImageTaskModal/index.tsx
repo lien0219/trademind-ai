@@ -328,7 +328,7 @@ export function CreateImageTaskModal({
           <Button
             key="submit"
             type="primary"
-            loading={ocrChecking || props.submitButtonProps?.loading}
+            loading={ocrChecking || (props.submitButtonProps && props.submitButtonProps.loading)}
             disabled={watchedTaskType === 'translate_image_text' && !ocrReady}
             onClick={() => props.submit?.()}
           >

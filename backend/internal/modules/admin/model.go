@@ -14,6 +14,7 @@ import (
 type AdminUser struct {
 	model.Base
 	TenantID           int64      `gorm:"not null;default:0;index" json:"tenantId"`
+	LastTenantID       int64      `gorm:"not null;default:0" json:"-"`
 	Username           string     `gorm:"size:40;not null;uniqueIndex" json:"username"`
 	Email              string     `gorm:"size:128" json:"email"`
 	Phone              string     `gorm:"size:32" json:"phone"`

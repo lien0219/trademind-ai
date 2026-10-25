@@ -88,7 +88,7 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 	filesSvc := &files.Service{DB: db, Settings: settingsSvc}
 	uploader := &stubDouyinUploader{}
 	svc := &Service{DB: db, Settings: settingsSvc, DouyinImageUploader: uploader}
-	prod := Product{Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
+	prod := Product{TenantID: 1, Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
 	if err := db.Create(&prod).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -98,14 +98,15 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 		ObjectKey:    "products/main.png",
 		Data:         data,
 		ContentType:  "image/png",
+		TenantID:     prod.TenantID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	price := 10.0
 	stock := 1
-	shopID := uuid.NewString()
-	mapping := validDouyinMapping(shopID, price, stock)
+	shopID := seedDouyinShop(t, db, 1)
+	mapping := validDouyinMapping(shopID.String(), price, stock)
 	mapping.MainImages = []DouyinDraftImage{{
 		LocalImageID: uuid.NewString(),
 		ImageType:    ImageTypeMain,
@@ -115,7 +116,7 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 		ObjectKey:    rec.ObjectKey,
 		UploadStatus: DouyinImageStatusPending,
 	}}
-	if err := svc.SaveDouyinDraftMapping(context.Background(), prod.ID, mapping); err != nil {
+	if err := svc.SaveDouyinDraftMapping(douyinMappingTestContext(), prod.ID, mapping); err != nil {
 		t.Fatal(err)
 	}
 	out, err := svc.UploadDouyinImages(testGinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"main"}}, nil, filesSvc)
@@ -145,7 +146,7 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 	seedLocalStorage(t, db, root, "https://cdn.example.test/static")
 	settingsSvc := &settings.Service{DB: db}
 	filesSvc := &files.Service{DB: db, Settings: settingsSvc}
-	prod := Product{Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
+	prod := Product{TenantID: 1, Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
 	if err := db.Create(&prod).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -154,6 +155,7 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 		ObjectKey:    "products/detail.png",
 		Data:         testPNG(t),
 		ContentType:  "image/png",
+		TenantID:     prod.TenantID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +163,8 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 	price := 10.0
 	stock := 1
 	imgID := uuid.NewString()
-	mapping := validDouyinMapping(uuid.NewString(), price, stock)
+	shopID := seedDouyinShop(t, db, 1)
+	mapping := validDouyinMapping(shopID.String(), price, stock)
 	mapping.MainImages[0].PlatformImageID = "already-ok"
 	mapping.MainImages[0].UploadStatus = DouyinImageStatusUploaded
 	mapping.DetailImages = []DouyinDraftImage{{
@@ -175,7 +178,7 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 	}}
 	uploader := &stubDouyinUploader{err: platformdouyin.NewError(platformdouyin.CodeDouyinRateLimited, "rate limited", "429", "rate", "")}
 	svc := &Service{DB: db, Settings: settingsSvc, DouyinImageUploader: uploader}
-	if err := svc.SaveDouyinDraftMapping(context.Background(), prod.ID, mapping); err != nil {
+	if err := svc.SaveDouyinDraftMapping(douyinMappingTestContext(), prod.ID, mapping); err != nil {
 		t.Fatal(err)
 	}
 	out, err := svc.UploadDouyinImages(testGinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"detail"}}, nil, filesSvc)
@@ -282,5 +285,6 @@ func testGinContext() *gin.Context {
 		Role: adminperm.RoleAdmin, Permissions: adminperm.PermissionsForRole(adminperm.RoleAdmin),
 	})
 	security.SetGin(c, &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceAccessToken})
+	c.Request = c.Request.WithContext(security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceAccessToken}))
 	return c
 }

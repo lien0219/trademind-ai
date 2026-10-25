@@ -189,33 +189,16 @@ func (s *APIService) ListTasks(ctx context.Context, actor APIActor, p OperationT
 		return zero, ErrPermissionDenied
 	}
 	p.TenantID = actor.TenantID
-	result, err := NewOperationTaskRepository(s.DB).List(ctx, p)
-	if err != nil {
-		return zero, err
-	}
-	taskIDs := make([]uuid.UUID, 0, len(result.Items))
-	for _, task := range result.Items {
-		taskIDs = append(taskIDs, task.ID)
-	}
-	latestDrafts, err := NewPlatformDraftRepository(s.DB).ListLatestByTasks(ctx, actor.TenantID, taskIDs)
-	if err != nil {
-		return zero, err
-	}
-	latestAttempts, err := NewExecutionAttemptRepository(s.DB).ListLatestByTasks(ctx, actor.TenantID, taskIDs)
+	result, err := NewOperationTaskRepository(s.DB).ListWithLatestSummaries(ctx, p)
 	if err != nil {
 		return zero, err
 	}
 	items := make([]OperationTaskSummaryResponse, 0, len(result.Items))
-	for _, task := range result.Items {
-		var draft *PlatformDraft
-		if value, ok := latestDrafts[task.ID]; ok {
-			draft = &value
-		}
-		var attempt *ExecutionAttempt
-		if value, ok := latestAttempts[task.ID]; ok {
-			attempt = &value
-		}
-		items = append(items, taskSummary(task, draft, attempt))
+	for _, summary := range result.Items {
+		item := taskSummary(summary.Task, nil, nil)
+		item.LatestDraftVersion = summary.LatestDraftVersion
+		item.LatestExecutionStatus = summary.LatestExecutionStatus
+		items = append(items, item)
 	}
 	return TaskListResponse{Items: items, NextCursor: result.NextCursor, HasMore: result.HasMore, Limit: result.Limit}, nil
 }

@@ -25,7 +25,7 @@ import { workersResponse } from '../mocks/workers';
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(([key, token]) => {
-    window.localStorage.setItem(key, token);
+    if (!window.localStorage.getItem(key)) window.localStorage.setItem(key, token);
   }, ['trademind_admin_token', E2E_TOKEN]);
 }
 

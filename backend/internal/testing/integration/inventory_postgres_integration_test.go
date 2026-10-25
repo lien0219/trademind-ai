@@ -96,8 +96,14 @@ func TestInventoryPostgresTenantScopedProductSKUSearch(t *testing.T) {
 	require.NoError(t, db.Model(&product.Product{}).Where("id = ?", productB.ID).Update("updated_at", time.Now().UTC()).Error)
 	actorA := uuid.New()
 	actorB := uuid.New()
+	require.NoError(t, db.Create(&admin.Tenant{ID: 910101, Code: "inventory-pg-tenant-a", Name: "Inventory PostgreSQL Tenant A", Status: admin.TenantActive}).Error)
+	require.NoError(t, db.Create(&admin.Tenant{ID: 910202, Code: "inventory-pg-tenant-b", Name: "Inventory PostgreSQL Tenant B", Status: admin.TenantActive}).Error)
 	require.NoError(t, db.Create(&admin.AdminUser{Base: model.Base{ID: actorA}, TenantID: 910101, Username: admin.NewInternalUsername(), PasswordHash: "test", Role: admin.RoleAdmin, Status: admin.StatusActive}).Error)
 	require.NoError(t, db.Create(&admin.AdminUser{Base: model.Base{ID: actorB}, TenantID: 910202, Username: admin.NewInternalUsername(), PasswordHash: "test", Role: admin.RoleAdmin, Status: admin.StatusActive}).Error)
+	require.NoError(t, db.Create(&[]admin.TenantMembership{
+		{TenantID: 910101, UserID: actorA, Role: admin.RoleAdmin, Status: admin.MembershipActive},
+		{TenantID: 910202, UserID: actorB, Role: admin.RoleAdmin, Status: admin.MembershipActive},
+	}).Error)
 	handler := &product.Handler{Svc: &product.Service{DB: db}}
 
 	cases := []struct {

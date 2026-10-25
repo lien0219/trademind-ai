@@ -32,6 +32,10 @@ type Handler struct {
 	Cfg      *config.Config
 }
 
+// ContextTokenVersionKey carries the verified global identity version from
+// middleware into security-sensitive authentication handlers.
+const ContextTokenVersionKey = "auth.token_version"
+
 type loginBody struct {
 	Account  string `json:"account" binding:"required,min=1,max=128"`
 	Password string `json:"password" binding:"required,min=1,max=128"`
@@ -171,9 +175,14 @@ func (h *Handler) Profile(c *gin.Context) {
 		response.HandleError(c, principalErr)
 		return
 	}
-	perms := adminperm.PermissionsForRole(strings.TrimSpace(u.Role))
+	perms := []string{}
+	role := "readonly"
+	status := strings.TrimSpace(u.Status)
+	tenantID, _ := adminperm.TenantIDFromGin(c)
+	tenantName := ""
 	storePerms := make([]gin.H, 0)
-	if p != nil && !p.IsAdmin() {
+	if p != nil {
+		role = p.Role
 		perms = p.Permissions
 		for _, g := range p.StoreGrants {
 			storePerms = append(storePerms, gin.H{
@@ -183,7 +192,23 @@ func (h *Handler) Profile(c *gin.Context) {
 			})
 		}
 	}
-	if u.TenantID != 0 {
+	registry, memberships := adminperm.TenantSchemaState(h.DB)
+	platformOperator := p != nil && p.PlatformOperator
+	if p != nil && p.SystemContext {
+		tenantName = "系统控制台"
+	}
+	if tenantID > 0 && registry && memberships {
+		access, err := adminperm.ResolveTenantAccess(c.Request.Context(), h.DB, uid, tenantID)
+		if err != nil {
+			response.HandleError(c, err)
+			return
+		}
+		if access != nil {
+			tenantName = access.Tenant.Name
+			status = access.Membership.Status
+		}
+	}
+	if tenantID > 0 {
 		filtered := make([]string, 0, len(perms))
 		for _, permission := range perms {
 			if permission != adminperm.PermSecurityKeyRotate {
@@ -198,8 +223,11 @@ func (h *Handler) Profile(c *gin.Context) {
 		"email":            u.Email,
 		"phone":            u.Phone,
 		"displayName":      dn,
-		"role":             strings.TrimSpace(u.Role),
-		"status":           strings.TrimSpace(u.Status),
+		"role":             strings.TrimSpace(role),
+		"status":           status,
+		"tenantId":         tenantID,
+		"tenantName":       tenantName,
+		"platformOperator": platformOperator,
 		"permissions":      perms,
 		"storePermissions": storePerms,
 		"createdAt":        u.CreatedAt,

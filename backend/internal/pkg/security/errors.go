@@ -10,6 +10,7 @@ const (
 	ErrCodeSystemContextRequired  = "SYSTEM_CONTEXT_REQUIRED"
 	ErrCodeSystemContextForbidden = "SYSTEM_CONTEXT_FORBIDDEN"
 	ErrCodeTaskTenantMissing      = "TASK_TENANT_MISSING"
+	ErrCodeTaskTenantInactive     = "TASK_TENANT_INACTIVE"
 	ErrCodeTaskTenantMismatch     = "TASK_TENANT_MISMATCH"
 	ErrCodeTaskShopScopeMismatch  = "TASK_SHOP_SCOPE_MISMATCH"
 	ErrCodeTaskResourceMismatch   = "TASK_RESOURCE_TENANT_MISMATCH"
@@ -23,6 +24,7 @@ var (
 	ErrSystemContextRequired  = errors.New(ErrCodeSystemContextRequired)
 	ErrSystemContextForbidden = errors.New(ErrCodeSystemContextForbidden)
 	ErrTaskTenantMissing      = errors.New(ErrCodeTaskTenantMissing)
+	ErrTaskTenantInactive     = errors.New(ErrCodeTaskTenantInactive)
 	ErrTaskTenantMismatch     = errors.New(ErrCodeTaskTenantMismatch)
 	ErrTaskShopScopeMismatch  = errors.New(ErrCodeTaskShopScopeMismatch)
 	ErrTaskResourceMismatch   = errors.New(ErrCodeTaskResourceMismatch)

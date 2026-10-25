@@ -2,11 +2,26 @@ package tasktenant
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 )
+
+// ErrTenantNotActive is returned when a durable tenant is missing or cannot
+// execute tenant business work in its current lifecycle state.
+var ErrTenantNotActive = security.ErrTaskTenantInactive
+
+// IsPermanentWorkerScopeError reports errors that should make a dequeued task
+// visible as failed instead of being retried until tenant data changes.
+func IsPermanentWorkerScopeError(err error) bool {
+	return errors.Is(err, ErrTenantNotActive) ||
+		errors.Is(err, security.ErrTaskTenantMissing) ||
+		errors.Is(err, security.ErrTaskShopScopeMismatch) ||
+		errors.Is(err, security.ErrTaskTenantMismatch) ||
+		errors.Is(err, security.ErrTaskResourceMismatch)
+}
 
 // TaskScope carries tenant and optional shop for worker tasks.
 type TaskScope struct {
@@ -35,8 +50,26 @@ func RequireTaskTenantForMode(tenantID int64, allowLegacyTenantZero bool) error 
 }
 
 // BuildWorkerContext creates tenant context from task scope.
-func BuildWorkerContext(scope TaskScope, actorID uuid.UUID, operation string) context.Context {
-	ctx := security.WorkerSystemContext(scope.TenantID, actorID, operation)
+func BuildWorkerContext(scope TaskScope, actorID uuid.UUID, operation string, parents ...context.Context) context.Context {
+	parent := context.Background()
+	if len(parents) > 0 && parents[0] != nil {
+		parent = parents[0]
+	}
+	return buildWorkerContext(parent, scope, actorID, operation)
+}
+
+// BuildWorkerContextFrom preserves cancellation, deadlines, and values from
+// the caller while adding the trusted worker tenant and system identity.
+func BuildWorkerContextFrom(parent context.Context, scope TaskScope, actorID uuid.UUID, operation string) context.Context {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return buildWorkerContext(parent, scope, actorID, operation)
+}
+
+func buildWorkerContext(parent context.Context, scope TaskScope, actorID uuid.UUID, operation string) context.Context {
+	ctx := security.WithTenantContext(parent, security.WorkerTenantContext(scope.TenantID, actorID))
+	ctx = security.WithSystemContext(ctx, &security.SystemContext{Operation: operation, ActorID: actorID})
 	tc := security.FromContext(ctx)
 	if tc != nil {
 		if scope.TenantID == 0 && scope.AllowLegacyTenantZero {
@@ -85,6 +118,8 @@ func WrapError(err error) string {
 	switch {
 	case err == security.ErrTaskTenantMissing:
 		return "任务缺少租户上下文，已停止处理"
+	case errors.Is(err, security.ErrTaskTenantInactive):
+		return "租户当前不可执行后台任务"
 	case err == security.ErrTaskTenantMismatch, err == security.ErrTaskResourceMismatch:
 		return "资源不属于当前租户"
 	case err == security.ErrTaskShopScopeMismatch:

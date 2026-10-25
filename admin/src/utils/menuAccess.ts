@@ -106,7 +106,9 @@ function canAccessRoute(
   path: string | undefined,
   role?: string | null,
   profilePerms?: string[],
+  platformOperator = false,
 ): boolean {
+  if (path?.startsWith('/platform') && !platformOperator) return false;
   const perm = routePerm(path);
   if (!perm) return true;
   const list = Array.isArray(perm) ? perm : [perm];
@@ -118,13 +120,14 @@ export function filterMenuByPermission(
   menus: MenuDataItem[],
   role?: string | null,
   profilePerms?: string[],
+  platformOperator = false,
 ): MenuDataItem[] {
   const walk = (items: MenuDataItem[]): MenuDataItem[] =>
     items
       .map((item) => {
         if (item.hideInMenu) return item;
         const path = item.path || item.redirect;
-        if (path && !canAccessRoute(path, role, profilePerms)) {
+        if (path && !canAccessRoute(path, role, profilePerms, platformOperator)) {
           return null;
         }
         const children = item.children ? walk(item.children) : undefined;
@@ -143,6 +146,7 @@ export function canAccessPath(
   pathname: string,
   role?: string | null,
   profilePerms?: string[],
+  platformOperator = false,
 ): boolean {
-  return canAccessRoute(pathname, role, profilePerms);
+  return canAccessRoute(pathname, role, profilePerms, platformOperator);
 }

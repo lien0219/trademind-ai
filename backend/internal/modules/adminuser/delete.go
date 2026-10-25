@@ -32,8 +32,14 @@ func (s *Service) Delete(c *gin.Context, userID uuid.UUID, actorID *uuid.UUID) e
 	if err != nil {
 		return err
 	}
+	if s.tenantMembershipMode() {
+		if err := s.requireTenantMembershipSchema(); err != nil {
+			return err
+		}
+		return s.deleteTenantMember(c, userID, actorID)
+	}
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := lockTenantAdminMutations(tx, tid); err != nil {
+		if err := s.lockTenantManageTx(c, tx, tid); err != nil {
 			return err
 		}
 		var user admin.AdminUser
@@ -83,7 +89,7 @@ func (s *Service) DeleteRole(c *gin.Context, code string, actorID *uuid.UUID) er
 		return err
 	}
 	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := lockTenantAdminMutations(tx, tid); err != nil {
+		if err := s.lockTenantManageTx(c, tx, tid); err != nil {
 			return err
 		}
 		var role admin.RoleDefinition
@@ -91,7 +97,15 @@ func (s *Service) DeleteRole(c *gin.Context, code string, actorID *uuid.UUID) er
 			return err
 		}
 		var members int64
-		if err := tx.Model(&admin.AdminUser{}).Where("tenant_id = ? AND role = ?", tid, code).Count(&members).Error; err != nil {
+		if s.tenantMembershipMode() {
+			if err := s.requireTenantMembershipSchema(); err != nil {
+				return err
+			}
+			members, err = tenantMembershipRoleCount(c.Request.Context(), tx, tid, code)
+			if err != nil {
+				return err
+			}
+		} else if err := tx.Model(&admin.AdminUser{}).Where("tenant_id = ? AND role = ?", tid, code).Count(&members).Error; err != nil {
 			return err
 		}
 		if members != 0 {

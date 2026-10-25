@@ -27,6 +27,13 @@ import {
 } from "@/theme";
 import { canAccessPath, filterMenuByPermission } from "@/utils/menuAccess";
 import { isPublicAdminPath } from "@/utils/publicRoutes";
+import {
+  captureTenantContext,
+  isTenantContextCurrent,
+  isTenantSwitchRequest,
+  isTenantSwitching,
+  type TenantContextSnapshot,
+} from "@/utils/tenantContext";
 import { useInitialStateModel } from "@/hooks/useInitialStateModel";
 import type { InitialStateModel } from "@/typings/umi-runtime";
 
@@ -63,13 +70,14 @@ function getSiderWidth(): number {
 
 async function loadProfileFromToken(
   token: string,
+  context: TenantContextSnapshot,
 ): Promise<API.CurrentUser | undefined> {
   try {
     const res = await fetch("/api/v1/auth/profile", {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = (await res.json()) as { code: number; data?: API.CurrentUser };
-    if (!res.ok || json.code !== 0) return undefined;
+    if (!isTenantContextCurrent(context) || !res.ok || json.code !== 0) return undefined;
     return validateProfile(json.data);
   } catch {
     return undefined;
@@ -103,13 +111,16 @@ export const antd = (memo: ConfigProviderProps): ConfigProviderProps => {
 export async function getInitialState(): Promise<{
   currentUser?: API.CurrentUser;
 }> {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const context = captureTenantContext();
+  const token = context.token;
   if (!token) {
     return {};
   }
-  const user = await loadProfileFromToken(token);
+  const user = await loadProfileFromToken(token, context);
   if (!user) {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (isTenantContextCurrent(context)) {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
     return {};
   }
   return { currentUser: user };
@@ -118,12 +129,33 @@ export async function getInitialState(): Promise<{
 export const request: RequestConfig = {
   requestInterceptors: [
     (url, options) => {
+      const requestUrl = String(url);
+      if (isTenantSwitching() && !isTenantSwitchRequest(requestUrl)) {
+        const blocked = new Error("tenant switch in progress");
+        (blocked as Error & { info?: unknown }).info = {
+          skipErrorHandler: true,
+        };
+        throw blocked;
+      }
       const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      const context = captureTenantContext();
       const headers: Record<string, string> = {
         ...((options.headers as Record<string, string>) || {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
-      return { url, options: { ...options, headers } };
+      return { url, options: { ...options, headers, __tenantContext: context } };
+    },
+  ],
+  responseInterceptors: [
+    (response: unknown) => {
+      const config = (response as { config?: Record<string, unknown> })?.config;
+      const context = config?.__tenantContext as TenantContextSnapshot | undefined;
+      if (context && !isTenantContextCurrent(context)) {
+        const stale = new Error("tenant context changed");
+        (stale as Error & { info?: unknown }).info = { skipErrorHandler: true };
+        throw stale;
+      }
+      return response;
     },
   ],
   errorConfig: {
@@ -134,6 +166,21 @@ export const request: RequestConfig = {
       const status = error?.response?.status;
       const reqUrl = String(error?.config?.url || "");
       if (status === 401 && !reqUrl.includes("/auth/login")) {
+        const requestAuthorization = String(
+          error?.config?.headers?.Authorization ||
+            error?.config?.headers?.authorization ||
+            "",
+        );
+        const requestToken = requestAuthorization.replace(/^Bearer\s+/i, "");
+        const currentToken = localStorage.getItem(AUTH_TOKEN_KEY) || "";
+        const requestContext = error?.config?.__tenantContext as TenantContextSnapshot | undefined;
+        if (
+          isTenantSwitching() ||
+          (requestContext && !isTenantContextCurrent(requestContext)) ||
+          (requestToken && currentToken && requestToken !== currentToken)
+        ) {
+          throw error;
+        }
         localStorage.removeItem(AUTH_TOKEN_KEY);
         const path = history.location.pathname;
         if (!isPublicAdminPath(path)) {
@@ -330,6 +377,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       menuData,
       initialState?.currentUser?.role,
       initialState?.currentUser?.permissions,
+      initialState?.currentUser?.platformOperator === true,
     ),
   onPageChange: () => {
     const { pathname } = history.location;
@@ -337,6 +385,10 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     // 必须用 token 判断：initialState 在此闭包里不会在登录后刷新，会一直当作未登录并反复 push 登录页，触发 Navigate 死循环。
     if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
       history.replace(`/user/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    if (pathname.startsWith('/platform') && initialState?.currentUser?.platformOperator !== true) {
+      history.replace('/dashboard');
     }
   },
 });

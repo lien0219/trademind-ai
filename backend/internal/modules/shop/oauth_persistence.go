@@ -2,14 +2,12 @@ package shop
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
-	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -103,37 +101,18 @@ func (s *Service) revalidateOAuthActorTx(tx *gorm.DB, c *gin.Context, tenantID i
 		Where("id = ?", actorID).First(&actor).Error; err != nil {
 		return fmt.Errorf("resolve OAuth actor: %w", err)
 	}
-	if actor.TenantID != tenantID || !strings.EqualFold(strings.TrimSpace(actor.Status), admin.StatusActive) || (hasExpectedVersion && int64(actor.TokenVersion) != expectedVersion) {
+	actorVersion, err := oauthActorAuthorization(txCtxOrBackground(c), tx, tenantID, &actorID, &shopID)
+	if err != nil || (hasExpectedVersion && actorVersion != expectedVersion) {
 		return fmt.Errorf("OAuth actor is no longer authorized")
 	}
-
-	role := strings.TrimSpace(strings.ToLower(actor.Role))
-	if adminperm.IsCustomRole(role) {
-		var definition admin.RoleDefinition
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("tenant_id = ? AND code = ? AND enabled = ?", tenantID, role, true).First(&definition).Error; err != nil {
-			return fmt.Errorf("OAuth actor custom role is no longer active: %w", err)
-		}
-		var permissions []string
-		if err := json.Unmarshal([]byte(definition.PermissionsJSON), &permissions); err != nil {
-			return fmt.Errorf("OAuth actor custom role is invalid: %w", err)
-		}
-		grants, err := adminperm.ValidateCustomPermissions(permissions)
-		if err != nil || !containsPermission(grants, adminperm.PermStoreOperate) {
-			return fmt.Errorf("OAuth actor no longer has shop authorization")
-		}
-	} else if !adminperm.HasPermission(role, adminperm.PermStoreOperate) {
-		return fmt.Errorf("OAuth actor no longer has shop authorization")
-	}
-	if adminperm.IsCustomRole(role) || !strings.EqualFold(role, adminperm.RoleAdmin) {
-		var grant admin.UserStorePermission
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("user_id = ? AND store_id = ? AND permission_scope IN ?", actorID, shopID, []string{admin.StorePermScopeOperate, admin.StorePermScopeManage}).
-			First(&grant).Error; err != nil {
-			return fmt.Errorf("OAuth actor no longer has shop authorization: %w", err)
-		}
-	}
 	return nil
+}
+
+func txCtxOrBackground(c *gin.Context) context.Context {
+	if c != nil && c.Request != nil && c.Request.Context() != nil {
+		return c.Request.Context()
+	}
+	return context.Background()
 }
 
 func containsPermission(perms []string, want string) bool {

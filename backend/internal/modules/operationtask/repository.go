@@ -16,6 +16,29 @@ type OperationTaskRepository struct {
 	DB *gorm.DB
 }
 
+// OperationTaskListSummary contains an operation task and its latest list
+// metadata loaded under the same tenant-scoped query.
+type OperationTaskListSummary struct {
+	Task                  OperationTask
+	LatestDraftVersion    int
+	LatestExecutionStatus string
+}
+
+// OperationTaskListSummaryResult is the paginated result for list responses
+// that include latest draft and execution state.
+type OperationTaskListSummaryResult struct {
+	Items      []OperationTaskListSummary
+	Limit      int
+	HasMore    bool
+	NextCursor string
+}
+
+type operationTaskListSummaryRow struct {
+	OperationTask        `gorm:"embedded"`
+	LatestDraftVersion   *int    `gorm:"column:latest_draft_version"`
+	LatestExecutionState *string `gorm:"column:latest_execution_status"`
+}
+
 func NewOperationTaskRepository(db *gorm.DB) *OperationTaskRepository {
 	return &OperationTaskRepository{DB: db}
 }
@@ -74,41 +97,7 @@ func (r *OperationTaskRepository) GetByIdempotencyKey(ctx context.Context, tenan
 
 func (r *OperationTaskRepository) List(ctx context.Context, p OperationTaskListParams) (OperationTaskListResult, error) {
 	var zero OperationTaskListResult
-	if r == nil || r.DB == nil {
-		return zero, fmt.Errorf("operation task repository: db is nil")
-	}
-	if p.TenantID < 0 {
-		return zero, ErrValidation
-	}
-	limit := p.Limit
-	if limit <= 0 {
-		limit = pagination.DefaultLimit
-	}
-	if limit > pagination.MaxLimit {
-		limit = pagination.MaxLimit
-	}
-
-	scopeHash := operationTaskListScopeHash(p)
-	var cur pagination.CursorPayload
-	if strings.TrimSpace(p.Cursor) != "" {
-		decoded, err := pagination.DecodeCursor(p.Cursor, p.TenantID, "", scopeHash)
-		if err != nil {
-			return zero, err
-		}
-		cur = decoded
-	}
-
-	q := r.DB.WithContext(ctx).Model(&OperationTask{}).Where("tenant_id = ?", p.TenantID)
-	if p.Status = strings.TrimSpace(strings.ToLower(p.Status)); p.Status != "" {
-		q = q.Where("status = ?", p.Status)
-	}
-	if p.Platform = strings.TrimSpace(strings.ToLower(p.Platform)); p.Platform != "" {
-		q = q.Where("platform = ?", p.Platform)
-	}
-	if p.TaskType = strings.TrimSpace(strings.ToLower(p.TaskType)); p.TaskType != "" {
-		q = q.Where("task_type = ?", p.TaskType)
-	}
-	q, err := pagination.ApplyDescKeyset(q, "updated_at", "id", cur)
+	q, limit, scopeHash, err := r.listQuery(ctx, p)
 	if err != nil {
 		return zero, err
 	}
@@ -121,15 +110,102 @@ func (r *OperationTaskRepository) List(ctx context.Context, p OperationTaskListP
 	if hasMore {
 		rows = rows[:limit]
 	}
-	next := ""
-	if hasMore && len(rows) > 0 {
-		last := rows[len(rows)-1]
-		next, err = pagination.BuildNextCursor(true, p.TenantID, "", scopeHash, "updated_at", last.UpdatedAt, last.ID.String())
-		if err != nil {
-			return zero, err
-		}
+	next, err := nextOperationTaskCursor(p.TenantID, scopeHash, hasMore, rows)
+	if err != nil {
+		return zero, err
 	}
 	return OperationTaskListResult{Items: rows, Limit: limit, HasMore: hasMore, NextCursor: next}, nil
+}
+
+func (r *OperationTaskRepository) ListWithLatestSummaries(ctx context.Context, p OperationTaskListParams) (OperationTaskListSummaryResult, error) {
+	var zero OperationTaskListSummaryResult
+	q, limit, scopeHash, err := r.listQuery(ctx, p)
+	if err != nil {
+		return zero, err
+	}
+	q = q.Select(`operation_tasks.*,
+		(SELECT pd.draft_version FROM platform_drafts AS pd
+		 WHERE pd.tenant_id = operation_tasks.tenant_id
+		   AND pd.operation_task_id = operation_tasks.id
+		 ORDER BY pd.draft_version DESC, pd.id DESC LIMIT 1) AS latest_draft_version,
+		(SELECT ea.status FROM execution_attempts AS ea
+		 WHERE ea.tenant_id = operation_tasks.tenant_id
+		   AND ea.operation_task_id = operation_tasks.id
+		 ORDER BY ea.attempt_number DESC, ea.id DESC LIMIT 1) AS latest_execution_status`)
+	var rows []operationTaskListSummaryRow
+	if err := q.Order("updated_at DESC, id DESC").Limit(limit + 1).Find(&rows).Error; err != nil {
+		return zero, stableError(err, ErrConflict)
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	tasks := make([]OperationTask, 0, len(rows))
+	items := make([]OperationTaskListSummary, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, row.OperationTask)
+		item := OperationTaskListSummary{Task: row.OperationTask}
+		if row.LatestDraftVersion != nil {
+			item.LatestDraftVersion = *row.LatestDraftVersion
+		}
+		if row.LatestExecutionState != nil {
+			item.LatestExecutionStatus = *row.LatestExecutionState
+		}
+		items = append(items, item)
+	}
+	next, err := nextOperationTaskCursor(p.TenantID, scopeHash, hasMore, tasks)
+	if err != nil {
+		return zero, err
+	}
+	return OperationTaskListSummaryResult{Items: items, Limit: limit, HasMore: hasMore, NextCursor: next}, nil
+}
+
+func (r *OperationTaskRepository) listQuery(ctx context.Context, p OperationTaskListParams) (*gorm.DB, int, string, error) {
+	if r == nil || r.DB == nil {
+		return nil, 0, "", fmt.Errorf("operation task repository: db is nil")
+	}
+	if p.TenantID < 0 {
+		return nil, 0, "", ErrValidation
+	}
+	limit := p.Limit
+	if limit <= 0 {
+		limit = pagination.DefaultLimit
+	}
+	if limit > pagination.MaxLimit {
+		limit = pagination.MaxLimit
+	}
+	scopeHash := operationTaskListScopeHash(p)
+	var cur pagination.CursorPayload
+	if strings.TrimSpace(p.Cursor) != "" {
+		decoded, err := pagination.DecodeCursor(p.Cursor, p.TenantID, "", scopeHash)
+		if err != nil {
+			return nil, 0, "", err
+		}
+		cur = decoded
+	}
+	q := r.DB.WithContext(ctx).Model(&OperationTask{}).Where("tenant_id = ?", p.TenantID)
+	if p.Status = strings.TrimSpace(strings.ToLower(p.Status)); p.Status != "" {
+		q = q.Where("status = ?", p.Status)
+	}
+	if p.Platform = strings.TrimSpace(strings.ToLower(p.Platform)); p.Platform != "" {
+		q = q.Where("platform = ?", p.Platform)
+	}
+	if p.TaskType = strings.TrimSpace(strings.ToLower(p.TaskType)); p.TaskType != "" {
+		q = q.Where("task_type = ?", p.TaskType)
+	}
+	q, err := pagination.ApplyDescKeyset(q, "updated_at", "id", cur)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	return q, limit, scopeHash, nil
+}
+
+func nextOperationTaskCursor(tenantID int64, scopeHash string, hasMore bool, rows []OperationTask) (string, error) {
+	if !hasMore || len(rows) == 0 {
+		return "", nil
+	}
+	last := rows[len(rows)-1]
+	return pagination.BuildNextCursor(true, tenantID, "", scopeHash, "updated_at", last.UpdatedAt, last.ID.String())
 }
 
 func (r *OperationTaskRepository) UpdateRevision(ctx context.Context, tenantID int64, id uuid.UUID, expectedRevision int, patch OperationTaskPatch) (*OperationTask, error) {

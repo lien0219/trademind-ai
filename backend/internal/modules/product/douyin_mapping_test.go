@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,14 +17,21 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
+
+func douyinMappingTestContext() context.Context {
+	return security.WithTenantContext(context.Background(), &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceWorker})
+}
 
 func TestBuildDouyinDraftMappingPrefersAIFieldsAndMarksExternalImages(t *testing.T) {
 	db := newDouyinMappingTestDB(t)
 	svc := &Service{DB: db, Settings: &settings.Service{DB: db}}
 	prod := Product{
+		TenantID:      1,
 		Source:        "1688",
 		OriginalTitle: "Original Title",
 		Title:         "Normal Title",
@@ -60,7 +68,7 @@ func TestBuildDouyinDraftMappingPrefersAIFieldsAndMarksExternalImages(t *testing
 		t.Fatal(err)
 	}
 
-	m, err := svc.BuildDouyinDraftMapping(context.Background(), prod.ID, "")
+	m, err := svc.BuildDouyinDraftMapping(douyinMappingTestContext(), prod.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +86,37 @@ func TestBuildDouyinDraftMappingPrefersAIFieldsAndMarksExternalImages(t *testing
 	}
 	if len(m.SKUs) != 1 || m.SKUs[0].Price != 120 || m.SKUs[0].Stock == nil || *m.SKUs[0].Stock != 5 {
 		t.Fatalf("expected sku price and stock mapping: %+v", m.SKUs)
+	}
+}
+
+func TestBuildDouyinDraftMappingRejectsCrossTenantShop(t *testing.T) {
+	db := newDouyinMappingTestDB(t)
+	svc := &Service{DB: db, Settings: &settings.Service{DB: db}}
+	prod := Product{TenantID: 1, Source: "manual", Title: "Tenant one product", Description: "Description", Currency: "CNY", Status: StatusReady}
+	if err := db.Create(&prod).Error; err != nil {
+		t.Fatal(err)
+	}
+	foreignShop := seedDouyinShop(t, db, 2)
+	_, err := svc.BuildDouyinDraftMapping(douyinMappingTestContext(), prod.ID, foreignShop.String())
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected foreign shop to be hidden, got %v", err)
+	}
+}
+
+func TestBuildDouyinDraftMappingRejectsCrossTenantPersistedShop(t *testing.T) {
+	db := newDouyinMappingTestDB(t)
+	svc := &Service{DB: db, Settings: &settings.Service{DB: db}}
+	prod := Product{TenantID: 1, Source: "manual", Title: "Tenant one product", Description: "Description", Currency: "CNY", Status: StatusReady}
+	if err := db.Create(&prod).Error; err != nil {
+		t.Fatal(err)
+	}
+	foreignShop := seedDouyinShop(t, db, 2)
+	if err := db.Create(&ProductPlatformPublishConfig{ProductID: prod.ID, Platform: "douyin_shop", ShopID: &foreignShop}).Error; err != nil {
+		t.Fatal(err)
+	}
+	_, err := svc.BuildDouyinDraftMapping(douyinMappingTestContext(), prod.ID, "")
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected persisted foreign shop to be hidden, got %v", err)
 	}
 }
 
@@ -129,15 +168,16 @@ func TestValidateDouyinDraftMappingErrorCodes(t *testing.T) {
 func TestSaveReadDouyinDraftMappingAndManualEditPersists(t *testing.T) {
 	db := newDouyinMappingTestDB(t)
 	svc := &Service{DB: db, Settings: &settings.Service{DB: db}}
-	prod := Product{Source: "manual", Title: "Original", Description: "Desc", Currency: "CNY", Status: StatusReady}
+	prod := Product{TenantID: 1, Source: "manual", Title: "Original", Description: "Desc", Currency: "CNY", Status: StatusReady}
 	if err := db.Create(&prod).Error; err != nil {
 		t.Fatal(err)
 	}
+	shopID := seedDouyinShop(t, db, 1)
 	price := 99.0
 	stock := 2
 	mapping := &DouyinDraftMapping{
 		Platform:     "douyin_shop",
-		ShopID:       uuid.NewString(),
+		ShopID:       shopID.String(),
 		CategoryID:   "leaf-1",
 		CategoryPath: "Root / Leaf",
 		Title:        "Manual Douyin Title",
@@ -159,10 +199,10 @@ func TestSaveReadDouyinDraftMappingAndManualEditPersists(t *testing.T) {
 		Price: DouyinDraftPrice{Currency: "CNY", Min: &price, Max: &price},
 		Stock: DouyinDraftStock{Total: &stock, Min: &stock},
 	}
-	if err := svc.SaveDouyinDraftMapping(context.Background(), prod.ID, mapping); err != nil {
+	if err := svc.SaveDouyinDraftMapping(douyinMappingTestContext(), prod.ID, mapping); err != nil {
 		t.Fatal(err)
 	}
-	got, err := svc.GetDouyinDraftMapping(context.Background(), prod.ID)
+	got, err := svc.GetDouyinDraftMapping(douyinMappingTestContext(), prod.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +213,7 @@ func TestSaveReadDouyinDraftMappingAndManualEditPersists(t *testing.T) {
 	if err := db.Save(&prod).Error; err != nil {
 		t.Fatal(err)
 	}
-	gotAgain, err := svc.GetDouyinDraftMapping(context.Background(), prod.ID)
+	gotAgain, err := svc.GetDouyinDraftMapping(douyinMappingTestContext(), prod.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,6 +246,13 @@ func TestDouyinMappingLogsDoNotContainTokenOrSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		tenant := &security.TenantContext{TenantID: prod.TenantID, AuthSource: security.AuthSourceLegacyDevZero}
+		c.Set(ctxkey.TenantID, prod.TenantID)
+		security.SetGin(c, tenant)
+		c.Request = c.Request.WithContext(security.WithTenantContext(c.Request.Context(), tenant))
+		c.Next()
+	})
 	Register(r.Group("/api/v1"), &Handler{Svc: svc})
 	body := bytes.NewBufferString(`{}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/products/"+prod.ID.String()+"/platform-configs/douyin_shop/build-mapping", body)
@@ -256,6 +303,15 @@ func newDouyinMappingTestDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	return db
+}
+
+func seedDouyinShop(t *testing.T, db *gorm.DB, tenantID int64) uuid.UUID {
+	t.Helper()
+	row := &shop.Shop{TenantID: tenantID, Platform: "douyin_shop", ShopName: "test shop", Status: shop.StatusActive}
+	if err := db.Create(row).Error; err != nil {
+		t.Fatal(err)
+	}
+	return row.ID
 }
 
 func hasDouyinIssue(items []DouyinMappingIssue, code string) bool {

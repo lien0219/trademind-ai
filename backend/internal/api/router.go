@@ -736,6 +736,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	authed := v1.Group("")
 	authed.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
+	authH.RegisterTenantRoutes(authed)
 	authed.GET("/auth/profile", authH.Profile)
 	authed.POST("/auth/logout", authH.Logout)
 	authed.GET("/auth/sessions", sessionH.ListSessions)

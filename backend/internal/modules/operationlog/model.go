@@ -15,7 +15,7 @@ type OperationLog struct {
 	AdminUserID      *uuid.UUID `gorm:"type:char(36);index" json:"adminUserId,omitempty"`
 	SessionID        *uuid.UUID `gorm:"type:char(36);index" json:"sessionId,omitempty"`
 	AdminRole        string     `gorm:"size:32;index" json:"adminRole,omitempty"`
-	Username         string     `gorm:"size:64;index" json:"username"`
+	Username         string     `gorm:"size:128;index" json:"username"`
 	Action           string     `gorm:"size:64;index;not null" json:"action"`
 	Resource         string     `gorm:"size:64;index" json:"resource"`
 	ResourceID       string     `gorm:"size:128" json:"resourceId,omitempty"`

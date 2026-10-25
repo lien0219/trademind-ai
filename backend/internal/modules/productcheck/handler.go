@@ -1,6 +1,7 @@
 package productcheck
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -8,8 +9,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -37,6 +41,38 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/products/readiness/batch", h.BatchReadiness)
 }
 
+// requireReadinessAccess applies the HTTP authorization boundary for readiness
+// reads. The service remains usable by trusted worker/internal callers, while
+// bearer-authenticated requests receive the resolved store scope before any
+// product data is loaded.
+func (h *Handler) requireReadinessAccess(c *gin.Context, productID uuid.UUID) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product readiness unavailable")
+		return false
+	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return false
+	}
+	p, err := adminperm.LoadPrincipal(c, h.Svc.DB)
+	if err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	if err := security.BindGinShopScope(c, p.AllowedStoreIDs()); err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		return false
+	}
+	if err := adminperm.EnsureProductVisible(c, h.Svc.DB, productID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, 404, response.CodeNotFound, "product not found")
+		} else {
+			response.HandleError(c, err)
+		}
+		return false
+	}
+	return true
+}
+
 func (h *Handler) GetReadiness(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "product readiness unavailable")
@@ -61,6 +97,9 @@ func (h *Handler) GetReadiness(c *gin.Context) {
 			return
 		}
 	}
+	if !h.requireReadinessAccess(c, pid) {
+		return
+	}
 	res, err := h.Svc.CheckProductReadiness(c.Request.Context(), CheckProductReadinessRequest{
 		ProductID: pid,
 		Platform:  plat,
@@ -68,7 +107,7 @@ func (h *Handler) GetReadiness(c *gin.Context) {
 		Mode:      mode,
 	})
 	if err != nil {
-		response.HandleError(c, err)
+		handleReadinessError(c, err)
 		return
 	}
 	if h.OpLog != nil {
@@ -133,6 +172,9 @@ func (h *Handler) BatchReadiness(c *gin.Context) {
 	list := make([]*CheckProductReadinessResult, 0, len(ids))
 	var sumE, sumW int
 	for _, pid := range ids {
+		if !h.requireReadinessAccess(c, pid) {
+			return
+		}
 		res, err := h.Svc.CheckProductReadiness(c.Request.Context(), CheckProductReadinessRequest{
 			ProductID: pid,
 			Platform:  plat,
@@ -140,7 +182,7 @@ func (h *Handler) BatchReadiness(c *gin.Context) {
 			Mode:      "batch",
 		})
 		if err != nil {
-			response.HandleError(c, err)
+			handleReadinessError(c, err)
 			return
 		}
 		sumE += res.ErrorCount
@@ -167,4 +209,12 @@ func shopIDforLog(p *uuid.UUID) string {
 		return ""
 	}
 	return p.String()
+}
+
+func handleReadinessError(c *gin.Context, err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, 404, response.CodeNotFound, "product not found")
+		return
+	}
+	response.HandleError(c, err)
 }

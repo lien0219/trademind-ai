@@ -472,7 +472,7 @@ export async function syncProductImages(
   return postJSON<SyncProductImagesResult>(`/api/v1/products/${productId}/sync-images`, body);
 }
 
-function attrsToJSON(attrs?: Record<string, unknown> | string | null): object | string | undefined {
+function attrsToJSON(attrs?: Record<string, unknown> | string | null): object | string | null | undefined {
   if (attrs === undefined) return undefined;
   if (attrs === null) return null;
   if (typeof attrs === 'string') {

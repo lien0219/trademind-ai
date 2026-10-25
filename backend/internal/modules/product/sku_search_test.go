@@ -140,6 +140,34 @@ func TestSearchSKUsHandlerAllowsLegacyTenantZero(t *testing.T) {
 	require.Equal(t, int64(0), spy.tenantID)
 }
 
+func TestSearchSKUsHandlerUsesSharedTenantMembership(t *testing.T) {
+	for _, state := range []string{admin.MembershipActive, admin.MembershipDisabled, admin.MembershipRemoved, "suspended"} {
+		t.Run(state, func(t *testing.T) {
+			db := newSKUSearchTestDB(t)
+			require.NoError(t, db.AutoMigrate(&admin.Tenant{}, &admin.TenantMembership{}))
+			actorID := seedSKUSearchAdmin(t, db, 101, admin.StatusActive)
+			tenantStatus, memberStatus := admin.TenantActive, state
+			if state == "suspended" {
+				tenantStatus, memberStatus = admin.TenantSuspended, admin.MembershipActive
+			}
+			require.NoError(t, db.Create(&admin.Tenant{ID: 202, Code: "sku-member-tenant", Name: "SKU member tenant", Status: tenantStatus}).Error)
+			require.NoError(t, db.Create(&admin.TenantMembership{TenantID: 202, UserID: actorID, Role: "operator", Status: memberStatus}).Error)
+			spy := &skuSearchRepositorySpy{result: []ProductSKUSearchHit{}}
+			handler := &Handler{Svc: &Service{DB: db, skuSearchRepo: spy}}
+			ctx, recorder := newSKUSearchHandlerContext(http.MethodGet, "/api/v1/product-skus/search", 202, actorID)
+			handler.SearchSKUs(ctx)
+			if state == admin.MembershipActive {
+				require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+				require.Equal(t, 1, spy.calls)
+				require.EqualValues(t, 202, spy.tenantID)
+			} else {
+				require.Equal(t, http.StatusForbidden, recorder.Code)
+				require.Zero(t, spy.calls)
+			}
+		})
+	}
+}
+
 func TestSearchSKUsRouteAllowsLegacyTenantZeroJWT(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newSKUSearchTestDB(t)
@@ -265,7 +293,7 @@ func seedSKUSearchFixture(t *testing.T, db *gorm.DB) skuSearchFixture {
 	require.NoError(t, db.Create(&productB).Error)
 	stock := 5
 	skusA := []ProductSKU{
-		{ProductID: productA.ID, SKUCode: "SHARED-CODE", SKUName: "Shared Blue A", Stock: &stock, StockStatus: "normal", RawData: datatypes.JSON([]byte(`{"barcode":"SHARED-BARCODE"}`))},
+		{ProductID: productA.ID, SKUCode: "SHARED-CODE", SKUName: "Shared Blue A", Stock: &stock, StockStatus: "normal", Attrs: datatypes.JSON([]byte(`{"color":"blue"}`)), RawData: datatypes.JSON([]byte(`{"barcode":"SHARED-BARCODE"}`))},
 		{ProductID: productA.ID, SKUCode: "A-SECOND", SKUName: "Shared Green A", Stock: &stock, StockStatus: "low_stock", RawData: datatypes.JSON([]byte(`{"barcode":"A-BARCODE"}`))},
 	}
 	skusB := []ProductSKU{
@@ -314,6 +342,11 @@ func TestGormSKUSearchRepositoryScopesEveryExistingBranchAndLimit(t *testing.T) 
 			require.NoError(t, err)
 			require.Len(t, rows, test.want)
 			assertSKUSearchTenant(t, rows, test.product)
+			if test.name == "tenant A default" {
+				attrs, marshalErr := json.Marshal(rows[0].Attrs)
+				require.NoError(t, marshalErr)
+				require.JSONEq(t, `{"color":"blue"}`, string(attrs))
+			}
 		})
 	}
 

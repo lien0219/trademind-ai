@@ -665,6 +665,7 @@ export async function bindOrderItemSku(
 }
 
 export type OrderSkuMatchListRow = OrderSkuMatchRow & {
+  createdAt?: string;
   shopName?: string;
   orderNo?: string;
   productTitle?: string;

@@ -10,6 +10,7 @@ import (
 
 	"github.com/glebarez/sqlite"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -66,7 +67,7 @@ func TestOperationProgressCalculatesReadyFromContent(t *testing.T) {
 		return &OperationReadinessResult{Status: "passed", Result: "passed", CanPublish: true}, nil
 	}}
 
-	progress, err := svc.GetOperationProgress(context.Background(), p.ID)
+	progress, err := svc.GetOperationProgress(security.WithTenantContext(context.Background(), &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceWorker}), p.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +100,7 @@ func TestOperationProgressPrioritizesFailedIssues(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db}
-	progress, err := svc.GetOperationProgress(context.Background(), p.ID)
+	progress, err := svc.GetOperationProgress(security.WithTenantContext(context.Background(), &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceWorker}), p.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

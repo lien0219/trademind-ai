@@ -58,12 +58,18 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 		return nil, err
 	}
-	// The tenant in the authenticated request is trusted only after JWT
-	// validation, but it must still match the persisted user. A signed token
-	// carrying a different tenant (or a stale development fallback) must never
-	// receive the user's role or store grants.
+	platformOperator := false
+	if db.Migrator().HasTable(&admin.PlatformOperator{}) {
+		var operator admin.PlatformOperator
+		err := db.WithContext(c.Request.Context()).Where("user_id = ? AND enabled = ?", uid, true).First(&operator).Error
+		if err == nil {
+			platformOperator = true
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+	requestTenant := row.TenantID
 	if rawTenant, ok := c.Get(ctxkey.TenantID); ok {
-		var requestTenant int64
 		switch v := rawTenant.(type) {
 		case int64:
 			requestTenant = v
@@ -72,28 +78,56 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		default:
 			requestTenant = -1
 		}
-		if requestTenant < 0 || row.TenantID != requestTenant {
-			p := &Principal{UserID: uid, Role: RoleReadonly, Disabled: true}
+	}
+	registry, memberships := TenantSchemaState(db)
+	if registry && memberships && requestTenant == 0 && IsSystemAdministrator(&row) {
+		// Do not put system capabilities in the tenant permission cache.
+		p := &Principal{UserID: uid, TenantID: 0, Role: RoleAdmin, SystemContext: true,
+			PlatformOperator: platformOperator, Permissions: systemPermissions()}
+		c.Set(ctxPrincipalKey, p)
+		return p, nil
+	}
+	if registry || memberships {
+		// Once migration has created either tenant table, legacy AdminUser.Role
+		// cannot authorize a positive tenant. Partial migration also fails closed.
+		p := &Principal{UserID: uid, TenantID: requestTenant, Role: RoleReadonly, Disabled: true, PlatformOperator: platformOperator}
+		if requestTenant > 0 && registry && memberships {
+			access, err := ResolveTenantAccess(c.Request.Context(), db, uid, requestTenant)
+			if err != nil {
+				return nil, err
+			}
+			if access != nil && access.Allowed {
+				row.Role = access.Membership.Role
+				p.Disabled = false
+			}
+		}
+		if p.Disabled {
 			c.Set(ctxPrincipalKey, p)
 			return p, nil
 		}
+	} else if requestTenant < 0 || row.TenantID != requestTenant {
+		p := &Principal{UserID: uid, TenantID: requestTenant, Role: RoleReadonly, Disabled: true, PlatformOperator: platformOperator}
+		c.Set(ctxPrincipalKey, p)
+		return p, nil
 	}
 	// Every authenticated request reads the user security version from SQL.
 	// Role changes atomically bump it for all affected users.
-	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, "")
+	cacheKey := permissionCacheKey(requestTenant, uid, row.TokenVersion, row.Status, row.Role, "")
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
 		return cached, nil
 	}
 	role := normalizeRole(row.Role)
 	p := &Principal{
-		UserID:      uid,
-		Role:        role,
-		Permissions: PermissionsForRole(role),
+		UserID:           uid,
+		TenantID:         requestTenant,
+		Role:             role,
+		PlatformOperator: platformOperator,
+		Permissions:      PermissionsForRole(role),
 	}
 	if IsCustomRole(role) {
 		var definition admin.RoleDefinition
-		roleErr := db.WithContext(c.Request.Context()).Where("tenant_id = ? AND code = ? AND enabled = ?", row.TenantID, role, true).First(&definition).Error
+		roleErr := db.WithContext(c.Request.Context()).Where("tenant_id = ? AND code = ? AND enabled = ?", requestTenant, role, true).First(&definition).Error
 		if errors.Is(roleErr, gorm.ErrRecordNotFound) {
 			p.Disabled = true
 			p.Permissions = nil
@@ -123,7 +157,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 	if !p.Disabled && !p.IsAdmin() {
 		var grants []admin.UserStorePermission
 		if err := db.WithContext(c.Request.Context()).
-			Where("user_id = ? AND store_id IN (SELECT id FROM shops WHERE tenant_id = ?)", uid, row.TenantID).
+			Where("user_id = ? AND store_id IN (SELECT id FROM shops WHERE tenant_id = ?)", uid, requestTenant).
 			Order("created_at ASC").
 			Find(&grants).Error; err != nil {
 			return nil, fmt.Errorf("load store grants: %w", err)
@@ -137,7 +171,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 			})
 		}
 	}
-	cacheKey = permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, storeGrantsFingerprint(p.StoreGrants))
+	cacheKey = permissionCacheKey(requestTenant, uid, row.TokenVersion, row.Status, row.Role, storeGrantsFingerprint(p.StoreGrants))
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
 		return cached, nil

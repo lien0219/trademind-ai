@@ -55,6 +55,16 @@ func (a *RBACAuthorizer) require(ctx context.Context, tenantID int64, actorID uu
 	if a == nil || a.DB == nil || validateTenantID(tenantID) != nil || actorID == zeroUUID || strings.TrimSpace(permission) == "" {
 		return ErrPermissionDenied
 	}
+	registry, memberships := adminperm.TenantSchemaState(a.DB)
+	if registry || memberships {
+		if !registry || !memberships || tenantID <= 0 {
+			return ErrPermissionDenied
+		}
+		if err := adminperm.CheckTenantPermission(ctx, a.DB, tenantID, actorID, permission); err != nil {
+			return ErrPermissionDenied
+		}
+		return nil
+	}
 	var user admin.AdminUser
 	err := a.DB.WithContext(ctx).Select("id", "tenant_id", "role", "status").First(&user, "id = ?", actorID).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {

@@ -23,6 +23,7 @@ func (s *Service) uploadTranslateDebugPNG(
 		ObjectKey:    objKey,
 		Data:         data,
 		ContentType:  "image/png",
+		TenantID:     task.TenantID,
 		CreatedBy:    task.CreatedBy,
 	})
 	if err != nil {

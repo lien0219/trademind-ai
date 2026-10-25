@@ -243,6 +243,10 @@ export default function AdvertisingFeesPage() {
     setAdjustmentOpen(true);
   }, []);
 
+  useEffect(() => {
+    if (adjustmentOpen) adjustmentForm.resetFields();
+  }, [adjustmentForm, adjustmentOpen]);
+
   const saveAdjustment = useCallback(async () => {
     if (!detail || adjustmentSubmittingRef.current || !canManage) return;
     adjustmentSubmittingRef.current = true;
@@ -455,7 +459,6 @@ export default function AdvertisingFeesPage() {
         title={reversingAdjustment ? '冲正广告费用调整' : '追加广告费用调整'}
         open={adjustmentOpen}
         destroyOnHidden
-        afterOpenChange={(open) => { if (open) adjustmentForm.resetFields(); }}
         maskClosable={!adjusting}
         closable={!adjusting}
         onCancel={() => { if (!adjusting) { adjustmentKeyRef.current = undefined; setAdjustmentOpen(false); setReversingAdjustment(undefined); } }}

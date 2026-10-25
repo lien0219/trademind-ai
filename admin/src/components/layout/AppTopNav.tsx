@@ -1,15 +1,26 @@
-import { useState } from "react";
 import type { CSSProperties } from "react";
 import {
+  ApartmentOutlined,
   DownOutlined,
   GithubOutlined,
+  LoadingOutlined,
   LogoutOutlined,
+  SearchOutlined,
+  SwapOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import { history } from "@umijs/max";
-import { Avatar, Dropdown } from "antd";
+import { Avatar, Button, Dropdown, Empty, Input, Popover, Spin, message } from "antd";
+import { useCallback, useEffect, useState } from "react";
 import { themeTokens, tmSemanticTokens } from "@/constants/layoutTokens";
 import { canAccessPath } from "@/utils/menuAccess";
+import { queryAuthTenants, switchAuthTenant, type AuthTenant } from "@/services/tenants";
+import {
+  installTenantSwitchListener,
+  isTenantSwitching,
+  subscribeTenantSwitch,
+  switchTenantAndReload,
+} from "@/utils/tenantContext";
 import ThemeToggleButton from "./ThemeToggleButton";
 import "./AppTopNav.less";
 
@@ -48,6 +59,141 @@ type AppTopNavProps = {
   showThemeToggle?: boolean;
 };
 
+function TenantSwitcher({ user }: { user: API.CurrentUser }) {
+  const [open, setOpen] = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [tenants, setTenants] = useState<AuthTenant[]>([]);
+  const [currentTenantId, setCurrentTenantId] = useState<number | undefined>(user.tenantId);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [switchingTenantId, setSwitchingTenantId] = useState<number | null>(null);
+
+  const loadTenants = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const result = await queryAuthTenants();
+      setTenants(result.items || []);
+      setCurrentTenantId(result.currentTenantId ?? user.tenantId);
+    } catch {
+      setTenants([]);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [user.tenantId]);
+
+  useEffect(() => {
+    if (user.tenantId != null) void loadTenants();
+  }, [loadTenants, user.tenantId]);
+
+  if (user.tenantId == null) return null;
+
+  const needle = keyword.trim().toLowerCase();
+  const visibleTenants = tenants.filter((tenant) =>
+    !needle || `${tenant.name} ${tenant.code}`.toLowerCase().includes(needle),
+  );
+  const current = tenants.find((tenant) => tenant.id === currentTenantId);
+  const currentLabel = current?.name || user.tenantName || "当前企业";
+
+  const selectTenant = async (tenant: AuthTenant) => {
+    if (tenant.id === currentTenantId || switchingTenantId !== null) return;
+    setSwitchingTenantId(tenant.id);
+    try {
+      await switchTenantAndReload(tenant.id, switchAuthTenant);
+    } catch (error) {
+      setSwitchingTenantId(null);
+      message.error((error as Error)?.message || "租户切换失败，请重试");
+    }
+  };
+
+  const content = (
+    <div className="tm-tenant-switcher__panel">
+      <div className="tm-tenant-switcher__heading">切换企业</div>
+      <Input
+        allowClear
+        prefix={<SearchOutlined aria-hidden="true" />}
+        value={keyword}
+        placeholder="搜索企业名称或标识"
+        aria-label="搜索企业"
+        onChange={(event) => setKeyword(event.target.value)}
+      />
+      <div className="tm-tenant-switcher__list" role="listbox" aria-label="可访问企业">
+        {loading ? (
+          <div className="tm-tenant-switcher__state"><Spin size="small" /> 加载企业列表</div>
+        ) : loadError ? (
+          <div className="tm-tenant-switcher__state">
+            <span>企业列表加载失败</span>
+            <Button type="link" size="small" onClick={() => void loadTenants()}>重试</Button>
+          </div>
+        ) : visibleTenants.length ? (
+          visibleTenants.map((tenant) => (
+            <button
+              type="button"
+              key={tenant.id}
+              role="option"
+              aria-selected={tenant.id === currentTenantId}
+              className={`tm-tenant-switcher__item${tenant.id === currentTenantId ? " is-current" : ""}`}
+              disabled={tenant.status !== "active" || switchingTenantId !== null}
+              onClick={() => void selectTenant(tenant)}
+            >
+              <span className="tm-tenant-switcher__item-main">
+                <strong>{tenant.name}</strong>
+                <span>{tenant.code} · {tenant.role}</span>
+              </span>
+              {switchingTenantId === tenant.id ? <LoadingOutlined spin aria-label="切换中" /> : null}
+              {tenant.id === currentTenantId && switchingTenantId === null ? <span aria-label="当前企业">当前</span> : null}
+            </button>
+          ))
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可访问企业" />
+        )}
+      </div>
+      {switchingTenantId !== null ? <div className="tm-tenant-switcher__hint">正在切换企业，页面即将刷新</div> : null}
+    </div>
+  );
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      trigger="click"
+      placement="bottomRight"
+      content={content}
+      overlayStyle={{ width: 320, maxWidth: "calc(100vw - 24px)" }}
+    >
+      <button
+        type="button"
+        className="tm-app-top-nav__tenant"
+        aria-label={`当前企业 ${currentLabel}`}
+        aria-expanded={open}
+      >
+        <ApartmentOutlined aria-hidden="true" />
+        <span className="tm-app-top-nav__tenant-name" title={currentLabel}>{currentLabel}</span>
+        <SwapOutlined aria-hidden="true" />
+      </button>
+    </Popover>
+  );
+}
+
+function TenantSwitchOverlay() {
+  const [visible, setVisible] = useState(isTenantSwitching());
+  useEffect(() => {
+    const unsubscribe = subscribeTenantSwitch(setVisible);
+    const teardown = installTenantSwitchListener();
+    return () => {
+      unsubscribe();
+      teardown();
+    };
+  }, []);
+  return visible ? (
+    <div className="tm-tenant-switch-overlay" role="status" aria-live="polite">
+      <Spin size="small" />
+      <span>正在切换企业，正在刷新工作区</span>
+    </div>
+  ) : null;
+}
+
 export default function AppTopNav({
   user,
   onLogout,
@@ -74,12 +220,44 @@ export default function AppTopNav({
 
   return (
     <nav className="tm-app-top-nav" aria-label="内容导航栏">
+      <TenantSwitchOverlay />
+      <TenantSwitcher user={user} />
       {showThemeToggle ? (
         <ThemeToggleButton className="tm-app-top-nav__theme-toggle" />
       ) : null}
       <Dropdown
         menu={{
           items: [
+            ...(user.tenantId != null
+              ? [
+                  {
+                    key: "tenant-settings",
+                    icon: <ApartmentOutlined aria-hidden="true" />,
+                    label: "企业信息与设置",
+                    onClick: () => closeAndNavigate("/tenant/settings"),
+                  },
+                  ...(canManageUsers
+                    ? [
+                        {
+                          key: "tenant-members",
+                          icon: <TeamOutlined aria-hidden="true" />,
+                          label: "企业成员与邀请",
+                          onClick: () => closeAndNavigate("/tenant/members"),
+                        },
+                      ]
+                    : []),
+                ]
+              : []),
+            ...(user.platformOperator === true
+              ? [
+                  {
+                    key: "platform-tenants",
+                    icon: <ApartmentOutlined aria-hidden="true" />,
+                    label: "平台租户管理",
+                    onClick: () => closeAndNavigate("/platform/tenants"),
+                  },
+                ]
+              : []),
             ...(canManageUsers
               ? [
                   {

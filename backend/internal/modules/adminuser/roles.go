@@ -93,9 +93,17 @@ func (h *Handler) ListRoles(c *gin.Context) {
 		})
 	}
 	for i := range rows {
-		if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).
-			Where("tenant_id = ? AND role = ?", tid, rows[i].Code).
-			Count(&rows[i].MemberCount).Error; err != nil {
+		var err error
+		if h.Svc.tenantMembershipMode() {
+			if err = h.Svc.requireTenantMembershipSchema(); err == nil {
+				rows[i].MemberCount, err = tenantMembershipRoleCount(c.Request.Context(), h.Svc.DB, tid, rows[i].Code)
+			}
+		} else {
+			err = h.Svc.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).
+				Where("tenant_id = ? AND role = ?", tid, rows[i].Code).
+				Count(&rows[i].MemberCount).Error
+		}
+		if err != nil {
 			response.HandleError(c, err)
 			return
 		}
@@ -147,6 +155,9 @@ func (h *Handler) CreateRole(c *gin.Context) {
 	}
 	after := roleAuditState{Name: row.Name, Description: row.Description, Permissions: permissions, Enabled: row.Enabled}
 	if err := h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := h.Svc.lockTenantManageTx(c, tx, tid); err != nil {
+			return err
+		}
 		if err := tx.Select("ID", "TenantID", "Code", "Name", "Description", "PermissionsJSON", "Enabled", "CreatedBy").Create(&row).Error; err != nil {
 			return err
 		}
@@ -156,7 +167,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		}
 		return h.recordRoleAudit(tx, c, "role.create", row.Code, string(encodedAudit))
 	}); err != nil {
-		response.HandleError(c, err)
+		handleMutationError(c, err)
 		return
 	}
 	response.OK(c, RoleRow{
@@ -199,7 +210,12 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 	var before roleAuditState
 	var ids []uuid.UUID
 	err = h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := lockTenantAdminMutations(tx, tid); err != nil {
+		if h.Svc.tenantMembershipMode() {
+			if err := h.Svc.requireTenantMembershipSchema(); err != nil {
+				return err
+			}
+		}
+		if err := h.Svc.lockTenantManageTx(c, tx, tid); err != nil {
 			return err
 		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND code = ?", tid, code).First(&changed).Error; err != nil {
@@ -250,13 +266,32 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		if err := tx.Save(&changed).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&admin.AdminUser{}).
-			Where("tenant_id = ? AND role = ?", tid, code).
-			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&admin.AdminUser{}).Where("tenant_id = ? AND role = ?", tid, code).Pluck("id", &ids).Error; err != nil {
-			return err
+		if h.Svc.tenantMembershipMode() {
+			var err error
+			ids, err = tenantMembershipRoleUserIDs(c.Request.Context(), tx, tid, code)
+			if err != nil {
+				return err
+			}
+			if len(ids) > 0 {
+				if err := tx.Model(&admin.AdminUser{}).Where("id IN ?", ids).
+					UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+					return err
+				}
+				for _, id := range ids {
+					if err := revokeIdentitySessionsTx(tx, id, "role_changed"); err != nil {
+						return err
+					}
+				}
+			}
+		} else {
+			if err := tx.Model(&admin.AdminUser{}).
+				Where("tenant_id = ? AND role = ?", tid, code).
+				UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&admin.AdminUser{}).Where("tenant_id = ? AND role = ?", tid, code).Pluck("id", &ids).Error; err != nil {
+				return err
+			}
 		}
 		var afterPermissions []string
 		if err := json.Unmarshal([]byte(changed.PermissionsJSON), &afterPermissions); err != nil {
@@ -270,7 +305,9 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 	})
 	if err != nil {
 		var invalid inputError
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, adminperm.ErrTenantPermissionDenied) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "当前账号无权管理企业成员")
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "角色不存在")
 		} else if errors.As(err, &invalid) {
 			response.Fail(c, 400, response.CodeBadRequest, invalid.Error())

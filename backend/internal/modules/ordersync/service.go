@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -244,8 +245,12 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("ordersync: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row shop.Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND tenant_id = ?", shopID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Status) != shop.StatusActive {
@@ -271,6 +276,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	}
 
 	task := OrderSyncTask{
+		TenantID:  row.TenantID,
 		ShopID:    shopID,
 		Platform:  strings.TrimSpace(row.Platform),
 		TaskType:  TaskTypeOrderSync,
@@ -302,7 +308,11 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
+		inlineCtx, err := s.beginInlineTask(c.Request.Context(), task.ID)
+		if err != nil {
+			return err
+		}
+		return s.ProcessQueuedTask(inlineCtx, task.ID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
@@ -320,6 +330,28 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 
 	out, err := s.GetDTO(c, task.ID)
 	return &out, err
+}
+
+func (s *Service) beginInlineTask(ctx context.Context, taskID uuid.UUID) (context.Context, error) {
+	if s == nil || s.DB == nil {
+		return ctx, fmt.Errorf("ordersync: no db")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var task struct {
+		TenantID int64     `gorm:"column:tenant_id"`
+		ShopID   uuid.UUID `gorm:"column:shop_id"`
+	}
+	if err := s.DB.WithContext(ctx).Table(OrderSyncTask{}.TableName()).
+		Select("tenant_id", "shop_id").Where("id = ?", taskID).Take(&task).Error; err != nil {
+		return ctx, err
+	}
+	wctx, _, err := tasktenant.BeginWorker(ctx, s.DB, task.TenantID, task.ShopID, "order_sync")
+	if err != nil {
+		return ctx, err
+	}
+	return wctx, nil
 }
 
 func (s *Service) enqueue(ctx context.Context, taskID uuid.UUID) error {
@@ -839,7 +871,11 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
+		inlineCtx, err := s.beginInlineTask(c.Request.Context(), taskID)
+		if err != nil {
+			return err
+		}
+		return s.ProcessQueuedTask(inlineCtx, taskID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {

@@ -3,14 +3,19 @@ package productcheck
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -53,7 +58,7 @@ func TestDouyinRequiredAttributeMissingBlocksReadiness(t *testing.T) {
 	}
 	platformdouyin.RegisterProvider()
 	svc := &Service{DB: db, Settings: &settings.Service{DB: db}, Shops: &shop.Service{DB: db}}
-	res, err := svc.CheckProductReadiness(context.Background(), CheckProductReadinessRequest{
+	res, err := svc.CheckProductReadiness(readinessTenantContext(1), CheckProductReadinessRequest{
 		ProductID: prodID,
 		Platform:  "douyin_shop",
 		ShopID:    &shopID,
@@ -92,7 +97,7 @@ func TestDouyinNonLeafCategoryBlocksReadiness(t *testing.T) {
 	}
 	platformdouyin.RegisterProvider()
 	svc := &Service{DB: db, Settings: &settings.Service{DB: db}, Shops: &shop.Service{DB: db}}
-	res, err := svc.CheckProductReadiness(context.Background(), CheckProductReadinessRequest{
+	res, err := svc.CheckProductReadiness(readinessTenantContext(1), CheckProductReadinessRequest{
 		ProductID: prodID,
 		Platform:  "douyin_shop",
 		ShopID:    &shopID,
@@ -129,7 +134,7 @@ func TestDouyinSavedMappingBlocksReadiness(t *testing.T) {
 	}
 	platformdouyin.RegisterProvider()
 	svc := &Service{DB: db, Settings: &settings.Service{DB: db}, Shops: &shop.Service{DB: db}}
-	res, err := svc.CheckProductReadiness(context.Background(), CheckProductReadinessRequest{
+	res, err := svc.CheckProductReadiness(readinessTenantContext(1), CheckProductReadinessRequest{
 		ProductID: prodID,
 		Platform:  "douyin_shop",
 		ShopID:    &shopID,
@@ -179,7 +184,7 @@ func newDouyinCheckTestDB(t *testing.T) *gorm.DB {
 
 func seedDouyinCheckBase(t *testing.T, db *gorm.DB) (uuid.UUID, uuid.UUID) {
 	t.Helper()
-	prod := product.Product{Source: "manual", Title: "Demo", Description: "Long enough description", Currency: "CNY", Status: product.StatusReady}
+	prod := product.Product{TenantID: 1, Source: "manual", Title: "Demo", Description: "Long enough description", Currency: "CNY", Status: product.StatusReady}
 	if err := db.Create(&prod).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -195,6 +200,9 @@ func seedDouyinCheckBase(t *testing.T, db *gorm.DB) (uuid.UUID, uuid.UUID) {
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Model(&row).Update("tenant_id", 1).Error; err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Create(&shop.ShopAuthToken{ShopID: row.ID, Platform: "douyin_shop", AuthType: "oauth2", AccessTokenEnc: "masked"}).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -208,4 +216,69 @@ func hasCheckCode(items []CheckItem, code string) bool {
 		}
 	}
 	return false
+}
+
+func TestCheckProductReadinessRejectsCrossTenantProduct(t *testing.T) {
+	db := newDouyinCheckTestDB(t)
+	prod := product.Product{TenantID: 2, Source: "manual", Title: "tenant two private title", Description: "private", Currency: "CNY", Status: product.StatusReady}
+	if err := db.Create(&prod).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc := &Service{DB: db}
+	if _, err := svc.CheckProductReadiness(readinessTenantContext(1), CheckProductReadinessRequest{ProductID: prod.ID}); err == nil {
+		t.Fatal("expected tenant 1 readiness request for tenant 2 product to fail")
+	}
+}
+
+func TestCheckProductReadinessRejectsCrossTenantShop(t *testing.T) {
+	db := newDouyinCheckTestDB(t)
+	prod := product.Product{TenantID: 1, Source: "manual", Title: "Demo", Description: "Description", Currency: "CNY", Status: product.StatusReady}
+	if err := db.Create(&prod).Error; err != nil {
+		t.Fatal(err)
+	}
+	foreignShop := shop.Shop{TenantID: 2, Platform: "douyin_shop", ShopName: "foreign", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
+	if err := db.Create(&foreignShop).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc := &Service{DB: db}
+	if _, err := svc.CheckProductReadiness(readinessTenantContext(1), CheckProductReadinessRequest{ProductID: prod.ID, ShopID: &foreignShop.ID}); err == nil {
+		t.Fatal("expected foreign shop to be rejected")
+	}
+}
+
+func TestBatchReadinessDoesNotReturnCrossTenantProduct(t *testing.T) {
+	db := newDouyinCheckTestDB(t)
+	ownShop := shop.Shop{TenantID: 1, Platform: "douyin_shop", ShopName: "own", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
+	if err := db.Create(&ownShop).Error; err != nil {
+		t.Fatal(err)
+	}
+	foreignProduct := product.Product{TenantID: 2, Source: "manual", Title: "tenant two private title", Description: "private", Currency: "CNY", Status: product.StatusReady}
+	if err := db.Create(&foreignProduct).Error; err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"productIds": []string{foreignProduct.ID.String()},
+		"platform":   "douyin_shop",
+		"shopId":     ownShop.ID.String(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/products/readiness/batch", strings.NewReader(string(body)))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request = c.Request.WithContext(readinessTenantContext(1))
+	(&Handler{Svc: &Service{DB: db}}).BatchReadiness(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected cross-tenant batch readiness to return 404, got=%d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), foreignProduct.ID.String()) || strings.Contains(w.Body.String(), "tenant two private title") {
+		t.Fatalf("cross-tenant product data leaked in response: %s", w.Body.String())
+	}
+}
+
+func readinessTenantContext(tenantID int64) context.Context {
+	return security.WithTenantContext(context.Background(), security.WorkerTenantContext(tenantID, uuid.Nil))
 }

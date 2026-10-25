@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 )
 
 func imageRetryDelaySeconds(retryCount, baseSec, capSec int) int {
@@ -62,11 +63,20 @@ func (s *Service) flushImageDueRetries(ctx context.Context, log *slog.Logger) {
 	}
 	now := time.Now().UTC()
 	var due []ImageTask
-	if err := s.DB.WithContext(ctx).
+	query := s.DB.WithContext(ctx).
 		Where("status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?", StatusRetrying, now).
 		Order("next_retry_at ASC").
-		Limit(50).
-		Find(&due).Error; err != nil {
+		Limit(50)
+	if s.DB.Migrator().HasTable("tenants") {
+		var tenantCount int64
+		if err := s.DB.WithContext(ctx).Table("tenants").Count(&tenantCount).Error; err != nil {
+			return
+		}
+		if tenantCount > 0 {
+			query = query.Where("EXISTS (SELECT 1 FROM tenants WHERE tenants.id = image_tasks.tenant_id AND tenants.status = ?)", "active")
+		}
+	}
+	if err := query.Find(&due).Error; err != nil {
 		return
 	}
 	for i := range due {
@@ -83,6 +93,33 @@ func (s *Service) tryEnqueueScheduledImageRetry(ctx context.Context, log *slog.L
 	}
 	if task.NextRetryAt.After(now) {
 		return
+	}
+	if _, _, err := tasktenant.BeginWorker(ctx, s.DB, task.TenantID, uuid.Nil, "image_auto_retry"); err != nil {
+		if log != nil {
+			log.Warn("image_auto_retry_tenant_gate_rejected", "taskId", task.ID.String(), "tenantId", task.TenantID, "error", tasktenant.WrapError(err))
+		}
+		return
+	}
+	if task.ProductID != nil {
+		productTenantID, err := tasktenant.ResolveProductTenant(ctx, s.DB, *task.ProductID)
+		if err != nil {
+			if log != nil {
+				log.Warn("image_auto_retry_product_tenant_unavailable", "taskId", task.ID.String(), "tenantId", task.TenantID, "productId", task.ProductID.String(), "error", tasktenant.WrapError(err))
+			}
+			return
+		}
+		if err := tasktenant.EnsureResourceTenantMatch(task.TenantID, productTenantID); err != nil {
+			if log != nil {
+				log.Warn("image_auto_retry_product_tenant_mismatch", "taskId", task.ID.String(), "tenantId", task.TenantID, "productId", task.ProductID.String(), "error", tasktenant.WrapError(err))
+			}
+			return
+		}
+		if err := s.validateImageRetryProductShops(ctx, *task.ProductID, task.TenantID); err != nil {
+			if log != nil {
+				log.Warn("image_auto_retry_product_shop_scope_rejected", "taskId", task.ID.String(), "tenantId", task.TenantID, "productId", task.ProductID.String(), "error", tasktenant.WrapError(err))
+			}
+			return
+		}
 	}
 	tid := task.ID
 	savedNext := *task.NextRetryAt
@@ -134,4 +171,32 @@ func (s *Service) tryEnqueueScheduledImageRetry(ctx context.Context, log *slog.L
 			Message:     truncateRunes(msgLog, 2000),
 		})
 	}
+}
+
+func (s *Service) validateImageRetryProductShops(ctx context.Context, productID uuid.UUID, tenantID int64) error {
+	var shopIDs []uuid.UUID
+	if err := s.DB.WithContext(ctx).
+		Table("product_platform_publish_configs").
+		Where("product_id = ? AND shop_id IS NOT NULL", productID).
+		Pluck("shop_id", &shopIDs).Error; err != nil {
+		return err
+	}
+	var publicationShopIDs []uuid.UUID
+	if err := s.DB.WithContext(ctx).
+		Table("product_publications").
+		Where("product_id = ? AND deleted_at IS NULL", productID).
+		Pluck("shop_id", &publicationShopIDs).Error; err != nil {
+		return err
+	}
+	shopIDs = append(shopIDs, publicationShopIDs...)
+	for _, shopID := range shopIDs {
+		shopTenantID, err := tasktenant.ResolveShopTenant(ctx, s.DB, shopID)
+		if err != nil {
+			return err
+		}
+		if err := tasktenant.EnsureResourceTenantMatch(tenantID, shopTenantID); err != nil {
+			return err
+		}
+	}
+	return nil
 }

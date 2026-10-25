@@ -32,7 +32,11 @@ func (s *Service) ProcessEventByRowID(ctx context.Context, tenantID int64, webho
 		First(&ev).Error; err != nil {
 		return err
 	}
-	return s.processEventRow(ctx, &ev)
+	wctx, err := s.beginEventWorker(ctx, &ev)
+	if err != nil {
+		return err
+	}
+	return s.processEventRow(wctx, &ev)
 }
 
 // ProcessEvent runs async business handling for one durable webhook event (tenant-aware when possible).
@@ -60,7 +64,11 @@ func (s *Service) ProcessEvent(ctx context.Context, tenantID int64, internalShop
 	if err := q.First(&ev).Error; err != nil {
 		return err
 	}
-	return s.processEventRow(ctx, &ev)
+	wctx, err := s.beginEventWorker(ctx, &ev)
+	if err != nil {
+		return err
+	}
+	return s.processEventRow(wctx, &ev)
 }
 
 // ProcessEventByID processes one already selected event row. Workers use this
@@ -77,7 +85,23 @@ func (s *Service) ProcessEventByID(ctx context.Context, id uuid.UUID) error {
 	if err := s.DB.WithContext(ctx).First(&ev, "id = ?", id).Error; err != nil {
 		return err
 	}
-	return s.processEventRow(ctx, &ev)
+	wctx, err := s.beginEventWorker(ctx, &ev)
+	if err != nil {
+		return err
+	}
+	return s.processEventRow(wctx, &ev)
+}
+
+func (s *Service) beginEventWorker(ctx context.Context, ev *Event) (context.Context, error) {
+	if ev == nil {
+		return ctx, fmt.Errorf("webhook event required")
+	}
+	shopID := uuid.Nil
+	if ev.InternalShopID != nil {
+		shopID = *ev.InternalShopID
+	}
+	wctx, _, err := tasktenant.BeginWorker(ctx, s.DB, ev.TenantID, shopID, "webhook_process")
+	return wctx, err
 }
 
 func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
@@ -201,11 +225,20 @@ func (s *Service) ProcessQueuedEvents(ctx context.Context, limit int) (int, erro
 		limit = 20
 	}
 	var rows []Event
-	err := s.DB.WithContext(ctx).
+	query := s.DB.WithContext(ctx).
 		Where("status = ?", StatusQueued).
 		Order("created_at ASC").
-		Limit(limit).
-		Find(&rows).Error
+		Limit(limit)
+	if s.DB.Migrator().HasTable("tenants") {
+		var tenantCount int64
+		if err := s.DB.WithContext(ctx).Table("tenants").Count(&tenantCount).Error; err != nil {
+			return 0, err
+		}
+		if tenantCount > 0 {
+			query = query.Where("EXISTS (SELECT 1 FROM tenants WHERE tenants.id = webhook_events.tenant_id AND tenants.status = ?)", "active")
+		}
+	}
+	err := query.Find(&rows).Error
 	if err != nil {
 		return 0, err
 	}

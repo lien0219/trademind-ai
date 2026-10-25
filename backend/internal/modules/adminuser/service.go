@@ -265,6 +265,15 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	if s.tenantMembershipMode() {
+		if err := s.requireTenantMembershipSchema(); err != nil {
+			return nil, err
+		}
+		if tenantID <= 0 {
+			return nil, inputError("tenant context required")
+		}
+		return s.listTenantMembers(c, tenantID, q, page, ps)
+	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.Role); v != "" {
 		tx = tx.Where("LOWER(role) = ?", strings.ToLower(v))
@@ -311,6 +320,22 @@ func (s *Service) Get(c *gin.Context, userID uuid.UUID) (*UserRow, error) {
 	if err != nil {
 		return nil, err
 	}
+	if s.tenantMembershipMode() {
+		if err := s.requireTenantMembershipSchema(); err != nil {
+			return nil, err
+		}
+		if tenantID <= 0 {
+			return nil, inputError("tenant context required")
+		}
+		user, member, err := membershipUser(c.Request.Context(), s.DB, userID, tenantID, false)
+		if err != nil {
+			return nil, err
+		}
+		if member.Status != admin.MembershipActive && member.Status != admin.MembershipDisabled {
+			return nil, gorm.ErrRecordNotFound
+		}
+		return membershipUserRow(c.Request.Context(), s, user, member, tenantID, true)
+	}
 	var u admin.AdminUser
 	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {
 		return nil, err
@@ -354,6 +379,15 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		MustChangePassword: true,
 		DisplayName:        strings.TrimSpace(body.DisplayName),
 		Status:             "active",
+	}
+	if s.tenantMembershipMode() {
+		if err := s.requireTenantMembershipSchema(); err != nil {
+			return nil, err
+		}
+		if tenantID <= 0 {
+			return nil, inputError("tenant context required")
+		}
+		return s.createTenantMember(c, u, em, ph, body.Role, actorID)
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := lockTenantAdminMutations(tx, tenantID); err != nil {
@@ -410,6 +444,12 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return nil, err
+	}
+	if s.tenantMembershipMode() {
+		if err := s.requireTenantMembershipSchema(); err != nil {
+			return nil, err
+		}
+		return s.updateTenantMember(c, userID, body, actorID)
 	}
 	var u admin.AdminUser
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
@@ -494,6 +534,12 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return nil, err
+	}
+	if s.tenantMembershipMode() {
+		if err := s.requireTenantMembershipSchema(); err != nil {
+			return nil, err
+		}
+		return s.setTenantStorePermissions(c, userID, tenantID, body, actorID)
 	}
 	var u admin.AdminUser
 	if err := s.DB.WithContext(c.Request.Context()).First(&u, "id = ? AND tenant_id = ?", userID, tenantID).Error; err != nil {

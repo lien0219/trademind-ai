@@ -15,6 +15,7 @@ const (
 	CodeSettingsPermissionRequired    = 40305
 	CodeUserManagePermissionRequired  = 40306
 	CodeNotFound                      = 40401
+	CodeConflict                      = 40901
 	CodeInternalError                 = 50000
 	// CodeServiceUnavailable indicates dependency unavailable (e.g. Redis queue).
 	CodeServiceUnavailable = 50301
