@@ -5,6 +5,7 @@ import {
   ReloadOutlined,
   StopOutlined,
   CheckCircleOutlined,
+  LoginOutlined,
 } from '@ant-design/icons';
 import { history, Link } from '@umijs/max';
 import {
@@ -14,6 +15,7 @@ import {
   Modal,
   Pagination,
   Result,
+  Alert,
   Select,
   Space,
   Table,
@@ -27,9 +29,12 @@ import {
   createPlatformTenant,
   createTenantIdempotencyKey,
   queryPlatformTenants,
+  queryAuthTenants,
+  switchAuthTenant,
   updatePlatformTenant,
   updatePlatformTenantStatus,
   type Tenant,
+  type AuthTenant,
   type TenantCreateBody,
   type TenantMetadataBody,
   type TenantStatus,
@@ -37,6 +42,8 @@ import {
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import { useInitialStateModel } from '@/hooks/useInitialStateModel';
+import { switchTenantAndReload } from '@/utils/tenantContext';
+import { canEnterTenantWorkspace } from '@/utils/tenantWorkspace';
 
 const STATUS_OPTIONS: { label: string; value: TenantStatus }[] = [
   { label: '待开通', value: 'pending' },
@@ -96,6 +103,10 @@ export default function PlatformTenantsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
+  const [authorizedTenants, setAuthorizedTenants] = useState<AuthTenant[]>([]);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [accessError, setAccessError] = useState(false);
+  const [switchingTenantId, setSwitchingTenantId] = useState<number | null>(null);
   const [form] = Form.useForm<TenantFormValues>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Tenant | null>(null);
@@ -123,6 +134,43 @@ export default function PlatformTenantsPage() {
   useEffect(() => {
     if (isPlatformOperator) void load();
   }, [isPlatformOperator, load]);
+
+  const loadAuthorized = useCallback(async () => {
+    setAccessLoading(true);
+    setAccessError(false);
+    try {
+      const result = await queryAuthTenants();
+      setAuthorizedTenants((result.items || []).filter((item) => item.id > 0));
+    } catch {
+      setAuthorizedTenants([]);
+      setAccessError(true);
+    } finally {
+      setAccessLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isPlatformOperator) void loadAuthorized();
+  }, [isPlatformOperator, loadAuthorized]);
+
+  const enterTenant = async (tenant: Tenant) => {
+    if (submittingRef.current || switchingTenantId !== null ||
+        !canEnterTenantWorkspace(tenant, authorizedTenants)) return;
+    if (initialState?.currentUser?.tenantId === tenant.id) {
+      history.push('/dashboard/product-operations');
+      return;
+    }
+    setSwitchingTenantId(tenant.id);
+    try {
+      await switchTenantAndReload(tenant.id, switchAuthTenant, '/dashboard/product-operations');
+    } catch (error) {
+      setSwitchingTenantId(null);
+      message.error((error as Error)?.message || '进入企业失败，请重试');
+      // A suspended membership may have changed since the authorization list
+      // was fetched. Re-check server-authoritative membership data.
+      void loadAuthorized();
+    }
+  };
 
   const openCreate = () => {
     createRequestRef.current = null;
@@ -168,7 +216,7 @@ export default function PlatformTenantsPage() {
         message.success('企业已创建');
       }
       setModalOpen(false);
-      await load();
+      await Promise.all([load(), loadAuthorized()]);
     } catch (requestError) {
       message.error((requestError as Error)?.message || '保存失败，请检查后重试');
     } finally {
@@ -224,11 +272,26 @@ export default function PlatformTenantsPage() {
       title: '操作',
       key: 'actions',
       fixed: 'right',
-      width: 220,
+      width: 320,
       render: (_value, row) => {
         const action = statusAction(row);
+        const authorized = canEnterTenantWorkspace(row, authorizedTenants);
         return (
           <Space wrap size={4}>
+            {authorized ? (
+              <Button
+                type="link"
+                size="small"
+                icon={<LoginOutlined />}
+                disabled={submitting || switchingTenantId !== null}
+                loading={switchingTenantId === row.id}
+                onClick={() => void enterTenant(row)}
+              >进入企业工作台</Button>
+            ) : (
+              <span title={accessError ? '成员授权暂时无法核验' : '当前账号不是该企业的有效成员，需要获得企业授权'} style={{ color: 'var(--ant-color-text-tertiary)' }}>
+                {accessLoading ? '检查企业授权…' : (accessError ? '授权校验失败' : '需企业成员授权')}
+              </span>
+            )}
             <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => history.push(`/platform/tenants/${row.id}`)}>详情</Button>
             <Button type="link" size="small" icon={<EditOutlined />} disabled={submitting} onClick={() => openEdit(row)}>编辑</Button>
             {action ? (
@@ -247,7 +310,7 @@ export default function PlatformTenantsPage() {
         );
       },
     },
-  ], [submitting, load]);
+  ], [submitting, load, authorizedTenants, accessLoading, accessError, switchingTenantId, enterTenant]);
 
   if (!isPlatformOperator) {
     return <TmPageContainer title="租户管理"><Result status="403" title="无权访问" subTitle="平台租户管理仅对平台运营管理员开放。" /></TmPageContainer>;
@@ -261,10 +324,17 @@ export default function PlatformTenantsPage() {
         <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>创建企业</Button>,
       ]}
     >
+      <Alert
+        type="info"
+        showIcon
+        message="平台控制台与企业工作台权限独立"
+        description="平台管理员可管理全部企业资料；只有当前账号具备有效企业成员资格时才能进入业务工作台。创建企业可指定企业管理员，切换企业将核验授权并记录审计。"
+        style={{ marginBottom: 16 }}
+      />
       <SectionCard
         title="企业列表"
         description="平台管理员可查看跨企业的管理元数据；业务数据仍需通过显式企业上下文访问。"
-        headerExtra={<Button type="text" icon={<ReloadOutlined />} aria-label="刷新" onClick={() => void load()} loading={loading}>刷新</Button>}
+        headerExtra={<Button type="text" icon={<ReloadOutlined />} aria-label="刷新" onClick={() => { void load(); void loadAuthorized(); }} loading={loading || accessLoading}>刷新</Button>}
       >
         <Space wrap size={[8, 8]} style={{ marginBottom: 16 }}>
           <Input.Search

@@ -13,7 +13,7 @@ test('@smoke switches an authorized system administrator back to tenant zero', a
   const systemToken = 'e2e-system-context-token';
   await page.route('**/api/v1/auth/profile', (route) => {
     const system = route.request().headers().authorization === `Bearer ${systemToken}`;
-    return route.fulfill({ json: ok({ ...e2eUser, tenantId: system ? 0 : e2eTenant.id, tenantName: system ? '系统控制台' : e2eTenant.name }) });
+    return route.fulfill({ json: ok({ ...e2eUser, tenantId: system ? 0 : e2eTenant.id, tenantName: system ? '系统控制台' : e2eTenant.name, platformOperator: true }) });
   });
   await page.route('**/api/v1/auth/tenants', (route) => route.fulfill({ json: ok({
     currentTenantId: route.request().headers().authorization === `Bearer ${systemToken}` ? 0 : e2eTenant.id,
@@ -30,8 +30,61 @@ test('@smoke switches an authorized system administrator back to tenant zero', a
   await page.getByRole('button', { name: `当前企业 ${e2eTenant.name}`, exact: true }).click();
   await page.getByRole('option', { name: /系统控制台/ }).click();
   await admin.writeGuard.expectRequestCount('switch-system-context', 1);
-  await expect(page.getByRole('button', { name: '当前企业 系统控制台', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '当前工作空间 系统控制台', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/platform\/tenants$/);
   await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), AUTH_TOKEN_KEY)).toBe(systemToken);
+});
+
+test('@smoke enters an authorized enterprise from the platform-only workspace', async ({ admin, page }) => {
+  await mockTenantReads(page, { platformOperator: true });
+  const enterpriseToken = 'e2e-enterprise-switch-token';
+  await page.route('**/api/v1/auth/profile', (route) => {
+    const business = route.request().headers().authorization === `Bearer ${enterpriseToken}`;
+    return route.fulfill({ json: ok({
+      ...e2eUser,
+      platformOperator: true,
+      tenantId: business ? e2eTenant.id : 0,
+      tenantName: business ? e2eTenant.name : '系统控制台',
+    }) });
+  });
+  await page.route('**/api/v1/auth/tenants', (route) => route.fulfill({ json: ok({
+    currentTenantId: route.request().headers().authorization === `Bearer ${enterpriseToken}` ? e2eTenant.id : 0,
+    items: [
+      { id: 0, code: 'system', name: '系统控制台', role: 'admin', status: 'active' },
+      { ...e2eTenant, role: 'admin' },
+    ],
+  }) }));
+  admin.writeGuard.allow({
+    operation: 'enter-enterprise', method: 'POST', path: /^\/api\/v1\/auth\/tenants\/switch$/,
+    response: (record) => {
+      expect(record.postDataJSON).toEqual({ tenantId: e2eTenant.id });
+      return ok({ token: enterpriseToken });
+    },
+  });
+  await admin.goto('/platform/tenants');
+  await expect(page.getByRole('button', { name: '当前工作空间 系统控制台', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '进入企业工作台' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/product-operations$/);
+  await expect(page.getByRole('button', { name: `当前企业 ${e2eTenant.name}`, exact: true })).toBeVisible();
+  await admin.writeGuard.expectRequestCount('enter-enterprise', 1);
+  expect(await page.evaluate((key) => localStorage.getItem(key), AUTH_TOKEN_KEY)).toBe(enterpriseToken);
+});
+
+test('@smoke blocks ungranted enterprise entry even for a platform operator', async ({ admin, page }) => {
+  await mockTenantReads(page, { platformOperator: true });
+  await page.route('**/api/v1/auth/profile', (route) => route.fulfill({ json: ok({
+    ...e2eUser, platformOperator: true, tenantId: 0, tenantName: '系统控制台',
+  }) }));
+  await page.route('**/api/v1/auth/tenants', (route) => route.fulfill({ json: ok({
+    currentTenantId: 0,
+    items: [{ id: 0, code: 'system', name: '系统控制台', role: 'admin', status: 'active' }],
+  }) }));
+  await admin.goto('/platform/tenants');
+  await expect(page.getByText('需企业成员授权')).toBeVisible();
+  await expect(page.getByRole('button', { name: '进入企业工作台' })).toHaveCount(0);
+  await page.getByRole('button', { name: '当前工作空间 系统控制台', exact: true }).click();
+  await expect(page.getByText('尚未加入任何企业。')).toBeVisible();
+  await admin.writeGuard.expectNoUnexpectedWrites();
 });
 
 for (const viewport of [

@@ -95,6 +95,7 @@ function publishSignal(event: TenantSwitchSignal) {
 export async function switchTenantAndReload(
   tenantId: number,
   switchTenant: (tenantId: number) => Promise<{ token: string }>,
+  destination?: '/platform/tenants' | '/dashboard/product-operations',
 ) {
   if (switching) return;
   const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -110,7 +111,13 @@ export async function switchTenantAndReload(
     markTenantContextChanged();
     clearTenantScopedStorage();
     publishSignal({ id, tenantId, phase: 'switched', at: Date.now() });
-    window.location.reload();
+    // Crossing platform/enterprise boundaries must load a valid page for
+    // the new authorization context, not reload a now-forbidden old route.
+    if (destination) {
+      window.location.assign(destination);
+    } else {
+      window.location.reload();
+    }
   } catch (error) {
     markTenantContextChanged();
     notify(false);

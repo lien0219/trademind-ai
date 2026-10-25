@@ -22,6 +22,7 @@ import {
   switchTenantAndReload,
 } from "@/utils/tenantContext";
 import ThemeToggleButton from "./ThemeToggleButton";
+import { workspaceLandingPath } from "@/utils/tenantWorkspace";
 import "./AppTopNav.less";
 
 const TRADEMIND_GITHUB_URL = "https://github.com/lien0219/trademind-ai";
@@ -87,20 +88,22 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
     if (user.tenantId != null) void loadTenants();
   }, [loadTenants, user.tenantId]);
 
-  if (user.tenantId == null || user.tenantId === 0) return null;
+  if (user.tenantId == null) return null;
 
   const needle = keyword.trim().toLowerCase();
   const visibleTenants = tenants.filter((tenant) =>
     !needle || `${tenant.name} ${tenant.code}`.toLowerCase().includes(needle),
   );
   const current = tenants.find((tenant) => tenant.id === currentTenantId);
-  const currentLabel = current?.name || user.tenantName || "当前企业";
+  const currentLabel = current?.name || (user.tenantId === 0 ? "系统控制台" : (user.tenantName || "当前企业"));
+  const businessTenants = tenants.filter((tenant) => tenant.id > 0);
+  const isSystemWorkspace = user.tenantId === 0;
 
   const selectTenant = async (tenant: AuthTenant) => {
     if (tenant.id === currentTenantId || switchingTenantId !== null) return;
     setSwitchingTenantId(tenant.id);
     try {
-      await switchTenantAndReload(tenant.id, switchAuthTenant);
+      await switchTenantAndReload(tenant.id, switchAuthTenant, workspaceLandingPath(user.tenantId, tenant.id));
     } catch (error) {
       setSwitchingTenantId(null);
       message.error((error as Error)?.message || "租户切换失败，请重试");
@@ -109,7 +112,8 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
 
   const content = (
     <div className="tm-tenant-switcher__panel">
-      <div className="tm-tenant-switcher__heading">切换企业</div>
+      <div className="tm-tenant-switcher__heading">切换工作空间</div>
+      {isSystemWorkspace ? <div className="tm-tenant-switcher__hint">平台权限与企业业务权限独立；仅可进入已授权企业。</div> : null}
       <Input
         allowClear
         prefix={<SearchOutlined aria-hidden="true" />}
@@ -146,9 +150,17 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
             </button>
           ))
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可访问企业" />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可访问工作空间" />
         )}
       </div>
+      {!loading && !loadError && isSystemWorkspace && businessTenants.length === 0 ? (
+        <div className="tm-tenant-switcher__hint">
+          尚未加入任何企业。企业管理员可向该账号发出邀请。
+          {user.platformOperator === true ? (
+            <Button size="small" type="link" onClick={() => { setOpen(false); history.push('/platform/tenants'); }}>前往租户管理</Button>
+          ) : null}
+        </div>
+      ) : null}
       {switchingTenantId !== null ? <div className="tm-tenant-switcher__hint">正在切换企业，页面即将刷新</div> : null}
     </div>
   );
@@ -165,7 +177,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
       <button
         type="button"
         className="tm-app-top-nav__tenant"
-        aria-label={`当前企业 ${currentLabel}`}
+        aria-label={`${isSystemWorkspace ? "当前工作空间" : "当前企业"} ${currentLabel}`}
         aria-expanded={open}
       >
         <ApartmentOutlined aria-hidden="true" />
