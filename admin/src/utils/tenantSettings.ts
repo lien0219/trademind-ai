@@ -4,6 +4,16 @@
  */
 export const MAX_TENANT_SETTINGS_BYTES = 64 * 1024;
 
+// Example of generic, non-sensitive metadata only. These keys are NOT
+// registered feature flags and do not change business behavior or permissions.
+export const TENANT_SETTINGS_EXAMPLE = JSON.stringify({
+  custom: {
+    department: '跨境运营一组',
+    remark: '仅用于记录企业内部说明',
+  },
+  labels: ['华东团队', '测试示例'],
+}, null, 2);
+
 export type TenantSettingsValidation =
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; error: string };

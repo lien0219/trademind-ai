@@ -1,12 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_TENANT_SETTINGS_BYTES,
+  TENANT_SETTINGS_EXAMPLE,
   formatTenantSettings,
   inspectTenantSettings,
   summarizeTenantSettings,
 } from '../tenantSettings';
 
 describe('tenant advanced settings', () => {
+  it('provides a valid, non-sensitive example without suggesting live feature flags', () => {
+    const result = inspectTenantSettings(TENANT_SETTINGS_EXAMPLE);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({
+        custom: { department: '跨境运营一组', remark: '仅用于记录企业内部说明' },
+        labels: ['华东团队', '测试示例'],
+      });
+    }
+    expect(TENANT_SETTINGS_EXAMPLE).not.toMatch(/password|apiKey|token|secret/i);
+  });
+
   it('accepts only bounded JSON objects and preserves legitimate extensions', () => {
     expect(inspectTenantSettings('{}')).toEqual({ ok: true, value: {} });
     expect(inspectTenantSettings('')).toEqual({ ok: true, value: {} });

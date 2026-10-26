@@ -1,4 +1,4 @@
-import { CodeOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { CodeOutlined, ReloadOutlined, SaveOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorAlert, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
@@ -6,7 +6,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { getCurrentTenant, updateCurrentTenant, type TenantDetail, type TenantMetadataBody } from '@/services/tenants';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
-import { formatTenantSettings, inspectTenantSettings, summarizeTenantSettings } from '@/utils/tenantSettings';
+import { TENANT_SETTINGS_EXAMPLE, formatTenantSettings, inspectTenantSettings, summarizeTenantSettings } from '@/utils/tenantSettings';
 
 const { Text } = Typography;
 
@@ -38,6 +38,7 @@ export default function TenantSettingsPage() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [advancedText, setAdvancedText] = useState('{}');
   const [advancedError, setAdvancedError] = useState<string | null>(null);
+  const [showExample, setShowExample] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +55,7 @@ export default function TenantSettingsPage() {
       });
       setAdvancedOpen(false);
       setAdvancedError(null);
+      setShowExample(false);
     } catch (requestError) {
       setError((requestError as Error)?.message || '企业资料加载失败，请重试');
     } finally {
@@ -95,6 +97,7 @@ export default function TenantSettingsPage() {
     if (!canEdit || !detail || submittingRef.current) return;
     setAdvancedText(formatTenantSettings(detail.tenant.settings || '{}'));
     setAdvancedError(null);
+    setShowExample(false);
     setAdvancedOpen(true);
   };
 
@@ -243,7 +246,60 @@ export default function TenantSettingsPage() {
                 message="仅供高级管理员使用"
                 description="这里只允许普通企业扩展选项，不允许密码、API Key、Token、Cookie 或私钥。Root 权限和平台配置不由此控制。保存会增加企业版本号。"
               />
-              <label htmlFor="tenant-advanced-json">扩展设置（JSON 对象）</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <label htmlFor="tenant-advanced-json">扩展设置（JSON 对象）</label>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<QuestionCircleOutlined />}
+                  aria-expanded={showExample}
+                  aria-controls="tenant-settings-example"
+                  onClick={() => setShowExample((previous) => !previous)}
+                >
+                  {showExample ? '收起填写示例' : '查看填写示例'}
+                </Button>
+              </div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                没有额外配置请保留 {'{}'}。键名和文本必须使用英文双引号；不能写注释、尾随逗号。
+              </Text>
+              {showExample ? (
+                <div
+                  id="tenant-settings-example"
+                  style={{
+                    border: '1px solid var(--ant-color-border-secondary)',
+                    background: 'var(--ant-color-fill-quaternary)',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <Text strong>JSON 结构示例</Text>
+                    <Popconfirm
+                      title="用示例替换当前编辑框内容？"
+                      description="这会覆盖当前未保存的编辑内容，但不会自动保存到服务器。"
+                      okText="替换"
+                      cancelText="取消"
+                      onConfirm={() => updateAdvancedText(TENANT_SETTINGS_EXAMPLE)}
+                    >
+                      <Button size="small" disabled={submitting}>填入示例</Button>
+                    </Popconfirm>
+                  </div>
+                  <pre
+                    style={{
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'anywhere',
+                      margin: '0 0 8px',
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+                    }}
+                  >{TENANT_SETTINGS_EXAMPLE}</pre>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    custom、department、remark、labels 仅用于演示对象、字符串和数组格式；它们只是保存的元数据，
+                    不会自动改变系统功能、权限、语言或业务规则。正式功能请到对应的功能设置页面配置。
+                  </Text>
+                </div>
+              ) : null}
               <Input.TextArea
                 id="tenant-advanced-json"
                 aria-label="企业扩展设置 JSON"
