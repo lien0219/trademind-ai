@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -391,6 +392,13 @@ func sourceHashForProduct(p *product.Product, op string) string {
 // CreateBatch creates items and runs generation asynchronously (never auto-applies).
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductTextBatch, error) {
 	ctx := c.Request.Context()
+	if s != nil && s.DB != nil {
+		if tenantID, err := adminperm.TenantIDFromGin(c); err == nil && tenantID > 0 {
+			prefs, _, err := tenantconfig.ReadAI(ctx, s.DB, tenantID)
+			if err != nil { return nil, fmt.Errorf("tenant AI defaults unavailable: %w", err) }
+			if strings.TrimSpace(req.Options.Language) == "" { req.Options.Language = prefs.DefaultLanguage }
+		}
+	}
 	if !s.aiConfigured() {
 		s.ObserveAIText("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 服务未配置")

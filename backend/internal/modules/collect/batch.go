@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 )
@@ -180,6 +181,13 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	}
 
 	source := strings.TrimSpace(body.Source)
+	var tenantBatchCap int
+	if tenantID > 0 {
+		policy, _, err := tenantconfig.ReadCollect(ctx, s.DB, tenantID)
+		if err != nil { return zero, fmt.Errorf("tenant collect policy unavailable: %w", err) }
+		if err := tenantconfig.CheckCollectSource(policy, source); err != nil { return zero, err }
+		tenantBatchCap = policy.MaxBatchURLs
+	}
 	if source == "" {
 		return zero, fmt.Errorf("source is required")
 	}
@@ -208,7 +216,9 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		s.logTaobaoTmallBatchSkippedURLs(ctx, adminID, skippedURLs)
 	}
 
-	urls, err := normalizeDedupeURLs(rawURLs, s.batchMaxURLsForSource(ctx, source))
+	maxURLs := s.batchMaxURLsForSource(ctx, source)
+	if tenantBatchCap > 0 && tenantBatchCap < maxURLs { maxURLs = tenantBatchCap }
+	urls, err := normalizeDedupeURLs(rawURLs, maxURLs)
 	if err != nil {
 		return zero, err
 	}

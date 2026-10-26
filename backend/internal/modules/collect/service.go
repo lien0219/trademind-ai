@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
@@ -649,6 +650,11 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		return zero, security.ErrTenantContextMissing
 	}
 	source := strings.TrimSpace(body.Source)
+	if tenantID > 0 {
+		policy, _, err := tenantconfig.ReadCollect(c.Request.Context(), s.DB, tenantID)
+		if err != nil { return zero, fmt.Errorf("tenant collect policy unavailable: %w", err) }
+		if err := tenantconfig.CheckCollectSource(policy, source); err != nil { return zero, err }
+	}
 	url := strings.TrimSpace(body.URL)
 	if source == "" || url == "" {
 		return zero, fmt.Errorf("source and url are required")

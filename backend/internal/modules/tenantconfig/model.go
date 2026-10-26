@@ -25,8 +25,8 @@ func (Setting) TableName() string { return "tenant_business_settings" }
 // a new version rather than mutating old evidence.
 type Revision struct {
 	ID        uuid.UUID      `gorm:"type:char(36);primaryKey" json:"id"`
-	TenantID  int64          `gorm:"not null;index:idx_tenant_settings_revision,priority:1" json:"-"`
-	Module    string         `gorm:"size:32;not null;index:idx_tenant_settings_revision,priority:2" json:"module"`
+	TenantID  int64          `gorm:"not null;index:idx_tenant_settings_revision,priority:1;uniqueIndex:ux_tenant_setting_revision,priority:1" json:"-"`
+	Module    string         `gorm:"size:32;not null;index:idx_tenant_settings_revision,priority:2;uniqueIndex:ux_tenant_setting_revision,priority:2" json:"module"`
 	Version   int64          `gorm:"not null;uniqueIndex:ux_tenant_setting_revision,priority:3" json:"version"`
 	Values    datatypes.JSON `gorm:"type:jsonb;not null" json:"values"`
 	ActorID   uuid.UUID      `gorm:"type:char(36);not null" json:"actorId"`
