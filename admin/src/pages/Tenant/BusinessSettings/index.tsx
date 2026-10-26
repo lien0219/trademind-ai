@@ -171,7 +171,7 @@ export default function TenantBusinessSettingsPage() {
             </>:null}
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label="开启企业业务通知" valuePropName="checked"><Switch/></Form.Item>
-              <Alert type="info" showIcon message="待接入通知投递" description="当前仅持久化企业开关，邮件和回调通知不会因为此设置自动发送。" />
+              <Alert type="info" showIcon message="待接入通知投递" description="已接入任务告警自动通知：关闭后不会通过平台现有邮件及回调通道自动发送当前企业任务告警。发送通道、收件人和重试仍沿用平台现有设置；不影响人工触发通知。" />
             </>:null}
             {module==='branding'?<>
               <Form.Item name="displayName" label="企业展示名称"><Input maxLength={120}/></Form.Item>
