@@ -408,7 +408,7 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 
 	for _, cand := range candidates {
 		alert := cand.Alert
-        tenantNotification := tenantconfig.Notifications{}
+		tenantNotification := tenantconfig.Notifications{}
 		if alert.TenantID > 0 {
 			// Check the authenticated tenant's policy before any outbound
 			// send. Missing migrations and SQL errors fail closed.
@@ -420,7 +420,7 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 				return errors.Join(errTaskDependencyUnavailable, err)
 			}
 			tenantNotification = prefs
-            if !manual && !prefs.BusinessAlertsEnabled {
+			if !manual && !prefs.BusinessAlertsEnabled {
 				continue
 			}
 		}
@@ -480,14 +480,16 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 			var res notify.AlertNotificationResult
 			switch ch {
 			case "mail":
-                // SMTP credentials remain platform-owned, tenant may
-                // override only validated destination addresses.
-                mailSettings := an
-                if len(tenantNotification.MailRecipients)>0 {
-                    mailSettings = make(map[string]string,len(an)+1)
-                    for k,v := range an {mailSettings[k]=v}
-                    mailSettings["mail_to"]=strings.Join(tenantNotification.MailRecipients,",")
-                }
+				// SMTP credentials remain platform-owned, tenant may
+				// override only validated destination addresses.
+				mailSettings := an
+				if len(tenantNotification.MailRecipients) > 0 {
+					mailSettings = make(map[string]string, len(an)+1)
+					for k, v := range an {
+						mailSettings[k] = v
+					}
+					mailSettings["mail_to"] = strings.Join(tenantNotification.MailRecipients, ",")
+				}
 				if !parseBoolTaskCenter(an["mail_enabled"], false) {
 					res = notify.AlertNotificationResult{Channel: ch, Status: TaskAlertNotifStatusSkipped, ErrorMessage: "mail_disabled"}
 					break

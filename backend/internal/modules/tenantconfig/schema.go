@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-    "net/mail"
+	"net/mail"
 	"strings"
 )
 
@@ -36,8 +36,8 @@ type Orders struct {
 	DefaultCurrency string `json:"defaultCurrency"`
 }
 type Notifications struct {
-    BusinessAlertsEnabled bool `json:"businessAlertsEnabled"`
-    MailRecipients []string `json:"mailRecipients"`
+	BusinessAlertsEnabled bool     `json:"businessAlertsEnabled"`
+	MailRecipients        []string `json:"mailRecipients"`
 }
 type Branding struct {
 	DisplayName string   `json:"displayName"`
@@ -60,7 +60,7 @@ func Defaults(module string) (any, error) {
 	case ModuleInventory:
 		return Inventory{LowStockThreshold: 5}, nil
 	case ModuleNotifications:
-		return Notifications{BusinessAlertsEnabled: true,MailRecipients:[]string{}}, nil
+		return Notifications{BusinessAlertsEnabled: true, MailRecipients: []string{}}, nil
 	case ModuleOrders:
 		return Orders{DefaultCurrency: "USD"}, nil
 	case ModuleBranding:
@@ -130,18 +130,28 @@ func Validate(module string, raw []byte) ([]byte, error) {
 		}
 		v = cfg
 	case ModuleNotifications:
-        cfg := Notifications{}
-        if err:=decodeStrict(raw,&cfg);err!=nil{return nil,err}
-        if len(cfg.MailRecipients)>10 {return nil,errors.New("too many notification recipients")}
-        seen:=map[string]bool{}
-        for _,address:=range cfg.MailRecipients {
-            if address!=strings.TrimSpace(address)||len(address)>254 {return nil,errors.New("invalid mail recipient")}
-            parsed,err:=mail.ParseAddress(address)
-            if err!=nil||parsed.Address!=address||parsed.Name!=""||seen[strings.ToLower(address)] {return nil,errors.New("invalid or duplicate mail recipient")}
-            seen[strings.ToLower(address)]=true
-        }
-        if cfg.MailRecipients==nil {cfg.MailRecipients=[]string{}}
-        v=cfg
+		cfg := Notifications{}
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
+		if len(cfg.MailRecipients) > 10 {
+			return nil, errors.New("too many notification recipients")
+		}
+		seen := map[string]bool{}
+		for _, address := range cfg.MailRecipients {
+			if address != strings.TrimSpace(address) || len(address) > 254 {
+				return nil, errors.New("invalid mail recipient")
+			}
+			parsed, err := mail.ParseAddress(address)
+			if err != nil || parsed.Address != address || parsed.Name != "" || seen[strings.ToLower(address)] {
+				return nil, errors.New("invalid or duplicate mail recipient")
+			}
+			seen[strings.ToLower(address)] = true
+		}
+		if cfg.MailRecipients == nil {
+			cfg.MailRecipients = []string{}
+		}
+		v = cfg
 	case ModuleBranding:
 		cfg := Branding{}
 		if err := decodeStrict(raw, &cfg); err != nil {
