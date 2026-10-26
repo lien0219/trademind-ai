@@ -17,8 +17,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
-	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
@@ -780,24 +780,28 @@ func (s *Service) ImportDraftInTransaction(ctx context.Context, tx *gorm.DB, adm
 }
 
 func (s *Service) importDraftCore(ctx context.Context, tenantID int64, adminID *uuid.UUID, p ImportDraftParams) (*Product, error) {
-    // Snapshot the tenant threshold once before persisting SKUs. Existing SKUs
-    // retain their explicit lines and are never silently rewritten.
-    warn, safe := 5, 0
-    if s.Settings != nil {
-        if m, e := s.Settings.PlainByGroup(ctx, 0, "inventory"); e == nil {
-            warn = settings.DefaultWarningStockFromMap(m)
-            safe = settings.DefaultSafetyStockFromMap(m)
-            warn, safe = settings.CoalesceDefaultStockLines(warn, safe)
-        }
-    }
-    if tenantID > 0 {
-        tenantInventory, version, err := tenantconfig.ReadInventory(ctx, s.DB, tenantID)
-        if err != nil { return nil, fmt.Errorf("tenant inventory settings unavailable: %w", err) }
-        if version > 0 {
-            warn = tenantInventory.LowStockThreshold
-            if safe > warn { safe = warn }
-        }
-    }
+	// Snapshot the tenant threshold once before persisting SKUs. Existing SKUs
+	// retain their explicit lines and are never silently rewritten.
+	warn, safe := 5, 0
+	if s.Settings != nil {
+		if m, e := s.Settings.PlainByGroup(ctx, 0, "inventory"); e == nil {
+			warn = settings.DefaultWarningStockFromMap(m)
+			safe = settings.DefaultSafetyStockFromMap(m)
+			warn, safe = settings.CoalesceDefaultStockLines(warn, safe)
+		}
+	}
+	if tenantID > 0 {
+		tenantInventory, version, err := tenantconfig.ReadInventory(ctx, s.DB, tenantID)
+		if err != nil {
+			return nil, fmt.Errorf("tenant inventory settings unavailable: %w", err)
+		}
+		if version > 0 {
+			warn = tenantInventory.LowStockThreshold
+			if safe > warn {
+				safe = warn
+			}
+		}
+	}
 	title := strings.TrimSpace(p.Title)
 	if title == "" {
 		title = "（未命名商品）"
@@ -876,7 +880,7 @@ func (s *Service) importDraftCore(ctx context.Context, tenantID int64, adminID *
 			if len(line.RawSKU) > 0 {
 				rawSKU = datatypes.JSON(line.RawSKU)
 			}
-            row := &ProductSKU{
+			row := &ProductSKU{
 				ProductID:    pr.ID,
 				SKUCode:      strings.TrimSpace(line.SKUCode),
 				SKUName:      strings.TrimSpace(line.SKUName),
