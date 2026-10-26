@@ -183,6 +183,8 @@ func Register(group *gin.RouterGroup, handler *Handler) {
 	if group == nil || handler == nil {
 		return
 	}
+	group.GET("/tenant/shops/:shopId/settings/inventory", handler.ShopInventory)
+	group.PUT("/tenant/shops/:shopId/settings/inventory", handler.PutShopInventory)
 	group.GET("/tenant/preferences", handler.GetPersonal)
 	group.PUT("/tenant/preferences", handler.PutPersonal)
 	group.GET("/tenant/settings/:module", handler.Get)

@@ -249,6 +249,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&tenantconfig.Setting{},
 		&tenantconfig.Revision{},
 		&tenantconfig.UserPreference{},
+		&tenantconfig.ShopInventoryOverride{},
 		&admin.PlatformOperator{},
 		&admin.RootAccount{},
 		&admin.UserStorePermission{},
