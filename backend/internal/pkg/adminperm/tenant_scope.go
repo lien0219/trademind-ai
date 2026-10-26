@@ -164,10 +164,10 @@ func ResolveTenantAccess(ctx context.Context, db *gorm.DB, userID uuid.UUID, ten
 		access.Allowed = access.Tenant.Status == admin.TenantActive
 		return access, nil
 	}
-	// A stray membership must never grant a non-Root access to this internal scope.
-	if access.Tenant.Code == admin.RootWorkspaceCode {
-		return access, nil
-	}
+	// The internal Root workspace is a regular, positive-ID business data scope
+	// for explicitly enrolled staff. A singleton Root identity alone confers
+	// platform-wide privileges; membership here never grants those privileges.
+	// Never infer access from AdminUser.Role or Tenant.OwnerUserID.
 	if err := db.WithContext(ctx).Where("tenant_id = ? AND user_id = ?", tenantID, userID).First(&access.Membership).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return access, nil

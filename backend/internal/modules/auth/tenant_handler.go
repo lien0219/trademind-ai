@@ -76,7 +76,7 @@ func (h *Handler) Tenants(c *gin.Context) {
 		err := h.DB.WithContext(c.Request.Context()).Table("tenant_memberships AS m").
 			Select("t.id, t.code, t.name, t.status, m.role").
 			Joins("JOIN tenants AS t ON t.id = m.tenant_id").
-			Where("m.user_id = ? AND m.status = ? AND t.status = ? AND t.code <> ?", uid, admin.MembershipActive, admin.TenantActive, admin.RootWorkspaceCode).
+			Where("m.user_id = ? AND m.status = ? AND t.status = ?", uid, admin.MembershipActive, admin.TenantActive).
 			Order("t.name ASC, t.id ASC").Find(&rows).Error
 		if err != nil {
 			response.HandleError(c, err)

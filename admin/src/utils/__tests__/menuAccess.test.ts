@@ -49,3 +49,28 @@ describe('permission filtered menus', () => {
     expect(canAccessPath('/ops/inventory-sync/calibration', role, ['sku_binding.read'])).toBe(true);
   });
 });
+
+describe('tenant workbench navigation', () => {
+  const enterprise = [{
+    path: '/tenant',
+    name: '企业工作台',
+    children: [
+      { path: '/tenant/settings', name: '企业信息与设置' },
+      { path: '/tenant/members', name: '企业成员与邀请' },
+    ],
+  }];
+
+  it('lets an operator view enterprise details without showing member management', () => {
+    expect(canAccessPath('/tenant/settings', 'operator', ['product.view'])).toBe(true);
+    expect(canAccessPath('/tenant/members', 'operator', ['product.view'])).toBe(false);
+    expect(filterMenuByPermission(enterprise, 'operator', ['product.view'])).toEqual([{
+      ...enterprise[0],
+      children: [enterprise[0].children[0]],
+    }]);
+  });
+
+  it('allows member management only when the effective role grants user.manage', () => {
+    expect(canAccessPath('/tenant/members', 'admin', ['user.manage'])).toBe(true);
+    expect(canAccessPath('/tenant/members', 'r_0123456789abcdef01234567', ['user.manage'])).toBe(true);
+  });
+});

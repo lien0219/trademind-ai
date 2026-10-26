@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"golang.org/x/crypto/bcrypt"
@@ -235,4 +236,72 @@ func TestRootTenantsListHasSingleProtectedWorkspace(t *testing.T) {
 	for _, option := range envelope.Data.Items {
 		require.NotZero(t, option.ID, "Root must not see tenant-zero system as a duplicate workspace")
 	}
+}
+
+func TestRootWorkspaceDelegatedOperatorUsesActiveMembershipNotRootRights(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:root_delegate_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}, &admin.RootAccount{}))
+
+	root := admin.AdminUser{Username: admin.NewInternalUsername(), TenantID: 0, Role: adminperm.RoleAdmin, Status: admin.StatusActive}
+	worker := admin.AdminUser{Username: admin.NewInternalUsername(), TenantID: 11, LastTenantID: 11, Role: adminperm.RoleOperator, Status: admin.StatusActive}
+	outsider := admin.AdminUser{Username: admin.NewInternalUsername(), TenantID: 22, Role: adminperm.RoleAdmin, Status: admin.StatusActive}
+	for _, user := range []*admin.AdminUser{&root, &worker, &outsider} {
+		require.NoError(t, db.Create(user).Error)
+	}
+	require.NoError(t, db.Create(&admin.RootAccount{ID: 1, UserID: root.ID}).Error)
+	for _, tenant := range []admin.Tenant{
+		{ID: 11, Code: admin.RootWorkspaceCode, Name: admin.RootWorkspaceName, Status: admin.TenantActive},
+		{ID: 22, Code: "external", Name: "Other", Status: admin.TenantActive},
+	} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+	member := admin.TenantMembership{TenantID: 11, UserID: worker.ID, Role: adminperm.RoleOperator, Status: admin.MembershipActive}
+	require.NoError(t, db.Create(&member).Error)
+	ctx := context.Background()
+	identityIsRoot, err := adminperm.IsRoot(ctx, db, worker.ID)
+	require.NoError(t, err)
+	require.False(t, identityIsRoot)
+
+	selected, err := resolveLoginTenant(ctx, db, &worker)
+	require.NoError(t, err)
+	require.EqualValues(t, 11, selected)
+	access, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 11)
+	require.NoError(t, err)
+	require.True(t, access.Allowed)
+	require.Equal(t, adminperm.RoleOperator, access.Membership.Role)
+	require.NoError(t, adminperm.CheckTenantPermission(ctx, db, 11, worker.ID, adminperm.PermProductView))
+	require.Error(t, adminperm.CheckTenantPermission(ctx, db, 11, worker.ID, adminperm.PermUserManage))
+	require.Error(t, adminperm.CheckTenantPermission(ctx, db, 11, worker.ID, adminperm.PermSettingsManage))
+
+	foreign, err := adminperm.ResolveTenantAccess(ctx, db, outsider.ID, 11)
+	require.NoError(t, err)
+	require.False(t, foreign.Allowed)
+	otherTenant, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 22)
+	require.NoError(t, err)
+	require.False(t, otherTenant.Allowed)
+
+	for _, disabledStatus := range []string{admin.MembershipDisabled, admin.MembershipRemoved} {
+		require.NoError(t, db.Model(&member).Update("status", disabledStatus).Error)
+		revoked, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 11)
+		require.NoError(t, err)
+		require.False(t, revoked.Allowed)
+		require.Error(t, validateTenantSession(ctx, db, worker.ID, 11))
+		nextTenant, err := resolveLoginTenant(ctx, db, &worker)
+		require.NoError(t, err)
+		require.Zero(t, nextTenant)
+	}
+	require.NoError(t, db.Model(&member).Update("status", admin.MembershipActive).Error)
+	require.NoError(t, db.Model(&admin.Tenant{}).Where("id = ?", 11).Update("status", admin.TenantSuspended).Error)
+	suspended, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 11)
+	require.NoError(t, err)
+	require.False(t, suspended.Allowed)
+
+	rootAccess, err := adminperm.ResolveTenantAccess(ctx, db, root.ID, 22)
+	require.NoError(t, err)
+	require.True(t, rootAccess.Allowed)
 }

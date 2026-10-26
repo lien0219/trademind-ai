@@ -89,6 +89,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/integrations': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/config-status': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/users': PERMISSIONS.USER_MANAGE,
+  '/tenant/members': PERMISSIONS.USER_MANAGE,
 };
 
 function routePerm(path?: string): PermissionKey | PermissionKey[] | undefined {
