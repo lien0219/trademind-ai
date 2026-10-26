@@ -1,9 +1,7 @@
-import type { Tenant } from '@/services/tenants';
-
 /** Display-only check. The backend is authoritative for leave authorization. */
 export function mayLeaveTenant(
   user: API.CurrentUser | undefined,
-  tenant: Pick<Tenant, 'id' | 'status' | 'ownerUserId'> | null,
+  tenant: { id: number; status: string; ownerUserId?: string } | null,
 ): boolean {
   if (!user?.id || user.tenantId == null || user.tenantId <= 0 || !tenant) return false;
   if (tenant.id !== user.tenantId || tenant.status !== 'active') return false;
