@@ -149,6 +149,7 @@ export async function getInitialState(): Promise<{
       // block authentication or cause a cross-workspace appearance leak.
     }
   }
+  if (!isTenantContextCurrent(context)) return {};
   return { currentUser: user };
 }
 
