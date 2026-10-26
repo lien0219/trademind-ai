@@ -15,7 +15,7 @@ const (
 	ModuleCollect       = "collect"
 	ModuleInventory     = "inventory"
 	ModuleNotifications = "notifications"
-	ModuleOrders = "orders"
+	ModuleOrders        = "orders"
 	ModuleBranding      = "branding"
 	maxSettingsBytes    = 8192
 )
@@ -32,7 +32,7 @@ type Inventory struct {
 	LowStockThreshold int `json:"lowStockThreshold"`
 }
 type Orders struct {
-    DefaultCurrency string `json:"defaultCurrency"`
+	DefaultCurrency string `json:"defaultCurrency"`
 }
 type Notifications struct {
 	BusinessAlertsEnabled bool `json:"businessAlertsEnabled"`
@@ -59,8 +59,8 @@ func Defaults(module string) (any, error) {
 		return Inventory{LowStockThreshold: 5}, nil
 	case ModuleNotifications:
 		return Notifications{BusinessAlertsEnabled: true}, nil
-    case ModuleOrders:
-        return Orders{DefaultCurrency:"USD"}, nil
+	case ModuleOrders:
+		return Orders{DefaultCurrency: "USD"}, nil
 	case ModuleBranding:
 		return Branding{Labels: []string{}}, nil
 	default:
@@ -119,10 +119,14 @@ func Validate(module string, raw []byte) ([]byte, error) {
 		}
 		v = cfg
 	case ModuleOrders:
-        cfg:=Orders{}
-        if err:=decodeStrict(raw,&cfg);err!=nil{return nil,err}
-        if !oneOf(cfg.DefaultCurrency,"CNY","USD","JPY","EUR","GBP"){return nil,errors.New("unsupported default order currency")}
-        v=cfg
+		cfg := Orders{}
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
+		if !oneOf(cfg.DefaultCurrency, "CNY", "USD", "JPY", "EUR", "GBP") {
+			return nil, errors.New("unsupported default order currency")
+		}
+		v = cfg
 	case ModuleNotifications:
 		cfg := Notifications{}
 		if err := decodeStrict(raw, &cfg); err != nil {

@@ -103,11 +103,15 @@ func ReadNotifications(ctx context.Context, db *gorm.DB, tenantID int64) (Notifi
 }
 
 func ReadOrders(ctx context.Context, db *gorm.DB, tenantID int64) (Orders, int64, error) {
-    snapshot,err:=Read(ctx,db,tenantID,ModuleOrders)
-    if err!=nil{return Orders{},0,err}
-    var value Orders
-    if err:=json.Unmarshal(snapshot.Values,&value);err!=nil{return Orders{},0,err}
-    return value,snapshot.Version,nil
+	snapshot, err := Read(ctx, db, tenantID, ModuleOrders)
+	if err != nil {
+		return Orders{}, 0, err
+	}
+	var value Orders
+	if err := json.Unmarshal(snapshot.Values, &value); err != nil {
+		return Orders{}, 0, err
+	}
+	return value, snapshot.Version, nil
 }
 
 func CheckCollectSource(cfg Collect, source string) error {

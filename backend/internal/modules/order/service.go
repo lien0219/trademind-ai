@@ -14,9 +14,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
-    "github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
@@ -863,17 +863,21 @@ func formatTimeRFC(t *time.Time) string {
 
 // Create order with optional nested rows.
 func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*DetailDTO, error) {
-    // Only manually created orders inherit the tenant default. Orders imported
-    // from platform webhooks preserve their source currency and frozen totals.
-    if strings.TrimSpace(body.Currency)=="" && (strings.TrimSpace(body.Platform)=="" || strings.EqualFold(strings.TrimSpace(body.Platform),"manual")) {
-        tid,err:=adminperm.TenantIDFromGin(c)
-        if err!=nil{return nil,err}
-        if tid>0 {
-            prefs,_,err:=tenantconfig.ReadOrders(c.Request.Context(),s.DB,tid)
-            if err!=nil{return nil,fmt.Errorf("tenant order defaults unavailable: %w",err)}
-            body.Currency=prefs.DefaultCurrency
-        }
-    }
+	// Only manually created orders inherit the tenant default. Orders imported
+	// from platform webhooks preserve their source currency and frozen totals.
+	if strings.TrimSpace(body.Currency) == "" && (strings.TrimSpace(body.Platform) == "" || strings.EqualFold(strings.TrimSpace(body.Platform), "manual")) {
+		tid, err := adminperm.TenantIDFromGin(c)
+		if err != nil {
+			return nil, err
+		}
+		if tid > 0 {
+			prefs, _, err := tenantconfig.ReadOrders(c.Request.Context(), s.DB, tid)
+			if err != nil {
+				return nil, fmt.Errorf("tenant order defaults unavailable: %w", err)
+			}
+			body.Currency = prefs.DefaultCurrency
+		}
+	}
 	o, items, shipments, err := s.normalizedCreate(body)
 	if err != nil {
 		return nil, err
