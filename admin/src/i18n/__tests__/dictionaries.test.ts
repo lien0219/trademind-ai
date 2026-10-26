@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import routes from '../../../config/routes';
-import { supportedLanguages, translateMessage } from '../dictionaries';
+import { supportedLanguages, translateMessage, hasTranslation } from '../dictionaries';
 
 function collectNames(items: any[]): string[] {
   const out: string[] = [];
@@ -18,7 +18,7 @@ describe('six-language navigation coverage', () => {
     for (const language of supportedLanguages) {
       if (language === 'zh-CN') continue;
       for (const name of routeNames) {
-        if (translateMessage(language, name) === name) missing.push(language + ': ' + name);
+        if (!hasTranslation(language, name)) missing.push(language + ': ' + name);
       }
     }
     expect(missing).toEqual([]);
