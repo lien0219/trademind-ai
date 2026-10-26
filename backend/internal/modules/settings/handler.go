@@ -29,11 +29,33 @@ func (h *Handler) requireSettingsManage(c *gin.Context) bool {
 		response.HandleError(c, err)
 		return false
 	}
-	// Settings are platform configuration stored in the root tenant. A
-	// tenant administrator must not read or mutate another tenant's settings.
+	// Platform settings are always stored under tenant ID 0, regardless of
+	// the caller's current business workspace. A persisted singleton Root may
+	// administer them from an active tenant session; an ordinary tenant admin
+	// must not acquire this platform capability through their RBAC role.
 	if tid != 0 {
-		adminperm.DenySettings(c)
-		return false
+		if tid < 0 || h.DB == nil {
+			adminperm.DenySettings(c)
+			return false
+		}
+		principal, err := adminperm.LoadPrincipal(c, h.DB)
+		if err != nil {
+			response.HandleError(c, err)
+			return false
+		}
+		if principal == nil || principal.Disabled || principal.TenantID != tid {
+			adminperm.DenySettings(c)
+			return false
+		}
+		root, err := adminperm.IsRoot(c.Request.Context(), h.DB, principal.UserID)
+		if err != nil {
+			response.HandleError(c, err)
+			return false
+		}
+		if !root {
+			adminperm.DenySettings(c)
+			return false
+		}
 	}
 	return adminperm.RequireWrite(c, h.DB, adminperm.PermSettingsManage)
 }
@@ -57,12 +79,9 @@ func (h *Handler) List(c *gin.Context) {
 	if !h.requireSettingsManage(c) {
 		return
 	}
-	tid, err := adminperm.TenantIDFromGin(c)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	rows, err := h.Svc.ListForTenant(c.Request.Context(), tid)
+	// System configuration is global, even when Root is currently operating
+	// inside the protected business workspace or an enterprise.
+	rows, err := h.Svc.ListForTenant(c.Request.Context(), 0)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -80,18 +99,15 @@ func (h *Handler) Put(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
-	tid, err := adminperm.TenantIDFromGin(c)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
+	// Never use the active business tenant for platform configuration.
+	const globalSettingsTenantID int64 = 0
 	items := make([]PutItem, 0, len(body.Items))
 	for _, it := range body.Items {
-		itemTenantID := tid
+		itemTenantID := globalSettingsTenantID
 		if it.TenantID != nil {
 			itemTenantID = *it.TenantID
 		}
-		if itemTenantID != tid {
+		if itemTenantID != globalSettingsTenantID {
 			adminperm.DenySettings(c)
 			return
 		}
@@ -121,7 +137,7 @@ func (h *Handler) Put(c *gin.Context) {
 		}
 	}
 	var auditErr error
-	err = h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err := h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := h.Svc.PutBulkTx(tx, items); err != nil {
 			return err
 		}
@@ -155,7 +171,7 @@ func (h *Handler) Put(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
-	rows, err := h.Svc.ListForTenant(c.Request.Context(), tid)
+	rows, err := h.Svc.ListForTenant(c.Request.Context(), globalSettingsTenantID)
 	if err != nil {
 		response.HandleError(c, err)
 		return
