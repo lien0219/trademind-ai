@@ -260,6 +260,10 @@ func (h *Handler) Leave(c *gin.Context) {
 		return
 	}
 	if err := h.Service.Leave(c.Request.Context(), uid, tid); err != nil {
+		if errors.Is(err, ErrTenantLeaveForbidden) {
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "Root 和企业管理员不能退出当前企业")
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "unable to leave tenant")
 		return
 	}

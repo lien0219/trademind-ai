@@ -438,23 +438,41 @@ func (s *Service) UpdateMember(ctx context.Context, actor uuid.UUID, tenantID in
 	})
 }
 
+// ErrTenantLeaveForbidden is an expected authorization denial, not a
+// mutation error. An administrator must transfer or revoke their role through
+// the managed tenant lifecycle, never through the self-service leave endpoint.
+var ErrTenantLeaveForbidden = errors.New("current role cannot leave tenant")
+
 func (s *Service) Leave(ctx context.Context, userID uuid.UUID, tenantID int64) error {
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockTenantMutation(tx, tenantID); err != nil {
 			return err
 		}
+		// Evaluate the highest privileges inside the same serialized mutation
+		// transaction. Never rely on client-provided role/JWT alone.
+		root, err := adminperm.IsRoot(ctx, tx, userID)
+		if err != nil {
+			return err // fail closed if singleton binding cannot be checked
+		}
+		if root {
+			return ErrTenantLeaveForbidden
+		}
+		var tenant admin.Tenant
+		if err := tx.Select("id", "owner_user_id", "status").Where("id = ?", tenantID).First(&tenant).Error; err != nil {
+			return err
+		}
+		if tenant.OwnerUserID != nil && *tenant.OwnerUserID == userID {
+			return ErrTenantLeaveForbidden
+		}
 		var m admin.TenantMembership
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, admin.MembershipActive).First(&m).Error; err != nil {
 			return err
 		}
-		if isTenantAdminRole(m.Role) {
-			var count int64
-			if err := tx.Model(&admin.TenantMembership{}).Where("tenant_id = ? AND status = ? AND role = ? AND id <> ?", tenantID, admin.MembershipActive, adminperm.RoleAdmin, m.ID).Count(&count).Error; err != nil {
-				return err
-			}
-			if count == 0 {
-				return errors.New("cannot leave as last tenant administrator")
-			}
+		// All tenant administrators are forbidden to leave (not merely the
+		// last admin). Custom roles with user management are admin-equivalent.
+		if isTenantAdminRole(m.Role) ||
+			tenantRoleHasPermission(ctx, tx, tenantID, m.Role, adminperm.PermUserManage) {
+			return ErrTenantLeaveForbidden
 		}
 		if err := tx.Model(&m).Update("status", admin.MembershipRemoved).Error; err != nil {
 			return err

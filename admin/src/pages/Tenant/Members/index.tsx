@@ -41,6 +41,7 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { useTenantLeaveEligibility } from '@/hooks/useTenantLeaveEligibility';
 
 const MEMBER_STATUS_OPTIONS = [
   { label: '正常', value: 'active' },
@@ -153,6 +154,7 @@ function StorePermissionList({ shops }: { shops: ShopListRow[] }) {
 export default function TenantMembersPage() {
   const { can, user } = usePermission();
   const canManage = can(PERMISSIONS.USER_MANAGE);
+  const canLeave = useTenantLeaveEligibility(user);
   const [activeTab, setActiveTab] = useState('members');
   const [members, setMembers] = useState<TenantMember[]>([]);
   const [invitations, setInvitations] = useState<TenantInvitation[]>([]);
@@ -323,6 +325,7 @@ export default function TenantMembersPage() {
   };
 
   const leave = () => {
+    if (!canLeave) return;
     confirmSensitiveAction({
       title: '退出当前企业？',
       content: '退出后将立即失去当前企业访问权，需要重新获得邀请才能加入。',
@@ -364,7 +367,7 @@ export default function TenantMembersPage() {
           status="403"
           title="无权访问"
           subTitle="企业成员和邀请管理仅对拥有 user.manage 权限的成员开放。"
-          extra={user ? <Button danger icon={<DeleteOutlined />} disabled={submitting} onClick={leave}>退出当前企业</Button> : undefined}
+          extra={canLeave ? <Button danger icon={<DeleteOutlined />} disabled={submitting} onClick={leave}>退出当前企业</Button> : undefined}
         />
       </TmPageContainer>
     );
@@ -386,7 +389,43 @@ export default function TenantMembersPage() {
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'members', label: `成员（${members.length}）`, children: !loading && !error && members.length === 0 ? <EmptyState title="暂无企业成员" description="企业管理员可以邀请成员加入。" actionLabel="邀请成员" onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={memberColumns} dataSource={members} pagination={false} scroll={{ x: 960 }} /> }, { key: 'invitations', label: `邀请（${invitations.length}）`, children: !loading && !error && invitations.length === 0 ? <EmptyState title="暂无邀请记录" description="创建邀请后，一次性 Token 只会在创建成功时显示。" actionLabel="邀请成员" onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={invitationColumns} dataSource={invitations} pagination={false} scroll={{ x: 900 }} /> }]} />
       </SectionCard>
 
-      {user ? <SectionCard title="退出企业" description="退出操作会立即撤销当前企业成员身份；最后一位有效管理员不能退出。" headerExtra={<Tag color="warning">高风险</Tag>} style={{ marginTop: 16 }}><Button danger icon={<DeleteOutlined />} disabled={submitting} onClick={leave}>退出当前企业</Button></SectionCard> : null}
+      {canLeave ? (
+        <div
+          role="region"
+          aria-label="退出当前企业"
+          style={{
+            marginTop: 16,
+            padding: '14px 16px',
+            border: '1px solid var(--ant-color-border-secondary)',
+            borderRadius: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            background: 'var(--ant-color-bg-container)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: '1 1 280px' }}>
+            <span style={{
+              display: 'inline-flex', padding: 9, borderRadius: 10,
+              background: 'var(--ant-color-warning-bg)',
+              color: 'var(--ant-color-warning)',
+            }}>
+              <DeleteOutlined aria-hidden="true" />
+            </span>
+            <div>
+              <strong style={{ display: 'block', marginBottom: 4 }}>退出当前企业</strong>
+              <span style={{ color: 'var(--ant-color-text-secondary)', fontSize: 13 }}>
+                退出后将失去此企业的访问权限，需重新接受邀请才能加入。
+              </span>
+            </div>
+          </div>
+          <Button danger icon={<DeleteOutlined />} disabled={submitting} onClick={leave}>
+            退出企业
+          </Button>
+        </div>
+      ) : null}
 
       <Modal open={inviteOpen} title="邀请成员" destroyOnHidden width={560} confirmLoading={submitting} okButtonProps={{ disabled: !directoryReady }} okText="创建邀请" cancelText="取消" onCancel={() => { if (!submitting) setInviteOpen(false); }} onOk={() => { void inviteForm.submit(); }}>
         <Form key="invite" form={inviteForm} layout="vertical" onFinish={submitInvite} preserve={false} initialValues={{ role: 'operator', expiresInHours: 168 }}>
