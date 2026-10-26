@@ -883,6 +883,181 @@ for (const [source, translations] of Object.entries(additionalTranslations)) {
     dictionaries[language][source]=translations[index];
   });
 }
+const commonUITranslations: Record<string,[string,string,string,string,string]> = {
+  "界面主题": [
+    "Interface Theme",
+    "画面テーマ",
+    "介面主題",
+    "화면 테마",
+    "ธีมหน้าจอ"
+  ],
+  "浅色模式": [
+    "Light Mode",
+    "ライトモード",
+    "淺色模式",
+    "라이트 모드",
+    "โหมดสว่าง"
+  ],
+  "深色模式": [
+    "Dark Mode",
+    "ダークモード",
+    "深色模式",
+    "다크 모드",
+    "โหมดมืด"
+  ],
+  "还原": [
+    "Reset",
+    "元に戻す",
+    "還原",
+    "되돌리기",
+    "คืนค่า"
+  ],
+  "重试": [
+    "Retry",
+    "再試行",
+    "重試",
+    "다시 시도",
+    "ลองอีกครั้ง"
+  ],
+  "个人偏好加载失败": [
+    "Failed to load personal preferences",
+    "個人設定を読み込めませんでした",
+    "載入個人偏好失敗",
+    "개인 설정을 불러오지 못했습니다",
+    "โหลดการตั้งค่าส่วนบุคคลไม่สำเร็จ"
+  ],
+  "个人偏好已保存；部分设置将在重新进入页面后应用": [
+    "Preferences saved; some changes apply after reopening the page",
+    "個人設定を保存しました。一部の変更は再表示後に反映されます",
+    "個人偏好已儲存；部分設定重新進入頁面後生效",
+    "설정이 저장되었습니다. 일부 변경 사항은 페이지를 다시 열 때 적용됩니다",
+    "บันทึกการตั้งค่าแล้ว บางรายการจะมีผลเมื่อเปิดหน้าใหม่"
+  ],
+  "保存失败，请刷新后重试": [
+    "Save failed. Refresh and try again.",
+    "保存できませんでした。更新して再試行してください。",
+    "儲存失敗，請重新整理後再試。",
+    "저장에 실패했습니다. 새로고침 후 다시 시도하세요.",
+    "บันทึกไม่สำเร็จ โปรดรีเฟรชและลองอีกครั้ง"
+  ],
+  "偏好生效范围": [
+    "Preference scope",
+    "個人設定の適用範囲",
+    "偏好生效範圍",
+    "설정 적용 범위",
+    "ขอบเขตการตั้งค่า"
+  ],
+  "主题可立即应用；语言与日期格式已保存，但尚未统一接入各业务页面的国际化和时间展示组件。": [
+    "The theme applies immediately. Language and date formatting are being rolled out across business pages.",
+    "テーマはすぐに適用されます。言語と日付形式は各業務画面へ順次対応中です。",
+    "主題立即生效，語言與日期格式正逐步接入各業務頁面。",
+    "테마는 즉시 적용됩니다. 언어와 날짜 형식은 업무 페이지에 순차 적용 중입니다.",
+    "ธีมมีผลทันที ส่วนภาษาและรูปแบบวันที่กำลังทยอยรองรับในทุกหน้าธุรกิจ"
+  ],
+  "仅对当前企业的当前账号有效，不改变其他成员、店铺或企业的业务规则。": [
+    "Applies only to your account in this organization; other members, stores and business rules remain unchanged.",
+    "現在の組織の自分のアカウントのみに適用されます。他のメンバーや店舗の設定は変更されません。",
+    "只對目前企業中的目前帳號生效，不影響其他成員、店鋪或企業規則。",
+    "현재 조직의 내 계정에만 적용되며 다른 구성원과 스토어 설정은 변경되지 않습니다.",
+    "มีผลเฉพาะบัญชีของคุณในองค์กรปัจจุบัน ไม่กระทบสมาชิก ร้านค้า หรือกฎธุรกิจอื่น"
+  ],
+  "操作成功": [
+    "Operation successful",
+    "操作が完了しました",
+    "操作成功",
+    "작업 성공",
+    "ดำเนินการสำเร็จ"
+  ],
+  "登录": [
+    "Log In",
+    "ログイン",
+    "登入",
+    "로그인",
+    "เข้าสู่ระบบ"
+  ],
+  "注册": [
+    "Sign Up",
+    "新規登録",
+    "註冊",
+    "회원가입",
+    "สมัครสมาชิก"
+  ],
+  "欢迎回来": [
+    "Welcome back",
+    "おかえりなさい",
+    "歡迎回來",
+    "다시 오신 것을 환영합니다",
+    "ยินดีต้อนรับกลับ"
+  ],
+  "注册账号": [
+    "Create an account",
+    "アカウントを作成",
+    "註冊帳號",
+    "계정 만들기",
+    "สร้างบัญชี"
+  ],
+  "登录你的 TradeMind 工作台": [
+    "Sign in to your TradeMind workspace",
+    "TradeMind ワークスペースにログイン",
+    "登入 TradeMind 工作臺",
+    "TradeMind 작업 공간 로그인",
+    "เข้าสู่ระบบ TradeMind"
+  ],
+  "开启你的 AI 跨境之旅": [
+    "Start your AI-powered commerce journey",
+    "AI を活用した越境ビジネスを始めましょう",
+    "開啟 AI 跨境之旅",
+    "AI 기반 글로벌 커머스를 시작하세요",
+    "เริ่มต้นธุรกิจข้ามพรมแดนด้วย AI"
+  ],
+  "登录成功": [
+    "Signed in successfully",
+    "ログインしました",
+    "登入成功",
+    "로그인 성공",
+    "เข้าสู่ระบบสำเร็จ"
+  ],
+  "注册并登录成功": [
+    "Account created and signed in",
+    "登録・ログインが完了しました",
+    "註冊並登入成功",
+    "가입 및 로그인 성공",
+    "สมัครและเข้าสู่ระบบสำเร็จ"
+  ],
+  "验证码已发送": [
+    "Verification code sent",
+    "認証コードを送信しました",
+    "驗證碼已發送",
+    "인증 코드를 보냈습니다",
+    "ส่งรหัสยืนยันแล้ว"
+  ],
+  "搜索功能": [
+    "Search Features",
+    "機能を検索",
+    "搜尋功能",
+    "기능 검색",
+    "ค้นหาฟังก์ชัน"
+  ],
+  "搜索结果": [
+    "Search Results",
+    "検索結果",
+    "搜尋結果",
+    "검색 결과",
+    "ผลการค้นหา"
+  ],
+  "输入功能名称，例如：商品草稿、订单异常": [
+    "Enter a page or feature, such as Product Drafts or Order Exceptions",
+    "商品下書き、注文例外処理などを入力",
+    "輸入功能名稱，例如商品草稿、訂單異常",
+    "상품 초안 또는 주문 예외 등 기능을 입력하세요",
+    "พิมพ์ชื่อหน้า เช่น ร่างสินค้าหรือคำสั่งซื้อผิดปกติ"
+  ]
+};
+for (const [source, translations] of Object.entries(commonUITranslations)) {
+  (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
+    dictionaries[language][source]=translations[index];
+  });
+}
 export function isAppLanguage(value: unknown): value is AppLanguage {
   return typeof value === 'string' && (supportedLanguages as readonly string[]).includes(value);
 }
