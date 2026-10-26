@@ -1,0 +1,21 @@
+name: Temporary Tenant Preference Formatting
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/tenant-pref-gofmt.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture gofmt
+        run: |
+          for f in backend/internal/database/migrate.go backend/internal/modules/tenantconfig/handler.go backend/internal/modules/tenantconfig/personal.go backend/internal/modules/tenantconfig/personal_model.go backend/internal/modules/tenantconfig/personal_test.go backend/internal/modules/product/import_draft_tenant_test.go backend/internal/modules/collect/import_transaction_test.go; do
+            echo "FORMAT_FILE_BEGIN $f"
+            gofmt "$f" | base64 -w 0
+            echo
+            echo "FORMAT_FILE_END $f"
+          done
