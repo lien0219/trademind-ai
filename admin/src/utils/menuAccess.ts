@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import type { MenuDataItem } from '@umijs/route-utils';
 import {
   hasPermission,
@@ -162,7 +163,7 @@ export function filterMenuByPermission(
           && !children?.some((child) => child.name && !child.hideInMenu)) {
           return null;
         }
-        return { ...item, children };
+        return { ...item, name: typeof item.name === 'string' ? tr(item.name) : item.name, children };
       })
       .filter(Boolean) as MenuDataItem[];
 
