@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { CodeOutlined, ReloadOutlined, SaveOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { Link } from '@umijs/max';
 import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
@@ -179,7 +180,7 @@ export default function TenantSettingsPage() {
       subTitle={rootWorkspace ? '系统自动维护的业务工作空间，不等同于平台全局配置。' : canEdit ? '查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。' : '查看当前所属组织信息。'}
       extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>]}
     >
-      {error ? <ErrorAlert title="企业资料加载失败" actionHint={error} action={<Button type="link" onClick={() => void load()}>重试</Button>} /> : null}
+      {error ? <ErrorAlert title="企业资料加载失败" actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} /> : null}
       {loading && !detail ? (
         <SectionCard><Spin tip="正在加载企业资料"><div style={{ minHeight: 96 }} /></Spin></SectionCard>
       ) : detail ? (
@@ -233,7 +234,7 @@ export default function TenantSettingsPage() {
             </Form>
           </SectionCard>
 
-          <SectionCard title="企业业务配置" description="企业 AI 文案、采集来源与任务上限等规则可视化管理。">
+          <SectionCard title={tr("企业业务配置")} description="企业 AI 文案、采集来源与任务上限等规则可视化管理。">
             <Space direction="vertical">
               <Typography.Text type="secondary">新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。</Typography.Text>
               <Link to="/tenant/business-settings">进入企业业务配置</Link>

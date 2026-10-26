@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import {
   DownloadOutlined,
   EyeOutlined,
@@ -272,7 +273,7 @@ export default function OrderProfitsPage() {
 
   const columns: ProColumns<OrderProfit>[] = [
     {
-      title: '订单',
+      title: tr("订单"),
       dataIndex: 'orderNo',
       width: 190,
       fixed: 'left',
@@ -373,7 +374,7 @@ export default function OrderProfitsPage() {
   ];
 
   const costColumns: TableColumnsType<ProductCostLine> = [
-    { title: '商品', dataIndex: 'productTitle', width: 210, ellipsis: true },
+    { title: tr("商品"), dataIndex: 'productTitle', width: 210, ellipsis: true },
     { title: '规格编码', dataIndex: 'skuCode', width: 140, ellipsis: true, render: (value) => value || '—' },
     { title: '数量', dataIndex: 'quantity', width: 72, align: 'right' },
     {
@@ -411,7 +412,7 @@ export default function OrderProfitsPage() {
     <PermissionGuard require={PERMISSIONS.ORDER_PROFIT_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-order-profit-page"
-        title="订单预估利润"
+        title={tr("订单预估利润")}
         subTitle="已履约订单使用履约成本快照，未履约订单使用当前目录估算；缺失费用不计为零"
         extra={
           <TmPageHeaderExtra>
@@ -473,7 +474,7 @@ export default function OrderProfitsPage() {
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                aria-label="店铺"
+                aria-label={tr("店铺")}
                 placeholder="全部店铺"
                 value={urlState.shopId}
                 className="tm-order-profit-filter"

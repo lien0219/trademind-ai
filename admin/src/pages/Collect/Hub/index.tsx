@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import {
   CloudDownloadOutlined,
   FileSearchOutlined,
@@ -673,11 +674,11 @@ export default function CollectHubPage() {
           <Col xs={24} lg={8}>
             <SectionCard title="相关管理入口" description="采集前后的常用配置和记录。" compact>
               <div className="tm-collect-hub-links">
-                <Button block onClick={() => history.push('/collect/tasks')}>采集任务</Button>
-                <Button block onClick={() => history.push('/collect/batches')}>批量采集</Button>
+                <Button block onClick={() => history.push('/collect/tasks')}>{tr("采集任务")}</Button>
+                <Button block onClick={() => history.push('/collect/batches')}>{tr("批量采集")}</Button>
                 <Button block onClick={() => history.push('/collect/browser-profiles')}>浏览器登录状态</Button>
-                {mayManagePlatform ? <Button block onClick={() => history.push('/collect/rules')}>采集规则</Button> : null}
-                <Button block onClick={() => history.push('/collect/monitor')}>采集监控</Button>
+                {mayManagePlatform ? <Button block onClick={() => history.push('/collect/rules')}>{tr("采集规则")}</Button> : null}
+                <Button block onClick={() => history.push('/collect/monitor')}>{tr("采集监控")}</Button>
                 {mayManagePlatform ? <Button block onClick={() => history.push('/settings/collector')}>采集设置</Button> : null}
               </div>
             </SectionCard>

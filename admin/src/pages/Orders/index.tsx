@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import {
   ModalForm,
   ProFormDigit,
@@ -382,7 +383,7 @@ export default function OrdersPage() {
         fieldProps: { allowClear: true },
       },
       {
-        title: "店铺",
+        title: tr("店铺"),
         dataIndex: "shopName",
         search: false,
         width: 140,
@@ -422,7 +423,7 @@ export default function OrdersPage() {
         render: (_, r) => r.itemCount ?? "—",
       },
       {
-        title: "规格匹配",
+        title: tr("规格匹配"),
         dataIndex: "skuMatchStatus",
         width: 108,
         valueType: "select",
@@ -1174,7 +1175,7 @@ export default function OrdersPage() {
                 },
                 {
                   key: "inv",
-                  label: "库存",
+                  label: tr("库存"),
                   children: (
                     <>
                       {detail && invEffectFailures.length > 0 ? (
@@ -1394,7 +1395,7 @@ export default function OrdersPage() {
                 },
                 {
                   key: "sku",
-                  label: "规格匹配",
+                  label: tr("规格匹配"),
                   children: (
                     <OrderSkuMatchTab
                       orderId={detail.id}

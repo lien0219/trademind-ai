@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
@@ -192,7 +193,7 @@ export default function InventoryCenterPage() {
           : '全部仓库',
       },
       {
-        title: '商品',
+        title: tr("商品"),
         dataIndex: 'productTitle',
         width: 180,
         search: false,
@@ -301,7 +302,7 @@ export default function InventoryCenterPage() {
 
   return (
     <TmPageContainer
-      title="库存中心"
+      title={tr("库存中心")}
       subTitle="按仓库查看可用库存与兼容投影对账；不自动同步、不自动补货。"
     >
       <InventorySyncDisabledBanner />
@@ -318,7 +319,7 @@ export default function InventoryCenterPage() {
           showIcon
           message="仓库筛选暂不可用"
           description={warehouseOptionsError}
-          action={<Button onClick={() => void loadWarehouseOptions()}>重试</Button>}
+          action={<Button onClick={() => void loadWarehouseOptions()}>{tr("重试")}</Button>}
           style={{ marginBottom: 16 }}
         />
       ) : null}

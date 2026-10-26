@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { Link } from '@umijs/renderer-react';
 import {
   ApiOutlined,
@@ -482,7 +483,7 @@ export default function ShopsPage() {
 
   return (
     <TmPageContainer
-      title="店铺管理"
+      title={tr("店铺管理")}
       subTitle="授权并管理已连接的电商平台店铺，可在此同步订单与更新店铺信息。"
     >
       <ProTable<ShopListRow>
@@ -886,7 +887,7 @@ export default function ShopsPage() {
               <Descriptions.Item label="地区">{detail.region || '—'}</Descriptions.Item>
               <Descriptions.Item label="币种">{detail.currency || '—'}</Descriptions.Item>
               <Descriptions.Item label="时区">{detail.timezone || '—'}</Descriptions.Item>
-              <Descriptions.Item label="语言">{detail.defaultLanguage || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("语言")}>{detail.defaultLanguage || '—'}</Descriptions.Item>
               <Descriptions.Item label="平台店铺编号">{detail.externalShopId || '—'}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>
                 {detail.remark || '—'}
@@ -956,7 +957,7 @@ export default function ShopsPage() {
                 message="TikTok 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 TikTok 平台应用信息，再生成授权链接。
+                    请先在 <Link to="/settings/platforms">{tr("平台接入设置")}</Link> 填写 TikTok 平台应用信息，再生成授权链接。
                     本地开发需启动任务队列服务。仅在展开「可选覆盖」时才使用本页单独填写的密钥。
                   </>
                 }
@@ -970,7 +971,7 @@ export default function ShopsPage() {
                 message="Shopee 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Shopee 平台应用信息。
+                    请先在 <Link to="/settings/platforms">{tr("平台接入设置")}</Link> 填写 Shopee 平台应用信息。
                     授权回调中如有店铺编号，请一并填写到提交表单。
                   </>
                 }
@@ -984,7 +985,7 @@ export default function ShopsPage() {
                 message="Lazada 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Lazada 平台应用信息。
+                    请先在 <Link to="/settings/platforms">{tr("平台接入设置")}</Link> 填写 Lazada 平台应用信息。
                     授权完成后从回调页面复制授权码并提交即可。
                   </>
                 }
@@ -998,7 +999,7 @@ export default function ShopsPage() {
                 message="Amazon 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Amazon 平台应用信息。
+                    请先在 <Link to="/settings/platforms">{tr("平台接入设置")}</Link> 填写 Amazon 平台应用信息。
                     授权完成后按页面提示填写卖家编号与授权码。管理端不会直接访问亚马逊接口。
                   </>
                 }
@@ -1087,7 +1088,7 @@ export default function ShopsPage() {
                 ) : detail.platform === 'amazon' ? (
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
                     LWA 客户端 ID/密钥、授权回调地址、SP-API 与 LWA 端点均在「
-                    <Link to="/settings/platforms">平台接入设置</Link>」维护；本页保存店铺授权凭证与 Selling Partner 标识。
+                    <Link to="/settings/platforms">{tr("平台接入设置")}</Link>」维护；本页保存店铺授权凭证与 Selling Partner 标识。
                   </Typography.Paragraph>
                 ) : (
                   <>

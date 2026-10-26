@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -224,7 +225,7 @@ export default function AiTasksPage() {
   ];
 
   return (
-    <TmPageContainer title="AI 任务记录" subTitle="查看标题优化、描述生成等 AI 调用记录与失败原因">
+    <TmPageContainer title={tr("AI 任务记录")} subTitle="查看标题优化、描述生成等 AI 调用记录与失败原因">
       <ProTable<AiTaskListRow>
         rowKey="id"
         actionRef={actionRef}

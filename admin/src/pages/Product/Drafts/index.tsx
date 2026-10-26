@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import {
   DollarOutlined,
   MoreOutlined,
@@ -803,7 +804,7 @@ export default function ProductDraftsPage() {
                 options={eligibleBatchPlatforms.map((p) => ({ label: p, value: p }))}
               />
             </Form.Item>
-            <Form.Item label="店铺">
+            <Form.Item label={tr("店铺")}>
               <Select
                 placeholder="选择已授权店铺"
                 value={batchShopId || undefined}
@@ -899,7 +900,7 @@ export default function ProductDraftsPage() {
           </Form.Item>
           {(bulkOp === 'title_optimize' || bulkOp === 'description_generate') && (
             <>
-              <Form.Item name="language" label="语言" rules={[{ required: true }]}>
+              <Form.Item name="language" label={tr("语言")} rules={[{ required: true }]}>
                 <Select options={AI_LANGUAGE_OPTIONS} placeholder="请选择生成语言" />
               </Form.Item>
               <Form.Item name="platform" label="平台口径" rules={[{ required: true }]}>

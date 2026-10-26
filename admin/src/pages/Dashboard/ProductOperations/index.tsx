@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import {
   ArrowRightOutlined,
   CheckCircleOutlined,
@@ -358,7 +359,7 @@ const QUICK_LINK_GROUPS: { label: string; links: string[] }[] = [
     ],
   },
   {
-    label: 'AI 工具',
+    label: tr("AI 工具"),
     links: ['/ai/text-batches', '/ai/image-tasks'],
   },
   {
@@ -486,7 +487,7 @@ function buildKpiCards(summary: DashboardSummary): {
       emptyHint: '暂无采集任务',
     },
     {
-      title: '商品草稿',
+      title: tr("商品草稿"),
       value: summary.draftTotal ?? summary.draftProducts + summary.readyProducts,
       link: '/product/drafts',
       emptyHint: '还没有商品草稿',
@@ -557,7 +558,7 @@ function mergeRecentItems(
 ): (DashboardRecentItem & { bucket: string })[] {
   if (!recent) return [];
   const buckets: { items: DashboardRecentItem[]; label: string }[] = [
-    { items: recent.collectedProducts ?? [], label: '采集' },
+    { items: recent.collectedProducts ?? [], label: tr("采集") },
     { items: recent.aiTasks ?? [], label: 'AI 文本' },
     { items: recent.imageTasks ?? [], label: 'AI 图片' },
     { items: recent.publishTasks ?? [], label: '刊登' },
@@ -830,7 +831,7 @@ export default function ProductOperationsDashboardPage() {
 
   const welcomeActions: { label: string; icon: ReactNode; link: string }[] = [
     { label: '采集商品', icon: <CloudUploadOutlined />, link: '/collect/hub' },
-    { label: '批量 AI 优化', icon: <RobotOutlined />, link: '/ai/text-batches' },
+    { label: tr("批量 AI 优化"), icon: <RobotOutlined />, link: '/ai/text-batches' },
     { label: 'AI 图片任务', icon: <PictureOutlined />, link: '/ai/image-tasks' },
     { label: '查看发布检查', icon: <SafetyCertificateOutlined />, link: '/product/drafts?readiness=blocked' },
   ];
@@ -875,7 +876,7 @@ export default function ProductOperationsDashboardPage() {
           />
           <Select
             allowClear
-            placeholder="店铺"
+            placeholder={tr("店铺")}
             style={{ width: 180 }}
             showSearch
             optionFilterProp="label"

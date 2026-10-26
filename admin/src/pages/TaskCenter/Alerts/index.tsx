@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { Result, Tabs } from 'antd';
 import { useEffect, type ReactNode } from 'react';
 import { TmPageContainer } from '@/components/ui';
@@ -34,14 +35,14 @@ export default function AlertCenterPage() {
 
   if (!items.length) {
     return (
-      <TmPageContainer title="告警中心">
+      <TmPageContainer title={tr("告警中心")}>
         <Result status="403" title="无权限" subTitle="当前账号无权限访问告警中心" />
       </TmPageContainer>
     );
   }
 
   return (
-    <TmPageContainer title="告警中心">
+    <TmPageContainer title={tr("告警中心")}>
       <Tabs
         activeKey={activeSource}
         items={items}
