@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
-    "github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
