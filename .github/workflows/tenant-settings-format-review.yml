@@ -5,6 +5,8 @@ on:
       - dev
     paths:
       - .github/workflows/tenant-settings-format-review.yml
+      - backend/internal/modules/tenantconfig/schema.go
+      - backend/internal/modules/tenantconfig/schema_test.go
 permissions:
   contents: read
 jobs:
