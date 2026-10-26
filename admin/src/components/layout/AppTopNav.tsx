@@ -88,7 +88,8 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
     if (user.tenantId != null) void loadTenants();
   }, [loadTenants, user.tenantId]);
 
-  if (user.tenantId == null) return null;
+  const sourceTenantId = user.tenantId;
+  if (sourceTenantId == null) return null;
 
   const needle = keyword.trim().toLowerCase();
   const visibleTenants = tenants.filter((tenant) =>
@@ -103,7 +104,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
     if (tenant.id === currentTenantId || switchingTenantId !== null) return;
     setSwitchingTenantId(tenant.id);
     try {
-      await switchTenantAndReload(tenant.id, switchAuthTenant, workspaceLandingPath(user.tenantId, tenant.id));
+      await switchTenantAndReload(tenant.id, switchAuthTenant, workspaceLandingPath(sourceTenantId, tenant.id));
     } catch (error) {
       setSwitchingTenantId(null);
       message.error((error as Error)?.message || "租户切换失败，请重试");

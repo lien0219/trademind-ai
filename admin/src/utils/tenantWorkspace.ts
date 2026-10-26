@@ -1,4 +1,5 @@
-import type { AuthTenant, Tenant } from '@/services/tenants';
+// Keep utility types structural to avoid a forbidden utils -> services dependency.
+type TenantWorkspaceCandidate = { id: number; status: string };
 
 export const PLATFORM_WORKSPACE_PATH = '/platform/tenants' as const;
 export const ENTERPRISE_WORKSPACE_PATH = '/dashboard/product-operations' as const;
@@ -6,8 +7,8 @@ export const ENTERPRISE_WORKSPACE_PATH = '/dashboard/product-operations' as cons
 // The backend decides whether an identity can enter the requested tenant.
 // Client-side lists only prevent misleading navigation and never grant access.
 export function canEnterTenantWorkspace(
-  tenant: Pick<Tenant, 'id' | 'status'>,
-  authorized: readonly Pick<AuthTenant, 'id' | 'status'>[],
+  tenant: TenantWorkspaceCandidate,
+  authorized: readonly TenantWorkspaceCandidate[],
 ): boolean {
   return tenant.id > 0 && tenant.status === 'active' &&
     authorized.some((member) => member.id === tenant.id && member.status === 'active');
