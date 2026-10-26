@@ -25,6 +25,6 @@ describe('tenant-zero bootstrap navigation', () => {
     expect(bootstrap.map(item => item.name)).toEqual(['平台管理', '设置']);
     expect(bootstrap[1].children?.map(item => item.name)).toEqual(['系统设置']);
     const tenant = filterMenuByPermission(menu, 'admin', ['store.view', 'settings.manage'], false, 42);
-    expect(tenant.map(item => item.name)).toEqual(['店铺', '设置']);
+    expect(tenant.map(item => item.name)).toEqual(['店铺']);
   });
 });
