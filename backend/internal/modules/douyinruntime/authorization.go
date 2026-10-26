@@ -78,14 +78,18 @@ func runtimePrincipal(c *gin.Context, db *gorm.DB) (*adminperm.Principal, error)
 	if err != nil {
 		return nil, errRuntimeAuthentication
 	}
-	if tenantID != 0 {
-		return nil, errRuntimeRootTenant
-	}
-	p, err := adminperm.LoadPrincipal(c, db)
+	p, err := adminperm.ResolvePlatformPrincipal(c, db)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errRuntimeMisconfigured, err)
+		switch {
+		case errors.Is(err, adminperm.ErrPlatformAuthenticationRequired):
+			return nil, errRuntimeAuthentication
+		case errors.Is(err, adminperm.ErrPlatformAccessDenied):
+			return nil, errRuntimeRootTenant
+		default:
+			return nil, fmt.Errorf("%w: %v", errRuntimeMisconfigured, err)
+		}
 	}
-	if p == nil || p.Disabled || p.UserID != *adminID || strings.TrimSpace(p.Role) == "" {
+	if p.UserID != *adminID || p.TenantID != tenantID || strings.TrimSpace(p.Role) == "" {
 		return nil, errRuntimePermission
 	}
 	return p, nil

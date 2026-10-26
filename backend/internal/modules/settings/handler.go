@@ -24,40 +24,9 @@ func (h *Handler) requireSettingsManage(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
 		return false
 	}
-	tid, err := adminperm.TenantIDFromGin(c)
-	if err != nil {
-		response.HandleError(c, err)
-		return false
-	}
-	// Platform settings are always stored under tenant ID 0, regardless of
-	// the caller's current business workspace. A persisted singleton Root may
-	// administer them from an active tenant session; an ordinary tenant admin
-	// must not acquire this platform capability through their RBAC role.
-	if tid != 0 {
-		if tid < 0 || h.DB == nil {
-			adminperm.DenySettings(c)
-			return false
-		}
-		principal, err := adminperm.LoadPrincipal(c, h.DB)
-		if err != nil {
-			response.HandleError(c, err)
-			return false
-		}
-		if principal == nil || principal.Disabled || principal.TenantID != tid {
-			adminperm.DenySettings(c)
-			return false
-		}
-		root, err := adminperm.IsRoot(c.Request.Context(), h.DB, principal.UserID)
-		if err != nil {
-			response.HandleError(c, err)
-			return false
-		}
-		if !root {
-			adminperm.DenySettings(c)
-			return false
-		}
-	}
-	return adminperm.RequireWrite(c, h.DB, adminperm.PermSettingsManage)
+	// Global configuration is held at tenant zero regardless of whether the
+	// singleton Root is currently in its internal or a customer workspace.
+	return adminperm.RequirePlatformPermission(c, h.DB, adminperm.PermSettingsManage, true)
 }
 
 type putBody struct {

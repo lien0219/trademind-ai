@@ -256,3 +256,36 @@ func jsonRows(rows []settings.Setting) string {
 	b, _ := json.Marshal(rows)
 	return string(b)
 }
+
+func TestRuntimeRootBusinessWorkspaceCanReadAndMutatePlatformSettings(t *testing.T) {
+	f := newRuntimeHTTPFixture(t, true)
+	require.NoError(t, f.db.AutoMigrate(&admin.RootAccount{}, &admin.Tenant{}, &admin.TenantMembership{}))
+	root := f.addActor(t, 0, adminperm.RoleAdmin, admin.StatusActive)
+	require.NoError(t, f.db.Create(&admin.RootAccount{ID: 1, UserID: root.ID}).Error)
+	require.NoError(t, f.db.Create(&admin.Tenant{ID: 33, Code: admin.RootWorkspaceCode, Name: admin.RootWorkspaceName, Status: admin.TenantActive}).Error)
+	require.NoError(t, f.db.Create(&admin.TenantMembership{TenantID: 33, UserID: root.ID, Role: adminperm.RoleAdmin, Status: admin.MembershipActive}).Error)
+	seedRuntimeStatus(t, f.db)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(ctxkey.AdminID, root.ID.String())
+		c.Set(ctxkey.TenantID, int64(33))
+		c.Next()
+	})
+	router.Use(middleware.RequestID())
+	Register(router.Group(""), &Handler{Svc: f.service})
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/platform/douyin/runtime-status", nil))
+	require.Equal(t, http.StatusOK, read.Code, read.Body.String())
+	pause := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/platform/douyin/runtime-status/pause", strings.NewReader(`{"reason":"operator test"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(pause, req)
+	require.Equal(t, http.StatusOK, pause.Code, pause.Body.String())
+	var value settings.Setting
+	require.NoError(t, f.db.Where("tenant_id = 0 AND group_key = ? AND item_key = ?", groupKey, "platform_runtime_status").First(&value).Error)
+	require.Equal(t, "paused", value.ItemValue)
+	require.NoError(t, f.db.Model(&admin.RootAccount{}).Where("id = ?", 1).Update("user_id", uuid.New()).Error)
+	denied := httptest.NewRecorder()
+	router.ServeHTTP(denied, httptest.NewRequest(http.MethodGet, "/platform/douyin/runtime-status", nil))
+	require.Equal(t, http.StatusForbidden, denied.Code, denied.Body.String())
+}

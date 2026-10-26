@@ -109,18 +109,7 @@ func requirePlatformSettingsManage(h *Handler) gin.HandlerFunc {
 			response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 			return
 		}
-		tenantID, err := adminperm.TenantIDFromGin(c)
-		if err != nil {
-			c.Abort()
-			response.HandleError(c, err)
-			return
-		}
-		if tenantID != 0 {
-			c.Abort()
-			adminperm.DenySettings(c)
-			return
-		}
-		if !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermSettingsManage) {
+		if !adminperm.RequirePlatformPermission(c, h.Svc.DB, adminperm.PermSettingsManage, true) {
 			c.Abort()
 			return
 		}
