@@ -22,6 +22,8 @@ func TestSettingsStrictSchema(t *testing.T) {
 		{ModuleInventory, `{"lowStockThreshold":10}`, true},
 		{ModuleInventory, `{"lowStockThreshold":-1}`, false},
 		{ModuleNotifications, `{"businessAlertsEnabled":true}`, true},
+        {ModuleOrders, `{"defaultCurrency":"EUR"}`, true},
+        {ModuleOrders, `{"defaultCurrency":"BTC"}`, false},
 		{ModuleBranding, `{"displayName":"Team","logoUrl":"https://example.com/logo.png","labels":["test"]}`, true},
 		{ModuleBranding, `{"displayName":"Team","logoUrl":"http://example.com/logo.png","labels":[]}`, false},
 		{ModuleAI, `null`, false},

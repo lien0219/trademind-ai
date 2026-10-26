@@ -13,9 +13,10 @@ const labels: Record<BusinessModule, string> = {
   collect: '采集与发布',
   inventory: '库存默认规则',
   notifications: '企业通知',
+  orders: '订单默认规则',
   branding: '企业品牌与标签',
 };
-const modules: BusinessModule[] = ['general', 'ai', 'collect', 'inventory', 'notifications', 'branding'];
+const modules: BusinessModule[] = ['general', 'ai', 'collect', 'inventory', 'notifications', 'orders', 'branding'];
 const templates: Partial<Record<BusinessModule, {name:string;values:Record<string,unknown>}[]>> = {
   ai: [
     {name:'中文内容创作',values:{defaultLanguage:'zh-CN'}},
@@ -172,6 +173,12 @@ export default function TenantBusinessSettingsPage() {
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label="开启企业业务通知" valuePropName="checked"><Switch/></Form.Item>
               <Alert type="info" showIcon message="待接入通知投递" description="已接入任务告警自动通知：关闭后不会通过平台现有邮件及回调通道自动发送当前企业任务告警。发送通道、收件人和重试仍沿用平台现有设置；不影响人工触发通知。" />
+            </>:null}
+            {module==='orders'?<>
+              <Form.Item name="defaultCurrency" label="手工订单默认币种" rules={[{required:true}]}>
+                <Select options={[{value:'USD',label:'美元 USD'},{value:'CNY',label:'人民币 CNY'},{value:'JPY',label:'日元 JPY'},{value:'EUR',label:'欧元 EUR'},{value:'GBP',label:'英镑 GBP'}]}/>
+              </Form.Item>
+              <Alert type="success" showIcon message="已接入手工订单创建" description="创建手工订单且未指定币种时应用当前企业默认值；平台订单同步不会被改写，已存在订单的币种和金额保持不变。"/>
             </>:null}
             {module==='branding'?<>
               <Form.Item name="displayName" label="企业展示名称"><Input maxLength={120}/></Form.Item>

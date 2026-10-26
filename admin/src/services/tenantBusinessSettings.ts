@@ -1,6 +1,6 @@
 import { getJSON, putJSON, postJSON } from '@/services/request';
 
-export type BusinessModule = 'general' | 'ai' | 'collect' | 'inventory' | 'notifications' | 'branding';
+export type BusinessModule = 'general' | 'ai' | 'collect' | 'inventory' | 'notifications' | 'orders' | 'branding';
 export type BusinessSnapshot = { module: BusinessModule; version: number; values: Record<string, any>; inherited: boolean };
 export type BusinessRevision = { version: number; module: BusinessModule; action: string; actorId: string; createdAt: string };
 export const getBusinessSettings = (module: BusinessModule) =>
