@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	ModuleGeneral = "general"
-	ModuleAI = "ai"
-	ModuleCollect = "collect"
-	ModuleInventory = "inventory"
+	ModuleGeneral       = "general"
+	ModuleAI            = "ai"
+	ModuleCollect       = "collect"
+	ModuleInventory     = "inventory"
 	ModuleNotifications = "notifications"
-	ModuleBranding = "branding"
-	maxSettingsBytes = 8192
+	ModuleBranding      = "branding"
+	maxSettingsBytes    = 8192
 )
 
 type General struct {
@@ -34,13 +34,13 @@ type Notifications struct {
 	BusinessAlertsEnabled bool `json:"businessAlertsEnabled"`
 }
 type Branding struct {
-	DisplayName string `json:"displayName"`
-	LogoURL string `json:"logoUrl"`
-	Labels []string `json:"labels"`
+	DisplayName string   `json:"displayName"`
+	LogoURL     string   `json:"logoUrl"`
+	Labels      []string `json:"labels"`
 }
 type Collect struct {
 	AllowedSources []string `json:"allowedSources"`
-	MaxBatchURLs int `json:"maxBatchURLs"`
+	MaxBatchURLs   int      `json:"maxBatchURLs"`
 }
 
 func Defaults(module string) (any, error) {
@@ -85,7 +85,9 @@ func Validate(module string, raw []byte) ([]byte, error) {
 	switch module {
 	case ModuleGeneral:
 		cfg := General{}
-		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
 		if !oneOf(cfg.Language, "zh-CN", "en-US", "ja-JP") ||
 			!oneOf(cfg.Timezone, "Asia/Shanghai", "Asia/Tokyo", "UTC") ||
 			!oneOf(cfg.Currency, "CNY", "USD", "JPY") {
@@ -94,30 +96,50 @@ func Validate(module string, raw []byte) ([]byte, error) {
 		v = cfg
 	case ModuleAI:
 		cfg := AI{}
-		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
 		if !oneOf(cfg.DefaultLanguage, "zh-CN", "en-US", "ja-JP") {
 			return nil, errors.New("unsupported AI language")
 		}
 		v = cfg
 	case ModuleInventory:
 		cfg := Inventory{}
-		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
-		if cfg.LowStockThreshold < 0 || cfg.LowStockThreshold > 1000000 { return nil, errors.New("invalid inventory threshold") }
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.LowStockThreshold < 0 || cfg.LowStockThreshold > 1000000 {
+			return nil, errors.New("invalid inventory threshold")
+		}
 		v = cfg
 	case ModuleNotifications:
 		cfg := Notifications{}
-		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
 		v = cfg
 	case ModuleBranding:
 		cfg := Branding{}
-		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
-		if len([]rune(cfg.DisplayName)) > 120 || len(cfg.Labels) > 20 || len([]byte(cfg.LogoURL)) > 2048 { return nil, errors.New("invalid branding size") }
-		if cfg.LogoURL != "" && !strings.HasPrefix(cfg.LogoURL, "https://") { return nil, errors.New("logo must be HTTPS") }
-		for _, label := range cfg.Labels { if strings.TrimSpace(label) != label || len([]rune(label)) > 32 { return nil, errors.New("invalid enterprise label") } }
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
+		if len([]rune(cfg.DisplayName)) > 120 || len(cfg.Labels) > 20 || len([]byte(cfg.LogoURL)) > 2048 {
+			return nil, errors.New("invalid branding size")
+		}
+		if cfg.LogoURL != "" && !strings.HasPrefix(cfg.LogoURL, "https://") {
+			return nil, errors.New("logo must be HTTPS")
+		}
+		for _, label := range cfg.Labels {
+			if strings.TrimSpace(label) != label || len([]rune(label)) > 32 {
+				return nil, errors.New("invalid enterprise label")
+			}
+		}
 		v = cfg
 	case ModuleCollect:
 		cfg := Collect{}
-		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
+		if err := decodeStrict(raw, &cfg); err != nil {
+			return nil, err
+		}
 		if cfg.MaxBatchURLs < 0 || cfg.MaxBatchURLs > 100 {
 			return nil, errors.New("batch limit must be 0-100")
 		}
@@ -131,7 +153,9 @@ func Validate(module string, raw []byte) ([]byte, error) {
 			}
 			seen[source] = true
 		}
-		if cfg.AllowedSources == nil { cfg.AllowedSources = []string{} }
+		if cfg.AllowedSources == nil {
+			cfg.AllowedSources = []string{}
+		}
 		v = cfg
 	default:
 		return nil, errors.New("unknown tenant settings module")
@@ -139,6 +163,10 @@ func Validate(module string, raw []byte) ([]byte, error) {
 	return json.Marshal(v)
 }
 func oneOf(value string, candidates ...string) bool {
-	for _, candidate := range candidates { if candidate == value { return true } }
+	for _, candidate := range candidates {
+		if candidate == value {
+			return true
+		}
+	}
 	return false
 }
