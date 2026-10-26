@@ -4,6 +4,8 @@ import (
     "context"
     "errors"
     "net/http"
+    "fmt"
+    "github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 
     "github.com/gin-gonic/gin"
     "github.com/google/uuid"
@@ -55,6 +57,7 @@ func (h *Handler) PutShopInventory(c *gin.Context) {
     id,err:=uuid.Parse(c.Param("shopId"))
     if err!=nil||id==uuid.Nil{response.Fail(c,400,response.CodeBadRequest,"invalid shop");return}
     if !adminperm.RequireStoreOperate(c,h.DB,id){return}
+    if h.Audit==nil {response.Fail(c,503,response.CodeInternalError,"shop settings audit unavailable");return}
     var body shopOverrideInput
     if err:=c.ShouldBindJSON(&body);err!=nil||body.WarningStock==nil||body.ExpectedVersion==nil||
         *body.WarningStock<0||*body.WarningStock>1000000||*body.ExpectedVersion<0 {
@@ -66,7 +69,12 @@ func (h *Handler) PutShopInventory(c *gin.Context) {
         e:=tx.Where("tenant_id=? AND shop_id=?",tid,id).Take(&row).Error
         if errors.Is(e,gorm.ErrRecordNotFound){
             if *body.ExpectedVersion!=0{return ErrVersionConflict}
-            return tx.Create(&ShopInventoryOverride{TenantID:tid,ShopID:id,WarningStock:*body.WarningStock,Version:1,UpdatedBy:actor}).Error
+            if err:=tx.Create(&ShopInventoryOverride{TenantID:tid,ShopID:id,WarningStock:*body.WarningStock,Version:1,UpdatedBy:actor}).Error;err!=nil{return err}
+            return h.Audit.WriteTxContext(c.Request.Context(),tx,operationlog.WriteOpts{
+                TenantID:tid,AdminUserID:&actor,Action:"tenant.shop.inventory.create",
+                Resource:"tenant_shop_inventory_override",ResourceID:id.String(),Status:"success",
+                Message:"version=1",
+            })
         }
         if e!=nil{return e}
         if row.Version!=*body.ExpectedVersion{return ErrVersionConflict}
@@ -74,7 +82,11 @@ func (h *Handler) PutShopInventory(c *gin.Context) {
             Updates(map[string]any{"warning_stock":*body.WarningStock,"version":next,"updated_by":actor})
         if result.Error!=nil{return result.Error}
         if result.RowsAffected!=1{return ErrVersionConflict}
-        return nil
+        return h.Audit.WriteTxContext(c.Request.Context(),tx,operationlog.WriteOpts{
+            TenantID:tid,AdminUserID:&actor,Action:"tenant.shop.inventory.update",
+            Resource:"tenant_shop_inventory_override",ResourceID:id.String(),Status:"success",
+            Message:fmt.Sprintf("version=%d",next),
+        })
     })
     if errors.Is(err,ErrVersionConflict){response.Fail(c,409,response.CodeConflict,"shop setting changed; reload");return}
     if err!=nil{response.Fail(c,503,response.CodeInternalError,"shop inventory configuration failed");return}
