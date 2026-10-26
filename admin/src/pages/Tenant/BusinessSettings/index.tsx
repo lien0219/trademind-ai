@@ -118,7 +118,7 @@ export default function TenantBusinessSettingsPage() {
             </>:null}
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label="开启企业业务通知" valuePropName="checked"><Switch/></Form.Item>
-              <Alert type="info" showIcon message="待接入通知投递" description="当前仅持久化企业开关，邮件/Webhook 不会因为此设置自动发送。" />
+              <Alert type="info" showIcon message="待接入通知投递" description="当前仅持久化企业开关，邮件和回调通知不会因为此设置自动发送。" />
             </>:null}
             {module==='branding'?<>
               <Form.Item name="displayName" label="企业展示名称"><Input maxLength={120}/></Form.Item>

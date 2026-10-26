@@ -396,8 +396,12 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	if s != nil && s.DB != nil {
 		if tenantID, err := adminperm.TenantIDFromGin(c); err == nil && tenantID > 0 {
 			prefs, _, err := tenantconfig.ReadAI(ctx, s.DB, tenantID)
-			if err != nil { return nil, fmt.Errorf("tenant AI defaults unavailable: %w", err) }
-			if strings.TrimSpace(req.Options.Language) == "" { req.Options.Language = prefs.DefaultLanguage }
+			if err != nil {
+				return nil, fmt.Errorf("tenant AI defaults unavailable: %w", err)
+			}
+			if strings.TrimSpace(req.Options.Language) == "" {
+				req.Options.Language = prefs.DefaultLanguage
+			}
 		}
 	}
 	if !s.aiConfigured() {

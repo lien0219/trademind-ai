@@ -33,4 +33,5 @@ type Revision struct {
 	Action    string         `gorm:"size:24;not null" json:"action"`
 	CreatedAt time.Time      `json:"createdAt"`
 }
+
 func (Revision) TableName() string { return "tenant_business_setting_revisions" }

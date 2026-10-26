@@ -652,8 +652,12 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	source := strings.TrimSpace(body.Source)
 	if tenantID > 0 {
 		policy, _, err := tenantconfig.ReadCollect(c.Request.Context(), s.DB, tenantID)
-		if err != nil { return zero, fmt.Errorf("tenant collect policy unavailable: %w", err) }
-		if err := tenantconfig.CheckCollectSource(policy, source); err != nil { return zero, err }
+		if err != nil {
+			return zero, fmt.Errorf("tenant collect policy unavailable: %w", err)
+		}
+		if err := tenantconfig.CheckCollectSource(policy, source); err != nil {
+			return zero, err
+		}
 	}
 	url := strings.TrimSpace(body.URL)
 	if source == "" || url == "" {

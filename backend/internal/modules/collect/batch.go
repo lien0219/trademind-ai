@@ -184,8 +184,12 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	var tenantBatchCap int
 	if tenantID > 0 {
 		policy, _, err := tenantconfig.ReadCollect(ctx, s.DB, tenantID)
-		if err != nil { return zero, fmt.Errorf("tenant collect policy unavailable: %w", err) }
-		if err := tenantconfig.CheckCollectSource(policy, source); err != nil { return zero, err }
+		if err != nil {
+			return zero, fmt.Errorf("tenant collect policy unavailable: %w", err)
+		}
+		if err := tenantconfig.CheckCollectSource(policy, source); err != nil {
+			return zero, err
+		}
 		tenantBatchCap = policy.MaxBatchURLs
 	}
 	if source == "" {
@@ -217,7 +221,9 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	}
 
 	maxURLs := s.batchMaxURLsForSource(ctx, source)
-	if tenantBatchCap > 0 && tenantBatchCap < maxURLs { maxURLs = tenantBatchCap }
+	if tenantBatchCap > 0 && tenantBatchCap < maxURLs {
+		maxURLs = tenantBatchCap
+	}
 	urls, err := normalizeDedupeURLs(rawURLs, maxURLs)
 	if err != nil {
 		return zero, err
