@@ -46,13 +46,6 @@ export default function TenantSettingsPage() {
     try {
       const result = await getCurrentTenant();
       setDetail(result);
-      form.setFieldsValue({
-        name: result.tenant.name,
-        legalName: result.tenant.legalName || '',
-        description: result.tenant.description || '',
-        contactEmail: result.tenant.contactEmail || '',
-        contactPhone: result.tenant.contactPhone || '',
-      });
       setAdvancedOpen(false);
       setAdvancedError(null);
       setShowExample(false);
@@ -61,11 +54,25 @@ export default function TenantSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [form]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The editor only mounts after tenant data arrives and is not rendered for
+  // read-only members. Populate the form after that commit; writing into the
+  // unconnected Form.useForm instance during load() causes an AntD warning.
+  useEffect(() => {
+    if (!canEdit || !detail) return;
+    form.setFieldsValue({
+      name: detail.tenant.name,
+      legalName: detail.tenant.legalName || '',
+      description: detail.tenant.description || '',
+      contactEmail: detail.tenant.contactEmail || '',
+      contactPhone: detail.tenant.contactPhone || '',
+    });
+  }, [canEdit, detail, form]);
 
   // Profile saves deliberately omit settings. A stale, unopened JSON editor
   // must never overwrite independent changes to the tenant's advanced options.
