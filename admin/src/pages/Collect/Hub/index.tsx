@@ -21,6 +21,9 @@ import { TaobaoTmallCollectModal } from '@/pages/Collect/components/TaobaoTmallC
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { queryCollectRules } from '@/services/collectRules';
+import { usePermission } from '@/hooks/usePermission';
+import { mayReadGlobalSettings } from '@/utils/globalSettingsAccess';
+import { PERMISSIONS } from '@/utils/permission';
 import { fetchCollectTasks, type CollectTaskRow } from '@/services/collectTasks';
 import { queryBrowserProfiles, type BrowserProfileRow } from '@/services/collectBrowserProfiles';
 import { formatDateTime } from '@/utils/formatTime';
@@ -311,6 +314,9 @@ function BrowserProfileSummary({
 }
 
 export default function CollectHubPage() {
+  const { user, can } = usePermission();
+  const mayManagePlatform = mayReadGlobalSettings(user);
+  const canCollect = can(PERMISSIONS.PRODUCT_WRITE);
   const [providerState, setProviderState] = useState<LoadState<CollectProviderRow[]>>({
     loading: true,
     data: [],
@@ -409,10 +415,10 @@ export default function CollectHubPage() {
 
   const sortedProviders = useMemo(
     () =>
-      [...providerState.data].sort(
+      providerState.data.filter((provider) => mayManagePlatform || provider.source !== 'custom').sort(
         (a, b) => sourceOrderValue(a.source) - sourceOrderValue(b.source) || a.name.localeCompare(b.name),
       ),
-    [providerState.data],
+    [providerState.data, mayManagePlatform],
   );
 
   const runnableProviders = sortedProviders.filter((provider) => providerRunnableForSingleTask(provider.status));
@@ -437,9 +443,9 @@ export default function CollectHubPage() {
       <Button icon={<HistoryOutlined />} onClick={() => history.push('/collect/tasks')}>
         采集任务
       </Button>
-      <Button icon={<SettingOutlined />} onClick={() => history.push('/settings/collector')}>
+      {mayManagePlatform ? <Button icon={<SettingOutlined />} onClick={() => history.push('/settings/collector')}>
         采集设置
-      </Button>
+      </Button> : null}
     </OperationToolbar>
   );
 
@@ -465,17 +471,17 @@ export default function CollectHubPage() {
                 type="primary"
                 size="large"
                 icon={<CloudDownloadOutlined />}
-                disabled={!primaryProvider || providerState.loading}
+                disabled={!canCollect || !primaryProvider || providerState.loading}
                 onClick={() => primaryProvider && openSingleCollect(primaryProvider)}
               >
                 开始采集商品
               </Button>
-              <Button size="large" icon={<FileSearchOutlined />} onClick={() => history.push('/collect/batches')}>
+              <Button size="large" icon={<FileSearchOutlined />} disabled={!canCollect} onClick={() => history.push('/collect/batches')}>
                 批量采集
               </Button>
-              <Button size="large" type="link" onClick={() => history.push('/collect/rules')}>
+              {mayManagePlatform ? <Button size="large" type="link" onClick={() => history.push('/collect/rules')}>
                 管理采集规则
-              </Button>
+              </Button> : null}
             </OperationToolbar>
           </div>
           <div className="tm-collect-hub-hero__side">
@@ -573,13 +579,14 @@ export default function CollectHubPage() {
                           copy={copy}
                           statusTag={statusTag}
                           features={features}
-                          singleDisabled={!providerRunnableForSingleTask(provider.status)}
+                          singleDisabled={!canCollect || !providerRunnableForSingleTask(provider.status)}
                           singleTooltip={providerRunnableForSingleTask(provider.status) ? undefined : '当前版本暂未开放'}
-                          batchDisabled={batchRowDisabledForProvider(provider)}
+                          batchDisabled={!canCollect || batchRowDisabledForProvider(provider)}
                           batchTooltip={batchButtonTooltipForProvider(provider)}
                           onSingleCollect={() => openSingleCollect(provider)}
                           onBatchCollect={() => history.push(`/collect/batches?source=${encodeURIComponent(provider.source)}`)}
                           onSettings={() => history.push(collectSettingsPath(provider.source))}
+                          showSettings={mayManagePlatform}
                           settingsLabel={collectSettingsConfigButtonLabel(provider.status)}
                         />
                       </Col>
@@ -669,16 +676,16 @@ export default function CollectHubPage() {
                 <Button block onClick={() => history.push('/collect/tasks')}>采集任务</Button>
                 <Button block onClick={() => history.push('/collect/batches')}>批量采集</Button>
                 <Button block onClick={() => history.push('/collect/browser-profiles')}>浏览器登录状态</Button>
-                <Button block onClick={() => history.push('/collect/rules')}>采集规则</Button>
+                {mayManagePlatform ? <Button block onClick={() => history.push('/collect/rules')}>采集规则</Button> : null}
                 <Button block onClick={() => history.push('/collect/monitor')}>采集监控</Button>
-                <Button block onClick={() => history.push('/settings/collector')}>采集设置</Button>
+                {mayManagePlatform ? <Button block onClick={() => history.push('/settings/collector')}>采集设置</Button> : null}
               </div>
             </SectionCard>
           </Col>
         </Row>
       </div>
 
-      <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} />
+      {mayManagePlatform ? <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} /> : null}
       <PinduoduoCollectModal open={pddModalOpen} onClose={() => setPddModalOpen(false)} />
       <TaobaoTmallCollectModal open={tbModalOpen} onClose={() => setTbModalOpen(false)} />
     </TmPageContainer>

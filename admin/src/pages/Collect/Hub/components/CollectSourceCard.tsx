@@ -30,6 +30,7 @@ export type CollectSourceCardProps = {
   onBatchCollect: () => void;
   onSettings: () => void;
   settingsLabel: ReactNode;
+  showSettings?: boolean;
 };
 
 export default function CollectSourceCard({
@@ -45,6 +46,7 @@ export default function CollectSourceCard({
   onBatchCollect,
   onSettings,
   settingsLabel,
+  showSettings = true,
 }: CollectSourceCardProps) {
   return (
     <article className="tm-collect-source-card">
@@ -105,9 +107,9 @@ export default function CollectSourceCard({
               批量采集
             </Button>
           </Tooltip>
-          <Button type="link" onClick={onSettings}>
+          {showSettings ? <Button type="link" onClick={onSettings}>
             {settingsLabel}
-          </Button>
+          </Button> : null}
         </Space>
         {copy.notes ? (
           <Text type="secondary" className="tm-collect-source-card__notes">

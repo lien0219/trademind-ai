@@ -4,6 +4,8 @@ import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, ProFormText } from '@ant-design/pro-components';
 import { Button, Input, Popconfirm, Space, Tag, Typography, message } from 'antd';
 import { useRef, useState } from 'react';
+import { usePermission } from '@/hooks/usePermission';
+import { PERMISSIONS } from '@/utils/permission';
 import {
   checkBrowserProfile,
   createBrowserProfile,
@@ -26,6 +28,8 @@ const CHECK_STATUS: Record<string, { text: string; color: string }> = {
 };
 
 export default function CollectBrowserProfilesPage() {
+  const { can } = usePermission();
+  const canManageProfiles = can(PERMISSIONS.PRODUCT_WRITE);
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
   const [checkUrl, setCheckUrl] = useState('');
@@ -107,7 +111,7 @@ export default function CollectBrowserProfilesPage() {
       title: '操作',
       valueType: 'option',
       width: 320,
-      render: (_, row) => (
+      render: (_, row) => canManageProfiles ? (
         <Space wrap size="small">
           {row.status === 'active' ? (
             <>
@@ -173,7 +177,7 @@ export default function CollectBrowserProfilesPage() {
             <a>删除</a>
           </Popconfirm>
         </Space>
-      ),
+      ) : <Typography.Text type="secondary">仅查看</Typography.Text>,
     },
   ];
 
@@ -192,9 +196,9 @@ export default function CollectBrowserProfilesPage() {
           value={checkUrl}
           onChange={(e) => setCheckUrl(e.target.value)}
         />
-        <Button type="primary" onClick={() => setCreateOpen(true)}>
+        {canManageProfiles ? <Button type="primary" onClick={() => setCreateOpen(true)}>
           新建登录状态
-        </Button>
+        </Button> : null}
       </Space>
       <ProTable<BrowserProfileRow>
         rowKey="id"

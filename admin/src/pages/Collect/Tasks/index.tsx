@@ -39,6 +39,9 @@ import {
 } from '@/services/collectTasks';
 import type { CollectRuleRow } from '@/services/collectRules';
 import { queryCollectRules } from '@/services/collectRules';
+import { usePermission } from '@/hooks/usePermission';
+import { mayReadGlobalSettings } from '@/utils/globalSettingsAccess';
+import { PERMISSIONS } from '@/utils/permission';
 import {
   mapCollectErrorMessage,
   mapCollectorErrorCodeDetail,
@@ -69,6 +72,9 @@ const COLLECT_TASK_QUERY_KEYS = [
 ] as const;
 
 export default function CollectTasksPage() {
+  const { user, can } = usePermission();
+  const mayManagePlatform = mayReadGlobalSettings(user);
+  const canCollect = can(PERMISSIONS.PRODUCT_WRITE);
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof COLLECT_TASK_QUERY_KEYS)[number], string | undefined>>(
       COLLECT_TASK_QUERY_KEYS,
@@ -158,7 +164,7 @@ export default function CollectTasksPage() {
   }, []);
 
   useEffect(() => {
-    if (formSource !== 'custom') {
+    if (formSource !== 'custom' || !mayManagePlatform) {
       setEnabledRules([]);
       return;
     }
@@ -170,7 +176,7 @@ export default function CollectTasksPage() {
         setEnabledRules([]);
       }
     })();
-  }, [formSource]);
+  }, [formSource, mayManagePlatform]);
 
   const rulesForUrl = useMemo(() => {
     const url = formUrl?.trim();
@@ -186,17 +192,17 @@ export default function CollectTasksPage() {
     if (!providers.length) return;
     const fromQs = collectPlatformFromQuery;
     const picked =
-      fromQs && providers.some((p) => p.source === fromQs && providerAllowsSingleCollect(p.status))
+      fromQs && providers.some((p) => p.source === fromQs && (mayManagePlatform || p.source !== 'custom') && providerAllowsSingleCollect(p.status))
         ? fromQs
         : providers.find((p) => p.source === '1688' && providerAllowsSingleCollect(p.status))?.source ??
-          providers.find((p) => providerAllowsSingleCollect(p.status))?.source;
+          providers.find((p) => (mayManagePlatform || p.source !== 'custom') && providerAllowsSingleCollect(p.status))?.source;
     if (!picked) return;
     form.setFieldsValue({
       source: picked,
       url: form.getFieldValue('url') ?? '',
       ...(picked !== 'custom' ? { ruleId: undefined } : {}),
     });
-  }, [providers, collectPlatformFromQuery, form]);
+  }, [providers, collectPlatformFromQuery, form, mayManagePlatform]);
 
   const placeholderUrl = useMemo(() => {
     const p = providers.find((x) => x.source === formSource);
@@ -204,7 +210,7 @@ export default function CollectTasksPage() {
     return pat && pat.length > 0 ? pat : 'https://detail.1688.com/offer/...';
   }, [providers, formSource]);
 
-  const providerSelectOptions = providers.map((p) => ({
+  const providerSelectOptions = providers.filter((p) => mayManagePlatform || p.source !== 'custom').map((p) => ({
     label: `${p.name}（${p.source}）`,
     value: p.source,
     disabled: !providerAllowsSingleCollect(p.status),
@@ -445,6 +451,7 @@ export default function CollectTasksPage() {
           className="tm-collect-task-form"
           initialValues={{ source: '1688', url: '' }}
           onFinish={async (vals) => {
+            if (!canCollect) return;
             const url = vals.url?.trim();
             const src = vals.source?.trim() || '';
             const p = providers.find((x) => x.source === src);
@@ -457,6 +464,10 @@ export default function CollectTasksPage() {
               return;
             }
             if (src === 'custom') {
+              if (!mayManagePlatform) {
+                message.error('当前账号无权使用平台级自定义采集规则');
+                return;
+              }
               const rid = vals.ruleId?.trim();
               if (rid) {
                 const rule = enabledRules.find((r) => r.id === rid);
@@ -537,7 +548,7 @@ export default function CollectTasksPage() {
             </Col>
             <Col xs={24} sm="auto">
               <Form.Item label=" ">
-                <Button type="primary" htmlType="submit" loading={submitting}>
+                <Button type="primary" htmlType="submit" loading={submitting} disabled={!canCollect}>
                   提交
                 </Button>
               </Form.Item>
