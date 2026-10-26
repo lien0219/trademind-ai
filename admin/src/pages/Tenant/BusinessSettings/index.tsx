@@ -196,7 +196,10 @@ export default function TenantBusinessSettingsPage() {
             </>:null}
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label="开启企业业务通知" valuePropName="checked"><Switch/></Form.Item>
-              <Alert type="info" showIcon message="待接入通知投递" description="已接入任务告警自动通知：关闭后不会通过平台现有邮件及回调通道自动发送当前企业任务告警。发送通道、收件人和重试仍沿用平台现有设置；不影响人工触发通知。" />
+              <Form.Item name="mailRecipients" label="企业告警邮件接收人" extra="最多 10 个地址；留空继承平台通知收件人。SMTP 配置由平台统一管理。">
+                <Select mode="tags" tokenSeparators={[',']} maxCount={10} placeholder="ops@example.com"/>
+              </Form.Item>
+              <Alert type="info" showIcon message="待接入通知投递" description="已接入任务告警自动通知：关闭后不会通过平台现有邮件及回调通道自动发送当前企业任务告警。企业可以独立配置告警邮件接收人，平台保留 SMTP 凭据及渠道开关；不影响人工触发通知。" />
             </>:null}
             {module==='orders'?<>
               <Form.Item name="defaultCurrency" label="手工订单默认币种" rules={[{required:true}]}>
