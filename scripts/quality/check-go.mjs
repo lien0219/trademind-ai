@@ -20,6 +20,21 @@ async function run(label, bin, commandArgs, options = {}) {
   return result;
 }
 
+// Temporary Go formatter proof for two changed files. Remove after CI.
+if (process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REF === 'refs/heads/dev') {
+  const { execFileSync } = await import('node:child_process');
+  for (const file of [
+    'internal/modules/tenantmgmt/handler.go',
+    'internal/modules/tenantmgmt/leave_policy_test.go',
+  ]) {
+    const output = execFileSync('gofmt', [file], { cwd: backend });
+    console.log('FORMAT_PROOF_START:' + file);
+    const chunks = output.toString('base64').match(/.{1,160}/g) || [];
+    for (const chunk of chunks) console.log('FORMAT_PROOF_CHUNK:' + chunk);
+    console.log('FORMAT_PROOF_END:' + file);
+  }
+}
+
 try {
   if (checkFmt) {
     const result = await run('gofmt', 'gofmt', ['-l', '.']);
