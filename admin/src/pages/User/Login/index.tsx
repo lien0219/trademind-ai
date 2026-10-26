@@ -17,6 +17,8 @@ import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import { message } from 'antd';
 import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
+import { readLanguage, setLanguage, tr } from '@/i18n';
+import { languageNames, supportedLanguages, type AppLanguage } from '@/i18n/dictionaries';
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { PASSWORD_HINT, passwordError } from '@/utils/password';
@@ -53,6 +55,7 @@ function getAuthErrorMessage(error: unknown, fallback: string) {
 
 export default function LoginPage() {
   const { setInitialState, initialState } = useInitialStateModel();
+  const [language, setSelectedLanguage] = useState<AppLanguage>(readLanguage);
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [passwordChangeAccount, setPasswordChangeAccount] = useState<{ account: string; currentPassword: string } | null>(null);
@@ -122,7 +125,7 @@ export default function LoginPage() {
     try {
       const data = await login(values.account as string, values.password as string);
       await completeLogin(data);
-      message.success('登录成功');
+      message.success(tr('登录成功'));
     } catch (e: unknown) {
       const err = e as { message?: string };
       if (err?.message?.includes('AUTH_PASSWORD_CHANGE_REQUIRED')) {
@@ -146,7 +149,7 @@ export default function LoginPage() {
         confirmPassword: values.confirmPassword,
       });
       await completeLogin(data);
-      message.success('注册并登录成功');
+      message.success(tr('注册并登录成功'));
     } catch (e: unknown) {
       message.error(getAuthErrorMessage(e, '注册失败'));
     } finally {
@@ -163,7 +166,7 @@ export default function LoginPage() {
     const email = registerForm.getFieldValue('email');
     try {
       await sendEmailCode(email, 'register');
-      message.success('验证码已发送');
+      message.success(tr('验证码已发送'));
       setCountdown(60);
       countdownTimer.current = setInterval(() => {
         setCountdown((c) => {
@@ -181,6 +184,16 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell">
+      <div style={{position:'absolute',top:16,right:24,zIndex:20}}>
+        <select aria-label={tr('语言')} value={language} onChange={e=>{
+          const next=e.target.value as AppLanguage;
+          setSelectedLanguage(next);
+          setLanguage(next);
+          window.location.reload();
+        }} style={{padding:'7px 10px',borderRadius:8,border:'1px solid #b0b0b0',background:'var(--ant-color-bg-container, #fff)',color:'var(--ant-color-text, #222)'}}>
+          {supportedLanguages.map(locale=><option value={locale} key={locale}>{languageNames[locale]}</option>)}
+        </select>
+      </div>
       <div className="login-container">
         <div className="login-left">
           <div className="login-left-decor" aria-hidden="true">
@@ -273,17 +286,17 @@ export default function LoginPage() {
                 centered
                 onChange={changeAuthTab}
                 items={[
-                  { key: 'login', label: '登录' },
-                  { key: 'register', label: '注册' },
+                  { key: 'login', label: tr('登录') },
+                  { key: 'register', label: tr('注册') },
                 ]}
               />
 
               <div className="welcome-text" key={`welcome-${activeTab}`}>
-                <h2>{activeTab === 'login' ? '欢迎回来' : '注册账号'}</h2>
+                <h2>{activeTab === 'login' ? tr('欢迎回来') : tr('注册账号')}</h2>
                 <p>
                   {activeTab === 'login'
-                    ? '登录你的 TradeMind 工作台'
-                    : '开启你的 AI 跨境之旅'}
+                    ? tr('登录你的 TradeMind 工作台')
+                    : tr('开启你的 AI 跨境之旅')}
                 </p>
               </div>
 
