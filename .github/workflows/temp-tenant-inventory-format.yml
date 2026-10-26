@@ -1,0 +1,20 @@
+name: Temporary Inventory Go Format
+on:
+  push:
+    branches: [dev]
+    paths: [.github/workflows/temp-tenant-inventory-format.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture formatted code
+        run: |
+          for f in backend/internal/modules/product/service.go backend/internal/modules/tenantconfig/service.go; do
+            echo "FORMAT_FILE_BEGIN $f"
+            gofmt "$f" | base64 -w 0
+            echo
+            echo "FORMAT_FILE_END $f"
+          done
