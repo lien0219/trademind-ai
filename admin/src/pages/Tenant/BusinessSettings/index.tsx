@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
+import { Alert, Button, Card, Form, Grid, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { TmPageContainer } from '@/components/ui';
 import ShopInventoryOverride from './ShopInventoryOverride';
@@ -41,6 +41,7 @@ const sourceOptions = [
 
 export default function TenantBusinessSettingsPage() {
   const { can } = usePermission();
+  const screens = Grid.useBreakpoint();
   const writable = can(PERMISSIONS.SETTINGS_MANAGE);
   const [module, setModule] = useState<BusinessModule>('general');
   const [snapshot, setSnapshot] = useState<BusinessSnapshot | null>(null);
@@ -161,7 +162,7 @@ export default function TenantBusinessSettingsPage() {
         <Button disabled={!snapshot} onClick={()=>fileInput.current?.click()}>导入预览</Button></>:null}
       <Button icon={<ReloadOutlined />} onClick={() => void load(module)} loading={loading}>刷新</Button>
     </Space>}>
-    <div style={{display:'grid',gridTemplateColumns:'minmax(150px, 210px) minmax(0, 1fr)',gap:16}}>
+    <div style={{display:'grid',gridTemplateColumns:screens.md ? 'minmax(150px, 210px) minmax(0, 1fr)' : 'minmax(0,1fr)',gap:16}}>
       <Card size="small" styles={{body:{padding:8}}}>
         <Space direction="vertical" style={{width:'100%'}}>
           {modules.map(item=><Button key={item} block type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>chooseModule(item)}>{labels[item]}</Button>)}
@@ -226,6 +227,7 @@ export default function TenantBusinessSettingsPage() {
           <Typography.Title level={5}>配置变更历史</Typography.Title>
           <Space direction="vertical" style={{width:'100%'}}>{revisions.length===0?<Typography.Text type="secondary">暂无历史版本</Typography.Text>:revisions.map(row=><div key={row.version} style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--ant-color-border-secondary)'}}>
             <span>版本 {row.version} · {row.action} · {new Date(row.createdAt).toLocaleString()}</span>
+            <Button size="small" onClick={()=>setPreview({name:`历史版本 ${row.version} 与当前配置对比`,values:row.values as Record<string,unknown>})}>对比当前</Button>
             <Popconfirm title={`恢复版本 ${row.version}？`} description="恢复会生成新版本并保留审计记录。" onConfirm={()=>void restore(row.version)}>
               <Button size="small" disabled={saving || !writable}>恢复</Button>
             </Popconfirm>
