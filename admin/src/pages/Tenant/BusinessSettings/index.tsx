@@ -118,6 +118,29 @@ export default function TenantBusinessSettingsPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
+  const exportAll = async () => {
+    try {
+      // Export all tenant modules as read-only snapshots. Never include
+      // platform provider credentials, personal preferences, or user tokens.
+      const snapshots = await Promise.all(modules.map(async key => getBusinessSettings(key)));
+      const body = JSON.stringify({
+        format: 'trademind-tenant-config-bundle-v1',
+        exportedAt: new Date().toISOString(),
+        modules: Object.fromEntries(snapshots.map(item => [item.module, {
+          version: item.version, inherited: item.inherited, values: item.values,
+        }])),
+      }, null, 2);
+      const url = URL.createObjectURL(new Blob([body], {type: 'application/json'}));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'tenant-business-settings-bundle.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      message.success('已导出全部企业业务配置，不包含任何密钥');
+    } catch (e) {
+      message.error((e as Error)?.message || '导出失败，请检查读取权限后重试');
+    }
+  };
   const importFile = async (file: File) => {
     if (!writable || !snapshot || file.size > 8192) { message.error('配置文件不可导入或超过大小限制'); return; }
     try {
@@ -133,6 +156,7 @@ export default function TenantBusinessSettingsPage() {
   return <TmPageContainer title="企业业务配置" subTitle="当前企业专属默认规则；平台安全限制与其他企业均不受影响。"
     extra={<Space>
       <Button onClick={exportCurrent} disabled={!snapshot}>导出配置</Button>
+      <Button onClick={() => void exportAll()}>导出全部模块</Button>
       {writable?<><input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file) void importFile(file);e.target.value='';}} />
         <Button disabled={!snapshot} onClick={()=>fileInput.current?.click()}>导入预览</Button></>:null}
       <Button icon={<ReloadOutlined />} onClick={() => void load(module)} loading={loading}>刷新</Button>
