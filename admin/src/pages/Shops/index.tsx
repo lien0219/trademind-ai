@@ -64,6 +64,9 @@ import {
 import { syncShopOrders } from '@/services/orderSync';
 import { syncCustomerMessages } from '@/services/customer';
 import { getPlatformAppSettings } from '@/services/platformOpen';
+import { usePermission } from '@/hooks/usePermission';
+import { mayReadGlobalSettings } from '@/utils/globalSettingsAccess';
+import { PERMISSIONS } from '@/utils/permission';
 import { isDeployAppConfigComplete } from '@/utils/platformAppConfig';
 import {
   buildShopAuthPayload,
@@ -78,6 +81,10 @@ import {
 } from './viewHelpers';
 
 export default function ShopsPage() {
+  const { user, can } = usePermission();
+  const canCreateShop = user?.role === 'admin' && (user.tenantId ?? 0) > 0;
+  const canEditShop = can(PERMISSIONS.STORE_OPERATE);
+  const mayManagePlatform = mayReadGlobalSettings(user);
   const actionRef = useRef<ActionType>();
   const [providers, setProviders] = useState<PlatformProviderMeta[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -129,7 +136,7 @@ export default function ShopsPage() {
     setDetail(d);
     const p = providers.find((x) => x.platform === d.platform);
     setAuthPartnerWarn(null);
-    if (p?.settingsGroupKey && d.platform !== 'manual') {
+    if (mayManagePlatform && p?.settingsGroupKey && d.platform !== 'manual') {
       try {
         const row = await getPlatformAppSettings(p.platform);
         if (!isDeployAppConfigComplete(row.schema ?? p.appConfigSchema, row.values)) {
@@ -342,7 +349,7 @@ export default function ShopsPage() {
         render: (_, r) => {
           const moreItems: MenuProps['items'] = [];
 
-          if (r.platform === 'douyin_shop') {
+          if (canEditShop && r.platform === 'douyin_shop') {
             moreItems.push({
               type: 'group',
               label: '抖店授权',
@@ -376,7 +383,7 @@ export default function ShopsPage() {
             });
           }
 
-          moreItems.push({
+          if (canEditShop) moreItems.push({
             type: 'group',
             label: '数据同步',
             children: [
@@ -407,7 +414,7 @@ export default function ShopsPage() {
             ],
           });
 
-          moreItems.push({
+          if (canEditShop) moreItems.push({
             key: 'test',
             label: '测试连接',
             icon: <ApiOutlined />,
@@ -421,8 +428,8 @@ export default function ShopsPage() {
               }
             },
           });
-          moreItems.push({ type: 'divider' });
-          moreItems.push({
+          if (canCreateShop) moreItems.push({ type: 'divider' });
+          if (canCreateShop) moreItems.push({
             key: 'delete',
             label: '删除店铺',
             icon: <DeleteOutlined />,
@@ -484,7 +491,7 @@ export default function ShopsPage() {
         },
       },
     ],
-    [providers],
+    [providers, canEditShop, canCreateShop],
   );
 
   return (
@@ -506,11 +513,11 @@ export default function ShopsPage() {
         options={{ reload: true, density: true, setting: true }}
         pagination={{ defaultPageSize: 20, showSizeChanger: true, showQuickJumper: true }}
         headerTitle="店铺列表"
-        toolBarRender={() => [
+        toolBarRender={() => canCreateShop ? [
           <Button key="n" type="primary" onClick={() => setCreateOpen(true)}>
             新建店铺
           </Button>,
-        ]}
+        ] : []}
         request={async (params) => {
           const res = await queryShops({
             page: params.current,
@@ -531,7 +538,7 @@ export default function ShopsPage() {
         onFinish={async (vals) => {
           const plat = vals.platform as string;
           const meta = providers.find((x) => x.platform === plat);
-          if (meta?.settingsGroupKey && plat !== 'manual') {
+          if (mayManagePlatform && meta?.settingsGroupKey && plat !== 'manual') {
             try {
               const row = await getPlatformAppSettings(meta.platform);
               if (!isDeployAppConfigComplete(row.schema ?? meta.appConfigSchema, row.values)) {
