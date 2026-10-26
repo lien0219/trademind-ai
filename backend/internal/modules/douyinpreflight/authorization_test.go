@@ -38,7 +38,7 @@ func TestPreflightRoutesEnforceRootAuthorization(t *testing.T) {
 	}{
 		{name: "root administrator can run", method: http.MethodPost, path: "/platform/douyin/production-preflight", tenantID: 0, role: adminperm.RoleAdmin, status: admin.StatusActive, wantCode: http.StatusOK},
 		{name: "root administrator can read", method: http.MethodGet, path: "/platform/douyin/production-preflight/latest", tenantID: 0, role: adminperm.RoleAdmin, status: admin.StatusActive, wantCode: http.StatusOK},
-		{name: "readonly root can read", method: http.MethodGet, path: "/platform/douyin/production-preflight/latest", tenantID: 0, role: adminperm.RoleReadonly, status: admin.StatusActive, wantCode: http.StatusOK},
+		{name: "non-Root readonly may not read global preflight", method: http.MethodGet, path: "/platform/douyin/production-preflight/latest", tenantID: 0, role: adminperm.RoleReadonly, status: admin.StatusActive, wantCode: http.StatusForbidden},
 		{name: "other tenant cannot read global state", method: http.MethodGet, path: "/platform/douyin/production-preflight/latest", tenantID: 17, role: adminperm.RoleAdmin, status: admin.StatusActive, wantCode: http.StatusForbidden},
 		{name: "other tenant cannot run global preflight", method: http.MethodPost, path: "/platform/douyin/production-preflight", tenantID: 17, role: adminperm.RoleAdmin, status: admin.StatusActive, wantCode: http.StatusForbidden},
 		{name: "readonly root cannot run", method: http.MethodPost, path: "/platform/douyin/production-preflight", tenantID: 0, role: adminperm.RoleReadonly, status: admin.StatusActive, wantCode: http.StatusForbidden},
@@ -208,12 +208,17 @@ func (f *preflightHTTPFixture) addActor(t *testing.T, tenantID int64, role, stat
 }
 
 func (f *preflightHTTPFixture) request(t *testing.T, method, path, body string, actor *admin.AdminUser) *httptest.ResponseRecorder {
+	var tenantID int64
+	if actor != nil { tenantID = actor.TenantID }
+	return f.requestInTenant(t, method, path, body, actor, tenantID)
+}
+func (f *preflightHTTPFixture) requestInTenant(t *testing.T, method, path, body string, actor *admin.AdminUser, tenantID int64) *httptest.ResponseRecorder {
 	t.Helper()
 	router := gin.New()
 	if actor != nil {
 		router.Use(func(c *gin.Context) {
 			c.Set(ctxkey.AdminID, actor.ID.String())
-			c.Set(ctxkey.TenantID, actor.TenantID)
+			c.Set(ctxkey.TenantID, tenantID)
 			c.Set(ctxkey.TraceID, "test-preflight-rbac")
 			c.Next()
 		})
@@ -226,4 +231,31 @@ func (f *preflightHTTPFixture) request(t *testing.T, method, path, body string, 
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 	return recorder
+}
+
+func TestPreflightFromAuthenticatedRootBusinessWorkspace(t *testing.T) {
+	f := newPreflightHTTPFixture(t)
+	require.NoError(t, f.db.AutoMigrate(&admin.RootAccount{}, &admin.Tenant{}, &admin.TenantMembership{}))
+	root := f.addActor(t, 0, adminperm.RoleAdmin, admin.StatusActive)
+	require.NoError(t, f.db.Create(&admin.RootAccount{ID: 1, UserID: root.ID}).Error)
+	require.NoError(t, f.db.Create(&admin.Tenant{ID: 35, Code: admin.RootWorkspaceCode, Name: admin.RootWorkspaceName, Status: admin.TenantActive}).Error)
+	require.NoError(t, f.db.Create(&admin.Tenant{ID: 36, Code: "tenant-b", Name: "B", Status: admin.TenantActive}).Error)
+	require.NoError(t, f.db.Create(&admin.TenantMembership{TenantID: 35, UserID: root.ID, Role: adminperm.RoleAdmin, Status: admin.MembershipActive}).Error)
+	other := f.addActor(t, 36, adminperm.RoleAdmin, admin.StatusActive)
+	require.NoError(t, f.db.Create(&admin.TenantMembership{TenantID: 36, UserID: other.ID, Role: adminperm.RoleAdmin, Status: admin.MembershipActive}).Error)
+
+	for _, tc := range []struct{method, path string}{
+		{http.MethodGet, "/platform/douyin/production-preflight/latest"},
+		{http.MethodPost, "/platform/douyin/production-preflight"},
+	} {
+		t.Run(tc.method, func(t *testing.T) {
+			allowed := f.requestInTenant(t, tc.method, tc.path, `{"liveTest":false}`, root, 35)
+			require.Equal(t, http.StatusOK, allowed.Code, allowed.Body.String())
+			denied := f.requestInTenant(t, tc.method, tc.path, `{"liveTest":false}`, other, 36)
+			require.Equal(t, http.StatusForbidden, denied.Code, denied.Body.String())
+		})
+	}
+	require.NoError(t, f.db.Model(&admin.RootAccount{}).Where("id = ?", 1).Update("user_id", other.ID).Error)
+	revoked := f.requestInTenant(t, http.MethodGet, "/platform/douyin/production-preflight/latest", "", root, 35)
+	require.Equal(t, http.StatusForbidden, revoked.Code, revoked.Body.String())
 }

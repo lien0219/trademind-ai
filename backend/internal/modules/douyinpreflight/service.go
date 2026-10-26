@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -43,18 +44,24 @@ func (s *Service) Run(c *gin.Context, req RunRequest) (*Result, error) {
 		return nil, fmt.Errorf("douyin preflight unavailable")
 	}
 	ctx := context.Background()
+	businessTenantID := int64(0)
 	if c != nil && c.Request != nil {
 		ctx = c.Request.Context()
+		var err error
+		businessTenantID, err = adminperm.TenantIDFromGin(c)
+		if err != nil {
+			return nil, fmt.Errorf("resolve preflight tenant: %w", err)
+		}
 	}
 	checks := make([]CheckItem, 0, 32)
 
 	checks = append(checks, s.checkAppConfig(ctx)...)
-	checks = append(checks, s.checkShopAuth(ctx)...)
+	checks = append(checks, s.checkShopAuth(ctx, businessTenantID)...)
 	checks = append(checks, s.checkFeatureSwitches(ctx)...)
 	checks = append(checks, s.checkStorage(ctx)...)
-	checks = append(checks, s.checkDataState(ctx)...)
+	checks = append(checks, s.checkDataState(ctx, businessTenantID)...)
 
-	blocked, credentialsErr := s.needsRealCredentials(ctx)
+	blocked, credentialsErr := s.needsRealCredentials(ctx, businessTenantID)
 	if credentialsErr != nil {
 		checks = append(checks, checkFailed(
 			"live.credentials",
@@ -66,7 +73,7 @@ func (s *Service) Run(c *gin.Context, req RunRequest) (*Result, error) {
 		blocked = true
 	}
 	if req.LiveTest && credentialsErr == nil && !blocked && c != nil {
-		checks = append(checks, s.checkLiveAuth(c)...)
+		checks = append(checks, s.checkLiveAuth(c, businessTenantID)...)
 	} else if req.LiveTest && credentialsErr == nil && blocked {
 		checks = append(checks, checkWarning(
 			"live.auth_test",
@@ -145,7 +152,7 @@ func (s *Service) saveLatest(tx *gorm.DB, res *Result) error {
 	}).Error
 }
 
-func (s *Service) needsRealCredentials(ctx context.Context) (bool, error) {
+func (s *Service) needsRealCredentials(ctx context.Context, tenantID int64) (bool, error) {
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "platform_douyin_shop")
 	if err != nil {
 		return true, fmt.Errorf("read Douyin credentials: %w", err)
@@ -155,7 +162,7 @@ func (s *Service) needsRealCredentials(ctx context.Context) (bool, error) {
 	}
 	var n int64
 	if err := s.DB.WithContext(ctx).Model(&shop.Shop{}).
-		Where("tenant_id = ? AND platform = ? AND auth_status = ?", 0, douyinPlatform, shop.AuthAuthorized).
+		Where("tenant_id = ? AND platform = ? AND auth_status = ?", tenantID, douyinPlatform, shop.AuthAuthorized).
 		Count(&n).Error; err != nil {
 		return true, fmt.Errorf("count authorized Douyin shops: %w", err)
 	}
@@ -301,10 +308,10 @@ func (s *Service) checkAppConfig(ctx context.Context) []CheckItem {
 	return out
 }
 
-func (s *Service) checkShopAuth(ctx context.Context) []CheckItem {
+func (s *Service) checkShopAuth(ctx context.Context, tenantID int64) []CheckItem {
 	out := make([]CheckItem, 0, 8)
 	var shops []shop.Shop
-	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND platform = ?", 0, douyinPlatform).Find(&shops).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND platform = ?", tenantID, douyinPlatform).Find(&shops).Error; err != nil {
 		out = append(out, checkFailed("shop.list", "店铺授权", "无法读取抖店店铺列表", "检查数据库连接后重新运行预检", nil))
 		return out
 	}
@@ -467,12 +474,12 @@ func (s *Service) checkStorage(ctx context.Context) []CheckItem {
 	return out
 }
 
-func (s *Service) checkDataState(ctx context.Context) []CheckItem {
+func (s *Service) checkDataState(ctx context.Context, tenantID int64) []CheckItem {
 	out := make([]CheckItem, 0, 10)
 
 	var productCount int64
 	q := s.DB.WithContext(ctx).Model(&product.Product{}).Where("status IN ?", []string{product.StatusDraft, product.StatusReady})
-	if err := q.Where("tenant_id = ?", 0).Count(&productCount).Error; err != nil {
+	if err := q.Where("tenant_id = ?", tenantID).Count(&productCount).Error; err != nil {
 		out = append(out, checkFailed("data.products", "测试商品", "无法统计商品草稿", "检查数据库与商品服务", nil))
 	} else if productCount == 0 {
 		out = append(out, checkWarning("data.products", "测试商品", "尚无可用商品草稿", "采集或手工创建至少 1 个商品用于端到端联调", map[string]any{"count": 0}))
@@ -483,7 +490,7 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 	var withMainImage int64
 	if err := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
 		Joins("JOIN products ON products.id = product_images.product_id").
-		Where("products.tenant_id = ? AND product_images.image_type IN ?", 0, []string{product.ImageTypeMain}).
+		Where("products.tenant_id = ? AND product_images.image_type IN ?", tenantID, []string{product.ImageTypeMain}).
 		Distinct("product_images.product_id").Count(&withMainImage).Error; err != nil {
 		out = append(out, checkFailed("data.main_images", "商品主图", "无法统计商品主图", "检查数据库与商品服务", nil))
 		withMainImage = -1
@@ -499,7 +506,7 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 	var skuCount int64
 	if err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
 		Joins("JOIN products ON products.id = product_skus.product_id").
-		Where("products.tenant_id = ?", 0).Count(&skuCount).Error; err != nil {
+		Where("products.tenant_id = ?", tenantID).Count(&skuCount).Error; err != nil {
 		out = append(out, checkFailed("data.skus", "商品规格", "无法统计商品规格", "检查数据库与商品服务", nil))
 		skuCount = -1
 	}
@@ -512,7 +519,7 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 
 	var pubCount int64
 	if err := s.DB.WithContext(ctx).Model(&productpublish.ProductPublication{}).
-		Where("tenant_id = ? AND platform = ?", 0, douyinPlatform).
+		Where("tenant_id = ? AND platform = ?", tenantID, douyinPlatform).
 		Count(&pubCount).Error; err != nil {
 		out = append(out, checkFailed("data.publications", "平台商品草稿", "无法统计抖店刊登记录", "检查数据库与刊登服务", nil))
 		pubCount = -1
@@ -527,7 +534,7 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 	var unmatched int64
 	if err := s.DB.WithContext(ctx).Model(&productpublish.ProductPublicationSKU{}).
 		Joins("JOIN product_publications ON product_publications.id = product_publication_skus.publication_id").
-		Where("product_publications.tenant_id = ? AND product_publications.platform = ? AND product_publication_skus.bind_status IN ?", 0, douyinPlatform, []string{productpublish.BindStatusUnmatched, productpublish.BindStatusAmbiguous}).
+		Where("product_publications.tenant_id = ? AND product_publications.platform = ? AND product_publication_skus.bind_status IN ?", tenantID, douyinPlatform, []string{productpublish.BindStatusUnmatched, productpublish.BindStatusAmbiguous}).
 		Count(&unmatched).Error; err != nil {
 		out = append(out, checkFailed("data.sku_binding", "规格绑定", "无法统计规格绑定", "检查数据库与刊登服务", nil))
 		unmatched = -1
@@ -542,7 +549,7 @@ func (s *Service) checkDataState(ctx context.Context) []CheckItem {
 	return out
 }
 
-func (s *Service) checkLiveAuth(c *gin.Context) []CheckItem {
+func (s *Service) checkLiveAuth(c *gin.Context, tenantID int64) []CheckItem {
 	out := make([]CheckItem, 0, 4)
 	if s.Shops == nil {
 		out = append(out, checkFailed("live.auth", "真实联调", "店铺服务不可用", "", nil))
@@ -550,7 +557,7 @@ func (s *Service) checkLiveAuth(c *gin.Context) []CheckItem {
 	}
 	ctx := c.Request.Context()
 	var sh shop.Shop
-	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND platform = ? AND auth_status = ?", 0, douyinPlatform, shop.AuthAuthorized).First(&sh).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND platform = ? AND auth_status = ?", tenantID, douyinPlatform, shop.AuthAuthorized).First(&sh).Error; err != nil {
 		out = append(out, checkFailed("live.auth", "真实联调", "没有可用于联调的已授权店铺", "先完成 店铺授权", nil))
 		return out
 	}
