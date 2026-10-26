@@ -157,11 +157,31 @@ export async function getInitialState(): Promise<{
       if (preferenceResponse.ok && isTenantContextCurrent(context)) {
         const preference = (await preferenceResponse.json()) as {
           code?: number;
-          data?: { values?: { theme?: string; language?: string } };
+          data?: { values?: { theme?: string; language?: string }; inherited?: boolean };
         };
         const theme = preference.data?.values?.theme;
         const language = preference.data?.values?.language;
-        if (preference.code === 0 && isAppLanguage(language) && isTenantContextCurrent(context)) setLanguage(language);
+        if (preference.code === 0 && isTenantContextCurrent(context)) {
+          if (preference.data?.inherited) {
+            // A new member inherits their current organization's language,
+            // not the platform's generic personal-preference fallback.
+            try {
+              const generalResponse = await fetch("/api/v1/tenant/settings/general", {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (generalResponse.ok && isTenantContextCurrent(context)) {
+                const general = (await generalResponse.json()) as {
+                  code?: number; data?: { values?: { language?: string } };
+                };
+                if (general.code === 0 && isAppLanguage(general.data?.values?.language)) {
+                  setLanguage(general.data.values.language);
+                }
+              }
+            } catch { /* keep a valid local fallback */ }
+          } else if (isAppLanguage(language)) {
+            setLanguage(language);
+          }
+        }
         if (preference.code === 0 && (theme === "light" || theme === "dark") && isTenantContextCurrent(context)) {
           persistThemeMode(theme);
         }
