@@ -90,6 +90,8 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/config-status': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/users': PERMISSIONS.USER_MANAGE,
   '/tenant/business-settings': PERMISSIONS.PRODUCT_VIEW,
+  // Personal preferences are available to every authenticated tenant member.
+  '/tenant/preferences': [],
   '/tenant/members': PERMISSIONS.USER_MANAGE,
 };
 

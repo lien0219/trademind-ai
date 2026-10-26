@@ -647,6 +647,12 @@ export default [
         component: './Tenant/BusinessSettings',
       },
       {
+        path: '/tenant/preferences',
+        name: '个人偏好',
+        icon: 'UserOutlined',
+        component: './Tenant/PersonalPreferences',
+      },
+      {
         path: '/tenant/members',
         name: '企业成员与邀请',
         icon: 'TeamOutlined',
