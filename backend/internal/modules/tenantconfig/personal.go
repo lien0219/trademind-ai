@@ -41,7 +41,7 @@ func ValidatePersonalPreferences(raw []byte) (PersonalPreferences, error) {
 	if err := decoder.Decode(new(any)); err != io.EOF {
 		return prefs, errors.New("unexpected personal preference payload")
 	}
-	if !oneOf(prefs.Language, "zh-CN", "en-US", "ja-JP") || !oneOf(prefs.Theme, "light", "dark") || !oneOf(prefs.DateFormat, "YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY") {
+	if !oneOf(prefs.Language, "zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH") || !oneOf(prefs.Theme, "light", "dark") || !oneOf(prefs.DateFormat, "YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY") {
 		return prefs, errors.New("unsupported personal preferences")
 	}
 	return prefs, nil

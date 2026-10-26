@@ -37,6 +37,11 @@ func TestPersonalPreferenceIsolationAndConflict(t *testing.T) {
 	if err != ErrVersionConflict {
 		t.Fatalf("stale version: %v", err)
 	}
+	for _, language := range []string{"zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH"} {
+		if _, err = ValidatePersonalPreferences([]byte(`{"language":"` + language + `","theme":"dark","dateFormat":"YYYY-MM-DD"}`)); err != nil {
+			t.Errorf("supported language %s: %v", language, err)
+		}
+	}
 	if _, err = ValidatePersonalPreferences([]byte(`{"language":"zh-CN","theme":"auto","dateFormat":"YYYY-MM-DD"}`)); err == nil {
 		t.Fatal("invalid theme")
 	}

@@ -12,6 +12,9 @@ func TestSettingsStrictSchema(t *testing.T) {
 		good   bool
 	}{
 		{ModuleGeneral, `{"language":"zh-CN","timezone":"Asia/Shanghai","currency":"CNY"}`, true},
+		{ModuleGeneral, `{"language":"zh-TW","timezone":"Asia/Shanghai","currency":"CNY"}`, true},
+		{ModuleGeneral, `{"language":"ko-KR","timezone":"Asia/Tokyo","currency":"USD"}`, true},
+		{ModuleGeneral, `{"language":"th-TH","timezone":"UTC","currency":"USD"}`, true},
 		{ModuleAI, `{"defaultLanguage":"ja-JP"}`, true},
 		{ModuleAI, `{"defaultLanguage":"unexpected"}`, false},
 		{ModuleCollect, `{"allowedSources":["1688"],"maxBatchURLs":5}`, true},

@@ -96,7 +96,7 @@ func Validate(module string, raw []byte) ([]byte, error) {
 		if err := decodeStrict(raw, &cfg); err != nil {
 			return nil, err
 		}
-		if !oneOf(cfg.Language, "zh-CN", "en-US", "ja-JP") ||
+		if !oneOf(cfg.Language, "zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH") ||
 			!oneOf(cfg.Timezone, "Asia/Shanghai", "Asia/Tokyo", "UTC") ||
 			!oneOf(cfg.Currency, "CNY", "USD", "JPY") {
 			return nil, errors.New("unsupported language, timezone or currency")
