@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Form, InputNumber, Select, Space, Spin, Tag, Typography, message, Popconfirm } from 'antd';
+import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { TmPageContainer } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
@@ -10,8 +10,11 @@ const labels: Record<BusinessModule, string> = {
   general: '基础偏好',
   ai: 'AI 与内容',
   collect: '采集与发布',
+  inventory: '库存默认规则',
+  notifications: '企业通知',
+  branding: '企业品牌与标签',
 };
-const modules: BusinessModule[] = ['general', 'ai', 'collect'];
+const modules: BusinessModule[] = ['general', 'ai', 'collect', 'inventory', 'notifications', 'branding'];
 const languageOptions = [{value:'zh-CN',label:'简体中文'},{value:'en-US',label:'English'},{value:'ja-JP',label:'日本語'}];
 const sourceOptions = [
   {value:'1688',label:'1688'}, {value:'pinduoduo',label:'拼多多'},
@@ -108,6 +111,19 @@ export default function TenantBusinessSettingsPage() {
               <Form.Item name="allowedSources" label="允许的采集来源" extra="留空表示继承平台所有已开放来源；设置后，未选来源会被后端拒绝。"><Select mode="multiple" allowClear options={sourceOptions} placeholder="继承全部来源"/></Form.Item>
               <Form.Item name="maxBatchURLs" label="企业采集批次链接上限" extra="0 表示继承平台上限；企业值只能收紧，不能提高平台上限。" rules={[{required:true}]}><InputNumber min={0} max={100} style={{width:'100%'}}/></Form.Item>
               <Alert type="success" showIcon message="已接入采集任务创建" description="单条与批量新任务执行服务端校验，不能仅通过绕开 UI 来突破企业限制。"/>
+            </>:null}
+            {module==='inventory'?<>
+              <Form.Item name="lowStockThreshold" label="企业默认低库存阈值" rules={[{required:true}]}><InputNumber min={0} max={1000000} style={{width:'100%'}}/></Form.Item>
+              <Alert type="info" showIcon message="待接入库存预警" description="当前为企业规则存储，库存 SKU 预警仍采用现有 SKU 和全局配置；不会暗中修改库存值。" />
+            </>:null}
+            {module==='notifications'?<>
+              <Form.Item name="businessAlertsEnabled" label="开启企业业务通知" valuePropName="checked"><Switch/></Form.Item>
+              <Alert type="info" showIcon message="待接入通知投递" description="当前仅持久化企业开关，邮件/Webhook 不会因为此设置自动发送。" />
+            </>:null}
+            {module==='branding'?<>
+              <Form.Item name="displayName" label="企业展示名称"><Input maxLength={120}/></Form.Item>
+              <Form.Item name="logoUrl" label="企业 Logo HTTPS 地址" rules={[{type:'url'}]}><Input placeholder="https://..."/></Form.Item>
+              <Form.Item name="labels" label="企业标签"><Select mode="tags" maxCount={20} placeholder="添加标签，回车确认"/></Form.Item>
             </>:null}
             <Space><Button type="primary" icon={<SaveOutlined />} disabled={!writable} loading={saving} onClick={()=>void save()}>保存企业配置</Button><Button onClick={()=>void load(module)}>放弃更改</Button></Space>
           </Form>}
