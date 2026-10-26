@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorAlert, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import { getCurrentTenant, updateCurrentTenant, type TenantDetail, type TenantMetadataBody } from '@/services/tenants';
+import { getBusinessSettings } from '@/services/tenantBusinessSettings';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { TENANT_SETTINGS_EXAMPLE, formatTenantSettings, inspectTenantSettings, summarizeTenantSettings } from '@/utils/tenantSettings';
@@ -31,6 +32,7 @@ export default function TenantSettingsPage() {
   const { can } = usePermission();
   const canEdit = can(PERMISSIONS.SETTINGS_MANAGE);
   const [detail, setDetail] = useState<TenantDetail | null>(null);
+  const [brand, setBrand] = useState<{displayName?:string;logoUrl?:string;labels?:string[]}|null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -47,6 +49,15 @@ export default function TenantSettingsPage() {
     try {
       const result = await getCurrentTenant();
       setDetail(result);
+      // Branding read is optional for old deployments, never blocks
+      // tenant metadata or leaks another workspace's previous appearance.
+      setBrand(null);
+      try {
+        const branding = await getBusinessSettings('branding');
+        setBrand(branding.values);
+      } catch {
+        setBrand(null);
+      }
       setAdvancedOpen(false);
       setAdvancedError(null);
       setShowExample(false);
@@ -181,7 +192,13 @@ export default function TenantSettingsPage() {
               description="企业级资料和扩展选项只作用于这个工作空间；全平台运行参数请到「设置 → 系统设置」中管理。此处 JSON 不控制 Root 权限。"
             />
           ) : null}
-          <SectionCard title={detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? '系统内部业务空间' : '当前所属组织')} headerExtra={!canEdit ? <Tag>当前组织</Tag> : undefined}>
+          <SectionCard title={brand?.displayName || detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? '系统内部业务空间' : '当前所属组织')} headerExtra={!canEdit ? <Tag>当前组织</Tag> : undefined}>
+            {brand?.logoUrl ? <div style={{marginBottom:16}}>
+              <img alt="企业 Logo" src={brand.logoUrl} loading="lazy" referrerPolicy="no-referrer" style={{maxHeight:60,maxWidth:180,objectFit:'contain'}}/>
+            </div> : null}
+            {brand?.labels?.length ? <div style={{marginBottom:12}}>
+              <Space size={[6,6]} wrap>{brand.labels.map(label=><Tag key={label}>{label}</Tag>)}</Space>
+            </div> : null}
             <Descriptions column={{ xs: 1, sm: 2, md: 3 }} size="small">
               <Descriptions.Item label="企业标识">{detail.tenant.code}</Descriptions.Item>
               <Descriptions.Item label="企业状态"><StatusTag status={detail.tenant.status} text={TENANT_STATUS_LABELS[detail.tenant.status] || detail.tenant.status} /></Descriptions.Item>
