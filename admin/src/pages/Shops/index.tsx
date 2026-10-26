@@ -66,6 +66,7 @@ import { syncCustomerMessages } from '@/services/customer';
 import { getPlatformAppSettings } from '@/services/platformOpen';
 import { usePermission } from '@/hooks/usePermission';
 import { mayReadGlobalSettings } from '@/utils/globalSettingsAccess';
+import { canAdministerShops, canOperateShop } from '@/utils/shopActionAccess';
 import { PERMISSIONS } from '@/utils/permission';
 import { isDeployAppConfigComplete } from '@/utils/platformAppConfig';
 import {
@@ -82,7 +83,7 @@ import {
 
 export default function ShopsPage() {
   const { user, can } = usePermission();
-  const canCreateShop = user?.role === 'admin' && (user.tenantId ?? 0) > 0;
+  const canCreateShop = canAdministerShops(user);
   const canEditShop = can(PERMISSIONS.STORE_OPERATE);
   const mayManagePlatform = mayReadGlobalSettings(user);
   const actionRef = useRef<ActionType>();
@@ -348,8 +349,9 @@ export default function ShopsPage() {
         onCell: () => ({ style: { whiteSpace: 'nowrap' } }),
         render: (_, r) => {
           const moreItems: MenuProps['items'] = [];
+          const mayOperate = canEditShop && canOperateShop(user, r.id);
 
-          if (canEditShop && r.platform === 'douyin_shop') {
+          if (mayOperate && r.platform === 'douyin_shop') {
             moreItems.push({
               type: 'group',
               label: '抖店授权',
@@ -383,7 +385,7 @@ export default function ShopsPage() {
             });
           }
 
-          if (canEditShop) moreItems.push({
+          if (mayOperate && (can(PERMISSIONS.ORDER_OPERATE) || can(PERMISSIONS.CUSTOMER_OPERATE))) moreItems.push({
             type: 'group',
             label: '数据同步',
             children: [
@@ -414,7 +416,7 @@ export default function ShopsPage() {
             ],
           });
 
-          if (canEditShop) moreItems.push({
+          if (mayOperate) moreItems.push({
             key: 'test',
             label: '测试连接',
             icon: <ApiOutlined />,
@@ -459,7 +461,7 @@ export default function ShopsPage() {
               >
                 查看
               </Button>
-              <Button
+              {mayOperate ? <Button
                 type="link"
                 size="small"
                 style={{ paddingInline: 4 }}
@@ -471,8 +473,8 @@ export default function ShopsPage() {
                 }}
               >
                 编辑
-              </Button>
-              <Button
+              </Button> : null}
+              {mayOperate ? <Button
                 type="link"
                 size="small"
                 style={{ paddingInline: 4 }}
@@ -480,18 +482,18 @@ export default function ShopsPage() {
                 onClick={() => void openAuthFor(r.id)}
               >
                 授权
-              </Button>
-              <Dropdown menu={{ items: moreItems }} trigger={['click']}>
+              </Button> : null}
+              {moreItems.length ? <Dropdown menu={{ items: moreItems }} trigger={['click']}>
                 <Button type="link" size="small" style={{ paddingInline: 4 }} icon={<MoreOutlined />}>
                   更多
                 </Button>
-              </Dropdown>
+              </Dropdown> : null}
             </Space>
           );
         },
       },
     ],
-    [providers, canEditShop, canCreateShop],
+    [providers, canEditShop, canCreateShop, user],
   );
 
   return (
