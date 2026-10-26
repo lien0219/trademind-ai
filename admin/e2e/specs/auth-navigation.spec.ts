@@ -19,7 +19,7 @@ const isProductionPreview = Boolean(process.env.CI);
 
 test('@smoke disables global key rotation when the profile lacks its grant', async ({ admin, page }) => {
   await page.route('**/api/v1/auth/profile', (route) => route.fulfill({ json: ok({
-    ...e2eUser, permissions: e2eUser.permissions.filter((permission) => permission !== PERMISSIONS.SECURITY_KEY_ROTATE),
+    ...e2eUser, tenantId: 101, isRoot: true, platformOperator: true, permissions: e2eUser.permissions.filter((permission) => permission !== PERMISSIONS.SECURITY_KEY_ROTATE),
   }) }));
   const keyReads: string[] = [];
   page.on('request', (request) => {
