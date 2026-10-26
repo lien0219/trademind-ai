@@ -157,7 +157,7 @@ export default function TenantSettingsPage() {
   return (
     <TmPageContainer
       title={rootWorkspace ? 'Root 工作台信息' : '企业信息与设置'}
-      subTitle={rootWorkspace ? '系统自动维护的业务工作空间，不等同于平台全局配置。' : '查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。'}
+      subTitle={rootWorkspace ? '系统自动维护的业务工作空间，不等同于平台全局配置。' : canEdit ? '查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。' : '查看当前所属组织信息。'}
       extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>]}
     >
       {error ? <ErrorAlert title="企业资料加载失败" actionHint={error} action={<Button type="link" onClick={() => void load()}>重试</Button>} /> : null}
@@ -173,7 +173,7 @@ export default function TenantSettingsPage() {
               description="企业级资料和扩展选项只作用于这个工作空间；全平台运行参数请到「设置 → 系统设置」中管理。此处 JSON 不控制 Root 权限。"
             />
           ) : null}
-          <SectionCard title={detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? '系统内部业务空间' : '未填写企业说明')}>
+          <SectionCard title={detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? '系统内部业务空间' : '当前所属组织')} headerExtra={!canEdit ? <Tag>当前组织</Tag> : undefined}>
             <Descriptions column={{ xs: 1, sm: 2, md: 3 }} size="small">
               <Descriptions.Item label="企业标识">{detail.tenant.code}</Descriptions.Item>
               <Descriptions.Item label="企业状态"><StatusTag status={detail.tenant.status} text={TENANT_STATUS_LABELS[detail.tenant.status] || detail.tenant.status} /></Descriptions.Item>
@@ -187,7 +187,7 @@ export default function TenantSettingsPage() {
             </Descriptions>
           </SectionCard>
 
-          <SectionCard
+          {canEdit ? <><SectionCard
             title={rootWorkspace ? '工作台资料' : '企业基本资料'}
             description={canEdit ? '常用资料直接填写；保存不会修改高级 JSON 配置。并发修改需刷新后重试。' : '当前账号仅可查看资料，不能修改。'}
             headerExtra={canEdit ? <Tag color="blue">可编辑</Tag> : <Tag>只读</Tag>}
@@ -319,7 +319,7 @@ export default function TenantSettingsPage() {
               </Space>
               <Text type="secondary">最大 64 KiB；原始 JSON 不会随基本资料一同保存。修改前请先确认已有选项的用途。</Text>
             </Space>
-          </Modal>
+          </Modal></> : null}
         </Space>
       ) : null}
     </TmPageContainer>
