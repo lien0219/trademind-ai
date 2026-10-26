@@ -10,9 +10,10 @@ import {
   RightOutlined,
   SearchOutlined,
   TeamOutlined,
+  GlobalOutlined,
 } from "@ant-design/icons";
 import { history } from "@umijs/max";
-import { Avatar, Button, Dropdown, Empty, Input, Popover, Spin, message } from "antd";
+import { Avatar, Button, Dropdown, Empty, Input, Popover, Select, Spin, message } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { themeTokens, tmSemanticTokens } from "@/constants/layoutTokens";
 import { canAccessPath } from "@/utils/menuAccess";
@@ -24,6 +25,9 @@ import {
   switchTenantAndReload,
 } from "@/utils/tenantContext";
 import ThemeToggleButton from "./ThemeToggleButton";
+import { languageNames, supportedLanguages, type AppLanguage } from "@/i18n/dictionaries";
+import { readLanguage, setLanguage, tr } from "@/i18n";
+import { getJSON, putJSON } from "@/services/request";
 import { visibleWorkspaceOptions, workspaceDisplayName, workspaceLandingPath } from "@/utils/tenantWorkspace";
 import "./AppTopNav.less";
 
@@ -299,6 +303,24 @@ export default function AppTopNav({
   showThemeToggle = true,
 }: AppTopNavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [language, setSelectedLanguage] = useState<AppLanguage>(readLanguage);
+  const changeLanguage = async (next: AppLanguage) => {
+    if (next === language) return;
+    setSelectedLanguage(next);
+    setLanguage(next);
+    if ((user?.tenantId ?? 0)>0) {
+      try {
+        const snapshot = await getJSON<{values:{language:string;theme:string;dateFormat:string};version:number}>("/api/v1/tenant/preferences");
+        await putJSON("/api/v1/tenant/preferences",{
+          expectedVersion:snapshot.version,
+          values:{...snapshot.values,language:next},
+        });
+      } catch {
+        message.warning("已切换当前浏览器语言，账号偏好同步失败，请在个人偏好中重试");
+      }
+    }
+    window.location.reload();
+  };
 
   if (!user) {
     return <nav className="tm-app-top-nav" aria-label="内容导航栏" />;
@@ -324,6 +346,15 @@ export default function AppTopNav({
     <nav className="tm-app-top-nav" aria-label="内容导航栏">
       <TenantSwitchOverlay />
       <TenantSwitcher user={user} />
+      <Select
+        aria-label={tr("语言")}
+        value={language}
+        onChange={(next: AppLanguage) => void changeLanguage(next)}
+        options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}
+        suffixIcon={<GlobalOutlined />}
+        style={{width:128,maxWidth:"32vw"}}
+        size="small"
+      />
       {showThemeToggle ? (
         <ThemeToggleButton className="tm-app-top-nav__theme-toggle" />
       ) : null}
