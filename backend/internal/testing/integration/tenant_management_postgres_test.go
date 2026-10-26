@@ -431,7 +431,9 @@ func TestTenantInvitationRechecksStatusUnderPostgresMutationLock(t *testing.T) {
 	require.Zero(t, count)
 }
 
-func TestTenantConcurrentLastAdministratorLeavePostgres(t *testing.T) {
+// Both administrator self-leave attempts are denied, even under concurrency.
+// Transferring administration must use the explicit managed tenant workflow.
+func TestTenantConcurrentAdministratorsCannotLeavePostgres(t *testing.T) {
 	f := newTenantPGFixture(t)
 	first, second := f.user(t, "first-admin"), f.user(t, "second-admin")
 	row := f.tenant(t, first, "last-admin-race")
@@ -447,10 +449,10 @@ func TestTenantConcurrentLastAdministratorLeavePostgres(t *testing.T) {
 			successes++
 		}
 	}
-	require.Equal(t, 1, successes)
+	require.Zero(t, successes, "administrators must never self-leave a tenant")
 	var count int64
 	require.NoError(t, f.db.Model(&admin.TenantMembership{}).Where("tenant_id = ? AND role = ? AND status = ?", row.ID, "admin", admin.MembershipActive).Count(&count).Error)
-	require.EqualValues(t, 1, count)
+	require.EqualValues(t, 2, count)
 }
 
 func TestTenantMappingRejectsUnassignedShopPostgresHTTP(t *testing.T) {

@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { mayLeaveTenant } from '../tenantLeave';
 
 const tenant = { id: 31, status: 'active' as const, ownerUserId: 'owner' };
-const normal = { id: 'member', role: 'operator', tenantId: 31, isRoot: false, permissions: ['product.view'] };
+const normal: API.CurrentUser = {
+  id: 'member',
+  username: 'operator@example.test',
+  displayName: '测试运营',
+  role: 'operator',
+  tenantId: 31,
+  isRoot: false,
+  permissions: ['product.view'],
+};
 
 describe('tenant self-service leave display policy', () => {
   it('only permits ordinary active members in the selected tenant', () => {

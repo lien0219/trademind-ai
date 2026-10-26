@@ -112,7 +112,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
   );
   const current = availableWorkspaces.find((tenant) => tenant.id === currentTenantId);
   const currentLabel = current ? workspaceDisplayName(current) :
-    (user.tenantId === 0 ? "系统控制台" : (user.isRoot === true ? "Root 工作台" : user.tenantName || "当前企业"));
+    (user.tenantId === 0 ? "系统控制台" : (user.tenantName?.trim() || (user.isRoot === true ? "Root 工作台" : "当前企业")));
   const businessTenants = availableWorkspaces.filter((tenant) => tenant.id > 0);
   const isSystemWorkspace = user.tenantId === 0;
 

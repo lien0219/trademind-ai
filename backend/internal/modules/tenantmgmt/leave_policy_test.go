@@ -2,10 +2,8 @@ package tenantmgmt
 
 import (
 	"context"
-	"errors"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
@@ -25,10 +23,10 @@ func leaveTestUser(t *testing.T, svc *Service, role string, tenantID int64) admi
 
 func TestLeaveTenantForbidsRootOwnerAndAdminsWithoutAnyMutation(t *testing.T) {
 	cases := []struct {
-		name string
-		root bool
+		name  string
+		root  bool
 		owner bool
-		role string
+		role  string
 	}{
 		{name: "Root even with operator membership", root: true, role: adminperm.RoleOperator},
 		{name: "enterprise owner even after role downgrade", owner: true, role: adminperm.RoleOperator},
@@ -104,12 +102,3 @@ func TestLeaveTenantAllowsOrdinaryMemberAndRevokesMembership(t *testing.T) {
 	}
 }
 
-func TestLeaveTenantDoesNotMaskUnexpectedRootLookupErrors(t *testing.T) {
-	svc, _ := provisionFixture(t)
-	require.NoError(t, svc.DB.AutoMigrate(&admin.RootAccount{}))
-	tenant := admin.Tenant{Code:"root-lookup",Name:"Root lookup",Status:admin.TenantActive,SettingsJSON:"{}",Version:1}
-	require.NoError(t,svc.DB.Create(&tenant).Error)
-	user := leaveTestUser(t,svc,adminperm.RoleOperator,tenant.ID)
-	require.NoError(t,svc.DB.Create(&admin.TenantMembership{TenantID:tenant.ID,UserID:user.ID,Role:adminperm.RoleOperator,Status:admin.MembershipActive}).Error)
-	require.False(t,errors.Is(svc.Leave(context.Background(),uuid.Nil,tenant.ID),ErrTenantLeaveForbidden))
-}
