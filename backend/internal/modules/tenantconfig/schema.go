@@ -13,6 +13,9 @@ const (
 	ModuleGeneral = "general"
 	ModuleAI = "ai"
 	ModuleCollect = "collect"
+	ModuleInventory = "inventory"
+	ModuleNotifications = "notifications"
+	ModuleBranding = "branding"
 	maxSettingsBytes = 8192
 )
 
@@ -23,6 +26,17 @@ type General struct {
 }
 type AI struct {
 	DefaultLanguage string `json:"defaultLanguage"`
+}
+type Inventory struct {
+	LowStockThreshold int `json:"lowStockThreshold"`
+}
+type Notifications struct {
+	BusinessAlertsEnabled bool `json:"businessAlertsEnabled"`
+}
+type Branding struct {
+	DisplayName string `json:"displayName"`
+	LogoURL string `json:"logoUrl"`
+	Labels []string `json:"labels"`
 }
 type Collect struct {
 	AllowedSources []string `json:"allowedSources"`
@@ -37,6 +51,12 @@ func Defaults(module string) (any, error) {
 		return AI{DefaultLanguage: "zh-CN"}, nil
 	case ModuleCollect:
 		return Collect{AllowedSources: []string{}, MaxBatchURLs: 0}, nil
+	case ModuleInventory:
+		return Inventory{LowStockThreshold: 5}, nil
+	case ModuleNotifications:
+		return Notifications{BusinessAlertsEnabled: true}, nil
+	case ModuleBranding:
+		return Branding{Labels: []string{}}, nil
 	default:
 		return nil, errors.New("unknown tenant settings module")
 	}
@@ -78,6 +98,22 @@ func Validate(module string, raw []byte) ([]byte, error) {
 		if !oneOf(cfg.DefaultLanguage, "zh-CN", "en-US", "ja-JP") {
 			return nil, errors.New("unsupported AI language")
 		}
+		v = cfg
+	case ModuleInventory:
+		cfg := Inventory{}
+		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
+		if cfg.LowStockThreshold < 0 || cfg.LowStockThreshold > 1000000 { return nil, errors.New("invalid inventory threshold") }
+		v = cfg
+	case ModuleNotifications:
+		cfg := Notifications{}
+		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
+		v = cfg
+	case ModuleBranding:
+		cfg := Branding{}
+		if err := decodeStrict(raw, &cfg); err != nil { return nil, err }
+		if len([]rune(cfg.DisplayName)) > 120 || len(cfg.Labels) > 20 || len([]byte(cfg.LogoURL)) > 2048 { return nil, errors.New("invalid branding size") }
+		if cfg.LogoURL != "" && !strings.HasPrefix(cfg.LogoURL, "https://") { return nil, errors.New("logo must be HTTPS") }
+		for _, label := range cfg.Labels { if strings.TrimSpace(label) != label || len([]rune(label)) > 32 { return nil, errors.New("invalid enterprise label") } }
 		v = cfg
 	case ModuleCollect:
 		cfg := Collect{}
