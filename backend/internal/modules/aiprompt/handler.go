@@ -51,19 +51,7 @@ func (h *Handler) requirePlatformAdmin(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "ai prompts unavailable")
 		return false
 	}
-	tenantID, err := adminperm.TenantIDFromGin(c)
-	if err != nil {
-		response.HandleError(c, err)
-		return false
-	}
-	if !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermSettingsManage) {
-		return false
-	}
-	if tenantID != 0 {
-		adminperm.DenySettings(c)
-		return false
-	}
-	return true
+	return adminperm.RequirePlatformPermission(c, h.Svc.DB, adminperm.PermSettingsManage, true)
 }
 
 // List GET /api/v1/ai/prompts

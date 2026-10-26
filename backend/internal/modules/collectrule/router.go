@@ -32,22 +32,7 @@ func requireSettingsManage(db *gorm.DB, write bool) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		tenantID, err := adminperm.TenantIDFromGin(c)
-		if err != nil {
-			response.HandleError(c, err)
-			c.Abort()
-			return
-		}
-		if tenantID != 0 {
-			adminperm.DenySettings(c)
-			c.Abort()
-			return
-		}
-		allowed := adminperm.RequirePermission(c, db, adminperm.PermSettingsManage)
-		if write {
-			allowed = adminperm.RequireWrite(c, db, adminperm.PermSettingsManage)
-		}
-		if !allowed {
+		if !adminperm.RequirePlatformPermission(c, db, adminperm.PermSettingsManage, write) {
 			c.Abort()
 			return
 		}
