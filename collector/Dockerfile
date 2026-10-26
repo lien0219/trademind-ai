@@ -1,5 +1,5 @@
 # Build the workspace, then deploy only Collector's production graph and dist.
-FROM node:24-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 
 WORKDIR /workspace
 
@@ -16,7 +16,7 @@ RUN pnpm --filter @trademind/collector build
 
 RUN pnpm --filter @trademind/collector deploy --prod --legacy /out/collector
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 
 WORKDIR /workspace/collector
 
