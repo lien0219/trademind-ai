@@ -209,7 +209,9 @@ func (f *preflightHTTPFixture) addActor(t *testing.T, tenantID int64, role, stat
 
 func (f *preflightHTTPFixture) request(t *testing.T, method, path, body string, actor *admin.AdminUser) *httptest.ResponseRecorder {
 	var tenantID int64
-	if actor != nil { tenantID = actor.TenantID }
+	if actor != nil {
+		tenantID = actor.TenantID
+	}
 	return f.requestInTenant(t, method, path, body, actor, tenantID)
 }
 func (f *preflightHTTPFixture) requestInTenant(t *testing.T, method, path, body string, actor *admin.AdminUser, tenantID int64) *httptest.ResponseRecorder {
@@ -244,7 +246,7 @@ func TestPreflightFromAuthenticatedRootBusinessWorkspace(t *testing.T) {
 	other := f.addActor(t, 36, adminperm.RoleAdmin, admin.StatusActive)
 	require.NoError(t, f.db.Create(&admin.TenantMembership{TenantID: 36, UserID: other.ID, Role: adminperm.RoleAdmin, Status: admin.MembershipActive}).Error)
 
-	for _, tc := range []struct{method, path string}{
+	for _, tc := range []struct{ method, path string }{
 		{http.MethodGet, "/platform/douyin/production-preflight/latest"},
 		{http.MethodPost, "/platform/douyin/production-preflight"},
 	} {

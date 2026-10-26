@@ -20,45 +20,6 @@ async function run(label, bin, commandArgs, options = {}) {
   return result;
 }
 
-// Temporary repository-wide Root permission audit and gofmt proof export.
-// Removed after inspecting the resulting CI logs and applying formatted files.
-if (process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REF === 'refs/heads/dev') {
-  const fs = await import('node:fs');
-  const { execFileSync } = await import('node:child_process');
-  const { createHash } = await import('node:crypto');
-  const sourceDirs = [path.join(backend, 'internal', 'modules'), path.join(backend, 'internal', 'pkg'), path.join(backend, 'internal', 'middleware')];
-  const suspicious = /(?:tenantID|tenantId|tid|requestTenant|currentTenant)\s*(?:!=|==)\s*0|IsSystemAdministrator\(|err[A-Za-z]*RootTenant|root tenant required|tenant[_-]zero|tenant_id = \?["'`],?\s*0/g;
-  let checked = 0;
-  const visit = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) { visit(full); continue; }
-      if (!entry.name.endsWith('.go') || entry.name.endsWith('_test.go')) continue;
-      checked++;
-      const lines = fs.readFileSync(full, 'utf8').split(/\r?\n/);
-      for (let i=0; i<lines.length; i++) {
-        if (suspicious.test(lines[i])) console.log('ROOT_AUDIT:' + path.relative(backend,full).replaceAll('\\','/') + ':' + (i+1) + ':' + lines[i].trim().slice(0,220));
-        suspicious.lastIndex=0;
-      }
-    }
-  };
-  for (const d of sourceDirs) visit(d);
-  console.log('ROOT_AUDIT_COMPLETE:' + checked);
-  const changed = [
-    'internal/modules/douyinpreflight/authorization.go',
-    'internal/modules/douyinpreflight/authorization_test.go',
-    'internal/modules/douyinpreflight/service.go',
-  ];
-  console.log('GOFMT_PROOF_BEGIN:' + changed.length);
-  for (const file of changed) {
-    const data = execFileSync('gofmt',[file],{cwd:backend});
-    console.log('GOFMT_PROOF_FILE:' + file + ':' + data.length + ':' + createHash('sha256').update(data).digest('hex'));
-    const encoded = data.toString('base64');
-    for(let i=0;i<encoded.length;i+=160) console.log('GOFMT_PROOF_CHUNK:' + encoded.slice(i,i+160));
-    console.log('GOFMT_PROOF_END:' + file);
-  }
-}
-
 try {
   if (checkFmt) {
     const result = await run('gofmt', 'gofmt', ['-l', '.']);
