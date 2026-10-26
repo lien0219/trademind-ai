@@ -1,0 +1,21 @@
+name: Temporary Tenant Store Formatter
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/temp-tenant-store-format.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture formatted store config
+        run: |
+          for f in backend/internal/database/migrate.go backend/internal/modules/tenantconfig/handler.go backend/internal/modules/tenantconfig/shop_override.go backend/internal/modules/tenantconfig/shop_override_test.go; do
+            echo "FORMAT_FILE_BEGIN $f"
+            gofmt "$f" | base64 -w 0
+            echo
+            echo "FORMAT_FILE_END $f"
+          done
