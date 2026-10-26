@@ -408,7 +408,8 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 
 	for _, cand := range candidates {
 		alert := cand.Alert
-		if !manual && alert.TenantID > 0 {
+        tenantNotification := tenantconfig.Notifications{}
+		if alert.TenantID > 0 {
 			// Check the authenticated tenant's policy before any outbound
 			// send. Missing migrations and SQL errors fail closed.
 			if s.DB == nil {
@@ -418,7 +419,8 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 			if err != nil {
 				return errors.Join(errTaskDependencyUnavailable, err)
 			}
-			if !prefs.BusinessAlertsEnabled {
+			tenantNotification = prefs
+            if !manual && !prefs.BusinessAlertsEnabled {
 				continue
 			}
 		}
@@ -478,15 +480,23 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 			var res notify.AlertNotificationResult
 			switch ch {
 			case "mail":
+                // SMTP credentials remain platform-owned, tenant may
+                // override only validated destination addresses.
+                mailSettings := an
+                if len(tenantNotification.MailRecipients)>0 {
+                    mailSettings = make(map[string]string,len(an)+1)
+                    for k,v := range an {mailSettings[k]=v}
+                    mailSettings["mail_to"]=strings.Join(tenantNotification.MailRecipients,",")
+                }
 				if !parseBoolTaskCenter(an["mail_enabled"], false) {
 					res = notify.AlertNotificationResult{Channel: ch, Status: TaskAlertNotifStatusSkipped, ErrorMessage: "mail_disabled"}
 					break
 				}
-				if !validateMailToBasic(an["mail_to"]) {
+				if !validateMailToBasic(mailSettings["mail_to"]) {
 					res = notify.AlertNotificationResult{Channel: ch, Status: TaskAlertNotifStatusSkipped, ErrorMessage: "mail_to invalid"}
 					break
 				}
-				md, err := s.mailDeps(ctx, an)
+				md, err := s.mailDeps(ctx, mailSettings)
 				if err != nil {
 					res = notify.AlertNotificationResult{Channel: ch, Status: TaskAlertNotifStatusSkipped, ErrorMessage: "mail settings"}
 					break
