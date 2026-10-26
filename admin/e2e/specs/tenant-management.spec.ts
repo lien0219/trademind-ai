@@ -83,7 +83,7 @@ test('@smoke blocks ungranted enterprise entry even for a platform operator', as
   await expect(page.getByText('需企业成员授权')).toBeVisible();
   await expect(page.getByRole('button', { name: '进入企业工作台' })).toHaveCount(0);
   await page.getByRole('button', { name: '当前工作空间 系统控制台', exact: true }).click();
-  await expect(page.getByText('尚未加入任何企业。')).toBeVisible();
+  await expect(page.getByText('尚未加入企业，企业管理员可以邀请你加入。')).toBeVisible();
   await admin.writeGuard.expectNoUnexpectedWrites();
 });
 
