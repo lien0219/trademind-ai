@@ -1,0 +1,17 @@
+name: Internationalization Coverage Audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/i18n-coverage-audit.yml
+permissions:
+  contents: read
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enumerate untranslated UI strings
+        working-directory: admin
+        run: npm run i18n:audit
