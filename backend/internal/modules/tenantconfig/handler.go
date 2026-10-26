@@ -141,10 +141,34 @@ func (h *Handler) Restore(c *gin.Context) {
 		response.OK(c, s)
 	}
 }
+
+// Personal preferences are owned by the current authenticated membership,
+// never by a caller-supplied tenant or user identifier.
+func (h *Handler) GetPersonal(c *gin.Context) {
+	tid,uid,ok:=h.identity(c,false);if !ok{return}
+	s,err:=ReadPersonalPreferences(c.Request.Context(),h.DB,tid,uid)
+	if err!=nil{response.Fail(c,503,response.CodeInternalError,"personal preferences unavailable");return}
+	response.OK(c,s)
+}
+
+func (h *Handler) PutPersonal(c *gin.Context) {
+	tid,uid,ok:=h.identity(c,false);if !ok{return}
+	var in updateBody
+	if err:=c.ShouldBindJSON(&in);err!=nil||in.ExpectedVersion==nil{
+		response.Fail(c,400,response.CodeBadRequest,"invalid personal preferences request");return
+	}
+	s,err:=WritePersonalPreferences(c.Request.Context(),h.DB,tid,uid,in.Values,*in.ExpectedVersion)
+	if errors.Is(err,ErrVersionConflict){response.Fail(c,409,response.CodeConflict,"personal preference version conflict");return}
+	if err!=nil{response.Fail(c,400,response.CodeBadRequest,"personal preferences rejected");return}
+	response.OK(c,s)
+}
+
 func Register(group *gin.RouterGroup, handler *Handler) {
 	if group == nil || handler == nil {
 		return
 	}
+	group.GET("/tenant/preferences",handler.GetPersonal)
+	group.PUT("/tenant/preferences",handler.PutPersonal)
 	group.GET("/tenant/settings/:module", handler.Get)
 	group.PUT("/tenant/settings/:module", handler.Update)
 	group.GET("/tenant/settings/:module/history", handler.ListHistory)

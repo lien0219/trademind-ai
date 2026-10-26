@@ -248,6 +248,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&admin.TenantInvitation{},
 		&tenantconfig.Setting{},
 		&tenantconfig.Revision{},
+		&tenantconfig.UserPreference{},
 		&admin.PlatformOperator{},
 		&admin.RootAccount{},
 		&admin.UserStorePermission{},
