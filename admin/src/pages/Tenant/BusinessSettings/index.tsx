@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { TmPageContainer } from '@/components/ui';
+import ShopInventoryOverride from './ShopInventoryOverride';
 import { usePermission } from '@/hooks/usePermission';
 import { PERMISSIONS } from '@/utils/permission';
 import { getBusinessSettings, putBusinessSettings, listBusinessSettingsHistory, restoreBusinessSettings, type BusinessModule, type BusinessSnapshot, type BusinessRevision } from '@/services/tenantBusinessSettings';
@@ -168,6 +169,7 @@ export default function TenantBusinessSettingsPage() {
               <Form.Item name="lowStockThreshold" label="企业默认低库存阈值" rules={[{required:true}]}><InputNumber min={0} max={1000000} style={{width:'100%'}}/></Form.Item>
               <Alert type="info" showIcon message="待接入库存预警" description="当前为企业规则存储，库存 SKU 预警仍采用现有 SKU 和全局配置；不会暗中修改库存值。" />
             </>:null}
+            {module==='inventory'?<ShopInventoryOverride/>:null}
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label="开启企业业务通知" valuePropName="checked"><Switch/></Form.Item>
               <Alert type="info" showIcon message="待接入通知投递" description="当前仅持久化企业开关，邮件和回调通知不会因为此设置自动发送。" />
