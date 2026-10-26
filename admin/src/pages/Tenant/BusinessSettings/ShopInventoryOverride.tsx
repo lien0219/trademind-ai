@@ -56,7 +56,7 @@ export default function ShopInventoryOverride() {
   };
   return <Card type="inner" title="店铺级库存阈值覆盖" size="small" style={{marginTop:18}}>
     <Space direction="vertical" style={{width:'100%'}}>
-      <Typography.Text type="secondary">选择授权店铺单独配置新 SKU 的预警默认值；不更改已有 SKU。</Typography.Text>
+      <Typography.Text type="secondary">按授权店铺维护库存阈值覆盖；当前已支持配置读取和版本保护，库存预警业务尚未全面使用此覆盖值。</Typography.Text>
       <Select style={{width:'100%'}} placeholder="选择店铺" value={selected || undefined}
         options={shops.map(shop=>({label:`${shop.shopName} (${shop.platform})`,value:shop.id}))}
         onChange={setSelected} />
