@@ -3,7 +3,7 @@ import { Alert, Button, Card, Form, Select, Space, Spin, message } from 'antd';
 import { TmPageContainer } from '@/components/ui';
 import { getJSON, putJSON } from '@/services/request';
 import { applyThemeMode, persistThemeMode } from '@/theme';
-import { setLanguage, tr } from '@/i18n';
+import { readLanguage, setLanguage, tr } from '@/i18n';
 
 type Preferences={language:string;theme:'light'|'dark';dateFormat:string};
 type PreferenceState={values:Preferences;version:number;inherited:boolean};
@@ -21,10 +21,12 @@ export default function PersonalPreferencesPage(){
     const values=await form.validateFields();setSaving(true);
     const next=await putJSON<PreferenceState,{values:Preferences;expectedVersion:number}>(url,{values,expectedVersion:snapshot.version});
     setSnapshot(next);
+    const changedLanguage = readLanguage() !== next.values.language;
     setLanguage(next.values.language as Parameters<typeof setLanguage>[0]);
     persistThemeMode(next.values.theme);
     applyThemeMode(next.values.theme);
     message.success(tr('个人偏好已保存；部分设置将在重新进入页面后应用'));
+    if (changedLanguage) window.location.reload();
   }catch(e){message.error((e as Error)?.message||tr('保存失败，请刷新后重试'));}finally{setSaving(false)}};
   return <TmPageContainer title={tr("个人偏好")} subTitle={tr("仅对当前企业的当前账号有效，不改变其他成员、店铺或企业的业务规则。")}>
     <Card style={{maxWidth:720}}>
