@@ -66,6 +66,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/tenantmgmt"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehousefee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
@@ -743,6 +744,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.DELETE("/auth/sessions/:id", opLogSvc.AuditFailures("session_revoke", "auth_session", "id"), sessionH.DeleteSession)
 	authed.POST("/auth/sessions/revoke-others", opLogSvc.AuditFailures("session_revoke_others", "auth_session", ""), sessionH.RevokeOthers)
 	authed.POST("/auth/logout-all", opLogSvc.AuditFailures("logout_all", "auth", ""), sessionH.LogoutAll)
+	tenantconfig.Register(authed, &tenantconfig.Handler{DB: dep.DB, Audit: opLogSvc})
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)

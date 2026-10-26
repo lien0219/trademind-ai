@@ -33,6 +33,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settlement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
@@ -245,6 +246,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&admin.Tenant{},
 		&admin.TenantMembership{},
 		&admin.TenantInvitation{},
+		&tenantconfig.Setting{},
+		&tenantconfig.Revision{},
 		&admin.PlatformOperator{},
 		&admin.RootAccount{},
 		&admin.UserStorePermission{},
