@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { PageContainer, type PageContainerProps } from '@ant-design/pro-components';
 import { Space } from 'antd';
 import { layoutTokens } from '@/constants/layoutTokens';
+import { tr } from '@/i18n';
 
 export type TmPageContainerProps = PageContainerProps & {
   /** 页面内容首选最大宽度；流式布局会在更宽视口继续扩展，避免两侧留白过大。 */
@@ -43,8 +44,8 @@ export default function TmPageContainer({
         '--tm-page-content-max-width': `${contentMaxWidth}px`,
         ...rest.style,
       } as CSSProperties}
-      title={title}
-      subTitle={subTitle}
+      title={typeof title === "string" ? tr(title) : title}
+      subTitle={typeof subTitle === "string" ? tr(subTitle) : subTitle}
     >
       <div
         className={['tm-page-container__content', padded ? '' : 'tm-page-container__content--unpadded']
