@@ -20,6 +20,8 @@ import {
   taskCenterTaskTypeLabel,
 } from '@/constants/taskCenter';
 import { fetchSettingsList } from '@/services/settings';
+import { usePermission } from '@/hooks/usePermission';
+import { mayReadGlobalSettings } from '@/utils/globalSettingsAccess';
 import {
   markTaskAlertHandled,
   markTaskAlertIgnored,
@@ -63,6 +65,8 @@ function severityTag(severity: string) {
 }
 
 export default function BusinessAlertsPanel() {
+  const { user } = usePermission();
+  const mayReadSettings = mayReadGlobalSettings(user);
   const actionRef = useRef<ActionType>();
   const guardRef = useRef(createActionGuard());
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(() => new Set());
@@ -131,13 +135,17 @@ export default function BusinessAlertsPanel() {
   );
 
   useEffect(() => {
+    if (!mayReadSettings) {
+      setConfiguredChannels([]);
+      return;
+    }
     void fetchSettingsList()
       .then(({ items }) => {
         const taskCenter = pickGroup(items, 'taskcenter');
         setConfiguredChannels(parseNotificationChannels(taskCenter.notification_channels));
       })
       .catch(() => setConfiguredChannels([]));
-  }, []);
+  }, [mayReadSettings]);
 
   const openNotificationHistory = useCallback(async (alert: TaskAlertDTO) => {
     setDrawerAlert(alert);
