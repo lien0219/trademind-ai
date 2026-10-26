@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { TmPageContainer } from '@/components/ui';
@@ -33,6 +33,7 @@ export default function TenantBusinessSettingsPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState('');
   const [form] = Form.useForm();
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const load = async (key: BusinessModule) => {
     setLoading(true);
@@ -81,8 +82,36 @@ export default function TenantBusinessSettingsPage() {
     } catch (e) { message.error((e as Error)?.message || '恢复失败，请刷新'); }
     finally { setSaving(false); }
   };
+  const exportCurrent = () => {
+    if (!snapshot) return;
+    const documentBody = JSON.stringify({format:'trademind-tenant-config-v1',module:snapshot.module,values:snapshot.values},null,2);
+    const blob = new Blob([documentBody],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href=url;
+    link.download=`tenant-${module}-settings.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const importFile = async (file: File) => {
+    if (!writable || !snapshot || file.size > 8192) { message.error('配置文件不可导入或超过大小限制'); return; }
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('文件不是配置对象');
+      const obj = parsed as Record<string, unknown>;
+      if (obj.format !== 'trademind-tenant-config-v1' || obj.module !== module || !obj.values || typeof obj.values !== 'object' || Array.isArray(obj.values)) throw new Error('配置格式或模块不匹配');
+      // Import only populates the form; saving always invokes server-side schema validation and version checks.
+      form.setFieldsValue(obj.values);
+      message.info('已载入配置预览，检查后点击保存才会生效');
+    } catch (e) { message.error((e as Error)?.message || '导入失败'); }
+  };
   return <TmPageContainer title="企业业务配置" subTitle="当前企业专属默认规则；平台安全限制与其他企业均不受影响。"
-    extra={<Button icon={<ReloadOutlined />} onClick={() => void load(module)} loading={loading}>刷新</Button>}>
+    extra={<Space>
+      <Button onClick={exportCurrent} disabled={!snapshot}>导出配置</Button>
+      {writable?<><input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file) void importFile(file);e.target.value='';}} />
+        <Button disabled={!snapshot} onClick={()=>fileInput.current?.click()}>导入预览</Button></>:null}
+      <Button icon={<ReloadOutlined />} onClick={() => void load(module)} loading={loading}>刷新</Button>
+    </Space>}>
     <div style={{display:'grid',gridTemplateColumns:'minmax(150px, 210px) minmax(0, 1fr)',gap:16}}>
       <Card size="small" styles={{body:{padding:8}}}>
         <Space direction="vertical" style={{width:'100%'}}>
