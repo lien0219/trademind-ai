@@ -24,6 +24,7 @@ import {
   createAdminDrawerConfig,
   createAdminThemeConfig,
   getStoredThemeMode,
+  persistThemeMode,
 } from "@/theme";
 import { canAccessPath, filterMenuByPermission } from "@/utils/menuAccess";
 import { isPublicAdminPath } from "@/utils/publicRoutes";
@@ -140,7 +141,7 @@ export async function getInitialState(): Promise<{
         };
         const theme = preference.data?.values?.theme;
         if (preference.code === 0 && (theme === "light" || theme === "dark") && isTenantContextCurrent(context)) {
-          applyThemeMode(theme);
+          persistThemeMode(theme);
         }
       }
     } catch {
