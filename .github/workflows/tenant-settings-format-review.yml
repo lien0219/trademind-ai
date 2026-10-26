@@ -1,0 +1,35 @@
+name: Temporary Tenant Settings Gofmt Review
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - .github/workflows/tenant-settings-format-review.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Emit gofmt output for targeted files
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            backend/internal/api/router.go
+            backend/internal/database/migrate.go
+            backend/internal/modules/aiproducttext/service.go
+            backend/internal/modules/collect/batch.go
+            backend/internal/modules/collect/service.go
+            backend/internal/modules/tenantconfig/handler.go
+            backend/internal/modules/tenantconfig/model.go
+            backend/internal/modules/tenantconfig/schema.go
+            backend/internal/modules/tenantconfig/schema_test.go
+            backend/internal/modules/tenantconfig/service.go
+          )
+          for f in "${paths[@]}"; do
+            printf 'FORMAT_FILE_BEGIN %s\n' "$f"
+            gofmt "$f" | base64 -w 0
+            printf '\nFORMAT_FILE_END %s\n' "$f"
+          done
