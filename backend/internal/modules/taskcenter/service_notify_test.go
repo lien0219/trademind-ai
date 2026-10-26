@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+    "github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -41,7 +42,7 @@ func TestNotifyGeneratedAlertsAuditsDisabledChannelSkip(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open("file:taskcenter_notify_disabled_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &tenantconfig.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
 	require.NoError(t, db.Create(&settings.Setting{TenantID: 0, GroupKey: "alert_notify", ItemKey: "enabled", ItemValue: "true"}).Error)
 	require.NoError(t, db.Create(&settings.Setting{TenantID: 0, GroupKey: "alert_notify", ItemKey: "mail_enabled", ItemValue: "false"}).Error)
 
@@ -72,7 +73,7 @@ func TestNotifyGeneratedAlertsAuditsMailValidationSkip(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open("file:taskcenter_notify_mail_validation_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &tenantconfig.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
 	for _, row := range []settings.Setting{
 		{TenantID: 0, GroupKey: "alert_notify", ItemKey: "enabled", ItemValue: "true"},
 		{TenantID: 0, GroupKey: "alert_notify", ItemKey: "mail_enabled", ItemValue: "true"},
@@ -112,7 +113,7 @@ func TestNotifyGeneratedAlertsWritesFailureAuditWhenNotificationPersistenceFails
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open("file:taskcenter_notify_persist_failure_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &tenantconfig.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
 	for _, row := range []settings.Setting{
 		{TenantID: 0, GroupKey: "alert_notify", ItemKey: "enabled", ItemValue: "true"},
 		{TenantID: 0, GroupKey: "alert_notify", ItemKey: "mail_enabled", ItemValue: "true"},
@@ -145,7 +146,7 @@ func TestNotifyGeneratedAlertsWritesFailureAuditWhenNotificationPersistenceFails
 func TestNotifyGeneratedAlertsAuditsDeduplicationSkip(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:taskcenter_notify_dedupe_audit_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &tenantconfig.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
 	for _, row := range []settings.Setting{
 		{TenantID: 0, GroupKey: "taskcenter", ItemKey: "enable_external_notifications", ItemValue: "true"},
 		{TenantID: 0, GroupKey: "taskcenter", ItemKey: "notification_min_severity", ItemValue: "low"},
@@ -178,7 +179,7 @@ func TestNotifyGeneratedAlertsAuditsDeduplicationSkip(t *testing.T) {
 func TestNotifyGeneratedAlertsRejectsManualNotificationWithoutExplicitChannels(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:taskcenter_notify_empty_channels_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
+	require.NoError(t, db.AutoMigrate(&settings.Setting{}, &tenantconfig.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
 	for _, row := range []settings.Setting{
 		{TenantID: 0, GroupKey: "taskcenter", ItemKey: "notification_channels", ItemValue: `["mail"]`},
 		{TenantID: 0, GroupKey: "alert_notify", ItemKey: "enabled", ItemValue: "false"},
@@ -197,4 +198,34 @@ func TestNotifyGeneratedAlertsRejectsManualNotificationWithoutExplicitChannels(t
 	require.NoError(t, db.Model(&operationlog.OperationLog{}).Count(&audits).Error)
 	require.Zero(t, notifications)
 	require.Zero(t, audits)
+}
+
+func TestTenantNotificationOptOutSkipsAutomaticOutboundDelivery(t *testing.T) {
+    db, err := gorm.Open(sqlite.Open("file:taskcenter_tenant_notify_optout_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+    require.NoError(t, err)
+    require.NoError(t, db.AutoMigrate(&settings.Setting{}, &tenantconfig.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
+    for _, row := range []settings.Setting{
+        {TenantID: 0, GroupKey: "taskcenter", ItemKey: "enable_external_notifications", ItemValue: "true"},
+        {TenantID: 0, GroupKey: "taskcenter", ItemKey: "notification_min_severity", ItemValue: "low"},
+        {TenantID: 0, GroupKey: "taskcenter", ItemKey: "notification_channels", ItemValue: `["mail"]`},
+        {TenantID: 0, GroupKey: "alert_notify", ItemKey: "enabled", ItemValue: "true"},
+        {TenantID: 0, GroupKey: "alert_notify", ItemKey: "mail_enabled", ItemValue: "true"},
+    } {
+        require.NoError(t, db.Create(&row).Error)
+    }
+    require.NoError(t, db.Create(&tenantconfig.Setting{
+        TenantID: 41, Module: tenantconfig.ModuleNotifications, Version: 1,
+        Values: datatypes.JSON(`{"businessAlertsEnabled":false}`), UpdatedBy: uuid.New(),
+    }).Error)
+    service := &Service{DB: db, Settings: &settings.Service{DB: db}, OpLog: &operationlog.Service{DB: db}}
+    alert := TaskAlert{ID: uuid.New(), TenantID: 41, Status: TaskAlertStatusOpen, Severity: "high", LastSeenAt: time.Now().UTC(), AlertCount: 1}
+    require.NoError(t, service.NotifyGeneratedAlerts(context.Background(), []alertNotifyCandidate{{Alert: alert, IsNew: true}}, false, nil, nil))
+    var count int64
+    require.NoError(t, db.Model(&TaskAlertNotification{}).Where("alert_id = ?", alert.ID).Count(&count).Error)
+    require.Zero(t, count)
+
+    enabled, version, err := tenantconfig.ReadNotifications(context.Background(), db, 42)
+    require.NoError(t, err)
+    require.Equal(t, int64(0), version)
+    require.True(t, enabled.BusinessAlertsEnabled)
 }

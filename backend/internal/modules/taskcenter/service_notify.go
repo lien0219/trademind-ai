@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify"
+    "github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -407,6 +408,20 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 
 	for _, cand := range candidates {
 		alert := cand.Alert
+        if !manual && alert.TenantID > 0 {
+            // Check the authenticated tenant's policy before any outbound
+            // send. Missing migrations and SQL errors fail closed.
+            if s.DB == nil {
+                return errors.Join(errTaskDependencyUnavailable, errors.New("tenant notification database unavailable"))
+            }
+            prefs, _, err := tenantconfig.ReadNotifications(ctx, s.DB, alert.TenantID)
+            if err != nil {
+                return errors.Join(errTaskDependencyUnavailable, err)
+            }
+            if !prefs.BusinessAlertsEnabled {
+                continue
+            }
+        }
 		if !manual && minSev != "" && !s.notifySeverityOK(alert, minSev) {
 			continue
 		}

@@ -90,6 +90,18 @@ func ReadInventory(ctx context.Context, db *gorm.DB, tenantID int64) (Inventory,
 	return value, snapshot.Version, nil
 }
 
+func ReadNotifications(ctx context.Context, db *gorm.DB, tenantID int64) (Notifications, int64, error) {
+    snapshot, err := Read(ctx, db, tenantID, ModuleNotifications)
+    if err != nil {
+        return Notifications{}, 0, err
+    }
+    var value Notifications
+    if err := json.Unmarshal(snapshot.Values, &value); err != nil {
+        return Notifications{}, 0, err
+    }
+    return value, snapshot.Version, nil
+}
+
 func CheckCollectSource(cfg Collect, source string) error {
 	if len(cfg.AllowedSources) == 0 {
 		return nil
