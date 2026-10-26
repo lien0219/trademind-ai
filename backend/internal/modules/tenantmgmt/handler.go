@@ -392,12 +392,22 @@ func currentUser(c *gin.Context) (uuid.UUID, bool) {
 	return id, err == nil && id != uuid.Nil
 }
 
+// requireTenantMember uses the same authoritative access decision as tenant
+// switching and session validation. The singleton Root has implicit access to
+// active enterprises without creating customer-side membership records.
+// Non-Root callers still require an active, persisted tenant membership.
 func (s *Service) requireTenantMember(ctx context.Context, tenantID int64, userID uuid.UUID) (*admin.TenantMembership, error) {
-	var m admin.TenantMembership
-	if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, admin.MembershipActive).First(&m).Error; err != nil {
+	if s == nil || s.DB == nil || tenantID <= 0 || userID == uuid.Nil {
+		return nil, adminperm.ErrTenantPermissionDenied
+	}
+	access, err := adminperm.ResolveTenantAccess(ctx, s.DB, userID, tenantID)
+	if err != nil {
 		return nil, err
 	}
-	return &m, nil
+	if access == nil || !access.Schema || !access.Allowed {
+		return nil, adminperm.ErrTenantPermissionDenied
+	}
+	return &access.Membership, nil
 }
 
 func (h *Handler) SetStatus(c *gin.Context) {
