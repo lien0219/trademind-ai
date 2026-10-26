@@ -1,0 +1,19 @@
+name: Temporary Tenant Order Formatting
+on:
+  push:
+    branches: [dev]
+    paths: [.github/workflows/temp-tenant-order-format.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          for f in backend/internal/modules/tenantconfig/schema.go backend/internal/modules/tenantconfig/schema_test.go backend/internal/modules/tenantconfig/service.go backend/internal/modules/order/service.go; do
+            echo "FORMAT_FILE_BEGIN $f"
+            gofmt "$f" | base64 -w 0
+            echo
+            echo "FORMAT_FILE_END $f"
+          done
