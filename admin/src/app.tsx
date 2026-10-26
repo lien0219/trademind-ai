@@ -8,6 +8,19 @@ import type { MenuDataItem } from "@umijs/route-utils";
 import { history } from "@umijs/max";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import type { ConfigProviderProps } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import enUS from "antd/locale/en_US";
+import jaJP from "antd/locale/ja_JP";
+import zhTW from "antd/locale/zh_TW";
+import koKR from "antd/locale/ko_KR";
+import thTH from "antd/locale/th_TH";
+import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
+import "dayjs/locale/zh-tw";
+import "dayjs/locale/en";
+import "dayjs/locale/ja";
+import "dayjs/locale/ko";
+import "dayjs/locale/th";
 import type { RequestConfig, RunTimeLayoutConfig } from "@/typings/umi-runtime";
 import AppGlobalSearch from "@/components/layout/AppGlobalSearch";
 import AppTopNav from "@/components/layout/AppTopNav";
@@ -20,7 +33,7 @@ import { layoutTokens } from "@/constants/layoutTokens";
 import { postJSON } from "@/services/request";
 import { validateProfile } from "@/services/auth";
 import { isAppLanguage } from "@/i18n/dictionaries";
-import { setLanguage } from "@/i18n";
+import { readLanguage, setLanguage } from "@/i18n";
 import {
   applyThemeMode,
   createAdminDrawerConfig,
@@ -107,9 +120,14 @@ export function innerProvider(container: ReactElement) {
 export const antd = (memo: ConfigProviderProps): ConfigProviderProps => {
   const mode = getStoredThemeMode();
   applyThemeMode(mode);
+  const language = readLanguage();
+  const localeMap = {"zh-CN":zhCN,"en-US":enUS,"ja-JP":jaJP,"zh-TW":zhTW,"ko-KR":koKR,"th-TH":thTH};
+  const dayjsMap = {"zh-CN":"zh-cn","en-US":"en","ja-JP":"ja","zh-TW":"zh-tw","ko-KR":"ko","th-TH":"th"};
+  dayjs.locale(dayjsMap[language]);
   return {
     ...memo,
     drawer: createAdminDrawerConfig(memo.drawer),
+    locale: localeMap[language],
     theme: createAdminThemeConfig(mode),
   };
 };
