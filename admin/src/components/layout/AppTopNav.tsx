@@ -366,7 +366,7 @@ export default function AppTopNav({
                   {
                     key: "tenant-settings",
                     icon: <ApartmentOutlined aria-hidden="true" />,
-                    label: "企业信息与设置",
+                    label: tr("企业信息与设置"),
                     onClick: () => closeAndNavigate("/tenant/settings"),
                   },
                   ...(canManageUsers
@@ -374,7 +374,7 @@ export default function AppTopNav({
                         {
                           key: "tenant-members",
                           icon: <TeamOutlined aria-hidden="true" />,
-                          label: "企业成员与邀请",
+                          label: tr("企业成员与邀请"),
                           onClick: () => closeAndNavigate("/tenant/members"),
                         },
                       ]
@@ -396,7 +396,7 @@ export default function AppTopNav({
                   {
                     key: "users",
                     icon: <TeamOutlined aria-hidden="true" />,
-                    label: "用户与权限",
+                    label: tr("用户与权限"),
                     onClick: () => closeAndNavigate("/settings/users"),
                   },
                 ]
@@ -427,7 +427,7 @@ export default function AppTopNav({
               label: (
                 <span className="tm-app-account-dropdown__label">
                   <span className="tm-app-account-dropdown__title">
-                    退出登录
+                    {tr("退出登录")}
                   </span>
                   <span className="tm-app-account-dropdown__description">
                     返回登录页面

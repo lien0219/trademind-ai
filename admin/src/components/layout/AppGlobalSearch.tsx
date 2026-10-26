@@ -1,4 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons';
+import { tr } from '@/i18n';
 import type { MenuDataItem } from '@umijs/route-utils';
 import { Empty, Input, Modal } from 'antd';
 import type { InputRef } from 'antd';
@@ -133,19 +134,19 @@ export default function AppGlobalSearch({
       <button
         type="button"
         className="tm-app-global-search__trigger"
-        aria-label="搜索功能或页面"
+        aria-label={tr("搜索功能或页面")}
         aria-keyshortcuts="Control+K Meta+K"
-        title={compact ? '搜索功能或页面' : undefined}
+        title={compact ? tr("搜索功能或页面") : undefined}
         onClick={() => setOpen(true)}
       >
         <SearchOutlined aria-hidden="true" />
-        <span className="tm-app-global-search__trigger-label">搜索功能或页面</span>
+        <span className="tm-app-global-search__trigger-label">{tr("搜索功能或页面")}</span>
         <kbd className="tm-app-global-search__shortcut">Ctrl K</kbd>
       </button>
 
       <Modal
         className="tm-app-global-search-modal"
-        title="搜索功能"
+        title={tr("搜索功能")}
         open={open}
         footer={null}
         width={560}
@@ -159,8 +160,8 @@ export default function AppGlobalSearch({
           allowClear
           size="large"
           prefix={<SearchOutlined aria-hidden="true" />}
-          aria-label="搜索功能或页面"
-          placeholder="输入功能名称，例如：商品草稿、订单异常"
+          aria-label={tr("搜索功能或页面")}
+          placeholder={tr("输入功能名称，例如：商品草稿、订单异常")}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onPressEnter={() => {
@@ -174,7 +175,7 @@ export default function AppGlobalSearch({
             results.length > 0 ? (
               <div
                 className="tm-app-global-search-modal__results"
-                aria-label="搜索结果"
+                aria-label={tr("搜索结果")}
               >
                 {results.map((item) => (
                   <button
