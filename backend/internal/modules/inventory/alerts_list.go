@@ -106,6 +106,10 @@ func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) 
 			Where("LOWER(pp_pf.platform) = ?", pl)
 	}
 	if shop := q.ShopID; shop != nil && *shop != uuid.Nil {
+        tx = tx.Joins("LEFT JOIN tenant_shop_inventory_overrides tso ON tso.tenant_id = ? AND tso.shop_id = ?", q.TenantID, *shop).
+            Select(`sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock,
+                COALESCE(tso.warning_stock, sk.warning_stock) AS warning_stock,
+                sk.safety_stock, sk.updated_at, p.title AS product_title`)
 		tx = tx.Joins(`INNER JOIN product_publication_skus pps_shop ON pps_shop.product_sku_id = sk.id`).
 			Joins(`INNER JOIN product_publications pp_shop ON pp_shop.id = pps_shop.publication_id AND pp_shop.tenant_id = ? AND pp_shop.deleted_at IS NULL AND pp_shop.shop_id = ?`, q.TenantID, *shop)
 	}
@@ -116,6 +120,8 @@ func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) 
 			WHERE ppsx.product_sku_id = sk.id
 		)`, q.TenantID)
 	}
+    warningLine := "sk.warning_stock"
+    if q.ShopID != nil && *q.ShopID != uuid.Nil { warningLine = "COALESCE(tso.warning_stock, sk.warning_stock)" }
 	switch strings.TrimSpace(q.StockStatus) {
 	case product.StockStatusOutOfStock:
 		tx = tx.Where("COALESCE(sk.stock,0) <= 0")
@@ -124,9 +130,9 @@ func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) 
 	case product.StockStatusLowStock:
 		tx = tx.Where(`COALESCE(sk.stock,0) > 0
 			AND (sk.safety_stock = 0 OR COALESCE(sk.stock,0) > sk.safety_stock)
-			AND COALESCE(sk.stock,0) <= sk.warning_stock`)
+			AND COALESCE(sk.stock,0) <= `+warningLine)
 	case product.StockStatusNormal:
-		tx = tx.Where("COALESCE(sk.stock,0) > sk.warning_stock")
+		tx = tx.Where("COALESCE(sk.stock,0) > "+warningLine)
 	}
 	return tx
 }
@@ -189,7 +195,9 @@ func (s *Service) applyAlertsSQLAlertTypesOR(tx *gorm.DB, alertTypes []string, t
 	return tx.Where("("+strings.Join(parts, " OR ")+")", args...)
 }
 
-func (s *Service) applyAlertsSQLAlertType(tx *gorm.DB, alertType string, th int, tenantID int64) *gorm.DB {
+func (s *Service) applyAlertsSQLAlertType(tx *gorm.DB, alertType string, th int, tenantID int64, shopScoped ...bool) *gorm.DB {
+    warningLine := "sk.warning_stock"
+    if len(shopScoped)>0 && shopScoped[0] {warningLine = "COALESCE(tso.warning_stock, sk.warning_stock)"}
 	at := strings.TrimSpace(strings.ToLower(alertType))
 	switch at {
 	case AlertTypeOutOfStock:
@@ -197,7 +205,7 @@ func (s *Service) applyAlertsSQLAlertType(tx *gorm.DB, alertType string, th int,
 	case AlertTypeLowStock:
 		return tx.Where(`COALESCE(sk.stock,0) > 0
 			AND (sk.safety_stock = 0 OR COALESCE(sk.stock,0) > sk.safety_stock)
-			AND COALESCE(sk.stock,0) <= sk.warning_stock`)
+			AND COALESCE(sk.stock,0) <= `+warningLine)
 	case AlertTypeBelowSafetyStock:
 		return tx.Where("sk.safety_stock > 0 AND COALESCE(sk.stock,0) > 0 AND COALESCE(sk.stock,0) <= sk.safety_stock")
 	case AlertTypePlatformStockUnknown:
@@ -229,10 +237,12 @@ func (s *Service) applyAlertsSQLAlertType(tx *gorm.DB, alertType string, th int,
 	}
 }
 
-func (s *Service) applyNonNormalAlertScope(tx *gorm.DB, pol inventoryAlertPolicy, mismatchTh int, tenantID int64) *gorm.DB {
+func (s *Service) applyNonNormalAlertScope(tx *gorm.DB, pol inventoryAlertPolicy, mismatchTh int, tenantID int64, shopScoped ...bool) *gorm.DB {
+    warningLine := "sk.warning_stock"
+    if len(shopScoped)>0 && shopScoped[0] { warningLine = "COALESCE(tso.warning_stock, sk.warning_stock)" }
 	local := "(FALSE)"
 	if pol.EnableInventoryAlerts {
-		local = "COALESCE(sk.stock, 0) <= sk.warning_stock"
+		local = "COALESCE(sk.stock, 0) <= "+warningLine
 	}
 	platMismatch := "FALSE"
 	if pol.AlertPlatformStockMismatch {
@@ -350,6 +360,10 @@ func (s *Service) ListInventoryAlerts(ctx context.Context, q AlertsListQuery) (*
 	if err != nil {
 		return nil, err
 	}
+    shopScoped := q.ShopID != nil && *q.ShopID != uuid.Nil
+    if shopScoped && !s.DB.Migrator().HasTable("tenant_shop_inventory_overrides") {
+        return nil, fmt.Errorf("shop inventory settings migration missing")
+    }
 	th := pol.PlatformStockMismatchThresh
 	if th < 0 {
 		th = 0
@@ -357,11 +371,12 @@ func (s *Service) ListInventoryAlerts(ctx context.Context, q AlertsListQuery) (*
 
 	base := s.buildAlertsBaseTX(ctx, q)
 	if strings.TrimSpace(q.AlertType) != "" {
-		base = s.applyAlertsSQLAlertType(base, q.AlertType, th, q.TenantID)
+		base = s.applyAlertsSQLAlertType(base, q.AlertType, th, q.TenantID, shopScoped)
 	} else if !q.IncludeNormal {
-		base = s.applyNonNormalAlertScope(base, pol, th, q.TenantID)
+		base = s.applyNonNormalAlertScope(base, pol, th, q.TenantID, shopScoped)
 	}
 	base = base.Group("sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title")
+    if shopScoped {base = base.Group("tso.warning_stock")}
 
 	var total int64
 	if err := base.Session(&gorm.Session{}).Count(&total).Error; err != nil {

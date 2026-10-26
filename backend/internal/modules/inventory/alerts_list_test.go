@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"gorm.io/gorm"
 )
@@ -31,6 +32,7 @@ func newInventoryAlertsTestDB(t *testing.T) *gorm.DB {
 		&productpublish.ProductPublication{},
 		&productpublish.ProductPublicationSKU{},
 		&shop.Shop{},
+		&tenantconfig.ShopInventoryOverride{},
 		&warehouse.Warehouse{},
 		&WarehouseStockBalance{},
 		&InventorySyncTask{},
