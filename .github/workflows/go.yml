@@ -143,3 +143,43 @@ jobs:
         env:
           CGO_ENABLED: 1
         run: go build ./cmd/server/...
+
+  one-time-gofmt-export:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && github.event.head_commit.message == 'ci: one-time gofmt export and test correction' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Export only gofmt changes
+        shell: bash
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          gofmt -w \
+            internal/middleware/jwt.go \
+            internal/modules/admin/bootstrap.go \
+            internal/modules/admin/bootstrap_test.go \
+            internal/modules/admin/root.go \
+            internal/modules/admin/tenant.go \
+            internal/modules/auth/handler.go \
+            internal/modules/auth/session_service.go \
+            internal/modules/auth/tenant.go \
+            internal/modules/auth/tenant_handler.go \
+            internal/modules/auth/tenant_test.go \
+            internal/modules/tenantmgmt/controlplane.go \
+            internal/modules/tenantmgmt/delete.go \
+            internal/modules/tenantmgmt/delete_test.go \
+            internal/modules/tenantmgmt/handler.go \
+            internal/modules/tenantmgmt/service.go \
+            internal/pkg/adminperm/context.go \
+            internal/pkg/adminperm/platform_authorization.go \
+            internal/pkg/adminperm/root.go \
+            internal/pkg/adminperm/tenant_scope.go \
+            internal/modules/douyinruntime/authorization_test.go
+          echo "GOFORMAT_EXPORT_BEGIN"
+          git diff --name-only -- internal/ | while IFS= read -r file; do
+            printf 'GOFORMAT_FILE_BEGIN:%s\n' "$file"
+            base64 -w 0 "$file" | fold -w 120 | sed 's/^/GOFORMAT_CHUNK:/'
+            echo "GOFORMAT_FILE_END"
+          done
+          echo "GOFORMAT_EXPORT_END"

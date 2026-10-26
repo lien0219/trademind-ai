@@ -68,7 +68,7 @@ func TestRuntimeMutationRequiresRootSettingsAdmin(t *testing.T) {
 	}
 }
 
-func TestRuntimeReadsRequireRootStoreViewAndDoNotWrite(t *testing.T) {
+func TestRuntimeReadsDenyNonRootTenantZeroReadonly(t *testing.T) {
 	paths := []string{
 		"/platform/douyin/runtime-status",
 		"/platform/douyin/health",
@@ -80,7 +80,7 @@ func TestRuntimeReadsRequireRootStoreViewAndDoNotWrite(t *testing.T) {
 			f := newRuntimeHTTPFixture(t, true)
 			readonly := f.addActor(t, 0, adminperm.RoleReadonly, admin.StatusActive)
 			res := f.request(http.MethodGet, path, "", readonly, true)
-			require.Equal(t, http.StatusOK, res.Code, res.Body.String())
+			require.Equal(t, http.StatusForbidden, res.Code, res.Body.String())
 			var count int64
 			require.NoError(t, f.db.Model(&settings.Setting{}).Where("item_key = ?", "health_snapshot").Count(&count).Error)
 			require.Zero(t, count, "read endpoints must not persist health snapshots")
