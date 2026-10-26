@@ -890,3 +890,7 @@ export function translateMessage(language: AppLanguage, source: string): string 
   if (language === 'zh-CN') return source;
   return dictionaries[language]?.[source] || source;
 }
+
+export function hasTranslation(language: AppLanguage, source: string): boolean {
+  return language === 'zh-CN' || Object.prototype.hasOwnProperty.call(dictionaries[language], source);
+}
