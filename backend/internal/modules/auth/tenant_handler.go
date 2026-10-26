@@ -38,7 +38,10 @@ func (h *Handler) Tenants(c *gin.Context) {
 	}
 	root, err := adminperm.IsRoot(c.Request.Context(), h.DB, uid)
 	if err != nil {response.HandleError(c,err); return}
-	if adminperm.IsSystemAdministrator(&identity) {
+	// The singleton Root manages the platform from its protected business
+	// workspace. Do not present tenant zero as a second Root workspace.
+	// Non-Root system operators retain their existing control-plane option.
+	if !root && adminperm.IsSystemAdministrator(&identity) {
 		items = append(items, gin.H{"id": 0, "code": "system", "name": "系统控制台", "status": admin.TenantActive, "role": adminperm.RoleAdmin})
 	}
 	registry, memberships := adminperm.TenantSchemaState(h.DB)
@@ -52,17 +55,24 @@ func (h *Handler) Tenants(c *gin.Context) {
 		}
 		if root {
 			var all []admin.Tenant
-			if err := h.DB.WithContext(c.Request.Context()).Where("status = ?",admin.TenantActive).Order("name ASC, id ASC").Find(&all).Error; err != nil {
+			if err := h.DB.WithContext(c.Request.Context()).Where("status = ?", admin.TenantActive).
+				Order("CASE WHEN code = 'root-workspace' THEN 0 ELSE 1 END, name ASC, id ASC").Find(&all).Error; err != nil {
 				response.HandleError(c,err);return
 			}
-			for _,t := range all {items = append(items, gin.H{"id":t.ID,"code":t.Code,"name":t.Name,"status":t.Status,"role":adminperm.RoleAdmin})}
+			for _, t := range all {
+				name := t.Name
+				if t.Code == admin.RootWorkspaceCode {
+					name = "Root 工作台"
+				}
+				items = append(items, gin.H{"id": t.ID, "code": t.Code, "name": name, "status": t.Status, "role": adminperm.RoleAdmin})
+			}
 			response.OK(c,gin.H{"items":items,"currentTenantId":currentTenant})
 			return
 		}
 		err := h.DB.WithContext(c.Request.Context()).Table("tenant_memberships AS m").
 			Select("t.id, t.code, t.name, t.status, m.role").
 			Joins("JOIN tenants AS t ON t.id = m.tenant_id").
-			Where("m.user_id = ? AND m.status = ? AND t.status = ?", uid, admin.MembershipActive, admin.TenantActive).
+			Where("m.user_id = ? AND m.status = ? AND t.status = ? AND t.code <> ?", uid, admin.MembershipActive, admin.TenantActive, admin.RootWorkspaceCode).
 			Order("t.name ASC, t.id ASC").Find(&rows).Error
 		if err != nil {
 			response.HandleError(c, err)

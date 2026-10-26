@@ -185,3 +185,54 @@ func TestTenantsListsOnlySwitchableActiveMemberships(t *testing.T) {
 	}
 	require.Equal(t, []int64{11}, tenantIDs)
 }
+
+func TestRootTenantsListHasSingleProtectedWorkspace(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:root_workspace_options_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}, &admin.RootAccount{}))
+
+	uid := uuid.New()
+	require.NoError(t, db.Create(&admin.AdminUser{Base: model.Base{ID: uid}, TenantID: 0, Username: admin.NewInternalUsername(),
+		Role: admin.RoleAdmin, Status: admin.StatusActive, PasswordHash: "test-only"}).Error)
+	require.NoError(t, db.Create(&admin.RootAccount{ID: 1, UserID: uid}).Error)
+	for _, tenant := range []admin.Tenant{
+		{ID: 7, Code: admin.RootWorkspaceCode, Name: admin.RootWorkspaceName, Status: admin.TenantActive},
+		{ID: 21, Code: "customer-a", Name: "企业 A", Status: admin.TenantActive},
+	} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(ctxkey.AdminID, uid.String())
+		c.Set(ctxkey.TenantID, int64(7))
+		c.Next()
+	})
+	engine.GET("/auth/tenants", (&Handler{DB: db}).Tenants)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/auth/tenants", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID int64 `json:"id"`
+				Code string `json:"code"`
+				Name string `json:"name"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Items, 2)
+	require.EqualValues(t, 7, envelope.Data.Items[0].ID)
+	require.Equal(t, admin.RootWorkspaceCode, envelope.Data.Items[0].Code)
+	require.Equal(t, "Root 工作台", envelope.Data.Items[0].Name)
+	require.EqualValues(t, 21, envelope.Data.Items[1].ID)
+	for _, option := range envelope.Data.Items {
+		require.NotZero(t, option.ID, "Root must not see tenant-zero system as a duplicate workspace")
+	}
+}

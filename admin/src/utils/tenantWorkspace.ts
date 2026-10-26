@@ -19,3 +19,17 @@ export function workspaceLandingPath(currentTenantId: number, targetTenantId: nu
   if (currentTenantId === 0 && targetTenantId > 0) return ENTERPRISE_WORKSPACE_PATH;
   return undefined;
 }
+
+// Root has one protected business workspace. Platform management remains a
+// navigation capability, not an additional tenant-zero switcher option.
+// Keep the legacy system option for non-Root platform operators.
+export function visibleWorkspaceOptions<T extends { id: number }>(
+  items: readonly T[],
+  isRoot: boolean,
+): T[] {
+  return isRoot ? items.filter((item) => item.id !== 0) : [...items];
+}
+
+export function workspaceDisplayName(workspace: { code: string; name: string }): string {
+  return workspace.code === 'root-workspace' ? 'Root 工作台' : workspace.name;
+}
