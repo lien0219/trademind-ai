@@ -126,6 +126,28 @@ export async function getInitialState(): Promise<{
     }
     return {};
   }
+  // Personal appearance is tenant- and account-scoped. Ignore stale responses
+  // after a workspace switch; backend remains authoritative for the profile.
+  if ((user.tenantId ?? 0) > 0) {
+    try {
+      const preferenceResponse = await fetch("/api/v1/tenant/preferences", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (preferenceResponse.ok && isTenantContextCurrent(context)) {
+        const preference = (await preferenceResponse.json()) as {
+          code?: number;
+          data?: { values?: { theme?: string } };
+        };
+        const theme = preference.data?.values?.theme;
+        if (preference.code === 0 && (theme === "light" || theme === "dark") && isTenantContextCurrent(context)) {
+          applyThemeMode(theme);
+        }
+      }
+    } catch {
+      // Preferences are optional for bootstrap; a transient error must not
+      // block authentication or cause a cross-workspace appearance leak.
+    }
+  }
   return { currentUser: user };
 }
 
