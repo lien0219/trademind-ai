@@ -229,3 +229,32 @@ func TestTenantNotificationOptOutSkipsAutomaticOutboundDelivery(t *testing.T) {
 	require.Equal(t, int64(0), version)
 	require.True(t, enabled.BusinessAlertsEnabled)
 }
+
+func TestTenantMailRecipientOverrideDoesNotUsePlatformDestination(t *testing.T) {
+    db, err := gorm.Open(sqlite.Open("file:taskcenter_tenant_mail_target_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+    require.NoError(t, err)
+    require.NoError(t, db.AutoMigrate(&settings.Setting{}, &tenantconfig.Setting{}, &TaskAlertNotification{}, &operationlog.OperationLog{}))
+    for _, setting := range []settings.Setting{
+        {TenantID:0,GroupKey:"taskcenter",ItemKey:"enable_external_notifications",ItemValue:"true"},
+        {TenantID:0,GroupKey:"taskcenter",ItemKey:"notify_on_alert_generated",ItemValue:"true"},
+        {TenantID:0,GroupKey:"taskcenter",ItemKey:"notification_min_severity",ItemValue:"low"},
+        {TenantID:0,GroupKey:"taskcenter",ItemKey:"notification_channels",ItemValue:`["mail"]`},
+        {TenantID:0,GroupKey:"alert_notify",ItemKey:"enabled",ItemValue:"true"},
+        {TenantID:0,GroupKey:"alert_notify",ItemKey:"mail_enabled",ItemValue:"true"},
+        {TenantID:0,GroupKey:"alert_notify",ItemKey:"mail_to",ItemValue:"global@example.com"},
+    } {require.NoError(t,db.Create(&setting).Error)}
+    require.NoError(t,db.Create(&tenantconfig.Setting{
+        TenantID:51,Module:tenantconfig.ModuleNotifications,Version:1,UpdatedBy:uuid.New(),
+        Values:datatypes.JSON(`{"businessAlertsEnabled":true,"mailRecipients":["enterprise@tenant.example"]}`),
+    }).Error)
+    service:=&Service{DB:db,Settings:&settings.Service{DB:db},OpLog:&operationlog.Service{DB:db}}
+    alert:=TaskAlert{ID:uuid.New(),TenantID:51,Status:TaskAlertStatusOpen,Severity:"high",AlertCount:1,LastSeenAt:time.Now().UTC()}
+    require.NoError(t,service.NotifyGeneratedAlerts(context.Background(),[]alertNotifyCandidate{{Alert:alert,IsNew:true}},false,nil,nil))
+    var row TaskAlertNotification
+    require.NoError(t,db.Where("alert_id=? AND channel=?",alert.ID,"mail").First(&row).Error)
+    // No SMTP credentials in the fixture: delivery skips before transport, but
+    // the target must be masked and tenant-specific, not the global address.
+    require.Equal(t,TaskAlertNotifStatusSkipped,row.Status)
+    require.Contains(t,row.Target,"tenant.example")
+    require.NotContains(t,row.Target,"global@example.com")
+}
