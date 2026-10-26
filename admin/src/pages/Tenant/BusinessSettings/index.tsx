@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
+import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { TmPageContainer } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
@@ -15,6 +15,21 @@ const labels: Record<BusinessModule, string> = {
   branding: '企业品牌与标签',
 };
 const modules: BusinessModule[] = ['general', 'ai', 'collect', 'inventory', 'notifications', 'branding'];
+const templates: Partial<Record<BusinessModule, {name:string;values:Record<string,unknown>}[]>> = {
+  ai: [
+    {name:'中文内容创作',values:{defaultLanguage:'zh-CN'}},
+    {name:'国际站英文内容',values:{defaultLanguage:'en-US'}},
+    {name:'日本站内容',values:{defaultLanguage:'ja-JP'}},
+  ],
+  collect: [
+    {name:'继承平台采集策略',values:{allowedSources:[],maxBatchURLs:0}},
+    {name:'小批量人工采集',values:{allowedSources:[],maxBatchURLs:10}},
+  ],
+  inventory: [
+    {name:'保守库存预警',values:{lowStockThreshold:20}},
+    {name:'标准库存预警',values:{lowStockThreshold:5}},
+  ],
+};
 const languageOptions = [{value:'zh-CN',label:'简体中文'},{value:'en-US',label:'English'},{value:'ja-JP',label:'日本語'}];
 const sourceOptions = [
   {value:'1688',label:'1688'}, {value:'pinduoduo',label:'拼多多'},
@@ -31,6 +46,7 @@ export default function TenantBusinessSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [revisions, setRevisions] = useState<BusinessRevision[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [preview, setPreview] = useState<{name:string;values:Record<string,unknown>} | null>(null);
   const [error, setError] = useState('');
   const [form] = Form.useForm();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -40,6 +56,7 @@ export default function TenantBusinessSettingsPage() {
     setError('');
     setSnapshot(null);
     setHistoryOpen(false);
+    form.resetFields();
     try {
       const current = await getBusinessSettings(key);
       setSnapshot(current);
@@ -49,6 +66,12 @@ export default function TenantBusinessSettingsPage() {
   };
   useEffect(() => { void load(module); }, [module]);
 
+  const chooseModule = (next:BusinessModule) => {
+    if (next===module) return;
+    if (form.isFieldsTouched()) {
+      Modal.confirm({title:'放弃未保存的更改？',content:'切换模块前请确认更改已保存。',okText:'放弃并切换',cancelText:'继续编辑',onOk:()=>setModule(next)});
+    } else setModule(next);
+  };
   const save = async () => {
     if (!writable || !snapshot || saving) return;
     try {
@@ -57,7 +80,7 @@ export default function TenantBusinessSettingsPage() {
       const next = await putBusinessSettings(module, {expectedVersion:snapshot.version,values});
       setSnapshot(next);
       form.setFieldsValue(next.values);
-      message.success('企业业务配置已保存并对新任务生效');
+      message.success('企业业务配置已保存；已接入的业务模块将在新任务中使用');
       if (historyOpen) setRevisions((await listBusinessSettingsHistory(module)).items);
     } catch (e) { message.error((e as Error)?.message || '配置保存失败，请检查字段'); }
     finally { setSaving(false); }
@@ -115,7 +138,7 @@ export default function TenantBusinessSettingsPage() {
     <div style={{display:'grid',gridTemplateColumns:'minmax(150px, 210px) minmax(0, 1fr)',gap:16}}>
       <Card size="small" styles={{body:{padding:8}}}>
         <Space direction="vertical" style={{width:'100%'}}>
-          {modules.map(item=><Button key={item} block type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>setModule(item)}>{labels[item]}</Button>)}
+          {modules.map(item=><Button key={item} block type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>chooseModule(item)}>{labels[item]}</Button>)}
         </Space>
       </Card>
       <Card title={labels[module]} extra={<Space><Tag>{snapshot?.inherited?'继承默认值':`版本 ${snapshot?.version || 0}`}</Tag>{writable?<Button icon={<HistoryOutlined />} onClick={()=>void openHistory()}>版本历史</Button>:null}</Space>}>
@@ -154,6 +177,13 @@ export default function TenantBusinessSettingsPage() {
               <Form.Item name="logoUrl" label="企业 Logo HTTPS 地址" rules={[{type:'url'}]}><Input placeholder="https://..."/></Form.Item>
               <Form.Item name="labels" label="企业标签"><Select mode="tags" maxCount={20} placeholder="添加标签，回车确认"/></Form.Item>
             </>:null}
+            {writable && (templates[module]?.length ?? 0)>0?<div style={{marginBottom:16}}>
+              <Typography.Text strong>配置模板</Typography.Text>
+              <div style={{marginTop:8}}><Space wrap>{templates[module]?.map(template=>
+                <Button key={template.name} size="small" onClick={()=>setPreview(template)}>{template.name}</Button>
+              )}</Space></div>
+              <Typography.Text type="secondary">模板只会预填表单；保存后才会生效。</Typography.Text>
+            </div>:null}
             <Space><Button type="primary" icon={<SaveOutlined />} disabled={!writable} loading={saving} onClick={()=>void save()}>保存企业配置</Button><Button onClick={()=>void load(module)}>放弃更改</Button></Space>
           </Form>}
         {historyOpen?<div style={{marginTop:20}}>
@@ -167,5 +197,14 @@ export default function TenantBusinessSettingsPage() {
         </div>:null}
       </Card>
     </div>
+    <Modal title={preview?`模板预览：${preview.name}`:'配置预览'} open={Boolean(preview)} onCancel={()=>setPreview(null)}
+      okText="应用到表单" onOk={()=>{if(preview)form.setFieldsValue(preview.values);setPreview(null);}}>
+      <Typography.Paragraph type="secondary">仅列出模板将修改的字段，未列出的字段不变。</Typography.Paragraph>
+      {preview?Object.entries(preview.values).map(([key,value])=><div key={key} style={{marginBottom:10}}>
+        <Typography.Text strong>{key}</Typography.Text>
+        <Typography.Paragraph style={{marginBottom:0}}>当前：{JSON.stringify(form.getFieldValue(key))}</Typography.Paragraph>
+        <Typography.Paragraph style={{marginBottom:0}}>模板：{JSON.stringify(value)}</Typography.Paragraph>
+      </div>):null}
+    </Modal>
   </TmPageContainer>;
 }
