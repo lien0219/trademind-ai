@@ -1,12 +1,14 @@
 import type { CSSProperties } from "react";
 import {
   ApartmentOutlined,
+  CheckOutlined,
+  CloseOutlined,
   DownOutlined,
   GithubOutlined,
   LoadingOutlined,
   LogoutOutlined,
+  RightOutlined,
   SearchOutlined,
-  SwapOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import { history } from "@umijs/max";
@@ -52,6 +54,18 @@ export function resolveUserLabels(user?: API.CurrentUser) {
     secondary: loginId && loginId !== displayName ? loginId : "",
     initial: displayName.slice(0, 1).toUpperCase(),
   };
+}
+
+const WORKSPACE_ROLE_LABELS: Record<string, string> = {
+  admin: "管理员",
+  owner: "企业所有者",
+  operator: "运营",
+  readonly: "只读",
+  reviewer: "审核",
+};
+
+function workspaceRoleLabel(role: string): string {
+  return WORKSPACE_ROLE_LABELS[role.toLowerCase()] || role;
 }
 
 type AppTopNavProps = {
@@ -115,77 +129,147 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
 
   const content = (
     <div className="tm-tenant-switcher__panel">
-      <div className="tm-tenant-switcher__heading">切换工作空间</div>
-      {isSystemWorkspace && user.isRoot !== true ? <div className="tm-tenant-switcher__hint">平台权限与企业业务权限独立；仅可进入已授权企业。</div> : null}
-      <Input
-        allowClear
-        prefix={<SearchOutlined aria-hidden="true" />}
-        value={keyword}
-        placeholder="搜索企业名称或标识"
-        aria-label="搜索企业"
-        onChange={(event) => setKeyword(event.target.value)}
-      />
-      <div className="tm-tenant-switcher__list" role="listbox" aria-label="可访问企业">
-        {loading ? (
-          <div className="tm-tenant-switcher__state"><Spin size="small" /> 加载企业列表</div>
-        ) : loadError ? (
-          <div className="tm-tenant-switcher__state">
-            <span>企业列表加载失败</span>
-            <Button type="link" size="small" onClick={() => void loadTenants()}>重试</Button>
+      <div className="tm-tenant-switcher__header">
+        <span className="tm-tenant-switcher__header-icon" aria-hidden="true">
+          <ApartmentOutlined />
+        </span>
+        <span className="tm-tenant-switcher__header-copy">
+          <strong>切换工作空间</strong>
+          <span>选择要进入的组织</span>
+        </span>
+        <button
+          type="button"
+          className="tm-tenant-switcher__close"
+          aria-label="关闭工作空间菜单"
+          onClick={() => setOpen(false)}
+        >
+          <CloseOutlined aria-hidden="true" />
+        </button>
+      </div>
+      <div className="tm-tenant-switcher__body">
+        {isSystemWorkspace && user.isRoot !== true ? (
+          <div className="tm-tenant-switcher__hint">
+            平台管理和企业业务权限相互独立，仅能进入已授权的企业。
           </div>
-        ) : visibleTenants.length ? (
-          visibleTenants.map((tenant) => (
-            <button
-              type="button"
-              key={tenant.id}
-              role="option"
-              aria-selected={tenant.id === currentTenantId}
-              className={`tm-tenant-switcher__item${tenant.id === currentTenantId ? " is-current" : ""}`}
-              disabled={tenant.status !== "active" || switchingTenantId !== null}
-              onClick={() => void selectTenant(tenant)}
-            >
-              <span className="tm-tenant-switcher__item-main">
-                <strong>{workspaceDisplayName(tenant)}</strong>
-                <span>{tenant.code} · {tenant.role}</span>
-              </span>
-              {switchingTenantId === tenant.id ? <LoadingOutlined spin aria-label="切换中" /> : null}
-              {tenant.id === currentTenantId && switchingTenantId === null ? <span aria-label="当前企业">当前</span> : null}
-            </button>
-          ))
+        ) : null}
+        <Input
+          className="tm-tenant-switcher__search"
+          size="large"
+          allowClear
+          prefix={<SearchOutlined aria-hidden="true" />}
+          value={keyword}
+          placeholder="搜索组织名称或标识"
+          aria-label="搜索企业"
+          onChange={(event) => setKeyword(event.target.value)}
+        />
+        <div className="tm-tenant-switcher__list-heading">
+          <span>可访问的工作空间</span>
+          {!loading && !loadError ? <span>{availableWorkspaces.length} 个</span> : null}
+        </div>
+        <div className="tm-tenant-switcher__list" role="listbox" aria-label="可访问企业">
+          {loading ? (
+            <div className="tm-tenant-switcher__state"><Spin size="small" /> 正在加载工作空间…</div>
+          ) : loadError ? (
+            <div className="tm-tenant-switcher__state">
+              <span>工作空间加载失败</span>
+              <Button type="link" size="small" onClick={() => void loadTenants()}>重新加载</Button>
+            </div>
+          ) : visibleTenants.length ? (
+            visibleTenants.map((tenant) => {
+              const selected = tenant.id === currentTenantId;
+              const isRootWorkspace = tenant.code === "root-workspace";
+              const unavailable = tenant.status !== "active";
+              return (
+                <button
+                  type="button"
+                  key={tenant.id}
+                  role="option"
+                  aria-selected={selected}
+                  className={`tm-tenant-switcher__item${selected ? " is-current" : ""}`}
+                  disabled={unavailable || switchingTenantId !== null}
+                  onClick={() => void selectTenant(tenant)}
+                  title={workspaceDisplayName(tenant)}
+                >
+                  <span className={`tm-tenant-switcher__item-icon${isRootWorkspace ? " is-root" : ""}`} aria-hidden="true">
+                    <ApartmentOutlined />
+                  </span>
+                  <span className="tm-tenant-switcher__item-main">
+                    <strong>{workspaceDisplayName(tenant)}</strong>
+                    <span title={tenant.code}>{tenant.code} · {workspaceRoleLabel(tenant.role)}</span>
+                  </span>
+                  {switchingTenantId === tenant.id ? (
+                    <LoadingOutlined spin aria-label="切换中" className="tm-tenant-switcher__item-action" />
+                  ) : selected ? (
+                    <span className="tm-tenant-switcher__current" aria-label="当前工作空间">
+                      <CheckOutlined aria-hidden="true" /> 当前
+                    </span>
+                  ) : unavailable ? (
+                    <span className="tm-tenant-switcher__unavailable">不可用</span>
+                  ) : (
+                    <RightOutlined className="tm-tenant-switcher__item-action" aria-hidden="true" />
+                  )}
+                </button>
+              );
+            })
+          ) : (
+            <div className="tm-tenant-switcher__empty">
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={needle ? "没有匹配的工作空间" : "暂无可访问工作空间"}
+              />
+            </div>
+          )}
+        </div>
+        {!loading && !loadError && isSystemWorkspace && businessTenants.length === 0 ? (
+          <div className="tm-tenant-switcher__hint">
+            尚未加入企业，企业管理员可以邀请你加入。
+            {user.platformOperator === true ? (
+              <Button size="small" type="link" onClick={() => { setOpen(false); history.push("/platform/tenants"); }}>
+                前往租户管理
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      <div className="tm-tenant-switcher__footer" role="status" aria-live="polite">
+        {switchingTenantId !== null ? (
+          <><LoadingOutlined spin aria-hidden="true" /> 正在切换，工作台即将刷新…</>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可访问工作空间" />
+          <>切换后将显示所选组织的业务数据</>
         )}
       </div>
-      {!loading && !loadError && isSystemWorkspace && businessTenants.length === 0 ? (
-        <div className="tm-tenant-switcher__hint">
-          尚未加入任何企业。企业管理员可向该账号发出邀请。
-          {user.platformOperator === true ? (
-            <Button size="small" type="link" onClick={() => { setOpen(false); history.push('/platform/tenants'); }}>前往租户管理</Button>
-          ) : null}
-        </div>
-      ) : null}
-      {switchingTenantId !== null ? <div className="tm-tenant-switcher__hint">正在切换企业，页面即将刷新</div> : null}
     </div>
   );
 
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setKeyword("");
+      }}
       trigger="click"
       placement="bottomRight"
       content={content}
-      overlayStyle={{ width: 320, maxWidth: "calc(100vw - 24px)" }}
+      arrow={false}
+      overlayClassName="tm-tenant-switcher-popover"
+      overlayStyle={{ width: 376, maxWidth: "calc(100vw - 24px)" }}
     >
       <button
         type="button"
-        className="tm-app-top-nav__tenant"
+        className={`tm-app-top-nav__tenant${open ? " is-open" : ""}`}
         aria-label={`${isSystemWorkspace || user.isRoot === true ? "当前工作空间" : "当前企业"} ${currentLabel}`}
+        aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <ApartmentOutlined aria-hidden="true" />
-        <span className="tm-app-top-nav__tenant-name" title={currentLabel}>{currentLabel}</span>
-        <SwapOutlined aria-hidden="true" />
+        <span className="tm-app-top-nav__tenant-icon" aria-hidden="true">
+          <ApartmentOutlined />
+        </span>
+        <span className="tm-app-top-nav__tenant-copy">
+          <span className="tm-app-top-nav__tenant-eyebrow">工作空间</span>
+          <span className="tm-app-top-nav__tenant-name" title={currentLabel}>{currentLabel}</span>
+        </span>
+        <DownOutlined className="tm-app-top-nav__tenant-chevron" aria-hidden="true" />
       </button>
     </Popover>
   );

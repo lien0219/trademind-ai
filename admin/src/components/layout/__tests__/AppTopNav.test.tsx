@@ -1,9 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { history, useAntdConfigSetter } from "@umijs/max";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { THEME_MODE_STORAGE_KEY } from "@/theme";
+import { queryAuthTenants } from "@/services/tenants";
 import AppTopNav, { resolveUserLabels } from "../AppTopNav";
+
+vi.mock("@/services/tenants", () => ({
+  queryAuthTenants: vi.fn(),
+  switchAuthTenant: vi.fn(),
+}));
 
 const user: API.CurrentUser = {
   id: "test-user",
@@ -162,6 +168,47 @@ describe("AppTopNav", () => {
         }),
       }),
     );
+  });
+
+  it("displays a spacious, searchable workspace picker with a selected state", async () => {
+    vi.mocked(queryAuthTenants).mockResolvedValue({
+      currentTenantId: 2,
+      items: [
+        { id: 0, code: "system", name: "系统控制台", role: "admin", status: "active" },
+        { id: 1, code: "root-workspace", name: "系统工作台", role: "admin", status: "active" },
+        { id: 2, code: "acme-cn", name: "测试企业", role: "readonly", status: "active" },
+        { id: 3, code: "beta-cn", name: "Beta 企业", role: "operator", status: "active" },
+      ],
+    });
+    const interaction = userEvent.setup();
+    render(<AppTopNav user={{ ...user, tenantId: 2, tenantName: "测试企业", isRoot: true }} onLogout={vi.fn()} />);
+
+    const trigger = screen.getByRole("button", { name: "当前工作空间 测试企业" });
+    expect(trigger).toHaveClass("tm-app-top-nav__tenant");
+    expect(within(trigger).getByText("工作空间")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await interaction.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByText("可访问的工作空间")).toBeInTheDocument();
+    expect(screen.getByText("3 个")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /测试企业/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("当前工作空间")).toBeInTheDocument();
+    expect(screen.getByText("Root 工作台")).toBeInTheDocument();
+    expect(screen.queryByText("系统控制台")).not.toBeInTheDocument();
+
+    const search = screen.getByRole("textbox", { name: "搜索企业" });
+    await interaction.type(search, "beta");
+    expect(screen.getByRole("option", { name: /Beta 企业/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /测试企业/ })).not.toBeInTheDocument();
+    await interaction.clear(search);
+    await interaction.type(search, "not-found");
+    expect(screen.getByText("没有匹配的工作空间")).toBeInTheDocument();
+
+    await interaction.click(screen.getByRole("button", { name: "关闭工作空间菜单" }));
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await interaction.click(trigger);
+    expect(screen.getByRole("option", { name: /测试企业/ })).toBeInTheDocument();
   });
 
   it("shortens an email display name while retaining the full account", () => {
