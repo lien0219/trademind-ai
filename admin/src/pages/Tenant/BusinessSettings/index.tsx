@@ -169,7 +169,6 @@ export default function TenantBusinessSettingsPage() {
               <Form.Item name="lowStockThreshold" label="企业默认低库存阈值" rules={[{required:true}]}><InputNumber min={0} max={1000000} style={{width:'100%'}}/></Form.Item>
               <Alert type="info" showIcon message="待接入库存预警" description="当前为企业规则存储，库存 SKU 预警仍采用现有 SKU 和全局配置；不会暗中修改库存值。" />
             </>:null}
-            {module==='inventory'?<ShopInventoryOverride/>:null}
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label="开启企业业务通知" valuePropName="checked"><Switch/></Form.Item>
               <Alert type="info" showIcon message="待接入通知投递" description="当前仅持久化企业开关，邮件和回调通知不会因为此设置自动发送。" />
@@ -188,6 +187,7 @@ export default function TenantBusinessSettingsPage() {
             </div>:null}
             <Space><Button type="primary" icon={<SaveOutlined />} disabled={!writable} loading={saving} onClick={()=>void save()}>保存企业配置</Button><Button onClick={()=>void load(module)}>放弃更改</Button></Space>
           </Form>}
+        {module==='inventory' && !loading && snapshot ? <ShopInventoryOverride/> : null}
         {historyOpen?<div style={{marginTop:20}}>
           <Typography.Title level={5}>配置变更历史</Typography.Title>
           <Space direction="vertical" style={{width:'100%'}}>{revisions.length===0?<Typography.Text type="secondary">暂无历史版本</Typography.Text>:revisions.map(row=><div key={row.version} style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--ant-color-border-secondary)'}}>
