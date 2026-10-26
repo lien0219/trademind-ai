@@ -74,3 +74,14 @@ describe('tenant workbench navigation', () => {
     expect(canAccessPath('/tenant/members', 'r_0123456789abcdef01234567', ['user.manage'])).toBe(true);
   });
 });
+
+describe('platform scoped navigation', () => {
+  it('blocks tenant reader and tenant admin from global runtime/settings', () => {
+    expect(canAccessPath('/ops/platform-runtime', 'readonly', ['store.view'], false, 2)).toBe(false);
+    expect(canAccessPath('/ops/platform-runtime', 'admin', ['store.view'], true, 2)).toBe(false);
+    expect(canAccessPath('/settings/system', 'admin', ['settings.manage'], false, 2)).toBe(false);
+    expect(canAccessPath('/settings/users', 'admin', ['user.manage'], false, 2)).toBe(true);
+    expect(canAccessPath('/orders/list', 'readonly', ['order.view'], false, 2)).toBe(true);
+    expect(canAccessPath('/ops/platform-runtime', 'admin', ['store.view'], true, 2, true)).toBe(true);
+  });
+});

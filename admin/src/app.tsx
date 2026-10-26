@@ -55,6 +55,7 @@ type HeaderContentProps = HeaderLayoutProps & {
   permissions?: string[];
   tenantId?: number;
   platformOperator?: boolean;
+  isRoot?: boolean;
 };
 
 const DESKTOP_SIDER_WIDTH = 224;
@@ -288,11 +289,12 @@ function AppHeaderContent({
   permissions,
   tenantId,
   platformOperator,
+  isRoot,
   ...layoutProps
 }: HeaderContentProps) {
   const canSearchPath = useCallback(
-    (path: string) => canAccessPath(path, role, permissions, platformOperator, tenantId),
-    [permissions, role, platformOperator, tenantId],
+    (path: string) => canAccessPath(path, role, permissions, platformOperator, tenantId, isRoot),
+    [permissions, role, platformOperator, tenantId, isRoot],
   );
 
   return (
@@ -334,6 +336,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       permissions={initialState?.currentUser?.permissions}
       tenantId={initialState?.currentUser?.tenantId}
       platformOperator={initialState?.currentUser?.platformOperator === true}
+      isRoot={initialState?.currentUser?.isRoot === true}
     />
   ),
   menuHeaderRender: (

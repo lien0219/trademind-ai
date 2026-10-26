@@ -70,6 +70,8 @@ import {
   type OrderInventoryEffectRow,
 } from "@/services/inventory";
 import { fetchSettingsList } from "@/services/settings";
+import { usePermission } from "@/hooks/usePermission";
+import { mayReadGlobalSettings } from "@/utils/globalSettingsAccess";
 import { queryShops } from "@/services/shops";
 import { pickGroup } from "@/utils/settingsForm";
 import { useUrlQueryState } from "@/hooks/useUrlState";
@@ -145,6 +147,8 @@ function statusTag(raw: string, map: StatusTagMap) {
 }
 
 export default function OrdersPage() {
+  const { user, canWriteOrders } = usePermission();
+  const mayReadSettings = mayReadGlobalSettings(user);
   const emptyLocale = useListEmptyLocale("orderList", {
     permissionScoped: true,
   });
@@ -247,6 +251,7 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
+    if (!mayReadSettings) return;
     void (async () => {
       try {
         const { items } = await fetchSettingsList();
@@ -261,7 +266,7 @@ export default function OrdersPage() {
         /* ignore */
       }
     })();
-  }, []);
+  }, [mayReadSettings]);
 
   const refreshDetail = useCallback(
     async (id?: string) => {
@@ -747,7 +752,7 @@ export default function OrdersPage() {
           setTablePageSize(20);
           clearUrlState(ORDER_QUERY_KEYS, { replace: true });
         }}
-        toolBarRender={() => [
+        toolBarRender={() => canWriteOrders ? [
           <ModalForm
             key={`c-${createInvDefaults.deduct}-${createInvDefaults.sync}`}
             initialValues={{
@@ -864,7 +869,7 @@ export default function OrdersPage() {
               tooltip="需在策略中放行并具备刊登出库路由"
             />
           </ModalForm>,
-        ]}
+        ] : []}
         request={async (params) => {
           const kw = prepareKeyword(params.keyword);
           const qp = {

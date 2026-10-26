@@ -123,7 +123,9 @@ function canAccessRoute(
     if (path === '/tenant/invitations/accept') return true;
     return false;
   }
-  if (path?.startsWith('/platform') && !platformOperator) return false;
+  if (path === '/ops/platform-runtime' || path?.startsWith('/ops/platform-runtime/')) return false;
+  if (path?.startsWith('/settings/') && path !== '/settings/users') return false;
+  if (path?.startsWith('/platform')) return false;
   const perm = routePerm(path);
   if (!perm) return true;
   const list = Array.isArray(perm) ? perm : [perm];

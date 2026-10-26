@@ -23,15 +23,16 @@ export default function OpsGroupLayout() {
   const { initialState } = useInitialStateModel();
   const user = initialState?.currentUser;
   const isParent = pathname.replace(/\/+$/, '') === '/ops';
+  const allowed = (path: string) => canAccessPath(path, user?.role, user?.permissions, user?.platformOperator === true, user?.tenantId, user?.isRoot === true);
   const destination = [...ENTRY_PATHS, ...INTERNAL_ENTRY_PATHS].find((path) =>
-    canAccessPath(path, user?.role, user?.permissions),
+    allowed(path),
   );
 
   useLayoutEffect(() => {
     if (isParent && destination) history.replace(destination);
   }, [isParent, destination]);
 
-  if ((isParent && !destination) || (!isParent && !canAccessPath(pathname, user?.role, user?.permissions))) {
+  if ((isParent && !destination) || (!isParent && !allowed(pathname))) {
     return (
       <TmPageContainer title="运维">
         <Result status="403" title="无权限" subTitle={PERMISSION_DENIED_MESSAGE} />
