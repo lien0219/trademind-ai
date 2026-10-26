@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/passwordpolicy"
 	"gorm.io/gorm"
 )
 
@@ -73,7 +75,28 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	t, err := h.Service.Create(c.Request.Context(), actor, in)
 	if err != nil {
-		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "unable to create tenant")
+		// Only deliberate validation and conflict messages are public. Never
+		// echo raw SQL, credential material, or unexpected storage errors.
+		// Trace the underlying failure in the server logs for diagnostics.
+		switch err.Error() {
+		case "invalid tenant metadata":
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "企业标识或资料不符合要求，请检查企业名称和标识")
+		case "tenant owner email is required":
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "请输入有效的企业管理员邮箱")
+		case passwordpolicy.Hint:
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "初始密码不符合要求："+passwordpolicy.Hint)
+		case "invalid idempotency key":
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "创建请求标识无效，请刷新后重试")
+		case "idempotency key reused with different request":
+			response.Fail(c, http.StatusConflict, response.CodeBadRequest, "创建请求内容发生变化，请关闭窗口后重新创建")
+		case "tenant owner account is inactive":
+			response.Fail(c, http.StatusConflict, response.CodeBadRequest, "管理员邮箱已关联停用账号，请先处理账号状态")
+		case "platform operator required":
+			response.Fail(c, http.StatusForbidden, response.CodeForbidden, "没有创建企业的权限")
+		default:
+			slog.ErrorContext(c.Request.Context(), "tenant creation failed", "error", err)
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "创建企业失败，请联系管理员使用 traceId 查询后端日志")
+		}
 		return
 	}
 	response.OK(c, t)

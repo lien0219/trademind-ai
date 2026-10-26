@@ -46,6 +46,7 @@ import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import { switchTenantAndReload } from '@/utils/tenantContext';
 import { canEnterTenantWorkspace } from '@/utils/tenantWorkspace';
+import { passwordError, PASSWORD_HINT } from '@/utils/password';
 
 const STATUS_OPTIONS: { label: string; value: TenantStatus }[] = [
   { label: '待开通', value: 'pending' },
@@ -208,7 +209,9 @@ export default function PlatformTenantsPage() {
           contactPhone: values.contactPhone?.trim() || undefined,
           code: values.code.trim(),
           ownerEmail: values.ownerEmail.trim(),
-          ownerPassword: values.ownerPassword?.trim() || undefined,
+          // Passwords must be validated as entered. Trimming them would
+          // silently change the credential supplied by the operator.
+          ownerPassword: values.ownerPassword || undefined,
           ownerDisplayName: values.ownerDisplayName?.trim() || undefined,
         };
         const fingerprint = JSON.stringify(createFields);
@@ -479,11 +482,17 @@ export default function PlatformTenantsPage() {
           } : undefined}
         >
           {!editing ? (
-            <Form.Item name="code" label="企业标识" rules={[{ required: true, message: '请输入企业标识' }, { pattern: /^[a-zA-Z0-9][a-zA-Z0-9_-]{1,63}$/, message: '使用 2-64 位字母、数字、下划线或连字符' }]}>
+            <Form.Item name="code" label="企业标识" rules={[
+              { required: true, message: '请输入企业标识' },
+              { pattern: /^[a-z][a-z0-9-]{2,47}$/, message: '使用 3-48 位小写字母、数字和连字符，并以小写字母开头' },
+            ]}>
               <Input placeholder="例如 acme-cn" maxLength={64} />
             </Form.Item>
           ) : null}
-          <Form.Item name="name" label="企业名称" rules={[{ required: true, message: '请输入企业名称' }, { max: 120, message: '企业名称不能超过 120 个字符' }]}>
+          <Form.Item name="name" label="企业名称" rules={[
+            { required: true, whitespace: true, message: '企业名称不能为空或仅包含空格' },
+            { max: 120, message: '企业名称不能超过 120 个字符' },
+          ]}>
             <Input placeholder="请输入企业名称" maxLength={120} />
           </Form.Item>
           <Form.Item name="legalName" label="法定主体名称"><Input maxLength={160} /></Form.Item>
@@ -496,7 +505,20 @@ export default function PlatformTenantsPage() {
             <>
               <Form.Item name="ownerEmail" label="企业管理员邮箱" rules={[{ required: true, message: '请输入企业管理员邮箱' }, { type: 'email', message: '请输入有效邮箱' }]}><Input /></Form.Item>
               <Form.Item name="ownerDisplayName" label="管理员显示名"><Input maxLength={80} /></Form.Item>
-              <Form.Item name="ownerPassword" label="初始密码" extra="留空时由服务端按既有身份策略处理。"><Input.Password autoComplete="new-password" /></Form.Item>
+              <Form.Item
+                name="ownerPassword"
+                label="初始密码"
+                extra={`首次创建管理员账号必须填写：${PASSWORD_HINT}。如果邮箱已注册，留空将保留原密码。`}
+                rules={[{
+                  validator: async (_, value: string | undefined) => {
+                    if (!value) return;
+                    const error = passwordError(value);
+                    if (error) throw new Error(error);
+                  },
+                }]}
+              >
+                <Input.Password autoComplete="new-password" />
+              </Form.Item>
             </>
           ) : null}
         </Form>
