@@ -65,9 +65,12 @@ func normalizeSettingsJSON(raw string) (string, error) {
 	if len([]byte(raw)) > maxTenantSettingsBytes {
 		return "", errors.New("tenant settings too large")
 	}
-	var object map[string]json.RawMessage
+	var object map[string]any
 	if err := json.Unmarshal([]byte(raw), &object); err != nil || object == nil {
 		return "", errors.New("tenant settings must be a JSON object")
+	}
+	if err := rejectSensitiveTenantSettings(object, 0); err != nil {
+		return "", err
 	}
 	normalized, err := json.Marshal(object)
 	if err != nil {

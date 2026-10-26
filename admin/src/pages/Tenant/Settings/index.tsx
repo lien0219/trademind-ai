@@ -1,19 +1,21 @@
-import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Alert, Button, Descriptions, Form, Input, Space, Spin, Tag, message } from 'antd';
+import { CodeOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorAlert, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import { getCurrentTenant, updateCurrentTenant, type TenantDetail, type TenantMetadataBody } from '@/services/tenants';
-import { PERMISSIONS } from '@/utils/permission';
 import { formatDateTime } from '@/utils/formatTime';
+import { PERMISSIONS } from '@/utils/permission';
+import { formatTenantSettings, inspectTenantSettings, summarizeTenantSettings } from '@/utils/tenantSettings';
 
-type TenantSettingsForm = {
+const { Text } = Typography;
+
+type TenantProfileForm = {
   name: string;
   legalName?: string;
   description?: string;
   contactEmail?: string;
   contactPhone?: string;
-  settings: string;
 };
 
 const TENANT_STATUS_LABELS: Record<string, string> = {
@@ -32,7 +34,10 @@ export default function TenantSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
-  const [form] = Form.useForm<TenantSettingsForm>();
+  const [form] = Form.useForm<TenantProfileForm>();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedText, setAdvancedText] = useState('{}');
+  const [advancedError, setAdvancedError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,8 +51,9 @@ export default function TenantSettingsPage() {
         description: result.tenant.description || '',
         contactEmail: result.tenant.contactEmail || '',
         contactPhone: result.tenant.contactPhone || '',
-        settings: result.tenant.settings || '{}',
       });
+      setAdvancedOpen(false);
+      setAdvancedError(null);
     } catch (requestError) {
       setError((requestError as Error)?.message || '企业资料加载失败，请重试');
     } finally {
@@ -59,20 +65,10 @@ export default function TenantSettingsPage() {
     void load();
   }, [load]);
 
-  const save = async (values: TenantSettingsForm) => {
+  // Profile saves deliberately omit settings. A stale, unopened JSON editor
+  // must never overwrite independent changes to the tenant's advanced options.
+  const saveProfile = async (values: TenantProfileForm) => {
     if (!canEdit || !detail || submittingRef.current) return;
-    let parsedSettings: unknown;
-    try {
-      parsedSettings = JSON.parse(values.settings || '{}') as unknown;
-    } catch {
-      form.setFields([{ name: 'settings', errors: ['请输入有效的 JSON 对象'] }]);
-      return;
-    }
-    if (!parsedSettings || Array.isArray(parsedSettings) || typeof parsedSettings !== 'object') {
-      form.setFields([{ name: 'settings', errors: ['设置必须是 JSON 对象'] }]);
-      return;
-    }
-
     submittingRef.current = true;
     setSubmitting(true);
     const body: TenantMetadataBody = {
@@ -81,7 +77,6 @@ export default function TenantSettingsPage() {
       description: values.description?.trim() || undefined,
       contactEmail: values.contactEmail?.trim() || undefined,
       contactPhone: values.contactPhone?.trim() || undefined,
-      settings: JSON.stringify(parsedSettings),
       version: detail.tenant.version,
     };
     try {
@@ -89,17 +84,77 @@ export default function TenantSettingsPage() {
       setDetail((current) => current ? { ...current, tenant } : current);
       message.success('企业资料已保存');
     } catch (requestError) {
-      message.error((requestError as Error)?.message || '保存失败，请重试');
+      message.error((requestError as Error)?.message || '保存失败，请刷新后重试');
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
+  const openAdvanced = () => {
+    if (!canEdit || !detail || submittingRef.current) return;
+    setAdvancedText(formatTenantSettings(detail.tenant.settings || '{}'));
+    setAdvancedError(null);
+    setAdvancedOpen(true);
+  };
+
+  const updateAdvancedText = (value: string) => {
+    setAdvancedText(value);
+    setAdvancedError(null);
+  };
+
+  const formatAdvanced = () => {
+    const result = inspectTenantSettings(advancedText);
+    if (!result.ok) {
+      setAdvancedError(result.error);
+      return;
+    }
+    setAdvancedText(JSON.stringify(result.value, null, 2));
+    setAdvancedError(null);
+  };
+
+  const saveAdvanced = async () => {
+    if (!canEdit || !detail || submittingRef.current) return;
+    const result = inspectTenantSettings(advancedText);
+    if (!result.ok) {
+      setAdvancedError(result.error);
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    const tenant = detail.tenant;
+    // The backend update contract writes profile fields on every call.
+    // Use the last loaded values, not unsaved edits in the separate form.
+    const body: TenantMetadataBody = {
+      name: tenant.name,
+      legalName: tenant.legalName,
+      description: tenant.description,
+      contactEmail: tenant.contactEmail,
+      contactPhone: tenant.contactPhone,
+      settings: JSON.stringify(result.value),
+      version: tenant.version,
+    };
+    try {
+      const updated = await updateCurrentTenant(body);
+      setDetail((current) => current ? { ...current, tenant: updated } : current);
+      setAdvancedOpen(false);
+      setAdvancedError(null);
+      message.success('企业高级配置已保存');
+    } catch (requestError) {
+      message.error((requestError as Error)?.message || '保存失败；请刷新以避免覆盖其他管理员的更改');
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const rootWorkspace = detail?.tenant.code === 'root-workspace';
+  const configSummary = summarizeTenantSettings(detail?.tenant.settings || '{}');
+
   return (
     <TmPageContainer
-      title="企业信息与设置"
-      subTitle="查看当前企业资料、状态与成员和店铺统计。"
+      title={rootWorkspace ? 'Root 工作台信息' : '企业信息与设置'}
+      subTitle={rootWorkspace ? '系统自动维护的业务工作空间，不等同于平台全局配置。' : '查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。'}
       extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>]}
     >
       {error ? <ErrorAlert title="企业资料加载失败" actionHint={error} action={<Button type="link" onClick={() => void load()}>重试</Button>} /> : null}
@@ -107,7 +162,15 @@ export default function TenantSettingsPage() {
         <SectionCard><Spin tip="正在加载企业资料"><div style={{ minHeight: 96 }} /></Spin></SectionCard>
       ) : detail ? (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <SectionCard title={detail.tenant.name} description={detail.tenant.description || '未填写企业说明'}>
+          {rootWorkspace ? (
+            <Alert
+              type="info"
+              showIcon
+              message="这是 Root 专属业务工作空间"
+              description="企业级资料和扩展选项只作用于这个工作空间；全平台运行参数请到「设置 → 系统设置」中管理。此处 JSON 不控制 Root 权限。"
+            />
+          ) : null}
+          <SectionCard title={detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? '系统内部业务空间' : '未填写企业说明')}>
             <Descriptions column={{ xs: 1, sm: 2, md: 3 }} size="small">
               <Descriptions.Item label="企业标识">{detail.tenant.code}</Descriptions.Item>
               <Descriptions.Item label="企业状态"><StatusTag status={detail.tenant.status} text={TENANT_STATUS_LABELS[detail.tenant.status] || detail.tenant.status} /></Descriptions.Item>
@@ -122,26 +185,85 @@ export default function TenantSettingsPage() {
           </SectionCard>
 
           <SectionCard
-            title="企业资料与设置"
-            description={canEdit ? '保存时将校验版本号；并发修改需要刷新后重试。' : '当前账号可以查看企业资料，但没有修改权限。'}
+            title={rootWorkspace ? '工作台资料' : '企业基本资料'}
+            description={canEdit ? '常用资料直接填写；保存不会修改高级 JSON 配置。并发修改需刷新后重试。' : '当前账号仅可查看资料，不能修改。'}
             headerExtra={canEdit ? <Tag color="blue">可编辑</Tag> : <Tag>只读</Tag>}
           >
-            <Form form={form} layout="vertical" onFinish={save} disabled={!canEdit || submitting}>
-              <Form.Item name="name" label="企业名称" rules={[{ required: true, message: '请输入企业名称' }, { max: 120, message: '企业名称不能超过 120 个字符' }]}>
+            <Form form={form} layout="vertical" onFinish={saveProfile} disabled={!canEdit || submitting}>
+              <Form.Item name="name" label={rootWorkspace ? '工作台名称' : '企业名称'} rules={[{ required: true, message: '请输入名称' }, { max: 120, message: '名称不能超过 120 个字符' }]}>
                 <Input maxLength={120} />
               </Form.Item>
-              <Form.Item name="legalName" label="法定主体名称"><Input maxLength={160} /></Form.Item>
-              <Form.Item name="description" label="企业说明"><Input.TextArea rows={3} maxLength={500} showCount /></Form.Item>
+              <Form.Item name="legalName" label="法定主体名称"><Input maxLength={160} placeholder="选填" /></Form.Item>
+              <Form.Item name="description" label="企业说明"><Input.TextArea rows={3} maxLength={500} showCount placeholder="描述该企业的用途或经营范围（选填）" /></Form.Item>
               <Space wrap style={{ width: '100%' }}>
-                <Form.Item name="contactEmail" label="联系邮箱" rules={[{ type: 'email', message: '请输入有效邮箱' }]} style={{ minWidth: 260 }}><Input /></Form.Item>
-                <Form.Item name="contactPhone" label="联系电话" style={{ minWidth: 220 }}><Input maxLength={40} /></Form.Item>
+                <Form.Item name="contactEmail" label="联系邮箱" rules={[{ type: 'email', message: '请输入有效邮箱' }]} style={{ minWidth: 260 }}><Input placeholder="选填" /></Form.Item>
+                <Form.Item name="contactPhone" label="联系电话" style={{ minWidth: 220 }}><Input maxLength={40} placeholder="选填" /></Form.Item>
               </Space>
-              <Form.Item name="settings" label="企业设置（JSON）" extra="仅保存企业级选项；请勿在此存放密码、Token 或平台密钥。" rules={[{ required: true, message: '设置必须是 JSON 对象' }]}>
-                <Input.TextArea rows={8} spellCheck={false} autoSize={{ minRows: 5, maxRows: 16 }} />
-              </Form.Item>
-              {canEdit ? <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={submitting} disabled={submitting}>保存企业资料</Button> : null}
+              {canEdit ? (
+                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={submitting} disabled={submitting}>保存基本资料</Button>
+              ) : null}
             </Form>
           </SectionCard>
+
+          <SectionCard
+            title="高级配置"
+            description="企业级扩展数据；普通使用无需配置，默认保持 {} 即可。"
+            headerExtra={canEdit ? <Button icon={<CodeOutlined />} onClick={openAdvanced} disabled={submitting}>编辑高级配置</Button> : <Tag>仅管理员可编辑</Tag>}
+          >
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Space wrap>
+                <Tag color={configSummary.valid ? 'default' : 'warning'}>{configSummary.label}</Tag>
+                <Text type="secondary">当前设置项仅用于存储企业扩展数据，不会自动启用功能、改变权限或覆盖 .env。</Text>
+              </Space>
+              <Alert
+                type="info"
+                showIcon
+                message="无需手工编写 JSON"
+                description="系统尚未为这些扩展字段提供统一的业务开关。请通过各功能页面配置已经支持的选项；仅在明确知道字段用途时使用高级编辑。"
+              />
+            </Space>
+          </SectionCard>
+
+          <Modal
+            title="编辑企业高级配置"
+            open={advancedOpen && canEdit}
+            onCancel={() => { if (!submitting) { setAdvancedOpen(false); setAdvancedError(null); } }}
+            onOk={() => { void saveAdvanced(); }}
+            okText="保存高级配置"
+            okButtonProps={{ disabled: submitting || !canEdit }}
+            confirmLoading={submitting}
+            maskClosable={false}
+            width={720}
+            destroyOnHidden
+          >
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Alert
+                type="warning"
+                showIcon
+                message="仅供高级管理员使用"
+                description="这里只允许普通企业扩展选项，不允许密码、API Key、Token、Cookie 或私钥。Root 权限和平台配置不由此控制。保存会增加企业版本号。"
+              />
+              <label htmlFor="tenant-advanced-json">扩展设置（JSON 对象）</label>
+              <Input.TextArea
+                id="tenant-advanced-json"
+                aria-label="企业扩展设置 JSON"
+                value={advancedText}
+                onChange={(event) => updateAdvancedText(event.target.value)}
+                autoSize={{ minRows: 8, maxRows: 18 }}
+                spellCheck={false}
+                disabled={submitting}
+                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}
+              />
+              {advancedError ? <Alert type="error" showIcon message={advancedError} /> : null}
+              <Space wrap>
+                <Button onClick={formatAdvanced} disabled={submitting}>校验并格式化</Button>
+                <Popconfirm title="清空全部扩展选项？" description="只会改变编辑框内容，点击保存后才会提交。" onConfirm={() => updateAdvancedText('{}')} okText="清空" cancelText="取消">
+                  <Button disabled={submitting}>恢复为空对象</Button>
+                </Popconfirm>
+              </Space>
+              <Text type="secondary">最大 64 KiB；原始 JSON 不会随基本资料一同保存。修改前请先确认已有选项的用途。</Text>
+            </Space>
+          </Modal>
         </Space>
       ) : null}
     </TmPageContainer>
