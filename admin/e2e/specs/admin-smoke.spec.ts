@@ -8,6 +8,7 @@ import {
 import { AUTH_TOKEN_KEY } from "../../src/constants/auth";
 import { THEME_MODE_STORAGE_KEY } from "../../src/theme/themeMode";
 import { ok } from "../mocks/envelope";
+import { e2eUser } from "../mocks/auth";
 
 const themeSurfaceColors = {
   light: {
@@ -267,6 +268,9 @@ test.describe("@smoke Admin route smoke", () => {
       admin,
       page,
     }) => {
+      if (route.path === "/settings/alert-notify") {
+        await page.route("**/api/v1/auth/profile", (route) => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, isRoot: true, platformOperator: true }) }));
+      }
       await admin.goto(route.path);
       await expect(page.locator("#root")).toBeVisible();
       await expect(page.getByText(route.name).first()).toBeVisible();
@@ -330,6 +334,7 @@ test.describe("@smoke Admin route smoke", () => {
     admin,
     page,
   }) => {
+    await page.route("**/api/v1/auth/profile", (route) => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, isRoot: true, platformOperator: true }) }));
     await admin.goto("/settings/alert-notify");
 
     await expect(page.getByText("飞书", { exact: true })).toBeVisible();
@@ -363,6 +368,7 @@ test.describe("@smoke Admin route smoke", () => {
       });
     });
 
+    await page.route("**/api/v1/auth/profile", (route) => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, isRoot: true, platformOperator: true }) }));
     await admin.goto("/ops/platform-runtime");
 
     await expect(page.getByText("平台运行状态").first()).toBeVisible();
@@ -766,6 +772,7 @@ test.describe("@smoke Admin route smoke", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 535, height: 1301 });
+    await page.route("**/api/v1/auth/profile", (route) => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, isRoot: true, platformOperator: true }) }));
     await admin.goto("/settings/email");
 
     const sendTestButton = page.getByRole("button", {
