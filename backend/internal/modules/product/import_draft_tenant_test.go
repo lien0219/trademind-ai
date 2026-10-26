@@ -118,10 +118,10 @@ func TestImportDraftUsesTenantInventoryThresholdWithoutRewritingExistingSKU(t *t
 	db := openImportDraftTenantTestDB(t)
 	ctx := security.WithTenantContext(context.Background(), security.WorkerTenantContext(42, uuid.Nil))
 	require.NoError(t, db.Create(&tenantconfig.Setting{
-		TenantID: 42,
-		Module: tenantconfig.ModuleInventory,
-		Values: []byte(`{"lowStockThreshold":13}`),
-		Version: 1,
+		TenantID:  42,
+		Module:    tenantconfig.ModuleInventory,
+		Values:    []byte(`{"lowStockThreshold":13}`),
+		Version:   1,
 		UpdatedBy: uuid.New(),
 	}).Error)
 	svc := &Service{DB: db}
