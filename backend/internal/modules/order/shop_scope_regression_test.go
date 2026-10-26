@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+    "github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
@@ -20,7 +21,7 @@ import (
 func TestOrderShopReferencesRejectUnownedAndCrossTenantShops(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:order_shop_scope_%s?mode=memory&cache=shared", uuid.NewString())), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&shop.Shop{}, &Order{}, &OrderItem{}, &OrderShipment{}))
+	require.NoError(t, db.AutoMigrate(&shop.Shop{}, &Order{}, &OrderItem{}, &OrderShipment{}, &tenantconfig.Setting{}))
 
 	allowed := shop.Shop{TenantID: 7, Platform: "manual", ShopName: "allowed", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
 	ungranted := shop.Shop{TenantID: 7, Platform: "manual", ShopName: "ungranted", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
