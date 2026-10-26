@@ -103,13 +103,19 @@ func (s *Service) requireTenantPermission(ctx context.Context, tenantID int64, u
 	if s == nil || s.DB == nil || tenantID <= 0 || userID == uuid.Nil {
 		return nil, errors.New("tenant permission required")
 	}
-	root, err := adminperm.IsRoot(ctx,s.DB,userID)
-	if err != nil {return nil,err}
+	root, err := adminperm.IsRoot(ctx, s.DB, userID)
+	if err != nil {
+		return nil, err
+	}
 	if root {
 		var tenant admin.Tenant
-		if err := s.DB.WithContext(ctx).First(&tenant,"id = ?",tenantID).Error;err != nil{return nil,err}
-		if tenant.Status != admin.TenantActive {return nil,errors.New("tenant inactive")}
-		return &admin.TenantMembership{TenantID:tenantID,UserID:userID,Role:adminperm.RoleAdmin,Status:admin.MembershipActive},nil
+		if err := s.DB.WithContext(ctx).First(&tenant, "id = ?", tenantID).Error; err != nil {
+			return nil, err
+		}
+		if tenant.Status != admin.TenantActive {
+			return nil, errors.New("tenant inactive")
+		}
+		return &admin.TenantMembership{TenantID: tenantID, UserID: userID, Role: adminperm.RoleAdmin, Status: admin.MembershipActive}, nil
 	}
 	var m admin.TenantMembership
 	err = s.DB.WithContext(ctx).Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, userID, admin.MembershipActive).First(&m).Error
@@ -209,11 +215,15 @@ func (s *Service) UpdateTenant(ctx context.Context, actor uuid.UUID, id int64, i
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", id).Error; err != nil {
 			return err
 		}
-		if row.Code == admin.RootWorkspaceCode {return errors.New("Root workspace cannot be edited")}
+		if row.Code == admin.RootWorkspaceCode {
+			return errors.New("Root workspace cannot be edited")
+		}
 		if row.Version != in.Version {
 			return errors.New("tenant version conflict")
 		}
-		if row.Status == admin.TenantDeleted { return ErrTenantAlreadyDeleted }
+		if row.Status == admin.TenantDeleted {
+			return ErrTenantAlreadyDeleted
+		}
 		updates := map[string]any{"name": strings.TrimSpace(in.Name), "description": strings.TrimSpace(in.Description), "legal_name": strings.TrimSpace(in.LegalName), "contact_email": strings.TrimSpace(strings.ToLower(in.ContactEmail)), "contact_phone": strings.TrimSpace(in.ContactPhone), "version": row.Version + 1}
 		if strings.TrimSpace(in.SettingsJSON) != "" {
 			settingsJSON, err := normalizeSettingsJSON(in.SettingsJSON)
@@ -257,7 +267,9 @@ func (s *Service) UpdateTenantAsMember(ctx context.Context, actor uuid.UUID, ten
 		if row.Version != in.Version {
 			return errors.New("tenant version conflict")
 		}
-		if row.Status == admin.TenantDeleted { return ErrTenantAlreadyDeleted }
+		if row.Status == admin.TenantDeleted {
+			return ErrTenantAlreadyDeleted
+		}
 		updates := map[string]any{"name": strings.TrimSpace(in.Name), "description": strings.TrimSpace(in.Description), "legal_name": strings.TrimSpace(in.LegalName), "contact_email": strings.TrimSpace(strings.ToLower(in.ContactEmail)), "contact_phone": strings.TrimSpace(in.ContactPhone), "version": row.Version + 1}
 		if strings.TrimSpace(in.SettingsJSON) != "" {
 			settingsJSON, err := normalizeSettingsJSON(in.SettingsJSON)
@@ -287,7 +299,7 @@ func (s *Service) ListTenants(ctx context.Context, keyword, status string, page,
 	if pageSize < 1 || pageSize > 200 {
 		pageSize = 50
 	}
-	q := s.DB.WithContext(ctx).Model(&admin.Tenant{}).Where("code <> ?",admin.RootWorkspaceCode)
+	q := s.DB.WithContext(ctx).Model(&admin.Tenant{}).Where("code <> ?", admin.RootWorkspaceCode)
 	if strings.TrimSpace(keyword) != "" {
 		like := "%" + strings.TrimSpace(keyword) + "%"
 		q = q.Where("code LIKE ? OR name LIKE ?", like, like)
@@ -297,7 +309,9 @@ func (s *Service) ListTenants(ctx context.Context, keyword, status string, page,
 		q = q.Where("status = ?", admin.TenantDeleted)
 	} else {
 		q = q.Where("status <> ?", admin.TenantDeleted)
-		if filterStatus != "" { q = q.Where("status = ?", filterStatus) }
+		if filterStatus != "" {
+			q = q.Where("status = ?", filterStatus)
+		}
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {

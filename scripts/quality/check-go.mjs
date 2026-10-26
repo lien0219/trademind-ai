@@ -20,26 +20,6 @@ async function run(label, bin, commandArgs, options = {}) {
   return result;
 }
 
-
-// Temporary, read-only gofmt export for repository remediation.
-// This block is removed with the resulting format-only commit.
-if (process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REF === 'refs/heads/dev') {
-  const { execFileSync } = await import('node:child_process');
-  const { createHash } = await import('node:crypto');
-  const unformatted = execFileSync('gofmt', ['-l', '.'], { cwd: backend, encoding: 'utf8' }).trim().split(/\r?\n/).filter(Boolean);
-  console.log('FMT_EXPORT_BEGIN:' + unformatted.length);
-  for (const file of unformatted) {
-    if (!/^internal\/[a-zA-Z0-9_./-]+\.go$/.test(file)) throw new Error('Unexpected format path: ' + file);
-    const formatted = execFileSync('gofmt', [file], { cwd: backend });
-    const base64 = formatted.toString('base64');
-    const digest = createHash('sha256').update(formatted).digest('hex');
-    console.log('FMT_FILE_BEGIN:' + file + ':' + formatted.length + ':' + digest);
-    for (let i = 0; i < base64.length; i += 160) console.log('FMT_CHUNK:' + base64.slice(i, i + 160));
-    console.log('FMT_FILE_END:' + file);
-  }
-  console.log('FMT_EXPORT_DONE:' + unformatted.length);
-}
-
 try {
   if (checkFmt) {
     const result = await run('gofmt', 'gofmt', ['-l', '.']);

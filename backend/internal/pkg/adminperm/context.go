@@ -80,16 +80,18 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 	}
 	registry, memberships := TenantSchemaState(db)
-	root, err := IsRoot(c.Request.Context(),db,uid)
-	if err != nil {return nil,err}
+	root, err := IsRoot(c.Request.Context(), db, uid)
+	if err != nil {
+		return nil, err
+	}
 	if root && requestTenant > 0 && registry && memberships {
 		var target admin.Tenant
-		if err := db.WithContext(c.Request.Context()).First(&target,"id = ?",requestTenant).Error;err != nil || target.Status != admin.TenantActive {
-			return &Principal{UserID:uid,TenantID:requestTenant,Disabled:true},nil
+		if err := db.WithContext(c.Request.Context()).First(&target, "id = ?", requestTenant).Error; err != nil || target.Status != admin.TenantActive {
+			return &Principal{UserID: uid, TenantID: requestTenant, Disabled: true}, nil
 		}
-		principal := &Principal{UserID:uid,TenantID:requestTenant,Role:RoleAdmin,PlatformOperator:true,Permissions:PermissionsForRole(RoleAdmin)}
-		c.Set(ctxPrincipalKey,principal)
-		return principal,nil
+		principal := &Principal{UserID: uid, TenantID: requestTenant, Role: RoleAdmin, PlatformOperator: true, Permissions: PermissionsForRole(RoleAdmin)}
+		c.Set(ctxPrincipalKey, principal)
+		return principal, nil
 	}
 	if registry && memberships && requestTenant == 0 && IsSystemAdministrator(&row) {
 		// Do not put system capabilities in the tenant permission cache.

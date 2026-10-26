@@ -220,7 +220,7 @@ func TestRootTenantsListHasSingleProtectedWorkspace(t *testing.T) {
 	var envelope struct {
 		Data struct {
 			Items []struct {
-				ID int64 `json:"id"`
+				ID   int64  `json:"id"`
 				Code string `json:"code"`
 				Name string `json:"name"`
 			} `json:"items"`

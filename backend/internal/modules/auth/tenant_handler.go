@@ -37,7 +37,10 @@ func (h *Handler) Tenants(c *gin.Context) {
 		return
 	}
 	root, err := adminperm.IsRoot(c.Request.Context(), h.DB, uid)
-	if err != nil {response.HandleError(c,err); return}
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	// The singleton Root manages the platform from its protected business
 	// workspace. Do not present tenant zero as a second Root workspace.
 	// Non-Root system operators retain their existing control-plane option.
@@ -57,7 +60,8 @@ func (h *Handler) Tenants(c *gin.Context) {
 			var all []admin.Tenant
 			if err := h.DB.WithContext(c.Request.Context()).Where("status = ?", admin.TenantActive).
 				Order("CASE WHEN code = 'root-workspace' THEN 0 ELSE 1 END, name ASC, id ASC").Find(&all).Error; err != nil {
-				response.HandleError(c,err);return
+				response.HandleError(c, err)
+				return
 			}
 			for _, t := range all {
 				name := t.Name
@@ -66,7 +70,7 @@ func (h *Handler) Tenants(c *gin.Context) {
 				}
 				items = append(items, gin.H{"id": t.ID, "code": t.Code, "name": name, "status": t.Status, "role": adminperm.RoleAdmin})
 			}
-			response.OK(c,gin.H{"items":items,"currentTenantId":currentTenant})
+			response.OK(c, gin.H{"items": items, "currentTenantId": currentTenant})
 			return
 		}
 		err := h.DB.WithContext(c.Request.Context()).Table("tenant_memberships AS m").

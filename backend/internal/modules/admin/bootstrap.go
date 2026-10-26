@@ -168,7 +168,9 @@ func createBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 	if _, err := ensureBootstrapPlatformOperator(ctx, db, &u, audit); err != nil {
 		return err
 	}
-	if _, err := ensureBootstrapRoot(ctx, db, &u, audit); err != nil { return err }
+	if _, err := ensureBootstrapRoot(ctx, db, &u, audit); err != nil {
+		return err
+	}
 	if log != nil {
 		log.Info("admin_bootstrapped", "email", id.email, "phone", id.phone, "id", u.ID.String(), "role", RoleAdmin)
 	}
@@ -243,9 +245,13 @@ func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, cfg *confi
 		}
 	}
 	platformGrantChanged, err := ensureBootstrapPlatformOperator(ctx, db, &u, audit)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	rootGrantChanged, err := ensureBootstrapRoot(ctx, db, &u, audit)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	if len(updates) == 0 && !platformGrantChanged && !rootGrantChanged {
 		return nil
 	}
@@ -303,22 +309,30 @@ func ensureBootstrapRoot(ctx context.Context, tx *gorm.DB, u *AdminUser, audit B
 		// Existing isolated tests may intentionally omit the Root schema.
 		return false, nil
 	}
-	if u == nil || u.ID == uuid.Nil || u.TenantID != 0 { return false, nil }
+	if u == nil || u.ID == uuid.Nil || u.TenantID != 0 {
+		return false, nil
+	}
 	var root RootAccount
 	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&root, "id = ?", 1).Error
 	changed := false
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		root = RootAccount{ID: 1, UserID: u.ID}
-		if err := tx.WithContext(ctx).Create(&root).Error; err != nil { return false, fmt.Errorf("bind unique root: %w", err) }
-		if err := writeBootstrapAudit(audit, ctx, tx, 0, "admin.bootstrap.root_bind", "root_account", u.ID.String(), "singleton root identity bound"); err != nil { return false, err }
+		if err := tx.WithContext(ctx).Create(&root).Error; err != nil {
+			return false, fmt.Errorf("bind unique root: %w", err)
+		}
+		if err := writeBootstrapAudit(audit, ctx, tx, 0, "admin.bootstrap.root_bind", "root_account", u.ID.String(), "singleton root identity bound"); err != nil {
+			return false, err
+		}
 		changed = true
 	case err != nil:
 		return false, err
 	case root.UserID != u.ID:
 		return false, fmt.Errorf("bootstrap root is bound to a different identity; refusing implicit transfer")
 	}
-	if !tx.Migrator().HasTable(&Tenant{}) || !tx.Migrator().HasTable(&TenantMembership{}) { return changed, nil }
+	if !tx.Migrator().HasTable(&Tenant{}) || !tx.Migrator().HasTable(&TenantMembership{}) {
+		return changed, nil
+	}
 	// Reconcile the internal workspace independently of customer tenant count.
 	// Deleted customer tenants are retained as tombstones and never resurrected.
 	var workspace Tenant
@@ -326,8 +340,12 @@ func ensureBootstrapRoot(ctx context.Context, tx *gorm.DB, u *AdminUser, audit B
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		workspace = Tenant{Code: RootWorkspaceCode, Name: RootWorkspaceName, Status: TenantActive, OwnerUserID: &u.ID, SettingsJSON: "{}", Version: 1}
-		if err := tx.WithContext(ctx).Create(&workspace).Error; err != nil { return false, fmt.Errorf("provision Root workspace: %w", err) }
-		if err := writeBootstrapAudit(audit, ctx, tx, workspace.ID, "admin.bootstrap.root_workspace", "tenant", fmt.Sprint(workspace.ID), "internal Root workspace created"); err != nil { return false, err }
+		if err := tx.WithContext(ctx).Create(&workspace).Error; err != nil {
+			return false, fmt.Errorf("provision Root workspace: %w", err)
+		}
+		if err := writeBootstrapAudit(audit, ctx, tx, workspace.ID, "admin.bootstrap.root_workspace", "tenant", fmt.Sprint(workspace.ID), "internal Root workspace created"); err != nil {
+			return false, err
+		}
 		changed = true
 	case err != nil:
 		return false, err
@@ -339,7 +357,9 @@ func ensureBootstrapRoot(ctx context.Context, tx *gorm.DB, u *AdminUser, audit B
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		membership = TenantMembership{TenantID: workspace.ID, UserID: u.ID, Role: RoleAdmin, Status: MembershipActive}
-		if err := tx.WithContext(ctx).Create(&membership).Error; err != nil { return false, fmt.Errorf("provision Root membership: %w", err) }
+		if err := tx.WithContext(ctx).Create(&membership).Error; err != nil {
+			return false, fmt.Errorf("provision Root membership: %w", err)
+		}
 		changed = true
 	case err != nil:
 		return false, err
@@ -351,10 +371,14 @@ func ensureBootstrapRoot(ctx context.Context, tx *gorm.DB, u *AdminUser, audit B
 	var selected Tenant
 	if u.LastTenantID > 0 {
 		err = tx.WithContext(ctx).Where("id = ? AND status = ?", u.LastTenantID, TenantActive).First(&selected).Error
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) { return false, err }
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, err
+		}
 	}
 	if selected.ID == 0 {
-		if err := tx.WithContext(ctx).Model(&AdminUser{}).Where("id = ?", u.ID).Update("last_tenant_id", workspace.ID).Error; err != nil { return false, err }
+		if err := tx.WithContext(ctx).Model(&AdminUser{}).Where("id = ?", u.ID).Update("last_tenant_id", workspace.ID).Error; err != nil {
+			return false, err
+		}
 		changed = true
 	}
 	return changed, nil

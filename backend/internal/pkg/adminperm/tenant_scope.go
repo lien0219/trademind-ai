@@ -25,12 +25,18 @@ func CheckTenantPermission(ctx context.Context, db *gorm.DB, tenantID int64, use
 	if db == nil || tenantID <= 0 || userID == uuid.Nil {
 		return ErrTenantPermissionDenied
 	}
-	root, rootErr := IsRoot(ctx,db,userID)
-	if rootErr != nil {return rootErr}
+	root, rootErr := IsRoot(ctx, db, userID)
+	if rootErr != nil {
+		return rootErr
+	}
 	if root {
-		access, err := ResolveTenantAccess(ctx,db,userID,tenantID)
-		if err != nil {return err}
-		if access == nil || !access.Allowed {return ErrTenantPermissionDenied}
+		access, err := ResolveTenantAccess(ctx, db, userID, tenantID)
+		if err != nil {
+			return err
+		}
+		if access == nil || !access.Allowed {
+			return ErrTenantPermissionDenied
+		}
 		return nil
 	}
 	var user admin.AdminUser
@@ -150,14 +156,18 @@ func ResolveTenantAccess(ctx context.Context, db *gorm.DB, userID uuid.UUID, ten
 		return nil, err
 	}
 	root, err := IsRoot(ctx, db, userID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	if root {
 		access.Membership = admin.TenantMembership{TenantID: tenantID, UserID: userID, Role: RoleAdmin, Status: admin.MembershipActive}
 		access.Allowed = access.Tenant.Status == admin.TenantActive
 		return access, nil
 	}
 	// A stray membership must never grant a non-Root access to this internal scope.
-	if access.Tenant.Code == admin.RootWorkspaceCode { return access,nil }
+	if access.Tenant.Code == admin.RootWorkspaceCode {
+		return access, nil
+	}
 	if err := db.WithContext(ctx).Where("tenant_id = ? AND user_id = ?", tenantID, userID).First(&access.Membership).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return access, nil

@@ -410,15 +410,17 @@ func (h *Handler) SetStatus(c *gin.Context) {
 // Delete logically removes a tenant and preserves its business history.
 func (h *Handler) Delete(c *gin.Context) {
 	actor, ok := h.actor(c)
-	if !ok { return }
+	if !ok {
+		return
+	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid tenant id")
 		return
 	}
 	var in struct {
-		Code string `json:"code" binding:"required"`
-		Version int64 `json:"version" binding:"required,gt=0"`
+		Code    string `json:"code" binding:"required"`
+		Version int64  `json:"version" binding:"required,gt=0"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "tenant code and version required")

@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	ErrPlatformAuthenticationRequired = errors.New("platform authentication required")
-	ErrPlatformAccessDenied           = errors.New("platform permission denied")
+	ErrPlatformAuthenticationRequired   = errors.New("platform authentication required")
+	ErrPlatformAccessDenied             = errors.New("platform permission denied")
 	ErrPlatformAuthorizationUnavailable = errors.New("platform authorization unavailable")
 )
 

@@ -141,10 +141,12 @@ func allowAuthenticatedTenantPath(c *gin.Context, db *gorm.DB, userID uuid.UUID,
 		return isPlatformOperator(c, db, userID)
 	}
 	if tenantID > 0 && db != nil {
-		root, rootErr := adminperm.IsRoot(c.Request.Context(),db,userID)
-		if rootErr != nil {return false}
+		root, rootErr := adminperm.IsRoot(c.Request.Context(), db, userID)
+		if rootErr != nil {
+			return false
+		}
 		if root {
-			access, err := adminperm.ResolveTenantAccess(c.Request.Context(),db,userID,tenantID)
+			access, err := adminperm.ResolveTenantAccess(c.Request.Context(), db, userID, tenantID)
 			return err == nil && access != nil && access.Allowed
 		}
 	}

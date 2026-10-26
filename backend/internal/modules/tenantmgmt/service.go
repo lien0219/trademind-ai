@@ -241,7 +241,9 @@ func (s *Service) SetStatus(ctx context.Context, actor uuid.UUID, id int64, stat
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, "id = ?", id).Error; err != nil {
 			return err
 		}
-		if row.Code == admin.RootWorkspaceCode {return errors.New("Root workspace cannot be suspended")}
+		if row.Code == admin.RootWorkspaceCode {
+			return errors.New("Root workspace cannot be suspended")
+		}
 		if row.Version != expectedVersion {
 			return ErrTenantVersionConflict
 		}

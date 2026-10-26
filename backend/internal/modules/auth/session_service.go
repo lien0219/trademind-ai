@@ -232,8 +232,10 @@ func (s *SessionService) SwitchTenant(ctx context.Context, userID uuid.UUID, cur
 		if user.MustChangePassword {
 			return errors.New(ErrPasswordChangeRequired)
 		}
-		root, err := adminperm.IsRoot(ctx,tx,userID)
-		if err != nil {return err}
+		root, err := adminperm.IsRoot(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
 		if targetTenantID == 0 {
 			if !adminperm.IsSystemAdministrator(&user) {
 				return errors.New(ErrTenantAccessDenied)
