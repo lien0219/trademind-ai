@@ -3,6 +3,7 @@ import { Alert, Button, Card, Form, Select, Space, Spin, message } from 'antd';
 import { TmPageContainer } from '@/components/ui';
 import { getJSON, putJSON } from '@/services/request';
 import { applyThemeMode, persistThemeMode } from '@/theme';
+import { setLanguage } from '@/i18n';
 
 type Preferences={language:string;theme:'light'|'dark';dateFormat:string};
 type PreferenceState={values:Preferences;version:number;inherited:boolean};
@@ -20,6 +21,7 @@ export default function PersonalPreferencesPage(){
     const values=await form.validateFields();setSaving(true);
     const next=await putJSON<PreferenceState,{values:Preferences;expectedVersion:number}>(url,{values,expectedVersion:snapshot.version});
     setSnapshot(next);
+    setLanguage(next.values.language as Parameters<typeof setLanguage>[0]);
     persistThemeMode(next.values.theme);
     applyThemeMode(next.values.theme);
     message.success('个人偏好已保存；部分设置将在重新进入页面后应用');
@@ -28,7 +30,7 @@ export default function PersonalPreferencesPage(){
     <Card style={{maxWidth:720}}>
       {error?<Alert type="error" message={error} action={<Button onClick={()=>void load()}>重试</Button>}/>:null}
       {loading?<Spin/>:snapshot?<Form form={form} layout="vertical">
-        <Form.Item name="language" label="首选语言" rules={[{required:true}]}><Select options={[{value:'zh-CN',label:'简体中文'},{value:'en-US',label:'English'},{value:'ja-JP',label:'日本語'}]}/></Form.Item>
+        <Form.Item name="language" label="首选语言" rules={[{required:true}]}><Select options={[{value:'zh-CN',label:'简体中文'},{value:'en-US',label:'English'},{value:'ja-JP',label:'日本語'},{value:'zh-TW',label:'繁體中文'},{value:'ko-KR',label:'한국어'},{value:'th-TH',label:'ไทย'}]}/></Form.Item>
         <Form.Item name="theme" label="界面主题" rules={[{required:true}]}><Select options={[{value:'light',label:'浅色模式'},{value:'dark',label:'深色模式'}]}/></Form.Item>
         <Form.Item name="dateFormat" label="首选日期格式" rules={[{required:true}]}><Select options={[{value:'YYYY-MM-DD',label:'2026-10-27'},{value:'DD/MM/YYYY',label:'27/10/2026'},{value:'MM/DD/YYYY',label:'10/27/2026'}]}/></Form.Item>
         <Alert type="info" showIcon message="偏好生效范围" description="主题可立即应用；语言与日期格式已保存，但尚未统一接入各业务页面的国际化和时间展示组件。"/>

@@ -32,7 +32,7 @@ const templates: Partial<Record<BusinessModule, {name:string;values:Record<strin
     {name:'标准库存预警',values:{lowStockThreshold:5}},
   ],
 };
-const languageOptions = [{value:'zh-CN',label:'简体中文'},{value:'en-US',label:'English'},{value:'ja-JP',label:'日本語'}];
+const languageOptions = [{value:'zh-CN',label:'简体中文'},{value:'en-US',label:'English'},{value:'ja-JP',label:'日本語'},{value:'zh-TW',label:'繁體中文'},{value:'ko-KR',label:'한국어'},{value:'th-TH',label:'ไทย'}];
 const sourceOptions = [
   {value:'1688',label:'1688'}, {value:'pinduoduo',label:'拼多多'},
   {value:'taobao_tmall',label:'淘宝/天猫'}, {value:'aliexpress',label:'速卖通'},

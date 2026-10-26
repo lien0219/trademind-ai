@@ -19,6 +19,8 @@ import { AUTH_TOKEN_KEY } from "@/constants/auth";
 import { layoutTokens } from "@/constants/layoutTokens";
 import { postJSON } from "@/services/request";
 import { validateProfile } from "@/services/auth";
+import { isAppLanguage } from "@/i18n/dictionaries";
+import { setLanguage } from "@/i18n";
 import {
   applyThemeMode,
   createAdminDrawerConfig,
@@ -137,9 +139,11 @@ export async function getInitialState(): Promise<{
       if (preferenceResponse.ok && isTenantContextCurrent(context)) {
         const preference = (await preferenceResponse.json()) as {
           code?: number;
-          data?: { values?: { theme?: string } };
+          data?: { values?: { theme?: string; language?: string } };
         };
         const theme = preference.data?.values?.theme;
+        const language = preference.data?.values?.language;
+        if (preference.code === 0 && isAppLanguage(language) && isTenantContextCurrent(context)) setLanguage(language);
         if (preference.code === 0 && (theme === "light" || theme === "dark") && isTenantContextCurrent(context)) {
           persistThemeMode(theme);
         }
