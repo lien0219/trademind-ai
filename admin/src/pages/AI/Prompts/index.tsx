@@ -13,6 +13,8 @@ import {
   aiTextProviderLabel,
 } from '@/constants/aiPrompts';
 import { fetchSettingsList } from '@/services/settings';
+import { usePermission } from '@/hooks/usePermission';
+import { mayReadGlobalSettings } from '@/utils/globalSettingsAccess';
 import { pickGroup } from '@/utils/settingsForm';
 import {
   createAIPrompt,
@@ -45,6 +47,8 @@ function parseSchemaField(raw: string | undefined): unknown | undefined {
 }
 
 export default function AIPromptsPage() {
+  const { user } = usePermission();
+  const mayReadSettings = mayReadGlobalSettings(user);
   const actionRef = useRef<ActionType>();
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<AIPromptRow | null>(null);
@@ -54,6 +58,7 @@ export default function AIPromptsPage() {
   });
 
   useEffect(() => {
+    if (!mayReadSettings) return;
     fetchSettingsList()
       .then((res) => {
         const ai = pickGroup(res.items, 'ai');
@@ -65,7 +70,7 @@ export default function AIPromptsPage() {
       .catch(() => {
         setSystemAi({ provider: 'openai_compatible', model: '' });
       });
-  }, []);
+  }, [mayReadSettings]);
 
   const renderInheritedTag = (kind: 'provider' | 'model') => {
     const systemValue = kind === 'provider' ? systemAi.provider : systemAi.model;

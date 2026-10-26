@@ -83,5 +83,15 @@ describe('platform scoped navigation', () => {
     expect(canAccessPath('/settings/users', 'admin', ['user.manage'], false, 2)).toBe(true);
     expect(canAccessPath('/orders/list', 'readonly', ['order.view'], false, 2)).toBe(true);
     expect(canAccessPath('/ops/platform-runtime', 'admin', ['store.view'], true, 2, true)).toBe(true);
+    expect(canAccessPath('/ai/prompts', 'admin', ['settings.manage'], false, 2)).toBe(false);
+    expect(canAccessPath('/collect/rules', 'admin', ['settings.manage'], false, 2)).toBe(false);
+    expect(canAccessPath('/ai/prompts', 'admin', ['settings.manage'], true, 2, true)).toBe(true);
+    expect(canAccessPath('/collect/rules', 'admin', ['settings.manage'], true, 2, true)).toBe(true);
+    expect(canAccessPath('/ai/prompts', 'admin', ['settings.manage'], true, 0)).toBe(true);
+    expect(canAccessPath('/ai/tasks', 'admin', ['product.view'], true, 0)).toBe(false);
+    expect(canAccessPath('/collect/rules', 'admin', ['settings.manage'], true, 0)).toBe(true);
+    expect(canAccessPath('/collect/rules', 'admin', ['settings.manage'], false, 0)).toBe(false);
+    expect(canAccessPath('/collect/browser-profiles', 'readonly', ['product.view'], false, 2)).toBe(true);
+    expect(canAccessPath('/collect/monitor', 'readonly', ['product.view'], false, 2)).toBe(true);
   });
 });

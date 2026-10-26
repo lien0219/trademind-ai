@@ -43,9 +43,9 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/collect/hub': PERMISSIONS.PRODUCT_VIEW,
   '/collect/tasks': PERMISSIONS.PRODUCT_VIEW,
   '/collect/batches': PERMISSIONS.PRODUCT_VIEW,
-  '/collect/browser-profiles': PERMISSIONS.SETTINGS_MANAGE,
+  '/collect/browser-profiles': PERMISSIONS.PRODUCT_VIEW,
   '/collect/rules': PERMISSIONS.SETTINGS_MANAGE,
-  '/collect/monitor': PERMISSIONS.SETTINGS_MANAGE,
+  '/collect/monitor': PERMISSIONS.PRODUCT_VIEW,
   '/shops/manage': PERMISSIONS.STORE_VIEW,
   '/orders/list': PERMISSIONS.ORDER_VIEW,
   '/orders/warehouse-allocations': PERMISSIONS.ORDER_VIEW,
@@ -117,12 +117,17 @@ function canAccessRoute(
   if (tenantId === 0) {
     if (path === '/platform' || path?.startsWith('/platform/')) return platformOperator;
     if (path === '/settings') return true;
+    if (path === '/ai' || path === '/collect' || path === '/ai/prompts' || path === '/collect/rules' || path?.startsWith('/ai/prompts/') || path?.startsWith('/collect/rules/')) {
+      return platformOperator && hasPermission(role, PERMISSIONS.SETTINGS_MANAGE, profilePerms);
+    }
     if (path === '/settings/system' || path === '/settings/config-status') {
       return hasPermission(role, PERMISSIONS.SETTINGS_MANAGE, profilePerms);
     }
     if (path === '/tenant/invitations/accept') return true;
     return false;
   }
+  // Organization-level settings grants never confer platform-global access.
+  if (path === '/ai/prompts' || path?.startsWith('/ai/prompts/') || path === '/collect/rules' || path?.startsWith('/collect/rules/')) return false;
   if (path === '/ops/platform-runtime' || path?.startsWith('/ops/platform-runtime/')) return false;
   if (path?.startsWith('/settings/') && path !== '/settings/users') return false;
   if (path?.startsWith('/platform')) return false;
