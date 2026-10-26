@@ -389,30 +389,14 @@ export default function ShopsPage() {
             type: 'group',
             label: '数据同步',
             children: [
-              {
-                key: 'osync',
-                label: '同步订单',
-                onClick: () => openOrderSyncModal(r.platform, r.id),
-              },
-              {
-                key: 'olog',
-                label: (
-                  <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>订单同步记录</Link>
-                ),
-              },
-              {
-                key: 'cmsync',
-                label: '拉取客服消息',
-                onClick: () => openCustomerMessageSyncModal(r.platform, r.id),
-              },
-              {
-                key: 'cmlog',
-                label: (
-                  <Link to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(r.id)}`}>
-                    客服同步记录
-                  </Link>
-                ),
-              },
+              ...(can(PERMISSIONS.ORDER_OPERATE) ? [
+                { key: 'osync', label: '同步订单', onClick: () => openOrderSyncModal(r.platform, r.id) },
+                { key: 'olog', label: <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>订单同步记录</Link> },
+              ] : []),
+              ...(can(PERMISSIONS.CUSTOMER_OPERATE) ? [
+                { key: 'cmsync', label: '拉取客服消息', onClick: () => openCustomerMessageSyncModal(r.platform, r.id) },
+                { key: 'cmlog', label: <Link to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(r.id)}`}>客服同步记录</Link> },
+              ] : []),
             ],
           });
 
@@ -493,7 +477,7 @@ export default function ShopsPage() {
         },
       },
     ],
-    [providers, canEditShop, canCreateShop, user],
+    [providers, canEditShop, canCreateShop, user, can],
   );
 
   return (
