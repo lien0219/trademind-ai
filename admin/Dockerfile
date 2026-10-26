@@ -14,7 +14,7 @@ RUN pnpm install --frozen-lockfile
 
 RUN pnpm --filter @trademind/admin build
 
-FROM nginx:1.31.7-alpine AS runtime
+FROM nginx:1.31.8-alpine AS runtime
 
 RUN apk add --no-cache --upgrade libexpat libx11
 
