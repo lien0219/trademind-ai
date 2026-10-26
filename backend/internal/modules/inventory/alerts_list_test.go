@@ -165,29 +165,29 @@ func TestHasDuplicateInventorySyncScopesTenant(t *testing.T) {
 }
 
 func TestInventoryAlertsUseShopOverrideWithoutCrossTenantLeak(t *testing.T) {
- db:=newInventoryAlertsTestDB(t)
- shopID:=uuid.New()
- item:=product.Product{TenantID:11,Source:"manual",Title:"Shop threshold"}
- require.NoError(t,db.Create(&item).Error)
- stock:=8
- sku:=product.ProductSKU{ProductID:item.ID,SKUCode:"OVERRIDE-8",Stock:&stock,WarningStock:5}
- require.NoError(t,db.Create(&sku).Error)
- shopRow:=shop.Shop{TenantID:11,Platform:"mock",ShopName:"One",Status:"active"}
- shopRow.ID=shopID
- require.NoError(t,db.Create(&shopRow).Error)
- pub:=productpublish.ProductPublication{TenantID:11,ProductID:item.ID,ShopID:shopID,Platform:"mock",Status:"published"}
- require.NoError(t,db.Create(&pub).Error)
- bind:=productpublish.ProductPublicationSKU{PublicationID:pub.ID,ProductSKUID:&sku.ID}
- require.NoError(t,db.Create(&bind).Error)
- require.NoError(t,db.Create(&tenantconfig.ShopInventoryOverride{TenantID:11,ShopID:shopID,WarningStock:12,Version:1,UpdatedBy:uuid.New()}).Error)
- svc:=&Service{DB:db}
- out,err:=svc.ListInventoryAlerts(context.Background(),AlertsListQuery{TenantID:11,ShopID:&shopID,AlertType:AlertTypeLowStock,Page:1,PageSize:20})
- require.NoError(t,err)
- require.Equal(t,int64(1),out.Total)
- require.Len(t,out.Items,1)
- require.Equal(t,12,out.Items[0].WarningStock)
- require.Equal(t,product.StockStatusLowStock,out.Items[0].StockStatus)
- other,err:=svc.ListInventoryAlerts(context.Background(),AlertsListQuery{TenantID:22,ShopID:&shopID,AlertType:AlertTypeLowStock,Page:1,PageSize:20})
- require.NoError(t,err)
- require.Zero(t,other.Total)
+	db := newInventoryAlertsTestDB(t)
+	shopID := uuid.New()
+	item := product.Product{TenantID: 11, Source: "manual", Title: "Shop threshold"}
+	require.NoError(t, db.Create(&item).Error)
+	stock := 8
+	sku := product.ProductSKU{ProductID: item.ID, SKUCode: "OVERRIDE-8", Stock: &stock, WarningStock: 5}
+	require.NoError(t, db.Create(&sku).Error)
+	shopRow := shop.Shop{TenantID: 11, Platform: "mock", ShopName: "One", Status: "active"}
+	shopRow.ID = shopID
+	require.NoError(t, db.Create(&shopRow).Error)
+	pub := productpublish.ProductPublication{TenantID: 11, ProductID: item.ID, ShopID: shopID, Platform: "mock", Status: "published"}
+	require.NoError(t, db.Create(&pub).Error)
+	bind := productpublish.ProductPublicationSKU{PublicationID: pub.ID, ProductSKUID: &sku.ID}
+	require.NoError(t, db.Create(&bind).Error)
+	require.NoError(t, db.Create(&tenantconfig.ShopInventoryOverride{TenantID: 11, ShopID: shopID, WarningStock: 12, Version: 1, UpdatedBy: uuid.New()}).Error)
+	svc := &Service{DB: db}
+	out, err := svc.ListInventoryAlerts(context.Background(), AlertsListQuery{TenantID: 11, ShopID: &shopID, AlertType: AlertTypeLowStock, Page: 1, PageSize: 20})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), out.Total)
+	require.Len(t, out.Items, 1)
+	require.Equal(t, 12, out.Items[0].WarningStock)
+	require.Equal(t, product.StockStatusLowStock, out.Items[0].StockStatus)
+	other, err := svc.ListInventoryAlerts(context.Background(), AlertsListQuery{TenantID: 22, ShopID: &shopID, AlertType: AlertTypeLowStock, Page: 1, PageSize: 20})
+	require.NoError(t, err)
+	require.Zero(t, other.Total)
 }
