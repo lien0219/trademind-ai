@@ -192,14 +192,14 @@ describe("AppTopNav", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(await screen.findByText("可访问的工作空间")).toBeInTheDocument();
     expect(screen.getByText("3 个")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /测试企业/ })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("option", { name: /测试企业/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByLabelText("当前工作空间")).toBeInTheDocument();
     expect(screen.getByText("Root 工作台")).toBeInTheDocument();
     expect(screen.queryByText("系统控制台")).not.toBeInTheDocument();
 
     const search = screen.getByRole("textbox", { name: "搜索企业" });
     await interaction.type(search, "beta");
-    expect(screen.getByRole("option", { name: /Beta 企业/ })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /Beta 企业/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /测试企业/ })).not.toBeInTheDocument();
     await interaction.clear(search);
     await interaction.type(search, "not-found");
@@ -208,7 +208,7 @@ describe("AppTopNav", () => {
     await interaction.click(screen.getByRole("button", { name: "关闭工作空间菜单" }));
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await interaction.click(trigger);
-    expect(screen.getByRole("option", { name: /测试企业/ })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /测试企业/ })).toBeInTheDocument();
   });
 
   it("shortens an email display name while retaining the full account", () => {

@@ -14,7 +14,7 @@ func leaveTestUser(t *testing.T, svc *Service, role string, tenantID int64) admi
 	t.Helper()
 	user := admin.AdminUser{
 		Username: admin.NewInternalUsername(),
-		Role: role, TenantID: tenantID, LastTenantID: tenantID,
+		Role:     role, TenantID: tenantID, LastTenantID: tenantID,
 		Status: admin.StatusActive, PasswordHash: "test-only",
 	}
 	require.NoError(t, svc.DB.Create(&user).Error)
@@ -101,4 +101,3 @@ func TestLeaveTenantAllowsOrdinaryMemberAndRevokesMembership(t *testing.T) {
 		})
 	}
 }
-
