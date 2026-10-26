@@ -641,6 +641,12 @@ export default [
         component: './Tenant/Settings',
       },
       {
+        path: '/tenant/business-settings',
+        name: '企业业务配置',
+        icon: 'SlidersOutlined',
+        component: './Tenant/BusinessSettings',
+      },
+      {
         path: '/tenant/members',
         name: '企业成员与邀请',
         icon: 'TeamOutlined',

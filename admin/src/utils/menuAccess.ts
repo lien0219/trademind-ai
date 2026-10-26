@@ -89,6 +89,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/integrations': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/config-status': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/users': PERMISSIONS.USER_MANAGE,
+  '/tenant/business-settings': PERMISSIONS.PRODUCT_VIEW,
   '/tenant/members': PERMISSIONS.USER_MANAGE,
 };
 

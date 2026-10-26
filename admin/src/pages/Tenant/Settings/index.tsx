@@ -1,4 +1,5 @@
 import { CodeOutlined, ReloadOutlined, SaveOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { Link } from '@umijs/max';
 import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorAlert, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
@@ -215,9 +216,15 @@ export default function TenantSettingsPage() {
             </Form>
           </SectionCard>
 
+          <SectionCard title="企业业务配置" description="企业 AI 文案、采集来源与任务上限等规则可视化管理。">
+            <Space direction="vertical">
+              <Typography.Text type="secondary">新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。</Typography.Text>
+              <Link to="/tenant/business-settings">进入企业业务配置</Link>
+            </Space>
+          </SectionCard>
           <SectionCard
-            title="高级配置"
-            description="企业级扩展数据；普通使用无需配置，默认保持 {} 即可。"
+            title="开发者扩展元数据"
+            description="仅存储兼容性扩展 JSON；不再作为业务配置入口。"
             headerExtra={canEdit ? <Button icon={<CodeOutlined />} onClick={openAdvanced} disabled={submitting}>编辑高级配置</Button> : <Tag>仅管理员可编辑</Tag>}
           >
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
