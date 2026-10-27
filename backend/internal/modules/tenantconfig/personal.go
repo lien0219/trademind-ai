@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type PersonalPreferences struct {
@@ -86,7 +87,16 @@ func WritePersonalPreferences(ctx context.Context, db *gorm.DB, tenantID int64, 
 			if expected != 0 {
 				return ErrVersionConflict
 			}
-			return tx.Create(&UserPreference{TenantID: tenantID, UserID: userID, Version: 1, Values: datatypes.JSON(normalized)}).Error
+			// Concurrent initial saves return the same optimistic conflict.
+			created := tx.Clauses(clause.OnConflict{DoNothing: true}).
+				Create(&UserPreference{TenantID: tenantID, UserID: userID, Version: 1, Values: datatypes.JSON(normalized)})
+			if created.Error != nil {
+				return created.Error
+			}
+			if created.RowsAffected != 1 {
+				return ErrVersionConflict
+			}
+			return nil
 		}
 		if err != nil {
 			return err
