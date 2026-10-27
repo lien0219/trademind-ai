@@ -37,6 +37,10 @@ func TestPersonalPreferenceIsolationAndConflict(t *testing.T) {
 	if err != ErrVersionConflict {
 		t.Fatalf("stale version: %v", err)
 	}
+	persisted, err := ReadPersonalPreferences(ctx, db, 41, user)
+	if err != nil || persisted.Version != 1 || persisted.Values.Language != "ja-JP" {
+		t.Fatalf("conflicting write modified state: %#v %v", persisted, err)
+	}
 	for _, language := range []string{"zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH"} {
 		if _, err = ValidatePersonalPreferences([]byte(`{"language":"` + language + `","theme":"dark","dateFormat":"YYYY-MM-DD"}`)); err != nil {
 			t.Errorf("supported language %s: %v", language, err)
