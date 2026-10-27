@@ -31,6 +31,10 @@ describe('six-language navigation coverage', () => {
   it('preserves source key as a safe fallback', () => {
     expect(translateMessage('zh-CN', '未翻译的内部术语')).toBe('未翻译的内部术语');
   });
+  it.each(['constructor', 'toString', '__proto__'])('does not render inherited object members for unknown key %s', source => {
+    expect(translateMessage('en-US', source)).toBe(source);
+    expect(hasTranslation('en-US', source)).toBe(false);
+  });
 });
 
 describe('organization business settings dictionary', () => {

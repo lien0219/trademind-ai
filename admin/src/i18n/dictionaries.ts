@@ -1397,7 +1397,7 @@ export function isAppLanguage(value: unknown): value is AppLanguage {
 }
 export function translateMessage(language: AppLanguage, source: string): string {
   if (language === 'zh-CN') return source;
-  return dictionaries[language]?.[source] || source;
+  return hasTranslation(language, source) ? dictionaries[language][source] : source;
 }
 
 export function hasTranslation(language: AppLanguage, source: string): boolean {
