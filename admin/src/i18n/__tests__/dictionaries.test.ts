@@ -5,6 +5,7 @@ import { interfaceTranslations } from '../interfaceTranslations';
 import { loginTranslations } from '../loginTranslations';
 import { tenantMemberTranslations } from '../tenantMemberTranslations';
 import { tenantInvitationTranslations } from '../tenantInvitationTranslations';
+import { tenantSettingsTranslations } from '../tenantSettingsTranslations';
 import ts from 'typescript';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -41,7 +42,7 @@ describe('six-language navigation coverage', () => {
 
 describe('organization business settings dictionary', () => {
   it('defines each translated message for every supported target locale', () => {
-    for (const [key, translations] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations})) {
+    for (const [key, translations] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations})) {
       expect(translations).toHaveLength(5);
       for (const language of supportedLanguages) {
         if (language === 'zh-CN') continue;

@@ -14,6 +14,13 @@ import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantCont
 
 const { Text } = Typography;
 
+function localizeConfigSummary(label: string): string {
+  const count = /^已保存 (\d+) 项扩展字段$/.exec(label);
+  if (count) return tr('已保存 {count} 项扩展字段').replace('{count}', count[1]);
+  return tr(label);
+}
+
+
 type TenantProfileForm = {
   name: string;
   legalName?: string;
@@ -23,11 +30,11 @@ type TenantProfileForm = {
 };
 
 const TENANT_STATUS_LABELS: Record<string, string> = {
-  pending: '待开通',
-  active: '正常',
-  suspended: '已暂停',
-  archived: '已归档',
-  closed: '已关闭',
+  pending: tr("待开通"),
+  active: tr("正常"),
+  suspended: tr("已暂停"),
+  archived: tr("已归档"),
+  closed: tr("已关闭"),
 };
 
 export default function TenantSettingsPage() {
@@ -71,7 +78,7 @@ export default function TenantSettingsPage() {
       setAdvancedError(null);
       setShowExample(false);
     } catch (requestError) {
-      if (isCurrent()) setError((requestError as Error)?.message || '企业资料加载失败，请重试');
+      if (isCurrent()) setError((requestError as Error)?.message || tr("企业资料加载失败，请重试"));
     } finally {
       if (sequence === readSequence.current) setLoading(false);
     }
@@ -115,7 +122,7 @@ export default function TenantSettingsPage() {
       const tenant = await updateCurrentTenant(body);
       if (!isTenantContextCurrent(context)) return;
       setDetail((current) => current ? { ...current, tenant } : current);
-      message.success('企业资料已保存');
+      message.success(tr("企业资料已保存"));
     } catch (requestError) {
       if (isTenantContextCurrent(context))
         message.error((requestError as Error)?.message || tr('保存失败，请刷新后重试'));
@@ -141,7 +148,7 @@ export default function TenantSettingsPage() {
   const formatAdvanced = () => {
     const result = inspectTenantSettings(advancedText);
     if (!result.ok) {
-      setAdvancedError(result.error);
+      setAdvancedError(tr(result.error));
       return;
     }
     setAdvancedText(JSON.stringify(result.value, null, 2));
@@ -176,7 +183,7 @@ export default function TenantSettingsPage() {
       setDetail((current) => current ? { ...current, tenant: updated } : current);
       setAdvancedOpen(false);
       setAdvancedError(null);
-      message.success('企业高级配置已保存');
+      message.success(tr("企业高级配置已保存"));
     } catch (requestError) {
       if (isTenantContextCurrent(context))
         message.error((requestError as Error)?.message || tr('保存失败；请刷新以避免覆盖其他管理员的更改'));
@@ -191,95 +198,95 @@ export default function TenantSettingsPage() {
 
   return (
     <TmPageContainer
-      title={rootWorkspace ? 'Root 工作台信息' : '企业信息与设置'}
-      subTitle={rootWorkspace ? '系统自动维护的业务工作空间，不等同于平台全局配置。' : canEdit ? '查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。' : '查看当前所属组织信息。'}
-      extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>]}
+      title={rootWorkspace ? tr("Root 工作台信息") : tr("企业信息与设置")}
+      subTitle={rootWorkspace ? tr("系统自动维护的业务工作空间，不等同于平台全局配置。") : canEdit ? tr("查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。") : tr("查看当前所属组织信息。")}
+      extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>]}
     >
-      {error ? <ErrorAlert title="企业资料加载失败" actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} /> : null}
+      {error ? <ErrorAlert title={tr("企业资料加载失败")} actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} /> : null}
       {loading && !detail ? (
-        <SectionCard><Spin tip="正在加载企业资料"><div style={{ minHeight: 96 }} /></Spin></SectionCard>
+        <SectionCard><Spin tip={tr("正在加载企业资料")}><div style={{ minHeight: 96 }} /></Spin></SectionCard>
       ) : detail ? (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           {rootWorkspace ? (
             <Alert
               type="info"
               showIcon
-              message="这是 Root 专属业务工作空间"
-              description="企业级资料和扩展选项只作用于这个工作空间；全平台运行参数请到「设置 → 系统设置」中管理。此处 JSON 不控制 Root 权限。"
+              message={tr("这是 Root 专属业务工作空间")}
+              description={tr("企业级资料和扩展选项只作用于这个工作空间；全平台运行参数请到「设置 → 系统设置」中管理。此处 JSON 不控制 Root 权限。")}
             />
           ) : null}
-          <SectionCard title={brand?.displayName || detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? '系统内部业务空间' : '当前所属组织')} headerExtra={!canEdit ? <Tag>当前组织</Tag> : undefined}>
+          <SectionCard title={brand?.displayName || detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? tr("系统内部业务空间") : tr("当前所属组织"))} headerExtra={!canEdit ? <Tag>{tr("当前组织")}</Tag> : undefined}>
             {brand?.logoUrl ? <div style={{marginBottom:16}}>
-              <img alt="企业 Logo" src={brand.logoUrl} loading="lazy" referrerPolicy="no-referrer" style={{maxHeight:60,maxWidth:180,objectFit:'contain'}}/>
+              <img alt={tr("企业 Logo")} src={brand.logoUrl} loading="lazy" referrerPolicy="no-referrer" style={{maxHeight:60,maxWidth:180,objectFit:'contain'}}/>
             </div> : null}
             {brand?.labels?.length ? <div style={{marginBottom:12}}>
               <Space size={[6,6]} wrap>{brand.labels.map(label=><Tag key={label}>{label}</Tag>)}</Space>
             </div> : null}
             <Descriptions column={{ xs: 1, sm: 2, md: 3 }} size="small">
-              <Descriptions.Item label="企业标识">{detail.tenant.code}</Descriptions.Item>
-              <Descriptions.Item label="企业状态"><StatusTag status={detail.tenant.status} text={TENANT_STATUS_LABELS[detail.tenant.status] || detail.tenant.status} /></Descriptions.Item>
-              <Descriptions.Item label="企业 ID">{detail.tenant.id}</Descriptions.Item>
-              <Descriptions.Item label="成员数">{detail.memberCount}</Descriptions.Item>
-              <Descriptions.Item label="店铺数">{detail.shopCount}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{formatDateTime(detail.tenant.createdAt)}</Descriptions.Item>
-              <Descriptions.Item label="法定主体">{detail.tenant.legalName || '—'}</Descriptions.Item>
-              <Descriptions.Item label="联系邮箱">{detail.tenant.contactEmail || '—'}</Descriptions.Item>
-              <Descriptions.Item label="联系电话">{detail.tenant.contactPhone || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("企业标识")}>{detail.tenant.code}</Descriptions.Item>
+              <Descriptions.Item label={tr("企业状态")}><StatusTag status={detail.tenant.status} text={tr(TENANT_STATUS_LABELS[detail.tenant.status] || detail.tenant.status)} /></Descriptions.Item>
+              <Descriptions.Item label={tr("企业 ID")}>{detail.tenant.id}</Descriptions.Item>
+              <Descriptions.Item label={tr("成员数")}>{detail.memberCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("店铺数")}>{detail.shopCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建时间")}>{formatDateTime(detail.tenant.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("法定主体")}>{detail.tenant.legalName || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("联系邮箱")}>{detail.tenant.contactEmail || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("联系电话")}>{detail.tenant.contactPhone || '—'}</Descriptions.Item>
             </Descriptions>
           </SectionCard>
 
           {canEdit ? <><SectionCard
-            title={rootWorkspace ? '工作台资料' : '企业基本资料'}
-            description={canEdit ? '常用资料直接填写；保存不会修改高级 JSON 配置。并发修改需刷新后重试。' : '当前账号仅可查看资料，不能修改。'}
-            headerExtra={canEdit ? <Tag color="blue">可编辑</Tag> : <Tag>只读</Tag>}
+            title={rootWorkspace ? tr("工作台资料") : tr("企业基本资料")}
+            description={canEdit ? tr("常用资料直接填写；保存不会修改高级 JSON 配置。并发修改需刷新后重试。") : tr("当前账号仅可查看资料，不能修改。")}
+            headerExtra={canEdit ? <Tag color="blue">{tr("可编辑")}</Tag> : <Tag>{tr("只读")}</Tag>}
           >
             <Form form={form} layout="vertical" onFinish={saveProfile} disabled={!canEdit || submitting}>
-              <Form.Item name="name" label={rootWorkspace ? '工作台名称' : '企业名称'} rules={[{ required: true, message: '请输入名称' }, { max: 120, message: '名称不能超过 120 个字符' }]}>
+              <Form.Item name="name" label={rootWorkspace ? tr("工作台名称") : tr("企业名称")} rules={[{ required: true, message: tr("请输入名称") }, { max: 120, message: tr("名称不能超过 120 个字符") }]}>
                 <Input maxLength={120} />
               </Form.Item>
-              <Form.Item name="legalName" label="法定主体名称"><Input maxLength={160} placeholder="选填" /></Form.Item>
-              <Form.Item name="description" label="企业说明"><Input.TextArea rows={3} maxLength={500} showCount placeholder="描述该企业的用途或经营范围（选填）" /></Form.Item>
+              <Form.Item name="legalName" label={tr("法定主体名称")}><Input maxLength={160} placeholder={tr("选填")} /></Form.Item>
+              <Form.Item name="description" label={tr("企业说明")}><Input.TextArea rows={3} maxLength={500} showCount placeholder={tr("描述该企业的用途或经营范围（选填）")} /></Form.Item>
               <Space wrap style={{ width: '100%' }}>
-                <Form.Item name="contactEmail" label="联系邮箱" rules={[{ type: 'email', message: '请输入有效邮箱' }]} style={{ minWidth: 260 }}><Input placeholder="选填" /></Form.Item>
-                <Form.Item name="contactPhone" label="联系电话" style={{ minWidth: 220 }}><Input maxLength={40} placeholder="选填" /></Form.Item>
+                <Form.Item name="contactEmail" label={tr("联系邮箱")} rules={[{ type: 'email', message: tr("请输入有效邮箱") }]} style={{ minWidth: 260 }}><Input placeholder={tr("选填")} /></Form.Item>
+                <Form.Item name="contactPhone" label={tr("联系电话")} style={{ minWidth: 220 }}><Input maxLength={40} placeholder={tr("选填")} /></Form.Item>
               </Space>
               {canEdit ? (
-                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={submitting} disabled={submitting}>保存基本资料</Button>
+                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={submitting} disabled={submitting}>{tr("保存基本资料")}</Button>
               ) : null}
             </Form>
           </SectionCard>
 
-          <SectionCard title={tr("企业业务配置")} description="企业 AI 文案、采集来源与任务上限等规则可视化管理。">
+          <SectionCard title={tr("企业业务配置")} description={tr("企业 AI 文案、采集来源与任务上限等规则可视化管理。")}>
             <Space direction="vertical">
-              <Typography.Text type="secondary">新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。</Typography.Text>
-              <Link to="/tenant/business-settings">进入企业业务配置</Link>
+              <Typography.Text type="secondary">{tr("新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。")}</Typography.Text>
+              <Link to="/tenant/business-settings">{tr("进入企业业务配置")}</Link>
             </Space>
           </SectionCard>
           <SectionCard
-            title="开发者扩展元数据"
-            description="仅存储兼容性扩展 JSON；不再作为业务配置入口。"
-            headerExtra={canEdit ? <Button icon={<CodeOutlined />} onClick={openAdvanced} disabled={submitting}>编辑高级配置</Button> : <Tag>仅管理员可编辑</Tag>}
+            title={tr("开发者扩展元数据")}
+            description={tr("仅存储兼容性扩展 JSON；不再作为业务配置入口。")}
+            headerExtra={canEdit ? <Button icon={<CodeOutlined />} onClick={openAdvanced} disabled={submitting}>{tr("编辑高级配置")}</Button> : <Tag>{tr("仅管理员可编辑")}</Tag>}
           >
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <Space wrap>
-                <Tag color={configSummary.valid ? 'default' : 'warning'}>{configSummary.label}</Tag>
-                <Text type="secondary">当前设置项仅用于存储企业扩展数据，不会自动启用功能、改变权限或覆盖 .env。</Text>
+                <Tag color={configSummary.valid ? 'default' : 'warning'}>{localizeConfigSummary(configSummary.label)}</Tag>
+                <Text type="secondary">{tr("当前设置项仅用于存储企业扩展数据，不会自动启用功能、改变权限或覆盖 .env。")}</Text>
               </Space>
               <Alert
                 type="info"
                 showIcon
-                message="无需手工编写 JSON"
-                description="系统尚未为这些扩展字段提供统一的业务开关。请通过各功能页面配置已经支持的选项；仅在明确知道字段用途时使用高级编辑。"
+                message={tr("无需手工编写 JSON")}
+                description={tr("系统尚未为这些扩展字段提供统一的业务开关。请通过各功能页面配置已经支持的选项；仅在明确知道字段用途时使用高级编辑。")}
               />
             </Space>
           </SectionCard>
 
           <Modal
-            title="编辑企业高级配置"
+            title={tr("编辑企业高级配置")}
             open={advancedOpen && canEdit}
             onCancel={() => { if (!submitting) { setAdvancedOpen(false); setAdvancedError(null); } }}
             onOk={() => { void saveAdvanced(); }}
-            okText="保存高级配置"
+            okText={tr("保存高级配置")}
             okButtonProps={{ disabled: submitting || !canEdit }}
             confirmLoading={submitting}
             maskClosable={false}
@@ -290,11 +297,11 @@ export default function TenantSettingsPage() {
               <Alert
                 type="warning"
                 showIcon
-                message="仅供高级管理员使用"
-                description="这里只允许普通企业扩展选项，不允许密码、API Key、Token、Cookie 或私钥。Root 权限和平台配置不由此控制。保存会增加企业版本号。"
+                message={tr("仅供高级管理员使用")}
+                description={tr("这里只允许普通企业扩展选项，不允许密码、API Key、Token、Cookie 或私钥。Root 权限和平台配置不由此控制。保存会增加企业版本号。")}
               />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                <label htmlFor="tenant-advanced-json">扩展设置（JSON 对象）</label>
+                <label htmlFor="tenant-advanced-json">{tr("扩展设置（JSON 对象）")}</label>
                 <Button
                   type="link"
                   size="small"
@@ -303,11 +310,11 @@ export default function TenantSettingsPage() {
                   aria-controls="tenant-settings-example"
                   onClick={() => setShowExample((previous) => !previous)}
                 >
-                  {showExample ? '收起填写示例' : '查看填写示例'}
+                  {showExample ? tr("收起填写示例") : tr("查看填写示例")}
                 </Button>
               </div>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                没有额外配置请保留 {'{}'}。键名和文本必须使用英文双引号；不能写注释、尾随逗号。
+                {tr('没有额外配置请保留 {}。键名和文本必须使用英文双引号；不能写注释、尾随逗号。')}
               </Text>
               {showExample ? (
                 <div
@@ -320,15 +327,15 @@ export default function TenantSettingsPage() {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <Text strong>JSON 结构示例</Text>
+                    <Text strong>{tr("JSON 结构示例")}</Text>
                     <Popconfirm
-                      title="用示例替换当前编辑框内容？"
-                      description="这会覆盖当前未保存的编辑内容，但不会自动保存到服务器。"
-                      okText="替换"
-                      cancelText="取消"
+                      title={tr("用示例替换当前编辑框内容？")}
+                      description={tr("这会覆盖当前未保存的编辑内容，但不会自动保存到服务器。")}
+                      okText={tr("替换")}
+                      cancelText={tr("取消")}
                       onConfirm={() => updateAdvancedText(TENANT_SETTINGS_EXAMPLE)}
                     >
-                      <Button size="small" disabled={submitting}>填入示例</Button>
+                      <Button size="small" disabled={submitting}>{tr("填入示例")}</Button>
                     </Popconfirm>
                   </div>
                   <pre
@@ -342,14 +349,13 @@ export default function TenantSettingsPage() {
                     }}
                   >{TENANT_SETTINGS_EXAMPLE}</pre>
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    custom、department、remark、labels 仅用于演示对象、字符串和数组格式；它们只是保存的元数据，
-                    不会自动改变系统功能、权限、语言或业务规则。正式功能请到对应的功能设置页面配置。
+                    {tr('示例中的 custom、department、remark、labels 仅为元数据，不会改变系统功能、权限、语言或业务规则。')}
                   </Text>
                 </div>
               ) : null}
               <Input.TextArea
                 id="tenant-advanced-json"
-                aria-label="企业扩展设置 JSON"
+                aria-label={tr("企业扩展设置 JSON")}
                 value={advancedText}
                 onChange={(event) => updateAdvancedText(event.target.value)}
                 autoSize={{ minRows: 8, maxRows: 18 }}
@@ -359,12 +365,12 @@ export default function TenantSettingsPage() {
               />
               {advancedError ? <Alert type="error" showIcon message={advancedError} /> : null}
               <Space wrap>
-                <Button onClick={formatAdvanced} disabled={submitting}>校验并格式化</Button>
-                <Popconfirm title="清空全部扩展选项？" description="只会改变编辑框内容，点击保存后才会提交。" onConfirm={() => updateAdvancedText('{}')} okText="清空" cancelText="取消">
-                  <Button disabled={submitting}>恢复为空对象</Button>
+                <Button onClick={formatAdvanced} disabled={submitting}>{tr("校验并格式化")}</Button>
+                <Popconfirm title={tr("清空全部扩展选项？")} description={tr("只会改变编辑框内容，点击保存后才会提交。")} onConfirm={() => updateAdvancedText('{}')} okText={tr("清空")} cancelText={tr("取消")}>
+                  <Button disabled={submitting}>{tr("恢复为空对象")}</Button>
                 </Popconfirm>
               </Space>
-              <Text type="secondary">最大 64 KiB；原始 JSON 不会随基本资料一同保存。修改前请先确认已有选项的用途。</Text>
+              <Text type="secondary">{tr("最大 64 KiB；原始 JSON 不会随基本资料一同保存。修改前请先确认已有选项的用途。")}</Text>
             </Space>
           </Modal></> : null}
         </Space>
