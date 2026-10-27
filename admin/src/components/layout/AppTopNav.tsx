@@ -14,12 +14,14 @@ import {
 } from "@ant-design/icons";
 import { history } from "@umijs/max";
 import { Avatar, Button, Dropdown, Empty, Input, Popover, Select, Spin, message } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { themeTokens, tmSemanticTokens } from "@/constants/layoutTokens";
 import { canAccessPath } from "@/utils/menuAccess";
 import { queryAuthTenants, switchAuthTenant, type AuthTenant } from "@/services/tenants";
 import {
   installTenantSwitchListener,
+  captureTenantContext,
+  isTenantContextCurrent,
   isTenantSwitching,
   subscribeTenantSwitch,
   switchTenantAndReload,
@@ -304,10 +306,13 @@ export default function AppTopNav({
 }: AppTopNavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [language, setSelectedLanguage] = useState<AppLanguage>(readLanguage);
+  const languagePending = useRef(false);
+  const [changingLanguage, setChangingLanguage] = useState(false);
   const changeLanguage = async (next: AppLanguage) => {
-    if (next === language) return;
-    setSelectedLanguage(next);
-    setLanguage(next);
+    if (next === language || languagePending.current) return;
+    languagePending.current = true;
+    setChangingLanguage(true);
+    const context = captureTenantContext();
     if ((user?.tenantId ?? 0)>0) {
       try {
         const snapshot = await getJSON<{values:{language:string;theme:string;dateFormat:string};version:number}>("/api/v1/tenant/preferences");
@@ -316,10 +321,18 @@ export default function AppTopNav({
           values:{...snapshot.values,language:next},
         });
       } catch {
-        message.warning("已切换当前浏览器语言，账号偏好同步失败，请在个人偏好中重试");
+        if (isTenantContextCurrent(context)) message.warning(tr("语言偏好同步失败，请重试"));
+        languagePending.current = false;
+        setChangingLanguage(false);
+        return;
       }
     }
-    window.location.reload();
+    if (isTenantContextCurrent(context)) {
+      setSelectedLanguage(next);
+      setLanguage(next);
+    }
+    languagePending.current = false;
+    setChangingLanguage(false);
   };
 
   if (!user) {
@@ -348,6 +361,8 @@ export default function AppTopNav({
       <TenantSwitcher user={user} />
       <Select
         aria-label={tr("语言")}
+        loading={changingLanguage}
+        disabled={changingLanguage}
         value={language}
         onChange={(next: AppLanguage) => void changeLanguage(next)}
         options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}

@@ -1,4 +1,5 @@
 import { request } from '@umijs/max';
+import { localizeApiError } from '@/i18n/apiErrors';
 
 /** 后端统一返回结构（与 Gin Envelope 对齐） */
 export type ApiResponse<T> = {
@@ -20,14 +21,23 @@ export class ApiRequestError extends Error {
   code: number;
   traceId?: string;
   data: unknown;
+  rawMessage: string;
 
   constructor(res: ApiResponse<unknown>) {
-    super(res.message || 'request_failed');
+    super(localizeApiError(res.code, res.message));
     this.name = 'ApiRequestError';
     this.code = res.code;
     this.traceId = res.traceId;
     this.data = res.data;
+    this.rawMessage = res.message;
   }
+}
+
+/** Machine decisions must use the server reason, never translated UI text. */
+export function apiErrorReason(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.rawMessage;
+  if (error instanceof Error) return error.message;
+  return '';
 }
 
 function responseEnvelopeFromError(error: unknown): ApiResponse<unknown> | null {

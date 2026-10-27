@@ -419,7 +419,7 @@ export type ProcurementAPIError = {
 
 export function extractProcurementAPIError(error: unknown): ProcurementAPIError {
   if (error instanceof ApiRequestError) {
-    return { code: error.code, message: error.message, traceId: error.traceId };
+    return { code: error.code, message: error.rawMessage, traceId: error.traceId };
   }
   if (error instanceof Error) {
     return { code: -1, message: error.message };

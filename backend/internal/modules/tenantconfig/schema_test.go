@@ -60,3 +60,22 @@ func TestCollectSourcePolicy(t *testing.T) {
 		t.Fatal("must deny unlisted source")
 	}
 }
+
+func TestSixLanguageSettingsContract(t *testing.T) {
+	for _, language := range []string{"zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH"} {
+		t.Run(language, func(t *testing.T) {
+			general, _ := json.Marshal(General{Language: language, Timezone: "UTC", Currency: "USD"})
+			if _, err := Validate(ModuleGeneral, general); err != nil {
+				t.Fatalf("organization locale rejected: %v", err)
+			}
+			ai, _ := json.Marshal(AI{DefaultLanguage: language})
+			if _, err := Validate(ModuleAI, ai); err != nil {
+				t.Fatalf("AI locale rejected: %v", err)
+			}
+			personal, _ := json.Marshal(PersonalPreferences{Language: language, Theme: "light", DateFormat: "DD/MM/YYYY"})
+			if _, err := ValidatePersonalPreferences(personal); err != nil {
+				t.Fatalf("personal locale rejected: %v", err)
+			}
+		})
+	}
+}

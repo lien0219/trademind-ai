@@ -1,8 +1,19 @@
 import { request } from '@umijs/max';
 import { describe, expect, it, vi } from 'vitest';
-import { getProfile } from '../auth';
+import { getProfile, isPasswordChangeRequired } from '../auth';
+import { ApiRequestError } from '../request';
+import { setLanguage } from '@/i18n';
 
 describe('authoritative login profile', () => {
+  it('keeps mandatory password changes functional when the error is localized', () => {
+    setLanguage('ja-JP');
+    try {
+      const error = new ApiRequestError({ code: 40101, message: 'AUTH_PASSWORD_CHANGE_REQUIRED', data: null });
+      expect(error.message).not.toContain('AUTH_PASSWORD_CHANGE_REQUIRED');
+      expect(isPasswordChangeRequired(error)).toBe(true);
+      expect(isPasswordChangeRequired(new Error('network unavailable'))).toBe(false);
+    } finally { setLanguage('zh-CN'); localStorage.clear(); }
+  });
   it('preserves an explicit empty permission list for an administrator', async () => {
     vi.mocked(request).mockResolvedValueOnce({ code: 0, message: 'ok', data: { id: 'e2e-admin', role: 'admin', permissions: [] } });
     await expect(getProfile()).resolves.toEqual({ id: 'e2e-admin', role: 'admin', permissions: [] });

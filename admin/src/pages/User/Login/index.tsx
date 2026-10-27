@@ -22,7 +22,7 @@ import { languageNames, supportedLanguages, type AppLanguage } from '@/i18n/dict
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { PASSWORD_HINT, passwordError } from '@/utils/password';
-import { changeRequiredPassword, getProfile, login, register, sendEmailCode, type LoginResult } from '@/services/auth';
+import { changeRequiredPassword, getProfile, isPasswordChangeRequired, login, register, sendEmailCode, type LoginResult } from '@/services/auth';
 import './index.less';
 
 const FEATURE_TAGS = [
@@ -127,12 +127,11 @@ export default function LoginPage() {
       await completeLogin(data);
       message.success(tr('登录成功'));
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      if (err?.message?.includes('AUTH_PASSWORD_CHANGE_REQUIRED')) {
+      if (isPasswordChangeRequired(e)) {
         setPasswordChangeAccount({ account: values.account as string, currentPassword: values.password as string });
-        message.warning('临时密码需要先修改后才能登录');
+        message.warning(tr("临时密码需要先修改后才能登录"));
       } else {
-        message.error(getAuthErrorMessage(e, '登录失败'));
+        message.error(getAuthErrorMessage(e, tr("登录失败")));
       }
     } finally {
       setLoading(false);
@@ -151,7 +150,7 @@ export default function LoginPage() {
       await completeLogin(data);
       message.success(tr('注册并登录成功'));
     } catch (e: unknown) {
-      message.error(getAuthErrorMessage(e, '注册失败'));
+      message.error(getAuthErrorMessage(e, tr("注册失败")));
     } finally {
       setLoading(false);
     }
@@ -178,10 +177,11 @@ export default function LoginPage() {
         });
       }, 1000);
     } catch (e: unknown) {
-      message.error(getAuthErrorMessage(e, '发送失败'));
+      message.error(getAuthErrorMessage(e, tr("发送失败")));
     }
   };
 
+  const [heroBeforeAI, heroAfterAI] = tr('用 {ai} 串联商品、刊登与库存增长').split('{ai}');
   return (
     <div className="login-shell">
       <div style={{position:'absolute',top:16,right:24,zIndex:20}}>
@@ -189,7 +189,6 @@ export default function LoginPage() {
           const next=e.target.value as AppLanguage;
           setSelectedLanguage(next);
           setLanguage(next);
-          window.location.reload();
         }} style={{padding:'7px 10px',borderRadius:8,border:'1px solid #b0b0b0',background:'var(--ant-color-bg-container, #fff)',color:'var(--ant-color-text, #222)'}}>
           {supportedLanguages.map(locale=><option value={locale} key={locale}>{languageNames[locale]}</option>)}
         </select>
@@ -208,7 +207,7 @@ export default function LoginPage() {
             <div className="brand">
               <BrandLogo height={32} />
               <div>
-                <div className="brand-text">贸灵 TradeMind</div>
+                <div className="brand-text">{tr("贸灵 TradeMind")}</div>
                 <div className="brand-sub">AI-Powered Cross-Border ERP</div>
               </div>
             </div>
@@ -216,16 +215,13 @@ export default function LoginPage() {
             <div className="slogan">
               <div className="eyebrow">
                 <SafetyCertificateOutlined />
-                <span>面向跨境团队的 AI 运营工作台</span>
+                <span>{tr("面向跨境团队的 AI 运营工作台")}</span>
               </div>
               <h1>
-                用 <span className="highlight">AI</span> 串联商品、
-                <br />
-                刊登与库存增长
+                {heroBeforeAI}<span className="highlight">AI</span>{heroAfterAI}
               </h1>
               <p>
-                从商品采集、图片处理、AI 优化到多平台刊登，TradeMind
-                把高频运营动作收进一个更轻、更快的工作台。
+                {tr('从商品采集、图片处理、AI 优化到多平台刊登，TradeMind 把高频运营动作收进一个更轻、更快的工作台。')}
               </p>
             </div>
 
@@ -236,7 +232,7 @@ export default function LoginPage() {
                   className={`feature-tag ${tag.className}`}
                   style={{ animationDelay: `${index * 80 + 180}ms` }}
                 >
-                  {tag.icon} {tag.label}
+                  {tag.icon} {tr(tag.label)}
                 </div>
               ))}
             </div>
@@ -263,7 +259,7 @@ export default function LoginPage() {
               </div>
               <div className="hero-board__task">
                 <CheckCircleOutlined />
-                <span>AI 已生成 36 条商品优化建议</span>
+                <span>{tr("AI 已生成 36 条商品优化建议")}</span>
               </div>
             </div>
           </div>
@@ -274,7 +270,7 @@ export default function LoginPage() {
             <div className="mobile-brand">
               <BrandLogo height={28} />
               <div>
-                <div className="brand-text">贸灵 TradeMind</div>
+                <div className="brand-text">{tr("贸灵 TradeMind")}</div>
                 <div className="brand-sub">AI-Powered Cross-Border ERP</div>
               </div>
             </div>
@@ -318,48 +314,46 @@ export default function LoginPage() {
                     });
                     passwordChangeForm.resetFields();
                     setPasswordChangeAccount(null);
-                    message.success('密码修改成功，请使用新密码登录');
+                    message.success(tr("密码修改成功，请使用新密码登录"));
                   } catch (error) {
-                    message.error(getAuthErrorMessage(error, '密码修改失败'));
+                    message.error(getAuthErrorMessage(error, tr("密码修改失败")));
                   } finally {
                     setLoading(false);
                   }
                 }}
               >
-                <p>你的账号使用初始或重置后的临时密码，请先设置新的密码。</p>
-                <Form.Item name="currentPassword" label="临时密码" rules={[{ required: true }]}>
+                <p>{tr("你的账号使用初始或重置后的临时密码，请先设置新的密码。")}</p>
+                <Form.Item name="currentPassword" label={tr("临时密码")} rules={[{ required: true }]}>
                   <Input.Password autoComplete="current-password" />
                 </Form.Item>
-                <Form.Item name="newPassword" label="新密码" extra={PASSWORD_HINT} rules={[
-                  { required: true, message: '请输入新密码' },
+                <Form.Item name="newPassword" label={tr("新密码")} extra={tr(PASSWORD_HINT)} rules={[
+                  { required: true, message: tr("请输入新密码") },
                   { validator: (_, value) => {
                     const error = passwordError(value || '');
-                    return error ? Promise.reject(new Error(error)) : Promise.resolve();
+                    return error ? Promise.reject(new Error(tr(error))) : Promise.resolve();
                   } },
                 ]}>
                   <Input.Password autoComplete="new-password" />
                 </Form.Item>
-                <Form.Item name="confirmPassword" label="确认新密码" dependencies={['newPassword']} rules={[
+                <Form.Item name="confirmPassword" label={tr("确认新密码")} dependencies={['newPassword']} rules={[
                   { required: true },
                   ({ getFieldValue }) => ({ validator(_, value) {
                     return value === getFieldValue('newPassword')
                       ? Promise.resolve()
-                      : Promise.reject(new Error('两次输入的密码不一致'));
+                      : Promise.reject(new Error(tr("两次输入的密码不一致")));
                   } }),
                 ]}>
                   <Input.Password autoComplete="new-password" />
                 </Form.Item>
                 <div className="password-change-actions">
                   <Button type="primary" htmlType="submit" className="submit-btn" loading={loading}>
-                    修改密码
-                  </Button>
+                    {tr("修改密码")}</Button>
                   <Button
                     type="text"
                     className="password-change-back"
                     onClick={() => { setPasswordChangeAccount(null); passwordChangeForm.resetFields(); }}
                   >
-                    返回登录
-                  </Button>
+                    {tr("返回登录")}</Button>
                 </div>
               </Form>
             ) : activeTab === 'login' ? (
@@ -372,12 +366,12 @@ export default function LoginPage() {
               >
                 <Form.Item
                   name="account"
-                  label="邮箱 / 手机号"
-                  rules={[{ required: true, message: '请输入邮箱或手机号' }]}
+                  label={tr("邮箱 / 手机号")}
+                  rules={[{ required: true, message: tr("请输入邮箱或手机号") }]}
                   validateTrigger="onBlur"
                 >
                   <Input
-                    placeholder="请输入邮箱或手机号"
+                    placeholder={tr("请输入邮箱或手机号")}
                     prefix={<MailOutlined />}
                     autoComplete="off"
                     data-lpignore="true"
@@ -387,12 +381,12 @@ export default function LoginPage() {
 
                 <Form.Item
                   name="password"
-                  label="密码"
-                  rules={[{ required: true, message: '请输入登录密码' }]}
+                  label={tr("密码")}
+                  rules={[{ required: true, message: tr("请输入登录密码") }]}
                   validateTrigger="onBlur"
                 >
                   <Input.Password
-                    placeholder="请输入登录密码"
+                    placeholder={tr("请输入登录密码")}
                     prefix={<LockOutlined />}
                     autoComplete="new-password"
                     data-lpignore="true"
@@ -402,11 +396,10 @@ export default function LoginPage() {
 
                 <div className="form-actions">
                   <Form.Item name="remember" valuePropName="checked" noStyle initialValue={true}>
-                    <Checkbox>记住我</Checkbox>
+                    <Checkbox>{tr("记住我")}</Checkbox>
                   </Form.Item>
                   <a href="#" className="forgot-link" onClick={(e) => e.preventDefault()}>
-                    忘记密码？
-                  </a>
+                    {tr("忘记密码？")}</a>
                 </div>
 
                 <Form.Item>
@@ -417,18 +410,15 @@ export default function LoginPage() {
                     loading={loading}
                     disabled={loading}
                   >
-                    登录工作台
-                    <ArrowRightOutlined />
+                    {tr("登录工作台")}<ArrowRightOutlined />
                   </Button>
                 </Form.Item>
 
                 <div className="register-link">
-                  还没有账号？
-                  <Link
+                  {tr("还没有账号？")}<Link
                     to={`/user/register${location.search}`}
                   >
-                    立即注册
-                  </Link>
+                    {tr("立即注册")}</Link>
                 </div>
               </Form>
             ) : (
@@ -439,28 +429,28 @@ export default function LoginPage() {
                 requiredMark={false}
                 disabled
               >
-                <Alert type="info" showIcon message="请联系管理员创建账号，当前不开放自助注册" />
+                <Alert type="info" showIcon message={tr("请联系管理员创建账号，当前不开放自助注册")} />
                 <Form.Item
                   name="email"
-                  label="邮箱"
+                  label={tr("邮箱")}
                   rules={[
-                    { required: true, message: '请输入邮箱' },
-                    { type: 'email', message: '请输入有效的邮箱地址' },
+                    { required: true, message: tr("请输入邮箱") },
+                    { type: 'email', message: tr("请输入有效的邮箱地址") },
                   ]}
                   validateTrigger="onBlur"
                 >
-                  <Input placeholder="请输入邮箱" prefix={<MailOutlined />} autoComplete="email" />
+                  <Input placeholder={tr("请输入邮箱")} prefix={<MailOutlined />} autoComplete="email" />
                 </Form.Item>
 
-                <Form.Item label="邮箱验证码" required>
+                <Form.Item label={tr("邮箱验证码")} required>
                   <Row gutter={8}>
                     <Col span={15}>
                       <Form.Item
                         name="code"
                         noStyle
-                        rules={[{ required: true, message: '请输入验证码' }]}
+                        rules={[{ required: true, message: tr("请输入验证码") }]}
                       >
-                        <Input placeholder="6位验证码" />
+                        <Input placeholder={tr("6位验证码")} />
                       </Form.Item>
                     </Col>
                     <Col span={9}>
@@ -469,7 +459,7 @@ export default function LoginPage() {
                         onClick={handleSendCode}
                         disabled
                       >
-                        {countdown > 0 ? `${countdown}s 后重发` : '获取验证码'}
+                        {countdown > 0 ? tr('{seconds} 秒后重发').replace('{seconds}', String(countdown)) : tr("获取验证码")}
                       </Button>
                     </Col>
                   </Row>
@@ -477,15 +467,15 @@ export default function LoginPage() {
 
                 <Form.Item
                   name="password"
-                  label="密码"
+                  label={tr("密码")}
                   rules={[
-                    { required: true, message: '请输入密码' },
-                    { min: 6, message: '密码至少6位' },
+                    { required: true, message: tr("请输入密码") },
+                    { min: 6, message: tr("密码至少6位") },
                   ]}
                   validateTrigger="onBlur"
                 >
                   <Input.Password
-                    placeholder="请输入至少6位密码"
+                    placeholder={tr("请输入至少6位密码")}
                     prefix={<LockOutlined />}
                     autoComplete="new-password"
                   />
@@ -493,23 +483,23 @@ export default function LoginPage() {
 
                 <Form.Item
                   name="confirmPassword"
-                  label="确认密码"
+                  label={tr("确认密码")}
                   dependencies={['password']}
                   validateTrigger="onBlur"
                   rules={[
-                    { required: true, message: '请确认密码' },
+                    { required: true, message: tr("请确认密码") },
                     ({ getFieldValue }) => ({
                       validator(_, value) {
                         if (!value || getFieldValue('password') === value) {
                           return Promise.resolve();
                         }
-                        return Promise.reject(new Error('两次输入的密码不一致!'));
+                        return Promise.reject(new Error(tr("两次输入的密码不一致!")));
                       },
                     }),
                   ]}
                 >
                   <Input.Password
-                    placeholder="请再次输入密码"
+                    placeholder={tr("请再次输入密码")}
                     prefix={<LockOutlined />}
                     autoComplete="new-password"
                   />
@@ -523,25 +513,21 @@ export default function LoginPage() {
                     loading={loading}
                     disabled
                   >
-                    注册
-                    <ArrowRightOutlined />
+                    {tr("注册")}<ArrowRightOutlined />
                   </Button>
                 </Form.Item>
 
                 <div className="register-link">
-                  已有账号？
-                  <Link
+                  {tr("已有账号？")}<Link
                     to={`/user/login${location.search}`}
                   >
-                    去登录
-                  </Link>
+                    {tr("去登录")}</Link>
                 </div>
               </Form>
             )}
 
             <div className="agreement">
-              {activeTab === 'login' ? '登录' : '注册'}即表示你已阅读并同意用户协议与隐私政策
-            </div>
+              {activeTab === 'login' ? tr("登录") : tr("注册")}{tr("即表示你已阅读并同意用户协议与隐私政策")}</div>
           </div>
         </div>
       </div>

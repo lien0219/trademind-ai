@@ -1,6 +1,7 @@
 import type { CSSProperties, Key, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
+import { apiErrorReason } from '@/services/request';
 import { isProductionBuild } from '@/utils/runtimeEnvironment';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -5580,7 +5581,7 @@ export default function ProductDraftDetailPage() {
                           } catch (e: unknown) {
                             const ex = e as Error & { data?: unknown };
                             if (ex.message === 'cancelled') return;
-                            if (ex.message === 'product readiness check failed' && ex.data && typeof ex.data === 'object') {
+                            if (apiErrorReason(ex) === 'product readiness check failed' && ex.data && typeof ex.data === 'object') {
                               const r = ex.data as ProductReadinessResult;
                               setPublishReadiness(r);
                               Modal.error({

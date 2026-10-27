@@ -1,4 +1,8 @@
-import { getJSON, postJSON } from '@/services/request';
+import { apiErrorReason, getJSON, postJSON } from '@/services/request';
+
+export function isPasswordChangeRequired(error: unknown): boolean {
+  return apiErrorReason(error).includes('AUTH_PASSWORD_CHANGE_REQUIRED');
+}
 
 export type LoginUser = {
   id: string;

@@ -98,6 +98,23 @@ Run only on an independent pre-production or explicitly approved production targ
 - [ ] Inspect logs, audit events and Admin responses for absence of credentials, frozen Provider request secrets and raw platform payloads.
 - [ ] After the observation window, pause/stop gray or re-engage kill switches according to the release decision. Do not expand tenant/shop/SKU scope without a new approval cycle.
 
+## I. Organization, Permissions and Localization
+
+Status: **not signed off**. These checks do not authorize real platform writes.
+
+- [ ] Bootstrap a new isolated database using the configured default administrator. Verify every intended system navigation and action is available before creating an organization; another administrator or platform operator must not inherit the singleton Root identity.
+- [ ] Repeat with an upgraded historical database. Verify the Root binding remains unique, normal members cannot select unauthorized organizations, and old sessions are revoked after a tenant switch or suspension.
+- [ ] Exercise Root, organization admin, operator and readonly identities across user/role/shop operations. Distinguish intended 403 responses from incorrect permission mappings; check cross-tenant resource IDs are rejected.
+- [ ] For all six languages, check login, mandatory password change, organization business settings, personal preferences and store stock overrides. Change language, refresh, open another tab, then sign out/in; verify server preferences and local state agree.
+- [ ] Change language while a settings request is pending. A stale response must not restore the previous organization's preferences; a failed preference save must preserve the current selection and allow an explicit retry.
+- [ ] Verify `YYYY-MM-DD`, `DD/MM/YYYY` and `MM/DD/YYYY` using UTC and organization timezones near midnight. Thai display must not silently change Gregorian business dates to Buddhist years. Currency formatting must retain the fact's original currency and amount.
+- [ ] Verify organization configuration save, concurrent version conflict, historical restore, template preview, import without automatic writes, and export without secrets. AI/collect/inventory/order defaults must affect only their documented new-task/new-record paths.
+- [ ] Check login and organization configuration at 1440/1280/1024/768/375 widths in every locale; review long text, loading/error/readonly states, dialogs, console errors and root horizontal overflow.
+- [ ] Complete the remaining product/order/inventory/procurement/finance/customer/operations translations, rerun the strict whole-site audit, classify candidates and independently review the translated UI. A green incremental audit is insufficient.
+- [ ] Verify the exact delivery HEAD passes required CI, PostgreSQL/Redis isolation, migration compatibility, Race and relevant E2E/security checks before signing off. Skipped or cancelled checks remain outstanding.
+
+No schema migration is introduced by the localization changes. Rolling back code restores earlier behavior; the browser regional-display key may be cleared independently. Existing tenant migration and backup/restore requirements still apply.
+
 ## Real Platform Acceptance
 
 Status: **blocked_by_external_infrastructure_and_credentials**

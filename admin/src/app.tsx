@@ -27,13 +27,14 @@ import AppTopNav from "@/components/layout/AppTopNav";
 import ThemeToggleButton from "@/components/layout/ThemeToggleButton";
 import AppModalBridge from "@/components/AppModalBridge";
 import AppMessageBridge from "@/components/AppMessageBridge";
+import LocaleBoundary from "@/components/LocaleBoundary";
 import BrandLogo from "@/components/BrandLogo";
 import { AUTH_TOKEN_KEY } from "@/constants/auth";
 import { layoutTokens } from "@/constants/layoutTokens";
 import { postJSON } from "@/services/request";
 import { validateProfile } from "@/services/auth";
 import { isAppLanguage } from "@/i18n/dictionaries";
-import { readLanguage, setLanguage } from "@/i18n";
+import { readLanguage, setLanguage, setRegionalPreferences } from "@/i18n";
 import {
   applyThemeMode,
   createAdminDrawerConfig,
@@ -109,11 +110,11 @@ async function loadProfileFromToken(
  */
 export function innerProvider(container: ReactElement) {
   return (
-    <>
+    <LocaleBoundary>
       <AppModalBridge />
       <AppMessageBridge />
       {container}
-    </>
+    </LocaleBoundary>
   );
 }
 
@@ -157,30 +158,31 @@ export async function getInitialState(): Promise<{
       if (preferenceResponse.ok && isTenantContextCurrent(context)) {
         const preference = (await preferenceResponse.json()) as {
           code?: number;
-          data?: { values?: { theme?: string; language?: string }; inherited?: boolean };
+          data?: { values?: { theme?: string; language?: string; dateFormat?: string }; inherited?: boolean };
         };
         const theme = preference.data?.values?.theme;
         const language = preference.data?.values?.language;
         if (preference.code === 0 && isTenantContextCurrent(context)) {
-          if (preference.data?.inherited) {
-            // A new member inherits their current organization's language,
-            // not the platform's generic personal-preference fallback.
-            try {
-              const generalResponse = await fetch("/api/v1/tenant/settings/general", {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              if (generalResponse.ok && isTenantContextCurrent(context)) {
-                const general = (await generalResponse.json()) as {
-                  code?: number; data?: { values?: { language?: string } };
-                };
-                if (general.code === 0 && isAppLanguage(general.data?.values?.language)) {
-                  setLanguage(general.data.values.language);
-                }
-              }
-            } catch { /* keep a valid local fallback */ }
-          } else if (isAppLanguage(language)) {
+          setRegionalPreferences({ dateFormat: preference.data?.values?.dateFormat });
+          if (!preference.data?.inherited && isAppLanguage(language)) {
             setLanguage(language);
           }
+          // Every member uses the organization's timezone; an explicit
+          // personal language overrides the inherited organization language.
+          try {
+            const generalResponse = await fetch("/api/v1/tenant/settings/general", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const general = (await generalResponse.json()) as {
+              code?: number; data?: { values?: { language?: string; timezone?: string } };
+            };
+            if (generalResponse.ok && general.code === 0 && isTenantContextCurrent(context)) {
+              setRegionalPreferences({ dateFormat: preference.data?.values?.dateFormat, timeZone: general.data?.values?.timezone });
+              if (preference.data?.inherited && isAppLanguage(general.data?.values?.language)) {
+                setLanguage(general.data.values.language);
+              }
+            }
+          } catch { /* keep valid preferences when general settings cannot be read */ }
         }
         if (preference.code === 0 && (theme === "light" || theme === "dark") && isTenantContextCurrent(context)) {
           persistThemeMode(theme);
