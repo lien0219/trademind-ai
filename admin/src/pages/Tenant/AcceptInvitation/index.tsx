@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SectionCard, TmPageContainer } from '@/components/ui';
 import { AUTH_SESSION_MODE_KEY, AUTH_TOKEN_KEY } from '@/constants/auth';
 import { acceptTenantInvitation } from '@/services/tenants';
+import { tr } from '@/i18n';
 
 const INVITE_SESSION_KEY = 'trademind_invitation_pending';
 
@@ -59,9 +60,9 @@ export default function AcceptInvitationPage() {
       setSuccess(true);
       form.resetFields();
       sessionStorage.removeItem(INVITE_SESSION_KEY);
-      message.success('已接受企业邀请，请重新登录');
+      message.success(tr("已接受企业邀请，请重新登录"));
     } catch (error) {
-      message.error((error as Error)?.message || '接受邀请失败，请确认令牌仍在有效期内');
+      message.error((error as Error)?.message || tr("接受邀请失败，请确认令牌仍在有效期内"));
     } finally {
       submittedRef.current = false;
       setSubmitting(false);
@@ -69,15 +70,15 @@ export default function AcceptInvitationPage() {
   };
 
   return (
-    <TmPageContainer title="接受企业邀请" subTitle="使用企业管理员提供的一次性邀请令牌加入企业。">
+    <TmPageContainer title={tr("接受企业邀请")} subTitle={tr("使用企业管理员提供的一次性邀请令牌加入企业。")}>
       <SectionCard>
         {success ? (
           <Result
             status="success"
             icon={<CheckCircleOutlined />}
-            title="邀请已接受"
-            subTitle="当前会话已失效，请重新登录后手动切换到受邀企业。"
-            extra={<Button type="primary" icon={<LoginOutlined />} onClick={() => history.push('/user/login')}>重新登录</Button>}
+            title={tr("邀请已接受")}
+            subTitle={tr("当前会话已失效，请重新登录后手动切换到受邀企业。")}
+            extra={<Button type="primary" icon={<LoginOutlined />} onClick={() => history.push('/user/login')}>{tr("重新登录")}</Button>}
           />
         ) : (
           <Form
@@ -91,16 +92,16 @@ export default function AcceptInvitationPage() {
             }}
             style={{ maxWidth: 560 }}
           >
-            <Alert type="info" showIcon message="仅已登录且邮箱与邀请绑定的账号可以接受邀请。" description="邀请令牌不会用于匿名注册，也不会在页面地址中长期保留。" style={{ marginBottom: 20 }} />
-            <Form.Item name="token" label="一次性邀请令牌" rules={[{ required: true, message: '请输入邀请令牌' }]}>
-              <Input.Password autoComplete="off" placeholder="粘贴企业管理员提供的邀请令牌" />
+            <Alert type="info" showIcon message={tr("仅已登录且邮箱与邀请绑定的账号可以接受邀请。")} description={tr("邀请令牌不会用于匿名注册，也不会在页面地址中长期保留。")} style={{ marginBottom: 20 }} />
+            <Form.Item name="token" label={tr("一次性邀请令牌")} rules={[{ required: true, message: tr("请输入邀请令牌") }]}>
+              <Input.Password autoComplete="off" placeholder={tr("粘贴企业管理员提供的邀请令牌")} />
             </Form.Item>
             {hasSession ? (
-              <Button type="primary" htmlType="submit" loading={submitting} disabled={submitting} icon={<LoginOutlined />}>接受邀请</Button>
+              <Button type="primary" htmlType="submit" loading={submitting} disabled={submitting} icon={<LoginOutlined />}>{tr("接受邀请")}</Button>
             ) : (
               <Space direction="vertical" size={8}>
-                <Alert type="warning" showIcon message="请先登录受邀邮箱对应的账号。" />
-                <Button type="primary" icon={<LoginOutlined />} onClick={() => history.push('/user/login?redirect=%2Ftenant%2Finvitations%2Faccept')}>登录并继续</Button>
+                <Alert type="warning" showIcon message={tr("请先登录受邀邮箱对应的账号。")} />
+                <Button type="primary" icon={<LoginOutlined />} onClick={() => history.push('/user/login?redirect=%2Ftenant%2Finvitations%2Faccept')}>{tr("登录并继续")}</Button>
               </Space>
             )}
           </Form>
