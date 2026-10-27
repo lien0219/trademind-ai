@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import routes from '../../../config/routes';
-import { supportedLanguages, translateMessage, hasTranslation } from '../dictionaries';
+import { supportedLanguages, translateMessage, hasTranslation, tenantBusinessTranslations } from '../dictionaries';
 
 function collectNames(items: any[]): string[] {
   const out: string[] = [];
@@ -25,5 +25,18 @@ describe('six-language navigation coverage', () => {
   });
   it('preserves source key as a safe fallback', () => {
     expect(translateMessage('zh-CN', '未翻译的内部术语')).toBe('未翻译的内部术语');
+  });
+});
+
+describe('organization business settings dictionary', () => {
+  it('defines each translated message for every supported target locale', () => {
+    for (const [key, translations] of Object.entries(tenantBusinessTranslations)) {
+      expect(translations).toHaveLength(5);
+      for (const language of supportedLanguages) {
+        if (language === 'zh-CN') continue;
+        expect(hasTranslation(language, key)).toBe(true);
+        expect(translateMessage(language, key)).toBeTruthy();
+      }
+    }
   });
 });

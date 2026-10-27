@@ -1,5 +1,7 @@
 # TradeMind 当前维护状态
 
+2026-10-27：国际化/企业业务配置收尾进行中。对企业模块切换与刷新引入请求序号保护，避免过期返回覆盖当前配置表单；保存/恢复使用同步互斥保护，异步导入与历史读取校验模块归属；企业配置公共文案增加五语言翻译，历史日期跟随 UI 语言格式化，个人偏好补充日期格式标签翻译。本次变更待 GitHub CI 回归；六语言全站覆盖、P0/P1/P2 完整验收仍未结束。
+
 更新时间：2026-10-26
 
 2026-10-26 修复多租户提交的 CI 测试编排：PostgreSQL 套件通过显式 `integration` build tag 与常规 Go 单元任务分离，保留 `inventorypostgres` 兼容；code quality 与 backend integration 作业均提供独立 PostgreSQL/Redis service container、`APP_ENV=test` 及两个测试 URL，避免数据库守卫误拒绝和 Worker 缺少 Redis 后跳过。工作流回归检查测试资源隔离、环境继承与 PostgreSQL 健康探针身份。该修复不改变业务 API 或生产配置，目标修复提交对应的远程 CI 仍需推送后独立确认，不能据本地结果宣称生产就绪。

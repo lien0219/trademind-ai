@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Alert, Button, Card, Form, Grid, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { TmPageContainer } from '@/components/ui';
+import { tr, formatLocalizedDate } from '@/i18n';
 import ShopInventoryOverride from './ShopInventoryOverride';
 import { usePermission } from '@/hooks/usePermission';
 import { PERMISSIONS } from '@/utils/permission';
@@ -53,60 +54,92 @@ export default function TenantBusinessSettingsPage() {
   const [error, setError] = useState('');
   const [form] = Form.useForm();
   const fileInput = useRef<HTMLInputElement>(null);
+  const selectedModule = useRef<BusinessModule>('general');
+  const readSequence = useRef(0);
+  const mutationPending = useRef(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = async (key: BusinessModule) => {
+    if (mutationPending.current || selectedModule.current !== key) return;
+    const request = ++readSequence.current;
     setLoading(true);
     setError('');
     setSnapshot(null);
     setHistoryOpen(false);
+    setPreview(null);
     form.resetFields();
     try {
       const current = await getBusinessSettings(key);
+      if (request !== readSequence.current || selectedModule.current !== key) return;
       setSnapshot(current);
       form.setFieldsValue(current.values);
-    } catch (e) { setError((e as Error)?.message || '加载失败，请重试'); }
-    finally { setLoading(false); }
+    } catch (e) {
+      if (request === readSequence.current && selectedModule.current === key)
+        setError((e as Error)?.message || tr('加载失败，请重试'));
+    } finally {
+      if (request === readSequence.current && selectedModule.current === key) setLoading(false);
+    }
   };
   useEffect(() => { void load(module); }, [module]);
 
   const chooseModule = (next:BusinessModule) => {
-    if (next===module) return;
+    if (next === selectedModule.current || mutationPending.current) return;
+    const switchModule = () => {
+      if (mutationPending.current) return;
+      selectedModule.current = next;
+      ++readSequence.current;
+      setPreview(null);
+      setModule(next);
+    };
     if (form.isFieldsTouched()) {
-      Modal.confirm({title:'放弃未保存的更改？',content:'切换模块前请确认更改已保存。',okText:'放弃并切换',cancelText:'继续编辑',onOk:()=>setModule(next)});
-    } else setModule(next);
+      Modal.confirm({title:tr('放弃未保存的更改？'),content:tr('切换模块前请确认更改已保存。'),okText:tr('放弃并切换'),cancelText:tr('继续编辑'),onOk:switchModule});
+    } else switchModule();
   };
   const save = async () => {
-    if (!writable || !snapshot || saving) return;
+    if (!writable || !snapshot || snapshot.module !== module || mutationPending.current) return;
+    const key = module;
     try {
       const values = await form.validateFields();
+      if (selectedModule.current !== key || mutationPending.current) return;
+      mutationPending.current = true;
       setSaving(true);
-      const next = await putBusinessSettings(module, {expectedVersion:snapshot.version,values});
-      setSnapshot(next);
-      form.setFieldsValue(next.values);
-      message.success('企业业务配置已保存；已接入的业务模块将在新任务中使用');
-      if (historyOpen) setRevisions((await listBusinessSettingsHistory(module)).items);
-    } catch (e) { message.error((e as Error)?.message || '配置保存失败，请检查字段'); }
-    finally { setSaving(false); }
+      const next = await putBusinessSettings(key, {expectedVersion:snapshot.version, values});
+      if (selectedModule.current === key) {
+        setSnapshot(next);
+        form.setFieldsValue(next.values);
+        message.success(tr('企业业务配置已保存；已接入的业务模块将在新任务中使用'));
+        if (historyOpen) setRevisions((await listBusinessSettingsHistory(key)).items);
+      }
+    } catch (e) { message.error((e as Error)?.message || tr('配置保存失败，请检查字段')); }
+    finally { mutationPending.current = false; setSaving(false); }
   };
   const openHistory = async () => {
-    if (!writable) return;
+    if (!writable || !snapshot || snapshot.module !== module) return;
+    const key = module;
     try {
-      const rows = await listBusinessSettingsHistory(module);
+      const rows = await listBusinessSettingsHistory(key);
+      if (selectedModule.current !== key) return;
       setRevisions(rows.items || []);
       setHistoryOpen(true);
-    } catch (e) { message.error((e as Error)?.message || '无法加载历史'); }
+    } catch (e) {
+      if (selectedModule.current === key) message.error((e as Error)?.message || tr('无法加载历史'));
+    }
   };
   const restore = async (version: number) => {
-    if (!snapshot || !writable || saving) return;
+    if (!snapshot || !writable || snapshot.module !== module || mutationPending.current) return;
+    const key = module;
+    mutationPending.current = true;
     setSaving(true);
     try {
-      const next = await restoreBusinessSettings(module, {targetVersion:version, expectedVersion:snapshot.version});
-      setSnapshot(next);
-      form.setFieldsValue(next.values);
-      setRevisions((await listBusinessSettingsHistory(module)).items);
-      message.success('已恢复为新版本；历史记录未被覆盖');
-    } catch (e) { message.error((e as Error)?.message || '恢复失败，请刷新'); }
-    finally { setSaving(false); }
+      const next = await restoreBusinessSettings(key, {targetVersion:version, expectedVersion:snapshot.version});
+      if (selectedModule.current === key) {
+        setSnapshot(next);
+        form.setFieldsValue(next.values);
+        setRevisions((await listBusinessSettingsHistory(key)).items);
+        message.success(tr('已恢复为新版本；历史记录未被覆盖'));
+      }
+    } catch (e) { message.error((e as Error)?.message || tr('恢复失败，请刷新')); }
+    finally { mutationPending.current = false; setSaving(false); }
   };
   const exportCurrent = () => {
     if (!snapshot) return;
@@ -115,11 +148,13 @@ export default function TenantBusinessSettingsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href=url;
-    link.download=`tenant-${module}-settings.json`;
+    link.download=`tenant-${snapshot.module}-settings.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
   const exportAll = async () => {
+    if (exporting) return;
+    setExporting(true);
     try {
       // Export all tenant modules as read-only snapshots. Never include
       // platform provider credentials, personal preferences, or user tokens.
@@ -137,38 +172,40 @@ export default function TenantBusinessSettingsPage() {
       link.download = 'tenant-business-settings-bundle.json';
       link.click();
       URL.revokeObjectURL(url);
-      message.success('已导出全部企业业务配置，不包含任何密钥');
+      message.success(tr('已导出全部企业业务配置，不包含任何密钥'));
     } catch (e) {
-      message.error((e as Error)?.message || '导出失败，请检查读取权限后重试');
-    }
+      message.error((e as Error)?.message || tr('导出失败，请检查读取权限后重试'));
+    } finally { setExporting(false); }
   };
   const importFile = async (file: File) => {
-    if (!writable || !snapshot || file.size > 8192) { message.error('配置文件不可导入或超过大小限制'); return; }
+    if (!writable || !snapshot || mutationPending.current || file.size > 8192) { message.error(tr('配置文件不可导入或超过大小限制')); return; }
+    const key = module;
     try {
       const parsed: unknown = JSON.parse(await file.text());
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('文件不是配置对象');
+      if (selectedModule.current !== key) return;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(tr('文件不是配置对象'));
       const obj = parsed as Record<string, unknown>;
-      if (obj.format !== 'trademind-tenant-config-v1' || obj.module !== module || !obj.values || typeof obj.values !== 'object' || Array.isArray(obj.values)) throw new Error('配置格式或模块不匹配');
+      if (obj.format !== 'trademind-tenant-config-v1' || obj.module !== module || !obj.values || typeof obj.values !== 'object' || Array.isArray(obj.values)) throw new Error(tr('配置格式或模块不匹配'));
       // Import only populates the form; saving always invokes server-side schema validation and version checks.
       form.setFieldsValue(obj.values);
-      message.info('已载入配置预览，检查后点击保存才会生效');
-    } catch (e) { message.error((e as Error)?.message || '导入失败'); }
+      message.info(tr('已载入配置预览，检查后点击保存才会生效'));
+    } catch (e) { message.error((e as Error)?.message || tr('导入失败')); }
   };
   return <TmPageContainer title="企业业务配置" subTitle="当前企业专属默认规则；平台安全限制与其他企业均不受影响。"
     extra={<Space>
       <Button onClick={exportCurrent} disabled={!snapshot}>导出配置</Button>
-      <Button onClick={() => void exportAll()}>导出全部模块</Button>
+      <Button loading={exporting} disabled={exporting} onClick={() => void exportAll()}>导出全部模块</Button>
       {writable?<><input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file) void importFile(file);e.target.value='';}} />
-        <Button disabled={!snapshot} onClick={()=>fileInput.current?.click()}>导入预览</Button></>:null}
-      <Button icon={<ReloadOutlined />} onClick={() => void load(module)} loading={loading}>刷新</Button>
+        <Button disabled={!snapshot || saving} onClick={()=>fileInput.current?.click()}>导入预览</Button></>:null}
+      <Button icon={<ReloadOutlined />} disabled={saving} onClick={() => void load(module)} loading={loading}>刷新</Button>
     </Space>}>
     <div style={{display:'grid',gridTemplateColumns:screens.md ? 'minmax(150px, 210px) minmax(0, 1fr)' : 'minmax(0,1fr)',gap:16}}>
       <Card size="small" styles={{body:{padding:8}}}>
         <Space direction="vertical" style={{width:'100%'}}>
-          {modules.map(item=><Button key={item} block type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>chooseModule(item)}>{labels[item]}</Button>)}
+          {modules.map(item=><Button key={item} block disabled={saving} type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>chooseModule(item)}>{tr(labels[item])}</Button>)}
         </Space>
       </Card>
-      <Card title={labels[module]} extra={<Space><Tag>{snapshot?.inherited?'继承默认值':`版本 ${snapshot?.version || 0}`}</Tag>{writable?<Button icon={<HistoryOutlined />} onClick={()=>void openHistory()}>版本历史</Button>:null}</Space>}>
+      <Card title={tr(labels[module])} extra={<Space><Tag>{snapshot?.inherited?tr('继承默认值'):`${tr('版本')} ${snapshot?.version || 0}`}</Tag>{writable?<Button icon={<HistoryOutlined />} onClick={()=>void openHistory()}>版本历史</Button>:null}</Space>}>
         {error?<Alert type="error" showIcon message={error} action={<Button onClick={()=>void load(module)}>重试</Button>}/>:null}
         {loading || !snapshot?<div style={{padding:30,textAlign:'center'}}><Spin /></div>:
           <Form form={form} layout="vertical" disabled={!writable || saving}>
@@ -187,7 +224,7 @@ export default function TenantBusinessSettingsPage() {
               <Alert type="success" showIcon message="已接入 AI 文案批次" description="新建 AI 文案批次未显式指定语言时使用此默认值；已有任务保留创建时输入。"/>
             </>:null}
             {module==='collect'?<>
-              <Form.Item name="allowedSources" label="允许的采集来源" extra="留空表示继承平台所有已开放来源；设置后，未选来源会被后端拒绝。"><Select mode="multiple" allowClear options={sourceOptions} placeholder="继承全部来源"/></Form.Item>
+              <Form.Item name="allowedSources" label="允许的采集来源" extra="留空表示继承平台所有已开放来源；设置后，未选来源会被后端拒绝。"><Select mode="multiple" allowClear options={sourceOptions.map(item => ({...item, label:tr(item.label)}))} placeholder="继承全部来源"/></Form.Item>
               <Form.Item name="maxBatchURLs" label="企业采集批次链接上限" extra="0 表示继承平台上限；企业值只能收紧，不能提高平台上限。" rules={[{required:true}]}><InputNumber min={0} max={100} style={{width:'100%'}}/></Form.Item>
               <Alert type="success" showIcon message="已接入采集任务创建" description="单条与批量新任务执行服务端校验，不能仅通过绕开 UI 来突破企业限制。"/>
             </>:null}
@@ -216,7 +253,7 @@ export default function TenantBusinessSettingsPage() {
             {writable && (templates[module]?.length ?? 0)>0?<div style={{marginBottom:16}}>
               <Typography.Text strong>配置模板</Typography.Text>
               <div style={{marginTop:8}}><Space wrap>{templates[module]?.map(template=>
-                <Button key={template.name} size="small" onClick={()=>setPreview(template)}>{template.name}</Button>
+                <Button key={template.name} size="small" onClick={()=>setPreview(template)}>{tr(template.name)}</Button>
               )}</Space></div>
               <Typography.Text type="secondary">模板只会预填表单；保存后才会生效。</Typography.Text>
             </div>:null}
@@ -226,22 +263,22 @@ export default function TenantBusinessSettingsPage() {
         {historyOpen?<div style={{marginTop:20}}>
           <Typography.Title level={5}>配置变更历史</Typography.Title>
           <Space direction="vertical" style={{width:'100%'}}>{revisions.length===0?<Typography.Text type="secondary">暂无历史版本</Typography.Text>:revisions.map(row=><div key={row.version} style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--ant-color-border-secondary)'}}>
-            <span>版本 {row.version} · {row.action} · {new Date(row.createdAt).toLocaleString()}</span>
-            <Button size="small" onClick={()=>setPreview({name:`历史版本 ${row.version} 与当前配置对比`,values:row.values as Record<string,unknown>})}>对比当前</Button>
-            <Popconfirm title={`恢复版本 ${row.version}？`} description="恢复会生成新版本并保留审计记录。" onConfirm={()=>void restore(row.version)}>
+            <span>{tr('版本')} {row.version} · {row.action} · {formatLocalizedDate(row.createdAt)}</span>
+            <Button size="small" disabled={saving} onClick={()=>setPreview({name:`${tr('历史版本')} ${row.version} ${tr('与当前配置对比')}`,values:row.values as Record<string,unknown>})}>对比当前</Button>
+            <Popconfirm title={`${tr('恢复版本')} ${row.version}？`} description="恢复会生成新版本并保留审计记录。" onConfirm={()=>void restore(row.version)}>
               <Button size="small" disabled={saving || !writable}>恢复</Button>
             </Popconfirm>
           </div>)}</Space>
         </div>:null}
       </Card>
     </div>
-    <Modal title={preview?`模板预览：${preview.name}`:'配置预览'} open={Boolean(preview)} onCancel={()=>setPreview(null)}
-      okText="应用到表单" onOk={()=>{if(preview)form.setFieldsValue(preview.values);setPreview(null);}}>
+    <Modal title={preview?`${tr('模板预览：')}${tr(preview.name)}`:tr('配置预览')} open={Boolean(preview)} onCancel={()=>setPreview(null)}
+      okText={tr('应用到表单')} okButtonProps={{disabled:saving || !writable}} onOk={()=>{if(preview && !saving && writable && snapshot?.module === module)form.setFieldsValue(preview.values);setPreview(null);}}>
       <Typography.Paragraph type="secondary">仅列出模板将修改的字段，未列出的字段不变。</Typography.Paragraph>
       {preview?Object.entries(preview.values).map(([key,value])=><div key={key} style={{marginBottom:10}}>
         <Typography.Text strong>{key}</Typography.Text>
-        <Typography.Paragraph style={{marginBottom:0}}>当前：{JSON.stringify(form.getFieldValue(key))}</Typography.Paragraph>
-        <Typography.Paragraph style={{marginBottom:0}}>模板：{JSON.stringify(value)}</Typography.Paragraph>
+        <Typography.Paragraph style={{marginBottom:0}}>{tr('当前：')}{JSON.stringify(form.getFieldValue(key))}</Typography.Paragraph>
+        <Typography.Paragraph style={{marginBottom:0}}>{tr('模板：')}{JSON.stringify(value)}</Typography.Paragraph>
       </div>):null}
     </Modal>
   </TmPageContainer>;
