@@ -118,7 +118,7 @@ export default function TenantSettingsPage() {
       message.success('企业资料已保存');
     } catch (requestError) {
       if (isTenantContextCurrent(context))
-        message.error((requestError as Error)?.message || '保存失败，请刷新后重试');
+        message.error((requestError as Error)?.message || tr('保存失败，请刷新后重试'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -179,7 +179,7 @@ export default function TenantSettingsPage() {
       message.success('企业高级配置已保存');
     } catch (requestError) {
       if (isTenantContextCurrent(context))
-        message.error((requestError as Error)?.message || '保存失败；请刷新以避免覆盖其他管理员的更改');
+        message.error((requestError as Error)?.message || tr('保存失败；请刷新以避免覆盖其他管理员的更改'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);

@@ -42,6 +42,7 @@ import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { useTenantLeaveEligibility } from '@/hooks/useTenantLeaveEligibility';
+import { tr } from '@/i18n';
 import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
 
 const MEMBER_STATUS_OPTIONS = [
@@ -260,7 +261,7 @@ export default function TenantMembersPage() {
       message.success(successMessage);
       return true;
     } catch (requestError) {
-      if (isTenantContextCurrent(context)) message.error((requestError as Error)?.message || '操作失败，请重试');
+      if (isTenantContextCurrent(context)) message.error((requestError as Error)?.message || tr('操作失败，请重试'));
       return false;
     } finally {
       submittingRef.current = false;

@@ -1392,6 +1392,15 @@ for (const [source, translated] of Object.entries({...tenantBusinessTranslations
   });
 }
 
+const tenantSafetyTranslations: Record<string,[string,string,string,string,string]> = {
+  '操作失败，请重试': ['Operation failed. Try again.', '操作に失敗しました。再試行してください。', '操作失敗，請重試', '작업에 실패했습니다. 다시 시도하세요.', 'ดำเนินการไม่สำเร็จ โปรดลองอีกครั้ง'],
+  '保存失败；请刷新以避免覆盖其他管理员的更改': ['Save failed. Refresh to avoid overwriting changes by another administrator.', '保存できませんでした。ほかの管理者の変更を上書きしないよう更新してください。', '儲存失敗；請重新整理以免覆蓋其他管理員的變更', '저장에 실패했습니다. 다른 관리자의 변경 내용을 덮어쓰지 않도록 새로고침하세요.', 'บันทึกไม่สำเร็จ รีเฟรชเพื่อหลีกเลี่ยงการเขียนทับการเปลี่ยนแปลงของผู้ดูแลคนอื่น'],
+};
+for (const [source, translations] of Object.entries(tenantSafetyTranslations)) {
+  (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
+    dictionaries[language][source] = translations[index];
+  });
+}
 export function isAppLanguage(value: unknown): value is AppLanguage {
   return typeof value === 'string' && (supportedLanguages as readonly string[]).includes(value);
 }
