@@ -326,7 +326,7 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "Member",
     "メンバー",
     "成員",
-    "สมาชิก",
+    "구성원",
     "สมาชิก"
   ],
   "角色": [
