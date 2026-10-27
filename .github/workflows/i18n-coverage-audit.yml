@@ -1,17 +1,41 @@
 name: Internationalization Coverage Audit
+
 on:
   workflow_dispatch:
   push:
     branches: [dev]
     paths:
-      - .github/workflows/i18n-coverage-audit.yml
+      - 'admin/src/**'
+      - 'admin/scripts/i18n-audit*'
+      - '.github/workflows/i18n-coverage-audit.yml'
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'admin/src/**'
+      - 'admin/scripts/i18n-audit*'
+      - '.github/workflows/i18n-coverage-audit.yml'
+
 permissions:
   contents: read
+
 jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Enumerate untranslated UI strings
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Validate i18n audit parser
+        run: node --test admin/scripts/i18n-audit.test.mjs
+      - name: Inventory existing untranslated UI candidates
         working-directory: admin
-        run: npm run i18n:audit
+        run: node scripts/i18n-audit.mjs
+      - name: Check changed UI strings for localization regressions
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA=HEAD~1
+          fi
+          node admin/scripts/i18n-audit.mjs --diff-base="$BASE_SHA"
