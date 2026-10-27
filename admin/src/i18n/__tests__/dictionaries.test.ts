@@ -10,6 +10,7 @@ import { tenantPreferenceTranslations } from '../tenantPreferenceTranslations';
 import { platformTenantTranslations } from '../platformTenantTranslations';
 import { commonControlTranslations } from '../commonControlTranslations';
 import { workspaceTranslations } from '../workspaceTranslations';
+import { aiTaskTranslations } from '../aiTaskTranslations';
 import ts from 'typescript';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,7 +47,7 @@ describe('six-language navigation coverage', () => {
 
 describe('organization business settings dictionary', () => {
   it('defines each translated message for every supported target locale', () => {
-    for (const [key, translations] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations, ...tenantPreferenceTranslations, ...platformTenantTranslations, ...commonControlTranslations, ...workspaceTranslations})) {
+    for (const [key, translations] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations, ...tenantPreferenceTranslations, ...platformTenantTranslations, ...commonControlTranslations, ...workspaceTranslations, ...aiTaskTranslations})) {
       expect(translations).toHaveLength(5);
       for (const language of supportedLanguages) {
         if (language === 'zh-CN') continue;

@@ -1,5 +1,5 @@
 import { useLanguage } from '@/i18n/useLanguage';
-import { tr } from '@/i18n';
+import { tr, trFormat } from '@/i18n';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -33,7 +33,7 @@ function mappedLabelCell(label: string, raw?: string) {
     return <Typography.Text>{text}</Typography.Text>;
   }
   return (
-    <Tooltip title={`原始值：${key}`}>
+    <Tooltip title={trFormat('原始值：{value}', { value: key })}>
       <Typography.Text>{text}</Typography.Text>
     </Tooltip>
   );
@@ -49,7 +49,7 @@ function conversationIdCell(row: AiTaskListRow) {
     );
   }
   return (
-    <Tooltip title="仅「客服回复建议」类任务会关联会话 ID；商品标题/描述优化等任务请查看「商品 ID」">
+    <Tooltip title={tr("仅「客服回复建议」类任务会关联会话 ID；商品标题/描述优化等任务请查看「商品 ID」")}>
       <Typography.Text type="secondary">—</Typography.Text>
     </Tooltip>
   );
@@ -57,9 +57,9 @@ function conversationIdCell(row: AiTaskListRow) {
 function statusTag(status: string) {
   const s = status?.trim() || '';
   const m = AI_TASK_STATUS_LABEL[s];
-  if (m) return <Tag color={m.color}>{m.text}</Tag>;
+  if (m) return <Tag color={m.color}>{tr(m.text)}</Tag>;
   const label = commonStatusLabel(s);
-  return <Tag>{label === '—' ? s || '—' : label}</Tag>;
+  return <Tag>{label === '—' ? s || '—' : label !== s ? tr(label) : label}</Tag>;
 }
 
 export default function AiTasksPage() {
@@ -98,14 +98,14 @@ export default function AiTasksPage() {
 
   const columns: ProColumns<AiTaskListRow>[] = [
     {
-      title: '创建时间',
+      title: tr('创建时间'),
       dataIndex: 'createdAt',
       width: 172,
       search: false,
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '任务类型',
+      title: tr('任务类型'),
       dataIndex: 'taskType',
       width: 140,
       ellipsis: true,
@@ -113,7 +113,7 @@ export default function AiTasksPage() {
       fieldProps: {
         showSearch: true,
         optionFilterProp: 'label',
-        options: AI_TASK_TYPE_OPTIONS,
+        options: AI_TASK_TYPE_OPTIONS.map(option => ({ ...option, label: tr(option.label) })),
       },
       render: (_, row) => {
         const label = aiTaskTypeLabel(row.taskType);
@@ -124,36 +124,36 @@ export default function AiTasksPage() {
         );
         const raw = (row.taskType || '').trim();
         if (!raw || label === raw) return content;
-        return <Tooltip title={`原始值：${raw}`}>{content}</Tooltip>;
+        return <Tooltip title={trFormat('原始值：{value}', { value: raw })}>{content}</Tooltip>;
       },
     },
     {
-      title: '状态',
+      title: tr('状态'),
       dataIndex: 'status',
       width: 100,
       valueType: 'select',
       valueEnum: {
-        pending: { text: '排队中' },
-        running: { text: '执行中' },
-        success: { text: '成功' },
-        failed: { text: '失败' },
+        pending: { text: tr('排队中') },
+        running: { text: tr('执行中') },
+        success: { text: tr('成功') },
+        failed: { text: tr('失败') },
       },
       render: (_, row) => statusTag(row.status),
     },
     {
-      title: 'AI 服务商',
+      title: tr('AI 服务商'),
       dataIndex: 'provider',
       width: 140,
       ellipsis: true,
     },
     {
-      title: '模型',
+      title: tr('模型'),
       dataIndex: 'model',
       width: 160,
       ellipsis: true,
     },
     {
-      title: '技能模板',
+      title: tr('技能模板'),
       dataIndex: 'promptCode',
       width: 168,
       ellipsis: true,
@@ -161,19 +161,19 @@ export default function AiTasksPage() {
       fieldProps: {
         showSearch: true,
         optionFilterProp: 'label',
-        options: AI_PROMPT_CODE_OPTIONS,
+        options: AI_PROMPT_CODE_OPTIONS.map(option => ({ ...option, label: tr(option.label) })),
       },
       render: (_, row) => mappedLabelCell(aiPromptCodeLabel(row.promptCode), row.promptCode),
     },
     {
-      title: '商品 ID',
+      title: tr('商品 ID'),
       dataIndex: 'productId',
       width: 280,
       ellipsis: true,
       copyable: true,
     },
     {
-      title: '会话 ID',
+      title: tr('会话 ID'),
       dataIndex: 'conversationId',
       width: 280,
       ellipsis: true,
@@ -181,25 +181,25 @@ export default function AiTasksPage() {
       render: (_, row) => conversationIdCell(row),
     },
     {
-      title: '输入量',
+      title: tr('输入量'),
       dataIndex: 'tokenInput',
       width: 88,
       search: false,
     },
     {
-      title: '输出量',
+      title: tr('输出量'),
       dataIndex: 'tokenOutput',
       width: 92,
       search: false,
     },
     {
-      title: '错误信息',
+      title: tr('错误信息'),
       dataIndex: 'errorMessage',
       ellipsis: true,
       search: false,
     },
     {
-      title: '时间范围',
+      title: tr('时间范围'),
       dataIndex: 'dateRange',
       valueType: 'dateTimeRange',
       hideInTable: true,
@@ -214,20 +214,18 @@ export default function AiTasksPage() {
       },
     },
     {
-      title: '操作',
+      title: tr('操作'),
       valueType: 'option',
       width: 112,
       search: false,
       render: (_, row) => [
-        <Button key="detail" type="link" onClick={() => void openDetail(row.id)}>
-          查看详情
-        </Button>,
+        <Button key="detail" type="link" onClick={() => void openDetail(row.id)}>{tr("查看详情")}</Button>,
       ],
     },
   ];
 
   return (
-    <TmPageContainer title={tr("AI 任务记录")} subTitle="查看标题优化、描述生成等 AI 调用记录与失败原因">
+    <TmPageContainer title={tr("AI 任务记录")} subTitle={tr("查看标题优化、描述生成等 AI 调用记录与失败原因")}>
       <ProTable<AiTaskListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -262,7 +260,7 @@ export default function AiTasksPage() {
       />
 
       <Drawer
-        title="AI 任务详情"
+        title={tr("AI 任务详情")}
         width={720}
         open={drawerOpen}
         onClose={() => {
@@ -278,43 +276,43 @@ export default function AiTasksPage() {
         ) : detail ? (
           <>
             <Descriptions column={1} size="small" bordered style={{ marginBottom: 24 }}>
-              <Descriptions.Item label="任务类型">
+              <Descriptions.Item label={tr("任务类型")}>
                 {mappedLabelCell(aiTaskTypeLabel(detail.taskType), detail.taskType)}
               </Descriptions.Item>
-              <Descriptions.Item label="状态">{statusTag(detail.status)}</Descriptions.Item>
-              <Descriptions.Item label="AI 服务商">{detail.provider || '—'}</Descriptions.Item>
-              <Descriptions.Item label="模型">{detail.model || '—'}</Descriptions.Item>
-              <Descriptions.Item label="技能模板">
+              <Descriptions.Item label={tr("状态")}>{statusTag(detail.status)}</Descriptions.Item>
+              <Descriptions.Item label={tr("AI 服务商")}>{detail.provider || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("模型")}>{detail.model || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("技能模板")}>
                 {mappedLabelCell(aiPromptCodeLabel(detail.promptCode), detail.promptCode)}
               </Descriptions.Item>
-              <Descriptions.Item label="关联商品">{detail.productId || '—'}</Descriptions.Item>
-              <Descriptions.Item label="关联会话">{conversationIdCell(detail)}</Descriptions.Item>
-              <Descriptions.Item label="创建者">{detail.createdBy || '—'}</Descriptions.Item>
-              <Descriptions.Item label="输入 tokens">{detail.tokenInput ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="输出 tokens">{detail.tokenOutput ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="费用">{detail.costAmount ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="开始时间">
+              <Descriptions.Item label={tr("关联商品")}>{detail.productId || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("关联会话")}>{conversationIdCell(detail)}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建者")}>{detail.createdBy || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("输入 tokens")}>{detail.tokenInput ?? 0}</Descriptions.Item>
+              <Descriptions.Item label={tr("输出 tokens")}>{detail.tokenOutput ?? 0}</Descriptions.Item>
+              <Descriptions.Item label={tr("费用")}>{detail.costAmount ?? 0}</Descriptions.Item>
+              <Descriptions.Item label={tr("开始时间")}>
                 {detail.startedAt ? formatDateTime(detail.startedAt) : '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="结束时间">
+              <Descriptions.Item label={tr("结束时间")}>
                 {detail.finishedAt ? formatDateTime(detail.finishedAt) : '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="创建时间">
+              <Descriptions.Item label={tr("创建时间")}>
                 {formatDateTime(detail.createdAt)}
               </Descriptions.Item>
-              <Descriptions.Item label="错误信息">{detail.errorMessage || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("错误信息")}>{detail.errorMessage || '—'}</Descriptions.Item>
             </Descriptions>
-            <TechnicalDetails label="任务技术信息">
+            <TechnicalDetails label={tr("任务技术信息")}>
               <Descriptions column={1} size="small" bordered style={{ marginBottom: 12 }}>
-                <Descriptions.Item label="任务编号">{detail.id}</Descriptions.Item>
+                <Descriptions.Item label={tr("任务编号")}>{detail.id}</Descriptions.Item>
               </Descriptions>
-              <TaskJsonBlock title="请求内容" value={detail.input} maxHeight={360} />
-              <TaskJsonBlock title="返回内容" value={detail.output} maxHeight={360} />
-              <TaskJsonBlock title="模型原始响应" value={detail.rawResponse} maxHeight={360} last />
+              <TaskJsonBlock title={tr("请求内容")} value={detail.input} maxHeight={360} />
+              <TaskJsonBlock title={tr("返回内容")} value={detail.output} maxHeight={360} />
+              <TaskJsonBlock title={tr("模型原始响应")} value={detail.rawResponse} maxHeight={360} last />
             </TechnicalDetails>
           </>
         ) : (
-          <div style={{ color: 'var(--ant-color-text-secondary)' }}>未加载到 AI 任务详情，请从列表重新选择一条任务。</div>
+          <div style={{ color: 'var(--ant-color-text-secondary)' }}>{tr("未加载到 AI 任务详情，请从列表重新选择一条任务。")}</div>
         )}
       </Drawer>
     </TmPageContainer>

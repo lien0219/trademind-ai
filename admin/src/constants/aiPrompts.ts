@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import {
   PLATFORM_DISPLAY_LABEL,
   SUPPORTED_COMMERCE_PLATFORM_KEYS,
@@ -109,13 +110,13 @@ export const AI_PROMPT_CODE_LABEL: Record<string, string> = {
 export function aiTaskTypeLabel(taskType?: string): string {
   const k = (taskType || '').trim();
   if (!k) return '—';
-  return AI_TASK_TYPE_LABEL[k] || k;
+  return AI_TASK_TYPE_LABEL[k] ? tr(AI_TASK_TYPE_LABEL[k]) : k;
 }
 
 export function aiPromptCodeLabel(code?: string): string {
   const k = (code || '').trim();
   if (!k) return '—';
-  return AI_PROMPT_CODE_LABEL[k] || k;
+  return AI_PROMPT_CODE_LABEL[k] ? tr(AI_PROMPT_CODE_LABEL[k]) : k;
 }
 
 export const AI_TASK_TYPE_OPTIONS = Object.entries(AI_TASK_TYPE_LABEL).map(([value, label]) => ({

@@ -61,6 +61,28 @@ for (const language of supportedLanguages) {
     await expect(page.getByRole('button', { name: saveName, exact: true })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', language);
   });
+
+  test(`@smoke AI task diagnostics retain raw identifiers in ${language}`, async ({ admin, page }) => {
+    await mockLocalizedWorkspace(page, language);
+    const task = {
+      id: 'e2e-ai-task', taskType: 'title_optimize', promptCode: 'product_title_optimize',
+      status: 'success', provider: 'e2e-provider', model: '设置', tokenInput: 123,
+      tokenOutput: 456, costAmount: 0.25, productId: 'e2e-product',
+      createdAt: '2026-10-27T01:00:00Z', updatedAt: '2026-10-27T01:00:00Z',
+      input: { title: '订单', language: 'zh-CN' }, output: { title: '设置' },
+    };
+    await page.route('**/api/v1/ai/tasks*', route => route.fulfill({ json: ok({ list: [task], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } }) }));
+    await page.route('**/api/v1/ai/tasks/e2e-ai-task', route => route.fulfill({ json: ok(task) }));
+    await page.setViewportSize({ width: 375, height: 812 });
+    await admin.goto('/ai/tasks');
+    await page.getByRole('button', { name: translateMessage(language, '查看详情'), exact: true }).click();
+    const drawer = page.getByRole('dialog', { name: translateMessage(language, 'AI 任务详情'), exact: true });
+    await expect(drawer.getByText(translateMessage(language, '商品标题优化'), { exact: true })).toBeVisible();
+    await expect(drawer.getByText('设置', { exact: true })).toBeVisible();
+    await expect(drawer.getByText('e2e-provider', { exact: true })).toBeVisible();
+    await expectNoRootOverflow(page);
+    await admin.writeGuard.expectNoUnexpectedWrites();
+  });
 }
 
 test('@smoke switching language persists once and updates the view without reloading auth', async ({ admin, page }) => {

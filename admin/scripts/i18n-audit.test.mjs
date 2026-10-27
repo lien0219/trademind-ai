@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { isUntranslatedUIString, parseAddedSourceLines, sourcePaths, inventory } from './i18n-audit.mjs';
 
 test('audits visible labels and messages without treating translations as raw Chinese', () => {
@@ -35,7 +35,7 @@ test('new untranslated application files remain visible before they are staged',
   try {
     writeFileSync(path, '<Button title="尚未迁移的真实文案" />;');
     const paths = sourcePaths();
-    const candidate = paths.find(item => item.endsWith(`${directory.split('/').at(-1)}/Candidate.tsx`));
+    const candidate = paths.find(item => item.endsWith(`${basename(directory)}/Candidate.tsx`));
     assert.ok(candidate);
     assert.equal(inventory([candidate], true).unmigratedTextSites, 1);
   } finally {
