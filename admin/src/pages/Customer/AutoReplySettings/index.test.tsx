@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { message } from 'antd';
 import CustomerAutoReplySettingsPage from './index';
 
 const customerService = vi.hoisted(() => ({
@@ -11,6 +12,13 @@ const customerService = vi.hoisted(() => ({
   updateCustomerAutoReplySetting: vi.fn(),
 }));
 const shopService = vi.hoisted(() => ({ queryShops: vi.fn() }));
+
+// Static notices have an independent React root and duration timers. Flush
+// their public destroy operation before jsdom tears down window.
+afterEach(async () => {
+  cleanup();
+  await act(async () => { message.destroy(); });
+});
 
 vi.mock('@/hooks/usePermission', () => ({
   usePermission: () => ({ canManageSettings: true, canWriteCustomer: true }),

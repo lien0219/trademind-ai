@@ -26,7 +26,12 @@ beforeEach(() => {
     }),
   });
 });
-afterEach(() => { cleanup(); setLanguage('zh-CN'); localStorage.clear(); });
+afterEach(async () => {
+  cleanup();
+  await act(async () => { message.destroy(); });
+  setLanguage('zh-CN');
+  localStorage.clear();
+});
 
 it('allows only one preference save while validation and the request are pending', async () => {
   let finish!: (value: typeof initial) => void;
