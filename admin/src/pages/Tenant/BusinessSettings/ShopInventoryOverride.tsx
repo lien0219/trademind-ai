@@ -5,6 +5,7 @@ import { getJSON, putJSON } from '@/services/request';
 import { usePermission } from '@/hooks/usePermission';
 import { tr } from '@/i18n';
 import { canOperateShop } from '@/utils/shopActionAccess';
+import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
 
 type ShopOverride = { shopId: string; warningStock: number; origin: 'enterprise' | 'shop'; version: number };
 const settingUrl = (shopId: string) => `/api/v1/tenant/shops/${encodeURIComponent(shopId)}/settings/inventory`;
@@ -18,48 +19,67 @@ export default function ShopInventoryOverride() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const mutationPending = useRef(false);
+  const listRequest = useRef(0);
+  const overrideRequest = useRef(0);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const [saving, setSaving] = useState(false);
   const canWrite = selected !== '' && canOperateShop(user, selected);
   useEffect(() => {
     let active = true;
+    const sequence = ++listRequest.current;
+    const context = captureTenantContext();
+    const current = () => active && sequence === listRequest.current && isTenantContextCurrent(context);
+    // Never display a previous organization's store list during reloading.
+    selectedRef.current = '';
+    setSelected('');
+    setSnapshot(undefined);
+    setShops([]);
+    setError('');
     queryShops({page:1,pageSize:100}).then((res) => {
-      if (!active) return;
+      if (!current()) return;
       const list = res.list || [];
       setShops(list);
       if (list.length > 0) setSelected(list[0].id);
-    }).catch(() => {if (active) setError(tr("店铺列表不可用或当前账号没有店铺查看权限"));});
-    return () => {active = false;};
+    }).catch(() => {
+      if (current()) setError(tr("店铺列表不可用或当前账号没有店铺查看权限"));
+    });
+    return () => { active = false; ++listRequest.current; };
   }, [user?.tenantId]);
   useEffect(() => {
-    if (!selected) return;
     let active = true;
+    const sequence = ++overrideRequest.current;
+    const context = captureTenantContext();
+    const current = () => active && sequence === overrideRequest.current && isTenantContextCurrent(context);
     setSnapshot(undefined);
+    if (!selected) { setLoading(false); return () => { active = false; ++overrideRequest.current; }; }
     setLoading(true);
     setError('');
     getJSON<ShopOverride>(settingUrl(selected)).then((res) => {
-      if (!active) return;
+      if (!current() || res.shopId !== selected) return;
       setSnapshot(res);
       setThreshold(res.warningStock);
-    }).catch(() => {if (active) setError(tr("无法读取该店铺设置，请确认授权"));})
-      .finally(() => {if (active) setLoading(false);});
-    return () => {active = false;};
-  }, [selected]);
+    }).catch(() => {
+      if (current()) setError(tr("无法读取该店铺设置，请确认授权"));
+    }).finally(() => { if (current()) setLoading(false); });
+    return () => { active = false; ++overrideRequest.current; };
+  }, [selected, user?.tenantId]);
   const save = async () => {
     if (!canWrite || !snapshot || snapshot.shopId !== selected || loading || mutationPending.current || !Number.isInteger(threshold) || threshold < 0 || threshold > 1000000) return;
     const shopId = selected;
+    const context = captureTenantContext();
     mutationPending.current = true;
     setSaving(true);
     try {
       const current = await putJSON<ShopOverride, {warningStock:number;expectedVersion:number}>(
         settingUrl(shopId), {warningStock:threshold,expectedVersion:snapshot.version},
       );
-      if (selectedRef.current !== shopId) return;
+      if (selectedRef.current !== shopId || !isTenantContextCurrent(context)) return;
       setSnapshot(current);
       message.success(tr("店铺阈值覆盖已保存"));
     } catch (e) {
-      message.error((e as Error)?.message || tr("保存失败，可能存在版本冲突"));
+      if (selectedRef.current === shopId && isTenantContextCurrent(context))
+        message.error((e as Error)?.message || tr("保存失败，可能存在版本冲突"));
     } finally {mutationPending.current = false;setSaving(false);}
   };
   return <Card type="inner" title={tr("店铺级库存阈值覆盖")} size="small" style={{marginTop:18}}>

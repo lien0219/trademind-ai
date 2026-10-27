@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { message } from 'antd';
 import { getJSON, putJSON } from '@/services/request';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
+import { markTenantContextChanged, resetTenantSwitchState } from '@/utils/tenantContext';
 import { readLanguage, setLanguage } from '@/i18n';
 import PersonalPreferencesPage from '.';
 
@@ -28,6 +29,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   cleanup();
+  resetTenantSwitchState();
   await act(async () => { message.destroy(); });
   setLanguage('zh-CN');
   localStorage.clear();
@@ -57,4 +59,14 @@ it('does not apply a save response from a previous authenticated workspace', asy
   await act(async () => { finish({ ...initial, values: { ...initial.values, language: 'ja-JP' }, version: 2 }); });
   expect(readLanguage()).toBe('zh-CN');
   expect(success).not.toHaveBeenCalled();
+});
+
+it('ignores personal preference loads completed after switching tenant context', async () => {
+  let finish!: (value: typeof initial) => void;
+  vi.mocked(getJSON).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  render(<PersonalPreferencesPage />);
+  await waitFor(() => expect(getJSON).toHaveBeenCalledTimes(1));
+  markTenantContextChanged();
+  await act(async () => { finish(initial); });
+  expect(screen.queryByRole('button', { name: '保存个人偏好' })).not.toBeInTheDocument();
 });
