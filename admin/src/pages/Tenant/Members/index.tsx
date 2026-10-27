@@ -406,8 +406,8 @@ export default function TenantMembersPage() {
       ]}
     >
       {error ? <ErrorAlert title={tr("成员数据加载失败")} actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} style={{ marginBottom: 16 }} /> : null}
-      {rolesError || shopsError ? <Alert type="error" showIcon message="角色或店铺授权数据加载失败" description={[rolesError, shopsError].filter(Boolean).join('；')} action={<Button type="link" onClick={() => void loadDirectories()}>{tr("重试")}</Button>} style={{ marginBottom: 16 }} /> : null}
-      {!rolesError && !shopsError && !rolesLoading && !shopsLoading && roleOptions.length === 0 ? <Alert type="error" showIcon message="当前企业没有可分配角色" description={tr("请在现有角色管理中启用至少一个角色后再邀请或编辑成员。")} style={{ marginBottom: 16 }} /> : null}
+      {rolesError || shopsError ? <Alert type="error" showIcon message={tr("角色或店铺授权数据加载失败")} description={[rolesError, shopsError].filter(Boolean).join('；')} action={<Button type="link" onClick={() => void loadDirectories()}>{tr("重试")}</Button>} style={{ marginBottom: 16 }} /> : null}
+      {!rolesError && !shopsError && !rolesLoading && !shopsLoading && roleOptions.length === 0 ? <Alert type="error" showIcon message={tr("当前企业没有可分配角色")} description={tr("请在现有角色管理中启用至少一个角色后再邀请或编辑成员。")} style={{ marginBottom: 16 }} /> : null}
       <SectionCard>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'members', label: `${tr(tr('成员（'))}${members.length}${tr('）')}`, children: !loading && !error && members.length === 0 ? <EmptyState title={tr("暂无企业成员")} description={tr("企业管理员可以邀请成员加入。")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={memberColumns} dataSource={members} pagination={false} scroll={{ x: 960 }} /> }, { key: 'invitations', label: `${tr(tr('邀请（'))}${invitations.length}${tr('）')}`, children: !loading && !error && invitations.length === 0 ? <EmptyState title={tr("暂无邀请记录")} description={tr("创建邀请后，一次性 Token 只会在创建成功时显示。")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={invitationColumns} dataSource={invitations} pagination={false} scroll={{ x: 900 }} /> }]} />
       </SectionCard>
@@ -455,7 +455,7 @@ export default function TenantMembersPage() {
           <Form.Item name="email" label={tr("成员邮箱")} rules={[{ required: true, message: tr('请输入成员邮箱') }, { type: 'email', message: tr('请输入有效邮箱') }]}><Input prefix={<MailOutlined />} autoComplete="off" /></Form.Item>
           <Form.Item name="role" label={tr("企业角色")} rules={[{ required: true, message: tr('请选择企业角色') }]}><Select options={roleOptions} /></Form.Item>
           <Form.Item name="expiresInHours" label={tr("邀请有效期")} rules={[{ required: true, message: tr('请选择邀请有效期') }]}><Select options={INVITATION_EXPIRY_OPTIONS.map(item => ({...item,label:tr(item.label)}))} /></Form.Item>
-          <Form.Item noStyle shouldUpdate={(previous, current) => previous.role !== current.role}>{({ getFieldValue }) => getFieldValue('role') === 'admin' ? <Alert type="info" showIcon message="管理员默认拥有当前企业全部店铺范围。" /> : <Form.Item label={tr("店铺授权")}><StorePermissionList shops={shops} /></Form.Item>}</Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.role !== current.role}>{({ getFieldValue }) => getFieldValue('role') === 'admin' ? <Alert type="info" showIcon message={tr("管理员默认拥有当前企业全部店铺范围。")} /> : <Form.Item label={tr("店铺授权")}><StorePermissionList shops={shops} /></Form.Item>}</Form.Item>
         </Form>
       </Modal>
 
@@ -477,12 +477,12 @@ export default function TenantMembersPage() {
         >
           <Form.Item name="role" label={tr("企业角色")} rules={[{ required: true, message: tr('请选择企业角色') }]}><Select options={roleOptions} /></Form.Item>
           <Form.Item name="status" label={tr("成员状态")} rules={[{ required: true, message: tr('请选择成员状态') }]}><Select options={MEMBER_STATUS_OPTIONS.map(item => ({...item,label:tr(item.label)}))} /></Form.Item>
-          <Form.Item noStyle shouldUpdate={(previous, current) => previous.role !== current.role}>{({ getFieldValue }) => getFieldValue('role') === 'admin' ? <Alert type="info" showIcon message="管理员默认拥有当前企业全部店铺范围。" /> : <Form.Item label={tr("店铺授权")}><StorePermissionList shops={shops} /></Form.Item>}</Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.role !== current.role}>{({ getFieldValue }) => getFieldValue('role') === 'admin' ? <Alert type="info" showIcon message={tr("管理员默认拥有当前企业全部店铺范围。")} /> : <Form.Item label={tr("店铺授权")}><StorePermissionList shops={shops} /></Form.Item>}</Form.Item>
         </Form>
       </Modal>
 
       <Modal open={Boolean(inviteToken)} title={tr("邀请已创建")} footer={<Button onClick={() => setInviteToken(null)}>{tr("关闭")}</Button>} onCancel={() => setInviteToken(null)}>
-        <Alert type="warning" showIcon message="Token 只在本次显示，请通过安全渠道发送给受邀成员。" description={tr("系统不会代发邮件，也不会再次展示完整 Token。")} />
+        <Alert type="warning" showIcon message={tr("Token 只在本次显示，请通过安全渠道发送给受邀成员。")} description={tr("系统不会代发邮件，也不会再次展示完整 Token。")} />
         <Input.TextArea value={inviteToken || ''} readOnly autoSize={{ minRows: 3, maxRows: 6 }} style={{ marginTop: 16 }} aria-label={tr("一次性邀请 Token")} />
         <Button icon={<CopyOutlined />} style={{ marginTop: 12 }} onClick={() => void copyToken()}>{tr("复制 Token")}</Button>
       </Modal>
