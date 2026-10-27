@@ -360,7 +360,7 @@ const QUICK_LINK_GROUPS: { label: string; links: string[] }[] = [
     ],
   },
   {
-    label: tr("AI 工具"),
+    get label() { return tr('AI 工具'); },
     links: ['/ai/text-batches', '/ai/image-tasks'],
   },
   {
@@ -744,7 +744,7 @@ function DashboardSkeleton() {
 }
 
 export default function ProductOperationsDashboardPage() {
-  useLanguage();
+  const language = useLanguage();
   const dashboardEmptyLocale = useListEmptyLocale('dashboard');
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(
@@ -814,8 +814,8 @@ export default function ProductOperationsDashboardPage() {
   const funnelSteps = useMemo(() => mergeFunnel(board?.funnel), [board?.funnel]);
   const exceptions = useMemo(() => mergeExceptions(board?.exceptions), [board?.exceptions]);
   const quickLinks = DEFAULT_QUICK_LINKS;
-  const recentFlat = useMemo(() => mergeRecentItems(board?.recent), [board?.recent]);
-  const kpiCards = useMemo(() => buildKpiCards(summary), [summary]);
+  const recentFlat = useMemo(() => mergeRecentItems(board?.recent), [board?.recent, language]);
+  const kpiCards = useMemo(() => buildKpiCards(summary), [summary, language]);
 
   const doRefresh = useCallback(() => {
     void loadBoard();

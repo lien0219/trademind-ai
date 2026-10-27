@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import type { CSSProperties, Key, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
@@ -1001,6 +1002,7 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
 }
 
 export default function ProductDraftDetailPage() {
+  useLanguage();
   const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
   const { readonly, can } = usePermission();
   const publishWriteDisabled = !can(PERMISSIONS.PUBLISH_CREATE_DRAFT);
