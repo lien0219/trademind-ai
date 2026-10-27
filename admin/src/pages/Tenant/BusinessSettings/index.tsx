@@ -4,6 +4,7 @@ import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons
 import { TmPageContainer } from '@/components/ui';
 import { tr, formatLocalizedDate } from '@/i18n';
 import { languageNames, supportedLanguages } from '@/i18n/dictionaries';
+import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
 import ShopInventoryOverride from './ShopInventoryOverride';
 import { usePermission } from '@/hooks/usePermission';
 import { PERMISSIONS } from '@/utils/permission';
@@ -63,6 +64,8 @@ export default function TenantBusinessSettingsPage() {
   const load = async (key: BusinessModule) => {
     if (mutationPending.current || selectedModule.current !== key) return;
     const request = ++readSequence.current;
+    const context = captureTenantContext();
+    const isCurrent = () => request === readSequence.current && selectedModule.current === key && isTenantContextCurrent(context);
     setLoading(true);
     setError('');
     setSnapshot(null);
@@ -71,14 +74,14 @@ export default function TenantBusinessSettingsPage() {
     form.resetFields();
     try {
       const current = await getBusinessSettings(key);
-      if (request !== readSequence.current || selectedModule.current !== key) return;
+      if (!isCurrent()) return;
       setSnapshot(current);
       form.setFieldsValue(current.values);
     } catch (e) {
-      if (request === readSequence.current && selectedModule.current === key)
+      if (isCurrent())
         setError((e as Error)?.message || tr('加载失败，请重试'));
     } finally {
-      if (request === readSequence.current && selectedModule.current === key) setLoading(false);
+      if (request === readSequence.current) setLoading(false);
     }
   };
   useEffect(() => { void load(module); }, [module]);
@@ -99,13 +102,14 @@ export default function TenantBusinessSettingsPage() {
   const save = async () => {
     if (!writable || !snapshot || snapshot.module !== module || mutationPending.current) return;
     const key = module;
+    const context = captureTenantContext();
     try {
       const values = await form.validateFields();
-      if (selectedModule.current !== key || mutationPending.current) return;
+      if (selectedModule.current !== key || mutationPending.current || !isTenantContextCurrent(context)) return;
       mutationPending.current = true;
       setSaving(true);
       const next = await putBusinessSettings(key, {expectedVersion:snapshot.version, values});
-      if (selectedModule.current === key) {
+      if (selectedModule.current === key && isTenantContextCurrent(context)) {
         setSnapshot(next);
         form.setFieldsValue(next.values);
         message.success(tr('企业业务配置已保存；已接入的业务模块将在新任务中使用'));
@@ -117,23 +121,25 @@ export default function TenantBusinessSettingsPage() {
   const openHistory = async () => {
     if (!writable || !snapshot || snapshot.module !== module) return;
     const key = module;
+    const context = captureTenantContext();
     try {
       const rows = await listBusinessSettingsHistory(key);
-      if (selectedModule.current !== key) return;
+      if (selectedModule.current !== key || !isTenantContextCurrent(context)) return;
       setRevisions(rows.items || []);
       setHistoryOpen(true);
     } catch (e) {
-      if (selectedModule.current === key) message.error((e as Error)?.message || tr('无法加载历史'));
+      if (selectedModule.current === key && isTenantContextCurrent(context)) message.error((e as Error)?.message || tr('无法加载历史'));
     }
   };
   const restore = async (version: number) => {
     if (!snapshot || !writable || snapshot.module !== module || mutationPending.current) return;
     const key = module;
+    const context = captureTenantContext();
     mutationPending.current = true;
     setSaving(true);
     try {
       const next = await restoreBusinessSettings(key, {targetVersion:version, expectedVersion:snapshot.version});
-      if (selectedModule.current === key) {
+      if (selectedModule.current === key && isTenantContextCurrent(context)) {
         setSnapshot(next);
         form.setFieldsValue(next.values);
         setRevisions((await listBusinessSettingsHistory(key)).items);
@@ -155,11 +161,13 @@ export default function TenantBusinessSettingsPage() {
   };
   const exportAll = async () => {
     if (exporting) return;
+    const context = captureTenantContext();
     setExporting(true);
     try {
       // Export all tenant modules as read-only snapshots. Never include
       // platform provider credentials, personal preferences, or user tokens.
       const snapshots = await Promise.all(modules.map(async key => getBusinessSettings(key)));
+      if (!isTenantContextCurrent(context)) return;
       const body = JSON.stringify({
         format: 'trademind-tenant-config-bundle-v1',
         exportedAt: new Date().toISOString(),
@@ -181,9 +189,10 @@ export default function TenantBusinessSettingsPage() {
   const importFile = async (file: File) => {
     if (!writable || !snapshot || mutationPending.current || file.size > 8192) { message.error(tr('配置文件不可导入或超过大小限制')); return; }
     const key = module;
+    const context = captureTenantContext();
     try {
       const parsed: unknown = JSON.parse(await file.text());
-      if (selectedModule.current !== key) return;
+      if (selectedModule.current !== key || !isTenantContextCurrent(context)) return;
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(tr('文件不是配置对象'));
       const obj = parsed as Record<string, unknown>;
       if (obj.format !== 'trademind-tenant-config-v1' || obj.module !== module || !obj.values || typeof obj.values !== 'object' || Array.isArray(obj.values)) throw new Error(tr('配置格式或模块不匹配'));

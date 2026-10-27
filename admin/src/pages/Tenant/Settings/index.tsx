@@ -10,6 +10,7 @@ import { getBusinessSettings } from '@/services/tenantBusinessSettings';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { TENANT_SETTINGS_EXAMPLE, formatTenantSettings, inspectTenantSettings, summarizeTenantSettings } from '@/utils/tenantSettings';
+import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
 
 const { Text } = Typography;
 
@@ -43,34 +44,42 @@ export default function TenantSettingsPage() {
   const [advancedText, setAdvancedText] = useState('{}');
   const [advancedError, setAdvancedError] = useState<string | null>(null);
   const [showExample, setShowExample] = useState(false);
+  const readSequence = useRef(0);
 
   const load = useCallback(async () => {
+    if (submittingRef.current) return;
+    const sequence = ++readSequence.current;
+    const context = captureTenantContext();
+    const isCurrent = () => sequence === readSequence.current && isTenantContextCurrent(context);
     setLoading(true);
     setError(null);
+    // Drop the previous tenant's information before the next request.
+    setDetail(null);
+    setBrand(null);
     try {
       const result = await getCurrentTenant();
+      if (!isCurrent()) return;
       setDetail(result);
-      // Branding read is optional for old deployments, never blocks
-      // tenant metadata or leaks another workspace's previous appearance.
-      setBrand(null);
       try {
         const branding = await getBusinessSettings('branding');
-        setBrand(branding.values);
+        if (isCurrent()) setBrand(branding.values);
       } catch {
-        setBrand(null);
+        if (isCurrent()) setBrand(null);
       }
+      if (!isCurrent()) return;
       setAdvancedOpen(false);
       setAdvancedError(null);
       setShowExample(false);
     } catch (requestError) {
-      setError((requestError as Error)?.message || '企业资料加载失败，请重试');
+      if (isCurrent()) setError((requestError as Error)?.message || '企业资料加载失败，请重试');
     } finally {
-      setLoading(false);
+      if (sequence === readSequence.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
+    return () => { ++readSequence.current; };
   }, [load]);
 
   // The editor only mounts after tenant data arrives and is not rendered for
@@ -101,12 +110,15 @@ export default function TenantSettingsPage() {
       contactPhone: values.contactPhone?.trim() || undefined,
       version: detail.tenant.version,
     };
+    const context = captureTenantContext();
     try {
       const tenant = await updateCurrentTenant(body);
+      if (!isTenantContextCurrent(context)) return;
       setDetail((current) => current ? { ...current, tenant } : current);
       message.success('企业资料已保存');
     } catch (requestError) {
-      message.error((requestError as Error)?.message || '保存失败，请刷新后重试');
+      if (isTenantContextCurrent(context))
+        message.error((requestError as Error)?.message || '保存失败，请刷新后重试');
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -157,14 +169,17 @@ export default function TenantSettingsPage() {
       settings: JSON.stringify(result.value),
       version: tenant.version,
     };
+    const context = captureTenantContext();
     try {
       const updated = await updateCurrentTenant(body);
+      if (!isTenantContextCurrent(context)) return;
       setDetail((current) => current ? { ...current, tenant: updated } : current);
       setAdvancedOpen(false);
       setAdvancedError(null);
       message.success('企业高级配置已保存');
     } catch (requestError) {
-      message.error((requestError as Error)?.message || '保存失败；请刷新以避免覆盖其他管理员的更改');
+      if (isTenantContextCurrent(context))
+        message.error((requestError as Error)?.message || '保存失败；请刷新以避免覆盖其他管理员的更改');
     } finally {
       submittingRef.current = false;
       setSubmitting(false);

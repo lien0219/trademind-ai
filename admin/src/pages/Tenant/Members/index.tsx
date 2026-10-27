@@ -42,6 +42,7 @@ import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { useTenantLeaveEligibility } from '@/hooks/useTenantLeaveEligibility';
+import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
 
 const MEMBER_STATUS_OPTIONS = [
   { label: '正常', value: 'active' },
@@ -174,42 +175,53 @@ export default function TenantMembersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [inviteForm] = Form.useForm<InviteFormValues>();
   const [memberForm] = Form.useForm<MemberFormValues>();
+  const membersRead = useRef(0);
+  const directoriesRead = useRef(0);
 
   const load = useCallback(async () => {
     if (!canManage) return;
+    const sequence = ++membersRead.current;
+    const context = captureTenantContext();
     setLoading(true);
     setError(null);
     try {
       const [memberResult, invitationResult] = await Promise.all([getTenantMembers(), getTenantInvitations()]);
+      if (sequence !== membersRead.current || !isTenantContextCurrent(context)) return;
       setMembers(memberResult.items || []);
       setInvitations(invitationResult.items || []);
     } catch (requestError) {
-      setError((requestError as Error)?.message || '企业成员数据加载失败，请重试');
+      if (sequence === membersRead.current && isTenantContextCurrent(context))
+        setError((requestError as Error)?.message || '企业成员数据加载失败，请重试');
     } finally {
-      setLoading(false);
+      if (sequence === membersRead.current) setLoading(false);
     }
   }, [canManage]);
 
   const loadDirectories = useCallback(async () => {
     if (!canManage) return;
+    const sequence = ++directoriesRead.current;
+    const context = captureTenantContext();
+    const isCurrent = () => sequence === directoriesRead.current && isTenantContextCurrent(context);
     setRolesLoading(true);
     setShopsLoading(true);
     setRolesError(null);
     setShopsError(null);
     const roleResult = fetchAdminRoles()
-      .then((result) => setRoles(result.list || []))
+      .then((result) => { if (isCurrent()) setRoles(result.list || []); })
       .catch((requestError) => {
+        if (!isCurrent()) return;
         setRoles([]);
         setRolesError((requestError as Error)?.message || '企业角色加载失败');
       })
-      .finally(() => setRolesLoading(false));
+      .finally(() => { if (isCurrent()) setRolesLoading(false); });
     const shopResult = queryShops({ page: 1, pageSize: 200 })
-      .then((result) => setShops(result.list || []))
+      .then((result) => { if (isCurrent()) setShops(result.list || []); })
       .catch((requestError) => {
+        if (!isCurrent()) return;
         setShops([]);
         setShopsError((requestError as Error)?.message || '企业店铺加载失败');
       })
-      .finally(() => setShopsLoading(false));
+      .finally(() => { if (isCurrent()) setShopsLoading(false); });
     await Promise.all([roleResult, shopResult]);
   }, [canManage]);
 
@@ -217,6 +229,10 @@ export default function TenantMembersPage() {
     if (!canManage) return;
     void load();
     void loadDirectories();
+    return () => {
+      ++membersRead.current;
+      ++directoriesRead.current;
+    };
   }, [canManage, load, loadDirectories]);
 
   const roleOptions = useMemo(() => {
@@ -228,17 +244,23 @@ export default function TenantMembersPage() {
     mutate: () => Promise<void>,
     successMessage: string,
     allowWithoutManage = false,
+    refreshAfterMutation = true,
   ): Promise<boolean> => {
     if ((!canManage && !allowWithoutManage) || submittingRef.current) return false;
     submittingRef.current = true;
     setSubmitting(true);
+    const context = captureTenantContext();
     try {
       await mutate();
+      if (!isTenantContextCurrent(context)) return false;
+      // Leaving an organization revokes its read access immediately. Never
+      // re-fetch the departed tenant before navigating away.
+      if (refreshAfterMutation) await load();
+      if (!isTenantContextCurrent(context)) return false;
       message.success(successMessage);
-      await load();
       return true;
     } catch (requestError) {
-      message.error((requestError as Error)?.message || '操作失败，请重试');
+      if (isTenantContextCurrent(context)) message.error((requestError as Error)?.message || '操作失败，请重试');
       return false;
     } finally {
       submittingRef.current = false;
@@ -332,7 +354,7 @@ export default function TenantMembersPage() {
       impacts: ['当前会话将刷新', '未保存的表单内容会丢失'],
       reversible: true,
       onOk: async () => {
-        const succeeded = await runMutation(() => leaveTenant().then(() => undefined), '已退出企业', true);
+        const succeeded = await runMutation(() => leaveTenant().then(() => undefined), '已退出企业', true, false);
         if (succeeded) window.location.reload();
       },
     });
