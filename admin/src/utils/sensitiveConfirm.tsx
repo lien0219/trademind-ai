@@ -1,37 +1,47 @@
 import { Modal } from 'antd';
 import type { ModalFuncProps } from 'antd/es/modal/interface';
+import { subscribeLanguage, tr, trFormat } from '@/i18n';
+
+type DialogText = string | (() => string);
+const resolveText = (value: DialogText) => typeof value === 'function' ? value() : value;
 
 export type SensitiveConfirmOptions = {
-  title: string;
-  content: string;
-  impacts?: string[];
+  title: DialogText;
+  content: DialogText;
+  impacts?: string[] | (() => string[]);
   externalCall?: boolean;
   reversible?: boolean;
-  failureHint?: string;
+  failureHint?: DialogText;
   onOk: () => void | Promise<void>;
   onCancel?: () => void;
 };
 
 /** Standard sensitive-operation confirm dialog (F5 audit UX). */
 export function confirmSensitiveAction(opts: SensitiveConfirmOptions) {
-  const lines = [opts.content];
-  if (opts.impacts?.length) {
-    lines.push('', '将影响：', ...opts.impacts.map((x) => `· ${x}`));
-  }
-  if (opts.externalCall) {
-    lines.push('', '此操作可能调用外部平台接口。');
-  }
-  lines.push('', opts.reversible === false ? '此操作通常不可撤销。' : '部分操作可在任务中心查看失败并重试。');
-  if (opts.failureHint) {
-    lines.push(`失败后可在：${opts.failureHint}`);
-  }
-  const modalOpts: ModalFuncProps = {
-    title: opts.title,
-    content: <div style={{ whiteSpace: 'pre-wrap' }}>{lines.join('\n')}</div>,
-    okText: '确认执行',
-    cancelText: '取消',
-    onOk: opts.onOk,
-    onCancel: opts.onCancel,
+  let unsubscribe: (() => void) | undefined;
+  const modalOptions = (): ModalFuncProps => {
+    const lines = [resolveText(opts.content)];
+    const impacts = typeof opts.impacts === 'function' ? opts.impacts() : opts.impacts;
+    if (impacts?.length) {
+      lines.push('', tr('将影响：'), ...impacts.map((item) => `· ${item}`));
+    }
+    if (opts.externalCall) {
+      lines.push('', tr('此操作可能调用外部平台接口。'));
+    }
+    lines.push('', opts.reversible === false ? tr('此操作通常不可撤销。') : tr('部分操作可在任务中心查看失败并重试。'));
+    if (opts.failureHint) {
+      lines.push(trFormat('失败后可在：{location}', { location: resolveText(opts.failureHint) }));
+    }
+    return {
+      title: resolveText(opts.title),
+      content: <div style={{ whiteSpace: 'pre-wrap' }}>{lines.join('\n')}</div>,
+      okText: tr('确认执行'),
+      cancelText: tr('取消'),
+      onOk: opts.onOk,
+      onCancel: opts.onCancel,
+      afterClose: () => unsubscribe?.(),
+    };
   };
-  Modal.confirm(modalOpts);
+  const modal = Modal.confirm(modalOptions());
+  unsubscribe = subscribeLanguage(() => modal.update(modalOptions()));
 }

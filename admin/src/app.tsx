@@ -3,7 +3,7 @@ import type {
   ReactElement,
   ReactNode,
 } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import type { MenuDataItem } from "@umijs/route-utils";
 import { history } from "@umijs/max";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
@@ -34,7 +34,8 @@ import { layoutTokens } from "@/constants/layoutTokens";
 import { postJSON } from "@/services/request";
 import { validateProfile } from "@/services/auth";
 import { isAppLanguage } from "@/i18n/dictionaries";
-import { readLanguage, setLanguage, setRegionalPreferences } from "@/i18n";
+import { readLanguage, setLanguage, setRegionalPreferences, subscribeLanguage, tr } from "@/i18n";
+import { useLanguage } from "@/i18n/useLanguage";
 import {
   applyThemeMode,
   createAdminDrawerConfig,
@@ -289,6 +290,8 @@ async function logoutAndClear(
 
 function AppTopNavBridge({ isMobile = false }: { isMobile?: boolean }) {
   const { setInitialState, initialState } = useInitialStateModel();
+  // Recompute runtime menu labels without recreating the routed page or auth.
+  useEffect(() => subscribeLanguage(() => setInitialState(state => ({ ...state }))), [setInitialState]);
   return (
     <AppTopNav
       user={initialState?.currentUser}
@@ -299,13 +302,14 @@ function AppTopNavBridge({ isMobile = false }: { isMobile?: boolean }) {
 }
 
 function AppBrandButton({ collapsed = false }: { collapsed?: boolean }) {
+  useLanguage();
   return (
     <button
       type="button"
       className={`tm-app-brand-header${
         collapsed ? " tm-app-brand-header--collapsed" : ""
       }`}
-      aria-label="返回工作台"
+      aria-label={tr('返回工作台')}
       onClick={() => history.push("/dashboard")}
     >
       <BrandLogo height={28} className="tm-app-brand-logo" />
@@ -322,7 +326,8 @@ function AppSiderFooter({
   isMobile = false,
   onCollapse,
 }: SiderMenuLayoutProps) {
-  const collapseLabel = collapsed ? "展开侧栏" : "收起侧栏";
+  useLanguage();
+  const collapseLabel = collapsed ? tr('展开侧栏') : tr('收起侧栏');
 
   if (isMobile) return null;
 
@@ -344,7 +349,7 @@ function AppSiderFooter({
         ) : (
           <>
             <MenuFoldOutlined aria-hidden="true" />
-            <span>收起</span>
+            <span>{tr('收起')}</span>
           </>
         )}
       </button>

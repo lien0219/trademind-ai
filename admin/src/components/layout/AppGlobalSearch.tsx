@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { SearchOutlined } from '@ant-design/icons';
 import { tr } from '@/i18n';
 import type { MenuDataItem } from '@umijs/route-utils';
@@ -84,12 +85,13 @@ export default function AppGlobalSearch({
   canAccessPath,
   onNavigate,
 }: AppGlobalSearchProps) {
+  const language = useLanguage();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<InputRef>(null);
   const searchItems = useMemo(
     () => buildGlobalSearchItems(items, canAccessPath),
-    [canAccessPath, items],
+    [canAccessPath, items, language],
   );
   const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN');
   const results = useMemo(
@@ -196,13 +198,13 @@ export default function AppGlobalSearch({
             ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="未找到匹配功能"
+                description={tr('未找到匹配功能')}
               />
             )
           ) : (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="输入关键词搜索当前账号可访问的导航功能"
+                description={tr('输入关键词搜索当前账号可访问的导航功能')}
             />
           )}
         </div>

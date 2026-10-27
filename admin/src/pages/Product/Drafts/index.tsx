@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import {
   DollarOutlined,
@@ -118,6 +119,7 @@ function operationStepColor(step?: string) {
 }
 
 export default function ProductDraftsPage() {
+  useLanguage();
   const location = useLocation();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DRAFT_QUERY_KEYS)[number], string | undefined>>(DRAFT_QUERY_KEYS);

@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import type { CSSProperties, ReactNode } from 'react';
 import { PageContainer, type PageContainerProps } from '@ant-design/pro-components';
 import { Space } from 'antd';
@@ -29,6 +30,7 @@ export default function TmPageContainer({
   className,
   ...rest
 }: TmPageContainerProps) {
+  useLanguage();
   const wrapperStyle: CSSProperties = {
     '--tm-page-content-max-width': `${contentMaxWidth}px`,
     ...contentWrapperStyle,

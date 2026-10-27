@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import type { ReactNode } from 'react';
 import { ProCard, type ProCardProps } from '@ant-design/pro-components';
 import { Space, Typography } from 'antd';
@@ -26,6 +27,7 @@ export default function SectionCard({
   bordered,
   ...rest
 }: SectionCardProps) {
+  useLanguage();
   const showBorder = bordered ?? variant === 'outlined';
   return (
     <ProCard

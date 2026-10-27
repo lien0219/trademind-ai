@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   CopyOutlined,
   DeleteOutlined,
@@ -73,7 +74,10 @@ const SCOPE_OPTIONS = [
 ];
 
 function roleLabel(role: string, roles: AdminRoleRow[]) {
-  return tr(roles.find((item) => item.code === role)?.name || STANDARD_ROLE_OPTIONS.find((item) => item.value === role)?.label || role);
+  const configuredRole = roles.find((item) => item.code === role);
+  if (configuredRole) return configuredRole.system ? tr(configuredRole.name) : configuredRole.name;
+  const standard = STANDARD_ROLE_OPTIONS.find((item) => item.value === role);
+  return standard ? tr(standard.label) : role;
 }
 
 function memberName(member: TenantMember) {
@@ -106,6 +110,7 @@ function storesToPayload(items: StorePermissionFormValue[] | undefined, shops: S
 }
 
 function StorePermissionList({ shops }: { shops: ShopListRow[] }) {
+  useLanguage();
   return (
     <Form.List
       name="storePermissions"
@@ -154,6 +159,7 @@ function StorePermissionList({ shops }: { shops: ShopListRow[] }) {
 }
 
 export default function TenantMembersPage() {
+  const language = useLanguage();
   const { can, user } = usePermission();
   const canManage = can(PERMISSIONS.USER_MANAGE);
   const canLeave = useTenantLeaveEligibility(user);
@@ -237,8 +243,8 @@ export default function TenantMembersPage() {
   }, [canManage, load, loadDirectories]);
 
   const roleOptions = useMemo(() => {
-    return roles.filter((role) => role.enabled).map((role) => ({ label: tr(role.name), value: role.code }));
-  }, [roles]);
+    return roles.filter((role) => role.enabled).map((role) => ({ label: role.system ? tr(role.name) : role.name, value: role.code }));
+  }, [roles, language]);
   const directoryReady = !rolesLoading && !shopsLoading && !rolesError && !shopsError && roleOptions.length > 0;
 
   const runMutation = async (
@@ -372,7 +378,7 @@ export default function TenantMembersPage() {
     { title: tr('状态'), dataIndex: 'status', width: 100, render: (value: string) => <StatusTag status={value} text={tr(({ active: tr('正常'), disabled: tr('禁用'), removed: tr('已移除'), invited: tr('待接受') } as Record<string,string>)[value] || value)} /> },
     { title: tr('店铺权限'), key: 'stores', ellipsis: true, render: (_value, row) => row.role === 'admin' ? tr('全部店铺') : row.storePermissions?.map((item) => shops.find((shop) => shop.id === item.storeId)?.shopName || item.storeId).join('、') || tr('未分配') },
     { title: tr('操作'), key: 'actions', width: 250, render: (_value, row) => <Space wrap size={4}><Button type="link" size="small" icon={<EditOutlined />} disabled={!canManage || !directoryReady || submitting || row.status === 'removed'} onClick={() => openMember(row)}>{tr("编辑")}</Button>{row.status === 'active' ? <Button type="link" size="small" danger disabled={!canManage || submitting || row.userId === user?.id} onClick={() => confirmMemberStatus(row, 'disabled')}>{tr("禁用")}</Button> : null}{row.status !== 'removed' ? <Button type="link" size="small" danger disabled={!canManage || submitting || row.userId === user?.id} onClick={() => confirmMemberStatus(row, 'removed')}>{tr("移除")}</Button> : null}</Space> },
-  ], [canManage, directoryReady, roles, shops, submitting, user?.id]);
+  ], [canManage, directoryReady, roles, shops, submitting, user?.id, language]);
 
   const invitationColumns = useMemo<TableColumnsType<TenantInvitation>>(() => [
     { title: tr('受邀邮箱'), dataIndex: 'email', width: 260, ellipsis: true },
@@ -381,7 +387,7 @@ export default function TenantMembersPage() {
     { title: tr('有效期至'), dataIndex: 'expiresAt', width: 180, render: (value: string) => formatDateTime(value) },
     { title: tr('创建时间'), dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
     { title: tr('操作'), key: 'actions', width: 110, render: (_value, row) => row.status === 'pending' ? <Button type="link" danger size="small" icon={<DeleteOutlined />} disabled={!canManage || submitting} onClick={() => cancelInvitation(row)}>{tr("取消邀请")}</Button> : null },
-  ], [canManage, directoryReady, roles, submitting]);
+  ], [canManage, directoryReady, roles, submitting, language]);
 
   if (!canManage) {
     return (

@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import type { ReactNode } from 'react';
 import { Result } from 'antd';
 import { usePermission } from '@/hooks/usePermission';
@@ -18,6 +20,7 @@ export default function PermissionGuard({
   fallback,
   showForbiddenPage,
 }: Props) {
+  useLanguage();
   const { can, readonly } = usePermission();
   const perm = requireWrite || require;
   if (!perm) {
@@ -25,13 +28,13 @@ export default function PermissionGuard({
   }
   if (readonly && requireWrite) {
     if (showForbiddenPage) {
-      return <Result status="403" title="只读账号" subTitle="只读账号不可执行写操作" />;
+      return <Result status="403" title={tr("只读账号")} subTitle={tr("只读账号不可执行写操作")} />;
     }
     return <>{fallback ?? null}</>;
   }
   if (!can(perm)) {
     if (showForbiddenPage) {
-      return <Result status="403" title="无权限" subTitle={PERMISSION_DENIED_MESSAGE} />;
+      return <Result status="403" title={tr("无权限")} subTitle={tr(PERMISSION_DENIED_MESSAGE)} />;
     }
     return <>{fallback ?? null}</>;
   }

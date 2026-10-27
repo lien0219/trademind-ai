@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, InputNumber, Select, Space, Tag, Typography, message } from 'antd';
 import { queryShops, type ShopListRow } from '@/services/shops';
@@ -11,6 +12,7 @@ type ShopOverride = { shopId: string; warningStock: number; origin: 'enterprise'
 const settingUrl = (shopId: string) => `/api/v1/tenant/shops/${encodeURIComponent(shopId)}/settings/inventory`;
 
 export default function ShopInventoryOverride() {
+  useLanguage();
   const { user } = usePermission();
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [selected, setSelected] = useState('');

@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import {
   CloudDownloadOutlined,
@@ -315,6 +316,7 @@ function BrowserProfileSummary({
 }
 
 export default function CollectHubPage() {
+  useLanguage();
   const { user, can } = usePermission();
   const mayManagePlatform = mayReadGlobalSettings(user);
   const canCollect = can(PERMISSIONS.PRODUCT_WRITE);

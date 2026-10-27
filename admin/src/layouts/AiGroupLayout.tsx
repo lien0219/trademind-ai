@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { Outlet, history, useLocation } from '@umijs/max';
 import { Result } from 'antd';
 import { useLayoutEffect } from 'react';
@@ -7,6 +9,7 @@ import { canAccessPath } from '@/utils/menuAccess';
 import { PERMISSION_DENIED_MESSAGE } from '@/utils/permission';
 
 export default function AiGroupLayout() {
+  useLanguage();
   const { pathname } = useLocation();
   const { initialState } = useInitialStateModel();
   const user = initialState?.currentUser;
@@ -17,7 +20,7 @@ export default function AiGroupLayout() {
     if (isParent && destination) history.replace(destination);
   }, [isParent, destination]);
   if ((isParent && !destination) || (!isParent && !allowed(pathname))) {
-    return <TmPageContainer title="AI"><Result status="403" title="无权限" subTitle={PERMISSION_DENIED_MESSAGE} /></TmPageContainer>;
+    return <TmPageContainer title="AI"><Result status="403" title={tr("无权限")} subTitle={tr(PERMISSION_DENIED_MESSAGE)} /></TmPageContainer>;
   }
   return <Outlet />;
 }

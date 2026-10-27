@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { CheckCircleOutlined, LoginOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Result, Space, message } from 'antd';
 import { history } from '@umijs/max';
@@ -17,6 +18,7 @@ function invitationTokenFromLocation() {
 }
 
 export default function AcceptInvitationPage() {
+  useLanguage();
   const [form] = Form.useForm<{ token?: string }>();
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);

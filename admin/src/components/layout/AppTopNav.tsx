@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import type { CSSProperties } from "react";
 import {
   ApartmentOutlined,
@@ -28,7 +29,7 @@ import {
 } from "@/utils/tenantContext";
 import ThemeToggleButton from "./ThemeToggleButton";
 import { languageNames, supportedLanguages, type AppLanguage } from "@/i18n/dictionaries";
-import { readLanguage, setLanguage, tr } from "@/i18n";
+import { setLanguage, tr, trFormat } from "@/i18n";
 import { getJSON, putJSON } from "@/services/request";
 import { visibleWorkspaceOptions, workspaceDisplayName, workspaceLandingPath } from "@/utils/tenantWorkspace";
 import "./AppTopNav.less";
@@ -41,7 +42,7 @@ const avatarStyle: CSSProperties = {
 };
 
 export function resolveUserLabels(user?: API.CurrentUser) {
-  const displayName = user?.displayName?.trim() || "管理员";
+  const displayName = user?.displayName?.trim() || tr("管理员");
   const email = user?.email?.trim() || "";
   const username = user?.username?.trim() || "";
   const loginId = email || username;
@@ -71,7 +72,8 @@ const WORKSPACE_ROLE_LABELS: Record<string, string> = {
 };
 
 function workspaceRoleLabel(role: string): string {
-  return WORKSPACE_ROLE_LABELS[role.toLowerCase()] || role;
+  const label = WORKSPACE_ROLE_LABELS[role.toLowerCase()];
+  return label ? tr(label) : role;
 }
 
 type AppTopNavProps = {
@@ -81,6 +83,7 @@ type AppTopNavProps = {
 };
 
 function TenantSwitcher({ user }: { user: API.CurrentUser }) {
+  useLanguage();
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [tenants, setTenants] = useState<AuthTenant[]>([]);
@@ -118,7 +121,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
   );
   const current = availableWorkspaces.find((tenant) => tenant.id === currentTenantId);
   const currentLabel = current ? workspaceDisplayName(current) :
-    (user.tenantId === 0 ? "系统控制台" : (user.tenantName?.trim() || (user.isRoot === true ? "Root 工作台" : "当前企业")));
+    (user.tenantId === 0 ? tr("系统控制台") : (user.tenantName?.trim() || (user.isRoot === true ? tr("Root 工作台") : tr("当前企业"))));
   const businessTenants = availableWorkspaces.filter((tenant) => tenant.id > 0);
   const isSystemWorkspace = user.tenantId === 0;
 
@@ -129,7 +132,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
       await switchTenantAndReload(tenant.id, switchAuthTenant, workspaceLandingPath(sourceTenantId, tenant.id));
     } catch (error) {
       setSwitchingTenantId(null);
-      message.error((error as Error)?.message || "租户切换失败，请重试");
+      message.error((error as Error)?.message || tr("租户切换失败，请重试"));
     }
   };
 
@@ -140,13 +143,13 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
           <ApartmentOutlined />
         </span>
         <span className="tm-tenant-switcher__header-copy">
-          <strong>切换工作空间</strong>
-          <span>选择要进入的组织</span>
+          <strong>{tr("切换工作空间")}</strong>
+          <span>{tr("选择要进入的组织")}</span>
         </span>
         <button
           type="button"
           className="tm-tenant-switcher__close"
-          aria-label="关闭工作空间菜单"
+          aria-label={tr("关闭工作空间菜单")}
           onClick={() => setOpen(false)}
         >
           <CloseOutlined aria-hidden="true" />
@@ -154,9 +157,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
       </div>
       <div className="tm-tenant-switcher__body">
         {isSystemWorkspace && user.isRoot !== true ? (
-          <div className="tm-tenant-switcher__hint">
-            平台管理和企业业务权限相互独立，仅能进入已授权的企业。
-          </div>
+          <div className="tm-tenant-switcher__hint">{tr("平台管理和企业业务权限相互独立，仅能进入已授权的企业。")}</div>
         ) : null}
         <Input
           className="tm-tenant-switcher__search"
@@ -164,21 +165,21 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
           allowClear
           prefix={<SearchOutlined aria-hidden="true" />}
           value={keyword}
-          placeholder="搜索组织名称或标识"
-          aria-label="搜索企业"
+          placeholder={tr("搜索组织名称或标识")}
+          aria-label={tr("搜索企业")}
           onChange={(event) => setKeyword(event.target.value)}
         />
         <div className="tm-tenant-switcher__list-heading">
-          <span>可访问的工作空间</span>
-          {!loading && !loadError ? <span>{availableWorkspaces.length} 个</span> : null}
+          <span>{tr("可访问的工作空间")}</span>
+          {!loading && !loadError ? <span>{trFormat('{count} 个', { count: availableWorkspaces.length })}</span> : null}
         </div>
-        <div className="tm-tenant-switcher__list" role="listbox" aria-label="可访问企业">
+        <div className="tm-tenant-switcher__list" role="listbox" aria-label={tr("可访问企业")}>
           {loading ? (
-            <div className="tm-tenant-switcher__state"><Spin size="small" /> 正在加载工作空间…</div>
+            <div className="tm-tenant-switcher__state"><Spin size="small" />{tr("正在加载工作空间…")}</div>
           ) : loadError ? (
             <div className="tm-tenant-switcher__state">
-              <span>工作空间加载失败</span>
-              <Button type="link" size="small" onClick={() => void loadTenants()}>重新加载</Button>
+              <span>{tr("工作空间加载失败")}</span>
+              <Button type="link" size="small" onClick={() => void loadTenants()}>{tr("重新加载")}</Button>
             </div>
           ) : visibleTenants.length ? (
             visibleTenants.map((tenant) => {
@@ -204,13 +205,12 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
                     <span title={tenant.code}>{tenant.code} · {workspaceRoleLabel(tenant.role)}</span>
                   </span>
                   {switchingTenantId === tenant.id ? (
-                    <LoadingOutlined spin aria-label="切换中" className="tm-tenant-switcher__item-action" />
+                    <LoadingOutlined spin aria-label={tr("切换中")} className="tm-tenant-switcher__item-action" />
                   ) : selected ? (
-                    <span className="tm-tenant-switcher__current" aria-label="当前工作空间">
-                      <CheckOutlined aria-hidden="true" /> 当前
-                    </span>
+                    <span className="tm-tenant-switcher__current" aria-label={tr("当前工作空间")}>
+                      <CheckOutlined aria-hidden="true" />{tr("当前")}</span>
                   ) : unavailable ? (
-                    <span className="tm-tenant-switcher__unavailable">不可用</span>
+                    <span className="tm-tenant-switcher__unavailable">{tr("不可用")}</span>
                   ) : (
                     <RightOutlined className="tm-tenant-switcher__item-action" aria-hidden="true" />
                   )}
@@ -221,27 +221,23 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
             <div className="tm-tenant-switcher__empty">
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={needle ? "没有匹配的工作空间" : "暂无可访问工作空间"}
+                description={needle ? tr("没有匹配的工作空间") : tr("暂无可访问工作空间")}
               />
             </div>
           )}
         </div>
         {!loading && !loadError && isSystemWorkspace && businessTenants.length === 0 ? (
-          <div className="tm-tenant-switcher__hint">
-            尚未加入企业，企业管理员可以邀请你加入。
-            {user.platformOperator === true ? (
-              <Button size="small" type="link" onClick={() => { setOpen(false); history.push("/platform/tenants"); }}>
-                前往租户管理
-              </Button>
+          <div className="tm-tenant-switcher__hint">{tr("尚未加入企业，企业管理员可以邀请你加入。")}{user.platformOperator === true ? (
+              <Button size="small" type="link" onClick={() => { setOpen(false); history.push("/platform/tenants"); }}>{tr("前往租户管理")}</Button>
             ) : null}
           </div>
         ) : null}
       </div>
       <div className="tm-tenant-switcher__footer" role="status" aria-live="polite">
         {switchingTenantId !== null ? (
-          <><LoadingOutlined spin aria-hidden="true" /> 正在切换，工作台即将刷新…</>
+          <><LoadingOutlined spin aria-hidden="true" />{tr("正在切换，工作台即将刷新…")}</>
         ) : (
-          <>切换后将显示所选组织的业务数据</>
+          <>{tr("切换后将显示所选组织的业务数据")}</>
         )}
       </div>
     </div>
@@ -264,7 +260,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
       <button
         type="button"
         className={`tm-app-top-nav__tenant${open ? " is-open" : ""}`}
-        aria-label={`${isSystemWorkspace || user.isRoot === true ? "当前工作空间" : "当前企业"} ${currentLabel}`}
+        aria-label={`${isSystemWorkspace || user.isRoot === true ? tr("当前工作空间") : tr("当前企业")} ${currentLabel}`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -272,7 +268,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
           <ApartmentOutlined />
         </span>
         <span className="tm-app-top-nav__tenant-copy">
-          <span className="tm-app-top-nav__tenant-eyebrow">工作空间</span>
+          <span className="tm-app-top-nav__tenant-eyebrow">{tr("工作空间")}</span>
           <span className="tm-app-top-nav__tenant-name" title={currentLabel}>{currentLabel}</span>
         </span>
         <DownOutlined className="tm-app-top-nav__tenant-chevron" aria-hidden="true" />
@@ -282,6 +278,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
 }
 
 function TenantSwitchOverlay() {
+  useLanguage();
   const [visible, setVisible] = useState(isTenantSwitching());
   useEffect(() => {
     const unsubscribe = subscribeTenantSwitch(setVisible);
@@ -294,7 +291,7 @@ function TenantSwitchOverlay() {
   return visible ? (
     <div className="tm-tenant-switch-overlay" role="status" aria-live="polite">
       <Spin size="small" />
-      <span>正在切换企业，正在刷新工作区</span>
+      <span>{tr("正在切换企业，正在刷新工作区")}</span>
     </div>
   ) : null;
 }
@@ -305,7 +302,7 @@ export default function AppTopNav({
   showThemeToggle = true,
 }: AppTopNavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [language, setSelectedLanguage] = useState<AppLanguage>(readLanguage);
+  const language = useLanguage();
   const languagePending = useRef(false);
   const [changingLanguage, setChangingLanguage] = useState(false);
   const changeLanguage = async (next: AppLanguage) => {
@@ -328,7 +325,6 @@ export default function AppTopNav({
       }
     }
     if (isTenantContextCurrent(context)) {
-      setSelectedLanguage(next);
       setLanguage(next);
     }
     languagePending.current = false;
@@ -336,11 +332,11 @@ export default function AppTopNav({
   };
 
   if (!user) {
-    return <nav className="tm-app-top-nav" aria-label="内容导航栏" />;
+    return <nav className="tm-app-top-nav" aria-label={tr("内容导航栏")} />;
   }
 
   const { primary, secondary, initial } = resolveUserLabels(user);
-  const account = secondary || user.username || "管理员";
+  const account = secondary || user.username || tr("管理员");
   const canManageUsers = canAccessPath(
     "/settings/users",
     user.role,
@@ -356,7 +352,7 @@ export default function AppTopNav({
   };
 
   return (
-    <nav className="tm-app-top-nav" aria-label="内容导航栏">
+    <nav className="tm-app-top-nav" aria-label={tr("内容导航栏")}>
       <TenantSwitchOverlay />
       <TenantSwitcher user={user} />
       <Select
@@ -401,7 +397,7 @@ export default function AppTopNav({
                   {
                     key: "platform-tenants",
                     icon: <ApartmentOutlined aria-hidden="true" />,
-                    label: "平台租户管理",
+                    label: tr("平台租户管理"),
                     onClick: () => closeAndNavigate("/platform/tenants"),
                   },
                 ]
@@ -444,9 +440,7 @@ export default function AppTopNav({
                   <span className="tm-app-account-dropdown__title">
                     {tr("退出登录")}
                   </span>
-                  <span className="tm-app-account-dropdown__description">
-                    返回登录页面
-                  </span>
+                  <span className="tm-app-account-dropdown__description">{tr("返回登录页面")}</span>
                 </span>
               ),
               onClick: () => {
@@ -491,7 +485,7 @@ export default function AppTopNav({
         <button
           type="button"
           className="tm-app-top-nav__user"
-          aria-label={`当前用户 ${primary}`}
+          aria-label={trFormat('当前用户 {name}', { name: primary })}
           aria-haspopup="menu"
           aria-expanded={isMenuOpen}
         >

@@ -47,6 +47,13 @@ export function subscribeLanguage(onChange:(next:AppLanguage)=>void):()=>void {
 export function tr(source:string,language:AppLanguage=readLanguage()):string {
   return translateMessage(language,source);
 }
+
+/** Substitute values once, as plain text. Values never become translation keys. */
+export function trFormat(source: string, values: Record<string, string | number>, language: AppLanguage = readLanguage()): string {
+  return tr(source, language).replace(/\{(\w+)\}/g, (placeholder, key: string) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : placeholder,
+  );
+}
 export const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'] as const;
 export type DateFormat = typeof DATE_FORMATS[number];
 const REGIONAL_STORAGE_KEY = 'trademind_admin_regional';

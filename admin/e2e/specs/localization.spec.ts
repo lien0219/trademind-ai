@@ -4,12 +4,13 @@ import { e2eUser } from '../mocks/auth';
 import { supportedLanguages, translateMessage, type AppLanguage } from '../../src/i18n/dictionaries';
 import { expectNoRootOverflow } from '../utils/assertions';
 import type { Page } from '@playwright/test';
+import { e2eTenant, mockTenantReads } from '../mocks/tenants';
 
 type Preferences = { language: AppLanguage; theme: string; dateFormat: string };
 
-async function mockLocalizedWorkspace(page: Page, language: AppLanguage) {
+async function mockLocalizedWorkspace(page: Page, language: AppLanguage, platformOperator = false) {
   const state = { values: { language, theme: 'light', dateFormat: 'DD/MM/YYYY' } as Preferences, version: 1, inherited: false };
-  await page.route('**/api/v1/auth/profile', route => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, tenantName: 'E2E organization' }) }));
+  await page.route('**/api/v1/auth/profile', route => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, tenantName: 'E2E organization', platformOperator }) }));
   await page.route('**/api/v1/tenant/preferences', route => {
     if (route.request().method() !== 'GET') return route.fallback();
     return route.fulfill({ json: ok(state) });
@@ -19,6 +20,31 @@ async function mockLocalizedWorkspace(page: Page, language: AppLanguage) {
     return route.fulfill({ json: ok({ module: 'general', version: 2, inherited: false, values: { language: 'zh-CN', timezone: 'Asia/Tokyo', currency: 'JPY' } }) });
   });
   return state;
+}
+
+for (const language of supportedLanguages) {
+  for (const viewport of [
+    { width: 1440, height: 900 }, { width: 1280, height: 800 },
+    { width: 1024, height: 768 }, { width: 768, height: 900 }, { width: 375, height: 812 },
+  ]) {
+    test(`@smoke platform organizations preserve business data in ${language} at ${viewport.width}`, async ({ admin, page }) => {
+      await mockTenantReads(page, { platformOperator: true });
+      await mockLocalizedWorkspace(page, language, true);
+      // A business name equal to a dictionary key must still remain untouched.
+      await page.route('**/api/v1/platform/tenants/101', route => route.fulfill({ json: ok({ tenant: { ...e2eTenant, name: '设置', description: '订单' }, memberCount: 1, shopCount: 1 }) }));
+      await page.setViewportSize(viewport);
+      await admin.goto('/platform/tenants');
+      await expect(page.getByRole('button', { name: translateMessage(language, '创建企业'), exact: true })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: translateMessage(language, '企业名称'), exact: true })).toBeVisible();
+      await expectNoRootOverflow(page);
+      await admin.goto('/platform/tenants/101');
+      await expect(page.locator('.tm-page-container').getByText('设置', { exact: true })).toBeVisible();
+      await expect(page.locator('.tm-section-card').getByText('订单', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: translateMessage(language, '编辑企业'), exact: true })).toBeVisible();
+      await expectNoRootOverflow(page);
+      await admin.writeGuard.expectNoUnexpectedWrites();
+    });
+  }
 }
 
 for (const language of supportedLanguages) {
@@ -50,10 +76,14 @@ test('@smoke switching language persists once and updates the view without reloa
   });
   await admin.goto('/tenant/business-settings');
   await expect(page.getByRole('button', { name: '保存企业配置', exact: true })).toBeVisible();
+  const currencySelect = page.getByLabel('报表显示货币', { exact: true });
+  await currencySelect.click();
+  await page.getByRole('option', { name: '美元 USD', exact: true }).click();
   await page.evaluate(() => { document.documentElement.dataset.e2eLocaleMarker = 'preserved'; });
   await page.getByRole('combobox', { name: '语言', exact: true }).click();
   await page.getByRole('option', { name: 'English', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save organization settings', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Preferred report currency', { exact: true }).locator('..')).toContainText('USD');
   await expect(page.locator('html')).toHaveAttribute('data-e2e-locale-marker', 'preserved');
   await admin.writeGuard.expectRequestCount('save-language', 1);
   await page.reload();

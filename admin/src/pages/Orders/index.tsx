@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import {
   ModalForm,
@@ -148,6 +149,7 @@ function statusTag(raw: string, map: StatusTagMap) {
 }
 
 export default function OrdersPage() {
+  const language = useLanguage();
   const { user, canWriteOrders } = usePermission();
   const mayReadSettings = mayReadGlobalSettings(user);
   const emptyLocale = useListEmptyLocale("orderList", {
@@ -602,7 +604,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [shopOptions, keywordFieldProps],
+    [shopOptions, keywordFieldProps, language],
   );
 
   const openItemModal = (row?: OrderItemRow) => {

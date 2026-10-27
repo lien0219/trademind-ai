@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
@@ -62,6 +63,7 @@ function statusTag(status: string) {
 }
 
 export default function AiTasksPage() {
+  useLanguage();
   const location = useLocation();
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();

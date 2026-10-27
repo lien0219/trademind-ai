@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import { CodeOutlined, ReloadOutlined, SaveOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { Link } from '@umijs/max';
@@ -38,6 +39,7 @@ const TENANT_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function TenantSettingsPage() {
+  useLanguage();
   const { can } = usePermission();
   const canEdit = can(PERMISSIONS.SETTINGS_MANAGE);
   const [detail, setDetail] = useState<TenantDetail | null>(null);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { supportedLanguages } from '../dictionaries';
-import { applyLanguage, formatLocalizedCurrency, formatLocalizedDate, formatLocalizedNumber, LOCALE_STORAGE_KEY, readLanguage, setLanguage, setRegionalPreferences, subscribeLanguage } from '..';
+import { applyLanguage, formatLocalizedCurrency, formatLocalizedDate, formatLocalizedNumber, LOCALE_STORAGE_KEY, readLanguage, setLanguage, setRegionalPreferences, subscribeLanguage, trFormat } from '..';
 import { localizeApiError } from '../apiErrors';
 
 beforeEach(() => {
@@ -74,6 +74,21 @@ describe('regional display', () => {
     expect(formatLocalizedNumber(1234.5, undefined, 'en-US')).toBe('1,234.5');
     expect(formatLocalizedCurrency(1234.5, 'USD', 'en-US')).toBe('$1,234.50');
     expect(formatLocalizedCurrency(1234, 'JPY', 'ja-JP')).toContain('1,234');
+  });
+});
+
+describe('plain-text message interpolation', () => {
+  it.each(supportedLanguages)('preserves business values exactly in %s', language => {
+    const name = '<script>{action}</script> 设置 $&';
+    const result = trFormat('删除企业：{name}', { name }, language);
+    expect(result).toContain(name);
+    expect(result).not.toContain('undefined');
+  });
+
+  it('does not read inherited replacements or recursively substitute values', () => {
+    expect(trFormat('{constructor} {value} {missing}', { value: '{missing}' }, 'en-US'))
+      .toBe('{constructor} {missing} {missing}');
+    expect(trFormat('共 {count} 家企业', { count: 0 }, 'en-US')).toBe('Organizations: 0');
   });
 });
 

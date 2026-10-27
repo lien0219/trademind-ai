@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   ArrowRightOutlined,
   CheckCircleOutlined,
@@ -17,7 +18,7 @@ import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import { message } from 'antd';
 import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
-import { readLanguage, setLanguage, tr } from '@/i18n';
+import { setLanguage, tr } from '@/i18n';
 import { languageNames, supportedLanguages, type AppLanguage } from '@/i18n/dictionaries';
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
@@ -54,8 +55,8 @@ function getAuthErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function LoginPage() {
+  const language = useLanguage();
   const { setInitialState, initialState } = useInitialStateModel();
-  const [language, setSelectedLanguage] = useState<AppLanguage>(readLanguage);
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [passwordChangeAccount, setPasswordChangeAccount] = useState<{ account: string; currentPassword: string } | null>(null);
@@ -187,7 +188,6 @@ export default function LoginPage() {
       <div style={{position:'absolute',top:16,right:24,zIndex:20}}>
         <select aria-label={tr('语言')} value={language} onChange={e=>{
           const next=e.target.value as AppLanguage;
-          setSelectedLanguage(next);
           setLanguage(next);
         }} style={{padding:'7px 10px',borderRadius:8,border:'1px solid #b0b0b0',background:'var(--ant-color-bg-container, #fff)',color:'var(--ant-color-text, #222)'}}>
           {supportedLanguages.map(locale=><option value={locale} key={locale}>{languageNames[locale]}</option>)}

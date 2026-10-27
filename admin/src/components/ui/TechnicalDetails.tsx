@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { Collapse, Typography } from 'antd';
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 
 const { Text } = Typography;
 
@@ -14,11 +16,12 @@ export type TechnicalDetailsProps = {
 /** 技术详情折叠区（默认收起） */
 export default function TechnicalDetails({
   children,
-  label = '技术详情',
+  label,
   defaultOpen = false,
   className,
   style,
 }: TechnicalDetailsProps) {
+  useLanguage();
   return (
     <Collapse
       className={['tm-technical-details', className].filter(Boolean).join(' ')}
@@ -26,7 +29,7 @@ export default function TechnicalDetails({
       items={[
         {
           key: 'technical',
-          label: <Text type="secondary">{label}</Text>,
+          label: <Text type="secondary">{label ?? tr('技术详情')}</Text>,
           children: <div className="tm-technical-details__body">{children}</div>,
         },
       ]}

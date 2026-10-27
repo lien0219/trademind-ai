@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
@@ -49,6 +50,7 @@ function tagFrom(raw: string, map: Record<string, { text: string; color: string 
 }
 
 export default function InventoryCenterPage() {
+  const language = useLanguage();
   const emptyLocale = useListEmptyLocale('inventoryCenter', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -297,7 +299,7 @@ export default function InventoryCenterPage() {
         ),
       },
     ],
-    [keywordFieldProps, warehouseOptions],
+    [keywordFieldProps, warehouseOptions, language],
   );
 
   return (

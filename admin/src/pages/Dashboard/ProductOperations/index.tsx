@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import {
   ArrowRightOutlined,
@@ -743,6 +744,7 @@ function DashboardSkeleton() {
 }
 
 export default function ProductOperationsDashboardPage() {
+  useLanguage();
   const dashboardEmptyLocale = useListEmptyLocale('dashboard');
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(

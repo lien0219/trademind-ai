@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Form, Modal, Select, Space, Spin, message } from 'antd';
 import { TmPageContainer } from '@/components/ui';
@@ -14,6 +15,7 @@ type PreferenceState={values:Preferences;version:number;inherited:boolean};
 const url='/api/v1/tenant/preferences';
 
 export default function PersonalPreferencesPage(){
+  useLanguage();
   const setAntdConfig=useAntdConfigSetter();
   const [form]=Form.useForm<Preferences>();
   const [snapshot,setSnapshot]=useState<PreferenceState>();

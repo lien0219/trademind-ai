@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import { Result, Tabs } from 'antd';
 import { useEffect, type ReactNode } from 'react';
@@ -12,6 +13,7 @@ import SystemAlertsPanel from './SystemAlertsPanel';
 const ALERT_SOURCE_QUERY_KEYS = ['source'] as const;
 
 export default function AlertCenterPage() {
+  useLanguage();
   const { can } = usePermission();
   const { state, setState } = useUrlQueryState<{ source?: string }>(ALERT_SOURCE_QUERY_KEYS);
   const access = {

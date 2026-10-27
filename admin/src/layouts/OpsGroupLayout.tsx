@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { history, Outlet, useLocation } from '@umijs/max';
 import { Result } from 'antd';
 import { useLayoutEffect } from 'react';
@@ -19,6 +21,7 @@ const ENTRY_PATHS = [
 const INTERNAL_ENTRY_PATHS = isProductionBuild ? [] : ['/ops/inventory-sync'];
 
 export default function OpsGroupLayout() {
+  useLanguage();
   const { pathname } = useLocation();
   const { initialState } = useInitialStateModel();
   const user = initialState?.currentUser;
@@ -34,8 +37,8 @@ export default function OpsGroupLayout() {
 
   if ((isParent && !destination) || (!isParent && !allowed(pathname))) {
     return (
-      <TmPageContainer title="运维">
-        <Result status="403" title="无权限" subTitle={PERMISSION_DENIED_MESSAGE} />
+      <TmPageContainer title={tr("运维")}>
+        <Result status="403" title={tr("无权限")} subTitle={tr(PERMISSION_DENIED_MESSAGE)} />
       </TmPageContainer>
     );
   }

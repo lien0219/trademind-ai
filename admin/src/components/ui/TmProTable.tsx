@@ -4,6 +4,8 @@ import type { ActionType, ProTableProps } from '@ant-design/pro-components';
 import { Button, Tooltip } from 'antd';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 
 export type TmProTableProps<
   T extends Record<string, unknown>,
@@ -34,6 +36,7 @@ export default function TmProTable<
   className,
   ...rest
 }: TmProTableProps<T, U>) {
+  const language = useLanguage();
   const innerRef = useRef<ActionType>();
   const actionRef = userActionRef ?? innerRef;
   const [loading, setLoading] = useState(false);
@@ -49,20 +52,20 @@ export default function TmProTable<
           ...(typeof base.setting === 'object' ? base.setting : {}),
           settingIcon:
             (typeof base.setting === 'object' ? base.setting.settingIcon : undefined) ?? (
-              <Button type="text" aria-label="列设置" icon={<SettingOutlined />} />
+              <Button type="text" aria-label={tr('列设置')} icon={<SettingOutlined />} />
             ),
         };
     return {
       density: true,
       ...base,
       densityIcon: base.densityIcon ?? (
-        <Button type="text" aria-label="表格密度" icon={<ColumnHeightOutlined />} />
+        <Button type="text" aria-label={tr('表格密度')} icon={<ColumnHeightOutlined />} />
       ),
       setting,
       // 内置 reload 为 span+图标，点击区域易失效；改由 toolBarRender 中的 Button 触发。
       reload: false,
     };
-  }, [options]);
+  }, [options, language]);
 
   const mergedToolBarRender = useCallback(
     (action: ActionType | undefined, config: Parameters<TmToolBarRender<T, U>>[1]) => {
@@ -72,10 +75,10 @@ export default function TmProTable<
       }
       return [
         ...userNodes,
-        <Tooltip key="tm-reload" title="刷新">
+        <Tooltip key="tm-reload" title={tr('刷新')}>
           <Button
             type="text"
-            aria-label="刷新"
+            aria-label={tr('刷新')}
             icon={<ReloadOutlined spin={loading} />}
             onClick={() => {
               void action?.reload?.();
@@ -84,7 +87,7 @@ export default function TmProTable<
         </Tooltip>,
       ];
     },
-    [toolBarRender, loading, mergedOptions],
+    [toolBarRender, loading, mergedOptions, language],
   );
 
   return (

@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useState, useRef } from 'react';
 import { Alert, Button, Card, Form, Grid, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
@@ -43,6 +44,7 @@ const sourceOptions = [
 ];
 
 export default function TenantBusinessSettingsPage() {
+  useLanguage();
   const { can } = usePermission();
   const screens = Grid.useBreakpoint();
   const writable = can(PERMISSIONS.SETTINGS_MANAGE);

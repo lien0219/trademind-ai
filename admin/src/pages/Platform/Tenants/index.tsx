@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   EditOutlined,
   EyeOutlined,
@@ -98,6 +100,7 @@ function tenantMetadata(values: TenantFormValues, version: number): TenantMetada
 }
 
 export default function PlatformTenantsPage() {
+  const language = useLanguage();
   const { initialState } = useInitialStateModel();
   const isPlatformOperator = initialState?.currentUser?.platformOperator === true;
   const [rows, setRows] = useState<Tenant[]>([]);
@@ -133,7 +136,7 @@ export default function PlatformTenantsPage() {
     } catch (requestError) {
       setRows([]);
       setTotal(0);
-      setError((requestError as Error)?.message || '租户列表加载失败，请重试');
+      setError((requestError as Error)?.message || tr('租户列表加载失败，请重试'));
     } finally {
       setLoading(false);
     }
@@ -173,7 +176,7 @@ export default function PlatformTenantsPage() {
       await switchTenantAndReload(tenant.id, switchAuthTenant, '/dashboard/product-operations');
     } catch (error) {
       setSwitchingTenantId(null);
-      message.error((error as Error)?.message || '进入企业失败，请重试');
+      message.error((error as Error)?.message || tr('进入企业失败，请重试'));
       // A suspended membership may have changed since the authorization list
       // was fetched. Re-check server-authoritative membership data.
       void loadAuthorized();
@@ -199,7 +202,7 @@ export default function PlatformTenantsPage() {
     try {
       if (editing) {
         await updatePlatformTenant(editing.id, tenantMetadata(values, editing.version));
-        message.success('企业信息已保存');
+        message.success(tr('企业信息已保存'));
       } else {
         const createFields = {
           name: values.name.trim(),
@@ -223,12 +226,12 @@ export default function PlatformTenantsPage() {
         const body: TenantCreateBody = { ...createFields, idempotencyKey };
         await createPlatformTenant(body);
         createRequestRef.current = null;
-        message.success('企业已创建');
+        message.success(tr('企业已创建'));
       }
       setModalOpen(false);
       await Promise.all([load(), loadAuthorized()]);
     } catch (requestError) {
-      message.error((requestError as Error)?.message || '保存失败，请检查后重试');
+      message.error((requestError as Error)?.message || tr('保存失败，请检查后重试'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -237,11 +240,11 @@ export default function PlatformTenantsPage() {
 
   const mutateStatus = (tenant: Tenant, nextStatus: TenantStatus, label: string) => {
     confirmSensitiveAction({
-      title: `${label}「${tenant.name}」？`,
-      content: nextStatus === 'suspended'
-        ? '暂停后该企业不能继续执行正常业务请求，已创建任务的处理由服务端状态规则决定。'
-        : '启用后该企业可恢复正常业务访问。',
-      impacts: [`企业：${tenant.name}`, `状态：${statusText[tenant.status]} → ${statusText[nextStatus]}`],
+      title: () => trFormat('{action}「{name}」？', { action: tr(label), name: tenant.name }),
+      content: () => nextStatus === 'suspended'
+        ? tr('暂停后该企业不能继续执行正常业务请求，已创建任务的处理由服务端状态规则决定。')
+        : tr('启用后该企业可恢复正常业务访问。'),
+      impacts: () => [trFormat('企业：{name}', { name: tenant.name }), trFormat('状态：{from} → {to}', { from: tr(statusText[tenant.status]), to: tr(statusText[nextStatus]) })],
       reversible: true,
       onOk: async () => {
         if (submittingRef.current) return;
@@ -249,10 +252,10 @@ export default function PlatformTenantsPage() {
         setSubmitting(true);
         try {
           await updatePlatformTenantStatus(tenant.id, { status: nextStatus, version: tenant.version });
-          message.success(`${label}成功`);
+          message.success(trFormat('{action}成功', { action: tr(label) }));
           await load();
         } catch (requestError) {
-          message.error((requestError as Error)?.message || `${label}失败，请重试`);
+          message.error((requestError as Error)?.message || trFormat('{action}失败，请重试', { action: tr(label) }));
         } finally {
           submittingRef.current = false;
           setSubmitting(false);
@@ -269,13 +272,13 @@ export default function PlatformTenantsPage() {
     setDeleting(true);
     try {
       await deletePlatformTenant(target.id, { code: target.code, version: target.version });
-      message.success('企业已删除，历史数据及审计记录已保留');
+      message.success(tr('企业已删除，历史数据及审计记录已保留'));
       setDeleteTarget(null);
       setDeleteCode('');
       if (status !== 'deleted' && page > 1 && rows.length === 1) setPage(page - 1);
       else await Promise.all([load(), loadAuthorized()]);
     } catch (error) {
-      message.error((error as Error)?.message || '删除失败，请刷新列表后重试');
+      message.error((error as Error)?.message || tr('删除失败，请刷新列表后重试'));
       await load();
     } finally {
       submittingRef.current = false;
@@ -285,23 +288,23 @@ export default function PlatformTenantsPage() {
 
   const columns = useMemo<TableColumnsType<Tenant>>(() => [
     {
-      title: '企业标识',
+      title: tr('企业标识'),
       dataIndex: 'code',
       width: 160,
       render: (value: string, row) => <Link to={`/platform/tenants/${row.id}`}>{value}</Link>,
     },
-    { title: '企业名称', dataIndex: 'name', ellipsis: true, width: 220 },
+    { title: tr('企业名称'), dataIndex: 'name', ellipsis: true, width: 220 },
     {
-      title: '状态',
+      title: tr('状态'),
       dataIndex: 'status',
       width: 110,
-      render: (value: TenantStatus) => <StatusTag status={value} text={statusText[value] || value} />,
+      render: (value: TenantStatus) => <StatusTag status={value} text={statusText[value] ? tr(statusText[value]) : value} />,
     },
-    { title: '联系人', dataIndex: 'contactEmail', width: 220, ellipsis: true, render: (value?: string) => value || '—' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 180, render: (value: string) => formatDateTime(value) },
+    { title: tr('联系人'), dataIndex: 'contactEmail', width: 220, ellipsis: true, render: (value?: string) => value || '—' },
+    { title: tr('创建时间'), dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
+    { title: tr('更新时间'), dataIndex: 'updatedAt', width: 180, render: (value: string) => formatDateTime(value) },
     {
-      title: '操作',
+      title: tr('操作'),
       key: 'actions',
       fixed: 'right',
       width: 410,
@@ -318,14 +321,14 @@ export default function PlatformTenantsPage() {
                 disabled={submitting || switchingTenantId !== null}
                 loading={switchingTenantId === row.id}
                 onClick={() => void enterTenant(row)}
-              >进入企业工作台</Button>
+              >{tr("进入企业工作台")}</Button>
             ) : (
-              <span title={accessError ? '成员授权暂时无法核验' : '当前账号不是该企业的有效成员，需要获得企业授权'} style={{ color: 'var(--ant-color-text-tertiary)' }}>
-                {accessLoading ? '检查企业授权…' : (accessError ? '授权校验失败' : '需企业成员授权')}
+              <span title={accessError ? tr('成员授权暂时无法核验') : tr('当前账号不是该企业的有效成员，需要获得企业授权')} style={{ color: 'var(--ant-color-text-tertiary)' }}>
+                {accessLoading ? tr('检查企业授权…') : (accessError ? tr('授权校验失败') : tr('需企业成员授权'))}
               </span>
             )}
-            <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => history.push(`/platform/tenants/${row.id}`)}>详情</Button>
-            <Button type="link" size="small" icon={<EditOutlined />} disabled={submitting} onClick={() => openEdit(row)}>编辑</Button>
+            <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => history.push(`/platform/tenants/${row.id}`)}>{tr("详情")}</Button>
+            <Button type="link" size="small" icon={<EditOutlined />} disabled={submitting} onClick={() => openEdit(row)}>{tr("编辑")}</Button>
             {row.status !== 'deleted' ? (
               <Button
                 type="link"
@@ -333,9 +336,9 @@ export default function PlatformTenantsPage() {
                 size="small"
                 icon={<DeleteOutlined />}
                 disabled={submitting || deleting || !['suspended', 'archived', 'closed'].includes(row.status)}
-                title={['active', 'pending'].includes(row.status) ? '请先暂停或归档企业' : '逻辑删除，保留历史记录'}
+                title={['active', 'pending'].includes(row.status) ? tr('请先暂停或归档企业') : tr('逻辑删除，保留历史记录')}
                 onClick={() => { setDeleteTarget(row); setDeleteCode(''); }}
-              >删除</Button>
+              >{tr("删除")}</Button>
             ) : null}
             {action ? (
               <Button
@@ -346,45 +349,45 @@ export default function PlatformTenantsPage() {
                 disabled={submitting}
                 onClick={() => mutateStatus(row, action.status, action.label)}
               >
-                {action.label}
+                {tr(action.label)}
               </Button>
             ) : null}
           </Space>
         );
       },
     },
-  ], [submitting, deleting, load, authorizedTenants, accessLoading, accessError, switchingTenantId, enterTenant]);
+  ], [submitting, deleting, load, authorizedTenants, accessLoading, accessError, switchingTenantId, enterTenant, language]);
 
   if (!isPlatformOperator) {
-    return <TmPageContainer title="租户管理"><Result status="403" title="无权访问" subTitle="平台租户管理仅对平台运营管理员开放。" /></TmPageContainer>;
+    return <TmPageContainer title={tr("租户管理")}><Result status="403" title={tr("无权访问")} subTitle={tr("平台租户管理仅对平台运营管理员开放。")} /></TmPageContainer>;
   }
 
   return (
     <TmPageContainer
-      title="租户管理"
-      subTitle="管理企业开通、状态、联系人与平台审计。"
+      title={tr("租户管理")}
+      subTitle={tr("管理企业开通、状态、联系人与平台审计。")}
       extra={[
-        <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>创建企业</Button>,
+        <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>{tr("创建企业")}</Button>,
       ]}
     >
       <Alert
         type="info"
         showIcon
-        message="平台控制台与企业工作台权限独立"
-        description="平台管理员可管理全部企业资料；只有当前账号具备有效企业成员资格时才能进入业务工作台。创建企业可指定企业管理员，切换企业将核验授权并记录审计。"
+        message={tr("平台控制台与企业工作台权限独立")}
+        description={tr("平台管理员可管理全部企业资料；只有当前账号具备有效企业成员资格时才能进入业务工作台。创建企业可指定企业管理员，切换企业将核验授权并记录审计。")}
         style={{ marginBottom: 16 }}
       />
       <SectionCard
-        title="企业列表"
-        description="平台管理员可查看跨企业的管理元数据；业务数据仍需通过显式企业上下文访问。"
-        headerExtra={<Button type="text" icon={<ReloadOutlined />} aria-label="刷新" onClick={() => { void load(); void loadAuthorized(); }} loading={loading || accessLoading}>刷新</Button>}
+        title={tr("企业列表")}
+        description={tr("平台管理员可查看跨企业的管理元数据；业务数据仍需通过显式企业上下文访问。")}
+        headerExtra={<Button type="text" icon={<ReloadOutlined />} aria-label={tr("刷新")} onClick={() => { void load(); void loadAuthorized(); }} loading={loading || accessLoading}>{tr("刷新")}</Button>}
       >
         <Space wrap size={[8, 8]} style={{ marginBottom: 16 }}>
           <Input.Search
             allowClear
             value={keyword}
-            placeholder="搜索企业名称、标识"
-            aria-label="搜索企业名称或标识"
+            placeholder={tr("搜索企业名称、标识")}
+            aria-label={tr("搜索企业名称或标识")}
             onChange={(event) => { setKeyword(event.target.value); setPage(1); }}
             onSearch={() => setPage(1)}
             style={{ width: 280 }}
@@ -392,16 +395,16 @@ export default function PlatformTenantsPage() {
           <Select
             allowClear
             value={status}
-            placeholder="按状态筛选"
-            aria-label="按企业状态筛选"
-            options={STATUS_OPTIONS}
+            placeholder={tr("按状态筛选")}
+            aria-label={tr("按企业状态筛选")}
+            options={STATUS_OPTIONS.map(option => ({ ...option, label: tr(option.label) }))}
             onChange={(value: TenantStatus | undefined) => { setStatus(value); setPage(1); }}
             style={{ width: 160 }}
           />
         </Space>
-        {error ? <ErrorAlert title="租户列表加载失败" actionHint={error} action={<Button type="link" onClick={() => void load()}>重试</Button>} style={{ marginBottom: 16 }} /> : null}
+        {error ? <ErrorAlert title={tr("租户列表加载失败")} actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} style={{ marginBottom: 16 }} /> : null}
         {!loading && !error && rows.length === 0 ? (
-          <EmptyState title="暂无企业" description="创建第一家企业后，企业会显示在这里。" actionLabel="创建企业" onAction={openCreate} />
+          <EmptyState title={tr("暂无企业")} description={tr("创建第一家企业后，企业会显示在这里。")} actionLabel={tr("创建企业")} onAction={openCreate} />
         ) : (
           <Table<Tenant>
             rowKey="id"
@@ -417,7 +420,7 @@ export default function PlatformTenantsPage() {
           pageSize={pageSize}
           total={total}
           showSizeChanger
-          showTotal={(value) => `共 ${value} 家企业`}
+          showTotal={(value) => trFormat('共 {count} 家企业', { count: value })}
           onChange={(nextPage, nextPageSize) => { setPage(nextPage); if (nextPageSize !== pageSize) setPageSize(nextPageSize); }}
           style={{ marginTop: 16, textAlign: 'right' }}
         />
@@ -425,8 +428,8 @@ export default function PlatformTenantsPage() {
 
       <Modal
         open={Boolean(deleteTarget)}
-        title={deleteTarget ? `删除企业：${deleteTarget.name}` : '删除企业'}
-        okText="确认删除"
+        title={deleteTarget ? trFormat('删除企业：{name}', { name: deleteTarget.name }) : tr('删除企业')}
+        okText={tr("确认删除")}
         okButtonProps={{ danger: true, disabled: !deleteTarget || deleteCode !== deleteTarget.code || deleting }}
         confirmLoading={deleting}
         onCancel={() => { if (!deleting) { setDeleteTarget(null); setDeleteCode(''); } }}
@@ -436,13 +439,13 @@ export default function PlatformTenantsPage() {
         <Alert
           type="warning"
           showIcon
-          message="删除后将从默认企业列表移除"
-          description="删除会停用企业，撤销其会话及待处理邀请。订单、店铺、文件和审计记录不会物理删除；无法在普通后台恢复，原企业标识仍会保留。"
+          message={tr("删除后将从默认企业列表移除")}
+          description={tr("删除会停用企业，撤销其会话及待处理邀请。订单、店铺、文件和审计记录不会物理删除；无法在普通后台恢复，原企业标识仍会保留。")}
           style={{ marginBottom: 16 }}
         />
-        <p>请输入企业标识 <strong>{deleteTarget?.code}</strong> 确认：</p>
+        <p>{tr('请输入企业标识以确认删除。')} <strong>{deleteTarget?.code}</strong></p>
         <Input
-          aria-label="输入企业标识确认删除"
+          aria-label={tr("输入企业标识确认删除")}
           value={deleteCode}
           onChange={(e) => setDeleteCode(e.target.value)}
           autoComplete="off"
@@ -451,12 +454,12 @@ export default function PlatformTenantsPage() {
       </Modal>
       <Modal
         open={modalOpen}
-        title={editing ? `编辑企业：${editing.name}` : '创建企业'}
+        title={editing ? trFormat('编辑企业：{name}', { name: editing.name }) : tr('创建企业')}
         width={640}
         destroyOnHidden
         confirmLoading={submitting}
-        okText={editing ? '保存' : '创建企业'}
-        cancelText="取消"
+        okText={editing ? tr('保存') : tr('创建企业')}
+        cancelText={tr("取消")}
         onCancel={() => {
           if (!submitting) {
             createRequestRef.current = null;
@@ -482,38 +485,38 @@ export default function PlatformTenantsPage() {
           } : undefined}
         >
           {!editing ? (
-            <Form.Item name="code" label="企业标识" rules={[
-              { required: true, message: '请输入企业标识' },
-              { pattern: /^[a-z][a-z0-9-]{2,47}$/, message: '使用 3-48 位小写字母、数字和连字符，并以小写字母开头' },
+            <Form.Item name="code" label={tr("企业标识")} rules={[
+              { required: true, message: tr('请输入企业标识') },
+              { pattern: /^[a-z][a-z0-9-]{2,47}$/, message: tr('使用 3-48 位小写字母、数字和连字符，并以小写字母开头') },
             ]}>
-              <Input placeholder="例如 acme-cn" maxLength={64} />
+              <Input placeholder={tr("例如 acme-cn")} maxLength={64} />
             </Form.Item>
           ) : null}
-          <Form.Item name="name" label="企业名称" rules={[
-            { required: true, whitespace: true, message: '企业名称不能为空或仅包含空格' },
-            { max: 120, message: '企业名称不能超过 120 个字符' },
+          <Form.Item name="name" label={tr("企业名称")} rules={[
+            { required: true, whitespace: true, message: tr('企业名称不能为空或仅包含空格') },
+            { max: 120, message: tr('企业名称不能超过 120 个字符') },
           ]}>
-            <Input placeholder="请输入企业名称" maxLength={120} />
+            <Input placeholder={tr("请输入企业名称")} maxLength={120} />
           </Form.Item>
-          <Form.Item name="legalName" label="法定主体名称"><Input maxLength={160} /></Form.Item>
-          <Form.Item name="description" label="企业说明"><Input.TextArea rows={3} maxLength={500} showCount /></Form.Item>
+          <Form.Item name="legalName" label={tr("法定主体名称")}><Input maxLength={160} /></Form.Item>
+          <Form.Item name="description" label={tr("企业说明")}><Input.TextArea rows={3} maxLength={500} showCount /></Form.Item>
           <Space wrap style={{ width: '100%' }}>
-            <Form.Item name="contactEmail" label="联系邮箱" rules={[{ type: 'email', message: '请输入有效邮箱' }]} style={{ minWidth: 260 }}><Input /></Form.Item>
-            <Form.Item name="contactPhone" label="联系电话" style={{ minWidth: 220 }}><Input /></Form.Item>
+            <Form.Item name="contactEmail" label={tr("联系邮箱")} rules={[{ type: 'email', message: tr('请输入有效邮箱') }]} style={{ minWidth: 260 }}><Input /></Form.Item>
+            <Form.Item name="contactPhone" label={tr("联系电话")} style={{ minWidth: 220 }}><Input /></Form.Item>
           </Space>
           {!editing ? (
             <>
-              <Form.Item name="ownerEmail" label="企业管理员邮箱" rules={[{ required: true, message: '请输入企业管理员邮箱' }, { type: 'email', message: '请输入有效邮箱' }]}><Input /></Form.Item>
-              <Form.Item name="ownerDisplayName" label="管理员显示名"><Input maxLength={80} /></Form.Item>
+              <Form.Item name="ownerEmail" label={tr("企业管理员邮箱")} rules={[{ required: true, message: tr('请输入企业管理员邮箱') }, { type: 'email', message: tr('请输入有效邮箱') }]}><Input /></Form.Item>
+              <Form.Item name="ownerDisplayName" label={tr("管理员显示名")}><Input maxLength={80} /></Form.Item>
               <Form.Item
                 name="ownerPassword"
-                label="初始密码"
-                extra={`首次创建管理员账号必须填写：${PASSWORD_HINT}。如果邮箱已注册，留空将保留原密码。`}
+                label={tr("初始密码")}
+                extra={trFormat('首次创建管理员账号必须填写：{policy} 如果邮箱已注册，留空将保留原密码。', { policy: tr(PASSWORD_HINT) })}
                 rules={[{
                   validator: async (_, value: string | undefined) => {
                     if (!value) return;
                     const error = passwordError(value);
-                    if (error) throw new Error(error);
+                    if (error) throw new Error(tr(error));
                   },
                 }]}
               >

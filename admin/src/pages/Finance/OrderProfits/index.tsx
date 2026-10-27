@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import {
   DownloadOutlined,
@@ -142,6 +143,7 @@ function sourceLabel(source: string) {
 }
 
 export default function OrderProfitsPage() {
+  useLanguage();
   const { can } = usePermission();
   const canExport = can(PERMISSIONS.ORDER_PROFIT_EXPORT);
   const actionRef = useRef<ActionType>();

@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+
 // Keep utility types structural to avoid a forbidden utils -> services dependency.
 type TenantWorkspaceCandidate = { id: number; status: string };
 
@@ -30,6 +32,7 @@ export function visibleWorkspaceOptions<T extends { id: number }>(
   return isRoot ? items.filter((item) => item.id !== 0) : [...items];
 }
 
-export function workspaceDisplayName(workspace: { code: string; name: string }): string {
-  return workspace.code === 'root-workspace' ? 'Root 工作台' : workspace.name;
+export function workspaceDisplayName(workspace: { code: string; name: string; id?: number }): string {
+  if (workspace.id === 0) return tr('系统控制台');
+  return workspace.code === 'root-workspace' ? tr('Root 工作台') : workspace.name;
 }

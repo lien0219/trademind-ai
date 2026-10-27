@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import { Link } from '@umijs/renderer-react';
 import {
@@ -83,6 +84,7 @@ import {
 } from './viewHelpers';
 
 export default function ShopsPage() {
+  useLanguage();
   const { user, can } = usePermission();
   const canCreateShop = canAdministerShops(user);
   const canEditShop = can(PERMISSIONS.STORE_OPERATE);
