@@ -8,6 +8,7 @@ import { platformTenantTranslations } from './platformTenantTranslations';
 import { commonControlTranslations } from './commonControlTranslations';
 import { workspaceTranslations } from './workspaceTranslations';
 import { aiTaskTranslations } from './aiTaskTranslations';
+import { aiPromptTranslations } from './aiPromptTranslations';
 
 // Locale resources use stable Chinese source keys while feature modules migrate
 // to namespaced message IDs. Missing keys fall back to zh-CN and are tracked.
@@ -1394,7 +1395,7 @@ export const tenantBusinessTranslations: Record<string,[string,string,string,str
     "รูปแบบวันที่ที่ต้องการ"
   ]
 };
-for (const [source, translated] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations, ...tenantPreferenceTranslations, ...platformTenantTranslations, ...commonControlTranslations, ...workspaceTranslations, ...aiTaskTranslations})) {
+for (const [source, translated] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations, ...tenantPreferenceTranslations, ...platformTenantTranslations, ...commonControlTranslations, ...workspaceTranslations, ...aiTaskTranslations, ...aiPromptTranslations})) {
   (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
     dictionaries[language][source] = translated[index];
   });
