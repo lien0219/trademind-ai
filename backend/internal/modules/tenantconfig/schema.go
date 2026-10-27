@@ -107,7 +107,7 @@ func Validate(module string, raw []byte) ([]byte, error) {
 		if err := decodeStrict(raw, &cfg); err != nil {
 			return nil, err
 		}
-		if !oneOf(cfg.DefaultLanguage, "zh-CN", "en-US", "ja-JP") {
+		if !oneOf(cfg.DefaultLanguage, "zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH") {
 			return nil, errors.New("unsupported AI language")
 		}
 		v = cfg
