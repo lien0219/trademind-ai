@@ -66,6 +66,7 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { parsePositiveInt } from '@/utils/urlState';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import './index.less';
 
 const { RangePicker } = DatePicker;
@@ -119,6 +120,9 @@ export default function SettlementReconciliationPage() {
   const canExport = can(PERMISSIONS.SETTLEMENT_EXPORT);
   const actionRef = useRef<ActionType>();
   const initializedRef = useRef(false);
+  const filterReadGuard = useMemo(createTenantReadGuard, []);
+  const detailReadGuard = useMemo(createTenantReadGuard, []);
+  const listReadGuard = useMemo(createTenantReadGuard, []);
   const previewRequestRef = useRef(0);
   const submittingRef = useRef(false);
   const { state: urlState, setState: setUrlState, clearState } = useUrlQueryState<
@@ -156,19 +160,22 @@ export default function SettlementReconciliationPage() {
   useEffect(() => setOrderNoInput(urlState.orderNo || ''), [urlState.orderNo]);
   useEffect(() => {
     let active = true;
+    const isCurrent = filterReadGuard.begin();
+    setShops([]);
     void queryShops({ page: 1, pageSize: 100 })
       .then((result) => {
-        if (!active) return;
+        if (!active || !isCurrent()) return;
         setShops(result.list || []);
         setFilterSourceError('');
       })
       .catch((error) => {
-        if (active) setFilterSourceError((error as Error)?.message || tr('店铺筛选项加载失败'));
+        if (active && isCurrent()) setFilterSourceError((error as Error)?.message || tr('店铺筛选项加载失败'));
       });
     return () => {
       active = false;
+      filterReadGuard.invalidate();
     };
-  }, []);
+  }, [filterReadGuard]);
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -178,18 +185,25 @@ export default function SettlementReconciliationPage() {
     void actionRef.current?.reload();
   }, [urlState.currency, urlState.end, urlState.orderNo, urlState.platform, urlState.shopId, urlState.start, urlState.status]);
 
+  useEffect(() => () => listReadGuard.invalidate(), [listReadGuard]);
+
   const loadDetail = useCallback(async (id: string) => {
+    const isCurrent = detailReadGuard.begin();
+    setDetail(undefined);
     setDetailLoading(true);
     setDetailError('');
     try {
-      setDetail(await getSettlementReconciliation(id));
+      const result = await getSettlementReconciliation(id);
+      if (isCurrent()) setDetail(result);
     } catch (error) {
-      setDetail(undefined);
-      setDetailError((error as Error)?.message || tr('结算对账详情加载失败'));
+      if (isCurrent()) {
+        setDetail(undefined);
+        setDetailError((error as Error)?.message || tr('结算对账详情加载失败'));
+      }
     } finally {
-      setDetailLoading(false);
+      if (isCurrent()) setDetailLoading(false);
     }
-  }, []);
+  }, [detailReadGuard]);
 
   useEffect(() => {
     if (drawer.id) void loadDetail(drawer.id);
@@ -197,7 +211,8 @@ export default function SettlementReconciliationPage() {
       setDetail(undefined);
       setDetailError('');
     }
-  }, [drawer.id, loadDetail]);
+    return () => { detailReadGuard.invalidate(); };
+  }, [drawer.id, loadDetail, detailReadGuard]);
 
   const invalidatePreview = useCallback(() => {
     previewRequestRef.current += 1;
@@ -387,12 +402,14 @@ export default function SettlementReconciliationPage() {
             onChange: (nextPage, nextPageSize) => setUrlState({ page: nextPage > 1 ? String(nextPage) : undefined, pageSize: nextPageSize !== 20 ? String(nextPageSize) : undefined }, { replace: true }),
           }}
           request={async (params) => {
+            const isCurrent = listReadGuard.begin();
             try {
               const result = await querySettlementReconciliation(queryParams(params.current, params.pageSize));
+              if (!isCurrent()) return { data: [], success: false, total: 0 };
               setListError('');
               return { data: result.list || [], success: true, total: result.total };
             } catch (error) {
-              setListError((error as Error)?.message || tr('结算对账列表加载失败'));
+              if (isCurrent()) setListError((error as Error)?.message || tr('结算对账列表加载失败'));
               return { data: [], success: false, total: 0 };
             }
           }}

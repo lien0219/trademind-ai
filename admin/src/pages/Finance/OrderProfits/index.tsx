@@ -48,6 +48,7 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { parsePositiveInt } from '@/utils/urlState';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import './index.less';
 
 const { RangePicker } = DatePicker;
@@ -148,6 +149,9 @@ export default function OrderProfitsPage() {
   const canExport = can(PERMISSIONS.ORDER_PROFIT_EXPORT);
   const actionRef = useRef<ActionType>();
   const initializedRef = useRef(false);
+  const filterReadGuard = useMemo(createTenantReadGuard, []);
+  const detailReadGuard = useMemo(createTenantReadGuard, []);
+  const listReadGuard = useMemo(createTenantReadGuard, []);
   const { state: urlState, setState: setUrlState, clearState } = useUrlQueryState<
     Record<(typeof QUERY_KEYS)[number], string | undefined>
   >(QUERY_KEYS);
@@ -182,20 +186,24 @@ export default function OrderProfitsPage() {
 
   useEffect(() => {
     let active = true;
+    const isCurrent = filterReadGuard.begin();
+    setShops([]);
+    setWarehouses([]);
     void Promise.all([queryShops({ page: 1, pageSize: 100 }), listInventoryWarehouses()])
       .then(([shopResult, warehouseResult]) => {
-        if (!active) return;
+        if (!active || !isCurrent()) return;
         setShops(shopResult.list || []);
         setWarehouses(warehouseResult.list || []);
         setFilterSourceError('');
       })
       .catch((error) => {
-        if (active) setFilterSourceError((error as Error)?.message || tr('店铺或仓库筛选项加载失败'));
+        if (active && isCurrent()) setFilterSourceError((error as Error)?.message || tr('店铺或仓库筛选项加载失败'));
       });
     return () => {
       active = false;
+      filterReadGuard.invalidate();
     };
-  }, []);
+  }, [filterReadGuard]);
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -214,18 +222,25 @@ export default function OrderProfitsPage() {
     urlState.warehouseId,
   ]);
 
+  useEffect(() => () => listReadGuard.invalidate(), [listReadGuard]);
+
   const loadDetail = useCallback(async (orderId: string) => {
+    const isCurrent = detailReadGuard.begin();
+    setDetail(undefined);
     setDetailLoading(true);
     setDetailError('');
     try {
-      setDetail(await getOrderProfit(orderId));
+      const result = await getOrderProfit(orderId);
+      if (isCurrent()) setDetail(result);
     } catch (error) {
-      setDetail(undefined);
-      setDetailError((error as Error)?.message || tr('预估利润详情加载失败'));
+      if (isCurrent()) {
+        setDetail(undefined);
+        setDetailError((error as Error)?.message || tr('预估利润详情加载失败'));
+      }
     } finally {
-      setDetailLoading(false);
+      if (isCurrent()) setDetailLoading(false);
     }
-  }, []);
+  }, [detailReadGuard]);
 
   useEffect(() => {
     if (drawer.id) {
@@ -234,7 +249,8 @@ export default function OrderProfitsPage() {
       setDetail(undefined);
       setDetailError('');
     }
-  }, [drawer.id, loadDetail]);
+    return () => { detailReadGuard.invalidate(); };
+  }, [drawer.id, loadDetail, detailReadGuard]);
 
   const updateFilter = useCallback(
     (key: 'platform' | 'shopId' | 'warehouseId' | 'currency' | 'status', value?: string) => {
@@ -553,12 +569,14 @@ export default function OrderProfitsPage() {
               ),
           }}
           request={async (params) => {
+            const isCurrent = listReadGuard.begin();
             try {
               const result = await queryOrderProfits(queryParams(params.current, params.pageSize));
+              if (!isCurrent()) return { data: [], success: false, total: 0 };
               setListError('');
               return { data: result.list || [], success: true, total: result.total || 0 };
             } catch (error) {
-              setListError((error as Error)?.message || tr('预估利润列表加载失败'));
+              if (isCurrent()) setListError((error as Error)?.message || tr('预估利润列表加载失败'));
               return { data: [], success: false, total: 0 };
             }
           }}

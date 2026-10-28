@@ -68,6 +68,7 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { parsePositiveInt } from '@/utils/urlState';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import './index.less';
 
 const QUERY_KEYS = ['page', 'pageSize', 'orderNo', 'shopId', 'currency', 'settlementCoverage', 'drawer', 'id'] as const;
@@ -106,6 +107,9 @@ export default function AdvertisingFeesPage() {
   const canManage = can(PERMISSIONS.ADVERTISING_FEE_MANAGE);
   const actionRef = useRef<ActionType>();
   const initializedRef = useRef(false);
+  const filterReadGuard = useMemo(createTenantReadGuard, []);
+  const detailReadGuard = useMemo(createTenantReadGuard, []);
+  const listReadGuard = useMemo(createTenantReadGuard, []);
   const previewRequestRef = useRef(0);
   const submittingRef = useRef(false);
   const adjustmentSubmittingRef = useRef(false);
@@ -143,17 +147,19 @@ export default function AdvertisingFeesPage() {
   useEffect(() => setOrderNoInput(urlState.orderNo || ''), [urlState.orderNo]);
   useEffect(() => {
     let active = true;
+    const isCurrent = filterReadGuard.begin();
+    setShops([]);
     void queryShops({ page: 1, pageSize: 100 })
       .then((result) => {
-        if (!active) return;
+        if (!active || !isCurrent()) return;
         setShops(result.list || []);
         setShopError('');
       })
       .catch((error) => {
-        if (active) setShopError((error as Error)?.message || tr('店铺筛选项加载失败'));
+        if (active && isCurrent()) setShopError((error as Error)?.message || tr('店铺筛选项加载失败'));
       });
-    return () => { active = false; };
-  }, []);
+    return () => { active = false; filterReadGuard.invalidate(); };
+  }, [filterReadGuard]);
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -163,18 +169,25 @@ export default function AdvertisingFeesPage() {
     void actionRef.current?.reload();
   }, [urlState.currency, urlState.orderNo, urlState.settlementCoverage, urlState.shopId]);
 
+  useEffect(() => () => listReadGuard.invalidate(), [listReadGuard]);
+
   const loadDetail = useCallback(async (id: string) => {
+    const isCurrent = detailReadGuard.begin();
+    setDetail(undefined);
     setDetailLoading(true);
     setDetailError('');
     try {
-      setDetail(await getAdvertisingFee(id));
+      const result = await getAdvertisingFee(id);
+      if (isCurrent()) setDetail(result);
     } catch (error) {
-      setDetail(undefined);
-      setDetailError((error as Error)?.message || tr('广告费用详情加载失败'));
+      if (isCurrent()) {
+        setDetail(undefined);
+        setDetailError((error as Error)?.message || tr('广告费用详情加载失败'));
+      }
     } finally {
-      setDetailLoading(false);
+      if (isCurrent()) setDetailLoading(false);
     }
-  }, []);
+  }, [detailReadGuard]);
 
   useEffect(() => {
     if (drawer.id) void loadDetail(drawer.id);
@@ -182,7 +195,8 @@ export default function AdvertisingFeesPage() {
       setDetail(undefined);
       setDetailError('');
     }
-  }, [drawer.id, loadDetail]);
+    return () => { detailReadGuard.invalidate(); };
+  }, [drawer.id, loadDetail, detailReadGuard]);
 
   const invalidatePreview = useCallback(() => {
     previewRequestRef.current += 1;
@@ -384,12 +398,14 @@ export default function AdvertisingFeesPage() {
             onChange: (nextPage, nextPageSize) => setUrlState({ page: nextPage > 1 ? String(nextPage) : undefined, pageSize: nextPageSize !== 20 ? String(nextPageSize) : undefined }, { replace: true }),
           }}
           request={async (params) => {
+            const isCurrent = listReadGuard.begin();
             try {
               const result = await queryAdvertisingFees(queryParams(params.current, params.pageSize));
+              if (!isCurrent()) return { data: [], success: false, total: 0 };
               setListError('');
               return { data: result.list || [], success: true, total: result.total };
             } catch (error) {
-              setListError((error as Error)?.message || tr('广告费用归属列表加载失败'));
+              if (isCurrent()) setListError((error as Error)?.message || tr('广告费用归属列表加载失败'));
               return { data: [], success: false, total: 0 };
             }
           }}
